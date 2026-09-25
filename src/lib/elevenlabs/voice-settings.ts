@@ -1,9 +1,10 @@
 // D284 — every timing-safe ElevenLabs speech-to-speech setting. Speed is deliberately absent:
 // it changes timing and would break lip sync.
 import { z } from "zod";
+import { VOICE_CHANGE_MODEL_ID } from "./constants";
 
 export const VOICE_CHANGE_MODELS = [
-  { value: "eleven_multilingual_sts_v2", label: "Multilingual" },
+  { value: VOICE_CHANGE_MODEL_ID, label: "Multilingual" },
   { value: "eleven_english_sts_v2", label: "English" },
 ] as const;
 
@@ -15,7 +16,7 @@ export const VoiceChangeSettingsSchema = z.object({
   style: percent,
   speakerBoost: z.boolean(),
   removeBackgroundNoise: z.boolean(),
-  modelId: z.enum(["eleven_multilingual_sts_v2", "eleven_english_sts_v2"]),
+  modelId: z.enum([VOICE_CHANGE_MODEL_ID, "eleven_english_sts_v2"]),
   seed: z.number().int().min(0).max(4294967295).optional(),
 });
 
@@ -28,7 +29,7 @@ export const DEFAULT_VOICE_CHANGE_SETTINGS: VoiceChangeSettings = {
   style: 0,
   speakerBoost: true,
   removeBackgroundNoise: false,
-  modelId: "eleven_multilingual_sts_v2",
+  modelId: VOICE_CHANGE_MODEL_ID,
 };
 
 export function elevenLabsVoiceSettings(s: VoiceChangeSettings) {

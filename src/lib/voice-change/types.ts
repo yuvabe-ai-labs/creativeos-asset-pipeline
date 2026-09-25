@@ -1,5 +1,6 @@
-// D282 — shapes passed between the route, the video-generate task, the video-revoice task and
-// completeGeneration.
+// D282 — shapes passed between the route, the video-generate task, the video-voice-change task
+// and completeGeneration.
+import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 /** Recorded on the webhook `meta` and on the version's `params_used.voice`. */
 export type VoiceMeta = {
@@ -12,4 +13,9 @@ export type VoiceMeta = {
   priceMultiplier: number;
 };
 
-export type RevoicePayload = { sourceUrl: string; voiceId: string; revoicedPutUrl: string };
+export type RevoicePayload = {
+  sourceUrl: string;
+  voiceId: string;
+  revoicedPutUrl: string;
+  settings: VoiceChangeSettings;
+};

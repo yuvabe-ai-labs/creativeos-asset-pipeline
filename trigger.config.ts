@@ -39,7 +39,7 @@ export default defineConfig({
     // since the Seedance provider re-encodes out-of-range images before sending them
     // (src/lib/video-gen/providers/seedance-images.ts).
     external: ["sharp"],
-    // D282 — the video-revoice task extracts and replaces audio with ffmpeg. The extension
+    // D282 — the video-voice-change task extracts and replaces audio with ffmpeg. The extension
     // installs the binary into the deploy image and sets FFMPEG_PATH.
     extensions: [ffmpeg()],
   },

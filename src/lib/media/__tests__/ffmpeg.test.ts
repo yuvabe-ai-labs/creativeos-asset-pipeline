@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { extractAudio, replaceAudio } from "../ffmpeg";
+import { extractAudio, replaceAudio, probeDurationSeconds } from "../ffmpeg";
 
 const bin = process.env.FFMPEG_PATH ?? "ffmpeg";
 const hasFfmpeg = spawnSync(bin, ["-version"]).status === 0;
@@ -54,8 +54,9 @@ function makeTone(durationSeconds: number): Buffer {
   return bytes;
 }
 
-/** ffprobe's own read of a buffer's container duration, in seconds. */
-function probeDurationSeconds(buf: Buffer): number {
+/** ffprobe's own read of a buffer's container duration, in seconds — a second, independent
+ * measurement to check `probeDurationSeconds` (the ffmpeg-stderr-based one under test) against. */
+function ffprobeDurationSeconds(buf: Buffer): number {
   const dir = mkdtempSync(path.join(tmpdir(), "ffprobe-fixture-"));
   const file = path.join(dir, "probe.mp4");
   writeFileSync(file, buf);
@@ -93,11 +94,17 @@ describe.skipIf(!hasFfmpeg)("ffmpeg helpers (needs ffmpeg on PATH)", () => {
       const video = makeVideoOnly(2);
       const shortTone = makeTone(1);
       const out = await replaceAudio(video, shortTone);
-      const duration = probeDurationSeconds(out);
+      const duration = ffprobeDurationSeconds(out);
       // Without `-af apad`, `-shortest` would cut this to ~1s (the tone's length). The video
       // stream is stream-copied and untouched, so the output should still read as ~2s.
       expect(duration).toBeGreaterThan(1.8);
       expect(duration).toBeLessThan(2.3);
     },
   );
+
+  it("measures media duration", async () => {
+    const audio = await extractAudio(makeClip(true));
+    expect(await probeDurationSeconds(audio, "mp3")).toBeGreaterThan(1.8);
+    expect(await probeDurationSeconds(audio, "mp3")).toBeLessThan(2.3);
+  });
 });

@@ -109,7 +109,7 @@ export async function uploadVideoGen(args: {
 }
 
 // A generation can run up to 10 minutes (video-generate's maxDuration: 600) before the task
-// uploads, plus the voice-change step's own retries (video-revoice: maxDuration 120 x
+// uploads, plus the voice-change step's own retries (video-voice-change: maxDuration 120 x
 // retry.maxAttempts 2); 5 minutes (the default) is far too short. Two hours covers that with
 // margin to spare.
 // D284 — signVideoGenVoiceUrls itself was removed with generate-time voice; this constant is
