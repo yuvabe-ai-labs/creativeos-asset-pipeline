@@ -29,16 +29,19 @@
 ### Task 1: Remove generate-time voice (back to plain Generate)
 
 **Files:**
+
 - Modify: `src/app/api/nodes/[id]/video-generate/route.ts` (+ `route.test.ts`), `trigger/video-generate.ts`, `src/lib/generations/complete.ts` (+ `complete.test.ts`), `src/lib/voice-change/types.ts`, `src/lib/storage/index.ts` (+ `video-gen-voice-urls.test.ts`), `src/components/nodes/video-gen-focus-view.tsx`, `src/components/nodes/video-gen-node.tsx`, `src/lib/canvas-nodes.ts`, `src/lib/video-gen/api.ts`
 - Delete: `src/lib/voice-change/deliver.ts` + `__tests__/deliver.test.ts`, `src/components/nodes/video-gen-voice-picker.tsx` + `__tests__/video-gen-voice-picker.test.tsx`, `src/hooks/use-selected-voice.ts`
 
 **Interfaces:**
+
 - Produces: `video-generate` body without `voiceId`; trigger payload without `voice`; `completeGeneration` with no `meta.voice` settlement; `VoicePayload` and `RevoiceResult` removed from `types.ts` (`VoiceMeta`, `RevoicePayload` stay); `signVideoGenVoiceUrls` removed from storage (Task 4 adds `signRevoicedVideoUrl`); focus view with no voice picker, no `voiceId` sent, estimate video-only; `VideoGenNodeData.voiceId` removed.
 - Kept for later tasks: `voice-catalog.ts`, `voices-cache.ts`, `voice-filters.ts`, `voice-labels.ts`, `api.ts` (`elevenLabsApi`), all `/api/elevenlabs/voices*` routes, `use-voice-browser.ts`, `video-gen-voice-picker-{filters,list,row,meta}.tsx`, `readVoiceMeta` (legacy display), `video-revoice.ts` (replaced in Task 3).
 
 - [ ] **Step 1: Update tests to describe the new behaviour (they fail first)**
 
 In `src/app/api/nodes/[id]/video-generate/route.test.ts`: delete the whole `describe("POST video-generate — voice change (D282)", …)` block and the `getVoiceCached`/`signVideoGenVoiceUrls` mocks and the `@/lib/elevenlabs/voices-cache` / `@/lib/storage` `vi.mock`s it used; keep the `simpleGraph` helper; add:
+
 ```ts
 describe("POST video-generate — no voice at generate time (D284)", () => {
   it("ignores a voiceId in the body and never sends a voice to the task", async () => {
@@ -49,7 +52,9 @@ describe("POST video-generate — no voice at generate time (D284)", () => {
   });
 });
 ```
+
 In `src/lib/generations/complete.test.ts`: delete the three `stored: true` voice tests that expect `meta.voice` settlement and the custom-rate settlement test; keep the non-stored regression test and the bucket-guard test; add:
+
 ```ts
 it("ignores a legacy meta.voice on a video generation — video cost only, no voice in params", async () => {
   await completeGeneration({
@@ -62,6 +67,7 @@ it("ignores a legacy meta.voice on a video generation — video cost only, no vo
   );
 });
 ```
+
 In `src/lib/storage/video-gen-voice-urls.test.ts`: delete the `signVideoGenVoiceUrls` describe (keep `pathForVideoGenVoice` and `isOwnStoredUrl`).
 
 - [ ] **Step 2: Run to see failures**
@@ -104,10 +110,12 @@ git commit -m "refactor(voice): Generate is plain video again; drop generate-tim
 ### Task 2: Voice change settings + ElevenLabs request fields
 
 **Files:**
+
 - Create: `src/lib/elevenlabs/voice-settings.ts`, `src/lib/elevenlabs/__tests__/voice-settings.test.ts`
 - Modify: `src/lib/elevenlabs/client.ts` (`speechToSpeech`), `src/lib/elevenlabs/__tests__/client.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `VOICE_CHANGE_MODELS: readonly [{ value: "eleven_multilingual_sts_v2"; label: "Multilingual" }, { value: "eleven_english_sts_v2"; label: "English" }]`
   - `VoiceChangeSettingsSchema` (zod) and `type VoiceChangeSettings = { stability: number; similarity: number; style: number; speakerBoost: boolean; removeBackgroundNoise: boolean; modelId: "eleven_multilingual_sts_v2" | "eleven_english_sts_v2"; seed?: number }`
@@ -118,6 +126,7 @@ git commit -m "refactor(voice): Generate is plain video again; drop generate-tim
 - [ ] **Step 1: Write the failing tests**
 
 `src/lib/elevenlabs/__tests__/voice-settings.test.ts`:
+
 ```ts
 import { describe, it, expect } from "vitest";
 import {
@@ -151,6 +160,7 @@ describe("voice change settings", () => {
 ```
 
 In `client.test.ts`, add to the `speechToSpeech` describe:
+
 ```ts
 it("sends model, voice_settings, noise removal and seed when settings are given", async () => {
   process.env.ELEVEN_LABS_API_KEY = "k";
@@ -172,6 +182,7 @@ it("sends model, voice_settings, noise removal and seed when settings are given"
   );
 });
 ```
+
 (Keep the existing test that checks the default `model_id` with no settings.)
 
 - [ ] **Step 2: Run to see failures**
@@ -182,6 +193,7 @@ Expected: FAIL — `../voice-settings` missing; settings not sent.
 - [ ] **Step 3: Implement**
 
 `src/lib/elevenlabs/voice-settings.ts`:
+
 ```ts
 // D284 — every timing-safe ElevenLabs speech-to-speech setting. Speed is deliberately absent:
 // it changes timing and would break lip sync.
@@ -225,9 +237,11 @@ export function elevenLabsVoiceSettings(s: VoiceChangeSettings) {
   };
 }
 ```
+
 (zod `z.object` strips unknown keys like `speed` by default — that's what the test asserts.)
 
 `client.ts` `speechToSpeech`:
+
 ```ts
 export async function speechToSpeech(
   args: { audio: Buffer; voiceId: string; settings?: VoiceChangeSettings },
@@ -244,6 +258,7 @@ export async function speechToSpeech(
   …rest unchanged…
 }
 ```
+
 with `import { elevenLabsVoiceSettings, type VoiceChangeSettings } from "./voice-settings";`.
 
 - [ ] **Step 4: Verify**
@@ -263,11 +278,13 @@ git commit -m "feat(voice): voice change settings and ElevenLabs request fields 
 ### Task 3: Sync check + the `video-voice-change` task
 
 **Files:**
+
 - Modify: `src/lib/media/ffmpeg.ts` (+ `__tests__/ffmpeg.test.ts`), `src/lib/voice-change/revoice.ts` (+ `__tests__/revoice.test.ts`), `src/lib/voice-change/types.ts`, `trigger/video-generate.ts`
 - Create: `src/lib/generations/post-webhook.ts` (+ `post-webhook.test.ts`), `trigger/video-voice-change.ts`
 - Delete: `trigger/video-revoice.ts`
 
 **Interfaces:**
+
 - Consumes: `speechToSpeech(args with settings)`, `VoiceChangeSettings` (Task 2)
 - Produces:
   - `probeDurationSeconds(media: Buffer, ext: string): Promise<number>`
@@ -280,6 +297,7 @@ git commit -m "feat(voice): voice change settings and ElevenLabs request fields 
 - [ ] **Step 1: Failing tests**
 
 `ffmpeg.test.ts` (inside the existing `describe.skipIf(!hasFfmpeg)`):
+
 ```ts
 it("measures media duration", async () => {
   const audio = await extractAudio(makeClip(true));
@@ -287,9 +305,11 @@ it("measures media duration", async () => {
   expect(await probeDurationSeconds(audio, "mp3")).toBeLessThan(2.3);
 });
 ```
+
 (import `probeDurationSeconds`).
 
 `revoice.test.ts` — update `deps()` to add `probeDurationSeconds: vi.fn(async () => 8)`, add `settings: DEFAULT_VOICE_CHANGE_SETTINGS` to `PAYLOAD`, update the order test to expect `speechToSpeech` called with `{ audio, voiceId: "v1", settings: DEFAULT_VOICE_CHANGE_SETTINGS }` and the result `{ driftMs: 0 }`, and add:
+
 ```ts
 it("records the drift and fails non-retryably when the new voice is out of sync", async () => {
   const ok = deps({ probeDurationSeconds: vi.fn().mockResolvedValueOnce(8).mockResolvedValueOnce(8.1) });
@@ -304,6 +324,7 @@ it("records the drift and fails non-retryably when the new voice is out of sync"
 ```
 
 `src/lib/generations/post-webhook.test.ts`:
+
 ```ts
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { postGenerationWebhook, postGenerationWebhookSafely } from "./post-webhook";
@@ -337,6 +358,7 @@ Expected: FAIL.
 - [ ] **Step 3: Implement**
 
 `ffmpeg.ts` — add (reads the `Duration:` line ffmpeg prints for any input; no ffprobe dependency):
+
 ```ts
 /** Duration of an audio/video buffer in seconds, from ffmpeg's own input probe. */
 export async function probeDurationSeconds(media: Buffer, ext: string): Promise<number> {
@@ -360,6 +382,7 @@ export async function probeDurationSeconds(media: Buffer, ext: string): Promise<
 `types.ts`: `export type RevoicePayload = { sourceUrl: string; voiceId: string; revoicedPutUrl: string; settings: VoiceChangeSettings };` (import type from `@/lib/elevenlabs/voice-settings`).
 
 `revoice.ts`:
+
 ```ts
 export const MAX_SYNC_DRIFT_SECONDS = 0.25;
 export const SYNC_DRIFT_MESSAGE = "The new voice came back out of sync, so nothing was changed.";
@@ -373,7 +396,9 @@ export type RevoiceDeps = {
   putBytes: (url: string, body: Buffer, contentType: string) => Promise<void>;
 };
 ```
+
 In `revoiceVideo`: pass `settings: payload.settings` to `speechToSpeech`; after it:
+
 ```ts
   const [sourceSeconds, voicedSeconds] = [
     await deps.probeDurationSeconds(audio, "mp3"),
@@ -382,9 +407,11 @@ In `revoiceVideo`: pass `settings: payload.settings` to `speechToSpeech`; after 
   const drift = Math.abs(sourceSeconds - voicedSeconds);
   if (drift > MAX_SYNC_DRIFT_SECONDS) throw new NonRetryableRevoiceError(SYNC_DRIFT_MESSAGE);
 ```
+
 then replace + put as before, and `return { driftMs: Math.round(drift * 1000) };`. Update the doc comments ("video-voice-change task").
 
 `src/lib/generations/post-webhook.ts` — move `postWebhook`/`postWebhookSafely` out of `trigger/video-generate.ts` unchanged in behaviour:
+
 ```ts
 // The Trigger.dev tasks' callback into this app (D89: shared-secret auth). No `server-only`.
 function target() {
@@ -425,9 +452,11 @@ export async function postGenerationWebhookSafely(body: object, context: string)
   }
 }
 ```
+
 In `trigger/video-generate.ts` replace the inline `postWebhook`/`postWebhookSafely` with these imports (keep its `logger` calls around them; the long D-numbered comments move with the functions). Behaviour must be identical.
 
 `trigger/video-voice-change.ts` (delete `trigger/video-revoice.ts`):
+
 ```ts
 import { task, logger, AbortTaskRunError } from "@trigger.dev/sdk/v3";
 import { revoiceVideo, NonRetryableRevoiceError } from "@/lib/voice-change/revoice";
@@ -491,6 +520,7 @@ export const videoVoiceChangeTask = task({
   },
 });
 ```
+
 Before writing it, confirm in `node_modules/@trigger.dev/sdk` / `@trigger.dev/core` types that the run function's second argument exposes `ctx.attempt.number` in SDK 4.6.3; if the shape differs, adapt and note it. If "last attempt" can't be detected reliably, post the failure webhook on every failed attempt instead — `completeGeneration` is idempotent (a later success on a failed generation is ignored), so prefer: post failure only for non-retryable errors, and rely on the 15-minute sweep for exhausted retries; document whichever you choose.
 
 - [ ] **Step 4: Verify**
@@ -510,10 +540,12 @@ git commit -m "feat(voice): video-voice-change task with ElevenLabs settings and
 ### Task 4: `POST /api/nodes/[id]/voice-change` + completion as a new version
 
 **Files:**
+
 - Create: `src/lib/voice-change/record.ts`, `src/lib/voice-change/source.ts` (+ `__tests__/source.test.ts`), `src/app/api/nodes/[id]/voice-change/route.ts` (+ `route.test.ts`)
 - Modify: `src/lib/storage/index.ts` (+ test), `src/lib/db/types.ts:113`, `src/lib/voice-change/types.ts`, `src/lib/generations/complete.ts` (+ `complete.test.ts`)
 
 **Interfaces:**
+
 - Consumes: `VoiceChangeSettingsSchema`, `VoiceChangeSettings` (Task 2); `videoVoiceChangeTask` payload shape (Task 3); `getVoiceCached` (D283); `computeVoiceChangeCost`; `getVersionById`; `isOwnStoredUrl`; `insertGeneration`, `failGeneration`, `reserveCredits`, `refundReservation`, `CreditLimitError`
 - Produces:
   - `GenerationRow["type"]` gains `"voice"`
@@ -526,6 +558,7 @@ git commit -m "feat(voice): video-voice-change task with ElevenLabs settings and
 - [ ] **Step 1: Failing tests**
 
 `src/lib/voice-change/__tests__/source.test.ts`:
+
 ```ts
 import { describe, it, expect, vi } from "vitest";
 import { resolveVoiceChangeSource, readVoiceChange } from "../source";
@@ -576,6 +609,7 @@ describe("readVoiceChange", () => {
 ```
 
 `src/app/api/nodes/[id]/voice-change/route.test.ts` — follow `video-generate/route.test.ts`'s harness (hoisted mocks; `withNode` bypass calling `fn("n1", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1")`):
+
 ```ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
@@ -666,6 +700,7 @@ describe("POST /api/nodes/[id]/voice-change", () => {
 ```
 
 `complete.test.ts` — add (fixture: `mocks.generation` with `type: "voice"`, `model_used: "gemini:omni"` (use `GEMINI_OMNI_MODEL_ID`), `params_snapshot: { durationSeconds: 8 }`, `inputs_snapshot: { prompt: "p", voiceChange: { …record with priceMultiplier 2… } }`):
+
 ```ts
 describe("completeGeneration — voice change (D284)", () => {
   it("appends a new version with the root's model/params, the voice record + drift, and charges the voice only", async () => {
@@ -688,9 +723,11 @@ describe("completeGeneration — voice change (D284)", () => {
   });
 });
 ```
+
 with `const VC = { baseVersionId: "v3", rootVersionId: "v2", sourceUrl: ORIGINAL, voiceId: "a1", voiceName: "Anjali", priceMultiplier: 2, settings: DEFAULT_VOICE_CHANGE_SETTINGS };`.
 
 Storage test — add:
+
 ```ts
 describe("signRevoicedVideoUrl", () => {
   it("signs one 2-hour video/mp4 upload for the generation", async () => {
@@ -714,6 +751,7 @@ Expected: FAIL.
 `voice-change/types.ts` — add `VoiceChangeRecord` (as in Interfaces).
 
 `src/lib/voice-change/record.ts` (client-safe — no storage import; the UI in Tasks 5–6 reads it):
+
 ```ts
 import { VoiceChangeSettingsSchema } from "@/lib/elevenlabs/voice-settings";
 import type { VoiceChangeRecord } from "./types";
@@ -735,6 +773,7 @@ export function readVoiceChange(value: unknown): VoiceChangeRecord | null {
 ```
 
 `src/lib/voice-change/source.ts` (server-side — imports storage):
+
 ```ts
 import type { NodeVersionRow } from "@/lib/db/types";
 import { isOwnStoredUrl } from "@/lib/storage";
@@ -768,9 +807,11 @@ export async function resolveVoiceChangeSource(
   return { ok: true, base, root, sourceUrl: root.output, durationSeconds };
 }
 ```
+
 (If `@/lib/storage` imports `server-only`, that's fine here — `source.ts` is only used by the route.)
 
 `storage/index.ts`:
+
 ```ts
 // D284 — the task has no GCS credentials; the voice-change route signs the one upload up front.
 export async function signRevoicedVideoUrl(args: { nodeId: string; generationId: string }): Promise<{ putUrl: string; url: string }> {
@@ -781,6 +822,7 @@ export async function signRevoicedVideoUrl(args: { nodeId: string; generationId:
 ```
 
 `src/app/api/nodes/[id]/voice-change/route.ts`:
+
 ```ts
 import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
@@ -869,6 +911,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 ```
 
 `complete.ts` — after the stored-URL block, branch on the generation type:
+
 ```ts
   // D284 — a voice change appends a version: the root's model/params/inputs + the voice record.
   const voiceChange = generation.type === "voice" ? readVoiceChange(generation.inputs_snapshot?.voiceChange) : null;
@@ -878,8 +921,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   const driftMs = (input.meta?.voiceChange as { driftMs?: unknown } | undefined)?.driftMs;
 ```
+
 In `insertVersion`: `inputsUsed: voiceChange ? { ...(generation.inputs_snapshot ?? {}), voiceChange: { ...voiceChange, ...(typeof driftMs === "number" ? { driftMs } : {}) } } : generation.inputs_snapshot ?? {}`. Params stay `{ ...params_snapshot, durationSeconds }`, `modelUsed: generation.model_used` (the route stored the root's model).
-Cost: 
+Cost:
+
 ```ts
   const cost = voiceChange
     ? computeVoiceChangeCost(input.durationSeconds, voiceChange.priceMultiplier)
@@ -888,6 +933,7 @@ Cost:
       : null;
   const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
 ```
+
 and `costUsd: cost?.usd`. Import `readVoiceChange` from `@/lib/voice-change/source` and `computeVoiceChangeCost`.
 
 - [ ] **Step 4: Verify**
@@ -907,10 +953,12 @@ git commit -m "feat(voice): voice-change route and completion as a new version (
 ### Task 5: The Change voice workspace (UI)
 
 **Files:**
+
 - Create: `src/hooks/use-voice-choice.ts`, `src/hooks/use-change-voice.ts`, `src/lib/voice-change/workspace.ts` (+ `__tests__/workspace.test.ts`), `src/components/nodes/video-gen-change-voice.tsx`, `src/components/nodes/video-gen-change-voice-browser.tsx`, `src/components/nodes/video-gen-change-voice-settings.tsx`, `src/components/nodes/video-gen-change-voice-toggle.tsx`
 - Modify: `src/lib/canvas-nodes.ts` (`VideoGenNodeData.voiceChange`), `src/components/nodes/video-gen-node.tsx`, `src/components/nodes/video-gen-focus-view.tsx` (the right-column header ~1884 and body ~1888)
 
 **Interfaces:**
+
 - Consumes: `useVoiceBrowser` (D283, pass `open` = workspace open), `VideoGenVoicePickerFilters`/`VideoGenVoicePickerList`/`VideoGenVoicePickerMeta` (D283), `elevenLabsApi.saveVoice`, `DEFAULT_VOICE_CHANGE_SETTINGS`/`VOICE_CHANGE_MODELS`/`VoiceChangeSettings` (Task 2), `computeVoiceChangeCost`, `usdToFinalCredits`, `readVoiceChange` (Task 4), `VideoGenVersionSummary`
 - Produces:
   - `VideoGenNodeData.voiceChange?: { voiceId: string | null; settings: VoiceChangeSettings }`
@@ -920,6 +968,7 @@ git commit -m "feat(voice): voice-change route and completion as a new version (
 - [ ] **Step 1: Failing test for the pure helpers**
 
 `src/lib/voice-change/__tests__/workspace.test.ts`:
+
 ```ts
 import { describe, it, expect } from "vitest";
 import { sourceVersionOptions, defaultSourceVersionId, voiceChangeEstimateCredits, canApplyVoiceChange } from "../workspace";
@@ -972,6 +1021,7 @@ Run: `npx vitest run src/lib/voice-change/__tests__/workspace.test.ts` → FAIL 
 - [ ] **Step 3: Implement the helpers**
 
 `src/lib/voice-change/workspace.ts`:
+
 ```ts
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -1016,11 +1066,13 @@ export function canApplyVoiceChange(a: { sourceId: string | null; voice: boolean
   return { ok: true };
 }
 ```
+
 Note: the version labels use chronological position including failed versions (v3 = the failed "x" above), matching how History numbers rows — check `VersionHistoryList`'s numbering and match it exactly; adjust the test if History numbers only succeeded versions.
 
 - [ ] **Step 4: Implement the hooks**
 
 `src/hooks/use-voice-choice.ts` — the selected voice for the workspace, with D283's optimistic Library save moved here from the deleted picker:
+
 ```ts
 "use client";
 
@@ -1090,6 +1142,7 @@ export function useVoiceChoice(voiceId: string | null, onVoiceIdChange: (id: str
 ```
 
 `src/hooks/use-change-voice.ts`:
+
 ```ts
 "use client";
 
@@ -1121,6 +1174,7 @@ export function useChangeVoice(nodeId: string) {
 - [ ] **Step 5: Implement the components**
 
 `src/components/nodes/video-gen-change-voice-toggle.tsx`:
+
 ```tsx
 "use client";
 
@@ -1141,6 +1195,7 @@ export function VideoGenChangeVoiceToggle({ checked, disabled, onCheckedChange }
 ```
 
 `src/components/nodes/video-gen-change-voice-browser.tsx` — the D283 browser as a panel (no popover):
+
 ```tsx
 "use client";
 
@@ -1184,9 +1239,11 @@ export function VideoGenChangeVoiceBrowser({ selectedId, onSelect }: { selectedI
   );
 }
 ```
+
 Modify `video-gen-voice-picker-list.tsx` props: add `showOriginal?: boolean` (default `true`; when false, don't render the "Original (no change)" row) and `fill?: boolean` (when true the `ScrollArea` uses `className="min-h-0 flex-1"` instead of the fixed `h-[340px]`, and the list's outer wrapper is `flex min-h-0 flex-1 flex-col`). Keep the `contentClassName="w-full min-w-0!"` fix.
 
 `src/components/nodes/video-gen-change-voice-settings.tsx`:
+
 ```tsx
 "use client";
 
@@ -1251,7 +1308,7 @@ export function VideoGenChangeVoiceSettings(p: Props) {
         {p.sourceUrl && (
           <video src={p.sourceUrl} controls className="aspect-[9/16] max-h-40 w-fit rounded-lg border border-border bg-muted/20" />
         )}
-        <p className="text-xs text-muted-foreground">Always re-voiced from this take&apos;s original audio.</p>
+        <p className="text-xs text-muted-foreground">Always re-voiced from this take's original audio.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -1322,7 +1379,7 @@ export function VideoGenChangeVoiceSettings(p: Props) {
             }}
           />
         </div>
-        <p className="text-xs text-muted-foreground">Timing is kept, so lip sync holds. Speed isn&apos;t offered because it would break sync.</p>
+        <p className="text-xs text-muted-foreground">Timing is kept, so lip sync holds. Speed isn't offered because it would break sync.</p>
       </div>
 
       <Tooltip>
@@ -1339,9 +1396,11 @@ export function VideoGenChangeVoiceSettings(p: Props) {
   );
 }
 ```
+
 Before finishing, open `src/components/ui/slider.tsx`, `switch.tsx`, `label.tsx`, `input.tsx` and `select.tsx` and adapt prop names to their actual APIs (e.g. Base UI Slider's `value`/`onValueChange` may take a number or an array; Switch's `onCheckedChange(checked, details)`), noting each adaptation. The seed `Input` shows a raw number; keep the input controlled by a local string state if the controlled-number approach fights typing (e.g. can't clear) — describe what you chose.
 
 `src/components/nodes/video-gen-change-voice.tsx` — the workspace shell:
+
 ```tsx
 "use client";
 
@@ -1416,23 +1475,28 @@ export function VideoGenChangeVoice({ nodeId, versions, activeVersionId, running
   );
 }
 ```
+
 Note on `useVoiceBrowser(false).preview`: a second hook instance just for the card's preview would run its own account fetch only when `open` is true — passing `false` keeps it idle. If that reads awkwardly, extract the preview part of `useVoiceBrowser` into `src/hooks/use-voice-preview.ts` and use it from both — preferred; do it if it keeps `use-voice-browser.ts` smaller.
 
 - [ ] **Step 6: Wire into the node and focus view**
 
 `canvas-nodes.ts`: add to `VideoGenNodeData`:
+
 ```ts
   /** D284 — the Change voice workspace's last choice (voice + settings). */
   voiceChange?: { voiceId: string | null; settings: import("@/lib/elevenlabs/voice-settings").VoiceChangeSettings };
 ```
+
 (use a normal `import type` at the top instead of an inline import if the file's style prefers it).
 
 `video-gen-node.tsx`: pass `voiceChange={d.voiceChange}` to `VideoGenFocusView`.
 
 `video-gen-focus-view.tsx`:
+
 - Props: `voiceChange?: VoiceChangeNodeState;` + destructure.
 - State: `const [changeVoiceOpen, setChangeVoiceOpen] = useState(false);`
 - The right-column header (the `<div className="flex items-center gap-1.5">` with `Clapperboard` + "Video" at ~1884) becomes `flex items-center justify-between` with the toggle on the right:
+
 ```tsx
 <div className="flex items-center justify-between gap-2">
   <div className="flex items-center gap-1.5">
@@ -1446,7 +1510,9 @@ Note on `useVoiceBrowser(false).preview`: a second hook instance just for the ca
   />
 </div>
 ```
+
 - The body `<div className="min-h-0 flex-1">`: when `changeVoiceOpen`, render only
+
 ```tsx
 <VideoGenChangeVoice
   nodeId={nodeId}
@@ -1458,7 +1524,9 @@ Note on `useVoiceBrowser(false).preview`: a second hook instance just for the ca
   onApplied={() => setChangeVoiceOpen(false)}
 />
 ```
+
   and otherwise the existing skeleton/empty/result branches unchanged.
+
 - Close the workspace when review annotating starts (`reviewAnnotating` true) — the two modes don't combine: in the effect or handler that sets `reviewAnnotating(true)`, also `setChangeVoiceOpen(false)`.
 
 - [ ] **Step 7: Verify**
@@ -1478,17 +1546,20 @@ git commit -m "feat(voice): Change voice workspace on the Video Gen node (D284)"
 ### Task 6: Versions show where the voice came from
 
 **Files:**
+
 - Modify: `src/components/nodes/video-gen-version-history.tsx`, `src/components/nodes/video-gen-usage-popover.tsx`, `src/components/nodes/video-gen-request-panel.tsx`, `src/lib/generations/version-params.ts` (+ test)
 - Test: `src/lib/voice-change/__tests__/describe.test.ts`
 - Create: `src/lib/voice-change/describe.ts`
 
 **Interfaces:**
+
 - Consumes: `readVoiceChange` (Task 4), `readVoiceMeta` (legacy)
 - Produces: `describeVoiceChange(inputsUsed, labelById: Map<string, string>): { title: string; detail: string } | null` — title `"Voice: Anjali"` (+ `" · 2×"` when multiplier > 1), detail `"changed from v2 · stability 50 · similarity 75 · style 0 · speaker boost on · noise removal off · Multilingual"` (+ `" · seed 7"` when set, + `" · drift 40 ms"` when recorded)
 
 - [ ] **Step 1: Failing test**
 
 `src/lib/voice-change/__tests__/describe.test.ts`:
+
 ```ts
 import { describe, it, expect } from "vitest";
 import { describeVoiceChange } from "../describe";
@@ -1511,10 +1582,10 @@ describe("describeVoiceChange", () => {
 ```
 
 - [ ] **Step 2: Run to see it fail** — `npx vitest run src/lib/voice-change/__tests__/describe.test.ts` → FAIL.
-
 - [ ] **Step 3: Implement**
 
 `src/lib/voice-change/describe.ts`:
+
 ```ts
 import { VOICE_CHANGE_MODELS } from "@/lib/elevenlabs/voice-settings";
 import { readVoiceChange } from "./record";
@@ -1535,9 +1606,11 @@ export function describeVoiceChange(inputsUsed: Record<string, unknown> | undefi
   return { title: `Voice: ${vc.voiceName}${vc.priceMultiplier > 1 ? ` · ${vc.priceMultiplier}×` : ""}`, detail: parts.join(" · ") };
 }
 ```
+
 `describe.ts` imports `readVoiceChange` from the client-safe `record.ts` (Task 4), never from `source.ts` (which imports server-only storage).
 
 UI:
+
 - `video-gen-version-history.tsx`: build `labelById` (version id → `v{n}` using the same numbering History uses); widen `VideoGenVersionInputs` with `voiceChange?: unknown`; in each row's `meta`, when `describeVoiceChange(v.inputsUsed, labelById)` is non-null, render its `title` as the first line (`text-primary`, same small text class as the model label) and its `detail` in the param-summary slot; keep the legacy D282 `readVoiceMeta(v.paramsUsed.voice)` line for old versions.
 - `video-gen-usage-popover.tsx`: a version whose `inputsUsed.voiceChange` exists shows `meta: "voice change · {voiceName}"` instead of duration/model (its credits are already voice-only). Keep the legacy "· voice" suffix for D282 versions.
 - `video-gen-request-panel.tsx` ("Sent to model"): when the version is a voice change, add a "Voice change" section listing the `detail` parts one per row (voice name, source, each setting, drift).
