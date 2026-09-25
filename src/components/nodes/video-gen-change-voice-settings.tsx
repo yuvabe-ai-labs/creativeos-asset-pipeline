@@ -9,8 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
-import { ParamChipGroup } from "./param-chip-group";
-import { VOICE_CHANGE_MODELS, type VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
+import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 type Props = {
   /** Changes when the operator switches to another take — re-seeds the seed field. */
@@ -53,7 +52,9 @@ function SliderRow({ label, hint, value, onCommit }: { label: string; hint?: str
   );
 }
 
-// D284 — the voice editor's Settings card: every timing-safe setting, and Apply.
+// D284 — the voice editor's Settings card and Apply. Style exaggeration (always 0, ElevenLabs'
+// recommendation) and the model (always Multilingual — it covers Hindi/Hinglish; the English-only
+// model has no use here) are fixed rather than offered.
 export function VideoGenChangeVoiceSettings(p: Props) {
   // Seed keeps typing usable (clearing the field, entering multi-digit numbers) — a value bound
   // straight to `settings.seed ?? ""` would round-trip every keystroke through Number(...) and
@@ -73,7 +74,6 @@ export function VideoGenChangeVoiceSettings(p: Props) {
         <span className="text-eyebrow">Settings</span>
         <SliderRow label="Stability" value={p.settings.stability} onCommit={(v) => p.onSettings({ stability: v })} hint="Lower is more expressive; higher is steadier." />
         <SliderRow label="Similarity" value={p.settings.similarity} onCommit={(v) => p.onSettings({ similarity: v })} hint="How closely to match the chosen voice." />
-        <SliderRow label="Style exaggeration" value={p.settings.style} onCommit={(v) => p.onSettings({ style: v })} hint="ElevenLabs recommends 0." />
         <div className="flex items-center justify-between">
           <Label htmlFor="vc-boost" className="text-xs font-medium">Speaker boost</Label>
           <Switch id="vc-boost" checked={p.settings.speakerBoost} onCheckedChange={(v) => p.onSettings({ speakerBoost: v })} />
@@ -84,14 +84,6 @@ export function VideoGenChangeVoiceSettings(p: Props) {
             <Switch id="vc-noise" checked={p.settings.removeBackgroundNoise} onCheckedChange={(v) => p.onSettings({ removeBackgroundNoise: v })} />
           </div>
           <p className="text-xs text-muted-foreground">Also removes music and ambience.</p>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <Label className="text-xs font-medium">Model</Label>
-          <ParamChipGroup
-            options={[...VOICE_CHANGE_MODELS]}
-            value={p.settings.modelId}
-            onValueChange={(v) => p.onSettings({ modelId: v as VoiceChangeSettings["modelId"] })}
-          />
         </div>
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="vc-seed" className="text-xs font-medium">Seed</Label>
@@ -113,7 +105,6 @@ export function VideoGenChangeVoiceSettings(p: Props) {
         {seedInvalid && (
           <p className="text-xs text-destructive">Seed must be a whole number from 0 to 4294967295</p>
         )}
-        <p className="text-xs text-muted-foreground">Timing is kept, so lip sync holds. Speed isn&apos;t offered because it would break sync.</p>
       </div>
 
       <Tooltip>

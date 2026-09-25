@@ -60,8 +60,20 @@ export function VideoGenVoicePickerList(p: Props) {
     // of the content growing wider than the viewport and scrolling sideways.
     <ScrollArea className="h-[340px]" contentClassName="w-full min-w-0!">
       <div className="flex flex-col gap-0.5 pr-2" onKeyDown={onKeyDown}>
+        {/* Same shape and padding as VideoGenVoicePickerRow, so the loaded rows land exactly
+            where the placeholders were. */}
         {initialLoading &&
-          Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="mx-1.5 my-1 h-9" />)}
+          Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg border border-transparent px-1.5 py-1.5">
+              <Skeleton className="size-8 shrink-0 rounded-lg" />
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5 px-1.5 py-1">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-4/5" />
+                <Skeleton className="h-3 w-3/5" />
+              </div>
+            </div>
+          ))}
 
         {!initialLoading && p.error && (
           <div className="flex items-center justify-between gap-2 px-2.5 py-3 text-xs text-muted-foreground">

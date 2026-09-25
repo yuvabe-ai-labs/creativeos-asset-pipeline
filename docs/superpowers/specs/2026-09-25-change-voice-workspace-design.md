@@ -22,9 +22,13 @@ produces a new version, keeps the original, and charges only for the voice chang
    - **Take** — the version the output column is showing (re-voice another one by picking it in
      History first). No picker.
    - **Voice** — a dropdown field (chosen voice + labels + preview button) that opens the browser:
-     My voices / Voice Library tabs, search, filter **chips** (gender, age, language, accent, use
-     case, sort), rows with play.
-   - **Settings** card — sliders, switches, Model as chips, Seed, and Apply. No other dropdowns.
+     My voices / Voice Library tabs, search, a collapsed **"Filters & sort"** section of chips
+     (gender, age, language, accent, use case, sort; shows how many are on), rows with play.
+     Loading placeholders have the same shape as voice rows.
+   - **Settings** card — Stability and Similarity sliders, Speaker boost and Remove background
+     noise switches, Seed, and Apply. **Style exaggeration is fixed at 0** (ElevenLabs'
+     recommendation) and the **model is fixed to Multilingual** (it covers Hindi/Hinglish; the
+     English-only model has no use for these ads) — both are always sent as those values.
 4. **Apply** → a background job re-voices the chosen version and creates a **new version**. The
    source version is untouched. Toggle turns off and the new version becomes active.
 

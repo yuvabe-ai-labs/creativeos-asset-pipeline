@@ -1,8 +1,10 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   LIBRARY_ACCENTS, LIBRARY_AGES, LIBRARY_GENDERS, LIBRARY_LANGUAGES, LIBRARY_SORTS, LIBRARY_USE_CASES,
@@ -37,8 +39,9 @@ type Props = {
   onClear: () => void;
 };
 
-// D283/D284 — search + filter chips. My voices: options from the loaded voices' labels (a filter
-// with nothing to choose from is hidden). Library: ElevenLabs' own vocabulary.
+// D283/D284 — search, plus filter chips inside a collapsible "Filters & sort" section. My voices:
+// options from the loaded voices' labels (a filter with nothing to choose from is hidden).
+// Library: ElevenLabs' own vocabulary.
 export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter, onClear }: Props) {
   const lib = tab === "library";
   const rows: Array<{ key: Exclude<keyof VoiceFilters, "search" | "sort">; label: string; options: ChipOption[] }> = [
@@ -49,6 +52,7 @@ export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter,
     { key: "useCase", label: "Use case", options: lib ? opts(LIBRARY_USE_CASES) : opts(labelOptions(accountAll, "useCase")) },
   ];
   const sorts: ChipOption[] = lib ? [...LIBRARY_SORTS] : [...ACCOUNT_SORTS];
+  const activeCount = rows.filter((r) => filters[r.key] !== "").length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -72,24 +76,38 @@ export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter,
         )}
       </InputGroup>
 
-      <div className="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-x-3 gap-y-2">
-        {rows
-          .filter((r) => r.options.length > 0)
-          .map((r) => (
-            <FilterRow key={r.key} icon={FILTER_FIELD_ICON[r.key]} label={r.label}>
-              <ParamChipGroup options={[ANY, ...r.options]} value={filters[r.key]} onValueChange={(v) => onFilter(r.key, v)} />
-            </FilterRow>
-          ))}
-        <FilterRow icon={FILTER_FIELD_ICON.sort} label="Sort">
-          <ParamChipGroup options={sorts} value={filters.sort || sorts[0].value} onValueChange={(v) => onFilter("sort", v)} />
-        </FilterRow>
-      </div>
-
-      {hasActiveFilters(filters) && (
-        <Button type="button" variant="link" size="sm" className="nodrag h-7 self-start px-0 text-xs" onClick={onClear}>
-          Clear filters
-        </Button>
-      )}
+      {/* Collapsed by default so the voice list sits at the same place whether or not the
+          filters have loaded — and the panel fits on screen. */}
+      <Accordion className="rounded-lg border border-border px-3">
+        <AccordionItem value="filters" className="border-none">
+          <AccordionTrigger className="nodrag py-2 hover:no-underline">
+            <span className="flex items-center gap-1.5 text-xs font-medium">
+              <SlidersHorizontal className="size-3.5 text-primary" strokeWidth={1.5} />
+              Filters & sort
+              {activeCount > 0 && <Badge variant="secondary">{activeCount} on</Badge>}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-3">
+            <div className="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-x-3 gap-y-2">
+              {rows
+                .filter((r) => r.options.length > 0)
+                .map((r) => (
+                  <FilterRow key={r.key} icon={FILTER_FIELD_ICON[r.key]} label={r.label}>
+                    <ParamChipGroup options={[ANY, ...r.options]} value={filters[r.key]} onValueChange={(v) => onFilter(r.key, v)} />
+                  </FilterRow>
+                ))}
+              <FilterRow icon={FILTER_FIELD_ICON.sort} label="Sort">
+                <ParamChipGroup options={sorts} value={filters.sort || sorts[0].value} onValueChange={(v) => onFilter("sort", v)} />
+              </FilterRow>
+            </div>
+            {hasActiveFilters(filters) && (
+              <Button type="button" variant="link" size="sm" className="nodrag mt-2 h-7 px-0 text-xs" onClick={onClear}>
+                Clear filters
+              </Button>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

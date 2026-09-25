@@ -50,7 +50,15 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, value
 
   async function onApply() {
     if (!gate.ok || !sourceId || !state.voiceId) return;
-    const r = await apply({ baseVersionId: sourceId, voiceId: state.voiceId, settings: state.settings });
+    // Style and model aren't offered (style 0 is ElevenLabs' recommendation; Multilingual covers
+    // every language we ship), so always send the defaults — even if a node still carries a
+    // value saved before they were removed from the UI.
+    const settings = {
+      ...state.settings,
+      style: DEFAULT_VOICE_CHANGE_SETTINGS.style,
+      modelId: DEFAULT_VOICE_CHANGE_SETTINGS.modelId,
+    };
+    const r = await apply({ baseVersionId: sourceId, voiceId: state.voiceId, settings });
     if (r.ok) {
       toast.success("Changing the voice — the new version will appear when it's ready.");
       onApplied();
