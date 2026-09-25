@@ -45,12 +45,10 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { completeGeneration } from "./complete";
 import { computeVideoCost } from "@/lib/video-gen/cost";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 const ORIGINAL = "https://storage.googleapis.com/b/g1-original.mp4";
-const REVOICED = "https://storage.googleapis.com/b/g1-revoiced.mp4";
 const voice = (status: "applied" | "failed") => ({
   voiceId: "v1",
   voiceName: "Priya",
@@ -76,60 +74,14 @@ beforeEach(() => {
 const videoUsd = () => computeVideoCost(GEMINI_OMNI_MODEL_ID, 8, false, undefined)!.usd;
 
 describe("completeGeneration — stored video with voice (D282)", () => {
-  it("uses the stored URL as-is, records the voice and settles video + voice cost", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+  it("ignores a legacy meta.voice on a video generation — video cost only, no voice in params", async () => {
     await completeGeneration({
-      generationId: "g1",
-      status: "succeeded",
-      stored: true,
-      videoUrl: REVOICED,
-      durationSeconds: 8,
+      generationId: "g1", status: "succeeded", stored: true, videoUrl: ORIGINAL, durationSeconds: 8,
       meta: { voice: voice("applied") },
     });
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(mocks.uploadVideoGen).not.toHaveBeenCalled();
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(videoUsd()) }));
     expect(mocks.insertVersion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        output: REVOICED,
-        paramsUsed: expect.objectContaining({
-          durationSeconds: 8,
-          voice: { ...voice("applied"), priceMultiplier: 1 },
-        }),
-      }),
-    );
-    expect(mocks.settleGeneration).toHaveBeenCalledWith({
-      orgId: "org-1",
-      generationId: "g1",
-      actualAmount: usdToFinalCredits(videoUsd() + computeVoiceChangeCost(8).usd),
-    });
-    fetchSpy.mockRestore();
-  });
-
-  it("settles a custom-rate voice with its multiplier", async () => {
-    await completeGeneration({
-      generationId: "g1",
-      status: "succeeded",
-      stored: true,
-      videoUrl: REVOICED,
-      durationSeconds: 8,
-      meta: { voice: { ...voice("applied"), priceMultiplier: 2 } },
-    });
-    expect(mocks.settleGeneration).toHaveBeenCalledWith(
-      expect.objectContaining({ actualAmount: usdToFinalCredits(videoUsd() + computeVoiceChangeCost(8, 2).usd) }),
-    );
-  });
-
-  it("does not charge the voice when it failed", async () => {
-    await completeGeneration({
-      generationId: "g1",
-      status: "succeeded",
-      stored: true,
-      videoUrl: ORIGINAL,
-      durationSeconds: 8,
-      meta: { voice: voice("failed") },
-    });
-    expect(mocks.settleGeneration).toHaveBeenCalledWith(
-      expect.objectContaining({ actualAmount: usdToFinalCredits(videoUsd()) }),
+      expect.objectContaining({ paramsUsed: expect.not.objectContaining({ voice: expect.anything() }) }),
     );
   });
 

@@ -28,13 +28,6 @@ import {
   singleTakeTargetForProvider,
 } from "@/lib/nodes/ref-binding";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
-import { voiceChangeBlockedReason } from "@/lib/elevenlabs/voice-eligibility";
-import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
-import { ElevenLabsKeyMissingError } from "@/lib/elevenlabs/client";
-import { VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
-import { signVideoGenVoiceUrls } from "@/lib/storage";
-import type { VoicePayload } from "@/lib/voice-change/types";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
 
@@ -43,8 +36,6 @@ const GenerateBodySchema = z.object({
   params: z.record(z.string(), z.unknown()).optional(),
   imageRoles: z.record(z.string(), ImageRoleSchema).optional(),
   mock: z.boolean().optional(),
-  // D282 — ElevenLabs voice to re-voice the clip with. Absent = keep the model's own audio.
-  voiceId: z.string().min(1).optional(),
 });
 
 export async function POST(
@@ -73,36 +64,6 @@ export async function POST(
     );
 
     const mockMode = body.mock === true;
-
-    // D282 — voice guards. Before insertGeneration and reserveCredits, like the D97 checks, so a
-    // rejected request neither records a generation nor touches the credit balance. Mock runs
-    // never re-voice: the voice is dropped rather than rejected, matching the disabled picker.
-    const voiceId = mockMode ? undefined : body.voiceId;
-    let voiceName: string | undefined;
-    let voicePriceMultiplier = 1;
-    if (voiceId) {
-      const blocked = voiceChangeBlockedReason(
-        config.params.map((spec) => spec.name),
-        resolvedParams,
-      );
-      if (blocked) return apiError(blocked, 400);
-      let voice;
-      try {
-        voice = await getVoiceCached(voiceId);
-      } catch (e) {
-        return apiError(
-          e instanceof ElevenLabsKeyMissingError
-            ? VOICE_NOT_SET_UP_MESSAGE
-            : "Could not reach ElevenLabs to check the voice. Try again, or generate without a voice.",
-          400,
-        );
-      }
-      if (!voice) {
-        return apiError("That voice is no longer on the ElevenLabs account. Pick another voice.", 400);
-      }
-      voiceName = voice.name;
-      voicePriceMultiplier = voice.priceMultiplier;
-    }
 
     // Image role assignments sent from focus view
     const imageRoles = body.imageRoles ?? {};
@@ -318,17 +279,10 @@ export async function POST(
       if (estimate === null) {
         throw new Error(`No cost estimate available for ${modelId} at these params.`);
       }
-      const voiceUsd = voiceId ? computeVoiceChangeCost(durationSeconds, voicePriceMultiplier).usd : 0;
-      const estimatedCredits = usdToFinalCredits(estimate.usd + voiceUsd);
+      const estimatedCredits = usdToFinalCredits(estimate.usd);
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");
-      }
-
-      let voice: VoicePayload | undefined;
-      if (voiceId && voiceName) {
-        const urls = await signVideoGenVoiceUrls({ nodeId, generationId: generation.id });
-        voice = { voiceId, voiceName, priceMultiplier: voicePriceMultiplier, ...urls };
       }
 
       // Fire Trigger.dev task (no await — the task runs in the background)
@@ -341,8 +295,6 @@ export async function POST(
         referenceUrls,
         params: resolvedParams,
         mockMode,
-        // D282 — omitted entirely without a voice, so that payload is unchanged.
-        ...(voice ? { voice } : {}),
       });
 
       return apiOk({ generationId: generation.id }, 202);

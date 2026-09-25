@@ -5,8 +5,6 @@ import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib
 import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
-import { readVoiceMeta } from "@/lib/voice-change/meta";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 
@@ -130,8 +128,6 @@ export async function completeGeneration(
     }
   }
 
-  const voice = readVoiceMeta(input.meta?.voice);
-
   // 2. INSERT node_versions
   const version = await insertVersion({
     nodeId: generation.node_id,
@@ -144,7 +140,6 @@ export async function completeGeneration(
     paramsUsed: {
       ...(generation.params_snapshot ?? {}),
       durationSeconds: input.durationSeconds,
-      ...(voice ? { voice } : {}),
     },
     modelUsed: generation.model_used,
     output: storedVideoUrl,
@@ -160,14 +155,10 @@ export async function completeGeneration(
   const cost = generation.model_used
     ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
     : null;
-  // D282 — the voice change is charged only when it was applied; a fallback to the original is free.
-  const voiceUsd =
-    voice?.status === "applied" ? computeVoiceChangeCost(input.durationSeconds, voice.priceMultiplier).usd : 0;
-  const totalUsd = (cost?.usd ?? 0) + voiceUsd;
   // cost is only ever null when model_used is unset (shouldn't happen — every video
   // generation records a model at insertGeneration) — an actual cost of 0 credits in that
   // case, not a reason to skip settlement.
-  const actualCredits = (cost || voiceUsd > 0) ? usdToFinalCredits(totalUsd) : 0;
+  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
 
   await settleGeneration({
     orgId: generation.org_id,
@@ -177,7 +168,7 @@ export async function completeGeneration(
   await succeedGeneration({
     generationId: input.generationId,
     versionId: version.id,
-    costUsd: (cost || voiceUsd > 0) ? totalUsd : undefined,
+    costUsd: cost?.usd,
     creditsCharged: actualCredits,
     outputSnapshot: storedVideoUrl,
     meta: input.meta,

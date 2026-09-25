@@ -28,7 +28,6 @@ export type StartGenerationPayload = {
   params: Record<string, unknown>;
   imageRoles: Record<string, string>;
   mock?: boolean;
-  voiceId?: string;
 };
 
 // Carries the response status alongside the message so callers can special-case a 402

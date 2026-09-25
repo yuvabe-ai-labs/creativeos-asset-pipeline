@@ -112,8 +112,6 @@ export type VideoGenNodeData = {
   params?: Record<string, unknown>;
   imageRoles?: Record<string, "start_frame" | "end_frame" | "reference">;
   parsed?: unknown; // D19: active version output (video URL, display only — never persisted)
-  /** D282 — ElevenLabs voice applied after generation. null/undefined = keep the model's audio. */
-  voiceId?: string | null;
 };
 
 export type ShotNodeData = {

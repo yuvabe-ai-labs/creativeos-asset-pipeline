@@ -15,7 +15,6 @@ import {
   FileInput,
   History,
   ImageIcon,
-  Mic,
   PencilLine,
   SlidersHorizontal,
   Sparkles,
@@ -125,10 +124,6 @@ import { ActiveRulesCard } from "./video-gen-active-rules-card";
 import { VideoGenShotSpine } from "./video-gen-shot-spine";
 import { VideoGenModelPicker } from "./video-gen-model-picker";
 import { describeShotSpine, describeDurationLabel } from "@/lib/video-gen/shot-spine";
-import { VideoGenVoicePicker, resolveEffectiveVoiceId, type PendingVoiceSave } from "./video-gen-voice-picker";
-import { useSelectedVoice } from "@/hooks/use-selected-voice";
-import { voiceChangeBlockedReason } from "@/lib/elevenlabs/voice-eligibility";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { readVoiceMeta } from "@/lib/voice-change/meta";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -280,7 +275,6 @@ type Props = {
   modelId?: string;
   params?: Record<string, unknown>;
   imageRoles: Record<string, ImageRole>;
-  voiceId: string | null;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -492,7 +486,6 @@ export function VideoGenFocusView({
   modelId: modelIdProp,
   params: paramsProp,
   imageRoles: imageRolesProp,
-  voiceId: voiceIdProp,
   onPatch,
 }: Props) {
   const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
@@ -534,21 +527,6 @@ export function VideoGenFocusView({
   // own beats rather than the model spec's flat default. Cleared the instant the operator edits
   // duration directly, so their edit is never silently overwritten by a later re-derivation.
   const [durationIsDerived, setDurationIsDerived] = useState(false);
-  // D283 review fixes — the lookup only needs to run while this view is actually open (it was
-  // previously firing for every mounted Video Gen node's focus view). It's also suppressed
-  // while a Library pick's background save is pending: the id already stored is an unsaved
-  // Library id, and looking it up would 404 and cache that 404 server-side. `voiceRefreshKey`
-  // is bumped when a pending save clears so the lookup refetches even when the stored id turns
-  // out to be unchanged (a saved copy can keep the Library voice_id itself).
-  const [pendingVoice, setPendingVoice] = useState<PendingVoiceSave | null>(null);
-  const [voiceRefreshKey, setVoiceRefreshKey] = useState(0);
-  const handlePendingVoiceChange = useCallback((pending: PendingVoiceSave | null) => {
-    setPendingVoice((prev) => {
-      if (prev && !pending) setVoiceRefreshKey((k) => k + 1);
-      return pending;
-    });
-  }, []);
-  const selectedVoice = useSelectedVoice(open && !pendingVoice ? voiceIdProp : null, voiceRefreshKey);
   // The selected rail item: "video" (settings + preview), "history", "details", or a connected
   // node's id (middle column shows that node's role/detail view). Mirrors image-gen-focus-view.
   const focusStoreApi = useCanvasStoreApi();
@@ -1009,7 +987,6 @@ export function VideoGenFocusView({
         // D98: post the reconciled values, never the possibly-stale `params` state.
         params: effectiveParams,
         imageRoles: effectiveImageRoles,
-        ...(effectiveVoiceId ? { voiceId: effectiveVoiceId } : {}),
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
@@ -1227,36 +1204,8 @@ export function VideoGenFocusView({
       : Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
-  // D282 — a voice that can't apply (audio off) is treated as none everywhere: estimate and request.
-  const voiceBlockedReason = voiceChangeBlockedReason(
-    videoGenClientModelMap[modelId]?.params.map((p) => p.name) ?? [],
-    effectiveParams,
-  );
-  // D282 review fix — a voice the loaded list no longer has (deleted from the ElevenLabs
-  // account) or that the list request errored on must not be sent or priced. See
-  // resolveEffectiveVoiceId's doc comment in video-gen-voice-picker.tsx.
-  const effectiveVoiceId = resolveEffectiveVoiceId({
-    value: voiceIdProp,
-    loading: selectedVoice.loading,
-    notFound: selectedVoice.notFound,
-    error: selectedVoice.error,
-    blockedReason: voiceBlockedReason,
-    pending: pendingVoice,
-  });
-  // D283 — while a Library pick's save is pending, the lookup is suppressed (see `selectedVoice`
-  // above), so the pending voice itself (already known, instantly) stands in for pricing/preview.
-  const effectiveSelectedVoice = pendingVoice ? pendingVoice.voice : selectedVoice.voice;
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
-  const voiceCostUsd = effectiveVoiceId
-    ? computeVoiceChangeCost(durationSeconds, effectiveSelectedVoice?.priceMultiplier ?? 1).usd
-    : 0;
-  // Review fix — while a priced voice is still resolving OR its lookup errored, its multiplier
-  // isn't reliably known, so showing a number would under-quote a custom-rate voice. Hide the
-  // estimate (Generate already hides its label when null) rather than quote off a guessed 1×.
-  // Not while pending, though — the pending voice's multiplier IS known (C), so the estimate stays.
-  const estimatedCredits = videoCostEstimate && !(effectiveVoiceId && !pendingVoice && (selectedVoice.loading || selectedVoice.error))
-    ? usdToFinalCredits(videoCostEstimate.usd + voiceCostUsd)
-    : null;
+  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
 
   // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
   // comment (multishot-models.ts) has always claimed its reason "is shown verbatim on ... Video
@@ -1270,18 +1219,12 @@ export function VideoGenFocusView({
     isMultishotPromptConnected && upstreamMultishotCuts
       ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
       : null;
-  // D283 (C.5) — a Library pick's background save is usually ~1s, but Generate must not fire
-  // while the node still holds the unsaved Library id (the generate route validates the voice
-  // via the account lookup, which won't have it yet).
-  const disableGenerate =
-    constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(pendingVoice);
+  const disableGenerate = constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok);
   const disableGenerateReason = constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
       ? ladderCheck.reason
-      : pendingVoice
-        ? "Adding the voice to your ElevenLabs account…"
-        : constraints.disableGenerateReason;
+      : constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -1629,18 +1572,6 @@ export function VideoGenFocusView({
                       </Accordion>
                     )}
                   </VideoGenModelPicker>
-                  <LeftSection icon={Mic} label="Voice">
-                    <VideoGenVoicePicker
-                      value={voiceIdProp}
-                      onChange={(v) => onPatch({ voiceId: v })}
-                      pendingVoice={pendingVoice}
-                      onPendingChange={handlePendingVoiceChange}
-                      blockedReason={voiceBlockedReason}
-                      selected={selectedVoice.voice}
-                      selectedLoading={selectedVoice.loading}
-                      selectedNotFound={selectedVoice.notFound}
-                    />
-                  </LeftSection>
                   {(() => {
                     return (
                       <>

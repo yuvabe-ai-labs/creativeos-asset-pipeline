@@ -158,7 +158,6 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
       modelId={d.modelId}
       params={d.params}
       imageRoles={d.imageRoles ?? {}}
-      voiceId={d.voiceId ?? null}
       onPatch={handlePatch}
     />
     </>

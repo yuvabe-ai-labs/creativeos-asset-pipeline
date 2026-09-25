@@ -14,7 +14,6 @@ import {
   pathForNodeFile,
   pathForReviewAnnotation,
   pathForVideoGen,
-  pathForVideoGenVoice,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 
@@ -109,40 +108,13 @@ export async function uploadVideoGen(args: {
   return _upload(path, args.body, args.contentType);
 }
 
-export type VoiceUploadUrls = {
-  originalPutUrl: string;
-  originalUrl: string;
-  revoicedPutUrl: string;
-  revoicedUrl: string;
-};
-
 // A generation can run up to 10 minutes (video-generate's maxDuration: 600) before the task
 // uploads, plus the voice-change step's own retries (video-revoice: maxDuration 120 x
 // retry.maxAttempts 2); 5 minutes (the default) is far too short. Two hours covers that with
 // margin to spare.
-const VOICE_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
-
-// D282 — the Trigger task has no GCS credentials, so the route signs both uploads up front.
-export async function signVideoGenVoiceUrls(args: {
-  nodeId: string;
-  generationId: string;
-}): Promise<VoiceUploadUrls> {
-  const { clientId, canvasId } = await resolveOwnership(args.nodeId);
-  const pathFor = (variant: "original" | "revoiced") =>
-    pathForVideoGenVoice({ clientId, canvasId, nodeId: args.nodeId, generationId: args.generationId, variant });
-  const originalPath = pathFor("original");
-  const revoicedPath = pathFor("revoiced");
-  const [originalPutUrl, revoicedPutUrl] = await Promise.all([
-    _signPutUrl(originalPath, "video/mp4", VOICE_UPLOAD_EXPIRY_MS),
-    _signPutUrl(revoicedPath, "video/mp4", VOICE_UPLOAD_EXPIRY_MS),
-  ]);
-  return {
-    originalPutUrl,
-    originalUrl: publicUrlFor(originalPath),
-    revoicedPutUrl,
-    revoicedUrl: publicUrlFor(revoicedPath),
-  };
-}
+// D284 — signVideoGenVoiceUrls itself was removed with generate-time voice; this constant is
+// kept for Task 4's signRevoicedVideoUrl, which re-voice-as-a-version-action will add.
+export const VOICE_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
 
 export async function uploadClientLogo(args: {
   clientId: string;
