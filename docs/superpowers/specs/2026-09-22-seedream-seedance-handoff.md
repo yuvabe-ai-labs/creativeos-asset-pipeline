@@ -17,7 +17,7 @@ taking human-presenter UGC video into the product.
 | **The 24-hour trusted-URL problem** | **GONE — see §0.1.** A GCS copy works. §6.2 is deleted |
 | Canvas integration (§6) | **Not started — this is the next piece of work**, now smaller |
 | Voice anchor | **IN SCOPE** (2026-09-24). Built in the bench, never exercised — §6.4 is a port |
-| System-prompt audit for UGC | **Done 2026-09-24 — see §10.** Two rewrites + one wiring fix |
+| System-prompt audit for UGC | **Done 2026-09-24 — see §10.** SIX items, incl. the shot composer + its catalogs |
 | OmniHuman 1.5 (BytePlus Vision AI) | **Paused** at an account permission wall (§8) |
 | ElevenLabs | **Explicitly later** — not integrated, nothing in `src/` references it (§8) |
 
@@ -665,20 +665,64 @@ and nothing covering the mouth. **That is presenter behaviour, already written.*
 | `video-prompt-shared.ts` → `SPINE` | Same first-frame + preservation contract, camera-led, *"secondary motion: steam drifts, fabric sways"* | Shared by Veo/Kling/Omni. UGC's primary motion is a person talking and handling a product, not ambient secondary motion. **The UGC lane needs its own spine — do not edit this one**, it is correct for product shots. |
 | `video-prompt-shared.ts` → `VO_PERFORMANCE_RULES` | Correct, and already written | Simply isn't reachable from any single-shot record. Wire it in. |
 | `prompt-generate.ts` | *"image-generation prompts for **Nano Banana**"*; v6 SETTING: *"Transcribe what is stated; do not complete it"*; plain neutral backdrop when unstated | Writes scene prompts for Gemini, not **portrait prompts for Seedream**. The v6 transcribe-don't-invent rule actively prevents composing a presenter who isn't in the brief. The usable hook is *"Use the casting descriptor verbatim (age range, skin tone, styling cues)"* — that is where a presenter description enters. |
-| `shot-compose.ts` | *"a shot composer for **premium, slow, tactile D2C beauty reels**"*; ideas about *"surface, light, hand/body action, finish"* | Wrong genre outright. UGC is fast, handheld, spoken-to-camera, someone *using* the thing. Needs a UGC role set, or it stays silent in this lane. **Optional** — not on the critical path. |
+| `shot-compose.ts` | *"a shot composer for **premium, slow, tactile D2C beauty reels**"*; ideas about *"surface, light, hand/body action, finish"*; global avoid-list bans *"before/after transformations"* | **NOT optional — see §10.1.** Needs its own record. Its reference-image rule is also inverted for UGC: *"use it ONLY for palette, surface, vessel… never copy its whole concept"*, when for a presenter the identity in that image **is** what must carry. |
+| `shot-roles.ts` (D28) | Ten D2C-beauty roles; slots in product vocabulary (`SKU`, `label visibility`, `absorption / finish`, `residue rule`) | **Needs a UGC role set — see §10.1.** `DEFAULT_SHOT_ROLE = "hero"`, so a UGC shot defaults to Product hero. |
+| `shot-controls.ts` | Lens 24–100 mm; lighting window / golden-hour / chiaroscuro / softbox / candlelit | Needs handheld-phone / front-camera / ring-light / available-light options. Bites harder than it looks: `prompt-generate.ts` says the Shot controls block **overrides** its own vocabulary. |
 | `multishot-prompt-seedance.ts` | Already has `VO_PERFORMANCE_RULES`; built around the cut ladder | Closest to correct already. Still assumes product-preservation framing rather than presenter-identity preservation. |
 | `script-parse.ts` → `ai_production_type` | *"the production approach **stated in the script**"* — free text, rendered as `Medium: …` by `node-output.ts` | **Not a switch.** It is transcription, so it varies with whatever the designer typed. It can *default* `shotKind` but must not drive routing. |
 
-### Net work
+### 10.1 The composer is three catalogs, not one prompt (added 2026-09-24)
 
-- **Two new records** — `video-prompt-ugc-seedance`, `video-prompt-ugc-omni` — behind the
-  `shotKind` argument to `videoPromptFor` (§6.3). Keep that switch **exhaustive with no
-  `default`**: D243 added that guard precisely because a silent fallthrough once handed Gemini
-  Omni a prompt headed "for Veo 3.1".
-- **One portrait writer** for Seedream faces.
-- **One wiring fix** — `VO_PERFORMANCE_RULES` into the single-shot records.
-- **Carry product-preservation language into the UGC records** even though they drop the
-  first-frame framing. §0.1 finding 2 observed Seedance inventing branding on a shoe that was
-  explicitly generated without any. A UGC prompt that says nothing about preservation will put
-  invented logos on the client's product.
+The first pass of this audit filed `shot-compose.ts` as "optional". **That was wrong.** The Shot
+Composer turns a thin shot seed into production-ready ideas, and every catalog it reads is tuned
+for product photography.
+
+**The plumbing is fine.** `renderComposeContext` (`src/lib/nodes/shot-compose.ts`) is a pure
+renderer that takes whatever role it is handed, and `api/nodes/[id]/compose/route.ts` is generic.
+Nothing there needs changing. It is the **data** that is genre-specific.
+
+**1. A role doesn't merely misfit UGC — it forbids it.** `SHOT_ROLES` (D28,
+`src/lib/nodes/shot-roles.ts`) has ten roles. The `lifestyle` role requires
+*"ambient human presence (optional — **not applying the product**)"* and avoids
+*"the hand or body-contact as the subject"*. UGC is exactly a person using the product on
+camera. `social-proof` is conceptually nearest — it is a testimonial — but its slots are
+*"review or result cue"* with nobody speaking to camera, and it avoids *"before/after split"*,
+a UGC staple. **Nothing covers** talk-to-camera, unboxing, demo / how-I-use-it,
+problem→solution, or first impression. And `DEFAULT_SHOT_ROLE = "hero"` — Product hero.
+
+**2. The composer's reference-image rule is inverted.** It instructs: use a reference
+*"ONLY for palette, surface, vessel, prop system, framing, depth-of-field, and mood — never copy
+its whole concept"*. For a presenter, the identity in that image **is** the thing that must
+carry.
+
+**3. Shot controls leak into the image prompt.** `SHOT_CONTROLS`
+(`src/lib/nodes/shot-controls.ts`) offers 24/35/50/85/100 mm lenses and window / golden-hour /
+chiaroscuro / softbox / candlelit lighting — a product-photography kit. UGC wants handheld phone
+framing, front camera, ring light, available light. This matters more than a preset list
+normally would because `prompt-generate.ts` states the Shot controls block **OVERRIDES** its own
+vocabulary, so a UGC shot inherits "85 mm f/1.8, studio softbox" over anything the UGC writer says.
+
+**Where the seam falls is good news.** `shot-roles.ts`'s own header says the catalog is
+*"a pre-rendered constant — 'learned later' = refine these lists from eval results (a data change
+here, no architecture change)"*. So roles and controls are **data changes**. Only the composer
+prompt needs the D243 treatment of becoming a second record.
+
+### 10.2 Net work — six items
+
+1. **Two video-prompt records** — `video-prompt-ugc-seedance`, `video-prompt-ugc-omni` — behind
+   the `shotKind` argument to `videoPromptFor` (§6.3). Keep that switch **exhaustive with no
+   `default`**: D243 added that guard precisely because a silent fallthrough once handed Gemini
+   Omni a prompt headed "for Veo 3.1".
+2. **One portrait writer** for Seedream faces.
+3. **One composer record** — `shot-compose-ugc` (§10.1).
+4. **A UGC role set + its own default** in `shot-roles.ts` (data).
+5. **UGC options in `shot-controls.ts`** (data).
+6. **One wiring fix** — `VO_PERFORMANCE_RULES` into the four single-shot records. This is a
+   **pre-existing gap**, not UGC scope: the concept is written and only the three multishot
+   records import it.
+
+**Carry product-preservation language into the UGC records** even though they drop the
+first-frame framing. §0.1 finding 2 observed Seedance inventing branding on a shoe that was
+explicitly generated without any. A UGC prompt that says nothing about preservation will put
+invented logos on the client's product.
 
