@@ -6,6 +6,7 @@ import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 import {
   EMPTY_FILTERS, filterAccountVoices, libraryParams, type VoiceFilters,
 } from "@/lib/elevenlabs/voice-filters";
+import { useVoicePreview } from "./use-voice-preview";
 
 export type VoiceTab = "account" | "library";
 const SEARCH_DEBOUNCE_MS = 300;
@@ -35,8 +36,7 @@ export function useVoiceBrowser(open: boolean) {
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const libraryReq = useRef(0);
 
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const preview = useVoicePreview();
 
   // Debounce only the Library tab's own search text — the account list is filtered in the
   // browser, so there's no request to debounce for it.
@@ -118,37 +118,13 @@ export function useVoiceBrowser(open: boolean) {
     fetchLibraryPage(library.cursor);
   }, [libraryLoading, library.hasMore, library.cursor, fetchLibraryPage]);
 
-  // Preview: one element, one voice at a time; stopped on close/unmount.
-  const stopPreview = useCallback(() => {
-    audioRef.current?.pause();
-    audioRef.current = null;
-    setPlayingId(null);
-  }, []);
-
-  const togglePreview = useCallback(
-    (voice: PickerVoice) => {
-      if (playingId === voice.voiceId) return stopPreview();
-      stopPreview();
-      if (!voice.previewUrl) return;
-      const audio = new Audio(voice.previewUrl);
-      audio.onended = () => setPlayingId((id) => (id === voice.voiceId ? null : id));
-      audioRef.current = audio;
-      setPlayingId(voice.voiceId);
-      void audio.play().catch(() => {
-        audioRef.current = null;
-        setPlayingId(null);
-      });
-    },
-    [playingId, stopPreview],
-  );
-
   // Stop only on an open → closed transition (the trigger's own preview button plays while closed).
+  // Unmount cleanup is already handled inside useVoicePreview itself.
   const wasOpen = useRef(open);
   useEffect(() => {
-    if (wasOpen.current && !open) stopPreview();
+    if (wasOpen.current && !open) preview.stop();
     wasOpen.current = open;
-  }, [open, stopPreview]);
-  useEffect(() => stopPreview, [stopPreview]);
+  }, [open, preview]);
 
   const setFilter = useCallback(
     (key: keyof VoiceFilters, value: string) =>
@@ -175,6 +151,6 @@ export function useVoiceBrowser(open: boolean) {
     // above re-runs on the open → true transition), which is enough to show the newly-saved
     // voice under My voices — no need for an explicit nonce bump here.
     retry: () => (tab === "account" ? setAccountNonce((n) => n + 1) : fetchLibraryPage(null)),
-    preview: { playingId, toggle: togglePreview },
+    preview,
   };
 }

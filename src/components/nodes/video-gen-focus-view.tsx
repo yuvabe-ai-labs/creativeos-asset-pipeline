@@ -98,6 +98,8 @@ import {
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
+import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
+import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import {
@@ -275,6 +277,7 @@ type Props = {
   modelId?: string;
   params?: Record<string, unknown>;
   imageRoles: Record<string, ImageRole>;
+  voiceChange?: VoiceChangeNodeState;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -486,6 +489,7 @@ export function VideoGenFocusView({
   modelId: modelIdProp,
   params: paramsProp,
   imageRoles: imageRolesProp,
+  voiceChange: voiceChangeProp,
   onPatch,
 }: Props) {
   const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
@@ -503,6 +507,9 @@ export function VideoGenFocusView({
   const [videoPaused, setVideoPaused] = useState(true);
   const [videoDurationMs, setVideoDurationMs] = useState(0);
   const [reviewAnnotating, setReviewAnnotating] = useState(false);
+  // D284 — the right column's video-vs-workspace mode; the two never combine (see the toggle
+  // below the version history's annotate control).
+  const [changeVoiceOpen, setChangeVoiceOpen] = useState(false);
   const [capturedFrame, setCapturedFrame] = useState<{
     base64: string;
     timecodeMs: number;
@@ -1716,7 +1723,10 @@ export function VideoGenFocusView({
                           onToggleAnnotate={
                             videoUrl
                               ? () => {
-                                  setReviewAnnotating((v) => !v);
+                                  // D284: annotating and the Change voice workspace don't combine.
+                                  const next = !reviewAnnotating;
+                                  setReviewAnnotating(next);
+                                  if (next) setChangeVoiceOpen(false);
                                   setCapturedFrame(null);
                                   setOpenTimecode(null);
                                 }
@@ -1812,11 +1822,30 @@ export function VideoGenFocusView({
             {/* Right column — the video, always visible. Faintly sunk so the
                 settings column reads as raised against it. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
-              <div className="flex items-center gap-1.5">
-                <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
-                <span className="text-eyebrow">Video</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
+                  <span className="text-eyebrow">{changeVoiceOpen ? "Change voice" : "Video"}</span>
+                </div>
+                <VideoGenChangeVoiceToggle
+                  checked={changeVoiceOpen}
+                  disabled={!editable || !versions.some((v) => v.output && !v.error)}
+                  onCheckedChange={setChangeVoiceOpen}
+                />
               </div>
               <div className="min-h-0 flex-1">
+                {changeVoiceOpen ? (
+                  <VideoGenChangeVoice
+                    nodeId={nodeId}
+                    versions={versions}
+                    activeVersionId={activeVersionId}
+                    running={isGenerating}
+                    value={voiceChangeProp}
+                    onChange={(next) => onPatch({ voiceChange: next })}
+                    onApplied={() => setChangeVoiceOpen(false)}
+                  />
+                ) : (
+                <>
                 {mode === "skeleton" && (
                   // 9:16, flush left — the same footprint the result frame will occupy.
                   <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
@@ -2074,6 +2103,8 @@ export function VideoGenFocusView({
                       )}
                     </div>
                   </div>
+                )}
+                </>
                 )}
               </div>
 
