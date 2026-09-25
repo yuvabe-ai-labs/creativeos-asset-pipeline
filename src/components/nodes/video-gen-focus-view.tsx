@@ -98,6 +98,7 @@ import {
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
+import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1809,7 +1810,7 @@ export function VideoGenFocusView({
                     ))}
                   </div>
                 ) : activeVersion ? (
-                  <VideoGenRequestPanel version={activeVersion} />
+                  <VideoGenRequestPanel version={activeVersion} labelById={versionLabelsById(versions)} />
                 ) : (
                   <p className="px-6 py-5 text-sm text-muted-foreground">
                     No request recorded yet — generate a video to capture the prompt, images and

@@ -1,73 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
+import { createPreviewController } from "@/lib/elevenlabs/preview-controller";
 
 /**
- * D283/D284 — one-at-a-time audio preview playback for a voice row or card.
- *
- * The Change voice workspace mounts TWO instances of this hook at once: the voice browser (via
- * `useVoiceBrowser`) and the settings card's own preview (`video-gen-change-voice.tsx`). Each
- * used to own a private `HTMLAudioElement`, so starting a preview in one left the other's still
- * playing — two voices audible at once. The single `HTMLAudioElement` below is now a
- * module-level singleton shared by every `useVoicePreview()` call in the tree; each hook
- * instance is just a subscriber that mirrors the singleton's `playingId`, so starting a preview
- * anywhere stops whatever was playing anywhere else. The public API (`{ playingId, toggle, stop
- * }`) is unchanged.
+ * D283/D284 — voice preview playback. Every hook instance shares ONE controller, so only one
+ * preview plays on the page at a time (the Edit voice panel mounts the voice browser and the
+ * chosen-voice card together). Each instance has its own owner token: `stop()` and unmount only
+ * stop a preview this instance started. Logic + tests: src/lib/elevenlabs/preview-controller.ts.
  */
-
-type Listener = (playingId: string | null) => void;
-
-let sharedAudio: HTMLAudioElement | null = null;
-let sharedPlayingId: string | null = null;
-const listeners = new Set<Listener>();
-
-function notify() {
-  for (const listener of listeners) listener(sharedPlayingId);
-}
-
-function stopShared() {
-  sharedAudio?.pause();
-  sharedAudio = null;
-  sharedPlayingId = null;
-  notify();
-}
-
-function toggleShared(voice: PickerVoice) {
-  if (sharedPlayingId === voice.voiceId) {
-    stopShared();
-    return;
-  }
-  stopShared();
-  if (!voice.previewUrl) return;
-  const audio = new Audio(voice.previewUrl);
-  // Only clears the shared state if THIS audio is still the current one — guards against a
-  // stale onended/catch firing after a newer toggle() already replaced it.
-  const clearIfCurrent = () => {
-    if (sharedAudio !== audio) return;
-    sharedAudio = null;
-    sharedPlayingId = null;
-    notify();
+const shared = createPreviewController((url) => {
+  const audio = new Audio(url);
+  return {
+    play: () => audio.play(),
+    pause: () => audio.pause(),
+    onEnded: (fn) => audio.addEventListener("ended", fn, { once: true }),
   };
-  audio.onended = clearIfCurrent;
-  sharedAudio = audio;
-  sharedPlayingId = voice.voiceId;
-  notify();
-  void audio.play().catch(clearIfCurrent);
-}
+});
 
 export function useVoicePreview() {
-  const [playingId, setPlayingId] = useState<string | null>(sharedPlayingId);
+  const owner = useMemo(() => Symbol("voice-preview"), []);
+  const [playingId, setPlayingId] = useState<string | null>(shared.playingId());
 
-  useEffect(() => {
-    listeners.add(setPlayingId);
-    return () => {
-      listeners.delete(setPlayingId);
-    };
-  }, []);
+  useEffect(() => shared.subscribe(setPlayingId), []);
 
-  const stop = useCallback(() => stopShared(), []);
-  const toggle = useCallback((voice: PickerVoice) => toggleShared(voice), []);
+  const stop = useCallback(() => shared.stop(owner), [owner]);
+  const toggle = useCallback((voice: PickerVoice) => shared.toggle(owner, voice), [owner]);
 
   useEffect(() => stop, [stop]);
 

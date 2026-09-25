@@ -3,6 +3,8 @@
 // __tests__/workspace.test.ts.
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
+import { versionLabelsById } from "@/lib/generations/version-labels";
+import { readVoiceChange } from "./record";
 
 type VersionLike = {
   id: string;
@@ -19,33 +21,18 @@ type VersionLike = {
 const succeeded = (v: VersionLike) => Boolean(v.output) && !v.error;
 
 /**
- * Just the voice name for a version's label — deliberately lenient (only checks `voiceName`,
- * not the full `VoiceChangeRecord` shape `readVoiceChange` validates) since a label is display
- * only, never a value this module trusts for anything else.
- */
-function voiceChangeName(voiceChange: unknown): string | undefined {
-  return typeof voiceChange === "object" &&
-    voiceChange !== null &&
-    typeof (voiceChange as Record<string, unknown>).voiceName === "string"
-    ? ((voiceChange as Record<string, unknown>).voiceName as string)
-    : undefined;
-}
-
-/**
- * Succeeded video versions only, newest first — labelled `v{n}` by CHRONOLOGICAL position
- * counting every version including failed ones, matching VersionHistoryList's numbering
- * (src/components/nodes/version-history-list.tsx: `v${total - i}` over the full, newest-first
- * `versions` array). A voice-changed version's label also names the voice it used.
+ * Succeeded video versions only, newest first, labelled with History's own numbering
+ * (versionLabelsById — failed attempts count). A voice-changed version's label also names the
+ * voice it used, read through the one validated reader (readVoiceChange).
  */
 export function sourceVersionOptions(versions: VersionLike[]): Array<{ id: string; label: string }> {
-  const chrono = [...versions].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const number = new Map(chrono.map((v, i) => [v.id, i + 1]));
+  const labels = versionLabelsById(versions);
   return [...versions]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .filter(succeeded)
     .map((v) => {
-      const voiceName = voiceChangeName(v.inputsUsed?.voiceChange);
-      return { id: v.id, label: `v${number.get(v.id)}${voiceName ? ` · voice: ${voiceName}` : ""}` };
+      const voiceName = readVoiceChange(v.inputsUsed?.voiceChange)?.voiceName;
+      return { id: v.id, label: `${labels.get(v.id)}${voiceName ? ` · voice: ${voiceName}` : ""}` };
     });
 }
 

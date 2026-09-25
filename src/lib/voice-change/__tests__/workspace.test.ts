@@ -2,12 +2,19 @@ import { describe, it, expect } from "vitest";
 import { sourceVersionOptions, defaultSourceVersionId, voiceChangeEstimateCredits, canApplyVoiceChange } from "../workspace";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
+import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
 
-const v = (id: string, createdAt: string, extra: Record<string, unknown> = {}) => ({
+// A full VoiceChangeRecord — the label reads it through readVoiceChange, which validates the shape.
+const VC = {
+  baseVersionId: "b", rootVersionId: "b", sourceUrl: "https://s/b.mp4", voiceId: "a1",
+  voiceName: "Anjali", priceMultiplier: 1, settings: DEFAULT_VOICE_CHANGE_SETTINGS,
+};
+
+const v =(id: string, createdAt: string, extra: Record<string, unknown> = {}) => ({
   id, createdAt, output: `https://s/${id}.mp4`, error: null, paramsUsed: { durationSeconds: 8 }, inputsUsed: {}, ...extra,
 });
 const VERSIONS = [
-  v("c", "2026-09-25T12:00:00Z", { inputsUsed: { voiceChange: { voiceName: "Anjali", rootVersionId: "b" } } }),
+  v("c", "2026-09-25T12:00:00Z", { inputsUsed: { voiceChange: VC } }),
   v("x", "2026-09-25T11:30:00Z", { output: null, error: "boom" }),
   v("b", "2026-09-25T11:00:00Z"),
   v("a", "2026-09-25T10:00:00Z"),

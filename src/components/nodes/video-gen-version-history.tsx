@@ -4,6 +4,7 @@ import type { ApprovalStatus, VersionDecisionSummary } from "@/lib/approval";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { describeVoiceChange } from "@/lib/voice-change/describe";
+import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VersionHistoryList } from "./version-history-list";
 
 /**
@@ -62,11 +63,9 @@ export function VideoGenVersionHistory({
   restoring,
   hideHeader = false,
 }: Props) {
-  // D284 — version id → `v{n}`, the same numbering VersionHistoryList renders on each row
-  // (`v${total - i}` over this same newest-first array), so "changed from v3" in a voice
-  // change's provenance line always matches the row label the operator is looking at.
-  const total = versions.length;
-  const labelById = new Map(versions.map((v, i) => [v.id, `v${total - i}`]));
+  // D284 — version id → `v{n}`, the same numbering VersionHistoryList renders on each row, so
+  // "changed from v3" in a voice change's provenance line matches the row the operator sees.
+  const labelById = versionLabelsById(versions);
 
   const rows = versions.map((v) => {
     const modelLabel = (v.modelUsed ?? "").split(":")[1] ?? "";
