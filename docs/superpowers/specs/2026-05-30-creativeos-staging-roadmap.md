@@ -5794,3 +5794,29 @@ lookup to validate and price the voice. Reading the plan tier to gate the Librar
 has no user-read permission (401).
 
 **Refines.** D282. **Originated →** `docs/superpowers/specs/2026-09-25-voice-picker-library-design.md`.
+
+### D284 — Voice change is a version action, not a generation option *(recorded 2026-09-25; supersedes D282's generate-time voice and D283's popover)*
+
+**Decision.** Generate produces plain video again. A **Change voice** toggle on the Video Gen
+focus view turns the centre into a workspace — the D283 voice browser as a full panel plus every
+timing-safe ElevenLabs speech-to-speech setting (stability, similarity, style, speaker boost,
+background-noise removal, model, seed; not speed). Applying re-voices a chosen version's
+**original model audio** in a `video-voice-change` job and appends a **new version**
+(`inputs_used.voiceChange` records base/root version, voice, settings, drift); the source version
+is untouched. It is billed as its own `voice` generation — voice cost × multiplier only. A sync
+check (source vs returned audio, > 0.25 s drift) fails the job and refunds rather than create an
+out-of-sync version.
+
+**Why.** Re-voicing every draft spends on takes nobody keeps and hides the voice behind a
+dropdown; operators decide on voice only after they like a take. A separate version keeps the
+original and the voice's provenance side by side, and always starting from the original audio
+avoids stacking conversion loss.
+
+**Rejected.** Keeping generate-time voice alongside — two paths to the same result, and the
+wasteful one would stay the default. Overwriting the source version's output — loses the original.
+Converting an already-converted voice — quality degrades with each hop. Exposing speed — breaks lip
+sync.
+
+**Supersedes.** D282 (generate-time voice; the `video-revoice` internals, ffmpeg helpers and
+billing plumbing are reused), D283 (the popover trigger; catalog, routes and browser are reused).
+**Originated →** `docs/superpowers/specs/2026-09-25-change-voice-workspace-design.md`.
