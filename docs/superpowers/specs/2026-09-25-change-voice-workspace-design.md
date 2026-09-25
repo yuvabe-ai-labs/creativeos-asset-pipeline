@@ -17,9 +17,14 @@ produces a new version, keeps the original, and charges only for the voice chang
 2. On the Video Gen focus view, an **Edit voice** switch sits beside the video column's heading —
    the same `Label` + `Switch` Image Gen uses for **Edit**. Shown when the node has at least one
    succeeded video version; disabled while a generation runs.
-3. Switch on → **exactly like Image Gen's Edit**: the **centre (raised) column** holds the voice
-   editor — Take picker, voice browser, the settings card with Apply — and the **video column**
-   shows the chosen take (heading "Take to re-voice") in the same 9:16 frame as the result.
+3. Switch on → **exactly like Image Gen's Edit**: only the **centre (raised) column** changes; the
+   **video column always shows the output**. The centre holds the voice editor:
+   - **Take** — the version the output column is showing (re-voice another one by picking it in
+     History first). No picker.
+   - **Voice** — a dropdown field (chosen voice + labels + preview button) that opens the browser:
+     My voices / Voice Library tabs, search, filter **chips** (gender, age, language, accent, use
+     case, sort), rows with play.
+   - **Settings** card — sliders, switches, Model as chips, Seed, and Apply. No other dropdowns.
 4. **Apply** → a background job re-voices the chosen version and creates a **new version**. The
    source version is untouched. Toggle turns off and the new version becomes active.
 

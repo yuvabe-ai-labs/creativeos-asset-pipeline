@@ -1,27 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Pause, Play, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
-import { VideoGenVoicePickerMeta } from "./video-gen-voice-picker-meta";
+import { ParamChipGroup } from "./param-chip-group";
 import { VOICE_CHANGE_MODELS, type VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
-import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 
 type Props = {
-  /** Changes when the operator picks another source take — re-seeds the seed field. */
+  /** Changes when the operator switches to another take — re-seeds the seed field. */
   sourceId: string | null;
-  voice: PickerVoice | null;
-  saving: boolean;
-  playing: boolean;
-  onTogglePreview: () => void;
   settings: VoiceChangeSettings;
   onSettings: (patch: Partial<VoiceChangeSettings>) => void;
   estimatedCredits: number | null;
@@ -60,7 +53,7 @@ function SliderRow({ label, hint, value, onCommit }: { label: string; hint?: str
   );
 }
 
-// D284 — the voice editor's card: the chosen voice, every timing-safe setting, and Apply.
+// D284 — the voice editor's Settings card: every timing-safe setting, and Apply.
 export function VideoGenChangeVoiceSettings(p: Props) {
   // Seed keeps typing usable (clearing the field, entering multi-digit numbers) — a value bound
   // straight to `settings.seed ?? ""` would round-trip every keystroke through Number(...) and
@@ -76,32 +69,6 @@ export function VideoGenChangeVoiceSettings(p: Props) {
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-card">
-      <div className="flex flex-col gap-1.5">
-        <span className="text-eyebrow">Voice</span>
-        {p.voice ? (
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="icon-sm" className="nodrag shrink-0" aria-label={`${p.playing ? "Stop" : "Play"} preview of ${p.voice.name}`} disabled={!p.voice.previewUrl} onClick={p.onTogglePreview}>
-              {p.playing ? <Pause className="size-4" strokeWidth={1.5} /> : <Play className="size-4" strokeWidth={1.5} />}
-            </Button>
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex items-center gap-1.5">
-                <span className="truncate text-sm font-medium">{p.voice.name}</span>
-                {p.voice.priceMultiplier > 1 && <Badge variant="secondary">{p.voice.priceMultiplier}×</Badge>}
-              </span>
-              {p.saving ? (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Loader2 className="size-3 animate-spin" strokeWidth={1.5} /> Adding to your voices…
-                </span>
-              ) : (
-                <VideoGenVoicePickerMeta labels={p.voice.labels} fields={["gender", "language", "accent"]} />
-              )}
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Pick a voice from the list.</p>
-        )}
-      </div>
-
       <div className="flex flex-col gap-4">
         <span className="text-eyebrow">Settings</span>
         <SliderRow label="Stability" value={p.settings.stability} onCommit={(v) => p.onSettings({ stability: v })} hint="Lower is more expressive; higher is steadier." />
@@ -120,14 +87,11 @@ export function VideoGenChangeVoiceSettings(p: Props) {
         </div>
         <div className="flex items-center justify-between gap-3">
           <Label className="text-xs font-medium">Model</Label>
-          <Select value={p.settings.modelId} onValueChange={(v) => v && p.onSettings({ modelId: v as VoiceChangeSettings["modelId"] })}>
-            <SelectTrigger size="sm" className="nodrag w-40" aria-label="Model">
-              <SelectValue>{VOICE_CHANGE_MODELS.find((m) => m.value === p.settings.modelId)?.label}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {VOICE_CHANGE_MODELS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <ParamChipGroup
+            options={[...VOICE_CHANGE_MODELS]}
+            value={p.settings.modelId}
+            onValueChange={(v) => p.onSettings({ modelId: v as VoiceChangeSettings["modelId"] })}
+          />
         </div>
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="vc-seed" className="text-xs font-medium">Seed</Label>

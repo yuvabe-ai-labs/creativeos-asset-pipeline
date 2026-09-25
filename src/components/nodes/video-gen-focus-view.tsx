@@ -99,7 +99,6 @@ import {
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
-import { defaultSourceVersionId } from "@/lib/voice-change/workspace";
 import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -512,8 +511,6 @@ export function VideoGenFocusView({
   // D284 — the right column's video-vs-workspace mode; the two never combine (see the toggle
   // below the version history's annotate control).
   const [changeVoiceOpen, setChangeVoiceOpen] = useState(false);
-  // D284 — the take Edit voice re-voices; shown in the video column while the editor is open.
-  const [voiceSourceId, setVoiceSourceId] = useState<string | null>(null);
   const [capturedFrame, setCapturedFrame] = useState<{
     base64: string;
     timecodeMs: number;
@@ -1512,8 +1509,8 @@ export function VideoGenFocusView({
                   <VideoGenChangeVoice
                     nodeId={nodeId}
                     versions={versions}
-                    sourceId={voiceSourceId}
-                    onSourceChange={setVoiceSourceId}
+                    // The take = the version the output column is showing, like Image Gen's Edit.
+                    sourceId={activeVersion?.output && !activeVersion.error ? activeVersion.id : null}
                     running={isGenerating}
                     value={voiceChangeProp}
                     onChange={(next) => onPatch({ voiceChange: next })}
@@ -1845,10 +1842,10 @@ export function VideoGenFocusView({
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-1.5">
                   <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
-                  <span className="text-eyebrow">{changeVoiceOpen ? "Take to re-voice" : "Video"}</span>
+                  <span className="text-eyebrow">Video</span>
                 </div>
                 {/* D284 — beside the heading, like Image Gen's Edit switch: the mode acts on the
-                    video shown directly below. */}
+                    video shown directly below, which stays the output. */}
                 {!loadingVersions && versions.some((v) => v.output && !v.error) && (
                   <VideoGenChangeVoiceToggle
                     id={`video-edit-voice-${nodeId}`}
@@ -1857,7 +1854,6 @@ export function VideoGenFocusView({
                     onCheckedChange={(next) => {
                       setChangeVoiceOpen(next);
                       if (next) {
-                        setVoiceSourceId(defaultSourceVersionId(versions, activeVersionId));
                         setSelected("video"); // the editor lives in the centre column's video pane
                         // The two modes never combine — mirror the annotate toggle's off-cleanup.
                         setReviewAnnotating(false);
@@ -1869,24 +1865,6 @@ export function VideoGenFocusView({
                 )}
               </div>
               <div className="min-h-0 flex-1">
-                {changeVoiceOpen ? (
-                  (() => {
-                    const sourceUrl = versions.find((v) => v.id === voiceSourceId)?.output ?? null;
-                    return sourceUrl ? (
-                      // Same 9:16 frame as the result view, so switching modes doesn't resize it.
-                      <div className="relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
-                        <video key={sourceUrl} src={sourceUrl} controls className="aspect-[9/16] h-full max-w-full" />
-                        <p className="pointer-events-none absolute inset-x-0 top-0 bg-background/80 px-3 py-1.5 text-center text-xs text-muted-foreground backdrop-blur-sm">
-                          The new voice keeps this take&apos;s timing, so lip sync holds.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
-                        <p className="px-8 text-center text-sm text-muted-foreground">Pick a take to re-voice.</p>
-                      </div>
-                    );
-                  })()
-                ) : (
                 <>
                 {mode === "skeleton" && (
                   // 9:16, flush left — the same footprint the result frame will occupy.
@@ -2147,7 +2125,6 @@ export function VideoGenFocusView({
                   </div>
                 )}
                 </>
-                )}
               </div>
 
             </div>
