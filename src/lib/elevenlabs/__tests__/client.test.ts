@@ -23,6 +23,26 @@ describe("speechToSpeech", () => {
     expect([...out]).toEqual([1, 2, 3]);
   });
 
+  it("sends model, voice_settings, noise removal and seed when settings are given", async () => {
+    process.env.ELEVEN_LABS_API_KEY = "k";
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      const form = init.body as FormData;
+      expect(form.get("model_id")).toBe("eleven_english_sts_v2");
+      expect(JSON.parse(String(form.get("voice_settings")))).toEqual({ stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: true });
+      expect(form.get("remove_background_noise")).toBe("true");
+      expect(form.get("seed")).toBe("7");
+      expect(form.has("speed")).toBe(false);
+      return new Response(new Uint8Array([1]));
+    });
+    await speechToSpeech(
+      {
+        audio: Buffer.from([1]), voiceId: "v",
+        settings: { stability: 50, similarity: 75, style: 0, speakerBoost: true, removeBackgroundNoise: true, modelId: "eleven_english_sts_v2", seed: 7 },
+      },
+      fetchImpl as unknown as typeof fetch,
+    );
+  });
+
   it("throws with ElevenLabs' message on failure", async () => {
     process.env.ELEVEN_LABS_API_KEY = "k";
     const fetchImpl = vi.fn(async () => new Response("quota_exceeded", { status: 429 }));
