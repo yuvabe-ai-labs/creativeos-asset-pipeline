@@ -13,8 +13,13 @@ import { NodeCardHeader } from "./node-card-header";
 import { MultishotFocusView } from "./multishot-focus-view";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
+import { commitDraft } from "@/lib/nodes/multishot-draft";
 import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
 import type { MultishotNodeData } from "@/lib/canvas-nodes";
+
+// Referentially stable: the focus view reseeds its draft when this changes identity, and a
+// fresh `[]` on every render would reseed it on every render.
+const NO_CUTS: MultishotCut[] = [];
 
 /**
  * D230 — a Multishot node's clip length simply IS the sum of its cuts (operator request
@@ -22,10 +27,10 @@ import type { MultishotNodeData } from "@/lib/canvas-nodes";
  * shows the ladder's length and cut count — no "allocated/total" ratio, because there is
  * nothing separate left for the ladder to disagree with.
  *
- * The card is a read-only preview: the per-cut sliders and text editing all live
- * in `MultishotFocusView`, opened via "Open ↗" or a double-click — the same pattern every other
- * node's focus view uses. "Add cut" is deferred, not just hidden here: see `addCut` in
- * multishot-cuts.ts for why it is kept despite having no caller today.
+ * The card is a read-only preview: the per-cut sliders, text editing and the add/remove
+ * affordances all live in `MultishotFocusView`, opened via "Open ↗" or a double-click — the same
+ * pattern every other node's focus view uses. D279/D280: shots are added and removed there, and
+ * every edit is buffered behind an explicit Save, so this card always shows committed state.
  *
  * Deliberately bare otherwise: no multishot toggle (that lives in the Script now), no beat
  * switcher, and no Composer. The Shot node's four conditional controls on a 224px card are
@@ -40,25 +45,20 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
   const [focusOpen, setFocusOpen] = useState(false);
   const d = data as MultishotNodeData;
 
-  const cuts = d.cuts ?? [];
+  const cuts = d.cuts ?? NO_CUTS;
   const cap = multishotCapabilityFor(d.targetModel);
   // `totalSeconds` is the stored mirror of the ladder's own length, not an independent field —
   // falls back to a fresh totalOf(cuts) only for data seeded before this field existed.
   const total = d.totalSeconds ?? totalOf(cuts);
   const ladder = checkLadder(cuts, cap);
 
-  // There is no Total control any more, so `totalSeconds` is once again just `totalOf(cuts)` —
-  // every write that changes `cuts` MUST write both in the same call, or the stored mirror goes
-  // stale. A MIRROR, not a correction: it is no longer clamped (see the note below `setTargetModel`).
-  const setCuts = (next: MultishotCut[]) =>
-    updateNodeData(id, { cuts: next, totalSeconds: totalOf(next) });
-
-  // D237 — switching the model changes NOTHING about the ladder. Not the cuts, and not the stored
-  // mirror of their sum: `totalSeconds` must keep reporting what the cuts actually are, because
-  // that is the number `checkLadder`'s violation sentence is measured against. Clamping it here
-  // would make the card read "10s" while the line underneath it read "14s · Gemini Omni 1.1
-  // allows 10s" — two numbers for one ladder, and the wrong one in the larger type.
-  const setTargetModel = (targetModel: string) => updateNodeData(id, { targetModel });
+  // D280 — the focus view buffers every edit and commits once. One patch, one updateNodeData
+  // call, so `totalSeconds` (the stored mirror of the ladder's length) cannot be written without
+  // the `cuts` it mirrors — `commitDraft` builds them together.
+  //
+  // Replaces the old write-through `setCuts` + `setTargetModel` pair. There is no unbuffered
+  // write path left: the card is read-only, so this is the only writer of either field.
+  const commit = (patch: ReturnType<typeof commitDraft>) => updateNodeData(id, patch);
 
   // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
   // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
@@ -164,9 +164,8 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
       order={d.order}
       cuts={cuts}
       scriptTitle={d.seededFrom?.scriptTitle}
-      onChange={setCuts}
       targetModel={d.targetModel}
-      onTargetModelChange={setTargetModel}
+      onCommit={commit}
     />
     </>
   );

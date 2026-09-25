@@ -100,6 +100,26 @@ export function renderRefs(
   return { text: parts.join(""), missing };
 }
 
+/**
+ * D281 — the operator's Direction text → what the multishot WRITER reads. `@[Label](id)` becomes
+ * `reference image N (name)`, N being the image's 1-based position in `refs` — the same order the
+ * route labels the attached images in (`buildUserContent(..., { labelImages: true })`), so the
+ * words and the pictures agree. A mention of an image no longer connected becomes its plain name:
+ * never renumbered onto whatever now sits in its old slot (BUG-010).
+ */
+export function resolveRefMentions(text: string, refs: RefEntry[]): string {
+  if (!text.includes("@[")) return text;
+  const position = new Map(refs.map((r, i) => [r.id, i + 1]));
+  return MENTION.parse(text)
+    .map((s) => {
+      if (s.kind === "text") return s.text;
+      const n = position.get(s.id);
+      const name = refDisplayName(s.label);
+      return n === undefined ? name : `reference image ${n} (${name})`;
+    })
+    .join("");
+}
+
 /** The ids a text cites, from either form, in first-seen order. */
 export function citedRefIds(text: string, model: TokenDialect): string[] {
   const seen: string[] = [];

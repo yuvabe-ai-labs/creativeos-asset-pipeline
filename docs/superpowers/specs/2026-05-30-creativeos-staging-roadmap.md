@@ -5719,3 +5719,24 @@ over-limit message quotes.
 
 **Refines.** D257, D258, D259, D273. **Originated →**
 `docs/superpowers/specs/2026-09-23-scene-parse-and-script-ui-design.md`.
+
+### D281 — Reference images are identity-only unless the operator's Direction says otherwise *(recorded 2026-09-24)*
+
+**Decision.** The Multishot Prompt node regains a sequence-level Direction box (the existing
+`instruction` field) in which the operator @-mentions references and says what each is for. The
+route labels each attached image `Reference image N:` and resolves the Direction's chips to
+`reference image N (name)` over the same roster (`refEntriesOf`). Both writers share a rule: a
+reference carries identity only — never its backdrop, studio light, angle or framing — unless the
+Direction names it as the source of the look.
+
+**Why.** A three-angle character turnaround on a grey seamless was read as the location, and the
+plan arrived on a light studio background. D262 already forbade deriving look from references, in
+one sentence; the images arrived unnumbered and the operator had nowhere to say what each was for,
+so the writer guessed.
+
+**Rejected.** Per-reference role pickers (Subject / Product / Look) — a second control for what one
+free-text box with mentions covers; revisit if operators keep typing the same roles. A prompt-only
+fix — still guesswork without a way to point at a specific image; kept as the backstop instead.
+
+**Refines.** D233, D262. **Originated →**
+`docs/superpowers/specs/2026-09-24-multishot-reference-direction-design.md`.

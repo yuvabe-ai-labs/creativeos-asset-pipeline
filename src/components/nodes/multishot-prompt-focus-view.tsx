@@ -12,6 +12,7 @@ import {
   RefreshCw,
   ChevronDown,
   TriangleAlert,
+  Compass,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ import {
   planCitedRefIds,
   planMissingRefs,
   planIsDirty,
+  planCoverage,
   setBeatText,
   type MultishotPlan,
 } from "@/lib/nodes/multishot-plan";
@@ -282,6 +284,17 @@ export function MultishotPromptFocusView({
       return { cutId: b.cutId, text: b.text, from, to: at };
     });
   }, [planDraft, cuts]);
+
+  // D279 — which cuts this plan does not write. The same function the video-generate route
+  // enforces with, so this panel and that refusal cannot describe the ladder differently.
+  //
+  // Reads the SAVED cuts — the Multishot focus view buffers its own edits (D280), so a
+  // half-finished ladder never reaches here and "not written yet" always names a real,
+  // committed gap rather than an edit in progress.
+  const unwritten = useMemo(
+    () => new Set(planDraft ? planCoverage(planDraft, cuts).unwritten : []),
+    [planDraft, cuts],
+  );
 
   // D240 — hand edits are BUFFERED in planDraft and land in the node_versions row only on Save.
   // They used to patch the canvas store on every keystroke and never reach the database at all,
@@ -530,10 +543,9 @@ export function MultishotPromptFocusView({
     }
   }
 
-  // No editors for `instruction` / `cutInstructions` any longer (operator request 2026-09-08 —
-  // they were added on 2026-09-04 and this node never had them before that). The values are still
-  // READ from the node and still travel in every request, so a node that has them keeps its steer;
-  // there is simply no longer a surface for typing new ones.
+  // Per-cut instruction editors were removed (operator request 2026-09-08); `cutInstructions` is
+  // still read from the node and sent, there is just no surface for typing new ones. The
+  // sequence-level `instruction` came back as the Direction box (D281).
 
   /**
    * Persist the hand-edited plan onto the ACTIVE version, in place — no new version row. Same
@@ -720,6 +732,29 @@ export function MultishotPromptFocusView({
                         </p>
                       )}
 
+                      {/* D281 — the operator's Direction: what each reference is FOR. The writer
+                          otherwise has to guess, and a character turnaround on a grey seamless got
+                          read as the location. @-chips resolve server-side to "reference image N",
+                          the same number the attached image is labelled with. Node input, not plan
+                          output, so it writes through immediately and is not held by Save/Cancel. */}
+                      <div className="flex flex-col gap-2">
+                        <FieldLabel icon={Compass} label="Direction" />
+                        <MentionInstructionEditor
+                          value={instructionDraft}
+                          onChange={(v) => {
+                            setInstructionDraft(v);
+                            onPatch({ instruction: v });
+                          }}
+                          placeholder="e.g. @ the turnaround is the character — identity only, ignore its backdrop. Take the setting and light from @ the kitchen shot."
+                          upstream={upstream}
+                          disabled={isReadOnly || generating || !!refining}
+                          className="min-h-16"
+                        />
+                        <p className="text-[0.65rem] text-muted-foreground">
+                          References are used for identity only unless you say otherwise here.
+                        </p>
+                      </div>
+
                       {cuts.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                           Connect a Multishot node with at least one shot to write against.
@@ -751,6 +786,12 @@ export function MultishotPromptFocusView({
                                 <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/70">
                                   {cut.text.trim() || "No shot description yet — edit the Multishot node."}
                                 </p>
+                                {unwritten.has(cut.id) && (
+                                  <p className="mt-1.5 flex items-center gap-1 text-[0.7rem] text-destructive">
+                                    <TriangleAlert className="size-3 shrink-0" strokeWidth={1.5} />
+                                    Not written yet — re-generate, or write this shot.
+                                  </p>
+                                )}
                                 {/* What this shot SAYS. Shown because the writer no longer writes
                                     spoken lines — they are appended to this shot's beat when the
                                     prompt is rendered — so a card without them read as a shot with
@@ -770,6 +811,13 @@ export function MultishotPromptFocusView({
                     {/* Generate, at the foot of the column it acts on — same placement as the
                         image and video prompt views. */}
                     <div className="shrink-0 border-t border-border px-5 py-3">
+                      {unwritten.size > 0 && (
+                        <p className="mb-2 text-[0.7rem] text-destructive">
+                          {unwritten.size === 1
+                            ? "1 shot has no written prompt. Video Gen will refuse until it does."
+                            : `${unwritten.size} shots have no written prompt. Video Gen will refuse until they do.`}
+                        </p>
+                      )}
                       <Button
                         className="w-full"
                         onClick={runGenerate}

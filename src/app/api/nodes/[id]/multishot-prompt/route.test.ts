@@ -463,3 +463,54 @@ describe("POST multishot-prompt — reference binding", () => {
     expect(json.plan.beats[0].text).toBe("the jar @[File: A.png](img-a)");
   });
 });
+
+describe("POST multishot-prompt — Direction references (D281)", () => {
+  const IMAGE = {
+    nodeId: "img-1",
+    versionId: null,
+    label: "File",
+    name: "turnaround.png",
+    type: "file",
+    text: "",
+    fileKind: "image",
+    fileUrl: "https://cdn/turnaround.png",
+  };
+
+  function withImage() {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [IMAGE],
+      cuts: CUTS,
+      targetModel: undefined,
+      scriptNotes: "",
+    } as never);
+  }
+
+  it("hands the writer the Direction with image chips resolved to numbered references", async () => {
+    withImage();
+    returns(PLAN);
+    await post({ instruction: "@[File: turnaround.png](img-1) is the character, identity only" });
+    expect(vi.mocked(buildMultishotUserTurn).mock.calls[0][0].instruction).toBe(
+      "reference image 1 (turnaround.png) is the character, identity only",
+    );
+  });
+
+  it("records the RAW instruction on the version, not the resolved one", async () => {
+    withImage();
+    returns(PLAN);
+    const raw = "@[File: turnaround.png](img-1) identity only";
+    await post({ instruction: raw });
+    expect(runPromptGeneration.mock.calls[0][0].paramsUsed).toMatchObject({ instruction: raw });
+  });
+
+  it("labels each attached image with its reference number", async () => {
+    withImage();
+    returns(PLAN);
+    await post({ instruction: "" });
+    const content = create.mock.calls[0][0].messages[1].content as Array<{ type: string; text?: string }>;
+    expect(content[1]).toEqual({ type: "text", text: "Reference image 1:" });
+    expect(content[2].type).toBe("image_url");
+  });
+});
