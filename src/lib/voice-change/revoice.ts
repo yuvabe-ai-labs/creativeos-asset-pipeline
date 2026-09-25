@@ -60,10 +60,20 @@ export async function revoiceVideo(payload: RevoicePayload, deps: RevoiceDeps): 
 
   // D284 — ElevenLabs speech-to-speech doesn't guarantee matching duration; a voice that drifted
   // audibly out of sync with the picture is worse than no change at all, so nothing gets uploaded.
-  const [sourceSeconds, voicedSeconds] = [
-    await deps.probeDurationSeconds(audio, "mp3"),
-    await deps.probeDurationSeconds(voiced, "mp3"),
-  ];
+  let sourceSeconds: number;
+  let voicedSeconds: number;
+  try {
+    [sourceSeconds, voicedSeconds] = [
+      await deps.probeDurationSeconds(audio, "mp3"),
+      await deps.probeDurationSeconds(voiced, "mp3"),
+    ];
+  } catch (e) {
+    // A duration probe that can't parse ffmpeg's own output won't fix itself on a retry.
+    throw new NonRetryableRevoiceError(
+      `Could not measure the audio duration: ${e instanceof Error ? e.message : String(e)}`,
+      { cause: e },
+    );
+  }
   const drift = Math.abs(sourceSeconds - voicedSeconds);
   if (drift > MAX_SYNC_DRIFT_SECONDS) throw new NonRetryableRevoiceError(SYNC_DRIFT_MESSAGE);
 

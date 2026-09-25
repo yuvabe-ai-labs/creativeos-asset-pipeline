@@ -1,8 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { postGenerationWebhook, postGenerationWebhookSafely } from "./post-webhook";
+import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "./post-webhook";
 
 beforeEach(() => { process.env.APP_URL = "https://app.example"; process.env.TRIGGER_WEBHOOK_SECRET = "s"; });
 afterEach(() => vi.restoreAllMocks());
+
+describe("assertWebhookConfig", () => {
+  it("throws when APP_URL is unset", () => {
+    delete process.env.APP_URL;
+    expect(() => assertWebhookConfig()).toThrow("APP_URL env var not set");
+  });
+
+  it("throws when TRIGGER_WEBHOOK_SECRET is unset", () => {
+    delete process.env.TRIGGER_WEBHOOK_SECRET;
+    expect(() => assertWebhookConfig()).toThrow("TRIGGER_WEBHOOK_SECRET env var not set");
+  });
+});
 
 describe("postGenerationWebhook", () => {
   it("posts JSON with the bearer secret to /api/webhooks/generation", async () => {

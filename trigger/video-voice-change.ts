@@ -3,7 +3,7 @@ import { revoiceVideo, NonRetryableRevoiceError } from "@/lib/voice-change/revoi
 import { fetchBytes, putBytes } from "@/lib/voice-change/http";
 import { extractAudio, replaceAudio, probeDurationSeconds } from "@/lib/media/ffmpeg";
 import { speechToSpeech } from "@/lib/elevenlabs/client";
-import { postGenerationWebhook, postGenerationWebhookSafely } from "@/lib/generations/post-webhook";
+import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
 import type { RevoicePayload } from "@/lib/voice-change/types";
 
 export type VoiceChangeTaskPayload = RevoicePayload & {
@@ -12,16 +12,22 @@ export type VoiceChangeTaskPayload = RevoicePayload & {
   durationSeconds: number;
 };
 
+// Shared with `retry.maxAttempts` below — `ctx.attempt.number` reaches this on the run's last
+// configured attempt, which is when a failure webhook is worth posting (see the catch block).
+const MAX_ATTEMPTS = 2;
+
 // D284 — re-voices a stored version's ORIGINAL audio into a new version. The route resolved the
-// source, reserved voice-only credits and signed the upload. maxDuration 120 × 2 attempts keeps a
-// run inside the 15-minute stuck-reservation sweep; concurrency 2 matches the ElevenLabs plan's
+// source, reserved voice-only credits and signed the upload. maxDuration 120 × MAX_ATTEMPTS keeps
+// a run inside the 15-minute stuck-reservation sweep; concurrency 2 matches the ElevenLabs plan's
 // speech-to-speech limit (raise both together).
 export const videoVoiceChangeTask = task({
   id: "video-voice-change",
   maxDuration: 120,
-  retry: { maxAttempts: 2, minTimeoutInMs: 2000, maxTimeoutInMs: 15000, factor: 2 },
+  retry: { maxAttempts: MAX_ATTEMPTS, minTimeoutInMs: 2000, maxTimeoutInMs: 15000, factor: 2 },
   queue: { concurrencyLimit: 2 },
   run: async (payload: VoiceChangeTaskPayload, { ctx }) => {
+    // Fail fast on a misconfigured deploy — before any download or ElevenLabs call.
+    assertWebhookConfig();
     logger.info("Changing voice", { generationId: payload.generationId, voiceId: payload.voiceId });
     let driftMs: number;
     try {
@@ -35,7 +41,7 @@ export const videoVoiceChangeTask = task({
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : "Voice change failed";
-      const finalAttempt = e instanceof NonRetryableRevoiceError || ctx.attempt.number >= 2;
+      const finalAttempt = e instanceof NonRetryableRevoiceError || ctx.attempt.number >= MAX_ATTEMPTS;
       if (finalAttempt) {
         await postGenerationWebhookSafely({ generationId: payload.generationId, status: "failed", error: message }, "voice change failure");
       }

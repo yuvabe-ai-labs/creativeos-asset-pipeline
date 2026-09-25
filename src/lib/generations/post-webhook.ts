@@ -1,6 +1,12 @@
 // D284 — extracted from trigger/video-generate.ts so trigger/video-voice-change.ts can share it.
 // The Trigger.dev tasks' callback into this app (D89: shared-secret auth). No `server-only`.
-function target() {
+/**
+ * Validates the webhook's env config and returns the target. Exported so both tasks' `run()`
+ * calls it as its own first line — before the mock wait / before any provider call — the same
+ * fail-fast-on-misconfiguration behaviour the pre-D284 video-generate.ts had inline, restored
+ * after the D284 extraction dropped it (review fix).
+ */
+export function assertWebhookConfig(): { url: string; secret: string } {
   const appUrl = process.env.APP_URL;
   if (!appUrl) throw new Error("APP_URL env var not set");
   const secret = process.env.TRIGGER_WEBHOOK_SECRET;
@@ -9,7 +15,7 @@ function target() {
 }
 
 export async function postGenerationWebhook(body: object): Promise<Response> {
-  const { url, secret } = target();
+  const { url, secret } = assertWebhookConfig();
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
@@ -43,6 +49,15 @@ export async function postGenerationWebhookSafely(body: object, context: string)
       chain.push(typeof code === "string" ? `${cur.message} [${code}]` : cur.message);
       cur = (cur as { cause?: unknown }).cause;
     }
-    console.error("Generation webhook unreachable", { context, reason: chain.join(" ← ") });
+    // assertWebhookConfig() can itself be the thing that failed (e.g. a missing env var) — in
+    // that case there's no real URL to report, so fall back rather than letting this throw over
+    // the top of the diagnostic we're trying to log.
+    let webhookUrl: string;
+    try {
+      webhookUrl = assertWebhookConfig().url;
+    } catch {
+      webhookUrl = "(unset — APP_URL or TRIGGER_WEBHOOK_SECRET missing)";
+    }
+    console.error("Generation webhook unreachable", { context, webhookUrl, reason: chain.join(" ← ") });
   }
 }

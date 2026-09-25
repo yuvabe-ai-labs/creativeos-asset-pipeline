@@ -48,6 +48,14 @@ describe("revoiceVideo", () => {
     expect(bad.putBytes).not.toHaveBeenCalled();
   });
 
+  it("wraps a duration-probe failure as NonRetryableRevoiceError", async () => {
+    const d = deps({ probeDurationSeconds: vi.fn().mockRejectedValueOnce(new Error("no Duration line")) });
+    const err = await revoiceVideo(PAYLOAD, d).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NonRetryableRevoiceError);
+    expect((err as Error).message).toBe("Could not measure the audio duration: no Duration line");
+    expect(d.putBytes).not.toHaveBeenCalled();
+  });
+
   it("throws (so Trigger retries) when ElevenLabs fails, and uploads nothing", async () => {
     const d = deps({ speechToSpeech: vi.fn(async () => { throw new Error("429 quota"); }) });
     await expect(revoiceVideo(PAYLOAD, d)).rejects.toThrow("429 quota");

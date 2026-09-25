@@ -1,5 +1,5 @@
 import { task, logger, wait } from "@trigger.dev/sdk/v3";
-import { postGenerationWebhook, postGenerationWebhookSafely } from "@/lib/generations/post-webhook";
+import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
 
 const MOCK_VIDEO_URL = "https://www.w3schools.com/html/mov_bbb.mp4";
 const MOCK_DURATION_SECONDS = 8;
@@ -19,6 +19,10 @@ export const videoGenerateTask = task({
   }) => {
     const { generationId, modelId } = payload;
     const MOCK_MODE = payload.mockMode === true;
+    // Fail fast on a misconfigured deploy — before the mock wait and before any (paid) provider
+    // call, exactly where the pre-D284 inline version checked (restored after the D284 extraction
+    // to post-webhook.ts dropped it — review fix).
+    const { url: webhookUrl } = assertWebhookConfig();
 
     if (MOCK_MODE) {
       logger.info("MOCK MODE: simulating video generation", { generationId, modelId });
@@ -75,7 +79,7 @@ export const videoGenerateTask = task({
         // unreachable webhook can still be reconciled by hand instead of leaving a paid-for
         // generation stuck pending with no trace of where it went.
         throw new Error(
-          `Video generated but the webhook at ${process.env.APP_URL}/api/webhooks/generation was unreachable — ` +
+          `Video generated but the webhook at ${webhookUrl} was unreachable — ` +
             `videoUrl=${result.videoUrl}: ${e instanceof Error ? e.message : String(e)}`,
         );
       }
