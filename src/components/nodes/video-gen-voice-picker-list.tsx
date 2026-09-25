@@ -1,6 +1,5 @@
 "use client";
 
-import { Check } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -19,20 +18,16 @@ type Props = {
   filtered: boolean;
   infinite: { hasMore: boolean; onMore: () => void } | null;
   playingId: string | null;
-  onSelect: (voice: PickerVoice | null) => void;
+  onSelect: (voice: PickerVoice) => void;
   onTogglePreview: (voice: PickerVoice) => void;
   onRetry: () => void;
   onClearFilters: () => void;
-  /** D284 — the Change voice workspace never offers "Original (no change)": it always re-voices. */
-  showOriginal?: boolean;
-  /** D284 — the workspace panel fills its column instead of the popover's fixed height. */
-  fill?: boolean;
 };
 
-// D283 — "Original" first, then voice rows; on My voices, grouped under "Your voices" (custom
-// categories) / "Default voices" (premade) when both are present. Skeleton / empty / error
-// states; infinite scroll for the Library.
-export function VideoGenVoicePickerList({ showOriginal = true, fill = false, ...p }: Props) {
+// D283/D284 — voice rows; on My voices, grouped under "Your voices" (custom categories) /
+// "Default voices" (premade) when both are present. Skeleton / empty / error states; infinite
+// scroll for the Library.
+export function VideoGenVoicePickerList(p: Props) {
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     const rows = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-voice-row]"));
@@ -60,25 +55,11 @@ export function VideoGenVoicePickerList({ showOriginal = true, fill = false, ...
   const defaultVoices = p.tab === "account" ? p.voices.filter((v) => !CUSTOM_VOICE_CATEGORIES.has(v.category)) : [];
   const showGroups = p.tab === "account" && customVoices.length > 0 && defaultVoices.length > 0;
 
-  const list = (
-    // Vertical-only list: rows shrink to the popover width (long descriptions wrap/clamp) instead
+  return (
+    // Vertical-only list: rows shrink to the column width (long descriptions wrap/clamp) instead
     // of the content growing wider than the viewport and scrolling sideways.
-    <ScrollArea className={fill ? "min-h-0 flex-1" : "h-[340px]"} contentClassName="w-full min-w-0!">
+    <ScrollArea className="h-[340px]" contentClassName="w-full min-w-0!">
       <div className="flex flex-col gap-0.5 pr-2" onKeyDown={onKeyDown}>
-        {showOriginal && (
-          <Button
-            type="button"
-            variant="ghost"
-            className="nodrag h-9 justify-between px-2.5 text-sm"
-            onClick={() => p.onSelect(null)}
-            aria-pressed={p.selectedId === null}
-            data-voice-row
-          >
-            Original (no change)
-            {p.selectedId === null && <Check className="size-4 text-primary" strokeWidth={1.5} />}
-          </Button>
-        )}
-
         {initialLoading &&
           Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="mx-1.5 my-1 h-9" />)}
 
@@ -117,6 +98,4 @@ export function VideoGenVoicePickerList({ showOriginal = true, fill = false, ...
       </div>
     </ScrollArea>
   );
-
-  return fill ? <div className="flex min-h-0 flex-1 flex-col">{list}</div> : list;
 }

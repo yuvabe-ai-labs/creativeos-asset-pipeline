@@ -16,10 +16,8 @@ import { VOICE_CHANGE_MODELS, type VoiceChangeSettings } from "@/lib/elevenlabs/
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 
 type Props = {
-  sources: Array<{ id: string; label: string }>;
+  /** Changes when the operator picks another source take — re-seeds the seed field. */
   sourceId: string | null;
-  onSourceChange: (id: string) => void;
-  sourceUrl: string | null;
   voice: PickerVoice | null;
   saving: boolean;
   playing: boolean;
@@ -62,7 +60,7 @@ function SliderRow({ label, hint, value, onCommit }: { label: string; hint?: str
   );
 }
 
-// D284 — right half of the workspace: source version, chosen voice, every timing-safe setting, Apply.
+// D284 — the voice editor's card: the chosen voice, every timing-safe setting, and Apply.
 export function VideoGenChangeVoiceSettings(p: Props) {
   // Seed keeps typing usable (clearing the field, entering multi-digit numbers) — a value bound
   // straight to `settings.seed ?? ""` would round-trip every keystroke through Number(...) and
@@ -77,23 +75,7 @@ export function VideoGenChangeVoiceSettings(p: Props) {
   }, [p.sourceId]);
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-card">
-      <div className="flex flex-col gap-1.5">
-        <span className="text-eyebrow">Source</span>
-        <Select value={p.sourceId ?? undefined} onValueChange={(v) => v && p.onSourceChange(String(v))}>
-          <SelectTrigger size="sm" className="nodrag" aria-label="Version to change">
-            <SelectValue>{p.sources.find((s) => s.id === p.sourceId)?.label ?? "Pick a version"}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {p.sources.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {p.sourceUrl && (
-          <video src={p.sourceUrl} controls className="aspect-[9/16] max-h-40 w-fit rounded-lg border border-border bg-muted/20" />
-        )}
-        <p className="text-xs text-muted-foreground">Always re-voiced from this take&apos;s original audio.</p>
-      </div>
-
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-card">
       <div className="flex flex-col gap-1.5">
         <span className="text-eyebrow">Voice</span>
         {p.voice ? (

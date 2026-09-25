@@ -7,12 +7,13 @@ import { useVoiceBrowser, type VoiceTab } from "@/hooks/use-voice-browser";
 import { VideoGenVoicePickerFilters } from "./video-gen-voice-picker-filters";
 import { VideoGenVoicePickerList } from "./video-gen-voice-picker-list";
 
-// D284 — left half of the workspace: My voices / Voice Library, search, filters, rows with preview.
+// D284 — the voice editor's browser: My voices / Voice Library, search, filters, rows with
+// preview. A fixed-height list inside the scrolling centre column.
 export function VideoGenChangeVoiceBrowser({ selectedId, onSelect }: { selectedId: string | null; onSelect: (v: PickerVoice) => void }) {
   const b = useVoiceBrowser(true);
   const lib = b.tab === "library";
   return (
-    <div className="flex min-h-0 flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <Tabs value={b.tab} onValueChange={(t) => b.setTab(t as VoiceTab)}>
         <TabsList>
           <TabsTrigger value="account">My voices</TabsTrigger>
@@ -29,12 +30,10 @@ export function VideoGenChangeVoiceBrowser({ selectedId, onSelect }: { selectedI
         filtered={hasActiveFilters(b.filters)}
         infinite={lib ? { hasMore: b.library.hasMore, onMore: b.library.loadMore } : null}
         playingId={b.preview.playingId}
-        onSelect={(v) => v && onSelect(v)}
+        onSelect={onSelect}
         onTogglePreview={b.preview.toggle}
         onRetry={b.retry}
         onClearFilters={b.clearFilters}
-        showOriginal={false}
-        fill
       />
     </div>
   );

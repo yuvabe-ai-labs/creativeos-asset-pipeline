@@ -14,10 +14,12 @@ produces a new version, keeps the original, and charges only for the voice chang
 ## Flow
 
 1. **Generate** is plain video again: no voice picker, no `voiceId`, no voice step in the job.
-2. On the Video Gen focus view, a **Change voice** toggle (shadcn `Switch` with label) sits in the
-   preview header. Enabled when the node has at least one succeeded video version.
-3. Toggle on → the **centre area** (where the player is) becomes the voice workspace:
-   **left** the voice browser, **right** the settings panel with the Apply button.
+2. On the Video Gen focus view, an **Edit voice** switch sits beside the video column's heading —
+   the same `Label` + `Switch` Image Gen uses for **Edit**. Shown when the node has at least one
+   succeeded video version; disabled while a generation runs.
+3. Switch on → **exactly like Image Gen's Edit**: the **centre (raised) column** holds the voice
+   editor — Take picker, voice browser, the settings card with Apply — and the **video column**
+   shows the chosen take (heading "Take to re-voice") in the same 9:16 frame as the result.
 4. **Apply** → a background job re-voices the chosen version and creates a **new version**. The
    source version is untouched. Toggle turns off and the new version becomes active.
 

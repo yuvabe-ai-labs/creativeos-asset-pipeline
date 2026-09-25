@@ -99,6 +99,7 @@ import {
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
+import { defaultSourceVersionId } from "@/lib/voice-change/workspace";
 import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -511,6 +512,8 @@ export function VideoGenFocusView({
   // D284 — the right column's video-vs-workspace mode; the two never combine (see the toggle
   // below the version history's annotate control).
   const [changeVoiceOpen, setChangeVoiceOpen] = useState(false);
+  // D284 — the take Edit voice re-voices; shown in the video column while the editor is open.
+  const [voiceSourceId, setVoiceSourceId] = useState<string | null>(null);
   const [capturedFrame, setCapturedFrame] = useState<{
     base64: string;
     timecodeMs: number;
@@ -1503,8 +1506,24 @@ export function VideoGenFocusView({
                 min-content width, so one long unbreakable string inside any pane silently
                 overrides w-[54%] and squeezes the video column beside it. */}
             <div className="min-h-0 w-[54%] min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
+              {/* D284 — Edit voice takes over this column, as Image Gen's Edit does. */}
+              {selected === "video" && changeVoiceOpen && (
+                <div className="px-6 py-5">
+                  <VideoGenChangeVoice
+                    nodeId={nodeId}
+                    versions={versions}
+                    sourceId={voiceSourceId}
+                    onSourceChange={setVoiceSourceId}
+                    running={isGenerating}
+                    value={voiceChangeProp}
+                    onChange={(next) => onPatch({ voiceChange: next })}
+                    onApplied={() => setChangeVoiceOpen(false)}
+                  />
+                </div>
+              )}
+
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
-              {selected === "video" && (
+              {selected === "video" && !changeVoiceOpen && (
                 <div className="flex flex-col gap-10 px-6 py-5">
                   {/* Model first: it decides which roles exist, which params show, and which
                       combinations are legal, so every choice below it is downstream of this one. */}
@@ -1823,36 +1842,50 @@ export function VideoGenFocusView({
             {/* Right column — the video, always visible. Faintly sunk so the
                 settings column reads as raised against it. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-6">
                 <div className="flex items-center gap-1.5">
                   <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
-                  <span className="text-eyebrow">{changeVoiceOpen ? "Change voice" : "Video"}</span>
+                  <span className="text-eyebrow">{changeVoiceOpen ? "Take to re-voice" : "Video"}</span>
                 </div>
-                <VideoGenChangeVoiceToggle
-                  checked={changeVoiceOpen}
-                  disabled={!editable || !versions.some((v) => v.output && !v.error)}
-                  onCheckedChange={(next) => {
-                    setChangeVoiceOpen(next);
-                    // D284: the two never combine — mirror the annotate toggle's own off-cleanup.
-                    if (next) {
-                      setReviewAnnotating(false);
-                      setCapturedFrame(null);
-                      setOpenTimecode(null);
-                    }
-                  }}
-                />
+                {/* D284 — beside the heading, like Image Gen's Edit switch: the mode acts on the
+                    video shown directly below. */}
+                {!loadingVersions && versions.some((v) => v.output && !v.error) && (
+                  <VideoGenChangeVoiceToggle
+                    id={`video-edit-voice-${nodeId}`}
+                    checked={changeVoiceOpen}
+                    disabled={!editable || isGenerating}
+                    onCheckedChange={(next) => {
+                      setChangeVoiceOpen(next);
+                      if (next) {
+                        setVoiceSourceId(defaultSourceVersionId(versions, activeVersionId));
+                        setSelected("video"); // the editor lives in the centre column's video pane
+                        // The two modes never combine — mirror the annotate toggle's off-cleanup.
+                        setReviewAnnotating(false);
+                        setCapturedFrame(null);
+                        setOpenTimecode(null);
+                      }
+                    }}
+                  />
+                )}
               </div>
               <div className="min-h-0 flex-1">
                 {changeVoiceOpen ? (
-                  <VideoGenChangeVoice
-                    nodeId={nodeId}
-                    versions={versions}
-                    activeVersionId={activeVersionId}
-                    running={isGenerating}
-                    value={voiceChangeProp}
-                    onChange={(next) => onPatch({ voiceChange: next })}
-                    onApplied={() => setChangeVoiceOpen(false)}
-                  />
+                  (() => {
+                    const sourceUrl = versions.find((v) => v.id === voiceSourceId)?.output ?? null;
+                    return sourceUrl ? (
+                      // Same 9:16 frame as the result view, so switching modes doesn't resize it.
+                      <div className="relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
+                        <video key={sourceUrl} src={sourceUrl} controls className="aspect-[9/16] h-full max-w-full" />
+                        <p className="pointer-events-none absolute inset-x-0 top-0 bg-background/80 px-3 py-1.5 text-center text-xs text-muted-foreground backdrop-blur-sm">
+                          The new voice keeps this take&apos;s timing, so lip sync holds.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
+                        <p className="px-8 text-center text-sm text-muted-foreground">Pick a take to re-voice.</p>
+                      </div>
+                    );
+                  })()
                 ) : (
                 <>
                 {mode === "skeleton" && (
