@@ -9,10 +9,27 @@ type VersionLike = {
   createdAt: string;
   output: string | null;
   error: string | null;
-  inputsUsed?: { voiceChange?: { voiceName?: string } } & Record<string, unknown>;
+  // `unknown`, not a `{ voiceName?: string }` shape: `voiceChange` is typed `unknown` on
+  // VideoGenVersionInputs (Task 6 — it's read through `readVoiceChange`/`describeVoiceChange`
+  // elsewhere, never dereferenced directly), and a narrower field type here would make this
+  // type incompatible with the callers that pass a `VideoGenVersionSummary[]`.
+  inputsUsed?: { voiceChange?: unknown } & Record<string, unknown>;
 };
 
 const succeeded = (v: VersionLike) => Boolean(v.output) && !v.error;
+
+/**
+ * Just the voice name for a version's label — deliberately lenient (only checks `voiceName`,
+ * not the full `VoiceChangeRecord` shape `readVoiceChange` validates) since a label is display
+ * only, never a value this module trusts for anything else.
+ */
+function voiceChangeName(voiceChange: unknown): string | undefined {
+  return typeof voiceChange === "object" &&
+    voiceChange !== null &&
+    typeof (voiceChange as Record<string, unknown>).voiceName === "string"
+    ? ((voiceChange as Record<string, unknown>).voiceName as string)
+    : undefined;
+}
 
 /**
  * Succeeded video versions only, newest first — labelled `v{n}` by CHRONOLOGICAL position
@@ -27,7 +44,7 @@ export function sourceVersionOptions(versions: VersionLike[]): Array<{ id: strin
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .filter(succeeded)
     .map((v) => {
-      const voiceName = v.inputsUsed?.voiceChange?.voiceName;
+      const voiceName = voiceChangeName(v.inputsUsed?.voiceChange);
       return { id: v.id, label: `v${number.get(v.id)}${voiceName ? ` · voice: ${voiceName}` : ""}` };
     });
 }

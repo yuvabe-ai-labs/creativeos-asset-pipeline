@@ -251,3 +251,19 @@ describe("voice on a version (D282)", () => {
     });
   });
 });
+
+// D284: a voice-changed version's provenance (`inputsUsed.voiceChange`) is read by
+// describeVoiceChange (src/lib/voice-change/describe.ts), not by this module — a voice change's
+// `params_used` is still just the root video version's own params (completeGeneration copies
+// `params_snapshot` + `durationSeconds`), so it needs no dedicated handling here. This pins that
+// describeAllVersionParams keeps reading it exactly like any other version's params.
+describe("a voice-changed version's params_used (D284)", () => {
+  it("reads the root video version's params unaffected — voiceChange lives only in inputsUsed", () => {
+    const entries = describeAllVersionParams(videoSpecs("veo:veo-3.1"), {
+      duration: "8",
+      durationSeconds: 8,
+    });
+    expect(entries.map((e) => e.name)).toEqual(["duration"]);
+    expect(entries.some((e) => e.name === "voiceChange")).toBe(false);
+  });
+});

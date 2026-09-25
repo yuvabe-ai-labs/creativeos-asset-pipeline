@@ -6,6 +6,7 @@ import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useNodeCost } from "@/hooks/use-node-cost";
 import { readVoiceMeta } from "@/lib/voice-change/meta";
+import { readVoiceChange } from "@/lib/voice-change/record";
 
 type Props = {
   versions: VideoGenVersionSummary[];
@@ -20,6 +21,9 @@ type GenStat = {
   creditsCharged: number | null;
   modelLabel: string;
   voiced: boolean;
+  // D284 — set when this version is a voice change; its meta line replaces duration/model
+  // with this instead (the credits are already voice-only, so those figures don't apply).
+  voiceChangeName: string | null;
 };
 
 export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Props) {
@@ -43,6 +47,7 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
         creditsCharged: v.creditsCharged ?? null,
         modelLabel: v.modelUsed.split(":")[1] ?? v.modelUsed,
         voiced: readVoiceMeta(v.paramsUsed?.voice)?.status === "applied",
+        voiceChangeName: readVoiceChange(v.inputsUsed?.voiceChange)?.voiceName ?? null,
       });
     });
 
@@ -55,7 +60,9 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
   const rows: UsageRow[] = perGen.map((g) => ({
     label: `v${g.vNum}`,
     time: formatRelativeTime(g.createdAt),
-    meta: `${g.durationSeconds}s · ${g.modelLabel}${g.voiced ? " · voice" : ""}`,
+    meta: g.voiceChangeName
+      ? `voice change · ${g.voiceChangeName}`
+      : `${g.durationSeconds}s · ${g.modelLabel}${g.voiced ? " · voice" : ""}`,
     credits: g.creditsCharged !== null ? g.creditsCharged.toLocaleString() : "—",
   }));
 

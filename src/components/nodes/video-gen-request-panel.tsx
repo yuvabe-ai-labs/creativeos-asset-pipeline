@@ -1,6 +1,6 @@
 "use client";
 
-import { Image as ImageIcon, PencilLine, SlidersHorizontal } from "lucide-react";
+import { AudioLines, Image as ImageIcon, PencilLine, SlidersHorizontal } from "lucide-react";
 import {
   videoGenClientModelMap,
   resolveVideoModelId,
@@ -9,6 +9,7 @@ import {
   describeAllVersionParams,
   type VersionParamEntry,
 } from "@/lib/generations/version-params";
+import { describeVoiceChange } from "@/lib/voice-change/describe";
 import { LeftSection } from "./focus-left-section";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 
@@ -78,6 +79,10 @@ export function VideoGenRequestPanel({ version }: { version: VideoGenVersionSumm
   const images = requestImages(version.inputsUsed);
   const params = describeAllVersionParams(model?.params, version.paramsUsed);
   const prompt = version.inputsUsed?.prompt?.trim() ?? "";
+  // D284 — no labelById here: this panel only ever sees the one active version, not the full
+  // list History numbers from, so a voice change's "changed from" part falls back to
+  // describeVoiceChange's own "an earlier version" wording rather than a version number.
+  const voiceChange = describeVoiceChange(version.inputsUsed, new Map());
 
   return (
     <div className="flex flex-col gap-8 px-6 py-5">
@@ -129,6 +134,21 @@ export function VideoGenRequestPanel({ version }: { version: VideoGenVersionSumm
               </li>
             ))}
           </ul>
+        </LeftSection>
+      )}
+
+      {voiceChange && (
+        <LeftSection icon={AudioLines} label="Voice change">
+          <dl className="flex flex-col gap-px overflow-hidden rounded-lg border border-border bg-border shadow-card">
+            <div className="bg-card px-3 py-2.5 text-sm font-medium text-primary">
+              {voiceChange.title}
+            </div>
+            {voiceChange.detail.split(" · ").map((part, i) => (
+              <div key={`${i}-${part}`} className="bg-card px-3 py-2.5 text-sm text-foreground">
+                {part}
+              </div>
+            ))}
+          </dl>
         </LeftSection>
       )}
 

@@ -3,6 +3,7 @@
 import type { ApprovalStatus, VersionDecisionSummary } from "@/lib/approval";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import { describeVoiceChange } from "@/lib/voice-change/describe";
 import { VersionHistoryList } from "./version-history-list";
 
 /**
@@ -16,6 +17,9 @@ export type VideoGenVersionInputs = {
   startFrameUrl?: string | null;
   endFrameUrl?: string | null;
   referenceUrls?: string[];
+  // D284 — present on a voice-changed version; read via `describeVoiceChange` (Task 6), never
+  // dereferenced directly here.
+  voiceChange?: unknown;
 };
 
 export type VideoGenVersionSummary = {
@@ -58,6 +62,12 @@ export function VideoGenVersionHistory({
   restoring,
   hideHeader = false,
 }: Props) {
+  // D284 — version id → `v{n}`, the same numbering VersionHistoryList renders on each row
+  // (`v${total - i}` over this same newest-first array), so "changed from v3" in a voice
+  // change's provenance line always matches the row label the operator is looking at.
+  const total = versions.length;
+  const labelById = new Map(versions.map((v, i) => [v.id, `v${total - i}`]));
+
   const rows = versions.map((v) => {
     const modelLabel = (v.modelUsed ?? "").split(":")[1] ?? "";
     // YUV-295: what this version was actually generated with. Without it two rows for the
@@ -69,6 +79,12 @@ export function VideoGenVersionHistory({
     )
       .map((p) => `${p.label}: ${p.value}`)
       .join(" · ");
+    // D284 — a voice-changed version's provenance replaces the model/param lines above: its
+    // model is always the same ElevenLabs voice-change model, so naming it as "Voice: Anjali"
+    // plus the settings it ran with is more useful than the generic pair. A D282 legacy
+    // version (`params_used.voice`) has no `inputsUsed.voiceChange` and keeps the lines above —
+    // `describeVersionParams` already folds its `readVoiceMeta` line into `paramSummary`.
+    const voiceChange = describeVoiceChange(v.inputsUsed, labelById);
 
     return {
       id: v.id,
@@ -82,7 +98,16 @@ export function VideoGenVersionHistory({
           <video src={v.output} className="size-full object-cover" muted playsInline />
         </div>
       ) : undefined,
-      meta: (
+      meta: voiceChange ? (
+        <>
+          <p className="line-clamp-1 text-[0.7rem] leading-snug text-primary">
+            {voiceChange.title}
+          </p>
+          <p className="mt-0.5 line-clamp-2 text-[0.65rem] leading-snug text-muted-foreground/80">
+            {voiceChange.detail}
+          </p>
+        </>
+      ) : (
         <>
           {modelLabel && (
             <p className="line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
