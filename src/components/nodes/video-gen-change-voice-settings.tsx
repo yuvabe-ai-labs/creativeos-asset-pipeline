@@ -32,16 +32,31 @@ type Props = {
   onApply: () => void;
 };
 
-function SliderRow({ id, label, hint, value, onChange }: { id: string; label: string; hint?: string; value: number; onChange: (v: number) => void }) {
+function SliderRow({ label, hint, value, onCommit }: { label: string; hint?: string; value: number; onCommit: (v: number) => void }) {
+  // Live value while dragging; the node's settings (and the Apply cost estimate) update only
+  // on release — same drag-vs-commit split as post-inspector-common.tsx's onPreview/onChange.
+  const [live, setLive] = useState(value);
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <Label htmlFor={id} className="text-xs font-medium">{label}</Label>
-        <span className="text-xs tabular-nums text-muted-foreground">{value}</span>
+        {/* Base UI's Slider Root puts `id` on a wrapping div, not the focusable thumb input —
+            its accessible name goes through `aria-label` below (slider.tsx forwards it to the
+            Thumb) instead of an htmlFor pairing, so this label is plain text, not a <label for>. */}
+        <Label className="text-xs font-medium">{label}</Label>
+        <span className="text-xs tabular-nums text-muted-foreground">{live}</span>
       </div>
       {/* Base UI's single-thumb Slider takes/returns a one-element array, not a bare number
           (src/components/ui/slider.tsx normalises `value`/`defaultValue` the same way). */}
-      <Slider id={id} min={0} max={100} step={1} value={[value]} onValueChange={(v) => onChange(Array.isArray(v) ? v[0] : v)} className="nodrag" />
+      <Slider
+        aria-label={label}
+        min={0}
+        max={100}
+        step={1}
+        value={[live]}
+        onValueChange={(v) => setLive(Array.isArray(v) ? v[0] : v)}
+        onValueCommitted={(v) => onCommit(Array.isArray(v) ? v[0] : v)}
+        className="nodrag"
+      />
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
@@ -53,6 +68,8 @@ export function VideoGenChangeVoiceSettings(p: Props) {
   // straight to `settings.seed ?? ""` would round-trip every keystroke through Number(...) and
   // reject a partially-typed or just-cleared value before onSettings could ever store it.
   const [seedText, setSeedText] = useState(p.settings.seed?.toString() ?? "");
+  const seedN = Number(seedText);
+  const seedInvalid = seedText !== "" && (!Number.isInteger(seedN) || seedN < 0 || seedN > 4294967295);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-seeds the local text from the new source's settings, same idiom as use-market.ts's initial fetch
     setSeedText(p.settings.seed?.toString() ?? "");
@@ -105,9 +122,9 @@ export function VideoGenChangeVoiceSettings(p: Props) {
 
       <div className="flex flex-col gap-4">
         <span className="text-eyebrow">Settings</span>
-        <SliderRow id="vc-stability" label="Stability" value={p.settings.stability} onChange={(v) => p.onSettings({ stability: v })} hint="Lower is more expressive; higher is steadier." />
-        <SliderRow id="vc-similarity" label="Similarity" value={p.settings.similarity} onChange={(v) => p.onSettings({ similarity: v })} hint="How closely to match the chosen voice." />
-        <SliderRow id="vc-style" label="Style exaggeration" value={p.settings.style} onChange={(v) => p.onSettings({ style: v })} hint="ElevenLabs recommends 0." />
+        <SliderRow label="Stability" value={p.settings.stability} onCommit={(v) => p.onSettings({ stability: v })} hint="Lower is more expressive; higher is steadier." />
+        <SliderRow label="Similarity" value={p.settings.similarity} onCommit={(v) => p.onSettings({ similarity: v })} hint="How closely to match the chosen voice." />
+        <SliderRow label="Style exaggeration" value={p.settings.style} onCommit={(v) => p.onSettings({ style: v })} hint="ElevenLabs recommends 0." />
         <div className="flex items-center justify-between">
           <Label htmlFor="vc-boost" className="text-xs font-medium">Speaker boost</Label>
           <Switch id="vc-boost" checked={p.settings.speakerBoost} onCheckedChange={(v) => p.onSettings({ speakerBoost: v })} />
@@ -137,6 +154,7 @@ export function VideoGenChangeVoiceSettings(p: Props) {
             inputMode="numeric"
             placeholder="Random"
             className="nodrag h-8 w-40"
+            aria-invalid={seedInvalid}
             value={seedText}
             onChange={(e) => {
               const raw = e.target.value.trim();
@@ -146,6 +164,9 @@ export function VideoGenChangeVoiceSettings(p: Props) {
             }}
           />
         </div>
+        {seedInvalid && (
+          <p className="text-xs text-destructive">Seed must be a whole number from 0 to 4294967295</p>
+        )}
         <p className="text-xs text-muted-foreground">Timing is kept, so lip sync holds. Speed isn&apos;t offered because it would break sync.</p>
       </div>
 

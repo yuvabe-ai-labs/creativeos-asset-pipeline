@@ -32,12 +32,19 @@ export function useVoiceChoice(voiceId: string | null, onVoiceIdChange: (id: str
   }, [enabled, voiceId, voice?.voiceId, saving, onVoiceIdChange]);
 
   const choose = useCallback(
+    // No `if (saving) return` guard: a new pick — Library or account — always supersedes
+    // whatever save is still in flight, rather than being silently dropped while the operator
+    // waits on an earlier click. `pickReq` already discards a stale save's result (below); an
+    // account pick has no save of its own, so it bumps the counter itself to invalidate one.
     async (next: PickerVoice) => {
-      if (saving) return;
       const previous = { id: voiceId, voice };
       setVoice(next);
       onVoiceIdChange(next.voiceId);
-      if (next.source === "account") return;
+      if (next.source === "account") {
+        pickReq.current += 1;
+        setSaving(false);
+        return;
+      }
       const myReq = ++pickReq.current;
       setSaving(true);
       try {
@@ -58,7 +65,7 @@ export function useVoiceChoice(voiceId: string | null, onVoiceIdChange: (id: str
         if (myReq === pickReq.current) setSaving(false);
       }
     },
-    [saving, voiceId, voice, onVoiceIdChange],
+    [voiceId, voice, onVoiceIdChange],
   );
 
   return { voice: voiceId ? voice : null, saving, choose };

@@ -1830,7 +1830,15 @@ export function VideoGenFocusView({
                 <VideoGenChangeVoiceToggle
                   checked={changeVoiceOpen}
                   disabled={!editable || !versions.some((v) => v.output && !v.error)}
-                  onCheckedChange={setChangeVoiceOpen}
+                  onCheckedChange={(next) => {
+                    setChangeVoiceOpen(next);
+                    // D284: the two never combine — mirror the annotate toggle's own off-cleanup.
+                    if (next) {
+                      setReviewAnnotating(false);
+                      setCapturedFrame(null);
+                      setOpenTimecode(null);
+                    }
+                  }}
                 />
               </div>
               <div className="min-h-0 flex-1">

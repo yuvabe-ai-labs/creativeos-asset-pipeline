@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DEFAULT_VOICE_CHANGE_SETTINGS, type VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 import { sourceVersionOptions, defaultSourceVersionId, voiceChangeEstimateCredits, canApplyVoiceChange } from "@/lib/voice-change/workspace";
+import { durationOfParams } from "@/lib/voice-change/record";
 import { useVoiceChoice } from "@/hooks/use-voice-choice";
 import { useChangeVoice } from "@/hooks/use-change-voice";
 import { useVoicePreview } from "@/hooks/use-voice-preview";
@@ -33,7 +34,17 @@ export function VideoGenChangeVoice({ nodeId, versions, activeVersionId, running
   const preview = useVoicePreview(); // single-voice preview in the settings card
   const { apply, submitting } = useChangeVoice(nodeId);
 
-  const duration = Number(sourceVersion?.paramsUsed?.durationSeconds ?? sourceVersion?.paramsUsed?.duration ?? 0);
+  // The settings card's preview is scoped to whichever voice is currently chosen — an orphaned
+  // "still playing" state for a voice the operator has already moved on from is confusing, so
+  // switching voices stops it. `preview.stop` is a stable useCallback (use-voice-preview.ts);
+  // depending on the whole `preview` object instead would stop playback on every unrelated
+  // re-render, not just an actual voice change.
+  useEffect(() => {
+    preview.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only `voiceId`, see comment above
+  }, [choice.voice?.voiceId]);
+
+  const duration = durationOfParams(sourceVersion?.paramsUsed ?? {});
   const estimatedCredits = choice.voice && duration > 0 ? voiceChangeEstimateCredits(duration, choice.voice.priceMultiplier) : null;
   const gate = canApplyVoiceChange({ sourceId, voice: Boolean(choice.voice), saving: choice.saving, running });
 
