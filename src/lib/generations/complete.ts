@@ -2,11 +2,13 @@ import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
+import { readVoiceChange } from "@/lib/voice-change/source";
 
 // Every failure path in this file needs the same two calls in the same order — a small
 // local helper keeps that from drifting out of sync across the 3 sites that need it.
@@ -128,6 +130,14 @@ export async function completeGeneration(
     }
   }
 
+  // D284 — a voice change appends a version: the root's model/params/inputs + the voice record.
+  const voiceChange = generation.type === "voice" ? readVoiceChange(generation.inputs_snapshot?.voiceChange) : null;
+  if (generation.type === "voice" && !voiceChange) {
+    await failAndRefund(input.generationId, generation.org_id, "Voice change record is missing");
+    return;
+  }
+  const driftMs = (input.meta?.voiceChange as { driftMs?: unknown } | undefined)?.driftMs;
+
   // 2. INSERT node_versions
   const version = await insertVersion({
     nodeId: generation.node_id,
@@ -136,7 +146,9 @@ export async function completeGeneration(
     // who kicked the job off, captured at insertGeneration and (per db/generations.ts)
     // the REAL operator even while impersonating — exactly the maker we want.
     operatorUserId: generation.user_id,
-    inputsUsed: generation.inputs_snapshot ?? {},
+    inputsUsed: voiceChange
+      ? { ...(generation.inputs_snapshot ?? {}), voiceChange: { ...voiceChange, ...(typeof driftMs === "number" ? { driftMs } : {}) } }
+      : generation.inputs_snapshot ?? {},
     paramsUsed: {
       ...(generation.params_snapshot ?? {}),
       durationSeconds: input.durationSeconds,
@@ -152,9 +164,11 @@ export async function completeGeneration(
   const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);
   const resolution = asResolutionString(generation.params_snapshot?.resolution);
 
-  const cost = generation.model_used
-    ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
-    : null;
+  const cost = voiceChange
+    ? computeVoiceChangeCost(input.durationSeconds, voiceChange.priceMultiplier)
+    : generation.model_used
+      ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
+      : null;
   // cost is only ever null when model_used is unset (shouldn't happen — every video
   // generation records a model at insertGeneration) — an actual cost of 0 credits in that
   // case, not a reason to skip settlement.

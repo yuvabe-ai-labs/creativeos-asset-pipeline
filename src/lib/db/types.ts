@@ -110,7 +110,7 @@ export type GenerationRow = {
   node_id: string;
   org_id: string; // RLS backstop (D78), added in migration 0014
   client_id: string | null; // forward-looking, added in 0016 — nullable, not backfilled
-  type: "image" | "video" | "prompt";
+  type: "image" | "video" | "prompt" | "voice";
   status: "running" | "succeeded" | "failed";
   provider_job_id: string | null;
   model_used: string | null;

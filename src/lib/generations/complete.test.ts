@@ -45,10 +45,14 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { completeGeneration } from "./complete";
 import { computeVideoCost } from "@/lib/video-gen/cost";
+import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
+import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 const ORIGINAL = "https://storage.googleapis.com/b/g1-original.mp4";
+const REVOICED = "https://storage.googleapis.com/b/g1-revoiced.mp4";
+const VC = { baseVersionId: "v3", rootVersionId: "v2", sourceUrl: ORIGINAL, voiceId: "a1", voiceName: "Anjali", priceMultiplier: 2, settings: DEFAULT_VOICE_CHANGE_SETTINGS };
 const voice = (status: "applied" | "failed") => ({
   voiceId: "v1",
   voiceName: "Priya",
@@ -73,7 +77,7 @@ beforeEach(() => {
 
 const videoUsd = () => computeVideoCost(GEMINI_OMNI_MODEL_ID, 8, false, undefined)!.usd;
 
-describe("completeGeneration — stored video with voice (D282)", () => {
+describe("completeGeneration — stored video (D282)", () => {
   it("ignores a legacy meta.voice on a video generation — video cost only, no voice in params", async () => {
     await completeGeneration({
       generationId: "g1", status: "succeeded", stored: true, videoUrl: ORIGINAL, durationSeconds: 8,
@@ -131,5 +135,26 @@ describe("completeGeneration — non-stored video (no voice)", () => {
       actualAmount: usdToFinalCredits(videoUsd()),
     });
     fetchSpy.mockRestore();
+  });
+});
+
+describe("completeGeneration — voice change (D284)", () => {
+  it("appends a new version with the root's model/params, the voice record + drift, and charges the voice only", async () => {
+    mocks.generation = { ...mocks.generation, type: "voice", params_snapshot: { durationSeconds: 8 }, inputs_snapshot: { prompt: "p", voiceChange: VC } };
+    await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: REVOICED, durationSeconds: 8, meta: { voiceChange: { driftMs: 40 } } });
+    expect(mocks.insertVersion).toHaveBeenCalledWith(expect.objectContaining({
+      output: REVOICED,
+      modelUsed: GEMINI_OMNI_MODEL_ID,
+      paramsUsed: { durationSeconds: 8 },
+      inputsUsed: { prompt: "p", voiceChange: { ...VC, driftMs: 40 } },
+    }));
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(computeVoiceChangeCost(8, 2).usd) }));
+  });
+
+  it("a failed voice change creates no version and refunds", async () => {
+    mocks.generation = { ...mocks.generation, type: "voice", inputs_snapshot: { voiceChange: VC } };
+    await completeGeneration({ generationId: "g1", status: "failed", error: "The new voice came back out of sync, so nothing was changed." });
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.refundReservation).toHaveBeenCalled();
   });
 });

@@ -14,6 +14,7 @@ import {
   pathForNodeFile,
   pathForReviewAnnotation,
   pathForVideoGen,
+  pathForVideoGenVoice,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 
@@ -115,6 +116,13 @@ export async function uploadVideoGen(args: {
 // D284 — signVideoGenVoiceUrls itself was removed with generate-time voice; this constant is
 // kept for Task 4's signRevoicedVideoUrl, which re-voice-as-a-version-action will add.
 export const VOICE_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
+
+// D284 — the task has no GCS credentials; the voice-change route signs the one upload up front.
+export async function signRevoicedVideoUrl(args: { nodeId: string; generationId: string }): Promise<{ putUrl: string; url: string }> {
+  const { clientId, canvasId } = await resolveOwnership(args.nodeId);
+  const path = pathForVideoGenVoice({ clientId, canvasId, nodeId: args.nodeId, generationId: args.generationId, variant: "revoiced" });
+  return { putUrl: await _signPutUrl(path, "video/mp4", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
 
 export async function uploadClientLogo(args: {
   clientId: string;
