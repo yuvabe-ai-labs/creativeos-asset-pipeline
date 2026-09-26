@@ -57,7 +57,15 @@ export function VideoGenChangeVoicePicker({ voice, saving, playing, onTogglePrev
           </span>
           <ChevronDown className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[480px] max-w-[calc(100vw-2rem)] p-3">
+        {/* Always below the field, at a fixed height (capped to the room the viewport has):
+            content growing from placeholders to loaded rows used to let collision handling
+            move the panel from below the field to beside it. The list scrolls inside. */}
+        <PopoverContent
+          align="start"
+          side="bottom"
+          collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
+          className="h-[min(34rem,var(--available-height))] w-[480px] max-w-[calc(100vw-2rem)] p-3"
+        >
           <VideoGenChangeVoiceBrowser
             selectedId={voice?.voiceId ?? null}
             onSelect={(v) => {

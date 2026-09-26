@@ -58,7 +58,7 @@ export function VideoGenVoicePickerList(p: Props) {
   return (
     // Vertical-only list: rows shrink to the column width (long descriptions wrap/clamp) instead
     // of the content growing wider than the viewport and scrolling sideways.
-    <ScrollArea className="h-[340px]" contentClassName="w-full min-w-0!">
+    <ScrollArea className="min-h-0 flex-1" contentClassName="w-full min-w-0!">
       <div className="flex flex-col gap-0.5 pr-2" onKeyDown={onKeyDown}>
         {/* Same shape and padding as VideoGenVoicePickerRow, so the loaded rows land exactly
             where the placeholders were. */}
