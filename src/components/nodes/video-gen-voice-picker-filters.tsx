@@ -11,6 +11,7 @@ import { formatLabel, hasActiveFilters, labelOptions, type VoiceFilters } from "
 import { FILTER_FIELD_ICON, genderIcon, languageName } from "@/lib/elevenlabs/voice-labels";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 import type { VoiceTab } from "@/hooks/use-voice-browser";
+import { VideoGenVoicePickerLanguage } from "./video-gen-voice-picker-language";
 
 type Option = { value: string; label: string };
 const opts = (values: readonly string[]): Option[] => values.map((v) => ({ value: v, label: formatLabel(v) }));
@@ -60,20 +61,17 @@ type Props = {
   onClear: () => void;
 };
 
-// D283/D284 — the voice picker's filter sidebar: one collapsible section per filter, chips inside
-// (sort lives at the top right of the list, in video-gen-voice-picker-sort.tsx).
+// D283/D284 — the voice picker's filter sidebar: Language as a searchable dropdown, then one
+// collapsible section of chips per filter (sort lives at the top right of the list, in
+// video-gen-voice-picker-sort.tsx).
 // My voices: options from the loaded voices' labels (a section with nothing to choose from is
 // hidden). Library: ElevenLabs' own vocabulary.
 export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter, onClear }: Props) {
   const lib = tab === "library";
-  const sections: Array<{ key: Exclude<keyof VoiceFilters, "search" | "sort">; label: string; options: Option[] }> = [
-    {
-      key: "language",
-      label: "Language",
-      options: lib
-        ? [...LIBRARY_LANGUAGES]
-        : labelOptions(accountAll, "language").map((code) => ({ value: code, label: languageName(code) })),
-    },
+  const languages: Option[] = lib
+    ? [...LIBRARY_LANGUAGES]
+    : labelOptions(accountAll, "language").map((code) => ({ value: code, label: languageName(code) }));
+  const sections: Array<{ key: Exclude<keyof VoiceFilters, "search" | "sort" | "language">; label: string; options: Option[] }> = [
     { key: "useCase", label: "Categories", options: lib ? opts(LIBRARY_USE_CASES) : opts(labelOptions(accountAll, "useCase")) },
     { key: "gender", label: "Gender", options: lib ? opts(LIBRARY_GENDERS) : opts(labelOptions(accountAll, "gender")) },
     { key: "age", label: "Age", options: lib ? opts(LIBRARY_AGES) : opts(labelOptions(accountAll, "age")) },
@@ -83,6 +81,12 @@ export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter,
 
   return (
     <div className="flex flex-col gap-1">
+      {languages.length > 0 && (
+        <div className="flex flex-col gap-2 pb-2">
+          <span className="text-sm font-medium">Language</span>
+          <VideoGenVoicePickerLanguage options={languages} value={filters.language} onChange={(v) => onFilter("language", v)} />
+        </div>
+      )}
       {/* Categories open by default; the rest start collapsed. */}
       <Accordion multiple defaultValue={["useCase"]}>
         {visible.map((s) => {
@@ -97,15 +101,12 @@ export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter,
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pb-3">
-                {/* The language list is long — it scrolls inside its section. */}
-                <div className={cn(s.key === "language" && "max-h-56 overflow-y-auto pr-1")}>
-                  <ToggleChips
-                    options={s.options}
-                    value={filters[s.key]}
-                    onChange={(v) => onFilter(s.key, v)}
-                    iconFor={s.key === "gender" ? genderIcon : undefined}
-                  />
-                </div>
+                <ToggleChips
+                  options={s.options}
+                  value={filters[s.key]}
+                  onChange={(v) => onFilter(s.key, v)}
+                  iconFor={s.key === "gender" ? genderIcon : undefined}
+                />
               </AccordionContent>
             </AccordionItem>
           );
