@@ -27,11 +27,29 @@ export const LIBRARY_AGES = ["young", "middle_aged", "old"] as const;
 export const LIBRARY_ACCENTS = [
   "indian", "american", "british", "australian", "african", "arabic", "irish", "canadian",
 ] as const;
+/**
+ * Languages Voice Library voices are tagged with (ISO 639-1, as the API returns them). Indian
+ * languages first — that's who these ads are for — then the rest alphabetically. Also the
+ * code → name map for every voice row (voice-labels.ts `languageName`).
+ */
 export const LIBRARY_LANGUAGES = [
   { value: "hi", label: "Hindi" }, { value: "en", label: "English" }, { value: "ta", label: "Tamil" },
   { value: "te", label: "Telugu" }, { value: "ml", label: "Malayalam" }, { value: "kn", label: "Kannada" },
   { value: "bn", label: "Bengali" }, { value: "mr", label: "Marathi" }, { value: "gu", label: "Gujarati" },
-  { value: "pa", label: "Punjabi" },
+  { value: "pa", label: "Punjabi" }, { value: "ur", label: "Urdu" }, { value: "or", label: "Odia" },
+  { value: "as", label: "Assamese" }, { value: "ne", label: "Nepali" },
+  { value: "ar", label: "Arabic" }, { value: "bg", label: "Bulgarian" }, { value: "zh", label: "Chinese" },
+  { value: "hr", label: "Croatian" }, { value: "cs", label: "Czech" }, { value: "da", label: "Danish" },
+  { value: "nl", label: "Dutch" }, { value: "fil", label: "Filipino" }, { value: "fi", label: "Finnish" },
+  { value: "fr", label: "French" }, { value: "de", label: "German" }, { value: "el", label: "Greek" },
+  { value: "he", label: "Hebrew" }, { value: "hu", label: "Hungarian" }, { value: "id", label: "Indonesian" },
+  { value: "it", label: "Italian" }, { value: "ja", label: "Japanese" }, { value: "ko", label: "Korean" },
+  { value: "ms", label: "Malay" }, { value: "no", label: "Norwegian" }, { value: "fa", label: "Persian" },
+  { value: "pl", label: "Polish" }, { value: "pt", label: "Portuguese" }, { value: "ro", label: "Romanian" },
+  { value: "ru", label: "Russian" }, { value: "sr", label: "Serbian" }, { value: "sk", label: "Slovak" },
+  { value: "es", label: "Spanish" }, { value: "sw", label: "Swahili" }, { value: "sv", label: "Swedish" },
+  { value: "th", label: "Thai" }, { value: "tr", label: "Turkish" }, { value: "uk", label: "Ukrainian" },
+  { value: "vi", label: "Vietnamese" },
 ] as const;
 export const LIBRARY_USE_CASES = [
   "social_media", "advertisement", "conversational", "narrative_story", "informative_educational",

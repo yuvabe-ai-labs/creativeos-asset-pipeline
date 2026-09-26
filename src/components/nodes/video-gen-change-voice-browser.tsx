@@ -9,6 +9,7 @@ import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 import { useVoiceBrowser, type VoiceTab } from "@/hooks/use-voice-browser";
 import { VideoGenVoicePickerFilters } from "./video-gen-voice-picker-filters";
 import { VideoGenVoicePickerList } from "./video-gen-voice-picker-list";
+import { VideoGenVoicePickerSort } from "./video-gen-voice-picker-sort";
 
 // D284 — the voice picker dialog's body, laid out like ElevenLabs' voice library: filter sidebar on
 // the left; tabs, search and the voice list on the right. Fills the dialog's fixed height; each
@@ -51,6 +52,7 @@ export function VideoGenChangeVoiceBrowser({ selectedId, onSelect }: { selectedI
               </InputGroupAddon>
             )}
           </InputGroup>
+          <VideoGenVoicePickerSort tab={b.tab} value={b.filters.sort} onChange={(v) => b.setFilter("sort", v)} />
         </div>
 
         <VideoGenVoicePickerList
