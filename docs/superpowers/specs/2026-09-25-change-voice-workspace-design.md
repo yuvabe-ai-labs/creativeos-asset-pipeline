@@ -21,10 +21,13 @@ produces a new version, keeps the original, and charges only for the voice chang
    **video column always shows the output**. The centre holds the voice editor:
    - **Take** — the version the output column is showing (re-voice another one by picking it in
      History first). No picker.
-   - **Voice** — a dropdown field (chosen voice + labels + preview button) that opens the browser:
-     My voices / Voice Library tabs, search, a collapsed **"Filters & sort"** section of chips
-     (gender, age, language, accent, use case, sort; shows how many are on), rows with play.
-     Loading placeholders have the same shape as voice rows.
+   - **Voice** — a field (chosen voice + labels + preview button) that opens a large centred
+     **voice picker dialog** modelled on ElevenLabs' own: a **filter sidebar** on the left
+     (collapsible Language, Categories, Gender, Age, Accent and Sort sections of toggle chips) and,
+     on the right, My voices / Voice Library tabs, search and **compact one-line rows** — round
+     play button, name (+ price badge; description as tooltip), language, accent, "+N" more labels,
+     and **Use** on hover/focus ("Selected" for the chosen voice). Fixed dialog size; loading
+     placeholders are row-shaped, so nothing moves when voices arrive.
    - **Settings** card — Stability and Similarity sliders, Speaker boost and Remove background
      noise switches, Seed, and Apply. **Style exaggeration is fixed at 0** (ElevenLabs'
      recommendation) and the **model is fixed to Multilingual** (it covers Hindi/Hinglish; the

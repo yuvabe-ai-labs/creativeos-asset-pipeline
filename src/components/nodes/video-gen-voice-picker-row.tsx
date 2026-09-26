@@ -4,7 +4,8 @@ import { AudioLines, Check, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { VideoGenVoicePickerMeta } from "./video-gen-voice-picker-meta";
+import { formatLabel } from "@/lib/elevenlabs/voice-filters";
+import { languageName } from "@/lib/elevenlabs/voice-labels";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 
 type Props = {
@@ -15,59 +16,70 @@ type Props = {
   onTogglePreview: () => void;
 };
 
-// D283 — one voice row: play/pause, name + price badge + selected check, one-line description,
-// meta chips (gender/age/language/accent/use case). Picking a Library row is now instant (the
-// parent picker selects optimistically and saves in the background), so there's no per-row
-// saving/error state here any more.
+// D284 — one compact voice row, like ElevenLabs' voice library: round play button, name (with the
+// price badge), language, accent, "+N" for the other labels, and "Use" on hover/focus — or
+// "Selected" for the chosen voice. The description is the name's tooltip.
 export function VideoGenVoicePickerRow({ voice, selected, playing, onSelect, onTogglePreview }: Props) {
+  const { language, accent, gender, age, useCase, descriptive } = voice.labels;
+  const extra = [gender, age, useCase, descriptive].filter((v): v is string => Boolean(v)).map(formatLabel);
+
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-lg border px-1.5 py-1.5",
-        selected ? "border-primary/40 bg-primary/5" : "border-transparent hover:bg-muted",
+        "group flex h-14 items-center gap-3 rounded-lg px-2",
+        selected ? "bg-primary/5" : "hover:bg-muted",
       )}
     >
       <Button
         type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="nodrag shrink-0"
+        variant="outline"
+        size="icon"
+        className="nodrag shrink-0 rounded-full"
         aria-label={`${playing ? "Stop" : "Play"} preview of ${voice.name}`}
         disabled={!voice.previewUrl}
         onClick={onTogglePreview}
       >
         {playing ? (
-          <AudioLines className="size-4 motion-safe:animate-pulse" strokeWidth={1.5} />
+          <AudioLines className="size-4 text-primary motion-safe:animate-pulse" strokeWidth={1.5} />
         ) : (
           <Play className="size-4" strokeWidth={1.5} />
         )}
       </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        // whitespace-normal: Button defaults to nowrap, which would stop the description and meta
-        // chips from wrapping inside the popover's width.
-        className="nodrag h-auto min-w-0 flex-1 flex-col items-start gap-0.5 px-1.5 py-1 text-left whitespace-normal"
-        onClick={onSelect}
-        aria-pressed={selected}
-        data-voice-row
-      >
-        <span className="flex w-full items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{voice.name}</span>
-          {voice.priceMultiplier > 1 && (
-            <Badge variant="secondary" title={`Costs ${voice.priceMultiplier}× the standard rate`}>
-              {voice.priceMultiplier}×
-            </Badge>
-          )}
-          {selected && <Check className="ml-auto size-4 shrink-0 text-primary" strokeWidth={1.5} />}
-        </span>
-        {voice.description && (
-          <span className="line-clamp-2 w-full break-words text-xs text-muted-foreground" title={voice.description}>
-            {voice.description}
-          </span>
+
+      <span className="flex min-w-0 flex-1 items-center gap-1.5" title={voice.description ?? undefined}>
+        <span className="truncate text-sm font-medium">{voice.name}</span>
+        {voice.priceMultiplier > 1 && (
+          <Badge variant="secondary" title={`Costs ${voice.priceMultiplier}× the standard rate`}>
+            {voice.priceMultiplier}×
+          </Badge>
         )}
-        <VideoGenVoicePickerMeta labels={voice.labels} />
-      </Button>
+      </span>
+
+      <span className="hidden w-56 shrink-0 items-center gap-2 text-sm sm:flex">
+        {language && <span className="truncate">{languageName(language)}</span>}
+        {accent && <span className="truncate text-muted-foreground">{formatLabel(accent)}</span>}
+        {extra.length > 0 && (
+          <Badge variant="outline" title={extra.join(" · ")}>+{extra.length}</Badge>
+        )}
+      </span>
+
+      <span className="flex w-24 shrink-0 justify-end">
+        {selected ? (
+          <span className="flex items-center gap-1 text-sm font-medium text-primary">
+            <Check className="size-4" strokeWidth={1.5} /> Selected
+          </span>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            className="nodrag opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            onClick={onSelect}
+            data-voice-row
+          >
+            Use
+          </Button>
+        )}
+      </span>
     </div>
   );
 }

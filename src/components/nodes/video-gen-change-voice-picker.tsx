@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, Loader2, Pause, Play } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
@@ -19,14 +19,14 @@ type Props = {
 };
 
 // D284 — Edit voice's voice field: the chosen voice (name, labels, price badge) with a preview
-// button; clicking it opens the browser (My voices / Voice Library, search, filter chips, rows
-// with play). Picking a voice closes it.
+// button; clicking it opens the voice picker dialog (filter sidebar, tabs, search, compact rows
+// with play and "Use"). Using a voice closes it.
 export function VideoGenChangeVoicePicker({ voice, saving, playing, onTogglePreview, onSelect }: Props) {
   const [open, setOpen] = useState(false);
   return (
     <div className="flex items-center gap-2">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger
           render={
             <Button
               type="button"
@@ -56,16 +56,13 @@ export function VideoGenChangeVoicePicker({ voice, saving, playing, onTogglePrev
             )}
           </span>
           <ChevronDown className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-        </PopoverTrigger>
-        {/* Always below the field, at a fixed height (capped to the room the viewport has):
-            content growing from placeholders to loaded rows used to let collision handling
-            move the panel from below the field to beside it. The list scrolls inside. */}
-        <PopoverContent
-          align="start"
-          side="bottom"
-          collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
-          className="h-[min(34rem,var(--available-height))] w-[480px] max-w-[calc(100vw-2rem)] p-3"
-        >
+        </DialogTrigger>
+        {/* A large centred dialog, like ElevenLabs' own voice picker: fixed size, so nothing moves
+            between the loading placeholders and the loaded list. */}
+        <DialogContent className="grid h-[min(40rem,calc(100vh-4rem))] w-[min(64rem,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)] gap-0 p-0 sm:max-w-none">
+          <DialogHeader className="border-b border-border px-4 py-3">
+            <DialogTitle>Choose a voice</DialogTitle>
+          </DialogHeader>
           <VideoGenChangeVoiceBrowser
             selectedId={voice?.voiceId ?? null}
             onSelect={(v) => {
@@ -73,8 +70,8 @@ export function VideoGenChangeVoicePicker({ voice, saving, playing, onTogglePrev
               setOpen(false);
             }}
           />
-        </PopoverContent>
-      </Popover>
+        </DialogContent>
+      </Dialog>
       <Button
         type="button"
         variant="outline"

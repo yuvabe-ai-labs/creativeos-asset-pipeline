@@ -1,33 +1,55 @@
 "use client";
 
-import { Search, SlidersHorizontal, X } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { Check } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   LIBRARY_ACCENTS, LIBRARY_AGES, LIBRARY_GENDERS, LIBRARY_LANGUAGES, LIBRARY_SORTS, LIBRARY_USE_CASES,
 } from "@/lib/elevenlabs/constants";
 import { ACCOUNT_SORTS, formatLabel, hasActiveFilters, labelOptions, type VoiceFilters } from "@/lib/elevenlabs/voice-filters";
-import { FILTER_FIELD_ICON } from "@/lib/elevenlabs/voice-labels";
+import { FILTER_FIELD_ICON, genderIcon } from "@/lib/elevenlabs/voice-labels";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 import type { VoiceTab } from "@/hooks/use-voice-browser";
-import { ParamChipGroup, type ChipOption } from "./param-chip-group";
 
-const opts = (values: readonly string[]): ChipOption[] => values.map((v) => ({ value: v, label: formatLabel(v) }));
-const ANY: ChipOption = { value: "", label: "Any" };
+type Option = { value: string; label: string };
+const opts = (values: readonly string[]): Option[] => values.map((v) => ({ value: v, label: formatLabel(v) }));
 
-// One labelled row of chips — everything visible, nothing behind a dropdown.
-function FilterRow({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: React.ReactNode }) {
+// Chips that toggle: click one to filter by it, click it again to clear — like ElevenLabs' own
+// voice library. `required` (sort) always keeps one selected.
+function ToggleChips({
+  options, value, onChange, required = false, iconFor,
+}: {
+  options: Option[];
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  iconFor?: (value: string) => React.ComponentType<{ className?: string; strokeWidth?: number }>;
+}) {
   return (
-    <>
-      <span className="flex items-center gap-1.5 pt-1.5 text-xs text-muted-foreground">
-        <Icon className="size-3.5 shrink-0" strokeWidth={1.5} />
-        {label}
-      </span>
-      {children}
-    </>
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => {
+        const active = o.value === value;
+        const Icon = iconFor?.(o.value);
+        return (
+          <Button
+            key={o.value}
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-pressed={active}
+            onClick={() => onChange(active && !required ? "" : o.value)}
+            className={cn(
+              "nodrag",
+              active && "border-primary/50 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
+            )}
+          >
+            {active ? <Check className="size-3.5" strokeWidth={1.5} /> : Icon && <Icon className="size-3.5" strokeWidth={1.5} />}
+            {o.label}
+          </Button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -39,75 +61,63 @@ type Props = {
   onClear: () => void;
 };
 
-// D283/D284 — search, plus filter chips inside a collapsible "Filters & sort" section. My voices:
-// options from the loaded voices' labels (a filter with nothing to choose from is hidden).
-// Library: ElevenLabs' own vocabulary.
+// D283/D284 — the voice picker's filter sidebar: one collapsible section per filter, chips inside.
+// My voices: options from the loaded voices' labels (a section with nothing to choose from is
+// hidden). Library: ElevenLabs' own vocabulary.
 export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter, onClear }: Props) {
   const lib = tab === "library";
-  const rows: Array<{ key: Exclude<keyof VoiceFilters, "search" | "sort">; label: string; options: ChipOption[] }> = [
+  const sections: Array<{ key: Exclude<keyof VoiceFilters, "search" | "sort">; label: string; options: Option[] }> = [
+    { key: "language", label: "Language", options: lib ? [...LIBRARY_LANGUAGES] : opts(labelOptions(accountAll, "language")) },
+    { key: "useCase", label: "Categories", options: lib ? opts(LIBRARY_USE_CASES) : opts(labelOptions(accountAll, "useCase")) },
     { key: "gender", label: "Gender", options: lib ? opts(LIBRARY_GENDERS) : opts(labelOptions(accountAll, "gender")) },
     { key: "age", label: "Age", options: lib ? opts(LIBRARY_AGES) : opts(labelOptions(accountAll, "age")) },
-    { key: "language", label: "Language", options: lib ? [...LIBRARY_LANGUAGES] : opts(labelOptions(accountAll, "language")) },
     { key: "accent", label: "Accent", options: lib ? opts(LIBRARY_ACCENTS) : opts(labelOptions(accountAll, "accent")) },
-    { key: "useCase", label: "Use case", options: lib ? opts(LIBRARY_USE_CASES) : opts(labelOptions(accountAll, "useCase")) },
   ];
-  const sorts: ChipOption[] = lib ? [...LIBRARY_SORTS] : [...ACCOUNT_SORTS];
-  const activeCount = rows.filter((r) => filters[r.key] !== "").length;
+  const sorts: Option[] = lib ? [...LIBRARY_SORTS] : [...ACCOUNT_SORTS];
+  const visible = sections.filter((s) => s.options.length > 0);
 
   return (
-    <div className="flex flex-col gap-3">
-      <InputGroup className="nodrag">
-        <InputGroupAddon>
-          <Search className="size-4" strokeWidth={1.5} />
-        </InputGroupAddon>
-        <InputGroupInput
-          id="voice-picker-search"
-          aria-label="Search voices"
-          placeholder={lib ? "Search 18,000+ voices…" : "Search your voices…"}
-          value={filters.search}
-          onChange={(e) => onFilter("search", e.target.value)}
-        />
-        {filters.search && (
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton aria-label="Clear search" onClick={() => onFilter("search", "")}>
-              <X className="size-3.5" strokeWidth={1.5} />
-            </InputGroupButton>
-          </InputGroupAddon>
-        )}
-      </InputGroup>
-
-      {/* Collapsed by default so the voice list sits at the same place whether or not the
-          filters have loaded — and the panel fits on screen. */}
-      <Accordion className="rounded-lg border border-border px-3">
-        <AccordionItem value="filters" className="border-none">
+    <div className="flex flex-col gap-1">
+      <Accordion multiple defaultValue={["language", "useCase", "gender"]}>
+        {visible.map((s) => {
+          const Icon = FILTER_FIELD_ICON[s.key];
+          return (
+            <AccordionItem key={s.key} value={s.key} className="border-none">
+              <AccordionTrigger className="nodrag py-2 hover:no-underline">
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <Icon className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
+                  {s.label}
+                  {filters[s.key] && <span className="size-1.5 rounded-full bg-primary" aria-label="filter on" />}
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <ToggleChips
+                  options={s.options}
+                  value={filters[s.key]}
+                  onChange={(v) => onFilter(s.key, v)}
+                  iconFor={s.key === "gender" ? genderIcon : undefined}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
+        <AccordionItem value="sort" className="border-none">
           <AccordionTrigger className="nodrag py-2 hover:no-underline">
-            <span className="flex items-center gap-1.5 text-xs font-medium">
-              <SlidersHorizontal className="size-3.5 text-primary" strokeWidth={1.5} />
-              Filters & sort
-              {activeCount > 0 && <Badge variant="secondary">{activeCount} on</Badge>}
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              <FILTER_FIELD_ICON.sort className="size-3.5 text-muted-foreground" strokeWidth={1.5} />
+              Sort
             </span>
           </AccordionTrigger>
           <AccordionContent className="pb-3">
-            <div className="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-x-3 gap-y-2">
-              {rows
-                .filter((r) => r.options.length > 0)
-                .map((r) => (
-                  <FilterRow key={r.key} icon={FILTER_FIELD_ICON[r.key]} label={r.label}>
-                    <ParamChipGroup options={[ANY, ...r.options]} value={filters[r.key]} onValueChange={(v) => onFilter(r.key, v)} />
-                  </FilterRow>
-                ))}
-              <FilterRow icon={FILTER_FIELD_ICON.sort} label="Sort">
-                <ParamChipGroup options={sorts} value={filters.sort || sorts[0].value} onValueChange={(v) => onFilter("sort", v)} />
-              </FilterRow>
-            </div>
-            {hasActiveFilters(filters) && (
-              <Button type="button" variant="link" size="sm" className="nodrag mt-2 h-7 px-0 text-xs" onClick={onClear}>
-                Clear filters
-              </Button>
-            )}
+            <ToggleChips options={sorts} value={filters.sort || sorts[0].value} onChange={(v) => onFilter("sort", v)} required />
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+      {hasActiveFilters(filters) && (
+        <Button type="button" variant="link" size="sm" className="nodrag h-7 self-start px-0 text-xs" onClick={onClear}>
+          Clear filters
+        </Button>
+      )}
     </div>
   );
 }

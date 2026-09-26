@@ -56,22 +56,19 @@ export function VideoGenVoicePickerList(p: Props) {
   const showGroups = p.tab === "account" && customVoices.length > 0 && defaultVoices.length > 0;
 
   return (
-    // Vertical-only list: rows shrink to the column width (long descriptions wrap/clamp) instead
-    // of the content growing wider than the viewport and scrolling sideways.
+    // Vertical-only list: rows shrink to the pane's width (names truncate) instead of the content
+    // growing wider than the viewport and scrolling sideways.
     <ScrollArea className="min-h-0 flex-1" contentClassName="w-full min-w-0!">
       <div className="flex flex-col gap-0.5 pr-2" onKeyDown={onKeyDown}>
         {/* Same shape and padding as VideoGenVoicePickerRow, so the loaded rows land exactly
             where the placeholders were. */}
         {initialLoading &&
-          Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-lg border border-transparent px-1.5 py-1.5">
-              <Skeleton className="size-8 shrink-0 rounded-lg" />
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5 px-1.5 py-1">
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-4/5" />
-                <Skeleton className="h-3 w-3/5" />
-              </div>
+          Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="flex h-14 items-center gap-3 px-2">
+              <Skeleton className="size-9 shrink-0 rounded-full" />
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="hidden h-4 w-56 shrink-0 sm:block" />
+              <span className="w-24 shrink-0" />
             </div>
           ))}
 
