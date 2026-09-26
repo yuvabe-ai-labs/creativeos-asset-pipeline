@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  AudioLines,
   BadgeCheck,
   ChevronDown,
   Clapperboard,
@@ -559,6 +560,9 @@ export function VideoGenFocusView({
   const [loadingVersions, setLoadingVersions] = useState(open);
   const [loadingConnected, setLoadingConnected] = useState(open);
 
+  const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
+    useVideoGenStatus(nodeId);
+
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
@@ -568,9 +572,26 @@ export function VideoGenFocusView({
       // Normally the video pane — but a programmatic open from the review drawer or the
       // navbar inbox asks for "details", where sign-off lives. Landing on the video pane
       // would make a reviewer hunt for the control they were sent here to use.
-      setSelected(focusStoreApi.getState().focusSection ?? "video");
+      const requested = focusStoreApi.getState().focusSection;
+      setSelected(requested ?? "video");
+      // D284 — reopening while a voice change runs lands back in Edit voice, where it was
+      // started; otherwise on the generate settings.
+      setChangeVoiceOpen(isChangingVoice && !requested);
       setLoadingVersions(true);
       setLoadingConnected(true);
+    }
+  }
+
+  // D284 — a voice change that becomes known while the view is open (the running-job lookup
+  // lands after the sheet opens, or it was started from another tab) opens Edit voice too.
+  // Only on the false → true edge, so switching Edit voice off mid-change sticks.
+  const [seenChangingVoice, setSeenChangingVoice] = useState(isChangingVoice);
+  if (seenChangingVoice !== isChangingVoice) {
+    setSeenChangingVoice(isChangingVoice);
+    if (isChangingVoice && open && !changeVoiceOpen) {
+      setChangeVoiceOpen(true);
+      setSelected("video");
+      setReviewAnnotating(false);
     }
   }
 
@@ -580,9 +601,6 @@ export function VideoGenFocusView({
   useEffect(() => {
     if (open) focusStoreApi.getState().setFocusSection(null);
   }, [open, focusStoreApi]);
-
-  const { isGenerating, lastError, setGenerating, setLastError } =
-    useVideoGenStatus(nodeId);
 
   // Stable Zustand actions — used directly in effects so deps don't include
   // the per-render wrapper functions returned by useVideoGenStatus.
@@ -1252,7 +1270,9 @@ export function VideoGenFocusView({
       lockedDuration !== undefined ? constraints.lockedParamReasons.duration : undefined,
   });
 
-  const mode: "skeleton" | "result" | "empty" = isGenerating
+  // A voice change keeps showing the video it is re-voicing, veiled (like Image Gen's edit);
+  // only a fresh video gets the empty-frame skeleton.
+  const mode: "skeleton" | "result" | "empty" = isGenerating && !(isChangingVoice && videoUrl)
     ? "skeleton"
     : videoUrl
       ? "result"
@@ -1512,9 +1532,17 @@ export function VideoGenFocusView({
                     // The take = the version the output column is showing, like Image Gen's Edit.
                     sourceId={activeVersion?.output && !activeVersion.error ? activeVersion.id : null}
                     running={isGenerating}
+                    changing={isChangingVoice}
                     value={voiceChangeProp}
                     onChange={(next) => onPatch({ voiceChange: next })}
-                    onApplied={() => setChangeVoiceOpen(false)}
+                    // Stays open, like Image Gen's Edit: the video on the right shows the
+                    // change in progress. Marked now rather than on the Realtime insert, so
+                    // there is no gap where the button is idle again.
+                    onApplied={() => {
+                      videoRef.current?.pause(); // the veil covers the controls
+                      setVideoGenGenerating(nodeId, true, "voice");
+                      setLastError(null);
+                    }}
                   />
                 </div>
               )}
@@ -1638,7 +1666,9 @@ export function VideoGenFocusView({
                           }
                         >
                           <Sparkles className="size-4" strokeWidth={1.5} />
-                          {isGenerating
+                          {isChangingVoice
+                            ? "Changing voice…"
+                            : isGenerating
                             ? "Generating…"
                             : videoUrl
                               ? "Re-generate"
@@ -1850,7 +1880,9 @@ export function VideoGenFocusView({
                   <VideoGenChangeVoiceToggle
                     id={`video-edit-voice-${nodeId}`}
                     checked={changeVoiceOpen}
-                    disabled={!editable || isGenerating}
+                    // Free during a voice change — that's the mode it runs in — but not while a
+                    // new video is generating.
+                    disabled={!editable || (isGenerating && !isChangingVoice)}
                     onCheckedChange={(next) => {
                       setChangeVoiceOpen(next);
                       if (next) {
@@ -2023,6 +2055,17 @@ export function VideoGenFocusView({
                         }
                         className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
                       />
+
+                      {/* D284 — the take being re-voiced stays in place under a veil, the same
+                          treatment Image Gen gives an image being edited. */}
+                      {isChangingVoice && (
+                        <div className="absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm">
+                          <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
+                            <AudioLines className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                            Changing voice…
+                          </div>
+                        </div>
+                      )}
 
                       {reviewAnnotating && videoPaused && (
                         <div className="absolute right-2 top-2 z-20">

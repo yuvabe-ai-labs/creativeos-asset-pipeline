@@ -23,14 +23,17 @@ type Props = {
   /** The version showing in the output column — the take this re-voices (null if it has no video). */
   sourceId: string | null;
   running: boolean;
+  /** A voice change is running on this node right now — the button shows it, like Image Gen's Edit. */
+  changing: boolean;
   value: VoiceChangeNodeState | undefined;
   onChange: (next: VoiceChangeNodeState) => void;
+  /** The job was accepted — the caller marks the node as changing its voice. */
   onApplied: () => void;
 };
 
 // D284 — Edit voice, in the focus view's centre column (where Image Gen puts its Edit tools):
 // the take, the voice, the settings and Apply. The output column keeps showing the video.
-export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, value, onChange, onApplied }: Props) {
+export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, changing, value, onChange, onApplied }: Props) {
   const state: VoiceChangeNodeState = value ?? { voiceId: null, settings: DEFAULT_VOICE_CHANGE_SETTINGS };
   const sourceVersion = versions.find((v) => v.id === sourceId) ?? null;
   const takeLabel = sourceId ? versionLabelsById(versions).get(sourceId) : undefined;
@@ -60,7 +63,8 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, value
     };
     const r = await apply({ baseVersionId: sourceId, voiceId: state.voiceId, settings });
     if (r.ok) {
-      toast.success("Changing the voice — the new version will appear when it's ready.");
+      // No toast here: the video on the right shows "Changing voice…" until the new version
+      // lands, and the status hook toasts the result — as Image Gen's Edit does.
       onApplied();
     } else {
       toast.error(r.error);
@@ -105,6 +109,7 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, value
         estimatedCredits={estimatedCredits}
         applyBlockedReason={gate.ok ? null : gate.reason ?? null}
         submitting={submitting}
+        changing={changing}
         onApply={() => void onApply()}
       />
     </div>

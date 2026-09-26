@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Clapperboard } from "lucide-react";
+import { AudioLines, Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -41,7 +41,8 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const totalCredits = useNodeCost(id);
 
   const [focusOpen, setFocusOpen] = useState(false);
-  const { isGenerating } = useVideoGenStatus(id);
+  const { isGenerating, isChangingVoice } = useVideoGenStatus(id);
+  const showVideo = Boolean(videoUrl) && (!isGenerating || isChangingVoice);
 
   // Open when opened locally OR when the Generation Tray points `focusedNodeId` here.
   // Derived during render — no effect — so it never trips the set-state-in-effect rule.
@@ -110,17 +111,24 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
               <ApprovalBadge status={approvalStatus} />
             </div>
           )}
-          {isGenerating && (
+          {isGenerating && !showVideo && (
             <div className="mb-2 h-16 w-full animate-pulse rounded-md bg-primary/10" />
           )}
-          {!isGenerating && videoUrl && (
-            <div className="mb-2 overflow-hidden rounded-md border border-border">
+          {showVideo && (
+            <div className="relative mb-2 overflow-hidden rounded-md border border-border">
               <video
                 src={videoUrl}
                 className="h-16 w-full object-cover"
                 muted
                 playsInline
               />
+              {/* D284 — a voice change keeps the take in view, veiled, like the focus view. */}
+              {isChangingVoice && (
+                <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-background/60 text-xs font-medium backdrop-blur-sm">
+                  <AudioLines className="size-3.5 animate-pulse text-primary" strokeWidth={1.5} />
+                  Changing voice…
+                </div>
+              )}
             </div>
           )}
           {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}

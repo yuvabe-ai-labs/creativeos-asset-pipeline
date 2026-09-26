@@ -19,6 +19,8 @@ type Props = {
   estimatedCredits: number | null;
   applyBlockedReason: string | null;
   submitting: boolean;
+  /** A voice change is running — the button reads "Changing voice…" until the new version lands. */
+  changing: boolean;
   onApply: () => void;
 };
 
@@ -62,6 +64,7 @@ export function VideoGenChangeVoiceSettings(p: Props) {
   const [seedText, setSeedText] = useState(p.settings.seed?.toString() ?? "");
   const seedN = Number(seedText);
   const seedInvalid = seedText !== "" && (!Number.isInteger(seedN) || seedN < 0 || seedN > 4294967295);
+  const busy = p.submitting || p.changing;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-seeds the local text from the new source's settings, same idiom as use-market.ts's initial fetch
     setSeedText(p.settings.seed?.toString() ?? "");
@@ -109,13 +112,13 @@ export function VideoGenChangeVoiceSettings(p: Props) {
 
       <Tooltip>
         <TooltipTrigger render={<span className="block w-full" />}>
-          <Button type="button" size="lg" className="w-full" onClick={p.onApply} disabled={Boolean(p.applyBlockedReason) || p.submitting}>
-            {p.submitting ? <Loader2 className="size-4 animate-spin" strokeWidth={1.5} /> : <Sparkles className="size-4" strokeWidth={1.5} />}
-            Change voice
-            {!p.submitting && p.estimatedCredits !== null && <EstimatedCreditsLabel credits={p.estimatedCredits} />}
+          <Button type="button" size="lg" className="w-full" onClick={p.onApply} disabled={Boolean(p.applyBlockedReason) || busy}>
+            {busy ? <Loader2 className="size-4 animate-spin" strokeWidth={1.5} /> : <Sparkles className="size-4" strokeWidth={1.5} />}
+            {busy ? "Changing voice…" : "Change voice"}
+            {!busy && p.estimatedCredits !== null && <EstimatedCreditsLabel credits={p.estimatedCredits} />}
           </Button>
         </TooltipTrigger>
-        {p.applyBlockedReason && <TooltipContent side="top">{p.applyBlockedReason}</TooltipContent>}
+        {p.applyBlockedReason && !busy && <TooltipContent side="top">{p.applyBlockedReason}</TooltipContent>}
       </Tooltip>
     </div>
   );
