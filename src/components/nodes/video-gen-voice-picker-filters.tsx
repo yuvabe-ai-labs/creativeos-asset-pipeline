@@ -64,32 +64,32 @@ type Props = {
 // D283/D284 — the voice picker's filter sidebar: Language as a searchable dropdown, then one
 // collapsible section of chips per filter (sort lives at the top right of the list, in
 // video-gen-voice-picker-sort.tsx).
-// My voices: options from the loaded voices' labels (a section with nothing to choose from is
-// hidden). Library: ElevenLabs' own vocabulary.
 export function VideoGenVoicePickerFilters({ tab, filters, accountAll, onFilter, onClear }: Props) {
-  const lib = tab === "library";
-  const languages: Option[] = lib
-    ? [...LIBRARY_LANGUAGES]
-    : labelOptions(accountAll, "language").map((code) => ({ value: code, label: languageName(code) }));
+  // Both tabs list the full ElevenLabs vocabulary — plus, on My voices, any extra value the
+  // account's own voices carry (e.g. a "standard" accent) — so a filter never looks like it has
+  // only the two options the 21 stock voices happen to use.
+  const withAccount = (base: Option[], key: keyof PickerVoice["labels"], label: (v: string) => string): Option[] => {
+    if (tab === "library") return base;
+    const known = new Set(base.map((o) => o.value));
+    return [...base, ...labelOptions(accountAll, key).filter((v) => !known.has(v)).map((v) => ({ value: v, label: label(v) }))];
+  };
+  const languages = withAccount([...LIBRARY_LANGUAGES], "language", languageName);
   const sections: Array<{ key: Exclude<keyof VoiceFilters, "search" | "sort" | "language">; label: string; options: Option[] }> = [
-    { key: "useCase", label: "Categories", options: lib ? opts(LIBRARY_USE_CASES) : opts(labelOptions(accountAll, "useCase")) },
-    { key: "gender", label: "Gender", options: lib ? opts(LIBRARY_GENDERS) : opts(labelOptions(accountAll, "gender")) },
-    { key: "age", label: "Age", options: lib ? opts(LIBRARY_AGES) : opts(labelOptions(accountAll, "age")) },
-    { key: "accent", label: "Accent", options: lib ? opts(LIBRARY_ACCENTS) : opts(labelOptions(accountAll, "accent")) },
+    { key: "useCase", label: "Categories", options: withAccount(opts(LIBRARY_USE_CASES), "useCase", formatLabel) },
+    { key: "gender", label: "Gender", options: withAccount(opts(LIBRARY_GENDERS), "gender", formatLabel) },
+    { key: "age", label: "Age", options: withAccount(opts(LIBRARY_AGES), "age", formatLabel) },
+    { key: "accent", label: "Accent", options: withAccount(opts(LIBRARY_ACCENTS), "accent", formatLabel) },
   ];
-  const visible = sections.filter((s) => s.options.length > 0);
 
   return (
     <div className="flex flex-col gap-1">
-      {languages.length > 0 && (
-        <div className="flex flex-col gap-2 pb-2">
-          <span className="text-sm font-medium">Language</span>
-          <VideoGenVoicePickerLanguage options={languages} value={filters.language} onChange={(v) => onFilter("language", v)} />
-        </div>
-      )}
+      <div className="flex flex-col gap-2 pb-2">
+        <span className="text-sm font-medium">Language</span>
+        <VideoGenVoicePickerLanguage options={languages} value={filters.language} onChange={(v) => onFilter("language", v)} />
+      </div>
       {/* Categories open by default; the rest start collapsed. */}
       <Accordion multiple defaultValue={["useCase"]}>
-        {visible.map((s) => {
+        {sections.map((s) => {
           const Icon = FILTER_FIELD_ICON[s.key];
           return (
             <AccordionItem key={s.key} value={s.key} className="border-none">
