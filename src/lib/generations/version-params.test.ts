@@ -232,3 +232,38 @@ describe("describeAllVersionParams", () => {
     expect(entries.find((e) => e.name === "negative_prompt")?.longForm).toBe(true);
   });
 });
+
+describe("voice on a version (D282)", () => {
+  const voice = { voiceId: "v1", voiceName: "Priya", status: "applied", originalUrl: "https://s/o.mp4" };
+
+  it("shows the voice name, not the raw object", () => {
+    const all = describeAllVersionParams(undefined, { voice, durationSeconds: 8 });
+    expect(all).toContainEqual({ name: "voice", label: "Voice", value: "Priya" });
+    expect(all.some((e) => e.value.includes("[object"))).toBe(false);
+    expect(describeVersionParams([], { voice })).toContainEqual({ name: "voice", label: "Voice", value: "Priya" });
+  });
+
+  it("says when the voice change failed", () => {
+    expect(describeVersionParams([], { voice: { ...voice, status: "failed" } })).toContainEqual({
+      name: "voice",
+      label: "Voice",
+      value: "Priya — failed, original audio kept",
+    });
+  });
+});
+
+// D284: a voice-changed version's provenance (`inputsUsed.voiceChange`) is read by
+// describeVoiceChange (src/lib/voice-change/describe.ts), not by this module — a voice change's
+// `params_used` is still just the root video version's own params (completeGeneration copies
+// `params_snapshot` + `durationSeconds`), so it needs no dedicated handling here. This pins that
+// describeAllVersionParams keeps reading it exactly like any other version's params.
+describe("a voice-changed version's params_used (D284)", () => {
+  it("reads the root video version's params unaffected — voiceChange lives only in inputsUsed", () => {
+    const entries = describeAllVersionParams(videoSpecs("veo:veo-3.1"), {
+      duration: "8",
+      durationSeconds: 8,
+    });
+    expect(entries.map((e) => e.name)).toEqual(["duration"]);
+    expect(entries.some((e) => e.name === "voiceChange")).toBe(false);
+  });
+});

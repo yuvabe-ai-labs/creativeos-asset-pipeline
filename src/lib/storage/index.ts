@@ -14,6 +14,7 @@ import {
   pathForNodeFile,
   pathForReviewAnnotation,
   pathForVideoGen,
+  pathForVideoGenVoice,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 
@@ -106,6 +107,21 @@ export async function uploadVideoGen(args: {
     ext: args.ext,
   });
   return _upload(path, args.body, args.contentType);
+}
+
+// A generation can run up to 10 minutes (video-generate's maxDuration: 600) before the task
+// uploads, plus the voice-change step's own retries (video-voice-change: maxDuration 120 x
+// retry.maxAttempts 2); 5 minutes (the default) is far too short. Two hours covers that with
+// margin to spare.
+// D284 — signVideoGenVoiceUrls itself was removed with generate-time voice; this constant is
+// kept for Task 4's signRevoicedVideoUrl, which re-voice-as-a-version-action will add.
+export const VOICE_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
+
+// D284 — the task has no GCS credentials; the voice-change route signs the one upload up front.
+export async function signRevoicedVideoUrl(args: { nodeId: string; generationId: string }): Promise<{ putUrl: string; url: string }> {
+  const { clientId, canvasId } = await resolveOwnership(args.nodeId);
+  const path = pathForVideoGenVoice({ clientId, canvasId, nodeId: args.nodeId, generationId: args.generationId, variant: "revoiced" });
+  return { putUrl: await _signPutUrl(path, "video/mp4", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
 }
 
 export async function uploadClientLogo(args: {
@@ -248,6 +264,11 @@ export function parsePathFromUrl(url: string): string | null {
   const prefix = `https://storage.googleapis.com/${getBucketName()}/`;
   if (url.startsWith(prefix)) return url.slice(prefix.length);
   return null;
+}
+
+/** True when `url` is a public URL of an object in this app's bucket. */
+export function isOwnStoredUrl(url: string): boolean {
+  return parsePathFromUrl(url) !== null;
 }
 
 const SUPABASE_PUBLIC_RE =

@@ -5740,3 +5740,83 @@ fix — still guesswork without a way to point at a specific image; kept as the 
 
 **Refines.** D233, D262. **Originated →**
 `docs/superpowers/specs/2026-09-24-multishot-reference-direction-design.md`.
+
+### D282 — Voice change runs in a child task; the original is stored before it runs *(recorded 2026-09-24)*
+
+**Decision.** An optional `voiceId` on the Video Gen node re-voices the generated clip with
+ElevenLabs speech-to-speech. `video-generate` generates, stores the original in GCS through a
+signed PUT URL minted by the route, then calls a separate `video-revoice` task with
+`triggerAndWait` (ffmpeg extract → ElevenLabs → ffmpeg mux → signed PUT). The node gets one
+version: the re-voiced video, or the original with a "voice change failed" note. The voice cost
+($0.12/min) is reserved with the video and settled only when applied. The picker lists every voice
+on the ElevenLabs account, live from `GET /v1/voices`.
+
+**Why.** `video-generate` retries (maxAttempts 2); an ElevenLabs error thrown inside it would
+regenerate — and re-pay for — the video. A child task retries the voice step alone. Storing the
+original first makes the fallback free. Signed PUT URLs let the task write to GCS without GCS
+credentials in Trigger.dev. `video-revoice` caps its queue at `concurrencyLimit: 2` to match the
+ElevenLabs Free plan's concurrent speech-to-speech limit, and its `maxDuration: 120` ×
+`retry.maxAttempts: 2` (aborting immediately on non-retryable 4xx/no-audio failures) keeps every
+attempt inside the 15-minute stuck-reservation sweep.
+
+**Rejected.** Voice step inline in `video-generate` — one careless throw pays for the video twice.
+Voice step in the webhook (`completeGeneration`) — needs ffmpeg on Vercel and a long-running
+webhook request. Keeping both original and re-voiced as versions — doubles version history for no
+decision the operator makes. A hard-coded voice list — needs a deploy per new voice.
+
+**Originated →** `docs/superpowers/specs/2026-09-24-elevenlabs-voice-change-design.md`.
+
+### D283 — Voice picker browses the account and the ElevenLabs Voice Library *(recorded 2026-09-25; refines D282)*
+
+**Decision.** The Video Gen voice control becomes a rich popover with two tabs. **My voices**
+loads every account voice from `GET /v2/voices` (all pages, cached 5 min) and searches/filters it
+in the browser. **Voice Library** pages `GET /v1/shared-voices` 30 at a time with ElevenLabs'
+own search and filters (infinite scroll). Picking a Library voice saves it to the account
+(`POST /v1/voices/add/{public_user_id}/{voice_id}`) and selects the returned account id. Every
+row has inline preview; one plays at a time. The node resolves its selected voice with a
+single-voice lookup (`/v2/voices?voice_ids=`), which also replaces D282's full-list check in the
+generate route. Voices with a legacy custom rate show an `N×` badge and are reserved/settled with
+that multiplier — if a live check shows the multiplier doesn't survive saving, they are hidden
+instead (`include_custom_rates=false`). Final-fixes update (same day): Library picks select
+optimistically and save in the background, reconciling or reverting when the save settles;
+Library voices don't use ElevenLabs' custom-voice slots, so this never risks running out of them.
+
+**Why.** 21 account voices vs ~18,000 Library voices (checked live 2026-09-25). A live test showed
+Library voices work for speech-to-speech on this account, saved or not. Loading all account voices
+makes filtering instant and exact (`/v2/voices` has no gender/age/accent filters); the Library is
+too large for that. Saving makes the voice visible to the whole team and resolvable by the same
+single lookup the route uses. `/v2/voices` is the current list endpoint; D282 used `/v1/voices`.
+
+**Rejected.** A full-screen voice-browser dialog — heavier for a quick pick. Upgrading the
+`Select` — can't hold tabs, filters or per-row playback. Infinite scroll for My voices — slower and
+inexact for 21 voices. Using Library voices without saving — every generation would need a Library
+lookup to validate and price the voice. Reading the plan tier to gate the Library tab — the key
+has no user-read permission (401).
+
+**Refines.** D282. **Originated →** `docs/superpowers/specs/2026-09-25-voice-picker-library-design.md`.
+
+### D284 — Voice change is a version action, not a generation option *(recorded 2026-09-25; supersedes D282's generate-time voice and D283's popover)*
+
+**Decision.** Generate produces plain video again. A **Change voice** toggle on the Video Gen
+focus view turns the centre into a workspace — the D283 voice browser as a full panel plus every
+timing-safe ElevenLabs speech-to-speech setting (stability, similarity, style, speaker boost,
+background-noise removal, model, seed; not speed). Applying re-voices a chosen version's
+**original model audio** in a `video-voice-change` job and appends a **new version**
+(`inputs_used.voiceChange` records base/root version, voice, settings, drift); the source version
+is untouched. It is billed as its own `voice` generation — voice cost × multiplier only. A sync
+check (source vs returned audio, > 0.25 s drift) fails the job and refunds rather than create an
+out-of-sync version.
+
+**Why.** Re-voicing every draft spends on takes nobody keeps and hides the voice behind a
+dropdown; operators decide on voice only after they like a take. A separate version keeps the
+original and the voice's provenance side by side, and always starting from the original audio
+avoids stacking conversion loss.
+
+**Rejected.** Keeping generate-time voice alongside — two paths to the same result, and the
+wasteful one would stay the default. Overwriting the source version's output — loses the original.
+Converting an already-converted voice — quality degrades with each hop. Exposing speed — breaks lip
+sync.
+
+**Supersedes.** D282 (generate-time voice; the `video-revoice` internals, ffmpeg helpers and
+billing plumbing are reused), D283 (the popover trigger; catalog, routes and browser are reused).
+**Originated →** `docs/superpowers/specs/2026-09-25-change-voice-workspace-design.md`.

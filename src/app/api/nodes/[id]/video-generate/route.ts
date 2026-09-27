@@ -63,6 +63,8 @@ export async function POST(
       ]),
     );
 
+    const mockMode = body.mock === true;
+
     // Image role assignments sent from focus view
     const imageRoles = body.imageRoles ?? {};
 
@@ -247,8 +249,6 @@ export async function POST(
       referenceCount: referenceUrls.length,
     });
     if (violation) return apiError(violation, 400);
-
-    const mockMode = body.mock === true;
 
     // Insert generation record (status: 'running')
     const generation = await insertGeneration({

@@ -82,6 +82,18 @@ export function pathForVideoGen(args: {
   return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/video-gen/${name}`;
 }
 
+// D282 — the original and re-voiced video of ONE generation. Keyed by generation id (not
+// buildStoredName's random name) because the route signs both URLs before the task runs.
+export function pathForVideoGenVoice(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  generationId: string;
+  variant: "original" | "revoiced";
+}): string {
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/video-gen/${args.generationId}-${args.variant}.mp4`;
+}
+
 export function pathForClientLogo(args: {
   clientId: string;
   filename: string;

@@ -345,3 +345,20 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(mocks.triggerTask).toHaveBeenCalledTimes(1);
   });
 });
+
+// A single-take video-prompt lane: vg <- vp (string prompt). No images.
+function simpleGraph(): Record<string, Row[]> {
+  return {
+    vg: [{ nodeId: "vp", type: "video-prompt", data: {}, activeOutput: "A hand lifts keys.", versionId: "v9" }],
+    vp: [],
+  };
+}
+
+describe("POST video-generate — no voice at generate time (D284)", () => {
+  it("ignores a voiceId in the body and never sends a voice to the task", async () => {
+    mocks.graph = simpleGraph();
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {}, voiceId: "v1" });
+    expect(res.status).toBe(202);
+    expect(mocks.triggerTask.mock.calls[0][1]).not.toHaveProperty("voice");
+  });
+});

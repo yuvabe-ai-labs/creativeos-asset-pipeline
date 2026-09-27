@@ -11,6 +11,7 @@ import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import type { PostFormat, PostLayer } from "@/lib/post/types";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
+import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 export type ScriptNodeData = {
   title?: string;
@@ -112,6 +113,8 @@ export type VideoGenNodeData = {
   params?: Record<string, unknown>;
   imageRoles?: Record<string, "start_frame" | "end_frame" | "reference">;
   parsed?: unknown; // D19: active version output (video URL, display only — never persisted)
+  /** D284 — the Change voice workspace's last choice (voice + settings). */
+  voiceChange?: { voiceId: string | null; settings: VoiceChangeSettings };
 };
 
 export type ShotNodeData = {

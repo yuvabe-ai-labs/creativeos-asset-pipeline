@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import type { VideoGenJobKind } from "@/lib/canvas-store";
 import type { GenerationRow } from "@/lib/db/types";
 import type {
   RealtimeChannel,
@@ -13,6 +14,8 @@ import type {
 
 export type VideoGenStatus = {
   isGenerating: boolean;
+  /** D284 — true while the running job is a voice change rather than a fresh video. */
+  isChangingVoice: boolean;
   lastError: string | null;
   setGenerating: (v: boolean) => void;
   setLastError: (v: string | null) => void;
@@ -23,12 +26,15 @@ export type VideoGenStatus = {
 const activeChannels = new Map<string, RealtimeChannel>();
 const subscriberCount = new Map<string, number>();
 
+const jobKind = (type: string | null | undefined): VideoGenJobKind => (type === "voice" ? "voice" : "video");
+
 export function useVideoGenStatus(nodeId: string): VideoGenStatus {
   const status = useCanvasStore((s) => s.videoGenStatus[nodeId]);
   const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
   const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
 
   const isGenerating = status?.isGenerating ?? false;
+  const isChangingVoice = isGenerating && status?.kind === "voice";
   const lastError = status?.lastError ?? null;
   const setGenerating = (v: boolean) => setVideoGenGenerating(nodeId, v);
   const setLastError = (v: string | null) => setVideoGenError(nodeId, v);
@@ -39,7 +45,7 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
     const supabase = createBrowserSupabase();
     supabase
       .from("generations")
-      .select("id, status")
+      .select("id, status, type")
       .eq("node_id", nodeId)
       .eq("status", "running")
       .limit(1)
@@ -47,7 +53,8 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
       .then(({ data, error }: { data: unknown; error: unknown }) => {
         if (cancelled) return;
         if (error) { console.error("[useVideoGenStatus] hydration failed", error); return; }
-        if (data) setVideoGenGenerating(nodeId, true);
+        const row = data as Pick<GenerationRow, "type"> | null;
+        if (row) setVideoGenGenerating(nodeId, true, jobKind(row.type));
       });
     return () => { cancelled = true; };
   }, [nodeId, setVideoGenGenerating]);
@@ -67,7 +74,7 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
           (payload: RealtimePostgresChangesPayload<GenerationRow>) => {
             const gen = payload.new as GenerationRow;
             if (gen.status === "running") {
-              setVideoGenGenerating(nodeId, true);
+              setVideoGenGenerating(nodeId, true, jobKind(gen.type));
               setVideoGenError(nodeId, null);
             }
           },
@@ -77,14 +84,16 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
           { event: "UPDATE", schema: "public", table: "generations", filter: `node_id=eq.${nodeId}` },
           (payload: RealtimePostgresChangesPayload<GenerationRow>) => {
             const gen = payload.new as GenerationRow;
+            const voice = gen.type === "voice";
             if (gen.status === "succeeded") {
               setVideoGenGenerating(nodeId, false);
               setVideoGenError(nodeId, null);
-              toast.success("Video ready");
+              toast.success(voice ? "Voice changed — added as a new version" : "Video ready");
             } else if (gen.status === "failed") {
+              const fallback = voice ? "Voice change failed" : "Generation failed";
               setVideoGenGenerating(nodeId, false);
-              setVideoGenError(nodeId, gen.error ?? "Generation failed");
-              toast.error(gen.error ?? "Generation failed");
+              setVideoGenError(nodeId, gen.error ?? fallback);
+              toast.error(gen.error ?? fallback);
             }
           },
         )
@@ -124,5 +133,5 @@ export function useVideoGenStatus(nodeId: string): VideoGenStatus {
     };
   }, [nodeId, setVideoGenGenerating, setVideoGenError]);
 
-  return { isGenerating, lastError, setGenerating, setLastError };
+  return { isGenerating, isChangingVoice, lastError, setGenerating, setLastError };
 }

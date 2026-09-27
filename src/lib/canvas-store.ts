@@ -38,6 +38,9 @@ import type { PlaybookRun } from "@/lib/copilot/runner";
 // and write it directly (React Flow only hands a node `{ id, data }`).
 // Seeded on creation with nodes loaded from the DB (1D-5).
 
+/** What a Video Gen node is running: a new video, or a voice change on one (D284). */
+export type VideoGenJobKind = "video" | "voice";
+
 export type CanvasState = {
   canvasName: string;
   nodes: AppNode[];
@@ -60,8 +63,10 @@ export type CanvasState = {
   setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
-  videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
-  setVideoGenGenerating: (nodeId: string, v: boolean) => void;
+  // `kind` says what is running (D284): a fresh video, or a voice change on an existing one —
+  // the focus view shows the two differently. Null when nothing runs.
+  videoGenStatus: Record<string, { isGenerating: boolean; kind: VideoGenJobKind | null; lastError: string | null }>;
+  setVideoGenGenerating: (nodeId: string, v: boolean, kind?: VideoGenJobKind) => void;
   setVideoGenError: (nodeId: string, err: string | null) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
   // keyed by generation id. The tray derives its list from these + the node graph (D9).
@@ -664,12 +669,14 @@ export function createCanvasStore(
 
     videoGenStatus: {},
 
-    setVideoGenGenerating: (nodeId, v) =>
+    setVideoGenGenerating: (nodeId, v, kind) =>
       set((s) => ({
         videoGenStatus: {
           ...s.videoGenStatus,
           [nodeId]: {
             isGenerating: v,
+            // A start that doesn't say its kind keeps a known one (hydration may land first).
+            kind: v ? (kind ?? s.videoGenStatus[nodeId]?.kind ?? "video") : null,
             lastError: s.videoGenStatus[nodeId]?.lastError ?? null,
           },
         },
@@ -681,6 +688,7 @@ export function createCanvasStore(
           ...s.videoGenStatus,
           [nodeId]: {
             isGenerating: s.videoGenStatus[nodeId]?.isGenerating ?? false,
+            kind: s.videoGenStatus[nodeId]?.kind ?? null,
             lastError: err,
           },
         },
