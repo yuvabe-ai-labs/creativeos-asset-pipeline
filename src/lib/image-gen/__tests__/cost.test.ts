@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeImageCost, estimateImageOutputCost, estimateImageInputCost, estimateGeminiInputTokens, estimateOpenAIInputTokens } from "../cost";
+import { computeImageCost, estimateImageOutputCost, estimateImageInputCost, estimateGeminiInputTokens, estimateOpenAIInputTokens, seedreamImageCostUsd, seedreamReferenceCostUsd } from "../cost";
 
 describe("computeImageCost", () => {
   it("returns null for unknown model", () => {
@@ -72,6 +72,30 @@ describe("estimateImageOutputCost", () => {
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "1K")).toBeCloseTo(0.134, 4);
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "2K")).toBeCloseTo(0.134, 4);
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "4K")).toBeCloseTo(0.24, 4);
+  });
+
+  it("prices Seedream per image: Lite flat, Pro by pixel tier", () => {
+    for (const res of ["2K", "3K", "4K"]) {
+      expect(estimateImageOutputCost("seedream:seedream-5-0-lite", undefined, res)).toBeCloseTo(0.035, 6);
+    }
+    expect(estimateImageOutputCost("seedream:seedream-5-0-pro", undefined, "1K")).toBeCloseTo(0.045, 6);
+    expect(estimateImageOutputCost("seedream:seedream-5-0-pro", undefined, "1.5K")).toBeCloseTo(0.045, 6);
+    expect(estimateImageOutputCost("seedream:seedream-5-0-pro", undefined, "2K")).toBeCloseTo(0.09, 6);
+    expect(estimateImageOutputCost("seedream:seedream-5-0-pro", undefined, "4K")).toBeNull();
+  });
+});
+
+describe("seedream reference and image cost", () => {
+  it("charges Pro $0.003 per reference after the first, Lite nothing", () => {
+    expect(seedreamReferenceCostUsd("seedream:seedream-5-0-pro", 0)).toBe(0);
+    expect(seedreamReferenceCostUsd("seedream:seedream-5-0-pro", 1)).toBe(0);
+    expect(seedreamReferenceCostUsd("seedream:seedream-5-0-pro", 10)).toBeCloseTo(0.027, 6);
+    expect(seedreamReferenceCostUsd("seedream:seedream-5-0-lite", 14)).toBe(0);
+  });
+
+  it("sums output and reference cost, null when unpriced", () => {
+    expect(seedreamImageCostUsd("seedream:seedream-5-0-pro", "2K", 2)).toBeCloseTo(0.093, 6);
+    expect(seedreamImageCostUsd("seedream:seedream-5-0-pro", "4K", 0)).toBeNull();
   });
 });
 

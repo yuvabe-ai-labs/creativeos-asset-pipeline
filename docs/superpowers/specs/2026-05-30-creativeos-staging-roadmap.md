@@ -5820,3 +5820,28 @@ sync.
 **Supersedes.** D282 (generate-time voice; the `video-revoice` internals, ffmpeg helpers and
 billing plumbing are reused), D283 (the popover trigger; catalog, routes and browser are reused).
 **Originated →** `docs/superpowers/specs/2026-09-25-change-voice-workspace-design.md`.
+
+### D285 — Seedream 5.0 image models on a direct Ark client, billed per image *(recorded 2026-09-28)*
+
+**Decision.** Seedream 5.0 Lite and Pro join the image-gen picker as a third provider group
+(`seedream:*`) beside OpenAI and Gemini, for Generate and Edit. A small `fetch` client
+(`image-gen/providers/seedream.ts`) calls Ark's synchronous `/images/generations` with the
+Seedance host and `BYTEPLUS_API_KEY`. We send an explicit `WxH` from the vendor's resolution x
+ratio table (not a bare resolution level), `png`, `b64_json`, `watermark: false`, one image. Edit
+targets regions from the prompt text (D38); no mask. `ImageGenResult` gains an optional `costUsd`:
+Seedream bills per image (Lite $0.035 flat; Pro $0.045 up to 1.5K, $0.09 at 2K, plus $0.003 per
+reference after the first), so the provider reports the exact charge and the route settles on it
+ahead of the token formula. The resolution param is named `image_size` so the shared estimate path
+prices it unchanged. The default model is unchanged.
+
+**Why.** Ark's endpoint is OpenAI-shaped, but our OpenAI provider carries `sharp` and mask
+handling that don't apply. An explicit size keeps a 9:16 reel 9:16 whatever the prompt says, at
+the same pixels the model would have chosen. Base64 avoids the 24-hour result URL. Per-image
+pricing is exact, so tokens would only approximate it.
+
+**Rejected.** The OpenAI SDK with a swapped base URL (its mask and edit paths would have to be
+fenced off). Size by resolution level with the ratio in the prompt (the vendor's recommended
+form, but the ratio then depends on the prompt writer). Pro's `<bbox>` interactive editing,
+layer decomposition, batch output and a Seedream-specific prompt writer are deferred, not
+rejected. Seedream 5.0 Flash waits for a confirmed BytePlus model ID and price.
+**Originated →** `docs/superpowers/specs/2026-09-19-seedream-5-image-models-design.md`.

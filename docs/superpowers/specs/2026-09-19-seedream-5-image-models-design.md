@@ -1,6 +1,10 @@
 # Seedream 5.0 Lite and Pro as image models — design
 
-**Status:** approved in brainstorm 2026-09-19 · **ADR:** D275 (to be recorded on implementation)
+**Status:** implemented 2026-09-28 · **ADR:** D285 (D275 was taken by the time this shipped)
+
+**Implementation note:** the resolution param is named `image_size`, not `resolution` as
+written below, so the shared estimate path (`estimate.ts`, which reads `image_size` for every
+non-OpenAI model) prices it without a special case.
 
 **Sources (vendored in `ref/byteplus-docs/`):** `Image generation API.md`,
 `Image generation tutorial.md`, `Seedream 5.0 pro and Lite tutorial.md`,

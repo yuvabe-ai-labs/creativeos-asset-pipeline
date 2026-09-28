@@ -4,6 +4,7 @@ import {
   estimateGeminiInputTokens,
   estimateOpenAIInputTokens,
   aspectRatioToOpenAISize,
+  seedreamReferenceCostUsd,
 } from "./cost";
 
 /**
@@ -37,6 +38,11 @@ export function estimateImageGenerationCostUsd(input: {
   if (outputCostUsd === null) return null;
 
   const referenceCount = input.referenceUrls.length;
+  // Seedream charges per input image, not per token — and its price is exact, not estimated.
+  if (input.modelId.startsWith("seedream:")) {
+    return outputCostUsd + seedreamReferenceCostUsd(input.modelId, referenceCount);
+  }
+
   const hasReferenceImages = referenceCount > 0;
   const inputTokens = isOpenAI
     ? estimateOpenAIInputTokens(input.modelId, referenceCount)

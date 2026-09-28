@@ -1,8 +1,9 @@
 import type { MediaGenModelSpec } from "./types";
 import { openaiModels } from "./providers/openai";
 import { geminiModels } from "./providers/gemini";
+import { seedreamModels } from "./providers/seedream";
 
-const allModels: MediaGenModelSpec[] = [...openaiModels, ...geminiModels];
+const allModels: MediaGenModelSpec[] = [...openaiModels, ...geminiModels, ...seedreamModels];
 
 export const imageGenRegistry: Record<string, MediaGenModelSpec> = Object.fromEntries(
   allModels.map((m) => [m.id, m]),
@@ -15,6 +16,7 @@ export const imageGenModelGroups: Array<{
 }> = [
   { provider: "openai", label: "OpenAI", models: openaiModels },
   { provider: "gemini", label: "Gemini", models: geminiModels },
+  { provider: "seedream", label: "Seedream", models: seedreamModels },
 ];
 
 export const DEFAULT_MODEL_ID = "gemini:gemini-3-pro-image";

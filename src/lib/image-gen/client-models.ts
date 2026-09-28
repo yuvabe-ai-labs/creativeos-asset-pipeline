@@ -3,6 +3,7 @@
 
 import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "./params/openai";
 import { gemini25FlashParams, geminiFlash2Params, geminiProParams } from "./params/gemini";
+import { seedreamLiteParams, seedreamProParams } from "./params/seedream";
 import { buildZodFromParams } from "./schema-builder";
 import type { ClientModelSpec, ParamSpec } from "./types";
 
@@ -76,6 +77,26 @@ export const imageGenClientModels: ClientModelSpec[] = [
     params: geminiProParams,
     schema: buildZodFromParams(geminiProParams),
   },
+  {
+    id: "seedream:seedream-5-0-lite",
+    provider: "seedream", mediaType: "image",
+    label: "Seedream 5.0 Lite", providerLabel: "Seedream",
+    maxReferenceImages: 14, maxReferenceSizeBytes: 30 * 1024 * 1024,
+    maxAspectRatio: 16,
+    supportsMask: false,
+    params: seedreamLiteParams,
+    schema: buildZodFromParams(seedreamLiteParams),
+  },
+  {
+    id: "seedream:seedream-5-0-pro",
+    provider: "seedream", mediaType: "image",
+    label: "Seedream 5.0 Pro", providerLabel: "Seedream",
+    maxReferenceImages: 10, maxReferenceSizeBytes: 30 * 1024 * 1024,
+    maxAspectRatio: 16,
+    supportsMask: false,
+    params: seedreamProParams,
+    schema: buildZodFromParams(seedreamProParams),
+  },
 ];
 
 export const imageGenClientModelMap: Record<string, ClientModelSpec> =
@@ -88,6 +109,7 @@ export const imageGenClientModelGroups: Array<{
 }> = [
   { provider: "openai", label: "OpenAI", models: imageGenClientModels.filter((m) => m.provider === "openai") },
   { provider: "gemini", label: "Gemini", models: imageGenClientModels.filter((m) => m.provider === "gemini") },
+  { provider: "seedream", label: "Seedream", models: imageGenClientModels.filter((m) => m.provider === "seedream") },
 ];
 
 export const DEFAULT_CLIENT_MODEL_ID = "gemini:gemini-3-pro-image";

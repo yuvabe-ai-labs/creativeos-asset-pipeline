@@ -40,6 +40,29 @@ describe("estimateImageGenerationCostUsd", () => {
     expect(result).toBeCloseTo(0.067 + 0.00009, 5);
   });
 
+  it("prices Seedream Pro per image plus each reference after the first", () => {
+    // Pro 1.5K = 0.045; 3 references -> 2 extra x 0.003. No token-based input charge.
+    const result = estimateImageGenerationCostUsd({
+      modelId: "seedream:seedream-5-0-pro",
+      quality: undefined,
+      aspectRatio: "9:16",
+      imageSize: "1.5K",
+      referenceUrls: ["https://a", "https://b", "https://c"],
+    });
+    expect(result).toBeCloseTo(0.045 + 0.006, 6);
+  });
+
+  it("prices Seedream Lite flat, references free", () => {
+    const result = estimateImageGenerationCostUsd({
+      modelId: "seedream:seedream-5-0-lite",
+      quality: undefined,
+      aspectRatio: "9:16",
+      imageSize: "4K",
+      referenceUrls: ["https://a", "https://b"],
+    });
+    expect(result).toBeCloseTo(0.035, 6);
+  });
+
   it("is synchronous — does not return a Promise", () => {
     const result = estimateImageGenerationCostUsd({
       modelId: "openai:gpt-image-2",
