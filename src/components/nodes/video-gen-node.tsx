@@ -117,7 +117,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
           {showVideo && (
             <div className="relative mb-2 overflow-hidden rounded-md border border-border">
               <video
-                src={videoUrl}
+                src={videoUrl ?? undefined}
                 className="h-16 w-full object-cover"
                 muted
                 playsInline
