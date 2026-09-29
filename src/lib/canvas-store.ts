@@ -17,7 +17,13 @@ import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
-import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
+import {
+  multishotSeedFor,
+  pruneBeatCache,
+  type MultishotSeed,
+  type SceneBeatCache,
+} from "@/lib/nodes/scene-beats";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import {
@@ -61,6 +67,8 @@ export type CanvasState = {
   fanOutShots: (scriptNodeId: string) => void;
   /** D227 — set one generation's mode from the Script's Visual script list. */
   setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
+  /** D286 — cache one scene's fresh split on the Script node (never in `parsed`). */
+  cacheSceneBeats: (scriptNodeId: string, fingerprint: string, beats: SceneBeat[]) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
   // `kind` says what is running (D284): a fresh video, or a voice change on an existing one —
@@ -434,13 +442,19 @@ export function createCanvasStore(
         parsed?: ReelScript;
         groupModes?: Record<string, boolean>;
         groupingVersion?: GroupingVersion;
+        sceneBeats?: SceneBeatCache;
       };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
       if (shots.length === 0) return;
 
       const scriptTitle = data.title || parsed?.title || "";
-      const generations = describeGenerations(shots, data.groupModes, data.groupingVersion ?? 1);
+      const generations = describeGenerations(
+        shots,
+        data.groupModes,
+        data.groupingVersion ?? 1,
+        data.sceneBeats,
+      );
 
       // Matching is on the EXACT index set, not on overlap. A group whose boundaries moved under
       // a re-parse is genuinely a different generation and correctly gets its own node; the old
@@ -499,7 +513,13 @@ export function createCanvasStore(
           // single 2s shot store 3, so the card read "3s · 1 cuts" over `checkLadder`'s red "2s ·
           // Gemini Omni 1.1 needs at least 3s." — two numbers for one ladder. The ladder keeps its
           // real length and the violation is STATED, never silently corrected.
-          const cuts = cutsFromShots(groupShots);
+          // D286 — a lone scene is cut at its fresh suggested beats, and the lines no beat
+          // carries span the ladder. Stale beats make one cut, as before.
+          const seed: MultishotSeed =
+            groupShots.length === 1
+              ? multishotSeedFor(groupShots[0], data.sceneBeats)
+              : { rows: groupShots };
+          const cuts = cutsFromShots(seed.rows);
           const totalSeconds = totalOf(cuts);
           return {
             id: crypto.randomUUID(),
@@ -513,6 +533,7 @@ export function createCanvasStore(
               cuts,
               // D261 — starts on the model its ladder fits, not on the Omni default.
               targetModel: bestFitMultishotModel(cuts),
+              ...(seed.sequenceVoiceover ? { sequenceVoiceover: seed.sequenceVoiceover } : {}),
               seededFrom,
             },
           };
@@ -565,10 +586,11 @@ export function createCanvasStore(
         parsed?: ReelScript;
         groupModes?: Record<string, boolean>;
         groupingVersion?: GroupingVersion;
+        sceneBeats?: SceneBeatCache;
       };
       const shots = data.parsed?.visual_script?.shots ?? [];
       const version = data.groupingVersion ?? 1;
-      const generation = describeGenerations(shots, data.groupModes, version).find(
+      const generation = describeGenerations(shots, data.groupModes, version, data.sceneBeats).find(
         (g) => g.key === key,
       );
       if (!generation) return;
@@ -606,9 +628,16 @@ export function createCanvasStore(
       // it would give one cut where the script had several. Only when the script rows are gone
       // does the node's own row stand in.
       const scriptRows = generation.shotIndexes.map((i) => shots[i]).filter(Boolean);
+      // D286 — a lone scene's fresh beats are the rows its cuts come from, and its untied lines
+      // span them. The toggle re-splits a stale scene BEFORE calling here; a failed re-split lands
+      // as one cut.
+      const seed: MultishotSeed =
+        scriptRows.length === 1
+          ? multishotSeedFor(scriptRows[0], data.sceneBeats)
+          : { rows: scriptRows };
       const converted =
         targetType === "multishot"
-          ? shotDataToMultishot(node.data as ShotNodeData, scriptRows)
+          ? shotDataToMultishot(node.data as ShotNodeData, seed.rows, seed.sequenceVoiceover)
           : multishotDataToShot(node.data as MultishotNodeData);
 
       // Outgoing edges are dropped: a prompt written for a cut ladder does not describe a
@@ -622,6 +651,15 @@ export function createCanvasStore(
         ),
         edges: get().edges.filter((e) => e.source !== node.id),
         removedEdgeIds: [...get().removedEdgeIds, ...outgoing.map((e) => e.id)],
+      });
+    },
+    cacheSceneBeats: (scriptNodeId, fingerprint, beats) => {
+      const script = get().nodes.find((n) => n.id === scriptNodeId);
+      if (!script || script.type !== "script") return;
+      const data = script.data as { parsed?: ReelScript; sceneBeats?: SceneBeatCache };
+      const rows = data.parsed?.visual_script?.shots ?? [];
+      get().updateNodeData(scriptNodeId, {
+        sceneBeats: pruneBeatCache(data.sceneBeats, rows, fingerprint, beats),
       });
     },
     // Promote chosen compose ideas (D28) into sibling Shot nodes — the §15 "duplicate to

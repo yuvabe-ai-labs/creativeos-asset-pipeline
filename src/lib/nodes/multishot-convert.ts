@@ -6,7 +6,7 @@
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
 import { cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
 import { mergeShotRows } from "./group-shots";
-import type { ReelShot } from "./reel-script";
+import type { ReelShot, VoLine } from "./reel-script";
 import { bestFitMultishotModel } from "./multishot-models";
 import { deriveShotType } from "./shot-types";
 
@@ -18,6 +18,8 @@ import { deriveShotType } from "./shot-types";
 export function shotDataToMultishot(
   data: ShotNodeData,
   sourceRows?: ReelShot[],
+  /** D286 — the scene's lines that span every cut (multishotSeedFor). */
+  sequenceVoiceover?: VoLine[],
 ): MultishotNodeData {
   const shots =
     sourceRows && sourceRows.length > 0 ? sourceRows : (data.script?.visual_script?.shots ?? []);
@@ -43,6 +45,7 @@ export function shotDataToMultishot(
     // D261 — a new Multishot node starts on the model its ladder fits. Not carried back by
     // multishotDataToShot: a Shot has no model, so a flip-back-and-forth re-picks by fit.
     targetModel: bestFitMultishotModel(cuts),
+    ...(sequenceVoiceover && sequenceVoiceover.length > 0 ? { sequenceVoiceover } : {}),
     script: {
       ...data.script,
       // The envelope keeps execution notes and everything else; only the shot list goes,
@@ -56,7 +59,15 @@ export function shotDataToMultishot(
 export function multishotDataToShot(data: MultishotNodeData): ShotNodeData {
   const cuts = data.cuts ?? [];
   // One take over every cut: one row (BUG-004).
-  const take = mergeShotRows(shotsFromCuts(cuts));
+  const merged = mergeShotRows(shotsFromCuts(cuts));
+  // D286 — the lines that spanned the ladder are part of the one take too. They lead: their
+  // original interleaving with tied lines is not recorded, and a take that opens on the scene's
+  // narration is the reading that stays speakable.
+  const sequence = data.sequenceVoiceover ?? [];
+  const take =
+    sequence.length > 0
+      ? { ...merged, voiceover: [...sequence, ...(merged.voiceover ?? [])] }
+      : merged;
 
   return {
     order: data.order,

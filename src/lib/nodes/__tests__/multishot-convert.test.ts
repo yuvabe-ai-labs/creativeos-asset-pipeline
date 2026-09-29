@@ -157,3 +157,38 @@ describe("shotDataToMultishot picks a model (D261)", () => {
     expect(shotDataToMultishot(withLengths(3, 5, 6, 4, 6)).targetModel).toBe(SEEDANCE_MODEL_ID);
   });
 });
+
+describe("sequence voiceover across the flip (D286)", () => {
+  const seq = [{ text: "Made by hand.", speaker: "narrator" }];
+
+  it("writes the spanning lines onto the new Multishot node", () => {
+    const out = shotDataToMultishot(
+      {},
+      [
+        { description: "a", duration_seconds: 2 },
+        { description: "b", duration_seconds: 2 },
+      ],
+      seq,
+    );
+    expect(out.sequenceVoiceover).toEqual(seq);
+    expect(out.cuts).toHaveLength(2);
+  });
+
+  it("leaves the field off when there are no spanning lines", () => {
+    expect(shotDataToMultishot({}, [{ description: "a", duration_seconds: 2 }], [])).not.toHaveProperty(
+      "sequenceVoiceover",
+    );
+  });
+
+  it("merges the sequence lines back into the single take, ahead of the cuts' own", () => {
+    const shot = multishotDataToShot({
+      cuts: [
+        { id: "c1", text: "a", seconds: 2, voiceover: [{ text: "Tied.", speaker: "narrator" }] },
+        { id: "c2", text: "b", seconds: 2, voiceover: [] },
+      ],
+      sequenceVoiceover: seq,
+    });
+    const take = shot.script!.visual_script!.shots![0];
+    expect(take.voiceover!.map((l) => l.text)).toEqual(["Made by hand.", "Tied."]);
+  });
+});

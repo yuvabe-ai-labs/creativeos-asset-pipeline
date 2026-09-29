@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
+import { sceneFingerprint } from "./nodes/scene-beats";
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), info: vi.fn(), error: vi.fn() }),
@@ -877,5 +878,83 @@ describe("Omni coercion on connect", () => {
 
     const params = (store.getState().nodes.find((n) => n.id === "vg")!.data as { params?: Record<string, unknown> }).params;
     expect(params).toEqual({ aspect_ratio: "9:16", resolution: "720p" });
+  });
+});
+
+describe("scene beats become cuts (D286)", () => {
+  const vo = (text: string) => ({ text, speaker: "narrator" });
+  const plain = {
+    description: "Jar → spoon → hand",
+    duration_seconds: 6,
+    voiceover: [vo("Meet the jar."), vo("Made by hand.")],
+  };
+  const BEATS = [
+    { description: "Jar", duration_seconds: 2, voiceover: [vo("Meet the jar.")] },
+    { description: "Spoon", duration_seconds: 2, voiceover: [] },
+    { description: "Hand", duration_seconds: 2, voiceover: [] },
+  ];
+  const stampedRow = { ...plain, beats: BEATS, beatsFor: sceneFingerprint(plain) };
+  const v3Script = (row: object, extra: object = {}): AppNode =>
+    ({
+      id: "sc",
+      type: "script",
+      position: { x: 0, y: 0 },
+      data: { parsed: { visual_script: { shots: [row] } }, groupingVersion: 3, ...extra },
+    }) as AppNode;
+  const multishotData = (store: ReturnType<typeof createCanvasStore>) =>
+    store.getState().nodes.find((n) => n.type === "multishot")!.data as {
+      cuts: { text: string; seconds: number; voiceover?: { text: string }[] }[];
+      sequenceVoiceover?: { text: string }[];
+    };
+  const cutsOf = (store: ReturnType<typeof createCanvasStore>) =>
+    multishotData(store).cuts.map((c) => [c.text, c.seconds]);
+
+  it("flipping a fanned-out scene to multishot builds one cut per fresh beat", () => {
+    const store = createCanvasStore([v3Script(stampedRow)], []);
+    store.getState().fanOutShots("sc");
+    store.getState().setGenerationMode("sc", "0", true);
+    expect(cutsOf(store)).toEqual([["Jar", 2], ["Spoon", 2], ["Hand", 2]]);
+  });
+
+  it("keeps a tied line on its cut and moves the untied one to the sequence", () => {
+    const store = createCanvasStore([v3Script(stampedRow)], []);
+    store.getState().fanOutShots("sc");
+    store.getState().setGenerationMode("sc", "0", true);
+    const data = multishotData(store);
+    expect(data.cuts[0].voiceover?.map((l) => l.text)).toEqual(["Meet the jar."]);
+    expect(data.sequenceVoiceover?.map((l) => l.text)).toEqual(["Made by hand."]);
+  });
+
+  it("fans out a scene already set to multishot with its beats and sequence lines", () => {
+    const store = createCanvasStore([v3Script(stampedRow, { groupModes: { "0": true } })], []);
+    store.getState().fanOutShots("sc");
+    expect(cutsOf(store)).toHaveLength(3);
+    expect(multishotData(store).sequenceVoiceover).toHaveLength(1);
+  });
+
+  it("uses one cut, with every line on it, when the beats are stale", () => {
+    const store = createCanvasStore([v3Script({ ...stampedRow, description: "Edited" })], []);
+    store.getState().fanOutShots("sc");
+    store.getState().setGenerationMode("sc", "0", true);
+    expect(cutsOf(store)).toEqual([["Edited", 6]]);
+    expect(multishotData(store).cuts[0].voiceover).toHaveLength(2);
+    expect(multishotData(store)).not.toHaveProperty("sequenceVoiceover");
+  });
+
+  it("uses cached beats written by cacheSceneBeats", () => {
+    const store = createCanvasStore([v3Script(plain)], []);
+    store.getState().cacheSceneBeats("sc", sceneFingerprint(plain), BEATS);
+    store.getState().fanOutShots("sc");
+    store.getState().setGenerationMode("sc", "0", true);
+    expect(cutsOf(store)).toHaveLength(3);
+  });
+
+  it("cacheSceneBeats prunes keys no current row matches and leaves parsed alone", () => {
+    const store = createCanvasStore([v3Script(plain, { sceneBeats: { gone: BEATS } })], []);
+    const before = (store.getState().nodes[0].data as { parsed: unknown }).parsed;
+    store.getState().cacheSceneBeats("sc", sceneFingerprint(plain), BEATS);
+    const data = store.getState().nodes[0].data as { parsed: unknown; sceneBeats?: Record<string, unknown> };
+    expect(Object.keys(data.sceneBeats ?? {})).toEqual([sceneFingerprint(plain)]);
+    expect(data.parsed).toBe(before);
   });
 });

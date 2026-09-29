@@ -11,6 +11,7 @@ import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import type { PostFormat, PostLayer } from "@/lib/post/types";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
+import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 export type ScriptNodeData = {
@@ -30,6 +31,12 @@ export type ScriptNodeData = {
    * migration, so no canvas reshapes under its operator and a re-parse adopts the current rules.
    */
   groupingVersion?: GroupingVersion;
+  /**
+   * D286 — re-split results for scenes edited since the parse, keyed by `sceneFingerprint`.
+   * Kept here, not in `parsed` (the active version's output, D19): writing that would reseed the
+   * focus view's unsaved draft. Pruned to the current rows on every write.
+   */
+  sceneBeats?: SceneBeatCache;
   signalIds?: string[]; // market signals flavouring the parse (D204); undefined = none
   signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
 };
