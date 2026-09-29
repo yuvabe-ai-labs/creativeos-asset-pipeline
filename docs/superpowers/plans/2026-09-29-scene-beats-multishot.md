@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The script parse pre-splits each scene into suggested cuts ("beats"), the Script node recommends multishot when a scene has 2+ beats, and turning multishot on builds the cuts from those beats — re-splitting just that scene via a new route when it was edited since the parse.
+**Goal:** The script parse pre-splits each scene into suggested cuts ("beats"); the Script node recommends multishot when a scene has 2+ beats; turning multishot on builds the cuts from those beats (re-splitting just that scene when it was edited since the parse); and a VO line that runs across the scene plays over the whole sequence instead of being crammed onto one short cut.
 
-**Architecture:** Parse v10 adds a hidden `beats` list + `beatsFor` fingerprint to every scene row. Pure helpers in `src/lib/nodes/scene-beats.ts` (fingerprint, freshness, rows-for-cuts, cache prune) and `src/lib/nodes/normalize-beats.ts` (server-side normalisation) are shared by the parse route, a new `split-scene` route, the canvas store and the `GenerationBracket` toggle. Re-split results are cached in `ScriptNodeData.sceneBeats` keyed by fingerprint — never written into `parsed`, which is the active version's output (D19).
+**Architecture:** Parse v10 adds a hidden `beats` list + `beatsFor` fingerprint to every scene row; a beat carries only the VO lines the script ties to it. Pure helpers in `src/lib/nodes/scene-beats.ts` (fingerprint, freshness, seed-for-multishot, cache prune) and `src/lib/nodes/normalize-beats.ts` (server-side clean-up) are shared by the parse route, a new `split-scene` route, the canvas store and the `GenerationBracket` toggle. Re-split results are cached in `ScriptNodeData.sceneBeats` keyed by fingerprint — never written into `parsed` (the active version's output, D19). Untied lines become `MultishotNodeData.sequenceVoiceover`, rendered once in the prompt header by `renderPlan`.
 
 **Tech Stack:** Next.js route handlers, OpenAI chat completions with strict JSON schema (`gpt-5.4-mini`), zustand vanilla store, vitest (node env — no component rendering), shadcn/Base UI components, Lucide icons.
 
@@ -13,14 +13,15 @@
 ## Global Constraints
 
 - Split rule: split only where the script signals cuts (montage, "A → B → C", "quick cuts of…", "cut to", separate setups); a continuous scene is exactly 1 beat. Never invent shots; never split to fit a model's window.
-- A scene is still exactly one row (D278). Beats are never rendered on the Script node.
+- A scene is still exactly one row (D278), and the row's `voiceover` stays the complete list (D267). Beats are never rendered on the Script node.
+- VO: a line sits on a beat only when the script ties it to that visual; every other line spans the sequence. A line is never split.
 - Stale beats drive the badge but NEVER become cuts. No network call on edit, none in the synchronous store.
 - `[]` and absent `voiceover` are different states everywhere (`cutsFromShots` rule).
 - Never clamp silently (D237): a beat ladder outside a model's window is reported by `checkLadder`.
 - API routes: `withNode`, `apiOk` / `apiError`, `withTryCatch` for the OpenAI call — never `NextResponse.json`.
-- UI: shadcn primitives only (`Switch`, `Button`…), Lucide icons at `strokeWidth={1.5}`, no hardcoded colours.
-- Import, don't redefine: `shotSeconds` from `group-shots.ts`, `MIN_CUT_SECONDS` from `multishot-cuts.ts`, `normalizeSlices` / `buildParseContext` from `src/lib/kb/parse-context.ts`.
-- Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Group related edits; one commit per task.
+- UI: shadcn primitives only (`Switch`, `Button`…), Lucide icons at `strokeWidth={1.5}`, no hardcoded colours, `text-eyebrow` for small labels.
+- Import, don't redefine: `shotSeconds` (group-shots.ts), `MIN_CUT_SECONDS` (multishot-cuts.ts), `normalizeSlices` / `buildParseContext` (kb/parse-context.ts), `renderVoiceover` / `describeVoLineForWriter` (voiceover.ts).
+- Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. One commit per task.
 - Run tests per file/directory (`npx vitest run <path>`); the full run has ~11 known timeout flakes in API route tests.
 
 ## File Map
@@ -28,19 +29,23 @@
 | File | Responsibility |
 |---|---|
 | `src/lib/nodes/reel-script.ts` (modify) | `SceneBeat` type; `beats` / `beatsFor` on `ReelShot` |
-| `src/lib/nodes/scene-beats.ts` (create) | Pure, type-only deps: `sceneFingerprint`, `beatsForScene`, `rowsForMultishot`, `pruneBeatCache`, `SceneBeatCache` |
-| `src/lib/nodes/normalize-beats.ts` (create) | `normalizeBeats`, `stampSceneBeats` — server-side clean-up of model output |
-| `src/lib/nodes/group-shots.ts` (modify) | `Generation.cutCount`; v3 recommendation from beats |
-| `src/prompts/script-parse.ts` (modify) | v10: `beats` in schema, exported `SCENE_SPLIT_RULES`, `voLineSchema`, `sceneBeatSchema` |
+| `src/lib/nodes/scene-beats.ts` (create) | Type-only deps: `sceneFingerprint`, `beatsForScene`, `multishotSeedFor`, `pruneBeatCache`, `SceneBeatCache` |
+| `src/lib/nodes/normalize-beats.ts` (create) | `normalizeBeats`, `stampSceneBeats` |
+| `src/lib/nodes/group-shots.ts` (modify) | `Generation.cutCount`; recommendation from beats |
+| `src/prompts/script-parse.ts` (modify) | v10: `beats` in schema; exported `SCENE_SPLIT_RULES`, `voLineSchema`, `sceneBeatSchema` |
 | `src/app/api/nodes/[id]/parse/route.ts` (modify) | stamp beats after the model returns |
-| `src/prompts/scene-split.ts` (create) | versioned `scene-split` prompt record |
-| `src/lib/nodes/scene-split.ts` (create) | `parseSceneBody`, `compileSceneSplit` |
-| `src/app/api/nodes/[id]/split-scene/route.ts` (create) | the one-scene split route |
-| `src/lib/canvas-nodes.ts` (modify) | `ScriptNodeData.sceneBeats` |
-| `src/lib/canvas-store.ts` (modify) | `cacheSceneBeats`; beats → cuts in flip and fan-out; cache into `describeGenerations` |
+| `src/prompts/scene-split.ts`, `src/lib/nodes/scene-split.ts`, `src/app/api/nodes/[id]/split-scene/route.ts` (create) | the one-scene split route |
+| `src/lib/nodes/voiceover.ts` (modify) | `readVoLines` |
+| `src/lib/nodes/multishot-plan.ts` (modify) | sequence VO in `renderPlan` / `checkPlanLimits` |
+| `src/lib/nodes/resolve-inputs.ts`, `src/lib/video-gen/resolve-prompt.ts`, `src/lib/nodes/node-output.ts` (modify) | read + pass sequence VO |
+| `src/app/api/nodes/[id]/{video-generate,upstream-images,multishot-prompt}/route.ts` (modify) | pass sequence VO to render/check |
+| `src/components/nodes/multishot-prompt-node.tsx`, `multishot-prompt-focus-view.tsx` (modify) | pass sequence VO to the preview |
+| `src/lib/canvas-nodes.ts` (modify) | `ScriptNodeData.sceneBeats`, `MultishotNodeData.sequenceVoiceover` |
+| `src/lib/nodes/multishot-convert.ts` (modify) | carry sequence VO on flip on/off |
+| `src/lib/canvas-store.ts` (modify) | `cacheSceneBeats`; seeds cuts + sequence VO from beats |
+| `src/lib/nodes/multishot-draft.ts`, `src/components/nodes/multishot-focus-view.tsx`, `multishot-node.tsx` (modify) | edit the sequence VO lane |
 | `src/lib/nodes/ensure-scene-beats.ts` (create) | client: `requestSceneSplit`, `ensureSceneBeats` |
-| `src/components/nodes/generation-bracket.tsx` (modify) | async toggle with spinner + fallback toast; reason text from `cutCount` |
-| `src/components/nodes/script-node.tsx`, `script-focus-view.tsx`, `script-document.tsx` (modify) | pass `sceneBeats` alongside `groupModes` |
+| `src/components/nodes/generation-bracket.tsx`, `script-node.tsx`, `script-focus-view.tsx`, `script-document.tsx` (modify) | async toggle; pass `sceneBeats` |
 
 ---
 
@@ -58,7 +63,8 @@
   - `type SceneBeatCache = Record<string, SceneBeat[]>`
   - `sceneFingerprint(row: ReelShot): string`
   - `beatsForScene(row: ReelShot, cache?: SceneBeatCache): { beats: SceneBeat[] | undefined; fresh: boolean }`
-  - `rowsForMultishot(row: ReelShot, cache?: SceneBeatCache): ReelShot[]`
+  - `type MultishotSeed = { rows: ReelShot[]; sequenceVoiceover?: VoLine[] }`
+  - `multishotSeedFor(row: ReelShot, cache?: SceneBeatCache): MultishotSeed`
   - `pruneBeatCache(cache: SceneBeatCache | undefined, rows: ReelShot[], fingerprint: string, beats: SceneBeat[]): SceneBeatCache`
 
 - [ ] **Step 1: Add the types to `reel-script.ts`**
@@ -70,11 +76,14 @@ Insert above `export type ReelShot`:
  * D286 — one suggested cut inside a scene. The parse splits a scene only where the script itself
  * signals cuts; a continuous scene is exactly one beat. Never rendered on the Script node — beats
  * become cuts only when the operator turns multishot on.
+ *
+ * `voiceover` holds ONLY the lines the script ties to this beat. The scene's other lines span the
+ * whole multishot sequence (`MultishotNodeData.sequenceVoiceover`) — never split, never parked on
+ * one short cut.
  */
 export type SceneBeat = {
   description: string;
   duration_seconds: number;
-  /** Same `[]` vs absent rule as `ReelShot.voiceover`. */
   voiceover?: VoLine[];
 };
 ```
@@ -95,20 +104,16 @@ Create `src/lib/nodes/__tests__/scene-beats.test.ts`:
 ```ts
 import { describe, it, expect } from "vitest";
 import type { ReelShot, SceneBeat } from "../reel-script";
-import {
-  sceneFingerprint,
-  beatsForScene,
-  rowsForMultishot,
-  pruneBeatCache,
-} from "../scene-beats";
+import { sceneFingerprint, beatsForScene, multishotSeedFor, pruneBeatCache } from "../scene-beats";
 
 const vo = (text: string) => ({ text, speaker: "narrator" });
 const row = (over: Partial<ReelShot> = {}): ReelShot => ({
   description: "Jar on marble → spoon lifts cream → hand smooths it on",
   duration_seconds: 6,
-  voiceover: [vo("Meet the jar.")],
+  voiceover: [vo("Meet the jar."), vo("Made slowly, by hand.")],
   ...over,
 });
+// "Meet the jar." is tied to beat 1; "Made slowly, by hand." is tied to nothing, so it spans.
 const THREE: SceneBeat[] = [
   { description: "Jar on marble", duration_seconds: 2, voiceover: [vo("Meet the jar.")] },
   { description: "Spoon lifts cream", duration_seconds: 2, voiceover: [] },
@@ -157,8 +162,10 @@ describe("beatsForScene", () => {
   it("prefers a cache hit for the current fingerprint over stale row beats", () => {
     const edited = { ...stamped(), description: "Edited" };
     const two = THREE.slice(0, 2);
-    const cache = { [sceneFingerprint(edited)]: two };
-    expect(beatsForScene(edited, cache)).toEqual({ beats: two, fresh: true });
+    expect(beatsForScene(edited, { [sceneFingerprint(edited)]: two })).toEqual({
+      beats: two,
+      fresh: true,
+    });
   });
 
   it("reports a pre-v10 row as having no beats", () => {
@@ -166,36 +173,53 @@ describe("beatsForScene", () => {
   });
 });
 
-describe("rowsForMultishot", () => {
-  it("turns 2+ fresh beats into one row each, voiceover carried", () => {
-    expect(rowsForMultishot(stamped())).toEqual([
+describe("multishotSeedFor", () => {
+  it("turns 2+ fresh beats into one row each, carrying only their tied lines", () => {
+    expect(multishotSeedFor(stamped()).rows).toEqual([
       { description: "Jar on marble", duration_seconds: 2, voiceover: [vo("Meet the jar.")] },
       { description: "Spoon lifts cream", duration_seconds: 2, voiceover: [] },
       { description: "Hand smooths it on", duration_seconds: 2, voiceover: [] },
     ]);
   });
 
-  it("keeps the row whole when there is a single beat", () => {
+  it("puts the lines no beat carries on the sequence, in script order", () => {
+    expect(multishotSeedFor(stamped()).sequenceVoiceover).toEqual([vo("Made slowly, by hand.")]);
+  });
+
+  it("omits the sequence lines when every line is tied", () => {
+    const r = row({ voiceover: [vo("Meet the jar.")] });
+    const seed = multishotSeedFor({ ...r, beats: THREE, beatsFor: sceneFingerprint(r) });
+    expect(seed).not.toHaveProperty("sequenceVoiceover");
+  });
+
+  it("spans every line when no beat is tied to one", () => {
+    const untied = THREE.map((b) => ({ ...b, voiceover: [] }));
+    const r = row();
+    const seed = multishotSeedFor({ ...r, beats: untied, beatsFor: sceneFingerprint(r) });
+    expect(seed.sequenceVoiceover).toEqual(r.voiceover);
+  });
+
+  it("keeps the row whole, lines and all, when there is a single beat", () => {
     const r = { ...row(), beats: [THREE[0]], beatsFor: sceneFingerprint(row()) };
-    expect(rowsForMultishot(r)).toEqual([r]);
+    expect(multishotSeedFor(r)).toEqual({ rows: [r] });
   });
 
   it("never turns stale beats into cuts", () => {
     const edited = { ...stamped(), description: "Edited" };
-    expect(rowsForMultishot(edited)).toEqual([edited]);
+    expect(multishotSeedFor(edited)).toEqual({ rows: [edited] });
   });
 
   it("uses fresh cached beats", () => {
     const r = row();
-    const cache = { [sceneFingerprint(r)]: THREE };
-    expect(rowsForMultishot(r, cache)).toHaveLength(3);
+    expect(multishotSeedFor(r, { [sceneFingerprint(r)]: THREE }).rows).toHaveLength(3);
   });
 
-  it("omits voiceover on a cut whose beat has none", () => {
+  it("omits voiceover on cuts and the sequence when the scene has no key", () => {
     const r = row({ voiceover: undefined });
     const beats = THREE.map(({ voiceover: _v, ...b }) => b);
-    const rows = rowsForMultishot(r, { [sceneFingerprint(r)]: beats });
-    expect(rows.every((x) => !("voiceover" in x))).toBe(true);
+    const seed = multishotSeedFor(r, { [sceneFingerprint(r)]: beats });
+    expect(seed.rows.every((x) => !("voiceover" in x))).toBe(true);
+    expect(seed).not.toHaveProperty("sequenceVoiceover");
   });
 });
 
@@ -232,7 +256,7 @@ Create `src/lib/nodes/scene-beats.ts`:
 // Type-only imports on purpose: group-shots.ts imports this module for the recommendation, so
 // anything here that needed group-shots would be a cycle. The server-side clean-up that DOES need
 // `shotSeconds` lives in normalize-beats.ts.
-import type { ReelShot, SceneBeat } from "./reel-script";
+import type { ReelShot, SceneBeat, VoLine } from "./reel-script";
 
 /**
  * Re-split results, keyed by the fingerprint of the row they were split from. Lives on the
@@ -240,6 +264,9 @@ import type { ReelShot, SceneBeat } from "./reel-script";
  * Keyed by fingerprint so a hit is valid by construction.
  */
 export type SceneBeatCache = Record<string, SceneBeat[]>;
+
+/** What a Multishot node is seeded from for one scene: its cut rows, and lines spanning them all. */
+export type MultishotSeed = { rows: ReelShot[]; sequenceVoiceover?: VoLine[] };
 
 /**
  * What a split depends on: the scene's text, its length and its lines. Anything else on the row
@@ -270,18 +297,35 @@ export function beatsForScene(
 }
 
 /**
- * The rows a multishot ladder is built from for ONE scene: its fresh beats when there are 2+,
- * otherwise the scene itself. Stale beats describe text the scene no longer has, so they are
- * never used here — the caller re-splits first, or accepts one cut.
+ * What ONE scene seeds a Multishot node with. With 2+ fresh beats: a cut row per beat, carrying
+ * the lines the script tied to it, and the scene's remaining lines as the sequence voiceover — in
+ * script order, never split. Otherwise the scene is one cut that keeps all its lines, exactly as
+ * before D286. Stale beats describe text the scene no longer has, so they are never used here.
+ *
+ * Spanning lines are matched in order by text. `normalizeBeats` guarantees the beats' lines are an
+ * in-order subsequence of the row's, which is what makes a single forward walk correct.
  */
-export function rowsForMultishot(row: ReelShot, cache?: SceneBeatCache): ReelShot[] {
+export function multishotSeedFor(row: ReelShot, cache?: SceneBeatCache): MultishotSeed {
   const { beats, fresh } = beatsForScene(row, cache);
-  if (!fresh || !beats || beats.length < 2) return [row];
-  return beats.map((b) => ({
+  if (!fresh || !beats || beats.length < 2) return { rows: [row] };
+
+  const rows = beats.map((b) => ({
     description: b.description,
     duration_seconds: b.duration_seconds,
     ...(b.voiceover !== undefined ? { voiceover: b.voiceover } : {}),
   }));
+
+  const tied = beats.flatMap((b) => (b.voiceover ?? []).map((l) => l.text));
+  let next = 0;
+  const spanning = (row.voiceover ?? []).filter((line) => {
+    if (next < tied.length && line.text === tied[next]) {
+      next += 1;
+      return false;
+    }
+    return true;
+  });
+
+  return spanning.length > 0 ? { rows, sequenceVoiceover: spanning } : { rows };
 }
 
 /** The cache after adding one split, keeping only entries some current row still matches. */
@@ -304,13 +348,13 @@ export function pruneBeatCache(
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/nodes/__tests__/scene-beats.test.ts`
-Expected: PASS (all tests).
+Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add src/lib/nodes/reel-script.ts src/lib/nodes/scene-beats.ts src/lib/nodes/__tests__/scene-beats.test.ts
-git commit -m "feat(script): scene beat types and freshness helpers (D286)"
+git commit -m "feat(script): scene beat types, freshness and multishot seed helpers (D286)"
 ```
 
 ---
@@ -322,7 +366,7 @@ git commit -m "feat(script): scene beat types and freshness helpers (D286)"
 - Test: `src/lib/nodes/__tests__/normalize-beats.test.ts`
 
 **Interfaces:**
-- Consumes: `SceneBeat`, `ReelShot`, `ReelScript` (reel-script.ts); `sceneFingerprint` (Task 1); `shotSeconds` (group-shots.ts); `MIN_CUT_SECONDS` (multishot-cuts.ts)
+- Consumes: `SceneBeat`, `ReelShot`, `ReelScript`; `sceneFingerprint` (Task 1); `shotSeconds` (group-shots.ts); `MIN_CUT_SECONDS` (multishot-cuts.ts)
 - Produces:
   - `normalizeBeats(row: ReelShot, raw: SceneBeat[] | undefined): SceneBeat[]`
   - `stampSceneBeats(script: ReelScript): ReelScript`
@@ -350,18 +394,18 @@ const beat = (description: string, duration_seconds: number, lines: string[] = [
   voiceover: lines.map(vo),
 });
 const secs = (beats: SceneBeat[]) => beats.map((b) => b.duration_seconds);
+const texts = (beats: SceneBeat[]) => beats.map((b) => b.voiceover?.map((l) => l.text));
 
 describe("normalizeBeats — lengths", () => {
   it("keeps beats that already add up", () => {
-    const out = normalizeBeats(row(), [beat("A", 3, ["One."]), beat("B", 3, ["Two."]), beat("C", 3)]);
-    expect(secs(out)).toEqual([3, 3, 3]);
+    expect(secs(normalizeBeats(row(), [beat("A", 3), beat("B", 3), beat("C", 3)]))).toEqual([3, 3, 3]);
   });
 
   it("adds a shortfall to the longest beat", () => {
     expect(secs(normalizeBeats(row(), [beat("A", 2), beat("B", 4), beat("C", 1)]))).toEqual([2, 6, 1]);
   });
 
-  it("takes an excess from the longest beats, never below one second", () => {
+  it("takes an excess from the longest beat, never below one second", () => {
     expect(secs(normalizeBeats(row(), [beat("A", 8), beat("B", 3), beat("C", 1)]))).toEqual([5, 3, 1]);
   });
 
@@ -375,26 +419,34 @@ describe("normalizeBeats — lengths", () => {
   });
 
   it("uses the assumed length when the row has none", () => {
-    const out = normalizeBeats(row({ duration_seconds: undefined }), undefined);
-    expect(secs(out)).toEqual([4]);
+    expect(secs(normalizeBeats(row({ duration_seconds: undefined }), undefined))).toEqual([4]);
   });
 });
 
-describe("normalizeBeats — shape", () => {
-  it("mirrors the row as one beat when the model returned none", () => {
+describe("normalizeBeats — voiceover", () => {
+  it("mirrors the row, lines and all, as one beat when the model returned none", () => {
     expect(normalizeBeats(row(), [])).toEqual([
       { description: "A → B → C", duration_seconds: 9, voiceover: [vo("One."), vo("Two.")] },
     ]);
   });
 
-  it("keeps the beats' lines when they conserve the scene's lines in order", () => {
+  it("keeps tied lines that follow the scene's order", () => {
     const out = normalizeBeats(row(), [beat("A", 3, ["One."]), beat("B", 3), beat("C", 3, ["Two."])]);
-    expect(out.map((b) => b.voiceover?.map((l) => l.text))).toEqual([["One."], [], ["Two."]]);
+    expect(texts(out)).toEqual([["One."], [], ["Two."]]);
   });
 
-  it("puts every scene line on the first beat when the model dropped or duplicated one", () => {
-    const out = normalizeBeats(row(), [beat("A", 3, ["One."]), beat("B", 3, ["One."]), beat("C", 3)]);
-    expect(out.map((b) => b.voiceover?.map((l) => l.text))).toEqual([["One.", "Two."], [], []]);
+  // A line on no beat is not lost — it spans the sequence (multishotSeedFor derives it).
+  it("keeps a partial tie; the untied line is left to span", () => {
+    const out = normalizeBeats(row(), [beat("A", 3), beat("B", 3, ["Two."]), beat("C", 3)]);
+    expect(texts(out)).toEqual([[], ["Two."], []]);
+  });
+
+  it.each([
+    ["out of order", [beat("A", 3, ["Two."]), beat("B", 3, ["One."]), beat("C", 3)]],
+    ["repeated", [beat("A", 3, ["One."]), beat("B", 3, ["One."]), beat("C", 3)]],
+    ["invented", [beat("A", 3, ["Three."]), beat("B", 3), beat("C", 3)]],
+  ])("drops every tie when the lines are %s, so all of them span", (_label, raw) => {
+    expect(texts(normalizeBeats(row(), raw))).toEqual([[], [], []]);
   });
 
   it("leaves voiceover absent on every beat when the scene has no key", () => {
@@ -406,8 +458,7 @@ describe("normalizeBeats — shape", () => {
 describe("stampSceneBeats", () => {
   it("normalises every row and stamps the fingerprint of the row as parsed", () => {
     const script = { visual_script: { shots: [{ ...row(), beats: [beat("A", 9, ["One.", "Two."])] }] } };
-    const out = stampSceneBeats(script);
-    const shot = out.visual_script!.shots![0];
+    const shot = stampSceneBeats(script).visual_script!.shots![0];
     expect(shot.beats).toHaveLength(1);
     expect(shot.beatsFor).toBe(sceneFingerprint(row()));
   });
@@ -429,9 +480,9 @@ Create `src/lib/nodes/normalize-beats.ts`:
 
 ```ts
 // D286 — the server's clean-up of a model's scene split. The model is asked to make beat lengths
-// add up and to conserve the scene's VO lines; this makes both true whatever it returned, so every
-// consumer downstream can rely on them.
-import type { ReelScript, ReelShot, SceneBeat } from "./reel-script";
+// add up and to tie a line to a beat only when the script does; this makes both safe whatever it
+// returned, so every consumer downstream can rely on them.
+import type { ReelScript, ReelShot, SceneBeat, VoLine } from "./reel-script";
 import { shotSeconds } from "./group-shots";
 import { MIN_CUT_SECONDS } from "./multishot-cuts";
 import { sceneFingerprint } from "./scene-beats";
@@ -440,19 +491,32 @@ function indexOfLongest(values: number[]): number {
   return values.reduce((best, v, i) => (v > values[best] ? i : best), 0);
 }
 
+/** Beat lines, read in beat order, form an in-order subsequence of the scene's lines. */
+function tiesAreValid(rowLines: VoLine[], raw: SceneBeat[]): boolean {
+  const tied = raw.flatMap((b) => (b.voiceover ?? []).map((l) => l.text));
+  let at = 0;
+  for (const text of tied) {
+    while (at < rowLines.length && rowLines[at].text !== text) at += 1;
+    if (at === rowLines.length) return false;
+    at += 1;
+  }
+  return true;
+}
+
 /**
  * Lengths: whole seconds, each at least MIN_CUT_SECONDS, summing to the scene's length — the
  * difference goes to (or comes from) the longest beat. A scene too short for its beats' floors
  * keeps the floors: the ladder states that violation later, it is never silently clamped (D237).
  *
- * Lines: kept only if the beats carry exactly the scene's lines, in order. Otherwise the beats'
- * lines are dropped and the scene's go on the first beat — a dropped or doubled line is worse than
- * a line on the wrong cut, which the operator can move.
+ * Lines: a beat keeps only lines tied to it, and only if all ties together follow the scene's
+ * order with none repeated or invented. Otherwise every tie is dropped and all of the scene's lines
+ * span the sequence — a line over the whole sequence is always speakable; one parked on the wrong
+ * 2s cut is not.
  */
 export function normalizeBeats(row: ReelShot, raw: SceneBeat[] | undefined): SceneBeat[] {
   const total = Math.max(MIN_CUT_SECONDS, Math.round(shotSeconds(row)));
   const rowLines = row.voiceover;
-  const withLines = (b: Omit<SceneBeat, "voiceover">, lines: SceneBeat["voiceover"]): SceneBeat =>
+  const withLines = (b: Omit<SceneBeat, "voiceover">, lines: VoLine[] | undefined): SceneBeat =>
     rowLines === undefined ? b : { ...b, voiceover: lines ?? [] };
 
   if (!raw || raw.length === 0) {
@@ -477,15 +541,11 @@ export function normalizeBeats(row: ReelShot, raw: SceneBeat[] | undefined): Sce
     }
   }
 
-  const beatTexts = raw.flatMap((b) => (b.voiceover ?? []).map((l) => l.text));
-  const rowTexts = (rowLines ?? []).map((l) => l.text);
-  const conserved =
-    beatTexts.length === rowTexts.length && beatTexts.every((t, i) => t === rowTexts[i]);
-
+  const keepTies = rowLines !== undefined && tiesAreValid(rowLines, raw);
   return raw.map((b, i) =>
     withLines(
       { description: (b.description ?? "").trim(), duration_seconds: seconds[i] },
-      conserved ? b.voiceover : i === 0 ? rowLines : [],
+      keepTies ? b.voiceover : [],
     ),
   );
 }
@@ -511,13 +571,13 @@ export function stampSceneBeats(script: ReelScript): ReelScript {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/nodes/__tests__/normalize-beats.test.ts`
-Expected: PASS. (Check the "excess" case by hand: 8+3+1 = 12, total 9, diff −3 → longest is 8 → 5. Result `[5, 3, 1]`.)
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/lib/nodes/normalize-beats.ts src/lib/nodes/__tests__/normalize-beats.test.ts
-git commit -m "feat(script): normalise a scene split's lengths and lines (D286)"
+git commit -m "feat(script): normalise a scene split's lengths and tied lines (D286)"
 ```
 
 ---
@@ -526,13 +586,13 @@ git commit -m "feat(script): normalise a scene split's lengths and lines (D286)"
 
 **Files:**
 - Modify: `src/lib/nodes/group-shots.ts` (`Generation` type ~line 204, `describeGenerations` ~line 260)
-- Modify: `src/components/nodes/generation-bracket.tsx:71-75` (reason text)
+- Modify: `src/components/nodes/generation-bracket.tsx:71`
 - Test: `src/lib/nodes/__tests__/group-shots.test.ts`
 
 **Interfaces:**
 - Consumes: `beatsForScene`, `SceneBeatCache` (Task 1)
 - Produces:
-  - `Generation.cutCount: number` — suggested cuts for a single-row generation (beats length, else 1), else `shotIndexes.length`
+  - `Generation.cutCount: number`
   - `describeGenerations(shots, overrides?, groupingVersion = 1, beatCache?: SceneBeatCache): Generation[]`
 
 - [ ] **Step 1: Write the failing test**
@@ -585,17 +645,17 @@ describe("v3 recommendation from scene beats (D286)", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/nodes/__tests__/group-shots.test.ts`
-Expected: FAIL — `cutCount` undefined / `recommendMultishot` false for the 3-beat scene.
+Expected: FAIL — `cutCount` undefined; the 3-beat scene is not recommended.
 
 - [ ] **Step 3: Implement**
 
-In `group-shots.ts`, add the import at the top:
+In `group-shots.ts`, add at the top:
 
 ```ts
 import { beatsForScene, type SceneBeatCache } from "./scene-beats";
 ```
 
-In the `Generation` type, replace the `recommendMultishot` doc comment and add `cutCount` just above it:
+In `Generation`, replace the `recommendMultishot` field and its comment with:
 
 ```ts
   /**
@@ -607,7 +667,8 @@ In the `Generation` type, replace the `recommendMultishot` doc comment and add `
   recommendMultishot: boolean;
 ```
 
-Change `describeGenerations`' signature and body:
+Replace `describeGenerations` (keep its doc comment, adding the line
+`` * `beatCache` — the Script node's re-split cache (D286), consulted for a single scene's cut count. ``):
 
 ```ts
 export function describeGenerations(
@@ -647,10 +708,7 @@ export function describeGenerations(
 }
 ```
 
-Also update the doc comment above `describeGenerations` to mention `beatCache`: append the line
-` * \`beatCache\` — the Script node's re-split cache (D286), consulted for a single scene's cut count.`
-
-In `generation-bracket.tsx`, change line 71 from `const shotCount = generation.shotIndexes.length;` to:
+In `generation-bracket.tsx`, change `const shotCount = generation.shotIndexes.length;` to:
 
 ```ts
   const shotCount = generation.cutCount;
@@ -659,7 +717,7 @@ In `generation-bracket.tsx`, change line 71 from `const shotCount = generation.s
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run src/lib/nodes/__tests__/group-shots.test.ts`
-Expected: PASS, including the existing "is what describeGenerations uses at the current version" test (its rows have no beats → `recommendMultishot: false`).
+Expected: PASS, including the existing "is what describeGenerations uses at the current version" test (its rows have no beats → not recommended).
 
 - [ ] **Step 5: Commit**
 
@@ -684,7 +742,7 @@ git commit -m "feat(script): recommend multishot from a scene's suggested beats 
 - [ ] **Step 1: Write the failing tests**
 
 In `script-parse-schema.test.ts`: change the import to
-`import { scriptParsePrompt, SCENE_SPLIT_RULES } from "../script-parse";`, change the version test to
+`import { scriptParsePrompt, SCENE_SPLIT_RULES } from "../script-parse";`, replace the version test with
 
 ```ts
   it("is version 10", () => {
@@ -704,7 +762,7 @@ and add inside the top-level `describe`:
     };
     expect(beats.type).toBe("array");
     expect(beats.items.additionalProperties).toBe(false);
-    expect(beats.items.required.sort()).toEqual(["description", "duration_seconds", "voiceover"]);
+    expect([...beats.items.required].sort()).toEqual(["description", "duration_seconds", "voiceover"]);
     expect(beats.items.properties.voiceover).toEqual(shotProps.properties.voiceover);
   });
 
@@ -715,6 +773,14 @@ and add inside the top-level `describe`:
     expect(SCENE_SPLIT_RULES).toMatch(/never invent/i);
     expect(SCENE_SPLIT_RULES).toMatch(/add up/i);
     expect(scriptParsePrompt.system).toContain(SCENE_SPLIT_RULES);
+  });
+
+  // "I can't split the voice into 1s" — a line runs across the scene unless the script ties it.
+  it("ties a line to a beat only when the script does, and never splits one", () => {
+    expect(SCENE_SPLIT_RULES).toMatch(/ONLY when the script ties it/);
+    expect(SCENE_SPLIT_RULES).toMatch(/goes on NO beat/);
+    expect(SCENE_SPLIT_RULES).toMatch(/whole sequence/);
+    expect(SCENE_SPLIT_RULES).toMatch(/never split/i);
   });
 ```
 
@@ -739,7 +805,7 @@ export const voLineSchema = {
     delivery: { type: "string" },
     language: { type: "string" },
   },
-} as const;
+};
 
 // D286 — one suggested cut inside a scene. Shared with the scene-split prompt.
 export const sceneBeatSchema = {
@@ -751,19 +817,19 @@ export const sceneBeatSchema = {
     duration_seconds: { type: "integer" },
     voiceover: { type: "array", items: voLineSchema },
   },
-} as const;
+};
 
 // D286 — how a scene is split into suggested cuts. ONE text, composed into the parse prompt and
 // the scene-split prompt, so a scene splits the same way whichever of them runs.
 export const SCENE_SPLIT_RULES = `Splitting a scene into beats (its suggested cuts, for when the operator generates it as a multishot sequence):
 - Split ONLY where the scene's own text signals separate cuts: a montage, "A → B → C", "quick cuts of X, Y, Z", "cut to", or several distinct camera setups. A scene that describes one continuous action or one camera move is EXACTLY ONE beat whose description is the scene's description.
-- Never invent a shot the scene does not describe, and never split a continuous action into camera angles the script did not ask for. Never split to fit a model's length limit.
+- Never invent a shot the scene does not describe, never split a continuous action into camera angles the script did not ask for, and never split to fit a model's length limit.
 - Each beat's description is the visual of that cut only, in the script's own words, keeping the product and subject named as the scene names them.
 - Beat duration_seconds are whole seconds that add up to the scene's duration_seconds. Use the script's own per-beat timing when it gives one; otherwise share the scene's length evenly.
-- Every voiceover line of the scene goes to exactly one beat, verbatim and in order — to the beat it plays over when the script says, otherwise in script order. Never drop, repeat or invent a line. A beat with no line gets [].`;
+- A voiceover line goes on a beat ONLY when the script ties it to that beat — the line is written under that visual, or its timecode falls inside that beat. A line that runs across the scene, or that the script does not tie to one visual, goes on NO beat: it plays over the whole sequence. Copy a tied line verbatim; never split a line, never put one on two beats, never invent one. A beat with no tied line gets [].`;
 ```
 
-In `reelSchema`, replace the shot item's `required` and `voiceover` property:
+In `reelSchema`, replace the shot item's `required` and `properties` with:
 
 ```ts
             required: ["description", "duration", "duration_seconds", "clip", "voiceover", "beats"],
@@ -777,26 +843,13 @@ In `reelSchema`, replace the shot item's `required` and `voiceover` property:
             },
 ```
 
-In `system`, change the `visual_script` line (currently line 120) to list beats:
-
-```
-- visual_script: { shots: [{ description, duration, duration_seconds, clip, voiceover, beats }], execution_refinement } — one row per SCENE, in the order the script writes them.
-```
-
-Replace the montage bullet (currently line 122) with:
-
-```
-  - Each scene produces EXACTLY ONE row. A scene whose visual lists several beats — a montage, "A → B → C", "quick cuts of X, Y, Z" — is still one row, and its description keeps that prose as written. Do NOT split a montage into rows: its suggested cuts go in that row's beats, never in extra rows.
-```
-
-After the `voiceover` sub-bullets (after the line ending `every shot gets [].`) add:
-
-```
-  - beats: that scene's suggested cuts, per the splitting rules below.
-```
-
-Change `const system = \`...\`` to end with the rules — replace the closing
-``- product_links: array of product URLs in the script.`;`` with:
+In `system`:
+- Change the `visual_script` line to
+  `- visual_script: { shots: [{ description, duration, duration_seconds, clip, voiceover, beats }], execution_refinement } — one row per SCENE, in the order the script writes them.`
+- Replace the montage bullet's last sentence `Do NOT split a montage into rows: where the cuts fall is the operator's decision, made after the parse.` with `Do NOT split a montage into rows: its suggested cuts go in that row's beats, never in extra rows.`
+- After the line ending `every shot gets [].` add a bullet at the same indent:
+  `  - beats: that scene's suggested cuts, per the splitting rules below. The row's own voiceover still lists EVERY line of the scene; a beat repeats only the lines tied to it.`
+- Replace the closing ``- product_links: array of product URLs in the script.`;`` with:
 
 ```ts
 - product_links: array of product URLs in the script.
@@ -804,43 +857,30 @@ Change `const system = \`...\`` to end with the rules — replace the closing
 ${SCENE_SPLIT_RULES}`;
 ```
 
-(`SCENE_SPLIT_RULES` must be declared above `system` — it is, since it sits above `reelSchema`.)
-
-In `scriptParsePrompt`, add the history note under v9 and bump:
+In `scriptParsePrompt`, add under the v9 note and bump:
 
 ```ts
   // v10: every scene row also carries `beats` — its suggested cuts, split only where the script
-  // signals them (SCENE_SPLIT_RULES, shared with scene-split). The row itself is unchanged; beats
-  // become cuts only when the operator turns multishot on (D286).
+  // signals them, each holding only the VO lines the script ties to it (SCENE_SPLIT_RULES, shared
+  // with scene-split). The row is unchanged; beats become cuts only when the operator turns
+  // multishot on, and untied lines span the sequence (D286).
   version: 10,
 ```
 
 - [ ] **Step 4: Stamp beats in the parse route**
 
-In `src/app/api/nodes/[id]/parse/route.ts`, add the import:
+In `src/app/api/nodes/[id]/parse/route.ts`, add `import { stampSceneBeats } from "@/lib/nodes/normalize-beats";` and change `const output = JSON.parse(content);` to:
 
 ```ts
-import { stampSceneBeats } from "@/lib/nodes/normalize-beats";
-```
-
-and change
-
-```ts
-      const output = JSON.parse(content);
-```
-
-to
-
-```ts
-      // D286 — make each scene's beats add up and conserve its lines, and record which row text
-      // they were split from, so a later edit reads as a stale split.
+      // D286 — make each scene's beats add up and keep only valid tied lines, and record which row
+      // text they were split from, so a later edit reads as a stale split.
       const output = stampSceneBeats(JSON.parse(content));
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run src/prompts/__tests__/script-parse-schema.test.ts src/lib/nodes/__tests__`
-Expected: PASS. (The existing voiceover-shape test still passes: `voLineSchema` is identical to the old inline object.)
+Expected: PASS (the existing voiceover-shape test still matches: `voLineSchema` is the same object).
 
 - [ ] **Step 6: Commit**
 
@@ -854,16 +894,13 @@ git commit -m "feat(script-parse): v10 returns each scene's suggested beats (D28
 ### Task 5: `split-scene` route
 
 **Files:**
-- Create: `src/prompts/scene-split.ts`
-- Create: `src/lib/nodes/scene-split.ts`
-- Create: `src/app/api/nodes/[id]/split-scene/route.ts`
-- Test: `src/lib/nodes/__tests__/scene-split.test.ts`
-- Test: `src/app/api/nodes/[id]/split-scene/route.test.ts`
+- Create: `src/prompts/scene-split.ts`, `src/lib/nodes/scene-split.ts`, `src/app/api/nodes/[id]/split-scene/route.ts`
+- Test: `src/lib/nodes/__tests__/scene-split.test.ts`, `src/app/api/nodes/[id]/split-scene/route.test.ts`
 
 **Interfaces:**
 - Consumes: `SCENE_SPLIT_RULES`, `sceneBeatSchema` (Task 4); `normalizeBeats` (Task 2); `sceneFingerprint` (Task 1)
 - Produces:
-  - `sceneSplitPrompt` `{ id: "scene-split", version: 1, model: "gpt-5.4-mini", system, schema }`
+  - `sceneSplitPrompt` `{ id: "scene-split", version: 1, model: "gpt-5.4-mini", system, clientContextHeading, schema }`
   - `parseSceneBody(input: unknown): ReelShot | null`
   - `compileSceneSplit(scene: ReelShot, clientContext: string): { system: string; user: string }`
   - `POST /api/nodes/:id/split-scene` — body `{ scene, slices? }` → `200 { beats: SceneBeat[], beatsFor: string }` | `400` | `404` | `500 { error }`
@@ -915,10 +952,7 @@ describe("compileSceneSplit", () => {
   });
 
   it("puts the scene, its length and its numbered lines in the user message", () => {
-    const { user } = compileSceneSplit(
-      { description: "A → B", duration_seconds: 6, voiceover: [vo] },
-      "",
-    );
+    const { user } = compileSceneSplit({ description: "A → B", duration_seconds: 6, voiceover: [vo] }, "");
     expect(user).toContain("A → B");
     expect(user).toContain("6 seconds");
     expect(user).toContain('1. (narrator) "Meet the jar."');
@@ -1008,9 +1042,7 @@ export function compileSceneSplit(scene: ReelShot, clientContext: string) {
   const voiceover =
     lines.length === 0
       ? "Voiceover lines: none"
-      : `Voiceover lines, in order:\n${lines
-          .map((l, i) => `${i + 1}. (${l.speaker}) "${l.text}"`)
-          .join("\n")}`;
+      : `Voiceover lines, in order:\n${lines.map((l, i) => `${i + 1}. (${l.speaker}) "${l.text}"`).join("\n")}`;
   const user = `Scene to split:\n${(scene.description ?? "").trim()}\n\nLength: ${scene.duration_seconds} seconds\n\n${voiceover}`;
   return { system, user };
 }
@@ -1183,28 +1215,454 @@ git commit -m "feat(api): split-scene route re-splits one scene on demand (D286)
 
 ---
 
-### Task 6: Store — beats become cuts, and the re-split cache
+### Task 6: Sequence voiceover in the prompt path
+
+**Files:**
+- Modify: `src/lib/canvas-nodes.ts` (`MultishotNodeData`, ~line 135)
+- Modify: `src/lib/nodes/voiceover.ts` (add `readVoLines`)
+- Modify: `src/lib/nodes/multishot-plan.ts` (`renderPlan` ~line 159, `checkPlanLimits` ~line 319)
+- Modify: `src/lib/nodes/resolve-inputs.ts` (`ResolvedMultishotInputs` ~201, `resolveMultishotPromptInputs` ~223, `buildMultishotUserTurn` ~266)
+- Modify: `src/lib/video-gen/resolve-prompt.ts` (ok branch type ~line 40, return ~151)
+- Modify: `src/lib/nodes/node-output.ts` (multishot case ~line 41)
+- Modify: `src/app/api/nodes/[id]/video-generate/route.ts:112-118`, `src/app/api/nodes/[id]/upstream-images/route.ts:115-126`, `src/app/api/nodes/[id]/multishot-prompt/route.ts:117-126,312`
+- Modify: `src/components/nodes/multishot-prompt-node.tsx:58,197`, `src/components/nodes/multishot-prompt-focus-view.tsx:76,100,694`
+- Test: `src/lib/nodes/__tests__/multishot-plan.test.ts`, `src/lib/nodes/__tests__/resolve-multishot.test.ts`, `src/lib/nodes/node-output.test.ts`, `src/lib/video-gen/__tests__/resolve-prompt.test.ts`, `src/lib/nodes/__tests__/sequence-voiceover.test.ts` (new, for `readVoLines`)
+
+**Interfaces:**
+- Produces:
+  - `MultishotNodeData.sequenceVoiceover?: VoLine[]`
+  - `readVoLines(value: unknown): VoLine[] | undefined` (voiceover.ts)
+  - `SEQUENCE_VO_PREFIX = "Across every shot — "` (multishot-plan.ts)
+  - `renderPlan(plan, cuts, cap, refIds = [], sequenceVoiceover?: VoLine[]): string`
+  - `checkPlanLimits(plan, cuts, cap, refIds = [], sequenceVoiceover?: VoLine[]): LadderCheck`
+  - `ResolvedMultishotInputs.sequenceVoiceover: VoLine[] | undefined`
+  - `buildMultishotUserTurn({ …, sequenceVoiceover?: VoLine[] })`
+  - `resolveVideoGenPrompt` ok result gains `sequenceVoiceover: VoLine[] | undefined`
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `src/lib/nodes/__tests__/sequence-voiceover.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { readVoLines } from "../voiceover";
+
+describe("readVoLines", () => {
+  it("returns undefined for anything that is not an array", () => {
+    expect(readVoLines(undefined)).toBeUndefined();
+    expect(readVoLines("x")).toBeUndefined();
+  });
+
+  it("keeps well-formed lines and drops malformed ones", () => {
+    expect(
+      readVoLines([{ text: "Hi.", speaker: "narrator" }, { speaker: "narrator" }, null, { text: 3 }]),
+    ).toEqual([{ text: "Hi.", speaker: "narrator" }]);
+  });
+
+  it("keeps an empty array as an empty array", () => {
+    expect(readVoLines([])).toEqual([]);
+  });
+});
+```
+
+Append to `src/lib/nodes/__tests__/multishot-plan.test.ts`:
+
+```ts
+// D286 — a line that spans the sequence renders ONCE, between the look and the ladder, and never
+// inside any shot.
+describe("renderPlan — sequence voiceover", () => {
+  const seq: VoLine[] = [{ text: "Made slowly; by hand.", speaker: "narrator" }];
+  const look = "Low sun from camera-left, warm grey concrete, 35mm at knee height.";
+
+  it("sits between the look and Omni's ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], seq)).toBe(
+      `${look}\n\n` +
+        'Across every shot — Voiceover: "Made slowly; by hand."\n\n' +
+        "[0-2s] A hand sweeps keys off oak.\n" +
+        "[2-5s] A cab door swings open onto sunlit paving.",
+    );
+  });
+
+  it("replaces semicolons on Kling so the line cannot end a shot", () => {
+    const rendered = renderPlan(perModelPlan, planCuts, KLING, [], seq);
+    expect(rendered).toContain('Across every shot — Voiceover: "Made slowly, by hand."\n\nshot 1, 2,');
+    expect(rendered.match(/;/g)).toHaveLength(2);
+  });
+
+  it("sits before Seedance's ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, SEEDANCE, [], seq)).toContain(
+      'Across every shot — Voiceover: "Made slowly; by hand."\n\n0-2s:',
+    );
+  });
+
+  it("leads the prompt when there is no look", () => {
+    expect(renderPlan({ ...perModelPlan, look: "" }, planCuts, OMNI, [], seq).startsWith("Across every shot — ")).toBe(true);
+  });
+
+  it("renders nothing for no lines or an empty list", () => {
+    const plain = renderPlan(perModelPlan, planCuts, OMNI);
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], [])).toBe(plain);
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], undefined)).toBe(plain);
+  });
+
+  it("counts against the whole-prompt budget, not any cut's", () => {
+    const long: VoLine[] = [{ text: "x".repeat(KLING.maxPromptChars!), speaker: "narrator" }];
+    const result = checkPlanLimits(perModelPlan, planCuts, KLING, [], long);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/whole prompt/);
+    expect(checkPlanLimits(perModelPlan, planCuts, KLING).ok).toBe(true);
+  });
+});
+```
+
+Append to `src/lib/nodes/__tests__/resolve-multishot.test.ts`:
+
+```ts
+describe("buildMultishotUserTurn — sequence voiceover (D286)", () => {
+  const base = { clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {} };
+
+  it("states lines that play over every shot, once, above the shots", () => {
+    const turn = buildMultishotUserTurn({
+      ...base,
+      sequenceVoiceover: [{ text: "Made slowly, by hand.", speaker: "narrator" }],
+    });
+    expect(turn).toContain("Voiceover across the whole sequence");
+    expect(turn).toContain('narrator (off-screen): "Made slowly, by hand."');
+    expect(turn.indexOf("whole sequence")).toBeLessThan(turn.indexOf("cutId: c1"));
+    expect(turn.match(/Made slowly/g)).toHaveLength(1);
+  });
+
+  it("adds nothing when there are no sequence lines", () => {
+    expect(buildMultishotUserTurn({ ...base, sequenceVoiceover: [] })).not.toContain("whole sequence");
+  });
+});
+```
+
+Append inside the multishot tests of `src/lib/nodes/node-output.test.ts` (its top-level `describe`):
+
+```ts
+  it("prints a multishot node's sequence voiceover above its shots", () => {
+    const out = getNodeOutput({
+      type: "multishot",
+      data: {
+        cuts: [{ id: "c1", text: "keys", seconds: 2 }],
+        sequenceVoiceover: [{ text: "Made by hand.", speaker: "narrator" }],
+      },
+      activeOutput: null,
+    });
+    expect(out).toBe('Across every shot — Voiceover: "Made by hand."\nShot 1 (2s): keys');
+  });
+```
+
+Append inside `describe("resolveVideoGenPrompt", …)` of `src/lib/video-gen/__tests__/resolve-prompt.test.ts`:
+
+```ts
+  it("renders and returns the Multishot node's sequence voiceover (D286)", async () => {
+    const sequenceVoiceover = [{ text: "Made by hand.", speaker: "narrator" }];
+    const multishotPromptNode = output({ nodeId: "mp-1", type: "multishot-prompt", activeOutput: plan });
+    const multishotNode = output({ nodeId: "m-1", type: "multishot", data: { cuts, sequenceVoiceover } });
+    const result = await resolveVideoGenPrompt(
+      [multishotPromptNode],
+      async (id) => (id === "mp-1" ? [multishotNode] : []),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.prompt).toContain('Across every shot — Voiceover: "Made by hand."');
+      expect(result.sequenceVoiceover).toEqual(sequenceVoiceover);
+    }
+  });
+```
+
+- [ ] **Step 2: Run to verify they fail**
+
+Run: `npx vitest run src/lib/nodes/__tests__/sequence-voiceover.test.ts src/lib/nodes/__tests__/multishot-plan.test.ts src/lib/nodes/__tests__/resolve-multishot.test.ts src/lib/nodes/node-output.test.ts src/lib/video-gen/__tests__/resolve-prompt.test.ts`
+Expected: FAIL — `readVoLines` missing; sequence lines not rendered.
+
+- [ ] **Step 3: Data field and `readVoLines`**
+
+In `canvas-nodes.ts`, add to `MultishotNodeData` after `cuts` (import `type VoLine` from `@/lib/nodes/reel-script`):
+
+```ts
+  /**
+   * D286 — VO lines that play over the WHOLE ladder, not one cut: a scene's lines the script did
+   * not tie to a single beat. Rendered once in the prompt header (renderPlan). Absent or [] = none.
+   * Cuts keep their own `voiceover` for tied lines (D267).
+   */
+  sequenceVoiceover?: VoLine[];
+```
+
+In `voiceover.ts`, add above `export type { VoLine };`:
+
+```ts
+/**
+ * D286 — a node's stored VO list, read defensively: node data arrives as `unknown`, and a
+ * malformed line must not reach `renderVoiceover` (which calls `.trim()` on `text`). Anything that
+ * is not an array is "no list"; an empty array stays empty.
+ */
+export function readVoLines(value: unknown): VoLine[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(
+    (l): l is VoLine => !!l && typeof l.text === "string" && typeof l.speaker === "string",
+  );
+}
+```
+
+- [ ] **Step 4: Render and check**
+
+In `multishot-plan.ts`, import `type VoLine` from `./reel-script`, and add below `withVoiceover`:
+
+```ts
+/** D286 — how lines spanning the whole sequence are introduced in the rendered prompt. */
+export const SEQUENCE_VO_PREFIX = "Across every shot — ";
+
+/**
+ * D286 — the sequence voiceover, a blank line, then the ladder. Sits between the look and the
+ * ladder so it reads as direction for the whole clip, not as part of shot 1. `semicolonSafe` is
+ * Kling's: a `;` in prose ahead of the triples would be read as a shot terminator.
+ */
+function withSequenceVoiceover(
+  lines: VoLine[] | undefined,
+  ladder: string,
+  semicolonSafe = false,
+): string {
+  const rendered = renderVoiceover(lines);
+  if (!rendered) return ladder;
+  const text = semicolonSafe ? rendered.replace(/;/g, ",") : rendered;
+  return `${SEQUENCE_VO_PREFIX}${text}\n\n${ladder}`;
+}
+```
+
+In `renderPlan`: add the parameter `sequenceVoiceover?: VoLine[]` after `refIds: string[] = []`, add to its doc comment
+`` * D286 — `sequenceVoiceover` renders once between the look and the ladder (`withSequenceVoiceover`). ``,
+and change the three returns:
+
+```ts
+    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, shots, true));
+```
+```ts
+    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
+```
+```ts
+  return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
+```
+
+(first is the `triple` branch, second the `bare-timecode` branch, third Omni's.)
+
+In `checkPlanLimits`: add the parameter `sequenceVoiceover?: VoLine[]` after `refIds: string[] = []` and change `const rendered = renderPlan(plan, cuts, cap);` to
+
+```ts
+    // D286 — the sequence voiceover is sent, so it is measured. It sits in no beat, so the
+    // per-cut loop above rightly ignores it.
+    const rendered = renderPlan(plan, cuts, cap, [], sequenceVoiceover);
+```
+
+- [ ] **Step 5: The writer's user turn**
+
+In `resolve-inputs.ts`:
+- Import `readVoLines` alongside the existing voiceover imports, and `type VoLine` from `@/lib/nodes/reel-script`.
+- Add to `ResolvedMultishotInputs`:
+
+```ts
+  /** D286 — the upstream Multishot node's lines spanning every shot. */
+  sequenceVoiceover: VoLine[] | undefined;
+```
+
+- In `resolveMultishotPromptInputs`, add `sequenceVoiceover: readVoLines(source?.data.sequenceVoiceover),` to the returned object.
+- Add to `buildMultishotUserTurn`'s args type:
+
+```ts
+  /** D286 — lines that play over every shot. Stated once, above the shots, never per shot. */
+  sequenceVoiceover?: VoLine[];
+```
+
+- Immediately before `blocks.push(\`Shots (return exactly one beat per shot, echoing each cutId):\n${shots}\`);` add:
+
+```ts
+  // D286 — WHAT is spoken across the whole clip, so the writer keeps faces silent for narration
+  // (VO_PERFORMANCE_RULES). Never an instruction to write the words — renderPlan puts them on the
+  // wire once, above the ladder.
+  const spanning = (args.sequenceVoiceover ?? []).filter((l) => l.text.trim());
+  if (spanning.length > 0) {
+    blocks.push(
+      "Voiceover across the whole sequence — it plays over every shot below, not over any one of them. Do not write these words into any beat:\n" +
+        spanning.map((l) => `  ${describeVoLineForWriter(l)}`).join("\n"),
+    );
+  }
+```
+
+- [ ] **Step 6: Node output and the video-gen resolver**
+
+In `node-output.ts`, import `readVoLines` from `@/lib/nodes/voiceover` and `SEQUENCE_VO_PREFIX` from `@/lib/nodes/multishot-plan`, and replace the multishot case's `return cuts…join("\n");` with:
+
+```ts
+      const shots = cuts
+        .filter((c) => c && typeof c.text === "string")
+        .map((c, i) => {
+          // The spoken line is part of what this cut IS — it is appended to this shot's beat in
+          // the rendered prompt (renderPlan), so a panel that showed only the description told the
+          // operator the node held less than it does.
+          const spoken = renderVoiceover(c.voiceover);
+          const head = `Shot ${i + 1} (${c.seconds}s): ${c.text.trim() || "(no description yet)"}`;
+          return spoken ? `${head} ${spoken}` : head;
+        });
+      // D286 — lines over the whole clip lead, as they do in the rendered prompt.
+      const spanning = renderVoiceover(readVoLines(node.data.sequenceVoiceover));
+      return [...(spanning ? [`${SEQUENCE_VO_PREFIX}${spanning}`] : []), ...shots].join("\n");
+```
+
+(Check `multishot-plan.ts` does not import `node-output.ts`; it does not today, so there is no cycle.) If the existing "returns empty string for a multishot node with no cuts" test still expects `""`, it does: no cuts and no lines give an empty array.
+
+In `resolve-prompt.ts`: import `readVoLines` from `@/lib/nodes/voiceover` and `type VoLine` from `@/lib/nodes/reel-script`. In the ok branch type add after `cuts`:
+
+```ts
+      /** D286 — only set for the multishot lane — lines spanning every cut, rendered in the header. */
+      sequenceVoiceover: VoLine[] | undefined;
+```
+
+In the video-prompt return add `sequenceVoiceover: undefined,` after `cuts: null,`. In the multishot branch, after `const refIds = refIdsOf(promptUpstream);` add
+`const sequenceVoiceover = readVoLines(multishotNode.data.sequenceVoiceover);`, render with
+`prompt: renderPlan(plan, cuts, cap, refIds, sequenceVoiceover),` and add `sequenceVoiceover,` after `cuts,` in the returned object.
+
+- [ ] **Step 7: Routes and the prompt preview**
+
+`video-generate/route.ts` — add a fifth argument to `checkPlanLimits(...)` (line ~117):
+
+```ts
+        refEntriesOf(resolved.promptUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id),
+        resolved.sequenceVoiceover,
+      );
+```
+
+`upstream-images/route.ts` — import `readVoLines` and change line 126 to:
+
+```ts
+          promptText = renderPlan(
+            plan,
+            cuts,
+            multishotCapabilityFor(plan.targetModel),
+            refIds,
+            readVoLines(multishotNode?.data.sequenceVoiceover),
+          );
+```
+
+`multishot-prompt/route.ts` — pass `sequenceVoiceover: resolved.sequenceVoiceover,` into the `buildMultishotUserTurn({ … })` call (next to `cuts: resolved.cuts,`, line ~120), and change line 312 to:
+
+```ts
+        prompt: renderPlan(
+          output,
+          resolved.cuts,
+          multishotCapabilityFor(output.targetModel),
+          refIds,
+          resolved.sequenceVoiceover,
+        ),
+```
+
+`multishot-prompt-node.tsx` — below line 58 add
+
+```ts
+  const sequenceVoiceover = readVoLines(
+    (multishotSource?.data as MultishotNodeData | undefined)?.sequenceVoiceover,
+  );
+```
+
+(import `readVoLines` from `@/lib/nodes/voiceover`) and pass `sequenceVoiceover={sequenceVoiceover}` next to `cuts={cuts}`.
+
+`multishot-prompt-focus-view.tsx` — add to the props type next to `cuts: MultishotCut[];`:
+
+```ts
+  /** D286 — the Multishot node's lines spanning every shot; rendered in the preview as sent. */
+  sequenceVoiceover?: VoLine[];
+```
+
+destructure it next to `cuts,` (line ~100), and change line 694 to
+`<GeneratedPromptBody text={renderPlan(planDraft, cuts, cap, refIds, sequenceVoiceover)} images={promptRefImages} />`.
+Import `type VoLine` from `@/lib/nodes/reel-script` if it is not already imported.
+
+- [ ] **Step 8: Run tests, typecheck**
+
+Run: `npx vitest run src/lib/nodes src/lib/video-gen "src/app/api/nodes/[id]/multishot-prompt" "src/app/api/nodes/[id]/video-generate" "src/app/api/nodes/[id]/upstream-images"`
+Expected: PASS.
+Run: `npx tsc --noEmit`
+Expected: no errors.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/lib/canvas-nodes.ts src/lib/nodes/voiceover.ts src/lib/nodes/multishot-plan.ts src/lib/nodes/resolve-inputs.ts src/lib/nodes/node-output.ts src/lib/video-gen/resolve-prompt.ts "src/app/api/nodes/[id]/video-generate/route.ts" "src/app/api/nodes/[id]/upstream-images/route.ts" "src/app/api/nodes/[id]/multishot-prompt/route.ts" src/components/nodes/multishot-prompt-node.tsx src/components/nodes/multishot-prompt-focus-view.tsx src/lib/nodes/__tests__ src/lib/nodes/node-output.test.ts src/lib/video-gen/__tests__/resolve-prompt.test.ts
+git commit -m "feat(multishot): voiceover spanning the whole sequence, rendered once (D286)"
+```
+
+---
+
+### Task 7: Store — beats become cuts, spanning lines become sequence VO
 
 **Files:**
 - Modify: `src/lib/canvas-nodes.ts` (`ScriptNodeData`, ~line 16)
-- Modify: `src/lib/canvas-store.ts` (imports ~line 23-33; `CanvasState` ~line 63; `fanOutShots` ~line 443 and ~492-503; `setGenerationMode` ~line 560-612)
-- Test: `src/lib/canvas-store.test.ts`
+- Modify: `src/lib/nodes/multishot-convert.ts`
+- Modify: `src/lib/canvas-store.ts` (imports ~23-33; `CanvasState` ~63; `fanOutShots` ~440-518; `setGenerationMode` ~560-612)
+- Test: `src/lib/nodes/__tests__/multishot-convert.test.ts`, `src/lib/canvas-store.test.ts`
 
 **Interfaces:**
-- Consumes: `rowsForMultishot`, `pruneBeatCache`, `SceneBeatCache` (Task 1); `describeGenerations(…, beatCache)` (Task 3)
+- Consumes: `multishotSeedFor`, `pruneBeatCache`, `SceneBeatCache` (Task 1); `describeGenerations(…, beatCache)` (Task 3); `MultishotNodeData.sequenceVoiceover` (Task 6)
 - Produces:
   - `ScriptNodeData.sceneBeats?: SceneBeatCache`
+  - `shotDataToMultishot(data: ShotNodeData, sourceRows?: ReelShot[], sequenceVoiceover?: VoLine[]): MultishotNodeData`
+  - `multishotDataToShot(data)` — merged take's `voiceover` = sequence lines then cut lines
   - `CanvasState.cacheSceneBeats(scriptNodeId: string, fingerprint: string, beats: SceneBeat[]): void`
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `src/lib/canvas-store.test.ts` (add `import { sceneFingerprint } from "./nodes/scene-beats";` to the imports):
+Append to `src/lib/nodes/__tests__/multishot-convert.test.ts` (import `shotDataToMultishot`, `multishotDataToShot` if the file does not already):
+
+```ts
+describe("sequence voiceover across the flip (D286)", () => {
+  const seq = [{ text: "Made by hand.", speaker: "narrator" }];
+
+  it("writes the spanning lines onto the new Multishot node", () => {
+    const out = shotDataToMultishot(
+      {},
+      [
+        { description: "a", duration_seconds: 2 },
+        { description: "b", duration_seconds: 2 },
+      ],
+      seq,
+    );
+    expect(out.sequenceVoiceover).toEqual(seq);
+    expect(out.cuts).toHaveLength(2);
+  });
+
+  it("leaves the field off when there are no spanning lines", () => {
+    expect(shotDataToMultishot({}, [{ description: "a", duration_seconds: 2 }], [])).not.toHaveProperty(
+      "sequenceVoiceover",
+    );
+  });
+
+  it("merges the sequence lines back into the single take, ahead of the cuts' own", () => {
+    const shot = multishotDataToShot({
+      cuts: [
+        { id: "c1", text: "a", seconds: 2, voiceover: [{ text: "Tied.", speaker: "narrator" }] },
+        { id: "c2", text: "b", seconds: 2, voiceover: [] },
+      ],
+      sequenceVoiceover: seq,
+    });
+    const take = shot.script!.visual_script!.shots![0];
+    expect(take.voiceover!.map((l) => l.text)).toEqual(["Made by hand.", "Tied."]);
+  });
+});
+```
+
+Append to `src/lib/canvas-store.test.ts` (add `import { sceneFingerprint } from "./nodes/scene-beats";`):
 
 ```ts
 describe("scene beats become cuts (D286)", () => {
-  const plain = { description: "Jar → spoon → hand", duration_seconds: 6, voiceover: [] };
+  const vo = (text: string) => ({ text, speaker: "narrator" });
+  const plain = {
+    description: "Jar → spoon → hand",
+    duration_seconds: 6,
+    voiceover: [vo("Meet the jar."), vo("Made by hand.")],
+  };
   const BEATS = [
-    { description: "Jar", duration_seconds: 2, voiceover: [] },
+    { description: "Jar", duration_seconds: 2, voiceover: [vo("Meet the jar.")] },
     { description: "Spoon", duration_seconds: 2, voiceover: [] },
     { description: "Hand", duration_seconds: 2, voiceover: [] },
   ];
@@ -1216,10 +1674,13 @@ describe("scene beats become cuts (D286)", () => {
       position: { x: 0, y: 0 },
       data: { parsed: { visual_script: { shots: [row] } }, groupingVersion: 3, ...extra },
     }) as AppNode;
+  const multishotData = (store: ReturnType<typeof createCanvasStore>) =>
+    store.getState().nodes.find((n) => n.type === "multishot")!.data as {
+      cuts: { text: string; seconds: number; voiceover?: { text: string }[] }[];
+      sequenceVoiceover?: { text: string }[];
+    };
   const cutsOf = (store: ReturnType<typeof createCanvasStore>) =>
-    (store.getState().nodes.find((n) => n.type === "multishot")!.data as {
-      cuts: { text: string; seconds: number }[];
-    }).cuts.map((c) => [c.text, c.seconds]);
+    multishotData(store).cuts.map((c) => [c.text, c.seconds]);
 
   it("flipping a fanned-out scene to multishot builds one cut per fresh beat", () => {
     const store = createCanvasStore([v3Script(stampedRow)], []);
@@ -1228,17 +1689,29 @@ describe("scene beats become cuts (D286)", () => {
     expect(cutsOf(store)).toEqual([["Jar", 2], ["Spoon", 2], ["Hand", 2]]);
   });
 
-  it("fans out a scene already set to multishot with its beats as cuts", () => {
+  it("keeps a tied line on its cut and moves the untied one to the sequence", () => {
+    const store = createCanvasStore([v3Script(stampedRow)], []);
+    store.getState().fanOutShots("sc");
+    store.getState().setGenerationMode("sc", "0", true);
+    const data = multishotData(store);
+    expect(data.cuts[0].voiceover?.map((l) => l.text)).toEqual(["Meet the jar."]);
+    expect(data.sequenceVoiceover?.map((l) => l.text)).toEqual(["Made by hand."]);
+  });
+
+  it("fans out a scene already set to multishot with its beats and sequence lines", () => {
     const store = createCanvasStore([v3Script(stampedRow, { groupModes: { "0": true } })], []);
     store.getState().fanOutShots("sc");
     expect(cutsOf(store)).toHaveLength(3);
+    expect(multishotData(store).sequenceVoiceover).toHaveLength(1);
   });
 
-  it("uses one cut when the beats are stale", () => {
+  it("uses one cut, with every line on it, when the beats are stale", () => {
     const store = createCanvasStore([v3Script({ ...stampedRow, description: "Edited" })], []);
     store.getState().fanOutShots("sc");
     store.getState().setGenerationMode("sc", "0", true);
     expect(cutsOf(store)).toEqual([["Edited", 6]]);
+    expect(multishotData(store).cuts[0].voiceover).toHaveLength(2);
+    expect(multishotData(store)).not.toHaveProperty("sequenceVoiceover");
   });
 
   it("uses cached beats written by cacheSceneBeats", () => {
@@ -1249,30 +1722,25 @@ describe("scene beats become cuts (D286)", () => {
     expect(cutsOf(store)).toHaveLength(3);
   });
 
-  it("cacheSceneBeats prunes keys no current row matches", () => {
+  it("cacheSceneBeats prunes keys no current row matches and leaves parsed alone", () => {
     const store = createCanvasStore([v3Script(plain, { sceneBeats: { gone: BEATS } })], []);
-    store.getState().cacheSceneBeats("sc", sceneFingerprint(plain), BEATS);
-    const data = store.getState().nodes[0].data as { sceneBeats?: Record<string, unknown> };
-    expect(Object.keys(data.sceneBeats ?? {})).toEqual([sceneFingerprint(plain)]);
-  });
-
-  it("does not touch parsed when caching", () => {
-    const store = createCanvasStore([v3Script(plain)], []);
     const before = (store.getState().nodes[0].data as { parsed: unknown }).parsed;
     store.getState().cacheSceneBeats("sc", sceneFingerprint(plain), BEATS);
-    expect((store.getState().nodes[0].data as { parsed: unknown }).parsed).toBe(before);
+    const data = store.getState().nodes[0].data as { parsed: unknown; sceneBeats?: Record<string, unknown> };
+    expect(Object.keys(data.sceneBeats ?? {})).toEqual([sceneFingerprint(plain)]);
+    expect(data.parsed).toBe(before);
   });
 });
 ```
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `npx vitest run src/lib/canvas-store.test.ts`
-Expected: FAIL — `cacheSceneBeats` is not a function; flip gives 1 cut.
+Run: `npx vitest run src/lib/nodes/__tests__/multishot-convert.test.ts src/lib/canvas-store.test.ts`
+Expected: FAIL — no `sequenceVoiceover`, `cacheSceneBeats` is not a function, flip gives 1 cut.
 
-- [ ] **Step 3: Add the node-data field**
+- [ ] **Step 3: Script node data field**
 
-In `src/lib/canvas-nodes.ts`, import the type (`import type { SceneBeatCache } from "@/lib/nodes/scene-beats";`) and add to `ScriptNodeData` after `groupingVersion`:
+In `canvas-nodes.ts`, import `type SceneBeatCache` from `@/lib/nodes/scene-beats` and add to `ScriptNodeData` after `groupingVersion`:
 
 ```ts
   /**
@@ -1283,15 +1751,44 @@ In `src/lib/canvas-nodes.ts`, import the type (`import type { SceneBeatCache } f
   sceneBeats?: SceneBeatCache;
 ```
 
-- [ ] **Step 4: Implement in the store**
+- [ ] **Step 4: Carry sequence VO through the conversion**
 
-In `canvas-store.ts`:
+In `multishot-convert.ts`, import `type VoLine` from `./reel-script` (extend the existing `ReelShot` import). Change `shotDataToMultishot`'s signature and return:
 
-Imports — add:
+```ts
+export function shotDataToMultishot(
+  data: ShotNodeData,
+  sourceRows?: ReelShot[],
+  /** D286 — the scene's lines that span every cut (multishotSeedFor). */
+  sequenceVoiceover?: VoLine[],
+): MultishotNodeData {
+```
+
+and add, after `targetModel: bestFitMultishotModel(cuts),`:
+
+```ts
+    ...(sequenceVoiceover && sequenceVoiceover.length > 0 ? { sequenceVoiceover } : {}),
+```
+
+In `multishotDataToShot`, replace `const take = mergeShotRows(shotsFromCuts(cuts));` with:
+
+```ts
+  const merged = mergeShotRows(shotsFromCuts(cuts));
+  // D286 — the lines that spanned the ladder are part of the one take too. They lead: their
+  // original interleaving with tied lines is not recorded, and a take that opens on the scene's
+  // narration is the reading that stays speakable.
+  const sequence = data.sequenceVoiceover ?? [];
+  const take =
+    sequence.length > 0 ? { ...merged, voiceover: [...sequence, ...(merged.voiceover ?? [])] } : merged;
+```
+
+- [ ] **Step 5: Store**
+
+In `canvas-store.ts`, add imports:
 
 ```ts
 import type { SceneBeat } from "@/lib/nodes/reel-script";
-import { rowsForMultishot, pruneBeatCache, type SceneBeatCache } from "@/lib/nodes/scene-beats";
+import { multishotSeedFor, pruneBeatCache, type SceneBeatCache } from "@/lib/nodes/scene-beats";
 ```
 
 `CanvasState` — add below `setGenerationMode`:
@@ -1301,45 +1798,48 @@ import { rowsForMultishot, pruneBeatCache, type SceneBeatCache } from "@/lib/nod
   cacheSceneBeats: (scriptNodeId: string, fingerprint: string, beats: SceneBeat[]) => void;
 ```
 
-In `fanOutShots`, find where `data` is typed for the script node (just above line 440) and add
-`sceneBeats?: SceneBeatCache;` to that inline type, then pass the cache (line 443):
+`fanOutShots`: add `sceneBeats?: SceneBeatCache;` to the script node's inline `data` type (just above line 440), pass `data.sceneBeats` as the fourth argument of `describeGenerations` (line 443), and in the multishot branch replace `const cuts = cutsFromShots(groupShots);` with:
 
 ```ts
-      const generations = describeGenerations(
-        shots,
-        data.groupModes,
-        data.groupingVersion ?? 1,
-        data.sceneBeats,
-      );
+          // D286 — a lone scene is cut at its fresh suggested beats, and the lines no beat
+          // carries span the ladder. Stale beats make one cut, as before.
+          const seed =
+            groupShots.length === 1 ? multishotSeedFor(groupShots[0], data.sceneBeats) : { rows: groupShots };
+          const cuts = cutsFromShots(seed.rows);
 ```
 
-and in the multishot branch (line ~502) replace `const cuts = cutsFromShots(groupShots);` with:
+and in that branch's `data: { … }` add after `targetModel: bestFitMultishotModel(cuts),`:
 
 ```ts
-          // D286 — a lone scene is cut at its fresh suggested beats; stale ones make one cut.
-          const cutRows =
-            groupShots.length === 1 ? rowsForMultishot(groupShots[0], data.sceneBeats) : groupShots;
-          const cuts = cutsFromShots(cutRows);
+              ...(seed.sequenceVoiceover ? { sequenceVoiceover: seed.sequenceVoiceover } : {}),
 ```
 
-In `setGenerationMode`: add `sceneBeats?: SceneBeatCache;` to the `data` inline type; pass
-`data.sceneBeats` as the fourth argument to its `describeGenerations` call; and replace
+`setGenerationMode`: add `sceneBeats?: SceneBeatCache;` to its inline `data` type; pass `data.sceneBeats` as the fourth argument of its `describeGenerations`; replace
 
 ```ts
       const scriptRows = generation.shotIndexes.map((i) => shots[i]).filter(Boolean);
+      const converted =
+        targetType === "multishot"
+          ? shotDataToMultishot(node.data as ShotNodeData, scriptRows)
+          : multishotDataToShot(node.data as MultishotNodeData);
 ```
 
 with
 
 ```ts
-      const groupRows = generation.shotIndexes.map((i) => shots[i]).filter(Boolean);
-      // D286 — a lone scene's fresh suggested beats are the rows its cuts come from. The toggle
-      // re-splits a stale scene BEFORE calling here; a failed re-split lands as one cut.
-      const scriptRows =
-        groupRows.length === 1 ? rowsForMultishot(groupRows[0], data.sceneBeats) : groupRows;
+      const scriptRows = generation.shotIndexes.map((i) => shots[i]).filter(Boolean);
+      // D286 — a lone scene's fresh beats are the rows its cuts come from, and its untied lines
+      // span them. The toggle re-splits a stale scene BEFORE calling here; a failed re-split lands
+      // as one cut.
+      const seed =
+        scriptRows.length === 1 ? multishotSeedFor(scriptRows[0], data.sceneBeats) : { rows: scriptRows };
+      const converted =
+        targetType === "multishot"
+          ? shotDataToMultishot(node.data as ShotNodeData, seed.rows, seed.sequenceVoiceover)
+          : multishotDataToShot(node.data as MultishotNodeData);
 ```
 
-Add the new action after `setGenerationMode`:
+Add the action after `setGenerationMode`:
 
 ```ts
     cacheSceneBeats: (scriptNodeId, fingerprint, beats) => {
@@ -1353,34 +1853,166 @@ Add the new action after `setGenerationMode`:
     },
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 6: Run tests**
 
 Run: `npx vitest run src/lib/canvas-store.test.ts src/lib/nodes`
-Expected: PASS (new and existing `setGenerationMode` / `fanOutShots` tests).
+Expected: PASS (new and existing).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/canvas-nodes.ts src/lib/canvas-store.ts src/lib/canvas-store.test.ts
-git commit -m "feat(canvas): multishot cuts from a scene's beats, with a re-split cache (D286)"
+git add src/lib/canvas-nodes.ts src/lib/nodes/multishot-convert.ts src/lib/canvas-store.ts src/lib/canvas-store.test.ts src/lib/nodes/__tests__/multishot-convert.test.ts
+git commit -m "feat(canvas): multishot cuts and sequence VO from a scene's beats (D286)"
 ```
 
 ---
 
-### Task 7: The toggle re-splits a stale scene
+### Task 8: Edit the sequence voiceover in the Multishot focus view
+
+**Files:**
+- Modify: `src/lib/nodes/multishot-draft.ts`
+- Modify: `src/components/nodes/multishot-focus-view.tsx` (props ~44-57, `saved` ~98-101, strip ~313-324)
+- Modify: `src/components/nodes/multishot-node.tsx:160-169`
+- Test: `src/lib/nodes/__tests__/multishot-draft.test.ts`
+
+**Interfaces:**
+- Consumes: `MultishotNodeData.sequenceVoiceover` (Task 6), `readVoLines` (Task 6)
+- Produces: `MultishotDraft.sequenceVoiceover?: VoLine[]`; `commitDraft` returns it when present
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `src/lib/nodes/__tests__/multishot-draft.test.ts`:
+
+```ts
+describe("sequence voiceover in the draft (D286)", () => {
+  const cuts = [{ id: "c1", text: "a", seconds: 2 }];
+  const seq = [{ text: "Made by hand.", speaker: "narrator" }];
+
+  it("is dirty when only the sequence lines change", () => {
+    expect(draftIsDirty({ cuts, sequenceVoiceover: seq }, { cuts, sequenceVoiceover: [] })).toBe(true);
+  });
+
+  it("commits the sequence lines with the cuts", () => {
+    expect(commitDraft({ cuts, sequenceVoiceover: seq })).toMatchObject({ sequenceVoiceover: seq });
+  });
+
+  it("commits an emptied list as [] so a deletion is saved", () => {
+    expect(commitDraft({ cuts, sequenceVoiceover: [] })).toMatchObject({ sequenceVoiceover: [] });
+  });
+
+  it("does not put the key on the patch when the node never had it", () => {
+    expect(commitDraft({ cuts })).not.toHaveProperty("sequenceVoiceover");
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `npx vitest run src/lib/nodes/__tests__/multishot-draft.test.ts`
+Expected: FAIL — `sequenceVoiceover` not committed (and a type error on the draft literal).
+
+- [ ] **Step 3: Implement the draft**
+
+In `multishot-draft.ts`, import `type VoLine` from `./reel-script`; add to `MultishotDraft`:
+
+```ts
+  /** D286 — lines spanning every cut. Absent = the node has none, exactly as on MultishotNodeData. */
+  sequenceVoiceover?: VoLine[];
+```
+
+change `commitDraft`'s return type to include `sequenceVoiceover?: VoLine[];` and add to its returned object:
+
+```ts
+    // Same spread rule as targetModel: absent stays absent, but an emptied list is written as []
+    // so deleting the last line actually clears it.
+    ...(draft.sequenceVoiceover !== undefined ? { sequenceVoiceover: draft.sequenceVoiceover } : {}),
+```
+
+- [ ] **Step 4: Run the test**
+
+Run: `npx vitest run src/lib/nodes/__tests__/multishot-draft.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: The lane**
+
+`multishot-focus-view.tsx`:
+- Props type: add after `targetModel?: string;`
+
+```ts
+  /** D286 — the SAVED lines spanning every cut. Buffered in the draft like the cuts. */
+  sequenceVoiceover?: VoLine[];
+```
+
+- Destructure `sequenceVoiceover` next to `targetModel`, and replace the `saved` memo with:
+
+```ts
+  const saved: MultishotDraft = useMemo(
+    () => ({
+      cuts,
+      ...(targetModel !== undefined ? { targetModel } : {}),
+      ...(sequenceVoiceover !== undefined ? { sequenceVoiceover } : {}),
+    }),
+    [cuts, targetModel, sequenceVoiceover],
+  );
+```
+
+- Immediately before `<ol className="grid grid-cols-[repeat(auto-fit,minmax(272px,1fr))] gap-x-4 gap-y-5">` insert:
+
+```tsx
+            {/* D286 — lines that play over the WHOLE clip, not one shot: a scene's narration the
+                script did not tie to a single beat. One lane above the strip, in the same card
+                idiom as a shot's own Voiceover lane, and hidden under the lock when empty for the
+                same reason that one is. */}
+            {(!isReadOnly || (draft.sequenceVoiceover?.length ?? 0) > 0) && (
+              <div className="flex flex-col gap-1 rounded-xl border border-border bg-card p-3.5 shadow-card">
+                <span className="text-eyebrow text-muted-foreground">Voiceover · whole sequence</span>
+                <VoLinesEditor
+                  lines={draft.sequenceVoiceover}
+                  readOnly={isReadOnly}
+                  onChange={(next) => setDraft((d) => ({ ...d, sequenceVoiceover: next }))}
+                />
+              </div>
+            )}
+```
+
+- Import `type VoLine` from `@/lib/nodes/reel-script`.
+
+`multishot-node.tsx` — import `readVoLines` from `@/lib/nodes/voiceover` and pass to `<MultishotFocusView …>`:
+
+```tsx
+      sequenceVoiceover={readVoLines(d.sequenceVoiceover)}
+```
+
+- [ ] **Step 6: Typecheck and lint**
+
+Run: `npx tsc --noEmit`
+Expected: no errors.
+Run: `npx eslint src/components/nodes/multishot-focus-view.tsx src/components/nodes/multishot-node.tsx src/lib/nodes/multishot-draft.ts`
+Expected: no errors.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/lib/nodes/multishot-draft.ts src/lib/nodes/__tests__/multishot-draft.test.ts src/components/nodes/multishot-focus-view.tsx src/components/nodes/multishot-node.tsx
+git commit -m "feat(multishot): edit the whole-sequence voiceover in the focus view (D286)"
+```
+
+---
+
+### Task 9: The toggle re-splits a stale scene
 
 **Files:**
 - Create: `src/lib/nodes/ensure-scene-beats.ts`
 - Test: `src/lib/nodes/__tests__/ensure-scene-beats.test.ts`
 - Modify: `src/components/nodes/generation-bracket.tsx`
-- Modify: `src/components/nodes/script-node.tsx`, `src/components/nodes/script-focus-view.tsx`, `src/components/nodes/script-document.tsx` (pass `sceneBeats`)
+- Modify: `src/components/nodes/script-node.tsx`, `script-focus-view.tsx`, `script-document.tsx`
 
 **Interfaces:**
-- Consumes: `beatsForScene`, `sceneFingerprint`, `SceneBeatCache` (Task 1); `cacheSceneBeats` (Task 6); `split-scene` route (Task 5); `describeGenerations(…, beatCache)` (Task 3)
+- Consumes: `beatsForScene`, `SceneBeatCache` (Task 1); `cacheSceneBeats` (Task 7); `split-scene` route (Task 5); `describeGenerations(…, beatCache)` (Task 3)
 - Produces:
   - `type SplitResult = { beats: SceneBeat[]; beatsFor: string }`
   - `requestSceneSplit(scriptNodeId: string, scene: ReelShot, slices?: string[]): Promise<SplitResult>`
-  - `ensureSceneBeats(row: ReelShot, cache: SceneBeatCache | undefined, split: (row: ReelShot) => Promise<SplitResult>): Promise<{ status: "fresh" } | { status: "split"; fingerprint: string; beats: SceneBeat[] } | { status: "failed" }>`
+  - `ensureSceneBeats(row, cache, split): Promise<{ status: "fresh" } | { status: "split"; fingerprint: string; beats: SceneBeat[] } | { status: "failed" }>`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1407,8 +2039,9 @@ describe("ensureSceneBeats", () => {
 
   it("does not call the split on a cache hit", async () => {
     const split = vi.fn();
-    const cache = { [sceneFingerprint(row)]: BEATS };
-    expect(await ensureSceneBeats(row, cache, split)).toEqual({ status: "fresh" });
+    expect(await ensureSceneBeats(row, { [sceneFingerprint(row)]: BEATS }, split)).toEqual({
+      status: "fresh",
+    });
     expect(split).not.toHaveBeenCalled();
   });
 
@@ -1477,7 +2110,9 @@ export async function ensureSceneBeats(
   cache: SceneBeatCache | undefined,
   split: (row: ReelShot) => Promise<SplitResult>,
 ): Promise<
-  { status: "fresh" } | { status: "split"; fingerprint: string; beats: SceneBeat[] } | { status: "failed" }
+  | { status: "fresh" }
+  | { status: "split"; fingerprint: string; beats: SceneBeat[] }
+  | { status: "failed" }
 > {
   if (beatsForScene(row, cache).fresh) return { status: "fresh" };
   try {
@@ -1496,7 +2131,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Wire the toggle in `generation-bracket.tsx`**
 
-Imports — add `Loader2` to the lucide import, and:
+Add `Loader2` to the lucide import, and:
 
 ```ts
 import { toast } from "sonner";
@@ -1505,7 +2140,7 @@ import type { ReelScript } from "@/lib/nodes/reel-script";
 import { ensureSceneBeats, requestSceneSplit } from "@/lib/nodes/ensure-scene-beats";
 ```
 
-Inside the component, below `const setGenerationMode = …`:
+Below `const setGenerationMode = …`:
 
 ```ts
   const cacheSceneBeats = useCanvasStore((s) => s.cacheSceneBeats);
@@ -1552,7 +2187,7 @@ In the `AlertDialogAction` `onClick`, replace
 `if (pending !== null) setGenerationMode(scriptNodeId, generation.key, pending);` with
 `if (pending !== null) void apply(pending);`.
 
-Replace the `Switch` element with the spinner beside it:
+Replace the `Switch` element with:
 
 ```tsx
           {splitting && (
@@ -1573,9 +2208,9 @@ Replace the `Switch` element with the spinner beside it:
 
 - [ ] **Step 6: Pass the cache to the Script document**
 
-`script-node.tsx`: add `sceneBeats?: SceneBeatCache;` to the local data type next to `groupModes` (line ~35), `const sceneBeats = d.sceneBeats;` next to `const groupModes = d.groupModes;`, and `sceneBeats={sceneBeats}` next to `groupModes={groupModes}` (line ~150). Import `type SceneBeatCache` from `@/lib/nodes/scene-beats`.
+`script-node.tsx`: add `sceneBeats?: SceneBeatCache;` to the local data type next to `groupModes` (~line 35), `const sceneBeats = d.sceneBeats;` next to `const groupModes = d.groupModes;`, and `sceneBeats={sceneBeats}` next to `groupModes={groupModes}` (~line 150). Import `type SceneBeatCache` from `@/lib/nodes/scene-beats`.
 
-`script-focus-view.tsx`: add `sceneBeats?: SceneBeatCache;` to the props type (next to line 46), destructure it (next to line 67), pass it as the fourth argument to `describeGenerations` (line ~115-119), and pass `sceneBeats={sceneBeats}` to `ScriptDocument` (next to line 373).
+`script-focus-view.tsx`: add `sceneBeats?: SceneBeatCache;` to the props type (next to line 46), destructure it (next to line 67), pass it as the fourth argument of the `describeGenerations` call (~115-119), and pass `sceneBeats={sceneBeats}` to `ScriptDocument` (next to line 373).
 
 `script-document.tsx`: add `sceneBeats?: SceneBeatCache;` to `ScriptDocumentProps` (next to line 19), destructure it, and change line 107 to:
 
@@ -1583,13 +2218,13 @@ Replace the `Switch` element with the spinner beside it:
   const generations = describeGenerations(shots, groupModes, groupingVersion ?? 1, sceneBeats);
 ```
 
-- [ ] **Step 7: Typecheck, lint, and run the affected tests**
+- [ ] **Step 7: Typecheck, lint, tests**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
-Run: `npx eslint src/components/nodes/generation-bracket.tsx src/components/nodes/script-node.tsx src/components/nodes/script-focus-view.tsx src/components/nodes/script-document.tsx src/lib/nodes src/lib/canvas-store.ts "src/app/api/nodes/[id]/split-scene"`
+Run: `npx eslint src/components/nodes src/lib/nodes src/lib/canvas-store.ts "src/app/api/nodes/[id]/split-scene"`
 Expected: no errors.
-Run: `npx vitest run src/lib/nodes src/lib/canvas-store.test.ts src/prompts "src/app/api/nodes/[id]/split-scene"`
+Run: `npx vitest run src/lib/nodes src/lib/canvas-store.test.ts src/prompts src/lib/video-gen "src/app/api/nodes/[id]/split-scene" "src/app/api/nodes/[id]/multishot-prompt" "src/app/api/nodes/[id]/video-generate"`
 Expected: PASS.
 
 - [ ] **Step 8: Commit**
@@ -1601,13 +2236,15 @@ git commit -m "feat(script): turning multishot on re-splits an edited scene (D28
 
 ---
 
-### Task 8: Verify in the running app
+### Task 10: Verify in the running app
 
 **Files:** none (verification only).
 
 - [ ] **Step 1: Run the app** with the `run` skill (or `npm run dev`) and open a canvas.
-- [ ] **Step 2: Parse a script with a montage scene** (e.g. `Scene 2 — Ritual | 5–11 sec` / `Visual: jar on marble → spoon lifts cream → hand smooths it on` / `VO: "Meet the jar."`) and a continuous scene. Expect: the montage scene's bracket shows **Recommended**; the continuous one does not; the Script shows one row per scene with no beats visible.
-- [ ] **Step 3: Fan out, then toggle the montage scene ON.** Expect: the Multishot node has 3 cuts with 2s each, VO on the first; no spinner (fresh beats, no request in the network tab).
-- [ ] **Step 4: Edit the continuous scene's description** in the focus view, Save, then toggle it ON. Expect: a spinner, one `POST …/split-scene` in the network tab, then cuts from the new split; unsaved edits elsewhere in the draft are kept.
-- [ ] **Step 5: Kill the network (devtools offline) and toggle another edited scene ON.** Expect: the toast "Couldn't split this scene — added as one cut" and a single-cut Multishot node.
-- [ ] **Step 6: Report** any mismatch before finishing; otherwise run superpowers:finishing-a-development-branch.
+- [ ] **Step 2: Parse a script** with a montage scene whose VO runs across it, e.g. `Scene 2 — Ritual | 5–11 sec` / `Visual: jar on marble → spoon lifts cream → hand smooths it on` / `VO: "Made slowly, by hand, from shea and rose."`, plus a continuous scene. Expect: the montage scene shows **Recommended**, the continuous one does not; no beats visible on the Script.
+- [ ] **Step 3: Fan out, then toggle the montage scene ON.** Expect: 3 cuts of 2s; no spinner and no `split-scene` request; the Multishot focus view shows the VO in **Voiceover · whole sequence**, not on shot 1.
+- [ ] **Step 4: Open the Multishot Prompt preview** for that node. Expect: `Across every shot — Voiceover: "Made slowly…"` between the look and the ladder, and in no shot line.
+- [ ] **Step 5: Edit the continuous scene** in the Script focus view, Save, toggle it ON. Expect: a spinner, one `POST …/split-scene`, then cuts from the new split; unsaved draft edits elsewhere are kept.
+- [ ] **Step 6: Go offline in devtools and toggle another edited scene ON.** Expect: the toast "Couldn't split this scene — added as one cut", one cut holding all its lines.
+- [ ] **Step 7: Toggle the montage scene OFF.** Expect: one Shot take whose voiceover lists the sequence line.
+- [ ] **Step 8: Report** any mismatch before finishing; otherwise run superpowers:finishing-a-development-branch.

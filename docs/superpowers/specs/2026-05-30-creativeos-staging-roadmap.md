@@ -5859,18 +5859,26 @@ scene. A re-split is cached on the Script node's own data (`sceneBeats`, keyed b
 written into `parsed` — that is the active version's output (D19), and rewriting it would reseed
 the focus view's unsaved draft. The split rules are one shared constant (`SCENE_SPLIT_RULES`) used
 by both prompts. A stale split still drives the badge but never becomes cuts; no call runs on edit.
+**Voiceover across cuts:** a VO line sits on a beat only when the script ties it to that visual;
+every other line spans the sequence — stored once as `MultishotNodeData.sequenceVoiceover` and
+rendered once in the prompt header (`Across every shot — …`), never split and never parked on one
+short cut.
 
 **Why.** Under v3 a flip to multishot produced one cut, so the operator split every montage by
 hand, and the recommendation was hard-coded off because its only signal (a generation spanning
 several rows) could no longer occur. The operator: "when toggled to multishot you need to split
 them as separate shots; right now the user does it manually … have an internal thing, and if an
-edit happens re-parse that particular scene only."
+edit happens re-parse that particular scene only." On VO: "I can't share the voice to split 1s
+and all" — under D267 a scene-long line would land on one short cut.
 
-**Rejected.** A director-style split of long continuous action into camera beats (the parser making
+**Rejected.** Every line spanning the sequence (loses scripts that time a line to a visual);
+keeping every line per cut (the D267 behaviour that produces the rushed line); splitting a line's
+text across cuts. A director-style split of long continuous action into camera beats (the parser making
 editing choices the script did not); splitting to fit a model's window (D278's reason for dropping
 packing); re-splitting on every edit commit (a call per edit for a badge); a lazy-only badge that
 goes quiet after any edit.
 
 **Refines.** D278 — reverses its rejection of "splitting a montage inside a scene into cuts", but
-only as a suggestion applied at the operator's toggle. **Originated →**
+only as a suggestion applied at the operator's toggle. D267 — a cut's `voiceover` now holds only
+lines tied to it; sequence-level lines live on the node. **Originated →**
 `docs/superpowers/specs/2026-09-29-scene-beats-multishot-design.md`.
