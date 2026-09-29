@@ -204,3 +204,22 @@ describe("buildMultishotUserTurn voiceover context", () => {
     expect(buildMultishotUserTurn({ ...base, cuts })).not.toMatch(/voiceover/i);
   });
 });
+
+describe("buildMultishotUserTurn — sequence voiceover (D286)", () => {
+  const base = { clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {} };
+
+  it("states lines that play over every shot, once, above the shots", () => {
+    const turn = buildMultishotUserTurn({
+      ...base,
+      sequenceVoiceover: [{ text: "Made slowly, by hand.", speaker: "narrator" }],
+    });
+    expect(turn).toContain("Voiceover across the whole sequence");
+    expect(turn).toContain('narrator (off-screen): "Made slowly, by hand."');
+    expect(turn.indexOf("whole sequence")).toBeLessThan(turn.indexOf("cutId: c1"));
+    expect(turn.match(/Made slowly/g)).toHaveLength(1);
+  });
+
+  it("adds nothing when there are no sequence lines", () => {
+    expect(buildMultishotUserTurn({ ...base, sequenceVoiceover: [] })).not.toContain("whole sequence");
+  });
+});

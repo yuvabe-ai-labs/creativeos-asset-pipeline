@@ -1,5 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { readVoLines } from "@/lib/nodes/voiceover";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
@@ -123,7 +124,13 @@ export async function GET(
           // whichever format the Select happens to say right now rather than the one the money
           // path will actually build. An unstamped plan is Gemini Omni's, which is what every plan
           // predating the stamp already is.
-          promptText = renderPlan(plan, cuts, multishotCapabilityFor(plan.targetModel), refIds);
+          promptText = renderPlan(
+            plan,
+            cuts,
+            multishotCapabilityFor(plan.targetModel),
+            refIds,
+            readVoLines(multishotNode?.data.sequenceVoiceover),
+          );
         }
       }
 

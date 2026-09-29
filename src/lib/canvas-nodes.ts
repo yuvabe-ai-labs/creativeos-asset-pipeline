@@ -4,7 +4,7 @@ import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import type { SignalMode } from "@/lib/market/constants";
-import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
@@ -154,6 +154,12 @@ export type MultishotNodeData = {
   /** The cut ladder. `totalOf(cuts)` and `totalSeconds` are kept equal by construction — see
    *  multishot-cuts.ts's header for the full model. */
   cuts?: MultishotCut[];
+  /**
+   * D286 — VO lines that play over the WHOLE ladder, not one cut: a scene's lines the script did
+   * not tie to a single beat. Rendered once in the prompt header (renderPlan). Absent or [] = none.
+   * Cuts keep their own `voiceover` for tied lines (D267).
+   */
+  sequenceVoiceover?: VoLine[];
   /**
    * D236 — which multishot model this ladder is built for. A video-gen client model id.
    *

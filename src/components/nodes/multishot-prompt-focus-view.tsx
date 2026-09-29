@@ -60,6 +60,7 @@ import {
 } from "@/lib/nodes/multishot-plan";
 import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
 import { renderVoiceover } from "@/lib/nodes/voiceover";
+import type { VoLine } from "@/lib/nodes/reel-script";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 
 type MultishotPromptFocusViewProps = {
@@ -74,6 +75,8 @@ type MultishotPromptFocusViewProps = {
   // The upstream Multishot node's cut list (READ-ONLY here) and its own id, so a beat's
   // timecode click can hand focus back to the node that actually owns the budget.
   cuts: MultishotCut[];
+  /** D286 — the Multishot node's lines spanning every shot; rendered in the preview as sent. */
+  sequenceVoiceover?: VoLine[];
   /** D236 — read from the upstream Multishot node. Absent = the default (Gemini Omni). */
   targetModel?: string;
   multishotNodeId: string | null;
@@ -98,6 +101,7 @@ export function MultishotPromptFocusView({
   plan,
   slices,
   cuts,
+  sequenceVoiceover,
   targetModel,
   multishotNodeId,
   upstream,
@@ -691,7 +695,7 @@ export function MultishotPromptFocusView({
               {outputView === "prompt" ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                   {planDraft ? (
-                    <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap, refIds)} images={promptRefImages} />
+                    <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap, refIds, sequenceVoiceover)} images={promptRefImages} />
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       Generate a multishot prompt first — this shows the exact compiled string,

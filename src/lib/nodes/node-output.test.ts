@@ -103,6 +103,18 @@ describe("getNodeOutput", () => {
     expect(getNodeOutput({ type: "multishot", data: {}, activeOutput: null })).toBe("");
   });
 
+  it("prints a multishot node's sequence voiceover above its shots", () => {
+    const out = getNodeOutput({
+      type: "multishot",
+      data: {
+        cuts: [{ id: "c1", text: "keys", seconds: 2 }],
+        sequenceVoiceover: [{ text: "Made by hand.", speaker: "narrator" }],
+      },
+      activeOutput: null,
+    });
+    expect(out).toBe('Across every shot — Voiceover: "Made by hand."\nShot 1 (2s): keys');
+  });
+
   it("returns a post node's rendered fileUrl", () => {
     const output = getNodeOutput({
       type: "post",

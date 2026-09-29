@@ -9,6 +9,7 @@ import type { MultishotCapability, LadderCheck } from "./multishot-models";
 import { dialectForCapability } from "./prompt-token-dialect";
 import { renderRefs, toStoredRefs, citedRefIds, type RefEntry } from "./ref-binding";
 import { renderVoiceover } from "./voiceover";
+import type { VoLine } from "./reel-script";
 
 export type MultishotBeat = { cutId: string; text: string };
 
@@ -136,6 +137,25 @@ function withVoiceover(beatText: string, renderedVoiceover: string): string {
   return renderedVoiceover ? `${beatText} ${renderedVoiceover}` : beatText;
 }
 
+/** D286 — how lines spanning the whole sequence are introduced in the rendered prompt. */
+export const SEQUENCE_VO_PREFIX = "Across every shot — ";
+
+/**
+ * D286 — the sequence voiceover, a blank line, then the ladder. Sits between the look and the
+ * ladder so it reads as direction for the whole clip, not as part of shot 1. `semicolonSafe` is
+ * Kling's: a `;` in prose ahead of the triples would be read as a shot terminator.
+ */
+function withSequenceVoiceover(
+  lines: VoLine[] | undefined,
+  ladder: string,
+  semicolonSafe = false,
+): string {
+  const rendered = renderVoiceover(lines);
+  if (!rendered) return ladder;
+  const text = semicolonSafe ? rendered.replace(/;/g, ",") : rendered;
+  return `${SEQUENCE_VO_PREFIX}${text}\n\n${ladder}`;
+}
+
 /**
  * The compiled prompt: the look, a blank line, then the beats in the target model's own format.
  *
@@ -155,12 +175,15 @@ function withVoiceover(beatText: string, renderedVoiceover: string): string {
  * BUG-010 — beats store image citations as ids; `refIds` is the order the references are sent in
  * NOW, and every citation is numbered against it here. Every production caller passes it; the
  * default only serves text that holds no stored ids (legacy positions echo unchanged).
+ *
+ * D286 — `sequenceVoiceover` renders once between the look and the ladder (`withSequenceVoiceover`).
  */
 export function renderPlan(
   plan: MultishotPlan,
   cuts: MultishotCut[],
   cap: MultishotCapability,
   refIds: string[] = [],
+  sequenceVoiceover?: VoLine[],
 ): string {
   plan = renderPlanRefs(plan, cap, refIds);
   const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
@@ -198,7 +221,7 @@ export function renderPlan(
         return `shot ${i + 1}, ${cut.seconds}, ${text};`;
       })
       .join("\n");
-    return withLook(plan.look, shots);
+    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, shots, true));
   }
 
   if (cap.shotFormat === "bare-timecode") {
@@ -225,7 +248,7 @@ export function renderPlan(
         return `${from}-${at}s: ${withVoiceover((byId.get(cut.id) ?? "").trim(), renderVoiceover(cut.voiceover))}`;
       })
       .join("\n");
-    return withLook(plan.look, ladder);
+    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
   }
 
   let at = 0;
@@ -237,7 +260,7 @@ export function renderPlan(
     })
     .join("\n");
 
-  return withLook(plan.look, ladder);
+  return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
 }
 
 /**
@@ -321,6 +344,7 @@ export function checkPlanLimits(
   cuts: MultishotCut[],
   cap: MultishotCapability,
   refIds: string[] = [],
+  sequenceVoiceover?: VoLine[],
 ): LadderCheck {
   // Measured on what is SENT (BUG-010): a stored `@[Label](id)` is far longer than the `@image_1`
   // it becomes, and the budget is the vendor's, on the request.
@@ -346,7 +370,9 @@ export function checkPlanLimits(
   }
 
   if (cap.maxPromptChars !== null) {
-    const rendered = renderPlan(plan, cuts, cap);
+    // D286 — the sequence voiceover is sent, so it is measured. It sits in no beat, so the
+    // per-cut loop above rightly ignores it.
+    const rendered = renderPlan(plan, cuts, cap, [], sequenceVoiceover);
     if (rendered.length > cap.maxPromptChars) {
       return {
         ok: false,

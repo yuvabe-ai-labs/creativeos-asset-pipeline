@@ -115,6 +115,7 @@ export async function POST(
         cap,
         // Measured on the rendered tokens, the same order resolve-prompt rendered against.
         refEntriesOf(resolved.promptUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id),
+        resolved.sequenceVoiceover,
       );
       if (!limits.ok) return apiError(limits.reason, 400);
 
