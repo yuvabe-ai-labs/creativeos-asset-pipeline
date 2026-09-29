@@ -15,14 +15,14 @@ taking human-presenter UGC video into the product.
 | `/ugc` bench, Seedance tab | Built, on `origin/staging`. Voice anchor added 2026-09-22 |
 | `/ugc` bench, Gemini Omni tab | Built 2026-09-23, **probed live** (§3.5). Photo upload allowed there |
 | **The 24-hour trusted-URL problem** | **GONE — see §0.1.** A GCS copy works. §6.2 is deleted |
-| Canvas integration | **Not started.** Design settled 2026-09-29 — see §0.2 and the linked page |
+| Canvas integration | **Not started.** Design settled (§0.2); split into six specs (§0.3), to be written one at a time |
 | Voice | Consistency falls out of the avatar. Three mechanisms; re-voicing SHIPPED, anchor still unexercised (§0.2) |
 | Avatar + Composite nodes | **Designed 2026-09-29** (§0.2). Two new node types; avatar is client-level |
 | System-prompt audit | **Done.** EIGHT records + 2 catalogs + 2 pre-existing fixes (§0.2, §10) |
 | OmniHuman 1.5 (BytePlus Vision AI) | **Paused** at an account permission wall (§8) |
 | ElevenLabs | **SHIPPED** D282–D284 to staging 2026-09-27 — re-voicing works on any clip (§0.2) |
 
-**Start at §0.2.** It is the current design and supersedes §6.3 and §9. Then §0.1 for the probe findings. §3 is the API reference, §4 the rules that constrain the design (**two of which are now
+**Start at §0.2** for the design, then **§0.3** for the six specs it breaks into. §0.1 has the probe findings. §3 is the API reference, §4 the rules that constrain the design (**two of which are now
 disproved**), and §10 the prompt audit. §9 is answered in full.
 
 ## 0.1 What changed on 2026-09-24 (read before §4 and §6)
@@ -196,7 +196,7 @@ What it holds:
 | | vendor URL | kept as insurance, unused | — |
 | Likeness | model sheet | **identical** — several angles from Nano Banana, whichever face it starts with | |
 | Voice | declaration | native · anchor · a named voice | a named voice only |
-| | named voice | an ElevenLabs `voiceId` + settings | |
+| | named voice | an ElevenLabs `voiceId` + settings — a stock voice, a Library voice, **or one cloned from a sample the client uploaded** | |
 | | anchor clip | the extracted mp3 + its source clip | not possible — Omni takes no audio |
 | | description | the voice in words | |
 | Governance | client | the owner — client-level, not per canvas | |
@@ -305,6 +305,58 @@ records; the image-prompt writer branching by model (OpenAI currently receives a
 - **Parked:** wiring an avatar to a Composite node but not to the Script.
 - **Owed:** ADR numbers; the stray probe object at `probe/ugc-trust/1790189477012-face.jpg`;
   OmniHuman account access (§8).
+
+
+## 0.3 The build — six specs, written one at a time (plan set 2026-09-29)
+
+The design in §0.2 is settled. It is **too large for one spec**: recent design docs in this repo
+run 94–333 lines each and cover one implementable feature, and this covers two node types, a
+client-level record, eight prompt records and two catalogs.
+
+**The page is the guide over all of them** —
+https://claude.ai/artifact/5ZEEb4SWQp87e79aaPpayt. Each spec should open with a link to it
+rather than restating the architecture.
+
+| # | Spec | Covers | Depends on | Ships alone |
+|---|---|---|---|---|
+| **A** | Seedream image provider | extend `ImageProvider`; `image-gen/providers/seedream.ts`; register in `registry.ts` + `client-models.ts`; per-image cost branch in `image-gen/cost.ts` (~$0.035/image, not token-based). Model id is load-bearing: only `seedream-5-0-260128`, taken from `GET /api/v3/models` | — | Yes |
+| **B1** | **Avatar — identity** | `avatars` table (client-scoped) + the four rules; Avatar node type, picker, focus view; base face (A) or upload; model sheet via Nano Banana; `avatar → script`; engine/ceiling/voice-options **derived** from kind, never stored; resolution through `seededFrom.scriptNodeId`; the blocking rules | A | Yes |
+| **B2** | **Avatar — voice** | the declaration field; picking an account or Library voice (both already shipped); **uploading a client's own voice and cloning it**; consent for BOTH likenesses, face and voice, in one record; how re-voicing consumes the declaration | B1 | Yes |
+| **C** | Composite node | node type; avatar + File inputs; **prompt typed on the node**; the composite prompt record, which must not style the image | B1 | Yes |
+| **D** | UGC prompt records | `UGC_SPINE` + 4 motion records (single/multishot × omni/seedance); UGC composer record; UGC shot roles + default; UGC shot controls; plus the two pre-existing fixes | B1 | Yes |
+| **E** | Voice unification — **later** | chain voicing into `video-generate` from the declaration so the node shows one status stream; partial-success state for drift aborts; one cost line; one preview surface | B2 | Yes |
+
+**Suggested order: A → B1 → B2 → D → C.** A is small and de-risks the Seedream integration
+before any avatar concepts exist in code. B1 unblocks everything else. D and C are independent of
+each other.
+
+### Why B is two documents
+
+Splitting at **identity vs voice** rather than by layer keeps each independently reviewable — B1
+is "who is this person and how does the canvas know", B2 is "how do they sound". It also lands
+the consent work in **one** place covering both likenesses, rather than a face checkbox in B1 and
+a voice checkbox in B2 that nobody reconciles.
+
+### Verify before writing, do not assume
+
+- **B2 — the ElevenLabs cloning API.** What exists today is `/v1/voices/add/{publicOwnerId}/{voiceId}`
+  (`voice-catalog.ts`), which **saves a Library voice to the account**. That is not cloning.
+  Creating a voice from an uploaded sample is a different call, and its endpoint, file limits and
+  consent requirements must come from ElevenLabs' own docs. This repo has been burned once by
+  sourcing vendor limits secondhand (see `reference-kling-docs`).
+- **Everything downstream of cloning already works.** The picker surfaces cloned voices and lists
+  them first (`CUSTOM_VOICE_CATEGORIES`), and re-voicing applies any account voice. B2's new
+  surface is only the creation step.
+- **A — model ids from `GET /api/v3/models`,** never from the docs (§3.1).
+
+### Owed regardless of which spec goes first
+
+- **ADR numbers.** The log has reached **D284**, so the next free is **D285**. Decisions needing
+  entries: two UGC kinds with the engine derived from the kind; the Avatar node and its four
+  rules; no `shotKind` flag (the wire is the signal); the Composite node; composites are not
+  avatar data; voice consistency falls out of the avatar.
+- **A stray probe object** at `probe/ugc-trust/1790189477012-face.jpg` in the live bucket.
+- **OmniHuman** account access (§8) — unrelated to these specs, still blocked.
 
 
 ## 1. What this is
