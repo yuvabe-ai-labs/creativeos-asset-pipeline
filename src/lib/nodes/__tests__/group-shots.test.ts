@@ -15,6 +15,7 @@ import {
 } from "../group-shots";
 import { MULTISHOT_MODELS } from "../multishot-models";
 import type { ReelShot } from "../reel-script";
+import { sceneFingerprint } from "../scene-beats";
 
 const shots = (...lengths: number[]): ReelShot[] =>
   lengths.map((n, i) => ({ description: `shot ${i + 1}`, duration_seconds: n }));
@@ -419,5 +420,46 @@ describe("grouping v3 — one generation per scene", () => {
     expect(describeGenerations(shots(5, 5, 8), {}, 2).map((g) => g.shotIndexes)).toEqual([
       [0, 1, 2],
     ]);
+  });
+});
+
+describe("v3 recommendation from scene beats (D286)", () => {
+  const scene = (beats?: number, extra: Record<string, unknown> = {}): ReelShot => {
+    const row = { description: "A → B", duration_seconds: 6, ...extra };
+    if (beats === undefined) return row;
+    return {
+      ...row,
+      beats: Array.from({ length: beats }, (_, i) => ({ description: `b${i}`, duration_seconds: 1 })),
+      beatsFor: sceneFingerprint(row),
+    };
+  };
+
+  it("recommends a scene the parser split into 2+ beats", () => {
+    const [gen] = describeGenerations([scene(3)], {}, 3);
+    expect(gen.recommendMultishot).toBe(true);
+    expect(gen.cutCount).toBe(3);
+  });
+
+  it("does not recommend a continuous scene or a pre-v10 row", () => {
+    expect(describeGenerations([scene(1)], {}, 3)[0].recommendMultishot).toBe(false);
+    expect(describeGenerations([scene()], {}, 3)[0]).toMatchObject({ recommendMultishot: false, cutCount: 1 });
+  });
+
+  it("keeps recommending from stale beats after an edit", () => {
+    const edited = { ...scene(3), description: "edited" };
+    expect(describeGenerations([edited], {}, 3)[0].recommendMultishot).toBe(true);
+  });
+
+  it("uses a fresh cache hit over stale beats", () => {
+    const edited = { ...scene(3), description: "edited" };
+    const cache = { [sceneFingerprint(edited)]: [{ description: "only", duration_seconds: 6 }] };
+    expect(describeGenerations([edited], {}, 3, cache)[0]).toMatchObject({
+      recommendMultishot: false,
+      cutCount: 1,
+    });
+  });
+
+  it("counts rows for a packed v1 group", () => {
+    expect(describeGenerations(shots(3, 3), undefined, 1)[0].cutCount).toBe(2);
   });
 });

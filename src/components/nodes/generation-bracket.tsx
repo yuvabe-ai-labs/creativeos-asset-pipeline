@@ -68,7 +68,7 @@ export function GenerationBracket({
   // The recommendation says WHY, for this group. Past the default single-take models' reach the
   // reason is concrete: as one take it needs a long-take model picked by hand, while multishot
   // starts on one that fits (D261). Names no model — that is the Multishot node's sentence.
-  const shotCount = generation.shotIndexes.length;
+  const shotCount = generation.cutCount;
   const recommendReason =
     generation.seconds > SHOT_MAX_SECONDS
       ? `${shotCount} shots, ${generation.seconds}s. Multishot keeps each shot as its own cut and starts on a model that fits ${generation.seconds}s. As a single take, only some models reach that length.`
