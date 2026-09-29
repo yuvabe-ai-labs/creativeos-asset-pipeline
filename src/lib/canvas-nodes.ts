@@ -4,13 +4,14 @@ import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import type { SignalMode } from "@/lib/market/constants";
-import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import type { PostFormat, PostLayer } from "@/lib/post/types";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
+import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 export type ScriptNodeData = {
@@ -30,6 +31,12 @@ export type ScriptNodeData = {
    * migration, so no canvas reshapes under its operator and a re-parse adopts the current rules.
    */
   groupingVersion?: GroupingVersion;
+  /**
+   * D286 — re-split results for scenes edited since the parse, keyed by `sceneFingerprint`.
+   * Kept here, not in `parsed` (the active version's output, D19): writing that would reseed the
+   * focus view's unsaved draft. Pruned to the current rows on every write.
+   */
+  sceneBeats?: SceneBeatCache;
   signalIds?: string[]; // market signals flavouring the parse (D204); undefined = none
   signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
 };
@@ -154,6 +161,12 @@ export type MultishotNodeData = {
   /** The cut ladder. `totalOf(cuts)` and `totalSeconds` are kept equal by construction — see
    *  multishot-cuts.ts's header for the full model. */
   cuts?: MultishotCut[];
+  /**
+   * D286 — VO lines that play over the WHOLE ladder, not one cut: a scene's lines the script did
+   * not tie to a single beat. Rendered once in the prompt header (renderPlan). Absent or [] = none.
+   * Cuts keep their own `voiceover` for tied lines (D267).
+   */
+  sequenceVoiceover?: VoLine[];
   /**
    * D236 — which multishot model this ladder is built for. A video-gen client model id.
    *

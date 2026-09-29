@@ -29,6 +29,7 @@ import {
   describeGenerations,
   type GroupingVersion,
 } from "@/lib/nodes/group-shots";
+import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
 import { ScriptSignalsPicker } from "./script-signals-picker";
@@ -45,6 +46,8 @@ type ScriptFocusViewProps = {
   parsed: ReelScript | null;
   groupModes?: Record<string, boolean>;
   groupingVersion?: GroupingVersion;
+  /** D286 — the Script node's re-split cache, so the badges read a fresh split when there is one. */
+  sceneBeats?: SceneBeatCache;
   slices: KBSliceKey[];
   signalIds: string[];
   signalMode: SignalMode;
@@ -66,6 +69,7 @@ export function ScriptFocusView({
   parsed,
   groupModes,
   groupingVersion,
+  sceneBeats,
   slices,
   signalIds,
   signalMode,
@@ -116,6 +120,7 @@ export function ScriptFocusView({
     parsed?.visual_script?.shots ?? [],
     groupModes,
     groupingVersion ?? 1,
+    sceneBeats,
   ).length;
 
   // One picker, two homes: the empty state (beside the KB slice toggles) and a
@@ -371,6 +376,7 @@ export function ScriptFocusView({
                   script={draft}
                   scriptNodeId={nodeId}
                   groupModes={groupModes}
+                  sceneBeats={sceneBeats}
                   groupingVersion={groupingVersion}
                   readOnly={!editable}
                   onChange={(path: Path, value) =>

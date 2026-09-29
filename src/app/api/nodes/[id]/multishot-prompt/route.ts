@@ -124,6 +124,8 @@ export async function POST(
         instruction: resolveRefMentions(instruction, refs),
         cutInstructions,
         scriptNotes: resolved.scriptNotes,
+        // D286 — lines spanning every shot, stated once so the writer frames for them.
+        sequenceVoiceover: resolved.sequenceVoiceover,
         // D267 (Task 5) — the same per-cut ceiling `checkPlanLimits` measures the rendered
         // voiceover against, so the "Room for your beat" hint agrees with what actually gets
         // rejected after generation. `planCap` is the model THIS write is for (D236): the node's
@@ -309,7 +311,13 @@ export async function POST(
         // the money path. On a narrow refine of a plan written for the other model that stamp is
         // NOT the node's current one, and rendering against the node would show the operator a
         // prompt in a format nothing will ever send.
-        prompt: renderPlan(output, resolved.cuts, multishotCapabilityFor(output.targetModel), refIds),
+        prompt: renderPlan(
+          output,
+          resolved.cuts,
+          multishotCapabilityFor(output.targetModel),
+          refIds,
+          resolved.sequenceVoiceover,
+        ),
         versionId,
       });
     } catch (e) {

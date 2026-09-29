@@ -818,3 +818,51 @@ describe("planCoverage", () => {
     });
   });
 });
+
+// D286 — a line that spans the sequence renders ONCE, between the look and the ladder, and never
+// inside any shot.
+describe("renderPlan — sequence voiceover", () => {
+  const seq: VoLine[] = [{ text: "Made slowly; by hand.", speaker: "narrator" }];
+  const look = "Low sun from camera-left, warm grey concrete, 35mm at knee height.";
+
+  it("sits between the look and Omni's ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], seq)).toBe(
+      `${look}\n\n` +
+        'Across every shot — Voiceover: "Made slowly; by hand."\n\n' +
+        "[0-2s] A hand sweeps keys off oak.\n" +
+        "[2-5s] A cab door swings open onto sunlit paving.",
+    );
+  });
+
+  it("replaces semicolons on Kling so the line cannot end a shot", () => {
+    const rendered = renderPlan(perModelPlan, planCuts, KLING, [], seq);
+    expect(rendered).toContain('Across every shot — Voiceover: "Made slowly, by hand."\n\nshot 1, 2,');
+    expect(rendered.match(/;/g)).toHaveLength(2);
+  });
+
+  it("sits before Seedance's ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, SEEDANCE, [], seq)).toContain(
+      'Across every shot — Voiceover: "Made slowly; by hand."\n\n0-2s:',
+    );
+  });
+
+  it("leads the prompt when there is no look", () => {
+    expect(
+      renderPlan({ ...perModelPlan, look: "" }, planCuts, OMNI, [], seq).startsWith("Across every shot — "),
+    ).toBe(true);
+  });
+
+  it("renders nothing for no lines or an empty list", () => {
+    const plain = renderPlan(perModelPlan, planCuts, OMNI);
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], [])).toBe(plain);
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], undefined)).toBe(plain);
+  });
+
+  it("counts against the whole-prompt budget, not any cut's", () => {
+    const long: VoLine[] = [{ text: "x".repeat(KLING.maxPromptChars!), speaker: "narrator" }];
+    const result = checkPlanLimits(perModelPlan, planCuts, KLING, [], long);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/whole prompt/);
+    expect(checkPlanLimits(perModelPlan, planCuts, KLING).ok).toBe(true);
+  });
+});

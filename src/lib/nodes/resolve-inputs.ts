@@ -5,9 +5,9 @@ import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
 import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
 import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
-import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { describeVoLineForWriter, renderVoiceover } from "@/lib/nodes/voiceover";
+import { describeVoLineForWriter, readVoLines, renderVoiceover } from "@/lib/nodes/voiceover";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -213,6 +213,8 @@ export type ResolvedMultishotInputs = {
    * written from stated direction, so this has to reach the writer. Empty when the script has none.
    */
   scriptNotes: string;
+  /** D286 — the upstream Multishot node's lines spanning every shot. */
+  sequenceVoiceover?: VoLine[];
 };
 
 /**
@@ -255,6 +257,7 @@ export async function resolveMultishotPromptInputs(
     cuts,
     targetModel,
     scriptNotes,
+    sequenceVoiceover: readVoLines(source?.data.sequenceVoiceover),
   };
 }
 
@@ -278,6 +281,8 @@ export function buildMultishotUserTurn(args: {
    * (src/lib/nodes/multishot-models.ts).
    */
   maxCutChars?: number | null;
+  /** D286 — lines that play over every shot. Stated once, above the shots, never per shot. */
+  sequenceVoiceover?: VoLine[];
 }): string {
   const blocks: string[] = [];
 
@@ -334,6 +339,17 @@ export function buildMultishotUserTurn(args: {
       return lines.join("\n");
     })
     .join("\n\n");
+
+  // D286 — WHAT is spoken across the whole clip, so the writer keeps faces silent for narration
+  // (VO_PERFORMANCE_RULES). Never an instruction to write the words — renderPlan puts them on the
+  // wire once, above the ladder.
+  const spanning = (args.sequenceVoiceover ?? []).filter((l) => l.text.trim());
+  if (spanning.length > 0) {
+    blocks.push(
+      "Voiceover across the whole sequence — it plays over every shot below, not over any one of them. Do not write these words into any beat:\n" +
+        spanning.map((l) => `  ${describeVoLineForWriter(l)}`).join("\n"),
+    );
+  }
 
   blocks.push(`Shots (return exactly one beat per shot, echoing each cutId):\n${shots}`);
 

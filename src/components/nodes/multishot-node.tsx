@@ -165,6 +165,9 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
       cuts={cuts}
       scriptTitle={d.seededFrom?.scriptTitle}
       targetModel={d.targetModel}
+      // D286 — the STORED array, not a copy: the focus view reseeds its draft whenever this
+      // reference changes, so a fresh array per render would wipe edits in progress.
+      sequenceVoiceover={d.sequenceVoiceover}
       onCommit={commit}
     />
     </>

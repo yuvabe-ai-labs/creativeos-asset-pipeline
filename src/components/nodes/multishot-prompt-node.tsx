@@ -17,6 +17,7 @@ import { useNodeCost } from "@/hooks/use-node-cost";
 import { MultishotPromptFocusView } from "./multishot-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES } from "@/lib/kb/parse-context";
 import type { MultishotNodeData, MultishotPromptNodeData } from "@/lib/canvas-nodes";
+import { readVoLines } from "@/lib/nodes/voiceover";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -56,6 +57,10 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
   }, [nodes, edges, id]);
   const budget = (multishotSource?.data as MultishotNodeData | undefined)?.totalSeconds;
   const cuts = (multishotSource?.data as MultishotNodeData | undefined)?.cuts ?? [];
+  // D286 — lines spanning every cut; the preview renders them exactly as the money path sends them.
+  const sequenceVoiceover = readVoLines(
+    (multishotSource?.data as MultishotNodeData | undefined)?.sequenceVoiceover,
+  );
   // D236 — the model the ladder was built for. This node never SETS it; the choice lives on the
   // Multishot node, and reading it here is what keeps the beat editor's token syntax and the
   // rendered prompt agreeing with what will actually be generated.
@@ -195,6 +200,7 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
       plan={plan}
       slices={slices}
       cuts={cuts}
+      sequenceVoiceover={sequenceVoiceover}
       targetModel={targetModel}
       multishotNodeId={multishotSource?.id ?? null}
       upstream={upstream}

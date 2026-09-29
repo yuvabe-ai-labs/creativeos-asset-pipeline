@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, Film, Unlink, TriangleAlert, Sparkles } from "lucide-react";
+import { Layers, Film, Unlink, TriangleAlert, Sparkles, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,9 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import type { Generation } from "@/lib/nodes/group-shots";
 import { generationKey, PACK_CEILING_SECONDS } from "@/lib/nodes/group-shots";
 import { SHOT_MAX_SECONDS } from "@/lib/nodes/derive-shot-duration";
+import type { ScriptNodeData } from "@/lib/canvas-nodes";
+import type { ReelScript } from "@/lib/nodes/reel-script";
+import { ensureSceneBeats, requestSceneSplit } from "@/lib/nodes/ensure-scene-beats";
 
 /**
  * D227 — one generation's rows, bracketed, with the single control that sets its mode.
@@ -42,6 +46,11 @@ export function GenerationBracket({
   children: React.ReactNode;
 }) {
   const setGenerationMode = useCanvasStore((s) => s.setGenerationMode);
+  const cacheSceneBeats = useCanvasStore((s) => s.cacheSceneBeats);
+  const scriptData = useCanvasStore(
+    (s) => s.nodes.find((n) => n.id === scriptNodeId)?.data as ScriptNodeData | undefined,
+  );
+  const [splitting, setSplitting] = useState(false);
   const editable = useCanvasEditable();
   const isReadOnly = readOnly || !editable; // D33: strict read-only under the lock
   const Icon = generation.multishot ? Layers : Film;
@@ -68,18 +77,39 @@ export function GenerationBracket({
   // The recommendation says WHY, for this group. Past the default single-take models' reach the
   // reason is concrete: as one take it needs a long-take model picked by hand, while multishot
   // starts on one that fits (D261). Names no model — that is the Multishot node's sentence.
-  const shotCount = generation.shotIndexes.length;
+  const shotCount = generation.cutCount;
   const recommendReason =
     generation.seconds > SHOT_MAX_SECONDS
       ? `${shotCount} shots, ${generation.seconds}s. Multishot keeps each shot as its own cut and starts on a model that fits ${generation.seconds}s. As a single take, only some models reach that length.`
       : `${shotCount} shots. Multishot generates them as one sequence with a cut between each, instead of blending them into a single take.`;
+
+  // D286 — turning a lone scene ON first makes sure its suggested beats describe the scene as it
+  // is now. Reads the STORED row (what setGenerationMode builds from), not the focus view's draft.
+  async function apply(next: boolean) {
+    const row =
+      generation.shotIndexes.length === 1
+        ? (scriptData?.parsed as ReelScript | undefined)?.visual_script?.shots?.[
+            generation.shotIndexes[0]
+          ]
+        : undefined;
+    if (next && row) {
+      setSplitting(true);
+      const result = await ensureSceneBeats(row, scriptData?.sceneBeats, (r) =>
+        requestSceneSplit(scriptNodeId, r, scriptData?.kbSlices),
+      );
+      setSplitting(false);
+      if (result.status === "split") cacheSceneBeats(scriptNodeId, result.fingerprint, result.beats);
+      if (result.status === "failed") toast.error("Couldn't split this scene — added as one cut");
+    }
+    setGenerationMode(scriptNodeId, generation.key, next);
+  }
 
   function handleChange(next: boolean) {
     if (downstreamCount > 0) {
       setPending(next);
       return;
     }
-    setGenerationMode(scriptNodeId, generation.key, next);
+    void apply(next);
   }
 
   return (
@@ -148,10 +178,17 @@ export function GenerationBracket({
           >
             Multishot
           </span>
+          {splitting && (
+            <Loader2
+              className="size-3 animate-spin text-muted-foreground"
+              strokeWidth={1.5}
+              aria-label="Splitting scene"
+            />
+          )}
           <Switch
             size="sm"
             checked={generation.multishot}
-            disabled={isReadOnly}
+            disabled={isReadOnly || splitting}
             aria-label={`Multishot for generation ${generation.index + 1}`}
             onCheckedChange={handleChange}
           />
@@ -177,7 +214,7 @@ export function GenerationBracket({
             <AlertDialogAction
               render={<Button variant="default" />}
               onClick={() => {
-                if (pending !== null) setGenerationMode(scriptNodeId, generation.key, pending);
+                if (pending !== null) void apply(pending);
                 setPending(null);
               }}
             >

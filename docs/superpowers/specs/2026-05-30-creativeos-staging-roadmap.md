@@ -5820,3 +5820,69 @@ sync.
 **Supersedes.** D282 (generate-time voice; the `video-revoice` internals, ffmpeg helpers and
 billing plumbing are reused), D283 (the popover trigger; catalog, routes and browser are reused).
 **Originated →** `docs/superpowers/specs/2026-09-25-change-voice-workspace-design.md`.
+
+### D285 — Seedream 5.0 image models on a direct Ark client, billed per image *(recorded 2026-09-28)*
+
+**Decision.** Seedream 5.0 Lite and Pro join the image-gen picker as a third provider group
+(`seedream:*`) beside OpenAI and Gemini, for Generate and Edit. A small `fetch` client
+(`image-gen/providers/seedream.ts`) calls Ark's synchronous `/images/generations` with the
+Seedance host and `BYTEPLUS_API_KEY`. We send an explicit `WxH` from the vendor's resolution x
+ratio table (not a bare resolution level), `png`, `b64_json`, `watermark: false`, one image. Edit
+targets regions from the prompt text (D38); no mask. `ImageGenResult` gains an optional `costUsd`:
+Seedream bills per image (Lite $0.035 flat; Pro $0.045 up to 1.5K, $0.09 at 2K, plus $0.003 per
+reference after the first), so the provider reports the exact charge and the route settles on it
+ahead of the token formula. The resolution param is named `image_size` so the shared estimate path
+prices it unchanged. The default model is unchanged.
+
+**Why.** Ark's endpoint is OpenAI-shaped, but our OpenAI provider carries `sharp` and mask
+handling that don't apply. An explicit size keeps a 9:16 reel 9:16 whatever the prompt says, at
+the same pixels the model would have chosen. Base64 avoids the 24-hour result URL. Per-image
+pricing is exact, so tokens would only approximate it.
+
+**Rejected.** The OpenAI SDK with a swapped base URL (its mask and edit paths would have to be
+fenced off). Size by resolution level with the ratio in the prompt (the vendor's recommended
+form, but the ratio then depends on the prompt writer). Pro's `<bbox>` interactive editing,
+layer decomposition, batch output and a Seedream-specific prompt writer are deferred, not
+rejected. Seedream 5.0 Flash waits for a confirmed BytePlus model ID and price.
+**Originated →** `docs/superpowers/specs/2026-09-19-seedream-5-image-models-design.md`.
+
+### D286 — The parser suggests cuts inside a scene; they apply only when multishot is turned on *(recorded 2026-09-29; refines D278)*
+
+**Decision.** script-parse v10 gives every scene row a hidden `beats` list — the scene's suggested
+cuts — plus a `beatsFor` fingerprint of the row it was split from. It splits only where the script
+signals cuts (montage, "A → B → C", "quick cuts of…", "cut to", separate setups); a continuous
+scene is one beat. The row itself is unchanged (still one row per scene), and the Script node
+never renders beats. Under grouping v3, `recommendMultishot` is `beats.length > 1`. Turning
+multishot on builds the cuts from the beats; when the row was edited since the split (fingerprint
+mismatch) or predates v10, the toggle first calls `POST /api/nodes/:id/split-scene` for that one
+scene. A re-split is cached on the Script node's own data (`sceneBeats`, keyed by fingerprint), not
+written into `parsed` — that is the active version's output (D19), and rewriting it would reseed
+the focus view's unsaved draft. The split rules are one shared constant (`SCENE_SPLIT_RULES`) used
+by both prompts. A stale split still drives the badge but never becomes cuts; no call runs on edit.
+**Voiceover across cuts:** beats are visual only; when a scene is split, ALL its lines span the
+sequence — stored once as `MultishotNodeData.sequenceVoiceover` and rendered once in the prompt
+header (`Across every shot — …`), never split and never parked on one short cut. The split rules
+carry worked examples: with only "quick cuts of" listed, the operator's "Handheld cuts — A, B, C"
+came back as one beat 3/3 runs; with them, all five scenes of that script split correctly 15/15
+(script-parse v11).
+
+**Why.** Under v3 a flip to multishot produced one cut, so the operator split every montage by
+hand, and the recommendation was hard-coded off because its only signal (a generation spanning
+several rows) could no longer occur. The operator: "when toggled to multishot you need to split
+them as separate shots; right now the user does it manually … have an internal thing, and if an
+edit happens re-parse that particular scene only." On VO: "I can't share the voice to split 1s
+and all" — under D267 a scene-long line would land on one short cut; then "by default have the
+VO at sequence level".
+
+**Rejected.** Tying a line to one beat when the script times it to that visual (first draft —
+dropped the same day for the simpler sequence-level default; the operator can still put a line on
+one cut by hand); keeping every line per cut (the D267 behaviour that produces the rushed line); splitting a line's
+text across cuts. A director-style split of long continuous action into camera beats (the parser making
+editing choices the script did not); splitting to fit a model's window (D278's reason for dropping
+packing); re-splitting on every edit commit (a call per edit for a badge); a lazy-only badge that
+goes quiet after any edit.
+
+**Refines.** D278 — reverses its rejection of "splitting a montage inside a scene into cuts", but
+only as a suggestion applied at the operator's toggle. D267 — a split scene's lines live on the
+node as sequence voiceover; a cut's own `voiceover` holds only lines the operator adds to it. **Originated →**
+`docs/superpowers/specs/2026-09-29-scene-beats-multishot-design.md`.
