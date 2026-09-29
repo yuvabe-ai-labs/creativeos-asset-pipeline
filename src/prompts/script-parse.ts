@@ -9,6 +9,40 @@
 // the designer already has — it does not invent it.
 //   docs/context-refs/prakriti-sattva-selection-rationale.md
 
+// D267 — one voiceover line. Exported so the scene-split prompt uses the exact same shape.
+export const voLineSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["text", "speaker", "delivery", "language"],
+  properties: {
+    text: { type: "string" },
+    speaker: { type: "string" },
+    delivery: { type: "string" },
+    language: { type: "string" },
+  },
+};
+
+// D286 — one suggested cut inside a scene. Shared with the scene-split prompt.
+export const sceneBeatSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["description", "duration_seconds", "voiceover"],
+  properties: {
+    description: { type: "string" },
+    duration_seconds: { type: "integer" },
+    voiceover: { type: "array", items: voLineSchema },
+  },
+};
+
+// D286 — how a scene is split into suggested cuts. ONE text, composed into the parse prompt and
+// the scene-split prompt, so a scene splits the same way whichever of them runs.
+export const SCENE_SPLIT_RULES = `Splitting a scene into beats (its suggested cuts, for when the operator generates it as a multishot sequence):
+- Split ONLY where the scene's own text signals separate cuts: a montage, "A → B → C", "quick cuts of X, Y, Z", "cut to", or several distinct camera setups. A scene that describes one continuous action or one camera move is EXACTLY ONE beat whose description is the scene's description.
+- Never invent a shot the scene does not describe, never split a continuous action into camera angles the script did not ask for, and never split to fit a model's length limit.
+- Each beat's description is the visual of that cut only, in the script's own words, keeping the product and subject named as the scene names them.
+- Beat duration_seconds are whole seconds that add up to the scene's duration_seconds. Use the script's own per-beat timing when it gives one; otherwise share the scene's length evenly.
+- A voiceover line goes on a beat ONLY when the script ties it to that beat — the line is written under that visual, or its timecode falls inside that beat. A line that runs across the scene, or that the script does not tie to one visual, goes on NO beat: it plays over the whole sequence. Copy a tied line verbatim; never split a line, never put one on two beats, never invent one. A beat with no tied line gets [].`;
+
 // JSON Schema for OpenAI structured outputs (strict mode → guaranteed shape).
 // strict requires: every property in `required`, and additionalProperties:false.
 const reelSchema = {
@@ -58,26 +92,14 @@ const reelSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["description", "duration", "duration_seconds", "clip", "voiceover"],
+            required: ["description", "duration", "duration_seconds", "clip", "voiceover", "beats"],
             properties: {
               description: { type: "string" },
               duration: { type: "string" },
               duration_seconds: { type: "integer" },
               clip: { type: "integer" },
-              voiceover: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["text", "speaker", "delivery", "language"],
-                  properties: {
-                    text: { type: "string" },
-                    speaker: { type: "string" },
-                    delivery: { type: "string" },
-                    language: { type: "string" },
-                  },
-                },
-              },
+              voiceover: { type: "array", items: voLineSchema },
+              beats: { type: "array", items: sceneBeatSchema },
             },
           },
         },
@@ -117,9 +139,9 @@ Fields:
 - schedule: { date, post_time, category, theme }.
 - strategic_objective: the stated goal of the reel.
 - ai_production_type: the production approach stated in the script.
-- visual_script: { shots: [{ description, duration, duration_seconds, clip, voiceover }], execution_refinement } — one row per SCENE, in the order the script writes them.
+- visual_script: { shots: [{ description, duration, duration_seconds, clip, voiceover, beats }], execution_refinement } — one row per SCENE, in the order the script writes them.
   - A scene begins at a heading, whatever the script calls it: "Scene 3 — How to Use | 10–18 sec", "Shot 2", "CLIP 4 (10–20 SEC)", or a bare timecode line ("0–5 sec"). A title after a dash or a pipe is part of the heading, not content.
-  - Each scene produces EXACTLY ONE row. A scene whose visual lists several beats — a montage, "A → B → C", "quick cuts of X, Y, Z" — is still one row, and its description keeps that prose as written. Do NOT split a montage into rows: where the cuts fall is the operator's decision, made after the parse.
+  - Each scene produces EXACTLY ONE row. A scene whose visual lists several beats — a montage, "A → B → C", "quick cuts of X, Y, Z" — is still one row, and its description keeps that prose as written. Do NOT split a montage into rows: its suggested cuts go in that row's beats, never in extra rows.
   - duration: the timing exactly as the script writes it (e.g. "0-3 sec", "3-8 sec").
   - duration_seconds: that shot's OWN LENGTH in whole seconds — NOT the end of its timecode range. Scripts usually write cumulative ranges, so "0-3 sec" is 3, "3-8 sec" is 5, and "8-14 sec" is 6. If a shot gives only a single number ("4 sec"), that number IS the length. If the length cannot be determined, use 4.
   - clip: the number recorded from that row's own heading when the script uses the word "CLIP" for it — "CLIP 1 (0–10 SEC)", "CLIP 2", "Clip 3 — …" — kept for reference only; it no longer groups several rows under one number or changes how many rows a heading produces. Use 0 when the script marks none, and never invent a number the heading does not give.
@@ -131,6 +153,7 @@ Fields:
     - delivery: how it is said ("warm, unhurried") only when the script states it; otherwise "".
     - language: the line's language ("English", "Tamil") only when the script states it or the line is plainly not English; otherwise "".
     - A shot with no line gets []. When the script's voiceover is "None" / "No voiceover", every shot gets [].
+  - beats: that scene's suggested cuts, per the splitting rules below. The row's own voiceover still lists EVERY line of the scene; a beat repeats only the lines tied to it.
 - on_screen_text: { intro, body (array of lines), outro }.
 - voiceover: the VO script, or "" / "No voiceover". The reel-wide copy, kept as written — the per-shot lines above are the same words mapped to their shots, and the two are checked against each other.
 - music_sound: the music & sound design direction.
@@ -138,7 +161,9 @@ Fields:
 - cta: call to action.
 - thumbnail_hook: the thumbnail hook line.
 - qc_notes: array of QC / compliance notes.
-- product_links: array of product URLs in the script.`;
+- product_links: array of product URLs in the script.
+
+${SCENE_SPLIT_RULES}`;
 
 // D204: how attached market signals reshape the parse. Composed by compileScript
 // into BOTH messages — after the signal briefs in the user message, and restated
@@ -211,7 +236,11 @@ export const scriptParsePrompt = {
   // v9: one row per SCENE, in the script's own vocabulary (Scene / Shot / CLIP / bare timecode),
   // with the speech labels real scripts use. A montage inside a scene stays one row — where the
   // cuts fall is the operator's call. Packing to a model's window is gone (grouping v3).
-  version: 9,
+  // v10: every scene row also carries `beats` — its suggested cuts, split only where the script
+  // signals them, each holding only the VO lines the script ties to it (SCENE_SPLIT_RULES, shared
+  // with scene-split). The row is unchanged; beats become cuts only when the operator turns
+  // multishot on, and untied lines span the sequence (D286).
+  version: 10,
   model: "gpt-5.4-mini",
   system,
   clientContextHeading,

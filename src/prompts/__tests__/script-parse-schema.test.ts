@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scriptParsePrompt } from "../script-parse";
+import { scriptParsePrompt, SCENE_SPLIT_RULES } from "../script-parse";
 
 describe("script-parse schema", () => {
   const shotProps = (scriptParsePrompt.schema as {
@@ -27,8 +27,38 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("is version 9", () => {
-    expect(scriptParsePrompt.version).toBe(9);
+  it("is version 10", () => {
+    expect(scriptParsePrompt.version).toBe(10);
+  });
+
+  // D286 — each scene carries its suggested cuts; strict mode requires the key on every row.
+  it("declares a required beats list on every shot, strict-mode shaped", () => {
+    expect(shotProps.required).toContain("beats");
+    const beats = shotProps.properties.beats as {
+      type: string;
+      items: { required: string[]; properties: Record<string, unknown>; additionalProperties: boolean };
+    };
+    expect(beats.type).toBe("array");
+    expect(beats.items.additionalProperties).toBe(false);
+    expect([...beats.items.required].sort()).toEqual(["description", "duration_seconds", "voiceover"]);
+    expect(beats.items.properties.voiceover).toEqual(shotProps.properties.voiceover);
+  });
+
+  it("splits only where the script signals cuts, and composes the shared rules", () => {
+    expect(SCENE_SPLIT_RULES).toMatch(/montage/i);
+    expect(SCENE_SPLIT_RULES).toMatch(/cut to/i);
+    expect(SCENE_SPLIT_RULES).toMatch(/EXACTLY ONE beat/);
+    expect(SCENE_SPLIT_RULES).toMatch(/never invent/i);
+    expect(SCENE_SPLIT_RULES).toMatch(/add up/i);
+    expect(scriptParsePrompt.system).toContain(SCENE_SPLIT_RULES);
+  });
+
+  // "I can't split the voice into 1s" — a line runs across the scene unless the script ties it.
+  it("ties a line to a beat only when the script does, and never splits one", () => {
+    expect(SCENE_SPLIT_RULES).toMatch(/ONLY when the script ties it/);
+    expect(SCENE_SPLIT_RULES).toMatch(/goes on NO beat/);
+    expect(SCENE_SPLIT_RULES).toMatch(/whole sequence/);
+    expect(SCENE_SPLIT_RULES).toMatch(/never split/i);
   });
 
   // The operator's own creators write "Scene 3 — How to Use | 10–18 sec" and "VO + Text Overlay:".
