@@ -9,11 +9,14 @@
 // is measured against, so a model that wrote through while the cuts were buffered would
 // re-measure the draft against a ceiling Cancel could not put back.
 import { totalOf, type MultishotCut } from "./multishot-cuts";
+import type { VoLine } from "./reel-script";
 
 export type MultishotDraft = {
   cuts: MultishotCut[];
   /** Absent = the default (Gemini Omni), exactly as on MultishotNodeData. */
   targetModel?: string;
+  /** D286 — lines spanning every cut. Absent = the node has none, exactly as on MultishotNodeData. */
+  sequenceVoiceover?: VoLine[];
 };
 
 /**
@@ -48,6 +51,7 @@ export function commitDraft(draft: MultishotDraft): {
   cuts: MultishotCut[];
   totalSeconds: number;
   targetModel?: string;
+  sequenceVoiceover?: VoLine[];
 } {
   return {
     // A SHALLOW COPY, not `draft.cuts`. Handing back the draft's own array would make the node's
@@ -59,5 +63,10 @@ export function commitDraft(draft: MultishotDraft): {
     // Spread rather than assigned: writing `targetModel: undefined` would put the key on the
     // patch and clear a model the operator never touched.
     ...(draft.targetModel !== undefined ? { targetModel: draft.targetModel } : {}),
+    // Same spread rule: absent stays absent, but an emptied list is written as [] so deleting the
+    // last line actually clears it.
+    ...(draft.sequenceVoiceover !== undefined
+      ? { sequenceVoiceover: draft.sequenceVoiceover }
+      : {}),
   };
 }

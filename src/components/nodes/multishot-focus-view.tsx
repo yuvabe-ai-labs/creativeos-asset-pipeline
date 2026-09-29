@@ -19,6 +19,7 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { EditableField } from "./editable-field";
 import { VoLinesEditor } from "./vo-lines-editor";
+import type { VoLine } from "@/lib/nodes/reel-script";
 import {
   addCut,
   canAddCut,
@@ -52,6 +53,8 @@ type MultishotFocusViewProps = {
   scriptTitle?: string;
   /** D236 — which model this ladder is built for. Absent = the default (Gemini Omni). */
   targetModel?: string;
+  /** D286 — the SAVED lines spanning every cut. Buffered in the draft like the cuts. */
+  sequenceVoiceover?: VoLine[];
   /** D280 — one patch, applied by a single updateNodeData call on Save. */
   onCommit: (patch: ReturnType<typeof commitDraft>) => void;
 };
@@ -90,14 +93,19 @@ export function MultishotFocusView({
   cuts,
   scriptTitle,
   targetModel,
+  sequenceVoiceover,
   onCommit,
 }: MultishotFocusViewProps) {
   const editable = useCanvasEditable();
   const isReadOnly = !editable; // D33: strict read-only under the lock
 
   const saved: MultishotDraft = useMemo(
-    () => ({ cuts, ...(targetModel !== undefined ? { targetModel } : {}) }),
-    [cuts, targetModel],
+    () => ({
+      cuts,
+      ...(targetModel !== undefined ? { targetModel } : {}),
+      ...(sequenceVoiceover !== undefined ? { sequenceVoiceover } : {}),
+    }),
+    [cuts, targetModel, sequenceVoiceover],
   );
   const [draft, setDraft] = useState<MultishotDraft>(saved);
 
@@ -321,6 +329,21 @@ export function MultishotFocusView({
                 second spoken line into two duelling scrollbars and a clipped sentence. Only a very
                 long description scrolls, and its scrollbar is left visible on purpose — it is the
                 only signal that a card is holding more than it shows. */}
+            {/* D286 — lines that play over the WHOLE clip, not one shot: a scene's narration the
+                script did not tie to a single beat. One lane above the strip, in the same card
+                idiom as a shot's own Voiceover lane, and hidden under the lock when empty for the
+                same reason that one is. */}
+            {(!isReadOnly || (draft.sequenceVoiceover?.length ?? 0) > 0) && (
+              <div className="flex flex-col gap-1 rounded-xl border border-border bg-card p-3.5 shadow-card">
+                <span className="text-eyebrow text-muted-foreground">Voiceover · whole sequence</span>
+                <VoLinesEditor
+                  lines={draft.sequenceVoiceover}
+                  readOnly={isReadOnly}
+                  onChange={(next) => setDraft((d) => ({ ...d, sequenceVoiceover: next }))}
+                />
+              </div>
+            )}
+
             <ol className="grid grid-cols-[repeat(auto-fit,minmax(272px,1fr))] gap-x-4 gap-y-5">
               {draft.cuts.map((cut, i) => (
                 <li key={cut.id} className="group/shot flex min-w-0 flex-col gap-2">

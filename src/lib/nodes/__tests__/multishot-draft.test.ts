@@ -105,3 +105,24 @@ describe("commitDraft", () => {
     expect(result.cuts[0]).toBe(d.cuts[0]);
   });
 });
+
+describe("sequence voiceover in the draft (D286)", () => {
+  const cuts = [{ id: "c1", text: "a", seconds: 2 }];
+  const seq = [{ text: "Made by hand.", speaker: "narrator" }];
+
+  it("is dirty when only the sequence lines change", () => {
+    expect(draftIsDirty({ cuts, sequenceVoiceover: seq }, { cuts, sequenceVoiceover: [] })).toBe(true);
+  });
+
+  it("commits the sequence lines with the cuts", () => {
+    expect(commitDraft({ cuts, sequenceVoiceover: seq })).toMatchObject({ sequenceVoiceover: seq });
+  });
+
+  it("commits an emptied list as [] so a deletion is saved", () => {
+    expect(commitDraft({ cuts, sequenceVoiceover: [] })).toMatchObject({ sequenceVoiceover: [] });
+  });
+
+  it("does not put the key on the patch when the node never had it", () => {
+    expect(commitDraft({ cuts })).not.toHaveProperty("sequenceVoiceover");
+  });
+});
