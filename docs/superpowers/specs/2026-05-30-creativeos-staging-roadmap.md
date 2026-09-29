@@ -5845,3 +5845,30 @@ form, but the ratio then depends on the prompt writer). Pro's `<bbox>` interacti
 layer decomposition, batch output and a Seedream-specific prompt writer are deferred, not
 rejected. Seedream 5.0 Flash waits for a confirmed BytePlus model ID and price.
 **Originated →** `docs/superpowers/specs/2026-09-19-seedream-5-image-models-design.md`.
+
+### D286 — The parser suggests cuts inside a scene; they apply only when multishot is turned on *(recorded 2026-09-29; refines D278)*
+
+**Decision.** script-parse v10 gives every scene row a hidden `beats` list — the scene's suggested
+cuts — plus a `beatsFor` fingerprint of the row it was split from. It splits only where the script
+signals cuts (montage, "A → B → C", "quick cuts of…", "cut to", separate setups); a continuous
+scene is one beat. The row itself is unchanged (still one row per scene), and the Script node
+never renders beats. Under grouping v3, `recommendMultishot` is `beats.length > 1`. Turning
+multishot on builds the cuts from the beats; when the row was edited since the split (fingerprint
+mismatch) or predates v10, the toggle first calls `POST /api/nodes/:id/split-scene` for that one
+scene. The split rules are one shared constant (`SCENE_SPLIT_RULES`) used by both prompts. A stale
+split still drives the badge; no call runs on edit.
+
+**Why.** Under v3 a flip to multishot produced one cut, so the operator split every montage by
+hand, and the recommendation was hard-coded off because its only signal (a generation spanning
+several rows) could no longer occur. The operator: "when toggled to multishot you need to split
+them as separate shots; right now the user does it manually … have an internal thing, and if an
+edit happens re-parse that particular scene only."
+
+**Rejected.** A director-style split of long continuous action into camera beats (the parser making
+editing choices the script did not); splitting to fit a model's window (D278's reason for dropping
+packing); re-splitting on every edit commit (a call per edit for a badge); a lazy-only badge that
+goes quiet after any edit.
+
+**Refines.** D278 — reverses its rejection of "splitting a montage inside a scene into cuts", but
+only as a suggestion applied at the operator's toggle. **Originated →**
+`docs/superpowers/specs/2026-09-29-scene-beats-multishot-design.md`.
