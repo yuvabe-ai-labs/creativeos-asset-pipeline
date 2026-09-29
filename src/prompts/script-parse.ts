@@ -22,26 +22,39 @@ export const voLineSchema = {
   },
 };
 
-// D286 — one suggested cut inside a scene. Shared with the scene-split prompt.
+// D286 — one suggested cut inside a scene. Shared with the scene-split prompt. No voiceover: a
+// split scene's lines play over the whole sequence (operator, 2026-09-29), so a beat is visual only.
 export const sceneBeatSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["description", "duration_seconds", "voiceover"],
+  required: ["description", "duration_seconds"],
   properties: {
     description: { type: "string" },
     duration_seconds: { type: "integer" },
-    voiceover: { type: "array", items: voLineSchema },
   },
 };
 
 // D286 — how a scene is split into suggested cuts. ONE text, composed into the parse prompt and
 // the scene-split prompt, so a scene splits the same way whichever of them runs.
+//
+// The worked examples are measured, not decorative: without them "Handheld cuts — A, B, C" came
+// back as one beat 3/3 runs and "An ordinary workday in cuts — A, B, C" split only 2/3, because
+// the only listed signal was "quick cuts of". The counter-example keeps a sentence of one subject's
+// consecutive actions whole — commas alone are not cuts.
 export const SCENE_SPLIT_RULES = `Splitting a scene into beats (its suggested cuts, for when the operator generates it as a multishot sequence):
-- Split ONLY where the scene's own text signals separate cuts: a montage, "A → B → C", "quick cuts of X, Y, Z", "cut to", or several distinct camera setups. A scene that describes one continuous action or one camera move is EXACTLY ONE beat whose description is the scene's description.
+- A scene signals cuts when it: uses the word "cuts" or "montage" in any phrasing ("handheld cuts — A, B, C", "the day in cuts — A, B, C", "quick cuts of A, B, C", "a montage of A, B, C"); says "cut to"; chains visuals with "→" or "then"; or separates distinct shots or shot sizes ("a wider shot of X; a close-up on Y"). When it does, EVERY visual it lists is its own beat, in the order written.
+- Without such a signal the scene is EXACTLY ONE beat whose description is the scene's description. Commas alone are not cuts: one subject's consecutive actions in one place ("she checks the time, grabs her bag, walks out") are one continuous beat, and qualifiers of one action ("in real time — no slow motion") are not a list.
 - Never invent a shot the scene does not describe, never split a continuous action into camera angles the script did not ask for, and never split to fit a model's length limit.
-- Each beat's description is the visual of that cut only, in the script's own words, keeping the product and subject named as the scene names them.
+- Each beat's description must stand on its own as a shot: carry the scene's subject, product and style words into it ("Handheld cuts — tucking pleats" becomes "Handheld: she tucks the pleats of the Pragathi saree"), otherwise in the script's own words. A bare fragment like "at her desk" is wrong.
 - Beat duration_seconds are whole seconds that add up to the scene's duration_seconds. Use the script's own per-beat timing when it gives one; otherwise share the scene's length evenly.
-- A voiceover line goes on a beat ONLY when the script ties it to that beat — the line is written under that visual, or its timecode falls inside that beat. A line that runs across the scene, or that the script does not tie to one visual, goes on NO beat: it plays over the whole sequence. Copy a tied line verbatim; never split a line, never put one on two beats, never invent one. A beat with no tied line gets [].`;
+- Beats carry no voiceover. The scene's voiceover plays over the whole sequence, however it is cut.
+
+Examples:
+- "Handheld cuts — tucking pleats, the pallu settling, a close-up of the linen-cotton weave." → 3 beats: handheld, she tucks the pleats | handheld, the pallu settles | close-up of the linen-cotton weave.
+- "An ordinary workday in cuts — walking in, at her desk, through a meeting." → 3 beats: she walks into the office | she works at her desk | she moves through a meeting.
+- "A wider shot of her walking, the pallu moving easily; a close-up on how light the fabric is." → 2 beats.
+- "She checks the time, grabs her bag, walks out. Cut to a clean shot of the saree, then the logo." → 3 beats: she checks the time, grabs her bag and walks out | a clean shot of the saree | the logo.
+- "She's in front of the mirror, draping the saree in real time — no slow motion." → 1 beat.`;
 
 // JSON Schema for OpenAI structured outputs (strict mode → guaranteed shape).
 // strict requires: every property in `required`, and additionalProperties:false.
@@ -153,7 +166,7 @@ Fields:
     - delivery: how it is said ("warm, unhurried") only when the script states it; otherwise "".
     - language: the line's language ("English", "Tamil") only when the script states it or the line is plainly not English; otherwise "".
     - A shot with no line gets []. When the script's voiceover is "None" / "No voiceover", every shot gets [].
-  - beats: that scene's suggested cuts, per the splitting rules below. The row's own voiceover still lists EVERY line of the scene; a beat repeats only the lines tied to it.
+  - beats: that scene's suggested cuts, per the splitting rules below. The row's own voiceover still lists EVERY line of the scene; beats carry none.
 - on_screen_text: { intro, body (array of lines), outro }.
 - voiceover: the VO script, or "" / "No voiceover". The reel-wide copy, kept as written — the per-shot lines above are the same words mapped to their shots, and the two are checked against each other.
 - music_sound: the music & sound design direction.
@@ -240,7 +253,10 @@ export const scriptParsePrompt = {
   // signals them, each holding only the VO lines the script ties to it (SCENE_SPLIT_RULES, shared
   // with scene-split). The row is unchanged; beats become cuts only when the operator turns
   // multishot on, and untied lines span the sequence (D286).
-  version: 10,
+  // v11: "cuts"/"montage" in any phrasing is a cut signal, with worked examples (v10 missed
+  // "Handheld cuts — A, B, C" 3/3); beats must stand alone as shots; beats carry no voiceover —
+  // a split scene's lines always play over the whole sequence (D286, operator 2026-09-29).
+  version: 11,
   model: "gpt-5.4-mini",
   system,
   clientContextHeading,

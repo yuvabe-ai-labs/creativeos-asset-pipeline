@@ -39,16 +39,15 @@ describe("compileSceneSplit", () => {
     expect(system).toContain("Tone: warm");
   });
 
-  it("puts the scene, its length and its numbered lines in the user message", () => {
+  it("puts the scene and its length in the user message", () => {
     const { user } = compileSceneSplit({ description: "A → B", duration_seconds: 6, voiceover: [vo] }, "");
     expect(user).toContain("A → B");
     expect(user).toContain("6 seconds");
-    expect(user).toContain('1. (narrator) "Meet the jar."');
   });
 
-  it("says when the scene has no voiceover", () => {
-    expect(compileSceneSplit({ description: "x", duration_seconds: 3 }, "").user).toContain(
-      "Voiceover lines: none",
-    );
+  // Beats are visual only — the lines play over the whole sequence, so the splitter never sees them.
+  it("leaves the voiceover out", () => {
+    const { user } = compileSceneSplit({ description: "A → B", duration_seconds: 6, voiceover: [vo] }, "");
+    expect(user).not.toContain("Meet the jar.");
   });
 });

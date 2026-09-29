@@ -32,11 +32,7 @@ export function compileSceneSplit(scene: ReelShot, clientContext: string) {
     .filter(Boolean)
     .join("\n\n");
 
-  const lines = scene.voiceover ?? [];
-  const voiceover =
-    lines.length === 0
-      ? "Voiceover lines: none"
-      : `Voiceover lines, in order:\n${lines.map((l, i) => `${i + 1}. (${l.speaker}) "${l.text}"`).join("\n")}`;
-  const user = `Scene to split:\n${(scene.description ?? "").trim()}\n\nLength: ${scene.duration_seconds} seconds\n\n${voiceover}`;
+  // No voiceover: beats are visual only, and a split scene's lines play over the whole sequence.
+  const user = `Scene to split:\n${(scene.description ?? "").trim()}\n\nLength: ${scene.duration_seconds} seconds`;
   return { system, user };
 }

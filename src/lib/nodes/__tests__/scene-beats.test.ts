@@ -9,11 +9,10 @@ const row = (over: Partial<ReelShot> = {}): ReelShot => ({
   voiceover: [vo("Meet the jar."), vo("Made slowly, by hand.")],
   ...over,
 });
-// "Meet the jar." is tied to beat 1; "Made slowly, by hand." is tied to nothing, so it spans.
 const THREE: SceneBeat[] = [
-  { description: "Jar on marble", duration_seconds: 2, voiceover: [vo("Meet the jar.")] },
-  { description: "Spoon lifts cream", duration_seconds: 2, voiceover: [] },
-  { description: "Hand smooths it on", duration_seconds: 2, voiceover: [] },
+  { description: "Jar on marble", duration_seconds: 2 },
+  { description: "Spoon lifts cream", duration_seconds: 2 },
+  { description: "Hand smooths it on", duration_seconds: 2 },
 ];
 const stamped = (over: Partial<ReelShot> = {}): ReelShot => {
   const r = row(over);
@@ -25,17 +24,15 @@ describe("sceneFingerprint", () => {
     expect(sceneFingerprint(row())).toBe(sceneFingerprint({ ...row(), beats: THREE }));
   });
 
-  it("changes when the description, length or voiceover changes", () => {
+  it("changes when the description or length changes", () => {
     const base = sceneFingerprint(row());
     expect(sceneFingerprint(row({ description: "Something else" }))).not.toBe(base);
     expect(sceneFingerprint(row({ duration_seconds: 7 }))).not.toBe(base);
-    expect(sceneFingerprint(row({ voiceover: [vo("Changed.")] }))).not.toBe(base);
   });
 
-  it("tells an absent voiceover from an empty one", () => {
-    expect(sceneFingerprint(row({ voiceover: undefined }))).not.toBe(
-      sceneFingerprint(row({ voiceover: [] })),
-    );
+  // Beats carry no voiceover, so editing a line must not throw away a good split.
+  it("does not change when only the voiceover changes", () => {
+    expect(sceneFingerprint(row({ voiceover: [vo("Changed.")] }))).toBe(sceneFingerprint(row()));
   });
 
   it("ignores surrounding whitespace in the description", () => {
@@ -70,29 +67,24 @@ describe("beatsForScene", () => {
 });
 
 describe("multishotSeedFor", () => {
-  it("turns 2+ fresh beats into one row each, carrying only their tied lines", () => {
+  it("turns 2+ fresh beats into one silent cut row each", () => {
     expect(multishotSeedFor(stamped()).rows).toEqual([
-      { description: "Jar on marble", duration_seconds: 2, voiceover: [vo("Meet the jar.")] },
+      { description: "Jar on marble", duration_seconds: 2, voiceover: [] },
       { description: "Spoon lifts cream", duration_seconds: 2, voiceover: [] },
       { description: "Hand smooths it on", duration_seconds: 2, voiceover: [] },
     ]);
   });
 
-  it("puts the lines no beat carries on the sequence, in script order", () => {
-    expect(multishotSeedFor(stamped()).sequenceVoiceover).toEqual([vo("Made slowly, by hand.")]);
+  // Operator, 2026-09-29: "by default have the VO at sequence level".
+  it("puts every line of the scene on the sequence, in script order", () => {
+    expect(multishotSeedFor(stamped()).sequenceVoiceover).toEqual([
+      vo("Meet the jar."),
+      vo("Made slowly, by hand."),
+    ]);
   });
 
-  it("omits the sequence lines when every line is tied", () => {
-    const r = row({ voiceover: [vo("Meet the jar.")] });
-    const seed = multishotSeedFor({ ...r, beats: THREE, beatsFor: sceneFingerprint(r) });
-    expect(seed).not.toHaveProperty("sequenceVoiceover");
-  });
-
-  it("spans every line when no beat is tied to one", () => {
-    const untied = THREE.map((b) => ({ ...b, voiceover: [] }));
-    const r = row();
-    const seed = multishotSeedFor({ ...r, beats: untied, beatsFor: sceneFingerprint(r) });
-    expect(seed.sequenceVoiceover).toEqual(r.voiceover);
+  it("omits the sequence lines when the scene has none", () => {
+    expect(multishotSeedFor(stamped({ voiceover: [] }))).not.toHaveProperty("sequenceVoiceover");
   });
 
   it("keeps the row whole, lines and all, when there is a single beat", () => {
@@ -112,8 +104,7 @@ describe("multishotSeedFor", () => {
 
   it("omits voiceover on cuts and the sequence when the scene has no key", () => {
     const r = row({ voiceover: undefined });
-    const beats = THREE.map((b) => ({ description: b.description, duration_seconds: b.duration_seconds }));
-    const seed = multishotSeedFor(r, { [sceneFingerprint(r)]: beats });
+    const seed = multishotSeedFor(r, { [sceneFingerprint(r)]: THREE });
     expect(seed.rows.every((x) => !("voiceover" in x))).toBe(true);
     expect(seed).not.toHaveProperty("sequenceVoiceover");
   });

@@ -889,9 +889,9 @@ describe("scene beats become cuts (D286)", () => {
     voiceover: [vo("Meet the jar."), vo("Made by hand.")],
   };
   const BEATS = [
-    { description: "Jar", duration_seconds: 2, voiceover: [vo("Meet the jar.")] },
-    { description: "Spoon", duration_seconds: 2, voiceover: [] },
-    { description: "Hand", duration_seconds: 2, voiceover: [] },
+    { description: "Jar", duration_seconds: 2 },
+    { description: "Spoon", duration_seconds: 2 },
+    { description: "Hand", duration_seconds: 2 },
   ];
   const stampedRow = { ...plain, beats: BEATS, beatsFor: sceneFingerprint(plain) };
   const v3Script = (row: object, extra: object = {}): AppNode =>
@@ -916,20 +916,21 @@ describe("scene beats become cuts (D286)", () => {
     expect(cutsOf(store)).toEqual([["Jar", 2], ["Spoon", 2], ["Hand", 2]]);
   });
 
-  it("keeps a tied line on its cut and moves the untied one to the sequence", () => {
+  // Operator, 2026-09-29: "by default have the VO at sequence level".
+  it("puts every line on the sequence and leaves each cut silent", () => {
     const store = createCanvasStore([v3Script(stampedRow)], []);
     store.getState().fanOutShots("sc");
     store.getState().setGenerationMode("sc", "0", true);
     const data = multishotData(store);
-    expect(data.cuts[0].voiceover?.map((l) => l.text)).toEqual(["Meet the jar."]);
-    expect(data.sequenceVoiceover?.map((l) => l.text)).toEqual(["Made by hand."]);
+    expect(data.cuts.every((c) => c.voiceover?.length === 0)).toBe(true);
+    expect(data.sequenceVoiceover?.map((l) => l.text)).toEqual(["Meet the jar.", "Made by hand."]);
   });
 
   it("fans out a scene already set to multishot with its beats and sequence lines", () => {
     const store = createCanvasStore([v3Script(stampedRow, { groupModes: { "0": true } })], []);
     store.getState().fanOutShots("sc");
     expect(cutsOf(store)).toHaveLength(3);
-    expect(multishotData(store).sequenceVoiceover).toHaveLength(1);
+    expect(multishotData(store).sequenceVoiceover).toHaveLength(2);
   });
 
   it("uses one cut, with every line on it, when the beats are stale", () => {

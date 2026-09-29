@@ -31,10 +31,11 @@ cut. A line cannot be split mid-sentence either.
 - **Stale badge policy: keep the old badge, re-split on toggle.** Editing a scene does not trigger
   any call. The badge keeps reflecting the last split; turning multishot on checks freshness and
   re-splits that one scene if it changed.
-- **VO: span the sequence unless tied.** A line sits on one beat only when the script ties it to
-  that visual (written under it, or its timecode falls inside it). Every other line plays over the
-  whole multishot sequence: stored once on the Multishot node, rendered once in the prompt header.
-  A line is never split.
+- **VO: at sequence level by default.** When a scene is split, ALL its lines play over the whole
+  multishot sequence: stored once on the Multishot node, rendered once in the prompt header. Beats
+  are visual only and carry no line; a line is never split. (First drafted as "span unless the
+  script ties a line to one beat"; the operator simplified it the same day: "by default have the
+  VO at sequence level". The operator can still add a line to a single cut by hand.)
 
 ## 1. Data
 
@@ -48,16 +49,16 @@ beats?: SceneBeat[];
 /** D286 — fingerprint of the row (description, duration_seconds, voiceover) the beats were split from. */
 beatsFor?: string;
 
-/** `voiceover` holds only the lines the script TIES to this beat. */
-export type SceneBeat = { description: string; duration_seconds: number; voiceover?: VoLine[] };
+/** Visual only — a split scene's lines play over the whole sequence. */
+export type SceneBeat = { description: string; duration_seconds: number };
 ```
 
 - Absent `beats` = never split (a pre-v10 parse). `beats` of length 1 = split, continuous scene.
 - `sceneFingerprint(row)` (pure, `src/lib/nodes/scene-beats.ts`) returns
-  `` `${duration_seconds}|${description.trim()}|${JSON.stringify(voiceover ?? null)}` ``. It is
-  the single definition used by the server (stamping) and the client (freshness check).
-- A scene's **spanning lines** are its lines not tied to any beat. They are derived, not stored on
-  the row: the row's `voiceover` stays the complete list, as D267 checks it.
+  `` `${duration_seconds}|${description.trim()}` ``. The voiceover is not in it: beats do not
+  depend on it, so editing a line keeps a good split. It is the single definition used by the
+  server (stamping) and the client (freshness check).
+- The row's `voiceover` stays the complete list, as D267 checks it.
 
 The Script document UI does not render beats, and editing a row does not touch them — a stale
 `beatsFor` is what marks them out of date.
@@ -80,22 +81,25 @@ or `[]` = none. Cuts keep their own `voiceover` for tied lines, unchanged from D
 `src/prompts/script-parse.ts`:
 
 - Each `visual_script.shots[]` item gains a required `beats` array in the strict schema:
-  `{ description, duration_seconds (integer), voiceover (same VO item shape) }`.
+  `{ description, duration_seconds (integer) }`.
 - A new exported constant `SCENE_SPLIT_RULES` holds the splitting rules; the parse system prompt
   composes it, and the split route (§4) imports it. Rules:
-  - Split only where the scene's own text signals separate cuts (list above). Otherwise one beat
-    whose description is the scene's description.
-  - Each beat's description is the visual of that cut only, in the script's words, carrying the
-    scene's subject naming (beats describe the row's *final*, possibly signal-rewritten,
-    description).
+  - A scene signals cuts when it uses "cuts" or "montage" in any phrasing ("handheld cuts — A, B,
+    C", "the day in cuts — A, B, C"), says "cut to", chains visuals with "→"/"then", or separates
+    distinct shots or shot sizes. Then every listed visual is its own beat. Otherwise one beat whose
+    description is the scene's description; commas alone are not cuts.
+  - Worked examples are part of the rule text. Measured against the operator's own script: with
+    only "quick cuts of" listed, "Handheld cuts — A, B, C" came back as one beat 3/3 runs and "An
+    ordinary workday in cuts — …" split 2/3; with the examples, all five scenes split correctly
+    15/15 (3, 4, 1, 2 and 3 beats).
+  - Each beat's description stands on its own as a shot, carrying the scene's subject naming
+    (beats describe the row's *final*, possibly signal-rewritten, description).
   - Beat `duration_seconds` add up to the scene's `duration_seconds`; when the script gives no
     per-beat timing, share evenly.
-  - A VO line goes on a beat ONLY when the script ties it to that beat. A line that runs across
-    the scene, or that the script does not tie to one visual, goes on NO beat — it plays over the
-    whole sequence. Never split, repeat or invent a line.
+  - Beats carry no voiceover.
 - The row itself is unchanged: still one row per scene, description as written, `voiceover` the
   full list (D278, D267 hold).
-- Version bumps to 10, with a history note alongside v9's.
+- Version 10 introduced beats; version 11 is the signal/examples/visual-only revision above.
 
 After the model returns, the parse route runs `stampSceneBeats`, which applies `normalizeBeats`
 to every row and stamps `beatsFor = sceneFingerprint(row)`.
@@ -107,11 +111,7 @@ to every row and stamps `beatsFor = sceneFingerprint(row)`.
   then adjust so the sum equals `shotSeconds(row)`: add/remove the difference on the longest beat,
   never below the floor. If the row is shorter than `beats.length × floor`, keep the floored beats
   (the ladder states the violation later, per D237 — never silently clamp).
-- Tied lines: valid only if, read in beat order, they are an in-order subsequence of the row's
-  lines (by text) with none repeated and none invented. Otherwise every beat's lines are dropped —
-  all of the scene's lines then span the sequence, which is the safe reading.
-- `voiceover: undefined` on the row means undefined on every beat (the `[]` vs absent distinction
-  `cutsFromShots` keeps); otherwise a beat with no tied line gets `[]`.
+- Only `description` and `duration_seconds` survive; anything else a model returns is dropped.
 
 ## 3. Recommendation
 
@@ -144,8 +144,9 @@ node's id.
 `multishotSeedFor(row, cache): { rows: ReelShot[]; sequenceVoiceover?: VoLine[] }`
 (`scene-beats.ts`):
 
-- 2+ FRESH beats → `rows` are the beats (each carrying its tied lines) and `sequenceVoiceover` is
-  the row's lines no beat carries (omitted when there are none).
+- 2+ FRESH beats → `rows` are the beats, each with `voiceover: []` (no line on this cut — not
+  "no key", which reads as a pre-D267 parse), and `sequenceVoiceover` is ALL of the row's lines
+  (omitted when there are none).
 - Otherwise → `rows: [row]`, no `sequenceVoiceover` (a single cut keeps its lines on the cut,
   exactly as today). Stale beats are never turned into cuts.
 
@@ -165,9 +166,8 @@ argument. Fan-out makes no network call: a generation already set to multishot w
 fans out as one cut.
 
 **Turning multishot OFF:** `multishotDataToShot` merges the cuts into one take as today; the
-take's `voiceover` is the sequence lines followed by the cuts' lines. (When a scene mixes spanning
-and tied lines their original interleaving is not kept — the merged take reads spanning lines
-first. All-spanning and all-tied scenes round-trip exactly.)
+take's `voiceover` is the sequence lines followed by any lines the operator added to cuts by
+hand. A seeded split round-trips exactly (every line was on the sequence).
 
 ## 6. Sequence voiceover in the prompt
 

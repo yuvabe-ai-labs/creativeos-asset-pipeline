@@ -20,14 +20,12 @@ export type VoLine = {
  * signals cuts; a continuous scene is exactly one beat. Never rendered on the Script node — beats
  * become cuts only when the operator turns multishot on.
  *
- * `voiceover` holds ONLY the lines the script ties to this beat. The scene's other lines span the
- * whole multishot sequence (`MultishotNodeData.sequenceVoiceover`) — never split, never parked on
- * one short cut.
+ * Visual only — no voiceover. A split scene's lines play over the WHOLE multishot sequence
+ * (`MultishotNodeData.sequenceVoiceover`): never split, never parked on one short cut.
  */
 export type SceneBeat = {
   description: string;
   duration_seconds: number;
-  voiceover?: VoLine[];
 };
 
 export type ReelShot = {

@@ -3,22 +3,19 @@ import type { ReelShot, SceneBeat } from "../reel-script";
 import { normalizeBeats, stampSceneBeats } from "../normalize-beats";
 import { sceneFingerprint } from "../scene-beats";
 
-const vo = (text: string) => ({ text, speaker: "narrator", delivery: "", language: "" });
 const row = (over: Partial<ReelShot> = {}): ReelShot => ({
   description: "A → B → C",
   duration_seconds: 9,
-  voiceover: [vo("One."), vo("Two.")],
+  voiceover: [{ text: "One.", speaker: "narrator" }],
   ...over,
 });
-const beat = (description: string, duration_seconds: number, lines: string[] = []): SceneBeat => ({
+const beat = (description: string, duration_seconds: number): SceneBeat => ({
   description,
   duration_seconds,
-  voiceover: lines.map(vo),
 });
 const secs = (beats: SceneBeat[]) => beats.map((b) => b.duration_seconds);
-const texts = (beats: SceneBeat[]) => beats.map((b) => b.voiceover?.map((l) => l.text));
 
-describe("normalizeBeats — lengths", () => {
+describe("normalizeBeats", () => {
   it("keeps beats that already add up", () => {
     expect(secs(normalizeBeats(row(), [beat("A", 3), beat("B", 3), beat("C", 3)]))).toEqual([3, 3, 3]);
   });
@@ -45,45 +42,23 @@ describe("normalizeBeats — lengths", () => {
   it("uses the assumed length when the row has none", () => {
     expect(secs(normalizeBeats(row({ duration_seconds: undefined }), undefined))).toEqual([4]);
   });
-});
 
-describe("normalizeBeats — voiceover", () => {
-  it("mirrors the row, lines and all, as one beat when the model returned none", () => {
-    expect(normalizeBeats(row(), [])).toEqual([
-      { description: "A → B → C", duration_seconds: 9, voiceover: [vo("One."), vo("Two.")] },
-    ]);
+  it("mirrors the row as one beat when the model returned none", () => {
+    expect(normalizeBeats(row(), [])).toEqual([{ description: "A → B → C", duration_seconds: 9 }]);
   });
 
-  it("keeps tied lines that follow the scene's order", () => {
-    const out = normalizeBeats(row(), [beat("A", 3, ["One."]), beat("B", 3), beat("C", 3, ["Two."])]);
-    expect(texts(out)).toEqual([["One."], [], ["Two."]]);
-  });
-
-  // A line on no beat is not lost — it spans the sequence (multishotSeedFor derives it).
-  it("keeps a partial tie; the untied line is left to span", () => {
-    const out = normalizeBeats(row(), [beat("A", 3), beat("B", 3, ["Two."]), beat("C", 3)]);
-    expect(texts(out)).toEqual([[], ["Two."], []]);
-  });
-
-  it.each([
-    ["out of order", [beat("A", 3, ["Two."]), beat("B", 3, ["One."]), beat("C", 3)]],
-    ["repeated", [beat("A", 3, ["One."]), beat("B", 3, ["One."]), beat("C", 3)]],
-    ["invented", [beat("A", 3, ["Three."]), beat("B", 3), beat("C", 3)]],
-  ])("drops every tie when the lines are %s, so all of them span", (_label, raw) => {
-    expect(texts(normalizeBeats(row(), raw))).toEqual([[], [], []]);
-  });
-
-  it("leaves voiceover absent on every beat when the scene has no key", () => {
-    const out = normalizeBeats(row({ voiceover: undefined }), [beat("A", 4, ["Invented."]), beat("B", 5)]);
-    expect(out.every((b) => !("voiceover" in b))).toBe(true);
+  // Beats are visual only; a stray voiceover (an older prompt's shape) must not ride a cut.
+  it("keeps only description and length", () => {
+    const stray = { ...beat("A", 9), voiceover: [{ text: "One.", speaker: "narrator" }] } as SceneBeat;
+    expect(normalizeBeats(row(), [stray])).toEqual([{ description: "A", duration_seconds: 9 }]);
   });
 });
 
 describe("stampSceneBeats", () => {
   it("normalises every row and stamps the fingerprint of the row as parsed", () => {
-    const script = { visual_script: { shots: [{ ...row(), beats: [beat("A", 9, ["One.", "Two."])] }] } };
+    const script = { visual_script: { shots: [{ ...row(), beats: [beat("A", 9)] }] } };
     const shot = stampSceneBeats(script).visual_script!.shots![0];
-    expect(shot.beats).toHaveLength(1);
+    expect(shot.beats).toEqual([{ description: "A", duration_seconds: 9 }]);
     expect(shot.beatsFor).toBe(sceneFingerprint(row()));
   });
 
