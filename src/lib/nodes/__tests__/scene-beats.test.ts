@@ -112,7 +112,7 @@ describe("multishotSeedFor", () => {
 
   it("omits voiceover on cuts and the sequence when the scene has no key", () => {
     const r = row({ voiceover: undefined });
-    const beats = THREE.map(({ voiceover: _v, ...b }) => b);
+    const beats = THREE.map((b) => ({ description: b.description, duration_seconds: b.duration_seconds }));
     const seed = multishotSeedFor(r, { [sceneFingerprint(r)]: beats });
     expect(seed.rows.every((x) => !("voiceover" in x))).toBe(true);
     expect(seed).not.toHaveProperty("sequenceVoiceover");

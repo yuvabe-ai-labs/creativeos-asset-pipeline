@@ -18,6 +18,7 @@ import { voiceoverMappingIssue } from "@/lib/nodes/voiceover";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
+import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 export function ScriptNode({ id, data, selected }: NodeProps) {
@@ -34,6 +35,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     kbSlices?: KBSliceKey[];
     groupModes?: Record<string, boolean>;
     groupingVersion?: GroupingVersion;
+    sceneBeats?: SceneBeatCache;
     signalIds?: string[];
     signalMode?: SignalMode;
   };
@@ -44,6 +46,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
   const groupModes = d.groupModes;
   const groupingVersion = d.groupingVersion;
+  const sceneBeats = d.sceneBeats;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const connState = useNodeConnectionState(id, "script");
@@ -148,6 +151,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       source={source}
       parsed={parsed}
       groupModes={groupModes}
+      sceneBeats={sceneBeats}
       groupingVersion={groupingVersion}
       slices={slices}
       signalIds={d.signalIds ?? []}
