@@ -5855,8 +5855,10 @@ scene is one beat. The row itself is unchanged (still one row per scene), and th
 never renders beats. Under grouping v3, `recommendMultishot` is `beats.length > 1`. Turning
 multishot on builds the cuts from the beats; when the row was edited since the split (fingerprint
 mismatch) or predates v10, the toggle first calls `POST /api/nodes/:id/split-scene` for that one
-scene. The split rules are one shared constant (`SCENE_SPLIT_RULES`) used by both prompts. A stale
-split still drives the badge; no call runs on edit.
+scene. A re-split is cached on the Script node's own data (`sceneBeats`, keyed by fingerprint), not
+written into `parsed` — that is the active version's output (D19), and rewriting it would reseed
+the focus view's unsaved draft. The split rules are one shared constant (`SCENE_SPLIT_RULES`) used
+by both prompts. A stale split still drives the badge but never becomes cuts; no call runs on edit.
 
 **Why.** Under v3 a flip to multishot produced one cut, so the operator split every montage by
 hand, and the recommendation was hard-coded off because its only signal (a generation spanning

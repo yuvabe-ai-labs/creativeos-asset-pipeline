@@ -49,6 +49,14 @@ export type SceneBeat = { description: string; duration_seconds: number; voiceov
 The Script document UI does not render beats, and editing a row does not touch them — a stale
 `beatsFor` is what marks them out of date.
 
+**Re-split results live in a cache on the Script node's own data, not in `parsed`.**
+`ScriptNodeData.sceneBeats?: Record<fingerprint, SceneBeat[]>`. `parsed` is the active version's
+output (D19) — writing it means rewriting the version and reseeding the focus view's draft, which
+would drop the operator's unsaved edits. The cache is autosaved like `groupModes`, keyed by
+fingerprint so it is self-validating, and pruned on every write to fingerprints of the current
+rows. `beatsForScene(row, cache)` answers `{ beats, fresh }`: the row's own beats when their
+`beatsFor` matches, else a cache hit (fresh), else the row's stale beats (`fresh: false`).
+
 ## 2. Parse v10
 
 `src/prompts/script-parse.ts`:
@@ -87,8 +95,10 @@ After the model returns, the parse route runs `normalizeBeats(row)` on every row
 ## 3. Recommendation
 
 `describeGenerations` (`group-shots.ts`): under v3,
-`recommendMultishot = (shots[group.shotIndexes[0]].beats?.length ?? 0) > 1`. The stale split
-still drives it (policy above). v1/v2 keep their current rule. A pre-v10 parse shows no badge.
+`recommendMultishot = cutCount > 1`, where `Generation.cutCount` (new) is
+`beatsForScene(row, cache).beats?.length ?? 1` for a single-row generation and
+`shotIndexes.length` otherwise. `describeGenerations` takes the cache as an optional fourth
+argument. The stale split still drives it (policy above); a cache hit wins over stale row beats. v1/v2 keep their current rule. A pre-v10 parse shows no badge.
 
 `GenerationBracket`'s tooltip reason for v3 names the beat count ("3 cuts in this scene. Multishot
 generates them as one sequence…"); the seconds-based branch stays.
@@ -110,25 +120,24 @@ node's id.
 
 ## 5. Turning multishot on
 
-`rowsForMultishot(row): ReelShot[]` (`scene-beats.ts`) — beats (as `ReelShot`s: description,
-`duration_seconds`, voiceover) when `beats` has 2+ entries, else `[row]`. It does NOT check
-freshness; the caller guarantees it.
+`rowsForMultishot(row, cache): ReelShot[]` (`scene-beats.ts`) — the FRESH beats (as `ReelShot`s:
+description, `duration_seconds`, voiceover) when there are 2+, else `[row]`. Stale beats are never
+turned into cuts: they describe text the scene no longer has.
 
-**Toggle (`GenerationBracket.handleChange`, v3, turning ON):**
+**Toggle (`GenerationBracket`, a single-row generation, turning ON):**
 
-1. Row's beats fresh → proceed.
-2. Stale or missing → call `split-scene` with the row. While pending the Switch is disabled and
-   shows a small spinner; the downstream-disconnect dialog (if any) is confirmed first, then the
-   split runs. On success, write `beats` / `beatsFor` onto that row of `parsed` via
-   `updateNodeData`. On failure, toast "Couldn't split this scene — added as one cut" and proceed.
+1. Beats fresh → proceed.
+2. Stale or missing → call `split-scene` with the stored row. While pending the Switch is disabled
+   and shows a small spinner; the downstream-disconnect dialog (if any) is confirmed first, then
+   the split runs. On success, `cacheSceneBeats(scriptNodeId, fingerprint, beats)` writes the
+   cache. On failure, toast "Couldn't split this scene — added as one cut" and proceed.
 3. `setGenerationMode(...)` as today.
 
 **`setGenerationMode` / fan-out (`canvas-store.ts`):** where cuts are built from script rows —
 `shotDataToMultishot(..., scriptRows)` in the flip and `cutsFromShots(groupShots)` in fan-out —
-the rows pass through `rowsForMultishot` when the generation is a single v3 scene. Fan-out of a
-generation already set to multishot uses the stored beats as-is (stale or not; no network call in
-the synchronous store). Turning multishot OFF is unchanged (`multishotDataToShot` merges cuts into
-one take).
+a single-row group passes through `rowsForMultishot(row, data.sceneBeats)`. Fan-out makes no
+network call: a generation already set to multishot with stale beats fans out as one cut. Turning
+multishot OFF is unchanged (`multishotDataToShot` merges cuts into one take).
 
 ## 6. Out of scope
 
