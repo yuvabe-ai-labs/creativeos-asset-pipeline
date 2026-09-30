@@ -24,14 +24,25 @@ export function useAvatarStudio({
   const [uploading, setUploading] = useState<AvatarImageSlot | null>(null);
   const [saving, setSaving] = useState(false);
   const createdHere = useRef(false);
+  // `uploading` state is stale inside `uploadImage` between renders (two quick calls can both
+  // read it as null before either commits); the ref is checked synchronously instead.
+  const uploadingRef = useRef(false);
   const libraryHref = `/clients/${clientSlug}/avatars`;
 
-  // Typing alone never creates a draft; it is saved once the avatar exists.
+  // Typing alone never creates a draft; it is saved once the avatar exists. Merges only the
+  // fields a text save owns, so a save that resolves late never clobbers a newer image upload.
   const saveFields = useDebouncedCallback((fields: { name: string; story: string }) => {
     if (!avatar) return;
-    avatarsService.update(clientId, avatar.id, fields).then(setAvatar).catch((e) => {
-      toast.error(message(e, "Could not save"));
-    });
+    avatarsService.update(clientId, avatar.id, fields)
+      .then((updated) => {
+        setAvatar((prev) => (prev ? {
+          ...prev, name: updated.name, story: updated.story,
+          status: updated.status, updatedAt: updated.updatedAt,
+        } : updated));
+      })
+      .catch((e) => {
+        toast.error(message(e, "Could not save"));
+      });
   }, SAVE_DELAY_MS);
 
   const setName = useCallback((next: string) => {
@@ -45,11 +56,15 @@ export function useAvatarStudio({
   }, [saveFields, name]);
 
   const uploadImage = useCallback(async (slot: AvatarImageSlot, file: File) => {
+    // Two quick drops (or a front and a sheet drop together) must not both start: they'd
+    // create two drafts, or race to clear each other's placeholder.
+    if (uploadingRef.current) return;
     const invalid = validateAvatarImageFile(file);
     if (invalid) {
       toast.error(invalid);
       return;
     }
+    uploadingRef.current = true;
     setUploading(slot);
     try {
       let target = avatar;
@@ -61,14 +76,19 @@ export function useAvatarStudio({
       setAvatar(await avatarsService.uploadImage(clientId, target.id, slot, file));
       if (createdHere.current) {
         createdHere.current = false;
-        router.replace(`${libraryHref}/${target.id}`);
+        // Move the URL in place, without a navigation: /new and /[avatarId] are different route
+        // segments, so router.replace would unmount and remount the Studio mid-flow. The Native
+        // History API integrates with the Next.js router (app/getting-started/linking-and-
+        // navigating.md, "Native History API"), and a reload still resumes this same draft.
+        window.history.replaceState(null, "", `${libraryHref}/${target.id}`);
       }
     } catch (e) {
       toast.error(message(e, "Upload failed"));
     } finally {
+      uploadingRef.current = false;
       setUploading(null);
     }
-  }, [avatar, clientId, name, story, router, libraryHref]);
+  }, [avatar, clientId, name, story, libraryHref]);
 
   const markReady = useCallback(async () => {
     if (!avatar) return;

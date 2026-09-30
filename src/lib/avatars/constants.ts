@@ -2,7 +2,10 @@ import type { PersonType } from "./schema";
 
 // Deliberately narrower than LOGO_EXTENSIONS: a face reference is a photo, never svg or gif.
 export const AVATAR_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
-export const AVATAR_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp";
+// The sign route rejects any other content type; AVATAR_IMAGE_ACCEPT is derived from the same
+// set so the two cannot drift.
+export const AVATAR_IMAGE_CONTENT_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+export const AVATAR_IMAGE_ACCEPT = [...AVATAR_IMAGE_CONTENT_TYPES].join(",");
 export const AVATAR_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
 export const AVATAR_IMAGE_MAX_LABEL = "15 MB";
 

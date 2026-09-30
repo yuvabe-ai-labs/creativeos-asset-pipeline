@@ -40,6 +40,7 @@ export function AvatarImageDropzone({ label, hint, aspect, image, uploading, onF
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
+        if (uploading) return;
         const file = e.dataTransfer.files?.[0];
         if (file) onFile(file);
       }}

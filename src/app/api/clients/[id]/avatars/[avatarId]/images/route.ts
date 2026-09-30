@@ -55,10 +55,11 @@ export async function POST(
       const avatar = await updateAvatar(clientId, avatarId, withStatus(current, change));
       if (!avatar) return apiError("Avatar not found.", 404);
 
-      // Only an UPLOAD is removed when replaced. A generated image (plan 2) still belongs to
-      // the batch it came from, which keeps showing it.
+      // Only an UPLOAD is removed when replaced, and only when it is a genuinely different
+      // object: finalizing the same upload twice (a retry, a double submit) would otherwise
+      // delete the object the row now points at.
       const replaced = current[slot];
-      if (replaced?.source.kind === "upload") {
+      if (replaced?.source.kind === "upload" && replaced.url !== image.url) {
         try {
           await removeObject(replaced.url);
         } catch {

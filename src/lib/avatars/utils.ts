@@ -86,6 +86,14 @@ export function planAvatarUpdate(
   return { ok: true, patch: withStatus(current, patch) };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Postgres throws on a non-UUID id; callers use this to treat a malformed id as "not found"
+ *  without querying. */
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 /** Browser and server share this, so the message is the same before and after the upload. */
 export function validateAvatarImageFile(file: { name: string; size: number }): string | null {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";

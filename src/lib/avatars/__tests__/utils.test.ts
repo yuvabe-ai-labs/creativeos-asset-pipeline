@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   avatarReadinessGaps, isAvatarReady, frontChangePatch,
-  sheetChangePatch, withStatus, planAvatarUpdate, validateAvatarImageFile,
+  sheetChangePatch, withStatus, planAvatarUpdate, validateAvatarImageFile, isUuid,
 } from "../utils";
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
@@ -91,5 +91,20 @@ describe("validateAvatarImageFile", () => {
   it("rejects other types and oversize files with the rule stated", () => {
     expect(validateAvatarImageFile({ name: "face.gif", size: 1000 })).toMatch(/png, jpg, jpeg, webp/);
     expect(validateAvatarImageFile({ name: "face.png", size: AVATAR_IMAGE_MAX_BYTES + 1 })).toMatch(/15 MB/);
+  });
+});
+
+describe("isUuid", () => {
+  it("accepts a valid v4 id", () => {
+    expect(isUuid("2b1b1b1b-1b1b-4b1b-8b1b-1b1b1b1b1b1b")).toBe(true);
+  });
+  it("accepts an uppercase id", () => {
+    expect(isUuid("2B1B1B1B-1B1B-4B1B-8B1B-1B1B1B1B1B1B")).toBe(true);
+  });
+  it("rejects a non-uuid string", () => {
+    expect(isUuid("abc")).toBe(false);
+  });
+  it("rejects an empty string", () => {
+    expect(isUuid("")).toBe(false);
   });
 });

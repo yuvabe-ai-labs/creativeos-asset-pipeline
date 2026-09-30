@@ -3,10 +3,11 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { getAvatar } from "@/lib/db/avatars";
 import { signAvatarImageUpload } from "@/lib/storage";
 import { validateAvatarImageFile } from "@/lib/avatars/utils";
+import { AVATAR_IMAGE_CONTENT_TYPES } from "@/lib/avatars/constants";
 
 const SignSchema = z.object({
   filename: z.string().min(1),
-  contentType: z.string().optional(),
+  contentType: z.string().min(1),
   size: z.number().nonnegative(),
   slot: z.enum(["front", "sheet"]),
 });
@@ -27,12 +28,18 @@ export async function POST(
       const invalid = validateAvatarImageFile({ name: filename, size });
       if (invalid) return apiError(invalid, 400);
 
+      if (!AVATAR_IMAGE_CONTENT_TYPES.has(contentType)) {
+        return apiError(
+          `Unsupported content type '${contentType}'. Allowed: ${[...AVATAR_IMAGE_CONTENT_TYPES].join(", ")}.`,
+          400,
+        );
+      }
+
       const avatar = await getAvatar(clientId, avatarId);
       if (!avatar || avatar.archivedAt) return apiError("Avatar not found.", 404);
 
       const signed = await signAvatarImageUpload({
-        clientId, avatarId, slot, filename,
-        contentType: contentType || "application/octet-stream",
+        clientId, avatarId, slot, filename, contentType,
       });
       return apiOk(signed);
     }),

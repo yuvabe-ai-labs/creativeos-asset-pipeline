@@ -70,6 +70,18 @@ describe("POST images/sign", () => {
     );
     expect(res.status).toBe(404);
   });
+
+  it("rejects a content type outside the allowed set, even with a valid extension", async () => {
+    const { POST } = await import("./sign/route");
+    const res = await POST(
+      req("images/sign", {
+        filename: "new.png", contentType: "application/octet-stream", size: 100, slot: "front",
+      }),
+      { params },
+    );
+    expect(res.status).toBe(400);
+    expect(signAvatarImageUpload).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST images (finalize)", () => {
@@ -106,6 +118,14 @@ describe("POST images (finalize)", () => {
     vi.mocked(removeObject).mockClear();
     vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ front: makeImage(GENERATED) }));
     await POST(req("images", body), { params });
+    expect(removeObject).not.toHaveBeenCalled();
+  });
+
+  it("does not remove the object when finalizing the same upload twice — its URL is unchanged", async () => {
+    const { POST } = await import("./route");
+    // makeAvatar()'s front is at this same path; publicUrlFor(path) resolves to its own URL.
+    const samePath = "clients/c1/avatars/a1/front/face.png";
+    await POST(req("images", { ...body, path: samePath }), { params });
     expect(removeObject).not.toHaveBeenCalled();
   });
 

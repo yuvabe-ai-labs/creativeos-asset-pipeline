@@ -1,12 +1,7 @@
 import { readImageSize, uploadViaSignedUrl } from "@/lib/uploads/client";
 import type { Avatar, AvatarImageSlot } from "@/lib/avatars/schema";
 import type { AvatarUpdateInput } from "@/lib/avatars/utils";
-
-async function readJson<T>(res: Response, fallback: string): Promise<T> {
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((json as { error?: string }).error ?? fallback);
-  return json as T;
-}
+import { readJson } from "./read-json";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 

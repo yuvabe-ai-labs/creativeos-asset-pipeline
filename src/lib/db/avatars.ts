@@ -2,7 +2,7 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { patchToRow, rowToAvatar, type AvatarRow } from "@/lib/avatars/rows";
 import type { Avatar } from "@/lib/avatars/schema";
-import type { AvatarPatch } from "@/lib/avatars/utils";
+import { isUuid, type AvatarPatch } from "@/lib/avatars/utils";
 
 // Every query filters on client_id as well as the avatar id. withClient authorises the CLIENT
 // in the URL, not the avatar id beside it — without this one client could read or change
@@ -21,6 +21,8 @@ export async function listAvatars(clientId: string): Promise<Avatar[]> {
 }
 
 export async function getAvatar(clientId: string, avatarId: string): Promise<Avatar | null> {
+  // Postgres throws on a non-UUID id; a malformed id is simply not found.
+  if (!isUuid(avatarId)) return null;
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("client_avatars")
@@ -58,6 +60,7 @@ export async function updateAvatar(
   avatarId: string,
   patch: AvatarPatch,
 ): Promise<Avatar | null> {
+  if (!isUuid(avatarId)) return null;
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("client_avatars")
@@ -73,6 +76,7 @@ export async function updateAvatar(
 /** Archive, never delete (D287): a canvas that already uses the avatar keeps working.
  *  False when the avatar does not exist, belongs to another client, or is already archived. */
 export async function archiveAvatar(clientId: string, avatarId: string): Promise<boolean> {
+  if (!isUuid(avatarId)) return false;
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("client_avatars")
