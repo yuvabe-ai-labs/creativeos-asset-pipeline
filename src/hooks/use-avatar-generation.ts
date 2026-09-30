@@ -44,6 +44,12 @@ export function useAvatarGeneration({
     setComposerState((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // Every total the server reports is a snapshot of a number that only grows, and responses in
+  // a batch can arrive out of order — so the larger snapshot is always the more recent truth.
+  const applySpent = useCallback((total: number) => {
+    setSpentCredits((prev) => Math.max(prev, total));
+  }, []);
+
   // What was generated before this visit. Merged, not assigned: a draft created in this
   // session may already have results on screen when the load returns.
   useEffect(() => {
@@ -53,12 +59,12 @@ export function useAvatarGeneration({
       .listGenerations(clientId, avatarId)
       .then((loaded) => {
         setCandidates((prev) => mergeCandidates(prev, loaded.candidates));
-        setSpentCredits(loaded.spentCredits);
+        applySpent(loaded.spentCredits);
       })
       .catch(() => {
         // The grid is a convenience; a failed load leaves it empty rather than blocking work.
       });
-  }, [clientId, avatarId]);
+  }, [clientId, avatarId, applySpent]);
 
   // A failed generation batch (or sheet request) may still have charged credits for the images
   // that DID succeed before the error — refetches the real settled total rather than trusting
@@ -66,11 +72,11 @@ export function useAvatarGeneration({
   const refreshSpentCredits = useCallback(async (id: string) => {
     try {
       const loaded = await avatarsService.listGenerations(clientId, id);
-      setSpentCredits(loaded.spentCredits);
+      applySpent(loaded.spentCredits);
     } catch {
       // Best-effort; the toast already told the operator what happened.
     }
-  }, [clientId]);
+  }, [clientId, applySpent]);
 
   const generate = useCallback(async (input: GenerateFrontInput) => {
     let target: Avatar;
@@ -99,7 +105,7 @@ export function useAvatarGeneration({
           batchId,
         });
         setCandidates((prev) => mergeCandidates(prev, [candidate]));
-        setSpentCredits(total);
+        applySpent(total);
       } catch (e) {
         errors.add(errorMessage(e, "Could not generate the image"));
       } finally {
@@ -111,7 +117,7 @@ export function useAvatarGeneration({
     // the images that succeeded, in an order the per-tile responses above cannot be trusted to
     // reflect (concurrent requests can settle out of order).
     if (errors.size > 0) await refreshSpentCredits(target.id);
-  }, [clientId, ensureAvatar, refreshSpentCredits]);
+  }, [clientId, ensureAvatar, refreshSpentCredits, applySpent]);
 
   const pickFront = useCallback(async (candidate: AvatarCandidate) => {
     // The front cannot change while a sheet is generating (it was made from the front now on
@@ -133,7 +139,7 @@ export function useAvatarGeneration({
     try {
       const { avatar, spentCredits: total } = await avatarsService.generateSheet(clientId, avatarId, modelId);
       onAvatar(avatar);
-      setSpentCredits(total);
+      applySpent(total);
     } catch (e) {
       toast.error(errorMessage(e, "Could not generate the profile sheet"));
       // A 409 here (the front changed mid-generation) has already charged credits for the
@@ -142,7 +148,7 @@ export function useAvatarGeneration({
     } finally {
       setGeneratingSheet(false);
     }
-  }, [clientId, avatarId, generatingSheet, onAvatar, refreshSpentCredits]);
+  }, [clientId, avatarId, generatingSheet, onAvatar, refreshSpentCredits, applySpent]);
 
   return {
     candidates, pending, spentCredits, picking, generatingSheet,
