@@ -6452,3 +6452,25 @@ is likely refused as a real face).
 **Refines.** D299 (the avatar as a virtual input), BUG-010, D97.
 
 **Originated →** `2026-10-06-avatar-references-and-limits-design.md`.
+
+### D279 — Public token-scoped review links for canvas reviews *(recorded 2026-09-30; draft, pending spec approval)*
+
+**Decision.** A Client review node holds one uploaded cut (`canvas_reviews`, one row per node) and
+a plain-stored 32-byte `share_token`. `/r/[token]` and `/api/r/[token]/*` are exempted in
+`src/proxy.ts` and every such route goes through `withShareToken` in `route-helpers.ts` — the
+single sanctioned exception to session auth. Clients give a typed name, see everyone's notes and
+can edit any note (`canvas_review_notes`, soft delete, `edited_by_name`). The public page reads by
+polling; the canvas hears new notes through an org-isolation SELECT policy + Realtime. Video is
+served through a proxy locked to the review's own `video_path` so frame capture stays untainted.
+A new cut is a new node.
+
+**Why.** The operator shares stitched edits with clients who have no account, and wants their
+frame-level feedback to land on the canvas where the cut lives. One named helper at one proxy
+exemption keeps the unauthenticated surface auditable.
+
+**Rejected.** Reusing `node_version_annotations` (tied to approval decisions and a user id); the
+Post-node share design (a different feature); an anon RLS policy for client Realtime (reverses
+D86 table-wide); replacing the video inside a node (stale timecodes); per-reviewer edit ownership.
+
+**Refines.** D44, D46, D245, D248, D86. **Originated →**
+`docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
