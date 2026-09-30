@@ -61,3 +61,36 @@ Apply migration `0043` first (see `docs/auth-production-migration.md`).
 8. Replace a generated front with an uploaded photo on an avatar using the engine's own voice:
    the Voice row goes back to Optional.
 9. Open another client's Studio: the first client's cloned voice is not listed.
+
+---
+
+## Addendum — voice preview (D294, same day)
+
+**Goal:** From the Voice step, generate a 6-second clip of the front image speaking one line in
+the avatar's named voice. Spec §6.6. No migration.
+
+| Piece | Files |
+|---|---|
+| Rules (pure): default line, prompt, cost, staleness, timeout | `src/lib/avatars/voice-preview.ts`, constants in `constants.ts`, `VoicePreview` in `schema.ts` |
+| The task's steps (clip once, voice change retried) | `src/lib/avatars/voice-preview-run.ts` |
+| Background task | `trigger/avatar-voice-preview.ts` |
+| Settlement from the webhook | `src/lib/avatars/complete-voice-preview.ts`, one branch in `src/lib/generations/complete.ts` |
+| Route (`GET` latest, `POST` start) | `src/app/api/clients/[id]/avatars/[avatarId]/voice-preview/route.ts` |
+| Storage and read | `signAvatarVoicePreviewUrl`, `pathForAvatarVoicePreview`, `getLatestAvatarVoicePreview` |
+| Studio | `src/hooks/use-avatar-voice-preview.ts`, `src/components/avatars/avatar-voice-preview.tsx` |
+
+### Verify in the running app
+
+The task runs on Trigger.dev: run `npx trigger.dev@latest dev` locally (or deploy the tasks)
+first, with `APP_URL`, `TRIGGER_WEBHOOK_SECRET`, `GOOGLE_GENAI_API_KEY` and
+`ELEVEN_LABS_API_KEY` set. Each preview costs real money (about $0.61).
+
+1. Open an avatar with a named voice → **3 · Voice**. A Preview block shows under the voice,
+   with the default line and the cost on the button.
+2. **Generate preview**. A placeholder shows; within about a minute the clip appears and plays
+   with the avatar's voice, in sync with the lips. "Spent on this avatar" rises by the cost.
+3. Pick a different voice. The clip stays and is labelled out of date; regenerate replaces it.
+4. Switch to "The engine's own voice" (generated avatar): the Preview block is hidden.
+5. Leave the Voice step while a preview runs and come back: it is still running or done.
+6. A real person's photo may be refused by Google: the message shows under the button and no
+   credits are charged.

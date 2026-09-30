@@ -6050,3 +6050,39 @@ deferred: it needs a generated clip, so it arrives with canvas use.
 **Deferred.** Billing ElevenLabs usage in credits. The anchor declaration.
 **Originated →** `2026-09-29-client-avatars-design.md` §6.3, §7.3.
 
+### D294 — An avatar's voice can be previewed as a short talking clip *(recorded 2026-09-30)*
+
+**Decision.** In the Studio's Voice step, an avatar with a named voice has **Generate preview**:
+Gemini Omni Flash animates the front image speaking one editable line (6 s, 720p, 9:16), and the
+clip's voice is then replaced with the avatar's ElevenLabs voice by speech-to-speech — the Change
+voice steps (D282–D284), so the timing and the lip-sync are the clip's own. The preview is one
+avatar-owned video `generations` row (`inputs_snapshot.slot = "voice-preview"`); no table and
+no migration. A background task (`avatar-voice-preview`) does both halves and reports through
+the generation webhook, where `completeGeneration` gains one branch for it. Credits for both
+halves are reserved up front and settled on success; any failure refunds the whole reservation.
+A preview is marked out of date once the avatar's voice or front image differs from the ones it
+was made with.
+
+**Why.** The ElevenLabs sample on a voice says how the voice sounds, not how it sounds on this
+face. The operator should hear and see the pairing before spending on real videos. Omni is the
+engine for real-person avatars already (D290) and accepts any front image, so one engine covers
+both kinds. Re-voicing an Omni clip is exactly what a real-person avatar's videos will do, so the
+preview is a faithful sample of the production path rather than a separate trick.
+
+**Rejected.** Text-to-speech plus a lip-sync model (a second vendor and a second look; the
+preview would not resemble the videos). Seedance for generated avatars (2.3× the price, and the
+point of the preview is the named voice, which is applied the same way on either engine). A
+`preview` column on the avatar (a second record of something the generation already holds).
+Running it inside the request like the Studio's images (a clip plus a voice change does not fit
+a request; the canvas already runs both as tasks). Charging for the Omni half when the voice
+change fails (the operator has nothing to play; the cost is absorbed).
+
+**Known limits.** Google can refuse a real person's face; its message is shown and nothing is
+charged. One task attempt: a retry would pay for the clip again, so only the voice change is
+retried, against the same clip. Only named voices can be previewed; "the engine's own voice" has
+nothing to apply.
+
+**Refines.** D284 (the re-voice steps, reused unchanged), D291 (a generation owned by an avatar
+may now be a video), D293.
+**Originated →** `2026-09-29-client-avatars-design.md` §6.6.
+

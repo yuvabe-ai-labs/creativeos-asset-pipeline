@@ -209,6 +209,8 @@ asks for the whole body outright and tells the model to continue the outfit down
 One field, identical to Change voice's trigger (name, gender · language · accent, preview button).
 It opens the shared picker (§6). Optional.
 
+With a named voice declared, a **Preview** block sits under the field (§6.6).
+
 ### 4.4 Draft, ready, archive
 
 - The avatar row is created as `draft` at the first Generate or upload. Drafts appear in the
@@ -301,6 +303,37 @@ ElevenLabs plans cap custom voices, and library saves and clones both count. A `
 ElevenLabs is answered with 409 and: "The ElevenLabs account has no free voice slots. Remove an unused voice, or
 upgrade the plan."
 
+### 6.6 Voice preview (D294)
+
+A short clip of the avatar speaking in its named voice, so the operator can judge the pairing of
+voice and face before making videos.
+
+| | |
+|---|---|
+| Where | Voice step, under the voice field, when the declared voice is a named one. |
+| Input | The front image and one line, up to 120 characters. Default: "Hi, I'm {name}. This is how I sound." |
+| Clip | Gemini Omni 1.1 Flash, 6 seconds, 720p, 9:16, front image as the first frame. |
+| Voice | The clip's audio is extracted, converted with ElevenLabs speech-to-speech to the avatar's voice (default settings) and put back. A result more than 0.25 s out of sync is rejected. |
+| Cost | The Omni clip plus the voice change over the same seconds: about 615 credits at the standard voice rate. Shown on the button. |
+
+**Flow.** `POST /api/clients/[id]/avatars/[avatarId]/voice-preview` checks the avatar has a front
+image and a named voice and that no preview is already running (409), inserts a video
+`generations` row owned by the avatar (`inputs_snapshot`: slot `voice-preview`, line, prompt,
+voice id and name, price multiplier, front URL), reserves the credits, signs the clip's upload
+and queues the `avatar-voice-preview` task. The task generates the clip, re-voices it, uploads
+it and calls the generation webhook; `completeGeneration` settles the real cost and records the
+clip as the generation's output. `GET` on the same path returns the latest preview and the cost
+of the next one; the Studio polls it every four seconds while a preview is running.
+
+**Failure.** Any failure — Google refusing the face, the voice change failing twice, an
+out-of-sync result — fails the generation with the provider's message and refunds the whole
+reservation. The task runs once; only the voice change is retried, against the same clip. A
+preview still running after 15 minutes is failed and refunded when the Studio next reads it (the
+reconciliation sweep does the same on its own schedule).
+
+**Out of date.** A preview records the voice and the front image it was made with. When either
+differs from the avatar's current one, the clip stays playable and is labelled out of date.
+
 ---
 
 ## 7. Credits
@@ -312,7 +345,7 @@ Every generate control shows **✦ N** from the existing path: `image-gen/estima
 
 ### 7.2 Ledger
 
-Each image — every front candidate and every sheet — is one `generations` row with
+Each image — every front candidate and every sheet — and each voice preview (§6.6) is one `generations` row with
 `avatar_id` and `client_id` (a batch of four is four rows). The route
 calls `reserveCredits`, runs the provider, then settles on the provider's reported cost or refunds
 (`refundReservation`) on failure. A cap refusal returns 402. The stuck-reservation sweep, admin
