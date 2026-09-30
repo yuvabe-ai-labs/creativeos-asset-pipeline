@@ -1,0 +1,118 @@
+"use client";
+
+import { useState } from "react";
+import { Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useVoicePreview } from "@/hooks/use-voice-preview";
+import type { useAvatarVoice } from "@/hooks/use-avatar-voice";
+import { allowedVoiceModes, avatarVoiceToPickerVoice } from "@/lib/avatars/voice";
+import type { Avatar, AvatarVoiceMode } from "@/lib/avatars/schema";
+import { VideoGenChangeVoicePicker } from "@/components/nodes/video-gen-change-voice-picker";
+
+const MODE_COPY: Record<AvatarVoiceMode, { title: string; body: string }> = {
+  native: {
+    title: "The engine's own voice",
+    body: "Seedance generates the voice with the video. It can differ from clip to clip.",
+  },
+  named: {
+    title: "A named voice",
+    body: "An ElevenLabs voice, applied after generation, so every clip sounds the same.",
+  },
+};
+
+type Props = {
+  clientId: string;
+  avatar: Avatar;
+  voice: ReturnType<typeof useAvatarVoice>;
+};
+
+// D293 — step 3 of the Studio: the voice this avatar speaks with. Optional. A generated avatar
+// may use its engine's own voice or a named one; a real person runs on an engine that takes no
+// audio input, so only a named voice is offered.
+export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
+  const modes = allowedVoiceModes(avatar.personType);
+  const preview = useVoicePreview();
+  const declared = avatar.voice;
+  const named = avatarVoiceToPickerVoice(declared);
+  // Which option is open. A named voice has to be picked before anything is saved, so the
+  // choice of "named" lives here until then.
+  const [open, setOpen] = useState<AvatarVoiceMode | null>(
+    declared?.mode ?? (modes.length === 1 ? modes[0] : null),
+  );
+
+  return (
+    <>
+      <div>
+        <p className="text-eyebrow text-muted-foreground">Voice</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Optional. The voice this avatar speaks with in every video.
+          {modes.length === 1 &&
+            " A real person's avatar runs on Gemini Omni, which takes no voice input, so its voice is applied after generation."}
+        </p>
+      </div>
+
+      {modes.length > 1 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {modes.map((mode) => {
+            const active = open === mode;
+            return (
+              <Button
+                key={mode}
+                variant="outline"
+                aria-pressed={active}
+                disabled={v.saving}
+                onClick={() => {
+                  setOpen(mode);
+                  if (mode === "native" && declared?.mode !== "native") void v.chooseNative();
+                }}
+                className={cn(
+                  "h-auto flex-col items-start gap-1 whitespace-normal p-3 text-left",
+                  active && "border-primary/50 bg-primary/5 hover:bg-primary/10",
+                )}
+              >
+                <span className="flex items-center gap-1.5 text-sm font-semibold">
+                  {declared?.mode === mode && <Check className="size-4 text-primary" strokeWidth={1.5} />}
+                  {MODE_COPY[mode].title}
+                </span>
+                <span className="text-xs font-normal text-muted-foreground">{MODE_COPY[mode].body}</span>
+              </Button>
+            );
+          })}
+        </div>
+      )}
+
+      {open === "named" && (
+        <div className="w-full max-w-md">
+          <VideoGenChangeVoicePicker
+            clientId={clientId}
+            voice={named}
+            saving={v.saving}
+            playing={Boolean(named && preview.playingId === named.voiceId)}
+            onTogglePreview={() => named && preview.toggle(named)}
+            onSelect={(picked) => {
+              preview.stop();
+              void v.chooseNamed(picked);
+            }}
+          />
+        </div>
+      )}
+
+      {declared && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="self-start text-muted-foreground"
+          disabled={v.saving}
+          onClick={() => {
+            preview.stop();
+            setOpen(modes.length === 1 ? modes[0] : null);
+            void v.clear();
+          }}
+        >
+          Remove the voice
+        </Button>
+      )}
+    </>
+  );
+}

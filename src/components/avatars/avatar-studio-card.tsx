@@ -14,6 +14,7 @@ import { avatarEngineNote } from "@/lib/avatars/generation";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { ReadinessGap } from "@/lib/avatars/utils";
 import { AvatarArchiveButton } from "./avatar-archive-button";
+import { avatarVoiceLabel } from "@/lib/avatars/voice";
 import { AvatarCreditCost } from "./avatar-credit-cost";
 
 type Props = {
@@ -84,6 +85,9 @@ export function AvatarStudioCard({
           <Row done={has("consent")} label="Permission" detail={has("consent") ? "Confirmed" : "Needed"} />
         )}
         {engine && <Row done={engine.ok} label="Runs on" detail={engine.text} />}
+        {avatar?.front && (
+          <Row done={avatar.voice !== null} label="Voice" detail={avatarVoiceLabel(avatar.voice) ?? "Optional"} />
+        )}
       </ul>
 
       <div className="flex flex-col gap-1.5">

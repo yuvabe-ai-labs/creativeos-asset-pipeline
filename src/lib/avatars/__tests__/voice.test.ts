@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  allowedVoiceModes, avatarVoiceLabel, isVoiceAllowed, pickerVoiceToAvatarVoice,
-  voiceAfterFrontChange,
+  allowedVoiceModes, avatarVoiceLabel, avatarVoiceToPickerVoice, isVoiceAllowed,
+  pickerVoiceToAvatarVoice, voiceAfterFrontChange,
 } from "../voice";
 import { frontChangePatch } from "../utils";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
@@ -64,6 +64,16 @@ describe("avatarVoiceLabel", () => {
     expect(avatarVoiceLabel(NAMED)).toBe("Surabhi");
     expect(avatarVoiceLabel(NATIVE)).toBe("Engine's own voice");
     expect(avatarVoiceLabel(null)).toBeNull();
+  });
+});
+
+describe("avatarVoiceToPickerVoice", () => {
+  it("gives the picker's field the named voice, and nothing for a native voice or none", () => {
+    expect(avatarVoiceToPickerVoice(NAMED)).toMatchObject({
+      voiceId: "v1", name: "Surabhi", source: "account", previewUrl: "https://x/p.mp3", labels: { gender: "female" },
+    });
+    expect(avatarVoiceToPickerVoice(NATIVE)).toBeNull();
+    expect(avatarVoiceToPickerVoice(null)).toBeNull();
   });
 });
 

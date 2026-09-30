@@ -8,13 +8,15 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAvatarGeneration } from "@/hooks/use-avatar-generation";
 import { useAvatarStudio } from "@/hooks/use-avatar-studio";
+import { useAvatarVoice } from "@/hooks/use-avatar-voice";
 import type { Avatar } from "@/lib/avatars/schema";
 import { AvatarLikenessConsent } from "./avatar-likeness-consent";
 import { AvatarStudioCard } from "./avatar-studio-card";
 import { AvatarStudioLookStep } from "./avatar-studio-look-step";
 import { AvatarStudioSheetStep } from "./avatar-studio-sheet-step";
+import { AvatarStudioVoiceStep } from "./avatar-studio-voice-step";
 
-type Step = "look" | "sheet";
+type Step = "look" | "sheet" | "voice";
 
 type Props = {
   clientId: string;
@@ -23,8 +25,8 @@ type Props = {
   initialAvatar: Avatar | null;
 };
 
-// D287 — the Avatar Studio: a full page. The steps are on the left, the avatar card on the
-// right. Plan 3 adds the Voice step.
+// D287 — the Avatar Studio: a full page. The steps (Look, Profile sheet, Voice) are on the
+// left, the avatar card on the right.
 export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }: Props) {
   const s = useAvatarStudio({ clientId, clientSlug, initialAvatar });
   const g = useAvatarGeneration({
@@ -33,6 +35,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     ensureAvatar: s.ensureAvatar,
     onAvatar: s.replaceAvatar,
   });
+  const v = useAvatarVoice({ clientId, avatarId: s.avatar?.id ?? null, onAvatar: s.replaceAvatar });
   // Open on the step that still needs work.
   const [step, setStep] = useState<Step>(
     initialAvatar?.front && (!initialAvatar.sheet || initialAvatar.sheetStale) ? "sheet" : "look",
@@ -76,6 +79,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
           <TabsList>
             <TabsTrigger value="look">1 · Look</TabsTrigger>
             <TabsTrigger value="sheet" disabled={!front}>2 · Profile sheet</TabsTrigger>
+            <TabsTrigger value="voice" disabled={!front}>3 · Voice</TabsTrigger>
           </TabsList>
         </Tabs>
       </header>
@@ -89,8 +93,11 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
               consent={consent}
               onContinue={() => setStep("sheet")}
             />
-          ) : (
+          ) : step === "sheet" || !s.avatar ? (
             <AvatarStudioSheetStep studio={s} generation={g} consent={consent} />
+          ) : (
+            // Keyed on the front image: a replaced face can change which voices are possible.
+            <AvatarStudioVoiceStep key={front?.url ?? "none"} clientId={clientId} avatar={s.avatar} voice={v} />
           )}
         </Card>
 
@@ -100,7 +107,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
           story={s.story}
           gaps={s.gaps}
           saving={s.saving}
-          busy={s.uploading !== null || g.picking !== null || g.generatingSheet || g.pending.length > 0}
+          busy={s.uploading !== null || g.picking !== null || g.generatingSheet || g.pending.length > 0 || v.saving}
           spentCredits={g.spentCredits}
           onName={s.setName}
           onStory={s.setStory}

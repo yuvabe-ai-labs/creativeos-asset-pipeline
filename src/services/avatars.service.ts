@@ -33,6 +33,19 @@ class AvatarsService {
     return (await readJson<{ avatar: Avatar }>(res, "Could not save the avatar.")).avatar;
   }
 
+  /** The avatar's voice declaration (D293). A named voice is sent by id; the server looks it
+   *  up and checks it is this client's. */
+  async setVoice(
+    clientId: string,
+    avatarId: string,
+    choice: { mode: "none" } | { mode: "native" } | { mode: "named"; voiceId: string },
+  ): Promise<Avatar> {
+    const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/voice`, {
+      method: "PUT", headers: JSON_HEADERS, body: JSON.stringify(choice),
+    });
+    return (await readJson<{ avatar: Avatar }>(res, "Could not set the voice.")).avatar;
+  }
+
   async archive(clientId: string, avatarId: string): Promise<void> {
     const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}`, { method: "DELETE" });
     await readJson(res, "Could not archive the avatar.");

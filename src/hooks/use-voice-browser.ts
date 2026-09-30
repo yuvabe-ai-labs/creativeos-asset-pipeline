@@ -11,8 +11,10 @@ import { useVoicePreview } from "./use-voice-preview";
 export type VoiceTab = "account" | "library";
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** D283 — state for the voice picker popover: tabs, filters (per tab), both lists, paging, one preview at a time. */
-export function useVoiceBrowser(open: boolean) {
+/** D283 — state for the voice picker popover: tabs, filters (per tab), both lists, paging, one preview at a time.
+ *  D292 — with a `clientId`, the account tab lists that client's voices (plus stock voices) instead of
+ *  the whole ElevenLabs account. */
+export function useVoiceBrowser(open: boolean, clientId?: string) {
   const [tab, setTab] = useState<VoiceTab>("account");
   // Review fix — filters (including sort) used to be one shared object, so a My-voices sort
   // value ("name"/"newest") or an account-only label leaked into the Library query — sent
@@ -52,8 +54,7 @@ export function useVoiceBrowser(open: boolean) {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for this fetch
     setAccountLoading(true);
-    elevenLabsApi
-      .listVoices({ source: "account" })
+    (clientId ? elevenLabsApi.listClientVoices(clientId) : elevenLabsApi.listVoices({ source: "account" }))
       .then((r) => {
         if (!cancelled) { setAccountAll(r.voices); setAccountError(null); }
       })
@@ -64,7 +65,7 @@ export function useVoiceBrowser(open: boolean) {
         if (!cancelled) setAccountLoading(false);
       });
     return () => { cancelled = true; };
-  }, [open, accountNonce]);
+  }, [open, accountNonce, clientId]);
 
   const accountVoices = useMemo(
     () => filterAccountVoices(accountAll, filtersByTab.account),
@@ -151,6 +152,8 @@ export function useVoiceBrowser(open: boolean) {
     // above re-runs on the open → true transition), which is enough to show the newly-saved
     // voice under My voices — no need for an explicit nonce bump here.
     retry: () => (tab === "account" ? setAccountNonce((n) => n + 1) : fetchLibraryPage(null)),
+    /** Refetch the account tab — after a clone or a removal changed the client's voices. */
+    reloadAccount: () => setAccountNonce((n) => n + 1),
     preview,
   };
 }

@@ -33,6 +33,22 @@ export function avatarVoiceLabel(voice: AvatarVoice | null): string | null {
   return voice.mode === "native" ? "Engine's own voice" : voice.name;
 }
 
+/** The avatar's named voice in the shape the voice picker's field shows. Null for a native
+ *  voice or none. The snapshot carries no category or price, which the field does not need. */
+export function avatarVoiceToPickerVoice(voice: AvatarVoice | null): PickerVoice | null {
+  if (!voice || voice.mode !== "named") return null;
+  return {
+    voiceId: voice.voiceId,
+    source: "account",
+    name: voice.name,
+    description: null,
+    previewUrl: voice.previewUrl,
+    labels: voice.labels,
+    category: "",
+    priceMultiplier: 1,
+  };
+}
+
 /** The snapshot stored on the avatar: enough to show the voice and to re-voice with it. */
 export function pickerVoiceToAvatarVoice(voice: PickerVoice): AvatarVoice {
   return {
