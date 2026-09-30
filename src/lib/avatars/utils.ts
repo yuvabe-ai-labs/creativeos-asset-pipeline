@@ -4,6 +4,7 @@ import {
   LIKENESS_CONSENT_CHANGED_ERROR, READINESS_GAP_LABELS,
 } from "./constants";
 import type { Avatar, AvatarImage } from "./schema";
+import { voiceAfterFrontChange } from "./voice";
 
 export type ReadinessGap = keyof typeof READINESS_GAP_LABELS;
 
@@ -15,7 +16,7 @@ export type ReadinessInput = Pick<
 export type AvatarPatch = Partial<Pick<
   Avatar,
   | "name" | "story" | "personType" | "front" | "sheet" | "sheetStale" | "status"
-  | "likenessConsentBy" | "likenessConsentAt"
+  | "likenessConsentBy" | "likenessConsentAt" | "voice"
 >>;
 
 export type AvatarUpdateInput = {
@@ -58,12 +59,17 @@ export function isAvatarReady(avatar: ReadinessInput): boolean {
  *  `avatarReadinessGaps` only turns this into the "sheet-stale" gap when a sheet actually
  *  exists, so stating it on a sheet-less avatar is inert until a sheet shows up. */
 export function frontChangePatch(current: Avatar, image: AvatarImage): AvatarPatch {
+  const personType = image.source.kind === "generated" ? "generic" : "specific";
+  const voice = voiceAfterFrontChange(current.voice, personType);
   return {
     front: image,
     sheetStale: true,
-    personType: image.source.kind === "generated" ? "generic" : "specific",
+    personType,
     likenessConsentBy: null,
     likenessConsentAt: null,
+    // Only stated when the declaration stops being possible (a native voice on what is now a
+    // real person, D293); a voice that survives the change is left untouched.
+    ...(voice !== current.voice ? { voice } : {}),
   };
 }
 

@@ -28,12 +28,18 @@ export type AvatarImage = {
   source: AvatarImageSource;
 };
 
-export type AvatarVoice = {
-  voiceId: string;
-  name: string;
-  labels: Record<string, string>;
-  previewUrl: string | null;
-};
+// D293 — the avatar's voice declaration. "native" is the engine's own generated voice; "named"
+// is an ElevenLabs account voice, applied by re-voicing after generation.
+export type AvatarVoiceMode = "native" | "named";
+export type AvatarVoice =
+  | { mode: "native" }
+  | {
+      mode: "named";
+      voiceId: string;
+      name: string;
+      labels: Record<string, string | undefined>;
+      previewUrl: string | null;
+    };
 
 export type AvatarVoiceSample = { url: string; durationSeconds: number; sourceKey: string };
 

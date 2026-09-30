@@ -3,6 +3,7 @@ import { AudioLines, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PERSON_TYPE_LABELS } from "@/lib/avatars/constants";
 import type { Avatar } from "@/lib/avatars/schema";
+import { avatarVoiceLabel } from "@/lib/avatars/voice";
 
 // D287 — one square library tile: the face, with the name and voice on a soft gradient over it.
 // A plain Link, like the rows of canvases-table.tsx; the whole tile is the target.
@@ -41,7 +42,7 @@ export function AvatarTile({ avatar, clientSlug }: { avatar: Avatar; clientSlug:
           {avatar.voice ? (
             <>
               <AudioLines className="size-3 shrink-0" strokeWidth={1.5} />
-              <span className="truncate">{avatar.voice.name}</span>
+              <span className="truncate">{avatarVoiceLabel(avatar.voice)}</span>
             </>
           ) : (
             "No voice"
