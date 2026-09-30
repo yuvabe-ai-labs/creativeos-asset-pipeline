@@ -4,6 +4,7 @@ import type { GenerationRow } from "./types";
 import { getReservationAmounts } from "./credit-transactions";
 import type { GenerationRow as ImpersonationGenerationRow } from "@/lib/auth/impersonation-audit-view";
 import { isUuid } from "@/lib/avatars/utils";
+import { AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
 
 // Real settled credits per version, keyed by version_id — for the node focus views' usage
 // popovers, which used to recompute an estimate client-side from paramsUsed.tokensUsed. That
@@ -276,7 +277,24 @@ export async function listAvatarGenerations(avatarId: string): Promise<Generatio
   return (data ?? []) as GenerationRow[];
 }
 
-/** Credits actually charged for this avatar's images — the ledger's settled amounts. */
+/** The avatar's most recent voice preview (D294), in any state. Null when none was ever made. */
+export async function getLatestAvatarVoicePreview(avatarId: string): Promise<GenerationRow | null> {
+  if (!isUuid(avatarId)) return null;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("*")
+    .eq("avatar_id", avatarId)
+    .eq("inputs_snapshot->>slot", AVATAR_VOICE_PREVIEW_SLOT)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as GenerationRow | null) ?? null;
+}
+
+/** Credits actually charged for this avatar — its images and voice previews — the ledger's
+ *  settled amounts. */
 export async function sumAvatarCredits(avatarId: string): Promise<number> {
   if (!isUuid(avatarId)) return 0;
   const supabase = createServerSupabase();

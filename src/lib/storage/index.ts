@@ -17,6 +17,7 @@ import {
   pathForVideoGenVoice,
   pathForAvatarImage,
   pathForAvatarGenerated,
+  pathForAvatarVoicePreview,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 import type { AvatarImageSlot } from "@/lib/avatars/schema";
@@ -263,6 +264,17 @@ export async function uploadAvatarGenerated(args: {
     ext: args.ext,
   });
   return _upload(path, args.body, args.contentType);
+}
+
+// D294 — the avatar-voice-preview task has no GCS credentials either; the route signs its one
+// upload up front, exactly as signRevoicedVideoUrl does for a canvas voice change.
+export async function signAvatarVoicePreviewUrl(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): Promise<{ putUrl: string; url: string }> {
+  const path = pathForAvatarVoicePreview(args);
+  return { putUrl: await _signPutUrl(path, "video/mp4", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
 }
 
 // Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —

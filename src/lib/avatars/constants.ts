@@ -100,3 +100,16 @@ export const AVATAR_DEFAULT_SHEET_MODEL_ID = "gemini:gemini-3-pro-image";
 // an allow-list by the upload finalize route, so a crafted name ("..", a backslash, "%2e") can
 // never resolve to another avatar's object.
 export const AVATAR_STORED_NAME_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
+
+// D294 — the voice preview: a short Gemini Omni clip of the front image speaking one line,
+// re-voiced with the avatar's named voice. Fixed settings, so its cost is known before the click:
+// 720p is Omni's native tier, and 9:16 is the closer of Omni's two ratios to a 3:4 front image.
+export const AVATAR_VOICE_PREVIEW_SLOT = "voice-preview";
+export const AVATAR_VOICE_PREVIEW_SECONDS = 6;
+export const AVATAR_VOICE_PREVIEW_RESOLUTION = "720p";
+export const AVATAR_VOICE_PREVIEW_ASPECT = "9:16";
+// About what can be said, unhurried, in the preview's six seconds.
+export const AVATAR_VOICE_PREVIEW_LINE_MAX = 120;
+// Longer than the task can run (5 minutes, one attempt). A preview still "running" past this
+// lost its task or its webhook: it is failed and refunded the next time the Studio reads it.
+export const AVATAR_VOICE_PREVIEW_TIMEOUT_MS = 15 * 60 * 1000;

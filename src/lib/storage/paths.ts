@@ -150,6 +150,16 @@ export function pathForAvatarImage(args: {
   return `clients/${args.clientId}/avatars/${args.avatarId}/${args.slot}/${name}`;
 }
 
+/** An avatar's voice preview clip (D294). Keyed by generation id, not a random name, because
+ *  the route signs the upload before the task that writes it runs. */
+export function pathForAvatarVoicePreview(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): string {
+  return `clients/${args.clientId}/avatars/${args.avatarId}/voice-preview/${args.generationId}.mp4`;
+}
+
 /** Where a Studio-generated avatar image lives — under `generated/`, apart from uploads, so
  *  the upload finalize route's prefix check can never be satisfied by a generated object. */
 export function pathForAvatarGenerated(args: {

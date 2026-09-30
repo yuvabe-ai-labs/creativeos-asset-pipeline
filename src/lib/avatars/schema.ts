@@ -56,6 +56,21 @@ export type AvatarCandidate = {
   sizeBytes: number;
 };
 
+// The avatar speaking one line in its named voice (D294). Read back from `generations`; no
+// table of its own. `voiceId` and `frontUrl` are what it was made with, so the Studio can tell
+// when it no longer shows this avatar.
+export type VoicePreview = {
+  generationId: string;
+  status: "running" | "succeeded" | "failed";
+  url: string | null;
+  line: string;
+  voiceId: string;
+  voiceName: string;
+  frontUrl: string;
+  error: string | null;
+  createdAt: string;
+};
+
 export type Avatar = {
   id: string;
   clientId: string;

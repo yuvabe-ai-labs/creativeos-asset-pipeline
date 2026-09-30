@@ -156,6 +156,6 @@ export function useAvatarGeneration({
   return {
     candidates, pending, spentCredits, picking, generatingSheet,
     composer, setComposer, sheetModelId, setSheetModelId,
-    generate, pickFront, generateSheet,
+    generate, pickFront, generateSheet, refreshSpentCredits,
   };
 }

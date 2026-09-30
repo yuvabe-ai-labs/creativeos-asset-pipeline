@@ -9,6 +9,8 @@ import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 import { readVoiceChange } from "@/lib/voice-change/source";
+import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
+import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
 
 // Every failure path in this file needs the same two calls in the same order — a small
 // local helper keeps that from drifting out of sync across the 3 sites that need it.
@@ -45,11 +47,15 @@ export async function completeGeneration(
   // Idempotency: skip if already resolved (duplicate webhook delivery)
   if (generation.status !== "running") return;
 
-  // Video/voice completions always originate from a canvas node — the Avatar Studio (D291)
-  // only ever produces images, which never flow through this webhook. An avatar-owned row
-  // (node_id null) reaching here has no node to verify the org against or attach a version
-  // to, so it is dropped the same defensive way as the org-mismatch backstop just below.
+  // An avatar-owned row (node_id null) has no node to attach a version to. The one kind that
+  // completes through this webhook is the avatar's voice preview (D294), which has its own
+  // settlement. The Studio's images (D291) finish inside their own request and never arrive
+  // here, so anything else is dropped the same defensive way as the org-mismatch backstop below.
   if (!generation.node_id) {
+    if (isVoicePreviewGeneration(generation)) {
+      await completeAvatarVoicePreview(generation, input);
+      return;
+    }
     console.error("[completeGeneration] generation has no node_id — dropping", {
       generationId: input.generationId,
     });

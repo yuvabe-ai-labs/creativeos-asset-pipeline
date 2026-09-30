@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useVoicePreview } from "@/hooks/use-voice-preview";
 import type { useAvatarVoice } from "@/hooks/use-avatar-voice";
+import type { useAvatarVoicePreview } from "@/hooks/use-avatar-voice-preview";
 import { allowedVoiceModes, avatarVoiceToPickerVoice } from "@/lib/avatars/voice";
 import type { Avatar, AvatarVoiceMode } from "@/lib/avatars/schema";
 import { VideoGenChangeVoicePicker } from "@/components/nodes/video-gen-change-voice-picker";
+import { AvatarVoicePreview } from "./avatar-voice-preview";
 
 const MODE_COPY: Record<AvatarVoiceMode, { title: string; body: string }> = {
   native: {
@@ -25,12 +27,13 @@ type Props = {
   clientId: string;
   avatar: Avatar;
   voice: ReturnType<typeof useAvatarVoice>;
+  preview: ReturnType<typeof useAvatarVoicePreview>;
 };
 
 // D293 — step 3 of the Studio: the voice this avatar speaks with. Optional. A generated avatar
 // may use its engine's own voice or a named one; a real person runs on an engine that takes no
 // audio input, so only a named voice is offered.
-export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
+export function AvatarStudioVoiceStep({ clientId, avatar, voice: v, preview: clip }: Props) {
   const modes = allowedVoiceModes(avatar.personType);
   const preview = useVoicePreview();
   const declared = avatar.voice;
@@ -96,6 +99,11 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
             }}
           />
         </div>
+      )}
+
+      {/* D294 — only a named voice can be previewed: the engine's own voice has nothing to apply. */}
+      {open === "named" && declared?.mode === "named" && (
+        <AvatarVoicePreview avatar={avatar} preview={clip} disabled={v.saving} />
       )}
 
       {declared && (

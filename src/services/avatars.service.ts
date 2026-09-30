@@ -1,5 +1,5 @@
 import { readImageSize, uploadViaSignedUrl } from "@/lib/uploads/client";
-import type { Avatar, AvatarCandidate, AvatarImageSlot } from "@/lib/avatars/schema";
+import type { Avatar, AvatarCandidate, AvatarImageSlot, VoicePreview } from "@/lib/avatars/schema";
 import { avatarImageContentType, type AvatarUpdateInput } from "@/lib/avatars/utils";
 import type { AvatarAttributes, AvatarStyleId } from "@/lib/avatars/constants";
 import { readJson } from "./read-json";
@@ -44,6 +44,23 @@ class AvatarsService {
       method: "PUT", headers: JSON_HEADERS, body: JSON.stringify(choice),
     });
     return (await readJson<{ avatar: Avatar }>(res, "Could not set the voice.")).avatar;
+  }
+
+  /** The latest voice preview in whatever state it is in, and what the next one costs (D294). */
+  async getVoicePreview(
+    clientId: string,
+    avatarId: string,
+  ): Promise<{ preview: VoicePreview | null; estimateCredits: number | null }> {
+    const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/voice-preview`);
+    return readJson(res, "Could not load the voice preview.");
+  }
+
+  /** Queues a preview; it comes back "running" and is read with getVoicePreview until done. */
+  async startVoicePreview(clientId: string, avatarId: string, line: string): Promise<VoicePreview | null> {
+    const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/voice-preview`, {
+      method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ line }),
+    });
+    return (await readJson<{ preview: VoicePreview | null }>(res, "Could not start the voice preview.")).preview;
   }
 
   async archive(clientId: string, avatarId: string): Promise<void> {

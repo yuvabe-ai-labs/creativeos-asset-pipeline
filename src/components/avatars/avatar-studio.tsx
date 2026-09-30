@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAvatarGeneration } from "@/hooks/use-avatar-generation";
 import { useAvatarStudio } from "@/hooks/use-avatar-studio";
 import { useAvatarVoice } from "@/hooks/use-avatar-voice";
+import { useAvatarVoicePreview } from "@/hooks/use-avatar-voice-preview";
 import type { Avatar } from "@/lib/avatars/schema";
 import { AvatarLikenessConsent } from "./avatar-likeness-consent";
 import { AvatarStudioCard } from "./avatar-studio-card";
@@ -36,6 +37,12 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     onAvatar: s.replaceAvatar,
   });
   const v = useAvatarVoice({ clientId, avatarId: s.avatar?.id ?? null, onAvatar: s.replaceAvatar });
+  const preview = useAvatarVoicePreview({
+    clientId,
+    avatarId: s.avatar?.id ?? null,
+    voiceId: s.avatar?.voice?.mode === "named" ? s.avatar.voice.voiceId : null,
+    onSettled: g.refreshSpentCredits,
+  });
   // Open on the step that still needs work.
   const [step, setStep] = useState<Step>(
     initialAvatar?.front && (!initialAvatar.sheet || initialAvatar.sheetStale) ? "sheet" : "look",
@@ -97,7 +104,13 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
             <AvatarStudioSheetStep studio={s} generation={g} consent={consent} />
           ) : (
             // Keyed on the front image: a replaced face can change which voices are possible.
-            <AvatarStudioVoiceStep key={front?.url ?? "none"} clientId={clientId} avatar={s.avatar} voice={v} />
+            <AvatarStudioVoiceStep
+              key={front?.url ?? "none"}
+              clientId={clientId}
+              avatar={s.avatar}
+              voice={v}
+              preview={preview}
+            />
           )}
         </Card>
 
