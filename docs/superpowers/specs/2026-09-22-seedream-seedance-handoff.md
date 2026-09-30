@@ -5,7 +5,7 @@ taking human-presenter UGC video into the product.
 **Read with:** [2026-09-18 spike findings](2026-09-18-seedance-human-reference-findings.md) ·
 [UGC bench design](2026-09-21-ugc-bench-design.md)
 
-## 0. Status — read this first (updated 2026-09-29)
+## 0. Status — read this first (updated 2026-09-30)
 
 **Where the work stands, and where to pick it up.**
 
@@ -18,11 +18,11 @@ taking human-presenter UGC video into the product.
 | Canvas integration | **Not started.** Design settled (§0.2); split into six specs (§0.3), to be written one at a time |
 | Voice | Consistency falls out of the avatar. Three mechanisms; re-voicing SHIPPED, anchor still unexercised (§0.2) |
 | Avatar + Composite nodes | **Designed 2026-09-29** (§0.2). Two new node types; avatar is client-level |
-| System-prompt audit | **Done** (§10). Scope cut by §0.4: multishot-only ⇒ 5 records, no composer/roles/controls |
+| System-prompt audit | **Done** (§10). **§0.5 proposes the actual edits**, line by line, with what NOT to change |
 | OmniHuman 1.5 (BytePlus Vision AI) | **Paused** at an account permission wall (§8) |
 | ElevenLabs | **SHIPPED** D282–D284 to staging 2026-09-27 — re-voicing works on any clip (§0.2) |
 
-**Start at §0.2** for the design, **§0.3** for the six specs, **§0.4** for the multishot-only scope that shrinks spec D. §0.1 has the probe findings. §3 is the API reference, §4 the rules that constrain the design (**two of which are now
+**Start at §0.2** for the design, **§0.3** for the six specs, **§0.5** for the prompt changes proposed line by line. §0.1 has the probe findings; §0.4 is the evidence behind §0.5. §3 is the API reference, §4 the rules that constrain the design (**two of which are now
 disproved**), and §10 the prompt audit. §9 is answered in full.
 
 ## 0.1 What changed on 2026-09-24 (read before §4 and §6)
@@ -168,8 +168,8 @@ Not a lane. All four cells must work:
 | | Single shot | Multishot |
 |---|---|---|
 | **Brand** | ships today | ships today |
-| **UGC — specific** (Omni) | *deferred* | **build this** — 3–10 s total |
-| **UGC — generic** (Seedance) | *deferred* | **build this** — 4–30 s total |
+| **UGC — specific** (Omni) | ✓ | ✓ — 3–10 s total |
+| **UGC — generic** (Seedance) | ✓ | ✓ — 4–30 s total |
 
 **UGC is multishot-only for now** (operator, 2026-09-29). The single-shot UGC cells are
 deferred, not cancelled — and they are the expensive half, because the single-shot Seedance
@@ -284,7 +284,7 @@ take"), one cost line, and one preview surface.
 
 **Two new node types:** Avatar (client-level record, picker, focus view) and Composite.
 
-**Five new prompt records** (was eight, before UGC went multishot-only):
+**Prompt records** (§0.5 has the walk from the Script and the proposed text):
 
 | # | Record | Notes |
 |---|---|---|
@@ -328,7 +328,7 @@ rather than restating the architecture.
 | **B1** | **Avatar — identity** | `avatars` table (client-scoped) + the four rules; Avatar node type, picker, focus view; base face (A) or upload; model sheet via Nano Banana; `avatar → script`; engine/ceiling/voice-options **derived** from kind, never stored; resolution through `seededFrom.scriptNodeId`; the blocking rules | A | Yes |
 | **B2** | **Avatar — voice** | the declaration field; picking an account or Library voice (both already shipped); **uploading a client's own voice and cloning it**; consent for BOTH likenesses, face and voice, in one record; how re-voicing consumes the declaration | B1 | Yes |
 | **C** | Composite node | node type; avatar + File inputs; **prompt typed on the node**; the composite prompt record, which must not style the image | B1 | Yes |
-| **D** | UGC prompt records | **Three files only:** `UGC_SPINE` (shared) + `multishot-prompt-ugc-seedance` + `multishot-prompt-ugc-omni`. See §0.4 — the composer record, shot roles, shot controls and the single-shot records all drop out with the multishot-only scope | B1 | Yes |
+| **D** | UGC prompt records | `UGC_SPINE` + 4 motion records (single/multishot × omni/seedance), the composer record, shot roles, shot controls, and three shared-block edits. **§0.5 has the proposed text, line by line** | B1 | Yes |
 | **E** | Voice unification — **later** | chain voicing into `video-generate` from the declaration so the node shows one status stream; partial-success state for drift aborts; one cost line; one preview surface | B2 | Yes |
 
 **Suggested order: A → B1 → B2 → D → C.** A is small and de-risks the Seedream integration
@@ -364,7 +364,12 @@ a voice checkbox in B2 that nobody reconciles.
 - **OmniHuman** account access (§8) — unrelated to these specs, still blocked.
 
 
-## 0.4 UGC is multishot-only for now — what that removes (2026-09-29)
+## 0.4 The multishot-only scoping note (2026-09-29) — PARTLY SUPERSEDED by §0.5
+
+**Read §0.5 first.** Genre and packing are independent: brand and UGC each have a single-shot and
+a multishot form, and all four cells are in the design. What stays true below is the *evidence*
+— the multishot lane has no composer and no controls, and it already carries most of the
+person-handling UGC needs. What changed is the scope: the single-shot UGC records are back in.
 
 **Decision (operator, 2026-09-29): build UGC on the multishot lane only.** Single-shot UGC is
 deferred. This roughly halves spec D, and it defers the harder half.
@@ -436,6 +441,118 @@ reference image"* (`referenceIdentificationBlock` forbids exactly that phrasing)
 asks for *"no background music"* so a clip can be reused as a voice anchor.
 
 **The prompt inheritance graph** — which shared block reaches which record — is an appendix on the
+page: https://claude.ai/artifact/5ZEEb4SWQp87e79aaPpayt
+
+
+## 0.5 Proposed prompt changes, inspected line by line (2026-09-30)
+
+Supersedes §0.4's scoping note on which prompts move. **Genre and packing are independent —
+brand and UGC each have a single-shot and a multishot form, and all four cells are real.** The
+build may still start with UGC multishot, but the design covers four.
+
+### First, a correction: the person-handling in the shared blocks is NOT UGC bleed
+
+An earlier pass suspected the multishot prompts had picked up UGC flavour that should be
+"restored" for brand. **The history says otherwise**, and reverting it would reintroduce a fixed
+bug:
+
+| Line in `multishot-prompt-generate.ts` | What | Arrived in |
+|---|---|---|
+| 48–50 | the people-wearing-product examples | `d01c9861` — *one plain action per beat* (D263) |
+| 56 | identity-only; *"face, build, hair, wardrobe"*; identity sheet | `d6d68939` — **D281** |
+| 70 | PERSON / PRODUCT / GARMENT / SURFACE / BRAND MARK | `04630bfe` — *the writer names a reference* |
+| 179 | *"'a young woman' → 'a young woman in a loose linen shirt'"* | `d01c9861` (D263) |
+
+D281's own stated reason is a **brand** failure: *"A three-angle character turnaround on a grey
+seamless was read as the location, and the plan arrived on a light studio background."* A
+character turnaround is a brand asset. The multishot lane was built for **people wearing
+products** from the start.
+
+**So the difference between brand-multishot and UGC-multishot is not whether a person may appear.
+It is premise:**
+
+| | Brand multishot | UGC multishot |
+|---|---|---|
+| Who | a model, named fresh per beat | **one specific avatar**, the same person throughout |
+| What they do | wear or use the product in a scene | **talk to camera** about it |
+| Preservation | the product survives the beat | the product **and the person** survive across beats |
+
+### The walk from the Script — what changes where
+
+| Stage | File | Brand | UGC |
+|---|---|---|---|
+| Script parse | `script-parse.ts` | — | **no change.** It transcribes; `ai_production_type` is free text, a default hint at most, never routing |
+| Grouping | *(no prompt)* | — | — |
+| Composer *(Shot node only)* | `shot-compose.ts` | unchanged | new record — today it is *"a shot composer for premium, slow, tactile D2C beauty reels"* |
+| | `shot-roles.ts` | unchanged | new role set + default — `lifestyle` *forbids* body-contact as the subject; `DEFAULT_SHOT_ROLE` is `hero` |
+| | `shot-controls.ts` | unchanged | new options — 24–100 mm + softbox today; UGC wants handheld, phone, ring light |
+| Image prompt | `prompt-generate.ts` | **fix: branch by model** — OpenAI receives a prompt headed "for Nano Banana" today | per-shot stills are unused in UGC; base face, model sheet and composite each have their own record |
+| Motion, single | `video-prompt-{veo,kling,omni,seedance}` | unchanged | **2 new:** `-ugc-seedance`, `-ugc-omni` |
+| Motion, multishot | `multishot-prompt-{omni,kling,seedance}` | unchanged | **2 new:** `-ugc-seedance`, `-ugc-omni` |
+| Shared | `SPINE` | unchanged | **new `UGC_SPINE`** — `SPINE` is first-frame and preservation-first |
+| Shared | `VO_PERFORMANCE_RULES` | **fix: wire into the 4 single-shot records** | inherits the fix |
+| Shared | `MULTISHOT_SHARED_CRAFT` | **add person-preservation** | inherits it |
+
+Two of those are **brand-side fixes UGC merely exposes** — the image-prompt branching and the
+`VO_PERFORMANCE_RULES` wiring — and are worth doing on their own.
+
+### The three concrete edits
+
+**1 — extend `PRESERVATION` to people.** `MULTISHOT_SHARED_CRAFT`, after the existing product
+sentence. Shared, so brand gets it too:
+
+```
+A referenced PERSON must survive the same way: the same face, build, hair and wardrobe in
+every beat they appear in, named the same way each time. Left unsaid, the model returns a
+different person two beats later.
+```
+
+**2 — a new `UGC_SPINE`, composed only by the UGC records.** Two rules, deliberately:
+
+```
+UGC — ONE PERSON, TO CAMERA
+They are the subject, not set dressing. The product is in their hands or worn — held up,
+turned to the lens, put on — never staged beside them.
+
+Unless the shot text says otherwise, the register is a phone at arm's length: handheld,
+eye-level, close enough to read the face. No crane, no dolly, no studio lighting.
+```
+
+Person-constancy lives in edit 1, not here, so one instruction is not duplicated across two
+blocks the same record composes. Keep it short: D263 **removed** a five-rule physics section and
+four editing-grammar rules from this block because *"each asked the writer to narrate one more
+motion per beat… the operator reported the result as overcomplicated motion."*
+
+**3 — pair the worked examples.** A brand fix, independent of UGC. Both exemplars in
+`referenceIdentificationBlock` are people wearing product, and the file says *"the example is
+what the writer imitates"* — so a macro product reel imitates a person walking. Replace one:
+
+```
+    A hand sets the tan CHUPPS Sliders down on a terrazzo step.
+    A college student crosses a campus courtyard in the black CHUPPS V-Straps.
+```
+
+### Deliberately not changing
+
+| | Why |
+|---|---|
+| the identity-only rule (D281) | added for a brand bug; reverting reintroduces it |
+| *"add no setting the shot text does not name"* | D262's rule. UGC does not get to invent settings either |
+| `VO_PERFORMANCE_RULES` itself | already correct for talk-to-camera; UGC inherits it unchanged |
+| dialogue in the writer | D267 removed it; `renderVoiceover` appends the words afterwards |
+
+### Validate before committing any of it
+
+Run a real UGC shot list through the **existing** multishot Seedance writer and read the plan —
+one LLM call, no video. If it already produces good talk-to-camera beats, edit 2 may shrink to
+one rule or none. Edits 1 and 3 stand on their own merits either way.
+
+`src/lib/ugc/starter.ts` has the bench's own UGC scripts to test with. Three things the bench
+does that the product deliberately does not: it writes dialogue inline (D267), it says *"the
+creator in the reference image"* (`referenceIdentificationBlock` forbids that phrasing), and it
+asks for *"no background music"* so a clip can be reused as a voice anchor.
+
+The prompt inheritance graph — which shared block reaches which record — is an appendix on the
 page: https://claude.ai/artifact/5ZEEb4SWQp87e79aaPpayt
 
 
