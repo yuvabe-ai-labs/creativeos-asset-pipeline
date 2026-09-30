@@ -14,7 +14,10 @@ const message = (e: unknown, fallback: string) => (e instanceof Error ? e.messag
 
 // A response is stale if it is older than what is already on screen — same server column
 // (`updatedAt`), compared as dates. Applying it anyway could set a stale `status` (e.g.
-// "Ready" beside "Still needed…") from a save that resolved out of order.
+// "Ready" beside "Still needed…") from a save that resolved out of order. `saveFields` and
+// `confirmConsent` call this directly, merging only the fields they own on top of the current
+// state; every other server response that replaces the whole avatar (upload, pick a front,
+// generate the sheet) goes through `replaceAvatar` below, which applies the same guard.
 function isStale(prev: Avatar, updated: Avatar): boolean {
   return new Date(updated.updatedAt).getTime() < new Date(prev.updatedAt).getTime();
 }
@@ -100,6 +103,15 @@ export function useAvatarStudio({
     return creatingRef.current;
   }, [avatar, clientId, name, story, libraryHref]);
 
+  // The guarded full-replace for a server response that carries the whole avatar (an upload
+  // here; a pick-a-front or generate-the-sheet response from `useAvatarGeneration`, which can
+  // take minutes and so is especially likely to resolve after a newer edit is already on
+  // screen). A stable identity (`useCallback`, no deps — it only closes over `setAvatar`) since
+  // it is a dependency of callbacks in that hook.
+  const replaceAvatar = useCallback((updated: Avatar) => {
+    setAvatar((prev) => (prev && isStale(prev, updated) ? prev : updated));
+  }, []);
+
   const uploadImage = useCallback(async (slot: AvatarImageSlot, file: File) => {
     // Two quick drops (or a front and a sheet drop together) must not both start: they'd
     // create two drafts, or race to clear each other's placeholder.
@@ -113,14 +125,14 @@ export function useAvatarStudio({
     setUploading(slot);
     try {
       const target = await ensureAvatar();
-      setAvatar(await avatarsService.uploadImage(clientId, target.id, slot, file));
+      replaceAvatar(await avatarsService.uploadImage(clientId, target.id, slot, file));
     } catch (e) {
       toast.error(message(e, "Upload failed"));
     } finally {
       uploadingRef.current = false;
       setUploading(null);
     }
-  }, [clientId, ensureAvatar]);
+  }, [clientId, ensureAvatar, replaceAvatar]);
 
   // Merges only the fields consent owns, so a response that resolves late never clobbers a
   // newer image upload (same guard as `saveFields`). Sends the front image currently on
@@ -194,6 +206,6 @@ export function useAvatarStudio({
   return {
     avatar, name, story, gaps, uploading, saving, confirmingConsent,
     setName, setStory, uploadImage, markReady, archive, confirmConsent,
-    ensureAvatar, replaceAvatar: setAvatar,
+    ensureAvatar, replaceAvatar,
   };
 }
