@@ -1,0 +1,77 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
+import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
+vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
+vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
+vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
+vi.mock("@/lib/db/avatars", () => ({ getAvatar: vi.fn(), updateAvatar: vi.fn() }));
+vi.mock("@/lib/db/generations", () => ({ getAvatarGeneration: vi.fn() }));
+vi.mock("@/lib/storage", () => ({ removeObject: vi.fn() }));
+
+import { resolveOrgId } from "@/lib/dal";
+import { resolveImpersonationState } from "@/lib/auth/impersonation";
+import { getClientById } from "@/lib/db/clients";
+import { getAvatar, updateAvatar } from "@/lib/db/avatars";
+import { getAvatarGeneration } from "@/lib/db/generations";
+import { removeObject } from "@/lib/storage";
+
+const params = Promise.resolve({ id: "c1", avatarId: "a1" });
+const post = (body: unknown) =>
+  new NextRequest("http://localhost/api/clients/c1/avatars/a1/front", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+const row = {
+  id: "g1", avatar_id: "a1", status: "succeeded", model_used: "seedream:seedream-5-0-lite",
+  inputs_snapshot: { slot: "front", prompt: "A chef.", batchId: "b1", referenceUrls: [] },
+  output_snapshot: "https://storage.googleapis.com/b/gen.png", meta: { width: 1, height: 2, sizeBytes: 3 },
+  created_at: "2026-09-30T10:00:00.000Z",
+};
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(resolveOrgId).mockResolvedValue("org-1");
+  vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
+  vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1" } as never);
+  vi.mocked(getAvatar).mockResolvedValue(makeAvatar());
+  vi.mocked(getAvatarGeneration).mockResolvedValue(row as never);
+  vi.mocked(updateAvatar).mockImplementation(async (_c, _a, p) => makeAvatar(p));
+});
+
+describe("POST front", () => {
+  it("a generated front makes the avatar generic, clears consent, stales the sheet and returns to draft", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ generationId: "g1" }), { params });
+    expect(res.status).toBe(200);
+    expect(getAvatarGeneration).toHaveBeenCalledWith("a1", "g1");
+    const patch = vi.mocked(updateAvatar).mock.calls[0][2];
+    expect(patch.front?.source).toMatchObject({ kind: "generated", generationId: "g1", mode: "text" });
+    expect(patch).toMatchObject({
+      personType: "generic", likenessConsentBy: null, likenessConsentAt: null,
+      sheetStale: true, status: "draft",
+    });
+  });
+
+  it("removes the uploaded photo it replaces", async () => {
+    const { POST } = await import("./route");
+    await POST(post({ generationId: "g1" }), { params });
+    expect(removeObject).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a 404 for a generation of another avatar, and a 400 for a sheet or failed one", async () => {
+    const { POST } = await import("./route");
+    vi.mocked(getAvatarGeneration).mockResolvedValue(null);
+    expect((await POST(post({ generationId: "g9" }), { params })).status).toBe(404);
+
+    vi.mocked(getAvatarGeneration).mockResolvedValue({
+      ...row, inputs_snapshot: { slot: "sheet", prompt: "p", batchId: null, referenceUrls: ["u"] },
+    } as never);
+    expect((await POST(post({ generationId: "g1" }), { params })).status).toBe(400);
+
+    vi.mocked(getAvatarGeneration).mockResolvedValue({ ...row, status: "failed", output_snapshot: null } as never);
+    expect((await POST(post({ generationId: "g1" }), { params })).status).toBe(400);
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+});
