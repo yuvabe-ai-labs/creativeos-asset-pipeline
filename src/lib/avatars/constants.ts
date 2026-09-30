@@ -53,7 +53,8 @@ export const READINESS_GAP_LABELS = {
 export const AVATAR_FRONT_ASPECT = "3:4";
 export const AVATAR_SHEET_ASPECT = "16:9";
 
-export const AVATAR_BATCH_DEFAULT = 4;
+// Two, not four: enough to compare, and half the credits on a first try (operator, 2026-10-01).
+export const AVATAR_BATCH_DEFAULT = 2;
 export const AVATAR_BATCH_MAX = 8;
 export const AVATAR_DESCRIPTION_MAX = 1500;
 

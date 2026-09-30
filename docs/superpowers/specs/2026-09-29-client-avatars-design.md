@@ -226,7 +226,7 @@ A segmented control: **Describe | Upload a photo**. Switching keeps everything a
 - A fixed framing clause is appended by `buildAvatarFrontPrompt` and stated in the step's
   header: facing the camera, waist-up, even light, plain background. It is not a field.
 - Settings row: **Model** (text-to-image models from `image-gen/registry.ts`), **Style**
-  (photoreal, illustrated, 3D — a prompt phrase), a **count stepper** (1–8, default 4), and
+  (photoreal, illustrated, 3D — a prompt phrase), a **count stepper** (1–8, default 2), and
   **Generate ✦ N**. Aspect ratio is fixed at 3:4. Each image is its own request, so a batch of N
   is N requests with N reservations.
 - Under the settings row, one line names the models the chosen image model's faces will work
@@ -315,8 +315,9 @@ the header's **⋯** menu, never beside Save.
 | Draft | The first Generate or upload creates the row — it is what the spent credits belong to | Draft | **Discard draft** |
 | In the library | **Save to library** (`status = ready`) | In the library | **Archive avatar** |
 
-- The moment a draft is created, a toast says so: "Saved as a draft so nothing is lost. The ⋯ menu
-  can discard it."
+- Creating the draft is silent. It happens on the first Generate or upload, where a toast about
+  saving read as out of place; the header's badge turning to **Draft** and the ⋯ menu appearing
+  are the signal (operator, 2026-10-01).
 - **Discard draft** asks first: "Discard this draft? The draft and its images are removed." plus,
   when anything was charged, "The N credits already spent on it stay spent." It archives the draft
   through the existing `DELETE` route — no second deletion path.

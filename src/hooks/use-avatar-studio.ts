@@ -120,8 +120,6 @@ export function useAvatarStudio({
       .then((created) => {
         setAvatar(created);
         window.history.replaceState(null, "", `${libraryHref}/${created.id}`);
-        // D297 — the moment the ⋯ menu appears, say why.
-        toast("Saved as a draft so nothing is lost. The ⋯ menu can discard it.");
         return created;
       })
       .catch((e) => {
