@@ -7,18 +7,28 @@ import type { Avatar, AvatarImage } from "./schema";
 export type ReadinessGap = keyof typeof READINESS_GAP_LABELS;
 
 // The fields readiness depends on — a Pick, so the Studio can ask before an avatar row exists.
-export type ReadinessInput = Pick<Avatar, "name" | "front" | "sheet" | "sheetStale">;
+export type ReadinessInput = Pick<
+  Avatar, "name" | "front" | "sheet" | "sheetStale" | "likenessConsentAt"
+>;
 
 export type AvatarPatch = Partial<Pick<
   Avatar,
-  "name" | "story" | "personType" | "front" | "sheet" | "sheetStale" | "status"
+  | "name" | "story" | "personType" | "front" | "sheet" | "sheetStale" | "status"
+  | "likenessConsentBy" | "likenessConsentAt"
 >>;
 
 export type AvatarUpdateInput = {
   name?: string;
   story?: string;
   status?: "ready";
+  consent?: true;
 };
+
+/** A real person's likeness needs a consent record. Only an uploaded front is ever a real
+ *  person, so a generated front never needs — or carries — one. */
+export function needsLikenessConsent(avatar: Pick<Avatar, "front" | "likenessConsentAt">): boolean {
+  return avatar.front?.source.kind === "upload" && !avatar.likenessConsentAt;
+}
 
 export function avatarReadinessGaps(avatar: ReadinessInput): ReadinessGap[] {
   const gaps: ReadinessGap[] = [];
@@ -26,6 +36,7 @@ export function avatarReadinessGaps(avatar: ReadinessInput): ReadinessGap[] {
   if (!avatar.front) gaps.push("front");
   if (!avatar.sheet) gaps.push("sheet");
   else if (avatar.sheetStale) gaps.push("sheet-stale");
+  if (needsLikenessConsent(avatar)) gaps.push("consent");
   return gaps;
 }
 
@@ -33,14 +44,17 @@ export function isAvatarReady(avatar: ReadinessInput): boolean {
   return avatarReadinessGaps(avatar).length === 0;
 }
 
-/** A new front is a new face: any sheet made from the old one is stale, and the person type
+/** A new front is a new face: any sheet made from the old one is stale, the person type
  *  follows the new image's source — an upload is a specific person, a generated image is
- *  generic. */
+ *  generic — and any consent on record is cleared, upload or not: a new photo may be a
+ *  different person, so an upload asks again. */
 export function frontChangePatch(current: Avatar, image: AvatarImage): AvatarPatch {
   return {
     front: image,
     sheetStale: current.sheet !== null,
     personType: image.source.kind === "generated" ? "generic" : "specific",
+    likenessConsentBy: null,
+    likenessConsentAt: null,
   };
 }
 
@@ -58,6 +72,7 @@ export function withStatus(current: Avatar, patch: AvatarPatch): AvatarPatch {
 export function planAvatarUpdate(
   current: Avatar,
   input: AvatarUpdateInput,
+  ctx: { userId: string; now: string },
 ): { ok: true; patch: AvatarPatch } | { ok: false; error: string } {
   const patch: AvatarPatch = {};
 
@@ -74,6 +89,15 @@ export function planAvatarUpdate(
       return { ok: false, error: `The story can be at most ${AVATAR_STORY_MAX} characters.` };
     }
     patch.story = story;
+  }
+  // Runs before the readiness check below, so one request can confirm consent and mark the
+  // avatar ready in the same call.
+  if (input.consent) {
+    if (current.front?.source.kind !== "upload") {
+      return { ok: false, error: "Only an uploaded front image needs consent." };
+    }
+    patch.likenessConsentBy = ctx.userId;
+    patch.likenessConsentAt = ctx.now;
   }
   if (input.status === "ready") {
     const gaps = avatarReadinessGaps({ ...current, ...patch });

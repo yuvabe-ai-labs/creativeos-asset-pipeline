@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAvatarStudio } from "@/hooks/use-avatar-studio";
 import type { Avatar } from "@/lib/avatars/schema";
 import { AvatarImageDropzone } from "./avatar-image-dropzone";
+import { AvatarLikenessConsent } from "./avatar-likeness-consent";
 import { AvatarStudioCard } from "./avatar-studio-card";
 
 type Step = "look" | "sheet";
@@ -77,6 +78,16 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
                   onFile={(file) => s.uploadImage("front", file)}
                 />
               </div>
+              {s.avatar && front?.source.kind === "upload" && s.uploading !== "front" && (
+                <div className="w-full max-w-xs">
+                  <AvatarLikenessConsent
+                    key={front.url}
+                    avatar={s.avatar}
+                    confirming={s.confirmingConsent}
+                    onConfirm={s.confirmConsent}
+                  />
+                </div>
+              )}
               {front && (
                 <Button variant="outline" className="self-start" onClick={() => setStep("sheet")}>
                   Continue to profile sheet

@@ -9,6 +9,8 @@ export type AvatarRow = {
   name: string;
   story: string;
   person_type: PersonType | null;
+  likeness_consent_by: string | null;
+  likeness_consent_at: string | null;
   front: AvatarImage | null;
   sheet: AvatarImage | null;
   sheet_stale: boolean;
@@ -27,6 +29,8 @@ export function rowToAvatar(row: AvatarRow): Avatar {
     name: row.name,
     story: row.story,
     personType: row.person_type,
+    likenessConsentBy: row.likeness_consent_by,
+    likenessConsentAt: row.likeness_consent_at,
     front: row.front,
     sheet: row.sheet,
     sheetStale: row.sheet_stale,
@@ -43,6 +47,8 @@ const COLUMN: Record<keyof AvatarPatch, string> = {
   name: "name",
   story: "story",
   personType: "person_type",
+  likenessConsentBy: "likeness_consent_by",
+  likenessConsentAt: "likeness_consent_at",
   front: "front",
   sheet: "sheet",
   sheetStale: "sheet_stale",

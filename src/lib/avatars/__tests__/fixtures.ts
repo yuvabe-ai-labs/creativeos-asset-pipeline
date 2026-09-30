@@ -18,6 +18,7 @@ export function makeAvatar(overrides: Partial<Avatar> = {}): Avatar {
   return {
     id: "a1", clientId: "c1", name: "Riya", story: "",
     personType: "specific",
+    likenessConsentBy: "user-1", likenessConsentAt: "2026-09-30T10:05:00.000Z",
     front: makeImage(), sheet: makeImage(), sheetStale: false,
     voice: null, voiceSample: null, status: "ready", archivedAt: null,
     createdAt: "2026-09-30T10:00:00.000Z", updatedAt: "2026-09-30T10:05:00.000Z",

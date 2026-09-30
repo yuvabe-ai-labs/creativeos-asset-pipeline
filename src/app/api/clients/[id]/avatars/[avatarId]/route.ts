@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
+import { resolveCallerContext } from "@/lib/dal";
 import { archiveAvatar, getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { planAvatarUpdate } from "@/lib/avatars/utils";
 
@@ -12,6 +13,7 @@ const PatchSchema = z.object({
   name: z.string().optional(),
   story: z.string().optional(),
   status: z.literal("ready").optional(),
+  consent: z.literal(true).optional(),
 });
 
 // GET /api/clients/:id/avatars/:avatarId
@@ -27,7 +29,7 @@ export async function GET(req: Request, { params }: Ctx) {
   );
 }
 
-// PATCH /api/clients/:id/avatars/:avatarId — text fields and ready.
+// PATCH /api/clients/:id/avatars/:avatarId — text fields, ready, and likeness consent.
 // Images are changed by the images routes, never here.
 export async function PATCH(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
@@ -39,7 +41,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
       const current = await getAvatar(clientId, avatarId);
       if (!current || current.archivedAt) return apiError(NOT_FOUND, 404);
 
-      const plan = planAvatarUpdate(current, parsed.data);
+      const caller = await resolveCallerContext();
+      const plan = planAvatarUpdate(
+        current, parsed.data, { userId: caller.userId, now: new Date().toISOString() },
+      );
       if (!plan.ok) return apiError(plan.error, 400);
 
       const avatar = await updateAvatar(clientId, avatarId, plan.patch);

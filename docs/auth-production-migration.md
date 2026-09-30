@@ -591,7 +591,8 @@ Same manual dashboard process as every other migration in this doc.
 
 Creates `client_avatars` (D287, D288): one row per avatar, owned by a client, with its front
 image and profile sheet as JSON that records each image's source. RLS is enabled with zero
-policies (default-deny, as `0027`); the app reads and writes through the service role.
+policies (default-deny, as `0027`); the app reads and writes through the service role. The table
+also records likeness consent (D289) — who confirmed and when — for an uploaded front image.
 
 **Purely additive** — one new table, no existing table altered, no backfill.
 

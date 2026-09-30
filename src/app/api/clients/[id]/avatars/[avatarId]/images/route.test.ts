@@ -107,6 +107,7 @@ describe("POST images (finalize)", () => {
     });
     expect(patch).toMatchObject({
       sheetStale: true, personType: "specific", status: "draft",
+      likenessConsentBy: null, likenessConsentAt: null,
     });
   });
 

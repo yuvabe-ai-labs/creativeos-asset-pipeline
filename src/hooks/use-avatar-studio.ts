@@ -23,6 +23,7 @@ export function useAvatarStudio({
   const [story, setStoryState] = useState(initialAvatar?.story ?? "");
   const [uploading, setUploading] = useState<AvatarImageSlot | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmingConsent, setConfirmingConsent] = useState(false);
   const createdHere = useRef(false);
   // `uploading` state is stale inside `uploadImage` between renders (two quick calls can both
   // read it as null before either commits); the ref is checked synchronously instead.
@@ -90,6 +91,27 @@ export function useAvatarStudio({
     }
   }, [avatar, clientId, name, story, libraryHref]);
 
+  // Merges only the fields consent owns, so a response that resolves late never clobbers a
+  // newer image upload (same guard as `saveFields`).
+  const confirmConsent = useCallback(async () => {
+    if (!avatar) return;
+    setConfirmingConsent(true);
+    try {
+      const updated = await avatarsService.update(clientId, avatar.id, { consent: true });
+      setAvatar((prev) => (prev ? {
+        ...prev,
+        likenessConsentBy: updated.likenessConsentBy,
+        likenessConsentAt: updated.likenessConsentAt,
+        status: updated.status,
+        updatedAt: updated.updatedAt,
+      } : updated));
+    } catch (e) {
+      toast.error(message(e, "Could not confirm"));
+    } finally {
+      setConfirmingConsent(false);
+    }
+  }, [avatar, clientId]);
+
   const markReady = useCallback(async () => {
     if (!avatar) return;
     setSaving(true);
@@ -120,10 +142,11 @@ export function useAvatarStudio({
     front: avatar?.front ?? null,
     sheet: avatar?.sheet ?? null,
     sheetStale: avatar?.sheetStale ?? false,
+    likenessConsentAt: avatar?.likenessConsentAt ?? null,
   });
 
   return {
-    avatar, name, story, gaps, uploading, saving,
-    setName, setStory, uploadImage, markReady, archive,
+    avatar, name, story, gaps, uploading, saving, confirmingConsent,
+    setName, setStory, uploadImage, markReady, archive, confirmConsent,
   };
 }

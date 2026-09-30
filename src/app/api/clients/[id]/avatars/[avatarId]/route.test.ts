@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
+import { GENERATED, makeAvatar, makeImage } from "@/lib/avatars/__tests__/fixtures";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/dal", () => ({ resolveOrgId: vi.fn() }));
+vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
@@ -11,7 +11,7 @@ vi.mock("@/lib/db/avatars", () => ({
   getAvatar: vi.fn(), updateAvatar: vi.fn(), archiveAvatar: vi.fn(),
 }));
 
-import { resolveOrgId } from "@/lib/dal";
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { getAvatar, updateAvatar, archiveAvatar } from "@/lib/db/avatars";
@@ -27,6 +27,7 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(resolveOrgId).mockResolvedValue("org-1");
+    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-9", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1" } as never);
     vi.mocked(updateAvatar).mockImplementation(async (_c, _a, p) => makeAvatar(p));
@@ -62,6 +63,37 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
     expect(res.status).toBe(200);
     const written = vi.mocked(updateAvatar).mock.calls[0][2];
     expect(written).not.toHaveProperty("personType");
+  });
+
+  it("PATCH { consent: true } records the caller and the time, for an uploaded front", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(
+      makeAvatar({ status: "draft", likenessConsentBy: null, likenessConsentAt: null }),
+    );
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ consent: true }), { params });
+    expect(res.status).toBe(200);
+    const written = vi.mocked(updateAvatar).mock.calls[0][2];
+    expect(written.likenessConsentBy).toBe("user-9");
+    expect(typeof written.likenessConsentAt).toBe("string");
+  });
+
+  it("PATCH { consent: true } is a 400 for a generated front, and does not write", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(
+      makeAvatar({ front: makeImage(GENERATED), likenessConsentBy: null, likenessConsentAt: null }),
+    );
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ consent: true }), { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Only an uploaded front image needs consent.");
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
+  it("PATCH { consent: false } is a 400 — the schema only accepts true", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ status: "draft" }));
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ consent: false }), { params });
+    expect(res.status).toBe(400);
+    expect(updateAvatar).not.toHaveBeenCalled();
   });
 
   it("DELETE archives, and is a 404 when there was nothing to archive", async () => {

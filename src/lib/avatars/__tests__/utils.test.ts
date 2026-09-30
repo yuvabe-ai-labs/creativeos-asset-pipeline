@@ -6,6 +6,8 @@ import {
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
 
+const ctx = { userId: "user-2", now: "2026-10-01T00:00:00.000Z" };
+
 describe("avatarReadinessGaps", () => {
   it("is empty for a complete avatar", () => {
     expect(avatarReadinessGaps(makeAvatar())).toEqual([]);
@@ -24,6 +26,18 @@ describe("avatarReadinessGaps", () => {
   it("an uploaded front, a name and a current sheet are ready — no declaration step", () => {
     expect(avatarReadinessGaps(makeAvatar())).toEqual([]);
   });
+
+  it("an uploaded front without consent has the gap 'consent'", () => {
+    const avatar = makeAvatar({ likenessConsentBy: null, likenessConsentAt: null });
+    expect(avatarReadinessGaps(avatar)).toEqual(["consent"]);
+  });
+
+  it("a generated front without consent has no gap — only an upload needs one", () => {
+    const avatar = makeAvatar({
+      front: makeImage(GENERATED), likenessConsentBy: null, likenessConsentAt: null,
+    });
+    expect(avatarReadinessGaps(avatar)).toEqual([]);
+  });
 });
 
 describe("frontChangePatch", () => {
@@ -39,6 +53,15 @@ describe("frontChangePatch", () => {
   it("does not mark the sheet stale when there is no sheet yet", () => {
     expect(frontChangePatch(makeAvatar({ sheet: null }), makeImage()).sheetStale).toBe(false);
   });
+
+  it("clears any existing consent record, whether the new front is an upload or generated", () => {
+    expect(frontChangePatch(makeAvatar(), makeImage())).toMatchObject({
+      likenessConsentBy: null, likenessConsentAt: null,
+    });
+    expect(frontChangePatch(makeAvatar(), makeImage(GENERATED))).toMatchObject({
+      likenessConsentBy: null, likenessConsentAt: null,
+    });
+  });
 });
 
 describe("sheetChangePatch", () => {
@@ -48,10 +71,12 @@ describe("sheetChangePatch", () => {
 });
 
 describe("withStatus", () => {
-  it("drops a ready avatar back to draft when a new front stales its sheet", () => {
+  it("replacing the front of a ready avatar returns it to draft — stale sheet and missing consent", () => {
     const current = makeAvatar();
     const result = withStatus(current, frontChangePatch(current, makeImage()));
-    expect(result).toMatchObject({ sheetStale: true, status: "draft" });
+    expect(result).toMatchObject({
+      sheetStale: true, likenessConsentBy: null, likenessConsentAt: null, status: "draft",
+    });
   });
 
   it("leaves status alone when the avatar stays complete", () => {
@@ -61,26 +86,52 @@ describe("withStatus", () => {
 
 describe("planAvatarUpdate", () => {
   it("trims the name and rejects one that is too long", () => {
-    const ok = planAvatarUpdate(makeAvatar(), { name: "  Meera " });
+    const ok = planAvatarUpdate(makeAvatar(), { name: "  Meera " }, ctx);
     expect(ok).toEqual({ ok: true, patch: { name: "Meera" } });
-    const long = planAvatarUpdate(makeAvatar(), { name: "x".repeat(AVATAR_NAME_MAX + 1) });
+    const long = planAvatarUpdate(makeAvatar(), { name: "x".repeat(AVATAR_NAME_MAX + 1) }, ctx);
     expect(long.ok).toBe(false);
   });
 
   it("refuses ready while something is missing, and names it", () => {
-    const result = planAvatarUpdate(makeAvatar({ status: "draft", sheet: null }), { status: "ready" });
+    const current = makeAvatar({ status: "draft", sheet: null });
+    const result = planAvatarUpdate(current, { status: "ready" }, ctx);
     expect(result).toEqual({ ok: false, error: "Still needed: a profile sheet." });
   });
 
   it("allows ready when the same request supplies the missing name", () => {
     const current = makeAvatar({ status: "draft", name: "" });
-    const result = planAvatarUpdate(current, { name: "Riya", status: "ready" });
+    const result = planAvatarUpdate(current, { name: "Riya", status: "ready" }, ctx);
     expect(result).toEqual({ ok: true, patch: { name: "Riya", status: "ready" } });
   });
 
   it("clearing the name of a ready avatar returns it to draft", () => {
-    const result = planAvatarUpdate(makeAvatar(), { name: "" });
+    const result = planAvatarUpdate(makeAvatar(), { name: "" }, ctx);
     expect(result).toEqual({ ok: true, patch: { name: "", status: "draft" } });
+  });
+
+  it("consent records who confirmed and when", () => {
+    const current = makeAvatar({ likenessConsentBy: null, likenessConsentAt: null });
+    const result = planAvatarUpdate(current, { consent: true }, ctx);
+    expect(result).toEqual({
+      ok: true, patch: { likenessConsentBy: ctx.userId, likenessConsentAt: ctx.now },
+    });
+  });
+
+  it("refuses consent for a generated front", () => {
+    const current = makeAvatar({
+      front: makeImage(GENERATED), likenessConsentBy: null, likenessConsentAt: null,
+    });
+    const result = planAvatarUpdate(current, { consent: true }, ctx);
+    expect(result).toEqual({ ok: false, error: "Only an uploaded front image needs consent." });
+  });
+
+  it("confirms consent and marks ready in the same call", () => {
+    const current = makeAvatar({ status: "draft", likenessConsentBy: null, likenessConsentAt: null });
+    const result = planAvatarUpdate(current, { consent: true, status: "ready" }, ctx);
+    expect(result).toEqual({
+      ok: true,
+      patch: { likenessConsentBy: ctx.userId, likenessConsentAt: ctx.now, status: "ready" },
+    });
   });
 });
 

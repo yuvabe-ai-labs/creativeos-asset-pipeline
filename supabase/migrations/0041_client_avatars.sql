@@ -9,6 +9,10 @@ create table client_avatars (
   -- Derived from the front image's source: 'specific' for an upload, 'generic' for a
   -- generated image. Null until there is a front image.
   person_type text check (person_type in ('generic', 'specific')),
+  -- Consent for a real person's likeness (an uploaded front): who confirmed, and when.
+  -- Null for a generated front, and cleared whenever the front image is replaced.
+  likeness_consent_by uuid references auth.users(id) on delete set null,
+  likeness_consent_at timestamptz,
   -- AvatarImage JSON: { url, width, height, sizeBytes, source }. JSONB rather than columns
   -- because `source` is a tagged union read whole; nothing filters on its fields in SQL.
   front       jsonb,

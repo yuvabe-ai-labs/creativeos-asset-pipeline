@@ -73,6 +73,9 @@ export function AvatarStudioCard({
         {avatar?.front && avatar.personType && (
           <Row done label="Person type" detail={PERSON_TYPE_LABELS[avatar.personType]} />
         )}
+        {avatar?.front?.source.kind === "upload" && (
+          <Row done={has("consent")} label="Permission" detail={has("consent") ? "Confirmed" : "Needed"} />
+        )}
       </ul>
 
       <div className="flex flex-col gap-1.5">

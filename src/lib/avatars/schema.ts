@@ -43,6 +43,10 @@ export type Avatar = {
   // Derived from the front image's source: an upload makes it "specific", a generated
   // image makes it "generic". Null until there is a front image.
   personType: PersonType | null;
+  // Who confirmed permission to use this person's likeness, and when. Null for a generated
+  // front, or an upload not yet confirmed; cleared whenever the front image is replaced.
+  likenessConsentBy: string | null;
+  likenessConsentAt: string | null;
   front: AvatarImage | null;
   sheet: AvatarImage | null;
   sheetStale: boolean;

@@ -17,10 +17,13 @@ export const PERSON_TYPE_LABELS: Record<PersonType, string> = {
   specific: "Real person",
 };
 
+export const LIKENESS_CONSENT_STATEMENT = "I have this person's permission to use their likeness";
+
 // Completes the sentence "Still needed: …".
 export const READINESS_GAP_LABELS = {
   name: "a name",
   front: "a front image",
   sheet: "a profile sheet",
   "sheet-stale": "a profile sheet that matches the new front image",
+  consent: "permission to use this person's likeness",
 } as const;
