@@ -165,3 +165,16 @@ describe("POST sheet", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST sheet — the spend total is best-effort", () => {
+  it("still returns the attached sheet when the total cannot be read", async () => {
+    vi.mocked(sumAvatarCredits).mockRejectedValue(new Error("db down"));
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.avatar).toBeTruthy();
+    expect(json.spentCredits).toBeNull();
+    expect(updateAvatar).toHaveBeenCalledTimes(1);
+  });
+});

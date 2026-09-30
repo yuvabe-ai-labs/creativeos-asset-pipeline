@@ -93,7 +93,10 @@ export async function POST(req: Request, { params }: Ctx) {
         });
         const candidate = generationToCandidate(generation);
         if (!candidate) return apiError("The image was generated but could not be read back.", 500);
-        const spentCredits = await sumAvatarCredits(avatarId);
+        // Best-effort: the image is generated and paid for by now, so a failed read of the
+        // total must not turn this into an error the browser would discard the result over.
+        // Null tells the browser to refetch the total.
+        const spentCredits = await sumAvatarCredits(avatarId).catch(() => null);
         return apiOk({ candidate, creditsCharged, spentCredits }, 201);
       } catch (e) {
         if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);

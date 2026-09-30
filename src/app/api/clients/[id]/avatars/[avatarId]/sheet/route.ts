@@ -87,7 +87,9 @@ export async function POST(
             // Best-effort, as the upload finalize route.
           }
         }
-        const spentCredits = await sumAvatarCredits(avatarId);
+        // Best-effort: the sheet is attached and paid for by now, so a failed read of the total
+        // must not turn this into an error. Null tells the browser to refetch the total.
+        const spentCredits = await sumAvatarCredits(avatarId).catch(() => null);
         return apiOk({ avatar, creditsCharged, spentCredits });
       } catch (e) {
         if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);

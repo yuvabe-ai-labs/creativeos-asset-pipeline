@@ -9,10 +9,11 @@ import {
 } from "@/components/ui/select";
 import {
   ANY, ATTRIBUTE_LABELS, AVATAR_ATTRIBUTES, AVATAR_BATCH_MAX, AVATAR_DESCRIPTION_MAX,
-  AVATAR_FRONT_ASPECT, AVATAR_STYLES, SEEDANCE_FACE_MODEL_ID, type AvatarStyleId,
+  AVATAR_FRONT_ASPECT, AVATAR_STYLES, type AvatarStyleId,
 } from "@/lib/avatars/constants";
-import { estimateAvatarImageCredits, isSeedanceFaceModel } from "@/lib/avatars/generation";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import {
+  estimateAvatarImageCredits, isSeedanceFaceModel, seedanceFaceModelLabel,
+} from "@/lib/avatars/generation";
 import type { GenerateFrontInput } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarModelSelect } from "./avatar-model-select";
@@ -33,7 +34,7 @@ export function AvatarDescribePanel({ busy, composer, onComposerChange, onGenera
 
   const perImage = estimateAvatarImageCredits({ modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
   const canGenerate = description.trim().length > 0 && perImage !== null && !busy;
-  const seedanceFaceLabel = imageGenClientModelMap[SEEDANCE_FACE_MODEL_ID]?.label ?? "Seedream 5.0 Lite";
+  const seedanceFaceLabel = seedanceFaceModelLabel();
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">

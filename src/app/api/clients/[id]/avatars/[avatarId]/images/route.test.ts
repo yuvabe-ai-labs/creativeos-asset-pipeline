@@ -151,3 +151,48 @@ describe("POST images (finalize)", () => {
     expect(vi.mocked(updateAvatar).mock.calls[0][2]).toMatchObject({ sheetStale: false });
   });
 });
+
+describe("POST images (finalize) — stored-name allow-list and front precondition", () => {
+  const body = { path: FRONT_PATH, filename: "new.png", size: 100, slot: "front", imageWidth: 900, imageHeight: 1200 };
+  const prefix = "clients/c1/avatars/a1/front/";
+
+  it("refuses backslash, percent-encoded and dot-only names that a URL parser would resolve elsewhere", async () => {
+    const { POST } = await import("./route");
+    const backslashes = String.raw`..\..\..\c2\avatars\a9\front\x.png`;
+    for (const name of [backslashes, "%2e%2e%5cx.png", "..", ".hidden.png", ""]) {
+      const res = await POST(req("images", { ...body, path: prefix + name }), { params });
+      expect(res.status, name).toBe(400);
+    }
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
+  it("accepts every name the sign route can produce", async () => {
+    const { buildStoredName } = await vi.importActual<typeof import("@/lib/storage/paths")>("@/lib/storage/paths");
+    const { POST } = await import("./route");
+    for (const filename of ["My Face.PNG", "portrait_01.final.jpeg", "a.webp"]) {
+      const res = await POST(req("images", { ...body, path: prefix + buildStoredName(filename) }), { params });
+      expect(res.status, filename).toBe(200);
+    }
+  });
+
+  it("writes on condition that the front it read is still the front", async () => {
+    const current = makeAvatar();
+    vi.mocked(getAvatar).mockResolvedValue(current);
+    const { POST } = await import("./route");
+    await POST(req("images", body), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: current.front!.url });
+
+    vi.mocked(updateAvatar).mockClear();
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ front: null, sheet: null, status: "draft" }));
+    await POST(req("images", body), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: null });
+  });
+
+  it("is a 409 and removes nothing when the front changed underneath the upload", async () => {
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(req("images", body), { params });
+    expect(res.status).toBe(409);
+    expect(removeObject).not.toHaveBeenCalled();
+  });
+});

@@ -140,3 +140,15 @@ describe("POST generations", () => {
     expect(runAvatarGeneration).not.toHaveBeenCalled();
   });
 });
+
+describe("POST generations — the spend total is best-effort", () => {
+  it("still returns the paid candidate when the total cannot be read", async () => {
+    vi.mocked(sumAvatarCredits).mockRejectedValue(new Error("db down"));
+    const { POST } = await import("./route");
+    const res = await POST(post(body), { params });
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.candidate.generationId).toBe("g1");
+    expect(json.spentCredits).toBeNull();
+  });
+});

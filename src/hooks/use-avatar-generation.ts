@@ -105,7 +105,9 @@ export function useAvatarGeneration({
           batchId,
         });
         setCandidates((prev) => mergeCandidates(prev, [candidate]));
-        applySpent(total);
+        // Null: the server made and charged the image but could not read the total back.
+        if (total === null) void refreshSpentCredits(target.id);
+        else applySpent(total);
       } catch (e) {
         errors.add(errorMessage(e, "Could not generate the image"));
       } finally {
@@ -139,7 +141,8 @@ export function useAvatarGeneration({
     try {
       const { avatar, spentCredits: total } = await avatarsService.generateSheet(clientId, avatarId, modelId);
       onAvatar(avatar);
-      applySpent(total);
+      if (total === null) void refreshSpentCredits(avatarId);
+      else applySpent(total);
     } catch (e) {
       toast.error(errorMessage(e, "Could not generate the profile sheet"));
       // A 409 here (the front changed mid-generation) has already charged credits for the

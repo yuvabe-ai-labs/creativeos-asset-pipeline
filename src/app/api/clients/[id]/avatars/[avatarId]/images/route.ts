@@ -4,6 +4,8 @@ import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { publicUrlFor, removeObject } from "@/lib/storage";
 import { frontChangePatch, sheetChangePatch, withStatus } from "@/lib/avatars/utils";
+import { AVATAR_STORED_NAME_RE } from "@/lib/avatars/constants";
+import { preconditionFailed } from "@/lib/avatars/route-responses";
 import type { AvatarImage } from "@/lib/avatars/schema";
 
 const FinalizeSchema = z.object({
@@ -30,14 +32,13 @@ export async function POST(
       if (!parsed.success) return apiError("Invalid request body.", 400);
       const { path, filename, size, slot, imageWidth, imageHeight } = parsed.data;
 
-      // Exactly one segment after the avatar's own slot folder, and no ".." anywhere: a caller
-      // could otherwise satisfy the old prefix-only check with e.g. ".../front/../../a9/front/x"
-      // and have this avatar record another avatar's (or another client's) object as its own.
+      // The avatar's own slot folder, then ONE stored name from an allow-list. A prefix check
+      // alone can be satisfied by ".../front/../../a9/front/x", and rejecting "/" and ".."
+      // still lets backslashes and "%2e%2e" through — URL parsers resolve both, so the stored
+      // URL would load another avatar's (or another client's) object.
       const expectedPrefix = `clients/${clientId}/avatars/${avatarId}/${slot}/`;
       const name = path.startsWith(expectedPrefix) ? path.slice(expectedPrefix.length) : null;
-      const validPath =
-        name !== null && name.length > 0 && !name.includes("/") && !path.split("/").includes("..");
-      if (!validPath) {
+      if (name === null || !AVATAR_STORED_NAME_RE.test(name)) {
         return apiError("Upload path does not belong to this avatar.", 400);
       }
 
@@ -58,9 +59,15 @@ export async function POST(
         },
       };
 
+      // Conditioned on the front that was read, like the pick and sheet routes: a front upload
+      // replaces the face that was on screen, and a sheet upload attaches to it.
       const change = slot === "front" ? frontChangePatch(current, image) : sheetChangePatch(image);
-      const avatar = await updateAvatar(clientId, avatarId, withStatus(current, change));
-      if (!avatar) return apiError("Avatar not found.", 404);
+      const avatar = await updateAvatar(clientId, avatarId, withStatus(current, change), {
+        ifFrontUrl: current.front?.url ?? null,
+      });
+      if (!avatar) {
+        return preconditionFailed(clientId, avatarId, "The front image changed. Upload again.");
+      }
 
       // Only an UPLOAD is removed when replaced, and only when it is a genuinely different
       // object: finalizing the same upload twice (a retry, a double submit) would otherwise

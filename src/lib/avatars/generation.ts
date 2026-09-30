@@ -78,6 +78,11 @@ export function isSeedanceFaceModel(modelId: string): boolean {
   return modelId === SEEDANCE_FACE_MODEL_ID;
 }
 
+/** The display name of the one model Seedance accepts — derived, so it is named once. */
+export function seedanceFaceModelLabel(): string {
+  return imageGenClientModelMap[SEEDANCE_FACE_MODEL_ID]?.label ?? SEEDANCE_FACE_MODEL_ID;
+}
+
 // ── Batches (the Studio's candidate grid) ─────────────────────────────────────
 
 /** A placeholder for an image still generating. */
@@ -142,6 +147,5 @@ export function avatarEngineNote(
   if (source.kind === "generated" && isSeedanceFaceModel(source.modelId)) {
     return { text: "Seedance · clips up to 30 s", ok: true };
   }
-  const seedanceFaceLabel = imageGenClientModelMap[SEEDANCE_FACE_MODEL_ID]?.label ?? SEEDANCE_FACE_MODEL_ID;
-  return { text: `Seedance will not accept this face — generate it with ${seedanceFaceLabel}`, ok: false };
+  return { text: `Seedance will not accept this face — generate it with ${seedanceFaceModelLabel()}`, ok: false };
 }
