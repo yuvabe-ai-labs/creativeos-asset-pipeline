@@ -10,9 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   AVATAR_NAME_MAX, AVATAR_STORY_MAX, PERSON_TYPE_LABELS, READINESS_GAP_LABELS,
 } from "@/lib/avatars/constants";
+import { avatarEngineNote } from "@/lib/avatars/generation";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { ReadinessGap } from "@/lib/avatars/utils";
 import { AvatarArchiveButton } from "./avatar-archive-button";
+import { AvatarCreditCost } from "./avatar-credit-cost";
 
 type Props = {
   avatar: Avatar | null;
@@ -20,6 +22,7 @@ type Props = {
   story: string;
   gaps: ReadinessGap[];
   saving: boolean;
+  spentCredits: number;
   onName: (value: string) => void;
   onStory: (value: string) => void;
   onSave: () => void;
@@ -35,7 +38,7 @@ function Row({ done, label, detail }: { done: boolean; label: string; detail: st
         strokeWidth={1.5}
       />
       <span className="flex-1">{label}</span>
-      <span className="text-xs text-muted-foreground">{detail}</span>
+      <span className="max-w-[60%] text-right text-xs text-muted-foreground">{detail}</span>
     </li>
   );
 }
@@ -43,9 +46,10 @@ function Row({ done, label, detail }: { done: boolean; label: string; detail: st
 // The Studio's right-hand card: what the avatar is so far, its name and story, and Save. It
 // fills in as the steps are completed, so the operator always sees what they are saving.
 export function AvatarStudioCard({
-  avatar, name, story, gaps, saving, onName, onStory, onSave, onArchive,
+  avatar, name, story, gaps, saving, spentCredits, onName, onStory, onSave, onArchive,
 }: Props) {
   const has = (gap: ReadinessGap) => !gaps.includes(gap);
+  const engine = avatar ? avatarEngineNote(avatar) : null;
 
   return (
     <Card className="sticky top-6 flex flex-col gap-3 self-start p-4 shadow-card">
@@ -76,6 +80,7 @@ export function AvatarStudioCard({
         {avatar?.front?.source.kind === "upload" && (
           <Row done={has("consent")} label="Permission" detail={has("consent") ? "Confirmed" : "Needed"} />
         )}
+        {engine && <Row done label="Runs on" detail={engine} />}
       </ul>
 
       <div className="flex flex-col gap-1.5">
@@ -106,6 +111,13 @@ export function AvatarStudioCard({
       {gaps.length > 0 && (
         <p className="text-xs text-muted-foreground">
           Still needed: {gaps.map((g) => READINESS_GAP_LABELS[g]).join(", ")}.
+        </p>
+      )}
+
+      {spentCredits > 0 && (
+        <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+          Spent on this avatar
+          <AvatarCreditCost credits={spentCredits} />
         </p>
       )}
 

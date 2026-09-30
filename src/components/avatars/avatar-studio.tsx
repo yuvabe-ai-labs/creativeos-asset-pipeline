@@ -6,11 +6,13 @@ import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAvatarGeneration } from "@/hooks/use-avatar-generation";
 import { useAvatarStudio } from "@/hooks/use-avatar-studio";
 import type { Avatar } from "@/lib/avatars/schema";
-import { AvatarImageDropzone } from "./avatar-image-dropzone";
 import { AvatarLikenessConsent } from "./avatar-likeness-consent";
 import { AvatarStudioCard } from "./avatar-studio-card";
+import { AvatarStudioLookStep } from "./avatar-studio-look-step";
+import { AvatarStudioSheetStep } from "./avatar-studio-sheet-step";
 
 type Step = "look" | "sheet";
 
@@ -22,10 +24,15 @@ type Props = {
 };
 
 // D287 — the Avatar Studio: a full page. The steps are on the left, the avatar card on the
-// right. Plan 2 adds Describe to the Look step and generation to the sheet step; plan 3 adds
-// the Voice step.
+// right. Plan 3 adds the Voice step.
 export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }: Props) {
   const s = useAvatarStudio({ clientId, clientSlug, initialAvatar });
+  const g = useAvatarGeneration({
+    clientId,
+    avatarId: s.avatar?.id ?? null,
+    ensureAvatar: s.ensureAvatar,
+    onAvatar: s.replaceAvatar,
+  });
   // Open on the step that still needs work.
   const [step, setStep] = useState<Step>(
     initialAvatar?.front && (!initialAvatar.sheet || initialAvatar.sheetStale) ? "sheet" : "look",
@@ -76,55 +83,14 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <Card className="flex flex-col gap-4 p-5 shadow-card">
           {step === "look" ? (
-            <>
-              <div>
-                <p className="text-eyebrow text-muted-foreground">Front image</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Facing the camera, waist-up, even light, plain background.
-                </p>
-              </div>
-              <div className="w-full max-w-xs">
-                <AvatarImageDropzone
-                  label="Add a front image"
-                  hint="Click, or drop a photo here"
-                  aspect="3 / 4"
-                  image={front}
-                  uploading={s.uploading === "front"}
-                  disabled={s.uploading !== null || s.confirmingConsent}
-                  onFile={(file) => s.uploadImage("front", file)}
-                />
-              </div>
-              {consent}
-              {front && (
-                <Button variant="outline" className="self-start" onClick={() => setStep("sheet")}>
-                  Continue to profile sheet
-                </Button>
-              )}
-            </>
+            <AvatarStudioLookStep
+              studio={s}
+              generation={g}
+              consent={consent}
+              onContinue={() => setStep("sheet")}
+            />
           ) : (
-            <>
-              <div>
-                <p className="text-eyebrow text-muted-foreground">Profile sheet</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Front, three-quarter, side and back views of the same person, in one image.
-                </p>
-              </div>
-              {consent}
-              {s.avatar?.sheetStale && (
-                <p className="rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-sm">
-                  The front image changed. Replace the sheet so it shows the same person.
-                </p>
-              )}
-              <AvatarImageDropzone
-                label="Add a profile sheet"
-                hint="Click, or drop the sheet here"
-                aspect="16 / 9"
-                image={s.avatar?.sheet ?? null}
-                uploading={s.uploading === "sheet"}
-                disabled={s.uploading !== null}
-                onFile={(file) => s.uploadImage("sheet", file)}
-              />
-            </>
+            <AvatarStudioSheetStep studio={s} generation={g} consent={consent} />
           )}
         </Card>
 
@@ -134,6 +100,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
           story={s.story}
           gaps={s.gaps}
           saving={s.saving}
+          spentCredits={g.spentCredits}
           onName={s.setName}
           onStory={s.setStory}
           onSave={s.markReady}
