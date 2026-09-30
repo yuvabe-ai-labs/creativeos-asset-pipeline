@@ -326,16 +326,15 @@ rather than restating the architecture.
 
 | # | Spec | Covers | Depends on | Ships alone |
 |---|---|---|---|---|
-| **A** | Seedream image provider | Synchronous, so no Trigger task — it fits the existing image-generate route. Extend `ImageProvider` (`image-gen/types.ts`, today `"openai" | "gemini"`); add `providers/seedream.ts` implementing `MediaGenModelSpec.generate`; register in `registry.ts` + `client-models.ts`; per-image cost branch in `cost.ts` (~$0.035/image, not token-based). Reuse `BYTEPLUS_API_KEY`. Follow `docs/superpowers/guides/image-gen-model-management.md`. **Model id is load-bearing:** only `seedream-5-0-260128` produces faces Seedance trusts — keep it in one constant, and take ids from `GET /api/v3/models`, never the docs (§3.1) | — | Yes |
+| ~~**A**~~ | ~~Seedream image provider~~ | **ALREADY BUILT** (found 2026-09-30). `image-gen/providers/seedream.ts` + `params/seedream.ts`, registered in `registry.ts` and `client-models.ts`, tested, per-image pricing in `cost.ts` (`SEEDREAM_IMAGE_PRICE_TABLE`), with its own design spec `2026-09-19-seedream-5-image-models-design.md`. **Nothing to write — but read the warning below before B1** | — | done |
 | **B1** | **Avatar — identity** | `avatars` table (client-scoped) + the four rules; Avatar node type, picker, focus view; base face (A) or upload; model sheet via Nano Banana; `avatar → script`; engine/ceiling/voice-options **derived** from kind, never stored; resolution through `seededFrom.scriptNodeId`; the blocking rules | A | Yes |
 | **B2** | **Avatar — voice** | the declaration field; picking an account or Library voice (both already shipped); **uploading a client's own voice and cloning it**; consent for BOTH likenesses, face and voice, in one record; how re-voicing consumes the declaration | B1 | Yes |
 | **C** | Composite node | node type; avatar + File inputs; **prompt typed on the node**; the composite prompt record, which must not style the image | B1 | Yes |
 | **D** | UGC prompt records | `UGC_SPINE` + 4 motion records (single/multishot × omni/seedance), the composer record, shot roles, shot controls, and three shared-block edits. **§0.4 has the proposed text, line by line** | B1 | Yes |
 | **E** | Voice unification — **later** | chain voicing into `video-generate` from the declaration so the node shows one status stream; partial-success state for drift aborts; one cost line; one preview surface | B2 | Yes |
 
-**Suggested order: A → B1 → B2 → D → C.** A is small and de-risks the Seedream integration
-before any avatar concepts exist in code. B1 unblocks everything else. D and C are independent of
-each other.
+**Suggested order: B1 → B2 → D → C.** A is done. B1 unblocks everything else; D and C are
+independent of each other.
 
 ### Why B is two documents
 
@@ -343,6 +342,23 @@ Splitting at **identity vs voice** rather than by layer keeps each independently
 is "who is this person and how does the canvas know", B2 is "how do they sound". It also lands
 the consent work in **one** place covering both likenesses, rather than a face checkbox in B1 and
 a voice checkbox in B2 that nobody reconciles.
+
+### ⚠ The shipped Seedream model id is not the one we probed
+
+| | id |
+|---|---|
+| Shipped provider, lite | `seedream-5-0-lite-260128` |
+| Shipped provider, pro | `dola-seedream-5-0-pro-260628` |
+| **What the bench and all three probes used** | **`seedream-5-0-260128`** |
+
+§3.1 of this doc says `seedream-5-0-260128` is the **only** Seedream model whose faces
+Seedance trusts, and that the docs name a *5.0 lite* id **that does not exist**. The shipped
+provider uses exactly such a lite id.
+
+**Resolve this before B1, against `GET /api/v3/models`** — not the docs. Either the id was
+added or renamed since 2026-09-18, or the two are different models. If the shipped lite id is
+not the trusted one, **the generic avatar branch produces faces Seedance rejects**, and that
+failure costs a paid clip to discover.
 
 ### Verify before writing, do not assume
 
