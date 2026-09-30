@@ -41,11 +41,15 @@ export function LoginPanel() {
 
   // Decorative: the panel's own copy carries the meaning, so an alt description here
   // would only add noise for a screen reader.
+  // `unoptimized`: the browser loads the photo straight from Unsplash, whose URL params
+  // already size and compress it. Routed through /_next/image, the dev server had to fetch
+  // it itself, and when the server's DNS lookup failed (ENOTFOUND) the panel 500'd.
   const photo = (
     <Image
       src={src}
       alt=""
       fill
+      unoptimized
       sizes="(min-width: 768px) 50vw, 0px"
       className="object-cover"
       priority
@@ -68,7 +72,8 @@ export function LoginPanel() {
   }
 
   return (
-    <div className="relative hidden overflow-hidden md:block">
+    // Dark backing so a photo that can't load leaves a quiet panel, not a blank hole.
+    <div className="relative hidden overflow-hidden bg-neutral-950 md:block">
       {photo}
       <div className="absolute inset-x-0 bottom-0 p-5">
         {/* No hairline ring and a generous radius: the ring drew a hard rectangle
