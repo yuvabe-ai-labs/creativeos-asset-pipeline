@@ -193,7 +193,7 @@ a later visit the step reads "Optional" again.
 | Avatar | Opens on |
 |---|---|
 | New, or a draft without a finished Look | Look |
-| A draft with Look done | The first of Profile sheet → Voice → Preview that is not done; Name & save if all are |
+| A draft with Look done | Profile sheet when there is no sheet or it is out of date; else Voice when none is declared; else Preview. The preview loads after the page, so it is not consulted: a draft whose preview is done still opens on Preview, one Continue from saving |
 | In the library | Name & save, with every step open (editing, not creating) |
 
 **Panel.** A header — eyebrow `Step N of 5` (`· Optional` on optional steps), the step's heading

@@ -344,3 +344,25 @@ Commit — `feat(avatars): the Studio's five steps, preview and save as steps of
 8. Upload a photo on a new avatar: the note and consent sit beside it; Continue waits for the tick; the summary lists Gemini Omni and Kling only.
 9. Discard a draft: confirmation names the credits spent; back to the library; it is gone.
 10. At phone width: the stepper is a row of titles, the summary sits below the panel.
+
+---
+
+## As built (2026-09-30)
+
+Built inline in one session. Tasks 1–4 landed as one commit (`4ce2c559`): Task 1 removes
+`avatarEngineNote` while the old card still imported it, and no commit should fail to compile.
+Checks at that head: the avatar, avatar-route and generation tests pass (280), `tsc --noEmit` is
+clean, and eslint is clean on every file touched.
+
+Where it differs from the plan:
+
+- **The loading skeleton** (`avatar-studio-skeleton.tsx`) was rebuilt to the three columns. The
+  file map missed it; it shows while the route loads, and it has to match what replaces it.
+- **The panel card** takes `overflow-visible`. The `Card` primitive clips its children, which
+  would stop the footer sticking to the bottom of the viewport.
+- **A real person's Voice step** shows the note and the voice field directly, with no single
+  option card for its one option.
+- **The save step focuses the name** only when Save refused it and nothing else is being typed,
+  so an error raised while editing the title does not pull focus away from the title.
+
+**Not yet opened in a browser.** Run the checklist above.
