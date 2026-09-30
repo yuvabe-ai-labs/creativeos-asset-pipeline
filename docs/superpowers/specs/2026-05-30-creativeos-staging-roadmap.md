@@ -5886,3 +5886,131 @@ goes quiet after any edit.
 only as a suggestion applied at the operator's toggle. D267 — a split scene's lines live on the
 node as sequence voiceover; a cut's own `voiceover` holds only lines the operator adds to it. **Originated →**
 `docs/superpowers/specs/2026-09-29-scene-beats-multishot-design.md`.
+
+### D287 — Avatars are a client-level library, and the record is the source of truth *(recorded 2026-09-30; refines D264)*
+
+**Decision.** A person is a row in `client_avatars`, owned by one client: a front image, a profile
+sheet, an optional ElevenLabs voice and an optional story. It is made and edited in a full-page
+Avatar Studio at `/clients/[id]/avatars`. In Phase 2 the Character node (D264) holds only
+`{ avatarId }` and the server reads the avatar at generation time. Delete archives.
+
+**Why.** D264 made the node the person, so every canvas rebuilt the same character and nothing
+recorded where a face came from. One record per client means one edit reaches every canvas and one
+Kling element (D266) serves all of them.
+
+**Rejected.** The library as templates copied into standalone nodes (edits do not propagate; Kling
+registers each copy). A library with no canvas node (drops D264–D266's built mention and
+registration work). Creation in a dialog (two dialog mockups were rejected in design: generation
+batches, a sheet step and a voice picker do not fit one).
+
+**Refines.** D264.
+**Originated →** `docs/superpowers/specs/2026-09-29-client-avatars-design.md` §2–5.
+
+### D288 — An avatar is a front image plus a profile sheet generated from it *(recorded 2026-09-30)*
+
+**Decision.** `ready` requires a name, a front image and a current profile sheet (front, ¾, side,
+back in one 16:9 image). The sheet is generated from the front by an image-edit model as soon as a
+front exists; the operator may regenerate or upload one. A later change of front marks the sheet
+stale and never regenerates it silently.
+
+**Why.** Kling needs two faces to build an element (D266 amendment); front plus sheet guarantees
+that for every avatar. Auto-regenerating on a front change would spend credits unasked.
+
+**Rejected.** Sheet optional (one-face avatars fall back to plain references on Kling, with no
+voice binding). Operator uploads both (Describe cannot work). Front and sheet as a matched
+text-only pair in one Seedream call (weaker identity match; considered only for Seedance trust).
+
+**Originated →** `2026-09-29-client-avatars-design.md` §4.2, §4.4.
+
+### D289 — Each avatar image stores its source; person type is declared, not derived *(recorded 2026-09-30)*
+
+**Decision.** `front` and `sheet` each carry a `source`: `upload` (filename, who, when) or
+`generated` (model, text or edit, prompt, generation time, generation id, whether the stored bytes
+are the vendor's). The avatar carries `person_type`: `generic` for Studio-generated fronts,
+declared by the operator for uploads ("Is this a real person?"), with a required tick either way
+and the confirmer and time recorded. Replacing a `specific` front asks again.
+
+**Why.** Vendor rules and likeness rights both turn on provenance, and it cannot be reconstructed
+later. Source cannot decide person type: an upload may be a real person or a fictional face made
+elsewhere.
+
+**Rejected.** Inferring real-versus-fictional from source (wrong for uploaded AI faces). A
+free-text note (not queryable, not enforceable). No tick for generic uploads (no record when a
+real face is uploaded as fictional).
+
+**Originated →** `2026-09-29-client-avatars-design.md` §3.2–3.3.
+
+### D290 — Seedance takes only untouched Seedream 5.0 Lite text-to-image fronts, for 30 days *(recorded 2026-09-30; extends D285)*
+
+**Decision.** An avatar is Seedance-eligible only when it is `generic` and its front is a Seedream
+5.0 Lite text-to-image output, stored byte-for-byte, generated under 30 days ago. Only the front is
+sent; the sheet is an edit and is excluded. Eligibility is computed by `seedanceEligibility` from
+the stored source and never set by hand. Phase 1 shows the status and expiry; Phase 2 enforces it
+before reserving credits.
+
+**Why.** BytePlus refuses realistic faces as Seedance references except original Seedream 5.0 Lite
+text-to-image outputs from the same account within 30 days, and warns that compressing or
+forwarding breaks the trust. Recording the facts in Phase 1 is required because they cannot be
+backfilled.
+
+**Rejected.** The private virtual portrait library (permanent and model-agnostic, but needs paid
+Advanced Creation Rights and AK/SK auth — deferred, not rejected). Blocking Seedance for all
+avatars (discards a free route the operator asked for). A hand-set "Seedance-ready" flag (drifts
+from the vendor's rule).
+
+**Open.** Whether our stored copy keeps the trust is untested; if not, the original is also kept
+in BytePlus TOS.
+**Extends.** D285.
+**Originated →** `2026-09-29-client-avatars-design.md` §8.
+
+### D291 — Studio generations bill through the existing ledger; a generation belongs to a node or an avatar *(recorded 2026-09-30)*
+
+**Decision.** `generations.node_id` becomes nullable and the table gains `avatar_id`, with a check
+that one of them is set. Each Studio batch and each sheet is one generation: reserve, run, settle
+on the provider's cost or refund. Generate controls show the estimate from `image-gen/estimate.ts`
+via `usdToFinalCredits`.
+
+**Why.** The monthly cap, refunds, the stuck-reservation sweep, the admin table and org breakdowns
+all key on `generations`. Reusing it gives avatars every one of them for one relaxed constraint.
+
+**Rejected.** A separate `avatar_generations` table and ledger path (duplicates reservation and
+sweep logic). A hidden per-client node to hang generations on (a fake node every canvas query
+would have to skip).
+
+**Originated →** `2026-09-29-client-avatars-design.md` §3.5, §7.
+
+### D292 — Voices are scoped to a client; one shared picker gains Clone *(recorded 2026-09-30; refines D283, D284)*
+
+**Decision.** `client_voices` records which ElevenLabs account voices belong to which client. The
+voice picker moves to `src/components/voice/`, takes a `clientId`, and its first tab becomes
+**This client** (that client's voices plus stock voices). A **+ Clone voice** action in the dialog
+header runs Instant Voice Clone behind a required consent tick and names the voice
+`{client} · {name}`. Voices are removed only by an explicit action, and only when no non-archived
+avatar uses them.
+
+**Why.** One ElevenLabs account serves every client, so D283's "My voices" showed one client's
+clones to all. Two consumers (Studio, Change voice) is the point at which the picker is extracted.
+
+**Rejected.** An ElevenLabs sub-account per client (plan and key management per client).
+Auto-deleting a voice when its avatar is archived (archived avatars stay on canvases that may
+still be re-voiced). Voice Design (not needed now).
+
+**Refines.** D283, D284.
+**Originated →** `2026-09-29-client-avatars-design.md` §6.
+
+### D293 — An avatar's voice yields a stored sample; ElevenLabs costs are not billed yet *(recorded 2026-09-30)*
+
+**Decision.** Setting an avatar's voice has ElevenLabs speak a fixed, versioned script of about 20
+seconds; the clip is stored as `voice_sample`, keyed on voice id and script version, and checked
+against Kling's 5–30 s window. Cloning, samples and library saves are not charged in credits in
+Phase 1.
+
+**Why.** Kling's voice path takes a sample, not an ElevenLabs id (D264, D266); generating it once
+gives every canvas the same clip. The costs are fractions of a cent and pricing them needs its own
+pass.
+
+**Rejected.** Generating the sample at video-generation time (repeats the call and delays the
+run). Using the ElevenLabs preview clip (length and content vary by voice).
+
+**Deferred.** Billing ElevenLabs usage in credits.
+**Originated →** `2026-09-29-client-avatars-design.md` §6.3, §7.3.
