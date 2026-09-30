@@ -583,3 +583,29 @@ select tablename from pg_publication_tables
 
 Application code that depends on this: `src/lib/realtime/org-market-updates.ts` (filters on
 `org_id`) and `src/hooks/use-market-updates.ts`.
+
+## Migration 0041 — `client_avatars` (2026-09-30)
+
+`supabase/migrations/0041_client_avatars.sql`. Paste into the Supabase SQL editor → Run.
+Same manual dashboard process as every other migration in this doc.
+
+Creates `client_avatars` (D287, D288): one row per avatar, owned by a client, with its front
+image and profile sheet as JSON that records each image's source. RLS is enabled with zero
+policies (default-deny, as `0027`); the app reads and writes through the service role.
+
+**Purely additive** — one new table, no existing table altered, no backfill.
+
+**Not safe to re-run:** `create table` fails if the table exists. That failure is harmless.
+
+**Ordering:** apply before deploying the app code. The Avatars page fails with
+`relation "client_avatars" does not exist` until it lands.
+
+**Verify after running:**
+
+```sql
+-- expect 1 row, rowsecurity = true
+select relname, relrowsecurity from pg_class where relname = 'client_avatars';
+
+-- expect 0 rows (no policies by design)
+select policyname from pg_policies where tablename = 'client_avatars';
+```
