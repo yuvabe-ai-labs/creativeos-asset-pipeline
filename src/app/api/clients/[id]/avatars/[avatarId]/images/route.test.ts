@@ -96,6 +96,20 @@ describe("POST images (finalize)", () => {
     expect(updateAvatar).not.toHaveBeenCalled();
   });
 
+  it("refuses a path that traverses out of the slot folder even though it matches the prefix", async () => {
+    const { POST } = await import("./route");
+    const traversal = { ...body, path: "clients/c1/avatars/a1/front/../../a9/front/x.png" };
+    expect((await POST(req("images", traversal), { params })).status).toBe(400);
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
+  it("refuses a path with a nested segment after the slot folder", async () => {
+    const { POST } = await import("./route");
+    const nested = { ...body, path: "clients/c1/avatars/a1/front/sub/x.png" };
+    expect((await POST(req("images", nested), { params })).status).toBe(400);
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
   it("a new front records its source, follows the upload as a specific person, stales the sheet and returns to draft", async () => {
     const { POST } = await import("./route");
     const res = await POST(req("images", body), { params });

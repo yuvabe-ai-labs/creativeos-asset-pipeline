@@ -22,6 +22,9 @@ type Props = {
   story: string;
   gaps: ReadinessGap[];
   saving: boolean;
+  /** True while a pick, a sheet generation, a batch or an upload is in progress — Save waits
+   *  for it, so it never saves an avatar mid-change. */
+  busy: boolean;
   spentCredits: number;
   onName: (value: string) => void;
   onStory: (value: string) => void;
@@ -46,7 +49,7 @@ function Row({ done, label, detail }: { done: boolean; label: string; detail: st
 // The Studio's right-hand card: what the avatar is so far, its name and story, and Save. It
 // fills in as the steps are completed, so the operator always sees what they are saving.
 export function AvatarStudioCard({
-  avatar, name, story, gaps, saving, spentCredits, onName, onStory, onSave, onArchive,
+  avatar, name, story, gaps, saving, busy, spentCredits, onName, onStory, onSave, onArchive,
 }: Props) {
   const has = (gap: ReadinessGap) => !gaps.includes(gap);
   const engine = avatar ? avatarEngineNote(avatar) : null;
@@ -80,7 +83,7 @@ export function AvatarStudioCard({
         {avatar?.front?.source.kind === "upload" && (
           <Row done={has("consent")} label="Permission" detail={has("consent") ? "Confirmed" : "Needed"} />
         )}
-        {engine && <Row done label="Runs on" detail={engine} />}
+        {engine && <Row done={engine.ok} label="Runs on" detail={engine.text} />}
       </ul>
 
       <div className="flex flex-col gap-1.5">
@@ -105,7 +108,7 @@ export function AvatarStudioCard({
         />
       </div>
 
-      <Button disabled={gaps.length > 0 || saving} onClick={onSave}>
+      <Button disabled={gaps.length > 0 || saving || busy} onClick={onSave}>
         {saving ? "Saving…" : "Save avatar"}
       </Button>
       {gaps.length > 0 && (

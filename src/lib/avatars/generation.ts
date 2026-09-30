@@ -130,12 +130,18 @@ export function groupCandidatesByBatch(
   });
 }
 
-/** Which engine this avatar will run on (spec §8, D290). Derived, never stored. */
-export function avatarEngineNote(avatar: Pick<Avatar, "front" | "personType">): string | null {
+/** Which engine this avatar will run on (spec §8, D290). Derived, never stored. `ok: false`
+ *  is the one case that is a warning, not a stated fact — a generated face on a model Seedance
+ *  will not accept — so the Studio card can withhold the "Runs on" row's check mark for it. */
+export function avatarEngineNote(
+  avatar: Pick<Avatar, "front" | "personType">,
+): { text: string; ok: boolean } | null {
   if (!avatar.front || !avatar.personType) return null;
-  if (avatar.personType === "specific") return "Gemini Omni · clips up to 10 s";
+  if (avatar.personType === "specific") return { text: "Gemini Omni · clips up to 10 s", ok: true };
   const source = avatar.front.source;
-  return source.kind === "generated" && isSeedanceFaceModel(source.modelId)
-    ? "Seedance · clips up to 30 s"
-    : "Seedance will not accept this face — generate it with Seedream 5.0 Lite";
+  if (source.kind === "generated" && isSeedanceFaceModel(source.modelId)) {
+    return { text: "Seedance · clips up to 30 s", ok: true };
+  }
+  const seedanceFaceLabel = imageGenClientModelMap[SEEDANCE_FACE_MODEL_ID]?.label ?? SEEDANCE_FACE_MODEL_ID;
+  return { text: `Seedance will not accept this face — generate it with ${seedanceFaceLabel}`, ok: false };
 }

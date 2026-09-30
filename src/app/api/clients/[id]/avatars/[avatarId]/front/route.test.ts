@@ -41,6 +41,18 @@ beforeEach(() => {
 });
 
 describe("POST front", () => {
+  it("re-picking the candidate that is already the front is a no-op", async () => {
+    // makeAvatar()'s front is at row.output_snapshot's URL once we point them at the same file.
+    const sameFront = { ...row, output_snapshot: makeAvatar().front!.url };
+    vi.mocked(getAvatarGeneration).mockResolvedValue(sameFront as never);
+    const { POST } = await import("./route");
+    const res = await POST(post({ generationId: "g1" }), { params });
+    expect(res.status).toBe(200);
+    expect((await res.json()).avatar).toEqual(makeAvatar());
+    expect(updateAvatar).not.toHaveBeenCalled();
+    expect(removeObject).not.toHaveBeenCalled();
+  });
+
   it("a generated front makes the avatar generic, clears consent, stales the sheet and returns to draft", async () => {
     const { POST } = await import("./route");
     const res = await POST(post({ generationId: "g1" }), { params });

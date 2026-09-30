@@ -30,7 +30,14 @@ export async function POST(
       if (!parsed.success) return apiError("Invalid request body.", 400);
       const { path, filename, size, slot, imageWidth, imageHeight } = parsed.data;
 
-      if (!path.startsWith(`clients/${clientId}/avatars/${avatarId}/${slot}/`)) {
+      // Exactly one segment after the avatar's own slot folder, and no ".." anywhere: a caller
+      // could otherwise satisfy the old prefix-only check with e.g. ".../front/../../a9/front/x"
+      // and have this avatar record another avatar's (or another client's) object as its own.
+      const expectedPrefix = `clients/${clientId}/avatars/${avatarId}/${slot}/`;
+      const name = path.startsWith(expectedPrefix) ? path.slice(expectedPrefix.length) : null;
+      const validPath =
+        name !== null && name.length > 0 && !name.includes("/") && !path.split("/").includes("..");
+      if (!validPath) {
         return apiError("Upload path does not belong to this avatar.", 400);
       }
 

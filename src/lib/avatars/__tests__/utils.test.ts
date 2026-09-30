@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarImageContentType, avatarReadinessGaps, isAvatarReady, frontChangePatch,
+  avatarImageContentType, avatarReadinessGaps, errorMessage, isAvatarReady, frontChangePatch,
   sheetChangePatch, withStatus, planAvatarUpdate, validateAvatarImageFile, isUuid,
 } from "../utils";
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
@@ -46,8 +46,9 @@ describe("frontChangePatch", () => {
     expect(frontChangePatch(makeAvatar(), makeImage(GENERATED)).personType).toBe("generic");
   });
 
-  it("does not mark the sheet stale when there is no sheet yet", () => {
-    expect(frontChangePatch(makeAvatar({ sheet: null }), makeImage()).sheetStale).toBe(false);
+  it("marks the sheet stale even when there is no sheet yet — closes a race where a sheet " +
+    "written between this caller's read and write would otherwise go unmarked", () => {
+    expect(frontChangePatch(makeAvatar({ sheet: null }), makeImage()).sheetStale).toBe(true);
   });
 
   it("clears any existing consent record, whether the new front is an upload or generated", () => {
@@ -191,6 +192,16 @@ describe("avatarImageContentType", () => {
 
   it("falls back to octet-stream for an empty type and an unknown extension", () => {
     expect(avatarImageContentType({ name: "face.bmp", type: "" })).toBe("application/octet-stream");
+  });
+});
+
+describe("errorMessage", () => {
+  it("returns an Error's own message", () => {
+    expect(errorMessage(new Error("Boom"), "fallback")).toBe("Boom");
+  });
+  it("returns the fallback for a non-Error throw", () => {
+    expect(errorMessage("nope", "fallback")).toBe("fallback");
+    expect(errorMessage(undefined, "fallback")).toBe("fallback");
   });
 });
 

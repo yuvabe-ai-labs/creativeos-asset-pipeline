@@ -46,12 +46,18 @@ export function AvatarStudioLookStep({ studio: s, generation: g, consent, onCont
 
       {mode === "describe" ? (
         <>
-          <AvatarDescribePanel busy={busy} onGenerate={g.generate} />
+          <AvatarDescribePanel
+            busy={busy}
+            composer={g.composer}
+            onComposerChange={g.setComposer}
+            onGenerate={g.generate}
+          />
           <AvatarCandidateGrid
             candidates={g.candidates}
             pending={g.pending}
             frontUrl={front?.url ?? null}
             picking={g.picking}
+            locked={g.generatingSheet}
             onPick={g.pickFront}
           />
         </>
@@ -63,7 +69,7 @@ export function AvatarStudioLookStep({ studio: s, generation: g, consent, onCont
             aspect="3 / 4"
             image={front}
             uploading={s.uploading === "front"}
-            disabled={s.uploading !== null || s.confirmingConsent || busy}
+            disabled={s.uploading !== null || s.confirmingConsent || busy || g.generatingSheet}
             onFile={(file) => s.uploadImage("front", file)}
           />
         </div>

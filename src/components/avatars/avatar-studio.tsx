@@ -100,6 +100,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
           story={s.story}
           gaps={s.gaps}
           saving={s.saving}
+          busy={s.uploading !== null || g.picking !== null || g.generatingSheet || g.pending.length > 0}
           spentCredits={g.spentCredits}
           onName={s.setName}
           onStory={s.setStory}

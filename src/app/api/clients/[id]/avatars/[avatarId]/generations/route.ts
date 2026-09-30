@@ -8,6 +8,7 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { runAvatarGeneration } from "@/lib/avatars/generate";
 import { buildAvatarFrontPrompt } from "@/lib/avatars/generation";
 import { generationToCandidate } from "@/lib/avatars/rows";
+import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 import {
   AVATAR_DESCRIPTION_MAX, AVATAR_FRONT_ASPECT, AVATAR_STYLES,
 } from "@/lib/avatars/constants";
@@ -55,43 +56,49 @@ export async function GET(req: Request, { params }: Ctx) {
 
 // POST …/generations — generate ONE front candidate. The browser sends one request per image
 // in a batch, so each image has its own reservation, its own failure, and its own placeholder.
-// Not wrapped in withTryCatch: a CreditLimitError must answer 402 (the credit-cap toast), and
-// withTryCatch's catch-all would turn it into an undifferentiated 500 instead.
+// The whole body runs under withTryCatch so a thrown failure from getAvatar/resolveCallerContext
+// is formatted rather than crashing; the inner try/catch around runAvatarGeneration still maps
+// CreditLimitError to 402 itself — withTryCatch only ever sees a RETURNED response there, never
+// a throw, so it never gets a chance to turn that 402 into a 500.
 export async function POST(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId, client) => {
-    const parsed = GenerateSchema.safeParse(await req.json().catch(() => null));
-    if (!parsed.success) return apiError("Describe the character and choose a style and model.", 400);
-    const { description, attributes, styleId, modelId, batchId } = parsed.data;
+  return withClient(req, params, async (clientId, client) =>
+    withTryCatch("Could not generate the image.", async () => {
+      const parsed = GenerateSchema.safeParse(await req.json().catch(() => null));
+      if (!parsed.success) return apiError("Describe the character and choose a style and model.", 400);
+      const { description, attributes, styleId, modelId, batchId } = parsed.data;
+      if (!imageGenClientModelMap[modelId]) return apiError("Unknown model.", 400);
 
-    const avatar = await getAvatar(clientId, avatarId);
-    if (!avatar || avatar.archivedAt) return apiError("Avatar not found.", 404);
+      const avatar = await getAvatar(clientId, avatarId);
+      if (!avatar || avatar.archivedAt) return apiError("Avatar not found.", 404);
 
-    const caller = await resolveCallerContext();
-    try {
-      const { generation, creditsCharged } = await runAvatarGeneration({
-        clientId,
-        avatarId,
-        orgId: client.org_id,
-        userId: caller.userId,
-        userEmail: caller.email,
-        slot: "front",
-        modelId,
-        aspect: AVATAR_FRONT_ASPECT,
-        prompt: buildAvatarFrontPrompt({
-          description,
-          attributes: attributes ?? {},
-          styleId: styleId as (typeof AVATAR_STYLES)[number]["id"],
-        }),
-        referenceUrls: [],
-        batchId,
-      });
-      const candidate = generationToCandidate(generation);
-      if (!candidate) return apiError("The image was generated but could not be read back.", 500);
-      return apiOk({ candidate, creditsCharged }, 201);
-    } catch (e) {
-      if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
-      return apiError(e instanceof Error ? e.message : "Image generation failed", 500);
-    }
-  });
+      const caller = await resolveCallerContext();
+      try {
+        const { generation, creditsCharged } = await runAvatarGeneration({
+          clientId,
+          avatarId,
+          orgId: client.org_id,
+          userId: caller.userId,
+          userEmail: caller.email,
+          slot: "front",
+          modelId,
+          aspect: AVATAR_FRONT_ASPECT,
+          prompt: buildAvatarFrontPrompt({
+            description,
+            attributes: attributes ?? {},
+            styleId: styleId as (typeof AVATAR_STYLES)[number]["id"],
+          }),
+          referenceUrls: [],
+          batchId,
+        });
+        const candidate = generationToCandidate(generation);
+        if (!candidate) return apiError("The image was generated but could not be read back.", 500);
+        const spentCredits = await sumAvatarCredits(avatarId);
+        return apiOk({ candidate, creditsCharged, spentCredits }, 201);
+      } catch (e) {
+        if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
+        return apiError(e instanceof Error ? e.message : "Image generation failed", 500);
+      }
+    }),
+  );
 }

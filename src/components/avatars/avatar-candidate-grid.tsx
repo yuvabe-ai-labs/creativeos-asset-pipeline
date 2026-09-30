@@ -17,13 +17,15 @@ type Props = {
   frontUrl: string | null;
   /** The generation id being set as the front, if any. */
   picking: string | null;
+  /** True while the front cannot change — a sheet is generating from the current one. */
+  locked: boolean;
   onPick: (candidate: AvatarCandidate) => void;
 };
 
 // Every batch generated for this avatar, newest first. Earlier attempts stay so models can be
 // compared; clicking an image makes it the front. A placeholder is the same box as the image
 // that replaces it, so nothing moves when a result arrives.
-export function AvatarCandidateGrid({ candidates, pending, frontUrl, picking, onPick }: Props) {
+export function AvatarCandidateGrid({ candidates, pending, frontUrl, picking, locked, onPick }: Props) {
   const batches = groupCandidatesByBatch(candidates, pending);
   if (batches.length === 0) return null;
 
@@ -42,10 +44,12 @@ export function AvatarCandidateGrid({ candidates, pending, frontUrl, picking, on
                 <Button
                   key={candidate.generationId}
                   variant="ghost"
-                  disabled={picking !== null}
+                  disabled={picking !== null || locked}
                   aria-pressed={isFront}
                   aria-label={isFront ? "Current front image" : "Use as the front image"}
-                  onClick={() => onPick(candidate)}
+                  // Re-picking the current front is a no-op on the server too (D291 review),
+                  // but skipping the call here also skips the brief "picking" spinner state.
+                  onClick={() => { if (!isFront) onPick(candidate); }}
                   className={cn(
                     "relative aspect-[3/4] h-auto w-full overflow-hidden rounded-lg border p-0",
                     isFront && "ring-2 ring-primary ring-offset-2 ring-offset-background",

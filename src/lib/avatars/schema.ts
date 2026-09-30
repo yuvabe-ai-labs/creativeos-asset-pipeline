@@ -1,5 +1,7 @@
 // D287/D288 — a client-level avatar. Pure types: imported by routes, the DAL and the browser.
 
+import type { AvatarAttributes, AvatarStyleId } from "./constants";
+
 export type PersonType = "generic" | "specific";
 export type AvatarStatus = "draft" | "ready";
 export type AvatarImageSlot = "front" | "sheet";
@@ -69,4 +71,15 @@ export type Avatar = {
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+// The front-generation composer's shape (plan 2) — one Generate call's worth of input. Also
+// used as the Describe panel's persisted draft state (useAvatarGeneration's `composer`), since
+// the draft is exactly what a Generate click needs.
+export type GenerateFrontInput = {
+  description: string;
+  attributes: AvatarAttributes;
+  styleId: AvatarStyleId;
+  modelId: string;
+  count: number;
 };

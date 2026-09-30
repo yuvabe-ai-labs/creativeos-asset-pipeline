@@ -131,23 +131,27 @@ describe("groupCandidatesByBatch", () => {
 });
 
 describe("avatarEngineNote", () => {
-  it("a real person runs on Gemini Omni", () => {
-    expect(avatarEngineNote(makeAvatar())).toBe("Gemini Omni · clips up to 10 s");
+  it("a real person runs on Gemini Omni, and the row is done", () => {
+    expect(avatarEngineNote(makeAvatar())).toEqual({ text: "Gemini Omni · clips up to 10 s", ok: true });
   });
 
-  it("a generated Seedream face runs on Seedance", () => {
+  it("a generated Seedream face runs on Seedance, and the row is done", () => {
     const avatar = makeAvatar({ personType: "generic", front: makeImage(GENERATED) });
-    expect(avatarEngineNote(avatar)).toBe("Seedance · clips up to 30 s");
+    expect(avatarEngineNote(avatar)).toEqual({ text: "Seedance · clips up to 30 s", ok: true });
   });
 
-  it("a face generated on another model is called out", () => {
+  it("a face generated on another model is called out, names the required model by its live " +
+    "label, and the row is NOT done — it is a warning, not a fact", () => {
     // GENERATED is typed as the AvatarImageSource union, so a spread needs the kind narrowed
     // first — otherwise TS can't tell the override still matches the "generated" variant's shape.
     const source = GENERATED.kind === "generated"
       ? { ...GENERATED, modelId: "gemini:gemini-3-pro-image" }
       : GENERATED;
     const front = makeImage(source);
-    expect(avatarEngineNote(makeAvatar({ personType: "generic", front }))).toMatch(/Seedance will not accept/);
+    const note = avatarEngineNote(makeAvatar({ personType: "generic", front }));
+    expect(note?.ok).toBe(false);
+    expect(note?.text).toMatch(/Seedance will not accept/);
+    expect(note?.text).toContain("Seedream 5.0 Lite");
   });
 
   it("says nothing before there is a front image", () => {

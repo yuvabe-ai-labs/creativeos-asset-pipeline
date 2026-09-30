@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { avatarsService } from "@/services/avatars.service";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
-import { avatarReadinessGaps, validateAvatarImageFile } from "@/lib/avatars/utils";
+import { avatarReadinessGaps, errorMessage, validateAvatarImageFile } from "@/lib/avatars/utils";
 import { LIKENESS_CONSENT_CHANGED_ERROR } from "@/lib/avatars/constants";
 import type { Avatar, AvatarImageSlot } from "@/lib/avatars/schema";
 
 const SAVE_DELAY_MS = 600;
-const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 // A response is stale if it is older than what is already on screen — same server column
 // (`updatedAt`), compared as dates. Applying it anyway could set a stale `status` (e.g.
@@ -43,7 +42,7 @@ export function useAvatarStudio({
   const uploadingRef = useRef(false);
   const libraryHref = `/clients/${clientSlug}/avatars`;
 
-  // D287 amended (re-review) — `window.history.replaceState` in `uploadImage` below moves the
+  // D287 amended (re-review) — `window.history.replaceState` in `ensureAvatar` below moves the
   // URL to /avatars/<id> without a navigation, so Next's router tree still thinks this is /new.
   // After Save navigates to the library, pressing Back can restore that /new tree under the
   // avatar's URL: a Studio with `initialAvatar === null` where an upload would create a SECOND
@@ -67,7 +66,7 @@ export function useAvatarStudio({
         } : prev ?? updated));
       })
       .catch((e) => {
-        toast.error(message(e, "Could not save"));
+        toast.error(errorMessage(e, "Could not save"));
       });
   }, SAVE_DELAY_MS);
 
@@ -127,7 +126,7 @@ export function useAvatarStudio({
       const target = await ensureAvatar();
       replaceAvatar(await avatarsService.uploadImage(clientId, target.id, slot, file));
     } catch (e) {
-      toast.error(message(e, "Upload failed"));
+      toast.error(errorMessage(e, "Upload failed"));
     } finally {
       uploadingRef.current = false;
       setUploading(null);
@@ -153,12 +152,12 @@ export function useAvatarStudio({
         updatedAt: updated.updatedAt,
       } : prev ?? updated));
     } catch (e) {
-      const errorMessage = message(e, "Could not confirm");
-      toast.error(errorMessage);
+      const msg = errorMessage(e, "Could not confirm");
+      toast.error(msg);
       // The front image changed underneath the operator (a 409 from the DB precondition, or
       // the 400 planAvatarUpdate returns for the same reason) — reload so the screen shows the
       // real photo instead of the stale one the tick was given for.
-      if (errorMessage === LIKENESS_CONSENT_CHANGED_ERROR) {
+      if (msg === LIKENESS_CONSENT_CHANGED_ERROR) {
         try {
           setAvatar(await avatarsService.get(clientId, avatar.id));
         } catch {
@@ -178,7 +177,7 @@ export function useAvatarStudio({
       toast.success("Avatar saved");
       router.push(libraryHref);
     } catch (e) {
-      toast.error(message(e, "Could not save the avatar"));
+      toast.error(errorMessage(e, "Could not save the avatar"));
     } finally {
       setSaving(false);
     }
@@ -190,7 +189,7 @@ export function useAvatarStudio({
       await avatarsService.archive(clientId, avatar.id);
       router.push(libraryHref);
     } catch (e) {
-      toast.error(message(e, "Could not archive the avatar"));
+      toast.error(errorMessage(e, "Could not archive the avatar"));
     }
   }, [avatar, clientId, router, libraryHref]);
 

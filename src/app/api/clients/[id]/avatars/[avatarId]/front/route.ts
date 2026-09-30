@@ -30,6 +30,11 @@ export async function POST(
       const image = generationToCandidate(generation) ? generationToImage(generation) : null;
       if (!image) return apiError("That image cannot be used as a front image.", 400);
 
+      // Re-picking the tile that is already the front must be a no-op: frontChangePatch always
+      // makes the avatar generic, clears consent and stales the sheet, which would otherwise
+      // punish clicking the current front with the same consequences as an actual change.
+      if (current.front?.url === image.url) return apiOk({ avatar: current });
+
       // frontChangePatch makes the avatar generic, clears consent and stales the sheet.
       // Conditioned on the front THIS request read: a concurrent front pick or a consent/ready
       // PATCH landing in between must not be overwritten by a write planned from a stale read

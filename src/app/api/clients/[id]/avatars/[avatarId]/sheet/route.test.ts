@@ -8,6 +8,7 @@ vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() 
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/avatars", () => ({ getAvatar: vi.fn(), updateAvatar: vi.fn() }));
+vi.mock("@/lib/db/generations", () => ({ sumAvatarCredits: vi.fn() }));
 vi.mock("@/lib/db/credit-transactions", () => {
   class CreditLimitError extends Error {}
   return { CreditLimitError };
@@ -19,6 +20,7 @@ import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
+import { sumAvatarCredits } from "@/lib/db/generations";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
 import { runAvatarGeneration } from "@/lib/avatars/generate";
 import { removeObject } from "@/lib/storage";
@@ -44,6 +46,7 @@ beforeEach(() => {
   vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ sheetStale: true, status: "draft" }));
   vi.mocked(runAvatarGeneration).mockResolvedValue({ generation: row as never, creditsCharged: 40 });
   vi.mocked(updateAvatar).mockImplementation(async (_c, _a, p) => makeAvatar(p));
+  vi.mocked(sumAvatarCredits).mockResolvedValue(40);
 });
 
 describe("POST sheet", () => {
@@ -59,7 +62,18 @@ describe("POST sheet", () => {
     const patch = vi.mocked(updateAvatar).mock.calls[0][2];
     expect(patch.sheet?.source).toMatchObject({ kind: "generated", mode: "edit", generationId: "g5" });
     expect(patch.sheetStale).toBe(false);
-    expect((await res.json()).creditsCharged).toBe(40);
+    const json = await res.json();
+    expect(json.creditsCharged).toBe(40);
+    expect(json.spentCredits).toBe(40);
+  });
+
+  it("is a 400 for a model that is not in the registry, before touching the avatar", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "nope:none" }), { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Unknown model.");
+    expect(runAvatarGeneration).not.toHaveBeenCalled();
+    expect(getAvatar).not.toHaveBeenCalled();
   });
 
   it("passes the front-URL precondition for the front it generated from", async () => {
@@ -127,6 +141,15 @@ describe("POST sheet", () => {
     const { POST } = await import("./route");
     const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
     expect(res.status).toBe(404);
+  });
+
+  it("formats a thrown failure ahead of generation (e.g. resolveCallerContext) as a 500, via withTryCatch", async () => {
+    vi.mocked(resolveCallerContext).mockRejectedValue(new Error("Session expired"));
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("Session expired");
+    expect(runAvatarGeneration).not.toHaveBeenCalled();
   });
 
   it("is a 404 when the write's precondition finds no row and the avatar is archived", async () => {

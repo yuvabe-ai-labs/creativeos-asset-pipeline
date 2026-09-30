@@ -16,7 +16,9 @@ type Props = {
 // own. While it generates, the slot shows the same-size placeholder an upload does.
 export function AvatarStudioSheetStep({ studio: s, generation: g, consent }: Props) {
   const sheet = s.avatar?.sheet ?? null;
-  const working = s.uploading !== null || g.generatingSheet;
+  // A pick in flight also locks the sheet: it is about to be made from whatever front the pick
+  // resolves to, so Generate must wait for it (plan 2 review).
+  const working = s.uploading !== null || g.generatingSheet || g.picking !== null;
 
   return (
     <>
@@ -28,7 +30,7 @@ export function AvatarStudioSheetStep({ studio: s, generation: g, consent }: Pro
         </p>
       </div>
       {consent}
-      {s.avatar?.sheetStale && (
+      {sheet && s.avatar?.sheetStale && (
         <p className="rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-sm">
           The front image changed. Regenerate or replace the sheet so it shows the same person.
         </p>
@@ -37,6 +39,8 @@ export function AvatarStudioSheetStep({ studio: s, generation: g, consent }: Pro
         hasSheet={sheet !== null}
         generating={g.generatingSheet}
         disabled={working || !s.avatar?.front}
+        modelId={g.sheetModelId}
+        onModelChange={g.setSheetModelId}
         onGenerate={g.generateSheet}
       />
       <AvatarImageDropzone

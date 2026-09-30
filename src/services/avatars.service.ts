@@ -75,7 +75,7 @@ class AvatarsService {
       modelId: string;
       batchId: string;
     },
-  ): Promise<{ candidate: AvatarCandidate; creditsCharged: number }> {
+  ): Promise<{ candidate: AvatarCandidate; creditsCharged: number; spentCredits: number }> {
     const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/generations`, {
       method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body),
     });
@@ -93,7 +93,7 @@ class AvatarsService {
     clientId: string,
     avatarId: string,
     modelId: string,
-  ): Promise<{ avatar: Avatar; creditsCharged: number }> {
+  ): Promise<{ avatar: Avatar; creditsCharged: number; spentCredits: number }> {
     const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/sheet`, {
       method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ modelId }),
     });

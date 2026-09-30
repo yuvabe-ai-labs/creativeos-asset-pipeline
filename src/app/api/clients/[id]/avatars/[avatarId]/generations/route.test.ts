@@ -47,6 +47,7 @@ beforeEach(() => {
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1" } as never);
   vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ status: "draft" }));
   vi.mocked(runAvatarGeneration).mockResolvedValue({ generation: row as never, creditsCharged: 35 });
+  vi.mocked(sumAvatarCredits).mockResolvedValue(35);
 });
 
 describe("GET generations", () => {
@@ -88,6 +89,7 @@ describe("POST generations", () => {
     const json = await res.json();
     expect(json.candidate.generationId).toBe("g1");
     expect(json.creditsCharged).toBe(35);
+    expect(json.spentCredits).toBe(35);
   });
 
   it("rejects an empty description and an unknown style before spending anything", async () => {
@@ -95,6 +97,15 @@ describe("POST generations", () => {
     expect((await POST(post({ ...body, description: "  " }), { params })).status).toBe(400);
     expect((await POST(post({ ...body, styleId: "oil-painting" }), { params })).status).toBe(400);
     expect(runAvatarGeneration).not.toHaveBeenCalled();
+  });
+
+  it("is a 400 for a model that is not in the registry, before generating anything", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ ...body, modelId: "nope:none" }), { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Unknown model.");
+    expect(runAvatarGeneration).not.toHaveBeenCalled();
+    expect(getAvatar).not.toHaveBeenCalled();
   });
 
   it("is a 404 for an archived avatar", async () => {
@@ -118,5 +129,14 @@ describe("POST generations", () => {
     const res = await POST(post(body), { params });
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe("Content blocked");
+  });
+
+  it("formats a thrown failure ahead of generation (e.g. resolveCallerContext) as a 500, via withTryCatch", async () => {
+    vi.mocked(resolveCallerContext).mockRejectedValue(new Error("Session expired"));
+    const { POST } = await import("./route");
+    const res = await POST(post(body), { params });
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("Session expired");
+    expect(runAvatarGeneration).not.toHaveBeenCalled();
   });
 });

@@ -73,6 +73,14 @@ export const AVATAR_ATTRIBUTES = {
 } as const;
 export type AvatarAttributes = Partial<Record<keyof typeof AVATAR_ATTRIBUTES, string>>;
 
+// Labels for the attribute selects, and the sentinel value for "no preference" — moved here
+// from avatar-describe-panel.tsx (plan 2 review) since they describe AVATAR_ATTRIBUTES itself,
+// not the panel's layout.
+export const ATTRIBUTE_LABELS: Record<keyof typeof AVATAR_ATTRIBUTES, string> = {
+  gender: "Gender", age: "Age", ethnicity: "Ethnicity",
+};
+export const ANY = "any";
+
 // Appended to every front prompt. These are the conditions that make a usable face reference,
 // so the operator cannot write them away.
 export const AVATAR_FRAMING_CLAUSE =

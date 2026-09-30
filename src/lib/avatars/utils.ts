@@ -50,11 +50,17 @@ export function isAvatarReady(avatar: ReadinessInput): boolean {
 /** A new front is a new face: any sheet made from the old one is stale, the person type
  *  follows the new image's source — an upload is a specific person, a generated image is
  *  generic — and any consent on record is cleared, upload or not: a new photo may be a
- *  different person, so an upload asks again. */
+ *  different person, so an upload asks again.
+ *
+ *  `sheetStale` is stated unconditionally (never gated on `current.sheet !== null`): a sheet
+ *  written between this caller's read of `current` and its write would otherwise go unmarked,
+ *  since the read that decided "no sheet yet" is already stale by the time the write lands.
+ *  `avatarReadinessGaps` only turns this into the "sheet-stale" gap when a sheet actually
+ *  exists, so stating it on a sheet-less avatar is inert until a sheet shows up. */
 export function frontChangePatch(current: Avatar, image: AvatarImage): AvatarPatch {
   return {
     front: image,
-    sheetStale: current.sheet !== null,
+    sheetStale: true,
     personType: image.source.kind === "generated" ? "generic" : "specific",
     likenessConsentBy: null,
     likenessConsentAt: null,
@@ -147,6 +153,12 @@ export function validateAvatarImageFile(file: { name: string; size: number }): s
     return `This image is larger than the ${AVATAR_IMAGE_MAX_LABEL} limit.`;
   }
   return null;
+}
+
+/** Browser and server share this too — both hooks that call service methods want "the error's
+ *  message, or a fallback for a non-Error throw," and had each declared their own copy. */
+export function errorMessage(e: unknown, fallback: string): string {
+  return e instanceof Error ? e.message : fallback;
 }
 
 /** Some OSes report an empty `file.type` for certain image files (notably .jpg); others report

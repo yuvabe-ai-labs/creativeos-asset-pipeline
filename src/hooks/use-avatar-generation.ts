@@ -4,23 +4,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { avatarsService } from "@/services/avatars.service";
 import { mergeCandidates, type PendingCandidate } from "@/lib/avatars/generation";
-import type { AvatarAttributes, AvatarStyleId } from "@/lib/avatars/constants";
-import type { Avatar, AvatarCandidate } from "@/lib/avatars/schema";
+import { errorMessage } from "@/lib/avatars/utils";
+import {
+  AVATAR_BATCH_DEFAULT, AVATAR_DEFAULT_FRONT_MODEL_ID, AVATAR_DEFAULT_SHEET_MODEL_ID, AVATAR_STYLES,
+} from "@/lib/avatars/constants";
+import type { Avatar, AvatarCandidate, GenerateFrontInput } from "@/lib/avatars/schema";
 
-export type GenerateFrontInput = {
-  description: string;
-  attributes: AvatarAttributes;
-  styleId: AvatarStyleId;
-  modelId: string;
-  count: number;
+const DEFAULT_COMPOSER: GenerateFrontInput = {
+  description: "", attributes: {}, styleId: AVATAR_STYLES[0].id,
+  modelId: AVATAR_DEFAULT_FRONT_MODEL_ID, count: AVATAR_BATCH_DEFAULT,
 };
-
-const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 // D288/D291 — generation state for the Avatar Studio: the front candidates, the images still
 // generating, what this avatar has cost, and the two actions that change the avatar (pick a
 // front, generate the sheet). One request per image, so each placeholder resolves on its own
 // and one failure does not sink the batch.
+//
+// Also owns the Describe composer's draft (spec §4.1, plan 2 review) and the sheet step's chosen
+// model — both live here, not as local state in their panels, so switching to "Upload photo" or
+// leaving the Look step (which unmounts the panels) never loses what was typed.
 export function useAvatarGeneration({
   clientId, avatarId, ensureAvatar, onAvatar,
 }: {
@@ -34,7 +36,13 @@ export function useAvatarGeneration({
   const [spentCredits, setSpentCredits] = useState(0);
   const [picking, setPicking] = useState<string | null>(null);
   const [generatingSheet, setGeneratingSheet] = useState(false);
+  const [composer, setComposerState] = useState<GenerateFrontInput>(DEFAULT_COMPOSER);
+  const [sheetModelId, setSheetModelId] = useState(AVATAR_DEFAULT_SHEET_MODEL_ID);
   const loadedFor = useRef<string | null>(null);
+
+  const setComposer = useCallback((patch: Partial<GenerateFrontInput>) => {
+    setComposerState((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   // What was generated before this visit. Merged, not assigned: a draft created in this
   // session may already have results on screen when the load returns.
@@ -45,19 +53,31 @@ export function useAvatarGeneration({
       .listGenerations(clientId, avatarId)
       .then((loaded) => {
         setCandidates((prev) => mergeCandidates(prev, loaded.candidates));
-        setSpentCredits((prev) => Math.max(prev, loaded.spentCredits));
+        setSpentCredits(loaded.spentCredits);
       })
       .catch(() => {
         // The grid is a convenience; a failed load leaves it empty rather than blocking work.
       });
   }, [clientId, avatarId]);
 
+  // A failed generation batch (or sheet request) may still have charged credits for the images
+  // that DID succeed before the error — refetches the real settled total rather than trusting
+  // whatever partial bookkeeping the browser could reconstruct.
+  const refreshSpentCredits = useCallback(async (id: string) => {
+    try {
+      const loaded = await avatarsService.listGenerations(clientId, id);
+      setSpentCredits(loaded.spentCredits);
+    } catch {
+      // Best-effort; the toast already told the operator what happened.
+    }
+  }, [clientId]);
+
   const generate = useCallback(async (input: GenerateFrontInput) => {
     let target: Avatar;
     try {
       target = await ensureAvatar();
     } catch (e) {
-      toast.error(message(e, "Could not start the avatar"));
+      toast.error(errorMessage(e, "Could not start the avatar"));
       return;
     }
     const batchId = crypto.randomUUID();
@@ -71,7 +91,7 @@ export function useAvatarGeneration({
     const errors = new Set<string>();
     await Promise.all(tiles.map(async (tile) => {
       try {
-        const { candidate, creditsCharged } = await avatarsService.generateFront(clientId, target.id, {
+        const { candidate, spentCredits: total } = await avatarsService.generateFront(clientId, target.id, {
           description: input.description,
           attributes: input.attributes,
           styleId: input.styleId,
@@ -79,44 +99,54 @@ export function useAvatarGeneration({
           batchId,
         });
         setCandidates((prev) => mergeCandidates(prev, [candidate]));
-        setSpentCredits((prev) => prev + creditsCharged);
+        setSpentCredits(total);
       } catch (e) {
-        errors.add(message(e, "Could not generate the image"));
+        errors.add(errorMessage(e, "Could not generate the image"));
       } finally {
         setPending((prev) => prev.filter((p) => p.key !== tile.key));
       }
     }));
     for (const text of errors) toast.error(text);
-  }, [clientId, ensureAvatar]);
+    // The server's number is the source of truth: a partial-batch failure may have charged for
+    // the images that succeeded, in an order the per-tile responses above cannot be trusted to
+    // reflect (concurrent requests can settle out of order).
+    if (errors.size > 0) await refreshSpentCredits(target.id);
+  }, [clientId, ensureAvatar, refreshSpentCredits]);
 
   const pickFront = useCallback(async (candidate: AvatarCandidate) => {
-    if (!avatarId || picking) return;
+    // The front cannot change while a sheet is generating (it was made from the front now on
+    // screen) or while another pick is already in flight.
+    if (!avatarId || picking || generatingSheet) return;
     setPicking(candidate.generationId);
     try {
       onAvatar(await avatarsService.pickFront(clientId, avatarId, candidate.generationId));
     } catch (e) {
-      toast.error(message(e, "Could not set the front image"));
+      toast.error(errorMessage(e, "Could not set the front image"));
     } finally {
       setPicking(null);
     }
-  }, [clientId, avatarId, picking, onAvatar]);
+  }, [clientId, avatarId, picking, generatingSheet, onAvatar]);
 
   const generateSheet = useCallback(async (modelId: string) => {
     if (!avatarId || generatingSheet) return;
     setGeneratingSheet(true);
     try {
-      const { avatar, creditsCharged } = await avatarsService.generateSheet(clientId, avatarId, modelId);
+      const { avatar, spentCredits: total } = await avatarsService.generateSheet(clientId, avatarId, modelId);
       onAvatar(avatar);
-      setSpentCredits((prev) => prev + creditsCharged);
+      setSpentCredits(total);
     } catch (e) {
-      toast.error(message(e, "Could not generate the profile sheet"));
+      toast.error(errorMessage(e, "Could not generate the profile sheet"));
+      // A 409 here (the front changed mid-generation) has already charged credits for the
+      // image the server made — refetch so the total on screen includes it.
+      await refreshSpentCredits(avatarId);
     } finally {
       setGeneratingSheet(false);
     }
-  }, [clientId, avatarId, generatingSheet, onAvatar]);
+  }, [clientId, avatarId, generatingSheet, onAvatar, refreshSpentCredits]);
 
   return {
     candidates, pending, spentCredits, picking, generatingSheet,
+    composer, setComposer, sheetModelId, setSheetModelId,
     generate, pickFront, generateSheet,
   };
 }

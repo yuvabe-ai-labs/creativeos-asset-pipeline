@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,33 +8,32 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  AVATAR_ATTRIBUTES, AVATAR_BATCH_DEFAULT, AVATAR_BATCH_MAX, AVATAR_DEFAULT_FRONT_MODEL_ID,
-  AVATAR_DESCRIPTION_MAX, AVATAR_FRONT_ASPECT, AVATAR_STYLES,
-  type AvatarAttributes, type AvatarStyleId,
+  ANY, ATTRIBUTE_LABELS, AVATAR_ATTRIBUTES, AVATAR_BATCH_MAX, AVATAR_DESCRIPTION_MAX,
+  AVATAR_FRONT_ASPECT, AVATAR_STYLES, SEEDANCE_FACE_MODEL_ID, type AvatarStyleId,
 } from "@/lib/avatars/constants";
 import { estimateAvatarImageCredits, isSeedanceFaceModel } from "@/lib/avatars/generation";
-import type { GenerateFrontInput } from "@/hooks/use-avatar-generation";
+import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import type { GenerateFrontInput } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarModelSelect } from "./avatar-model-select";
 
-const ATTRIBUTE_LABELS: Record<keyof typeof AVATAR_ATTRIBUTES, string> = {
-  gender: "Gender", age: "Age", ethnicity: "Ethnicity",
+type Props = {
+  busy: boolean;
+  /** The draft, lifted into useAvatarGeneration (spec §4.1) so it survives switching to
+   *  "Upload photo" or leaving the Look step — both of which unmount this panel. */
+  composer: GenerateFrontInput;
+  onComposerChange: (patch: Partial<GenerateFrontInput>) => void;
+  onGenerate: (input: GenerateFrontInput) => void;
 };
-const ANY = "any";
 
 // The composer of the Look step: what the character is, the settings, and Generate with its
 // credit cost. Framing is fixed (facing camera, waist-up, plain background) and is not a field.
-export function AvatarDescribePanel({
-  busy, onGenerate,
-}: { busy: boolean; onGenerate: (input: GenerateFrontInput) => void }) {
-  const [description, setDescription] = useState("");
-  const [attributes, setAttributes] = useState<AvatarAttributes>({});
-  const [styleId, setStyleId] = useState<AvatarStyleId>(AVATAR_STYLES[0].id);
-  const [modelId, setModelId] = useState(AVATAR_DEFAULT_FRONT_MODEL_ID);
-  const [count, setCount] = useState(AVATAR_BATCH_DEFAULT);
+export function AvatarDescribePanel({ busy, composer, onComposerChange, onGenerate }: Props) {
+  const { description, attributes, styleId, modelId, count } = composer;
 
   const perImage = estimateAvatarImageCredits({ modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
   const canGenerate = description.trim().length > 0 && perImage !== null && !busy;
+  const seedanceFaceLabel = imageGenClientModelMap[SEEDANCE_FACE_MODEL_ID]?.label ?? "Seedream 5.0 Lite";
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">
@@ -47,7 +45,7 @@ export function AvatarDescribePanel({
           maxLength={AVATAR_DESCRIPTION_MAX}
           rows={3}
           placeholder="Appearance, clothing, hair, and anything that makes them recognisable"
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => onComposerChange({ description: e.target.value })}
         />
       </div>
 
@@ -58,7 +56,7 @@ export function AvatarDescribePanel({
             value={attributes[key] ?? ANY}
             onValueChange={(v) => {
               if (typeof v !== "string") return;
-              setAttributes((prev) => ({ ...prev, [key]: v === ANY ? undefined : v }));
+              onComposerChange({ attributes: { ...attributes, [key]: v === ANY ? undefined : v } });
             }}
           >
             <SelectTrigger size="sm" aria-label={ATTRIBUTE_LABELS[key]}>
@@ -78,8 +76,15 @@ export function AvatarDescribePanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-        <AvatarModelSelect id="avatar-front-model" value={modelId} onChange={setModelId} />
-        <Select value={styleId} onValueChange={(v) => { if (typeof v === "string") setStyleId(v as AvatarStyleId); }}>
+        <AvatarModelSelect
+          id="avatar-front-model"
+          value={modelId}
+          onChange={(v) => onComposerChange({ modelId: v })}
+        />
+        <Select
+          value={styleId}
+          onValueChange={(v) => { if (typeof v === "string") onComposerChange({ styleId: v as AvatarStyleId }); }}
+        >
           <SelectTrigger size="sm" aria-label="Style">
             <SelectValue>{AVATAR_STYLES.find((s) => s.id === styleId)?.label}</SelectValue>
           </SelectTrigger>
@@ -93,7 +98,7 @@ export function AvatarDescribePanel({
         <div className="flex items-center rounded-lg border">
           <Button
             variant="ghost" size="icon-sm" aria-label="Fewer images"
-            disabled={count <= 1} onClick={() => setCount((c) => Math.max(1, c - 1))}
+            disabled={count <= 1} onClick={() => onComposerChange({ count: Math.max(1, count - 1) })}
           >
             <Minus className="size-3.5" strokeWidth={1.5} />
           </Button>
@@ -102,7 +107,8 @@ export function AvatarDescribePanel({
           </span>
           <Button
             variant="ghost" size="icon-sm" aria-label="More images"
-            disabled={count >= AVATAR_BATCH_MAX} onClick={() => setCount((c) => Math.min(AVATAR_BATCH_MAX, c + 1))}
+            disabled={count >= AVATAR_BATCH_MAX}
+            onClick={() => onComposerChange({ count: Math.min(AVATAR_BATCH_MAX, count + 1) })}
           >
             <Plus className="size-3.5" strokeWidth={1.5} />
           </Button>
@@ -120,7 +126,7 @@ export function AvatarDescribePanel({
 
       {!isSeedanceFaceModel(modelId) && (
         <p className="text-xs text-muted-foreground">
-          Seedance only accepts faces made with Seedream 5.0 Lite. An avatar generated on this
+          Seedance only accepts faces made with {seedanceFaceLabel}. An avatar generated on this
           model will not run on Seedance.
         </p>
       )}
