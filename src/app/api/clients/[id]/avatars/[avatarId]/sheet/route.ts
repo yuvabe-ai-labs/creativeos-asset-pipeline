@@ -10,6 +10,7 @@ import { buildAvatarSheetPrompt } from "@/lib/avatars/generation";
 import { generationToImage } from "@/lib/avatars/rows";
 import { sheetChangePatch, withStatus } from "@/lib/avatars/utils";
 import { AVATAR_SHEET_ASPECT } from "@/lib/avatars/constants";
+import { preconditionFailed } from "@/lib/avatars/route-responses";
 
 // One image can take over a minute on some models.
 export const maxDuration = 300;
@@ -69,11 +70,7 @@ export async function POST(
         // `latest`, above, confirms the row existed a moment ago — a null result here means the
         // front precondition caught a (narrower) race, not that the avatar vanished, unless it
         // was archived or deleted in between.
-        const stillThere = await getAvatar(clientId, avatarId);
-        if (stillThere) {
-          return apiError("The front image changed while the sheet was generating. Generate it again.", 409);
-        }
-        return apiError("Avatar not found.", 404);
+        return preconditionFailed(clientId, avatarId, "The front image changed while the sheet was generating. Generate it again.");
       }
 
       const replaced = latest.sheet;

@@ -128,4 +128,17 @@ describe("POST sheet", () => {
     const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
     expect(res.status).toBe(404);
   });
+
+  it("is a 404 when the write's precondition finds no row and the avatar is archived", async () => {
+    const avatar = makeAvatar({ sheetStale: true, status: "draft" });
+    const archived = makeAvatar({ sheetStale: true, status: "draft", archivedAt: "2026-09-30T10:00:00.000Z" });
+    vi.mocked(getAvatar)
+      .mockResolvedValueOnce(avatar) // initial read
+      .mockResolvedValueOnce(avatar) // re-read compare after generation
+      .mockResolvedValueOnce(archived); // existence re-check after the conditioned write returns null
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(404);
+  });
 });

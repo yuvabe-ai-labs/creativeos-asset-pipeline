@@ -5,6 +5,7 @@ import { getAvatarGeneration } from "@/lib/db/generations";
 import { removeObject } from "@/lib/storage";
 import { generationToCandidate, generationToImage } from "@/lib/avatars/rows";
 import { frontChangePatch, withStatus } from "@/lib/avatars/utils";
+import { preconditionFailed } from "@/lib/avatars/route-responses";
 
 const PickSchema = z.object({ generationId: z.string().min(1) });
 
@@ -43,9 +44,7 @@ export async function POST(
         // `current`, above, confirms the row existed a moment ago — a null result here means
         // the front precondition caught a race, not that the avatar itself vanished, unless it
         // was archived or deleted in between (the same distinction the PATCH route draws).
-        const stillThere = await getAvatar(clientId, avatarId);
-        if (stillThere) return apiError("The front image changed. Pick again.", 409);
-        return apiError("Avatar not found.", 404);
+        return preconditionFailed(clientId, avatarId, "The front image changed. Pick again.");
       }
 
       // An uploaded photo it replaces is removed; a generated one stays — its batch still shows it.

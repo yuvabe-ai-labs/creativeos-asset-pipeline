@@ -110,4 +110,14 @@ describe("POST front", () => {
     const res = await POST(post({ generationId: "g1" }), { params });
     expect(res.status).toBe(404);
   });
+
+  it("is a 404 when updateAvatar finds no row and the avatar is archived", async () => {
+    const { POST } = await import("./route");
+    vi.mocked(getAvatar)
+      .mockResolvedValueOnce(makeAvatar())
+      .mockResolvedValueOnce(makeAvatar({ archivedAt: "2026-09-30T10:00:00.000Z" })); // archived by the existence re-check
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const res = await POST(post({ generationId: "g1" }), { params });
+    expect(res.status).toBe(404);
+  });
 });
