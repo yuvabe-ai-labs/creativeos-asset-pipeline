@@ -15,7 +15,8 @@ export type AddNodeType =
   | "video-prompt"
   | "multishot-prompt"
   | "video-gen"
-  | "post";
+  | "post"
+  | "avatar";
 
 export interface AddNodeOption {
   type: AddNodeType;
@@ -40,6 +41,8 @@ export const ADD_NODE_OPTIONS: readonly AddNodeOption[] = [
   { type: "multishot-prompt", label: "Multishot Prompt", mnemonic: "U" },
   { type: "video-gen", label: "Video Gen", mnemonic: "V" },
   { type: "post", label: "Post", mnemonic: "O" },
+  // Places one of the client's saved avatars (Settings → Avatar) on the canvas.
+  { type: "avatar", label: "Use Avatar", mnemonic: "A" },
 ];
 
 const BY_MNEMONIC = new Map<string, AddNodeType>(

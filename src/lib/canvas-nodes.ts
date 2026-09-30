@@ -69,6 +69,17 @@ export type TextNodeData = {
   text?: string; // free-text context; this node's "output" (no version log, D19)
 };
 
+// Avatar node — one of the client's saved avatars (Settings → Avatar). Avatars live in the
+// browser (src/lib/avatars/local-store.ts), so the node keeps a snapshot of what it shows and
+// still renders in a browser that doesn't have the avatar.
+export type AvatarNodeData = {
+  title?: string;
+  avatarId?: string | null;
+  name?: string;
+  imageDataUrl?: string; // "" for an avatar with no image yet (random character)
+  voiceName?: string | null;
+};
+
 export type DrawNodeData = {
   title?: string;
   fileUrl?: string; // flattened sketch PNG — the image handed downstream (reuses File field)
@@ -237,7 +248,8 @@ export type AppNode =
   | Node<ImageGenNodeData, "image-gen">
   | Node<VideoPromptNodeData, "video-prompt">
   | Node<VideoGenNodeData, "video-gen">
-  | Node<PostNodeData, "post">;
+  | Node<PostNodeData, "post">
+  | Node<AvatarNodeData, "avatar">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
@@ -261,6 +273,8 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   "multishot-prompt": ["video-gen"],
   "video-gen":        [],
   "post":             [],
+  // Wires into Video Gen ahead of avatar-driven generation; nothing reads it yet.
+  avatar:             ["video-gen"],
 } as const;
 
 // The single ordered connection check: may a `sourceType` node feed a `targetType` node?

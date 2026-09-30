@@ -19,6 +19,9 @@ export function getNodeOutput(node: NodeOutputInput): string {
       // Draw node carries composition instructions as its text output; the sketch image
       // travels separately via fileUrl → vision attachment. Mirrors the "text" case (D19).
       return String(node.data.instructions ?? "").trim();
+    case "avatar":
+      // Data-only like Text: the chosen avatar's name is its output.
+      return String(node.data.name ?? "").trim();
     case "post":
       // Post nodes have no version system — the rendered output lives on node.data (D19-style).
       return String(node.data.fileUrl ?? "").trim();

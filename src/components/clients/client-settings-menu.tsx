@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Globe, Settings } from "lucide-react";
+import { BookOpen, Globe, Settings, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /**
- * Entry point to the client's two knowledge surfaces. They are separate pages, not
+ * Entry point to the client's settings surfaces. They are separate pages, not
  * views of one page, so they are reached from here rather than from a tab strip —
  * tabs would promise in-place switching that a route change doesn't deliver.
  */
@@ -23,6 +23,12 @@ export function ClientSettingsMenu({ slug }: { slug: string }) {
       icon: Globe,
       label: "Market",
       hint: "Direct, Adjacent and Signals",
+    },
+    {
+      href: `/clients/${slug}/avatar`,
+      icon: UserRound,
+      label: "Avatar",
+      hint: "Brand avatar",
     },
   ];
 

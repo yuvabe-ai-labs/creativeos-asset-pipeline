@@ -126,6 +126,8 @@ function defaultData(type: string): AppNode["data"] {
       // most vertical space in the feed. Only affects NEW nodes — resolveFormat's fallback
       // stays square so existing posts that never stored a format keep rendering as they do.
       return { title: "", format: "ig-portrait" as const, layers: [] };
+    case "avatar":
+      return { title: "", avatarId: null, name: "", imageDataUrl: "", voiceName: null };
     case "script":
     default:
       return { title: "" };

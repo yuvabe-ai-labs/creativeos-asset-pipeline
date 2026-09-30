@@ -10,10 +10,11 @@ describe("ADD_NODE_OPTIONS", () => {
   // `kb` is a canvas anchor, and `shot`/`multishot` are created by fanning out a Script —
   // never by hand — so all three are deliberately absent. `multishot-prompt` IS here, because
   // its sibling the Motion Prompt is and a reference library connects to it directly.
-  it("has the 10 user-addable node types (kb, shot and multishot excluded)", () => {
+  it("has the 11 user-addable node types (kb, shot and multishot excluded)", () => {
     const types = ADD_NODE_OPTIONS.map((o) => o.type).sort();
     expect(types).toEqual(
       [
+        "avatar",
         "draw",
         "file",
         "image-gen",
@@ -53,6 +54,7 @@ describe("mnemonicToType", () => {
       m: "video-prompt",
       v: "video-gen",
       o: "post",
+      a: "avatar",
     };
     for (const [key, type] of Object.entries(expected)) {
       expect(mnemonicToType(key)).toBe(type);
