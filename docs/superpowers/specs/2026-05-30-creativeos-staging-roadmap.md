@@ -5939,7 +5939,11 @@ matched text-only pair in one Seedream call (weaker identity match).
 `specific`, generated is `generic`. The operator is never asked whether the person is real. For
 an uploaded front the operator ticks one statement — "I have this person's permission to use
 their likeness" — and the server records `likeness_consent_by` and `likeness_consent_at`.
-Replacing the front clears the consent. An uploaded-front avatar cannot become `ready` without it.
+Replacing the front clears the consent. An uploaded-front avatar cannot become `ready` without it. Consent is bound to the photo it was
+given for: the request carries the front image's URL, the server refuses a mismatch, and the
+write is conditioned on that URL (`updateAvatar(…, { ifFrontUrl })`; `null` means "still no
+front"), answering 409 if the front changed mid-request. The same precondition guards the
+front-pick and sheet writes (D291).
 
 **Why.** Provenance decides the engine (D290) and cannot be reconstructed later. The handoff
 design requires a consent record for a real likeness: who agreed, and when. The first build asked
@@ -5982,8 +5986,9 @@ is, Seedance gets the front image only.
 ### D291 — Studio generations bill through the existing ledger; a generation belongs to a node or an avatar *(recorded 2026-09-30)*
 
 **Decision.** `generations.node_id` becomes nullable and the table gains `avatar_id`, with a check
-that one of them is set. Each Studio batch and each sheet is one generation: reserve, run, settle
-on the provider's cost or refund. Generate controls show the estimate from `image-gen/estimate.ts`
+that one of them is set. Each Studio image is one generation — a batch of four is four
+requests and four rows — reserve, run, settle on the provider's cost or refund. The spend shown
+on the avatar is read back from the server, never summed in the browser. Generate controls show the estimate from `image-gen/estimate.ts`
 via `usdToFinalCredits`.
 
 **Why.** The monthly cap, refunds, the stuck-reservation sweep, the admin table and org breakdowns

@@ -172,14 +172,17 @@ A segmented control: **Describe | Upload photo**. Switching keeps everything alr
 **Describe.**
 - A prompt `Textarea`, plus optional attribute chips (gender, age range, ethnicity). Chips add
   plain phrases to the prompt; they are not stored separately.
-- A fixed framing clause is appended by `buildAvatarFrontPrompt` and shown as a read-only chip:
-  facing the camera, waist-up, even light, plain background.
+- A fixed framing clause is appended by `buildAvatarFrontPrompt` and stated in the step's
+  header: facing the camera, waist-up, even light, plain background. It is not a field.
 - Settings row: **Model** (text-to-image models from `image-gen/registry.ts`), **Style**
-  (photoreal, illustrated, 3D — a prompt phrase), a **count stepper** (1 to the model's maximum,
-  default 4), and **Generate ✦ N**. Aspect ratio is fixed at 3:4.
+  (photoreal, illustrated, 3D — a prompt phrase), a **count stepper** (1–8, default 4), and
+  **Generate ✦ N**. Aspect ratio is fixed at 3:4. Each image is its own request, so a batch of N
+  is N requests with N reservations.
 - The non-pro Seedream 5.0 model carries a "Seedance" tag in the model list (§8).
-- Each Generate is one batch. Batches stack newest first and stay for the life of the draft, so
-  models can be compared. Clicking an image sets it as the front.
+- Each Generate click is one batch. Batches stack newest first and stay for the life of the
+  draft, so models can be compared. Clicking an image sets it as the front; clicking the current
+  front does nothing. What was typed in Describe survives switching to Upload photo or to the
+  sheet step and back.
 
 **Upload photo.** The existing signed-upload pattern (`sign` → PUT → `finalize`), validated with
 `validateFileExtension` / `validateFileSize`. The avatar becomes a `specific` person and the
@@ -292,11 +295,14 @@ Every generate control shows **✦ N** from the existing path: `image-gen/estima
 
 ### 7.2 Ledger
 
-Each batch and each sheet is one `generations` row with `avatar_id` and `client_id`. The route
+Each image — every front candidate and every sheet — is one `generations` row with
+`avatar_id` and `client_id` (a batch of four is four rows). The route
 calls `reserveCredits`, runs the provider, then settles on the provider's reported cost or refunds
 (`refundReservation`) on failure. A cap refusal returns 402. The stuck-reservation sweep, admin
-generations table and org breakdowns work unchanged. "Spent so far" on the card is the sum of
-consumption for the avatar's generations.
+generations table and org breakdowns work unchanged. "Spent on this avatar" on the card is the sum of
+`credits_charged` over the avatar's succeeded generations, returned by the server after each
+request (success or failure) rather than added up in the browser. It differs from ledger
+consumption only in the inherited edge case where `succeedGeneration` fails after settlement.
 
 ### 7.3 Deferred: ElevenLabs costs
 
@@ -338,8 +344,9 @@ at generation time. If BytePlus starts enforcing provenance, those fields are wh
 | Failure | Behaviour |
 |---|---|
 | Monthly credit cap | 402; "Monthly credit limit reached" on the control; nothing charged |
-| Provider error or content block | The batch shows an error card with the provider's message and Try again; reservation refunded |
-| Sheet generation fails | Sheet slot shows the error with Regenerate and Upload my own; avatar cannot become `ready` |
+| Provider error or content block | A toast with the provider's message (one per distinct message in a batch); that image's placeholder goes; its reservation is refunded. An error card with Try again in the batch is deferred. |
+| Sheet generation fails | A toast with the message; the Generate and Add your own controls stay available; the avatar cannot become `ready` |
+| The front changes while the sheet generates | The front cannot be picked or uploaded while a sheet generates. If it changes anyway, the sheet is refused with 409; its credits are spent and shown |
 | Upload wrong type or too large | Rejected before upload, stating the rule |
 | Clone fails | ElevenLabs' message; translated for voice-slot limit, plan limit and audio too short |
 | Voice sample fails | Voice is kept; card shows "Voice sample missing — retry" |
