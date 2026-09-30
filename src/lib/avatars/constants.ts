@@ -14,17 +14,10 @@ export const PERSON_TYPE_LABELS: Record<PersonType, string> = {
   specific: "Real person",
 };
 
-// The tick the operator confirms, per answer to "Is this a real person?" (D288).
-export const LIKENESS_STATEMENTS: Record<PersonType, string> = {
-  specific: "I have this person's permission to use their likeness",
-  generic: "This is not a real person",
-};
-
 // Completes the sentence "Still needed: …".
 export const READINESS_GAP_LABELS = {
   name: "a name",
   front: "a front image",
   sheet: "a profile sheet",
   "sheet-stale": "a profile sheet that matches the new front image",
-  declaration: "the real-person declaration",
 } as const;

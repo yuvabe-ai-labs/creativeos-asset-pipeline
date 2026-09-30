@@ -1,12 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarReadinessGaps, isAvatarReady, needsLikenessDeclaration, frontChangePatch,
+  avatarReadinessGaps, isAvatarReady, frontChangePatch,
   sheetChangePatch, withStatus, planAvatarUpdate, validateAvatarImageFile,
 } from "../utils";
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
-
-const ctx = { userId: "user-9", now: "2026-10-01T00:00:00.000Z" };
 
 describe("avatarReadinessGaps", () => {
   it("is empty for a complete avatar", () => {
@@ -23,22 +21,18 @@ describe("avatarReadinessGaps", () => {
     expect(avatarReadinessGaps(makeAvatar({ sheetStale: true }))).toEqual(["sheet-stale"]);
   });
 
-  it("requires a declaration for an uploaded front, but not a generated one", () => {
-    const undeclared = { personType: null, likenessConfirmedAt: null, likenessConfirmedBy: null };
-    expect(avatarReadinessGaps(makeAvatar(undeclared))).toEqual(["declaration"]);
-    expect(needsLikenessDeclaration(makeAvatar({ ...undeclared, front: makeImage(GENERATED) }))).toBe(false);
+  it("an uploaded front, a name and a current sheet are ready — no declaration step", () => {
+    expect(avatarReadinessGaps(makeAvatar())).toEqual([]);
   });
 });
 
 describe("frontChangePatch", () => {
-  it("an uploaded front clears the declaration and marks an existing sheet stale", () => {
+  it("an uploaded front is a specific person and marks an existing sheet stale", () => {
     const patch = frontChangePatch(makeAvatar(), makeImage());
-    expect(patch).toMatchObject({
-      sheetStale: true, personType: null, likenessConfirmedBy: null, likenessConfirmedAt: null,
-    });
+    expect(patch).toMatchObject({ sheetStale: true, personType: "specific" });
   });
 
-  it("a generated front is generic, with no declaration to ask for", () => {
+  it("a generated front is a generic person", () => {
     expect(frontChangePatch(makeAvatar(), makeImage(GENERATED)).personType).toBe("generic");
   });
 
@@ -54,9 +48,10 @@ describe("sheetChangePatch", () => {
 });
 
 describe("withStatus", () => {
-  it("drops a ready avatar back to draft when the patch leaves a gap", () => {
+  it("drops a ready avatar back to draft when a new front stales its sheet", () => {
     const current = makeAvatar();
-    expect(withStatus(current, frontChangePatch(current, makeImage())).status).toBe("draft");
+    const result = withStatus(current, frontChangePatch(current, makeImage()));
+    expect(result).toMatchObject({ sheetStale: true, status: "draft" });
   });
 
   it("leaves status alone when the avatar stays complete", () => {
@@ -66,39 +61,25 @@ describe("withStatus", () => {
 
 describe("planAvatarUpdate", () => {
   it("trims the name and rejects one that is too long", () => {
-    const ok = planAvatarUpdate(makeAvatar(), { name: "  Meera " }, ctx);
+    const ok = planAvatarUpdate(makeAvatar(), { name: "  Meera " });
     expect(ok).toEqual({ ok: true, patch: { name: "Meera" } });
-    const long = planAvatarUpdate(makeAvatar(), { name: "x".repeat(AVATAR_NAME_MAX + 1) }, ctx);
+    const long = planAvatarUpdate(makeAvatar(), { name: "x".repeat(AVATAR_NAME_MAX + 1) });
     expect(long.ok).toBe(false);
   });
 
-  it("records who declared the person type and when", () => {
-    const current = makeAvatar({ personType: null, likenessConfirmedBy: null, likenessConfirmedAt: null, status: "draft" });
-    const result = planAvatarUpdate(current, { declaration: { personType: "generic" } }, ctx);
-    expect(result).toEqual({
-      ok: true,
-      patch: { personType: "generic", likenessConfirmedBy: "user-9", likenessConfirmedAt: ctx.now },
-    });
-  });
-
-  it("refuses a declaration when the front image was generated", () => {
-    const current = makeAvatar({ front: makeImage(GENERATED) });
-    expect(planAvatarUpdate(current, { declaration: { personType: "specific" } }, ctx).ok).toBe(false);
-  });
-
   it("refuses ready while something is missing, and names it", () => {
-    const result = planAvatarUpdate(makeAvatar({ status: "draft", sheet: null }), { status: "ready" }, ctx);
+    const result = planAvatarUpdate(makeAvatar({ status: "draft", sheet: null }), { status: "ready" });
     expect(result).toEqual({ ok: false, error: "Still needed: a profile sheet." });
   });
 
   it("allows ready when the same request supplies the missing name", () => {
     const current = makeAvatar({ status: "draft", name: "" });
-    const result = planAvatarUpdate(current, { name: "Riya", status: "ready" }, ctx);
+    const result = planAvatarUpdate(current, { name: "Riya", status: "ready" });
     expect(result).toEqual({ ok: true, patch: { name: "Riya", status: "ready" } });
   });
 
   it("clearing the name of a ready avatar returns it to draft", () => {
-    const result = planAvatarUpdate(makeAvatar(), { name: "" }, ctx);
+    const result = planAvatarUpdate(makeAvatar(), { name: "" });
     expect(result).toEqual({ ok: true, patch: { name: "", status: "draft" } });
   });
 });

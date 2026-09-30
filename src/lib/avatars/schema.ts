@@ -40,10 +40,9 @@ export type Avatar = {
   clientId: string;
   name: string;
   story: string;
-  // null until decided: set automatically for a generated front, declared for an upload.
+  // Derived from the front image's source: an upload makes it "specific", a generated
+  // image makes it "generic". Null until there is a front image.
   personType: PersonType | null;
-  likenessConfirmedBy: string | null;
-  likenessConfirmedAt: string | null;
   front: AvatarImage | null;
   sheet: AvatarImage | null;
   sheetStale: boolean;

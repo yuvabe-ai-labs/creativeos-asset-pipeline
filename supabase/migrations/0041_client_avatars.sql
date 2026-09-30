@@ -6,10 +6,9 @@ create table client_avatars (
   client_id   uuid not null references clients(id) on delete cascade,
   name        text not null default '',
   story       text not null default '',
-  -- Null until decided: set for a generated front, declared by the operator for an upload.
+  -- Derived from the front image's source: 'specific' for an upload, 'generic' for a
+  -- generated image. Null until there is a front image.
   person_type text check (person_type in ('generic', 'specific')),
-  likeness_confirmed_by uuid references auth.users(id) on delete set null,
-  likeness_confirmed_at timestamptz,
   -- AvatarImage JSON: { url, width, height, sizeBytes, source }. JSONB rather than columns
   -- because `source` is a tagged union read whole; nothing filters on its fields in SQL.
   front       jsonb,

@@ -84,7 +84,7 @@ describe("POST images (finalize)", () => {
     expect(updateAvatar).not.toHaveBeenCalled();
   });
 
-  it("a new front records its source, clears the declaration, stales the sheet and returns to draft", async () => {
+  it("a new front records its source, follows the upload as a specific person, stales the sheet and returns to draft", async () => {
     const { POST } = await import("./route");
     const res = await POST(req("images", body), { params });
     expect(res.status).toBe(200);
@@ -94,7 +94,7 @@ describe("POST images (finalize)", () => {
       source: { kind: "upload", filename: "new.png", uploadedBy: "user-9" },
     });
     expect(patch).toMatchObject({
-      sheetStale: true, personType: null, likenessConfirmedAt: null, status: "draft",
+      sheetStale: true, personType: "specific", status: "draft",
     });
   });
 

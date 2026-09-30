@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { GENERATED, makeAvatar, makeImage } from "@/lib/avatars/__tests__/fixtures";
+import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
+vi.mock("@/lib/dal", () => ({ resolveOrgId: vi.fn() }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
@@ -11,7 +11,7 @@ vi.mock("@/lib/db/avatars", () => ({
   getAvatar: vi.fn(), updateAvatar: vi.fn(), archiveAvatar: vi.fn(),
 }));
 
-import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
+import { resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { getAvatar, updateAvatar, archiveAvatar } from "@/lib/db/avatars";
@@ -27,7 +27,6 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(resolveOrgId).mockResolvedValue("org-1");
-    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-9", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1" } as never);
     vi.mocked(updateAvatar).mockImplementation(async (_c, _a, p) => makeAvatar(p));
@@ -48,26 +47,6 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
     expect(updateAvatar).not.toHaveBeenCalled();
   });
 
-  it("PATCH records the declaration against the caller", async () => {
-    vi.mocked(getAvatar).mockResolvedValue(
-      makeAvatar({ status: "draft", personType: null, likenessConfirmedBy: null, likenessConfirmedAt: null }),
-    );
-    const { PATCH } = await import("./route");
-    const res = await PATCH(patch({ declaration: { personType: "specific" } }), { params });
-    expect(res.status).toBe(200);
-    const written = vi.mocked(updateAvatar).mock.calls[0][2];
-    expect(written).toMatchObject({ personType: "specific", likenessConfirmedBy: "user-9" });
-    expect(written.likenessConfirmedAt).toEqual(expect.any(String));
-  });
-
-  it("PATCH refuses a declaration on a generated front", async () => {
-    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ front: makeImage(GENERATED) }));
-    const { PATCH } = await import("./route");
-    const res = await PATCH(patch({ declaration: { personType: "specific" } }), { params });
-    expect(res.status).toBe(400);
-    expect(updateAvatar).not.toHaveBeenCalled();
-  });
-
   it("PATCH refuses ready while a part is missing, and says which", async () => {
     vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ status: "draft", sheet: null }));
     const { PATCH } = await import("./route");
@@ -76,10 +55,13 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
     expect((await res.json()).error).toBe("Still needed: a profile sheet.");
   });
 
-  it("PATCH rejects an unknown person type", async () => {
-    vi.mocked(getAvatar).mockResolvedValue(makeAvatar());
+  it("PATCH ignores an unknown 'declaration' field in the body", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ status: "draft" }));
     const { PATCH } = await import("./route");
-    expect((await PATCH(patch({ declaration: { personType: "robot" } }), { params })).status).toBe(400);
+    const res = await PATCH(patch({ name: "Riya", declaration: { personType: "specific" } }), { params });
+    expect(res.status).toBe(200);
+    const written = vi.mocked(updateAvatar).mock.calls[0][2];
+    expect(written).not.toHaveProperty("personType");
   });
 
   it("DELETE archives, and is a 404 when there was nothing to archive", async () => {

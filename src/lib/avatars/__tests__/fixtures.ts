@@ -13,11 +13,11 @@ export const GENERATED: AvatarImageSource = {
   generatedAt: "2026-09-30T10:00:00.000Z", generationId: "gen-1", untouched: true,
 };
 
-/** A complete, ready avatar with an uploaded, declared front image. Override to break it. */
+/** A complete, ready avatar with an uploaded front image. Override to break it. */
 export function makeAvatar(overrides: Partial<Avatar> = {}): Avatar {
   return {
     id: "a1", clientId: "c1", name: "Riya", story: "",
-    personType: "specific", likenessConfirmedBy: "user-1", likenessConfirmedAt: "2026-09-30T10:05:00.000Z",
+    personType: "specific",
     front: makeImage(), sheet: makeImage(), sheetStale: false,
     voice: null, voiceSample: null, status: "ready", archivedAt: null,
     createdAt: "2026-09-30T10:00:00.000Z", updatedAt: "2026-09-30T10:05:00.000Z",

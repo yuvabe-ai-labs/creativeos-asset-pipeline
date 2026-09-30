@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { avatarsService } from "@/services/avatars.service";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { avatarReadinessGaps, validateAvatarImageFile } from "@/lib/avatars/utils";
-import type { Avatar, AvatarImageSlot, PersonType } from "@/lib/avatars/schema";
+import type { Avatar, AvatarImageSlot } from "@/lib/avatars/schema";
 
 const SAVE_DELAY_MS = 600;
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
@@ -70,15 +70,6 @@ export function useAvatarStudio({
     }
   }, [avatar, clientId, name, story, router, libraryHref]);
 
-  const declare = useCallback(async (personType: PersonType) => {
-    if (!avatar) return;
-    try {
-      setAvatar(await avatarsService.update(clientId, avatar.id, { declaration: { personType } }));
-    } catch (e) {
-      toast.error(message(e, "Could not save the declaration"));
-    }
-  }, [avatar, clientId]);
-
   const markReady = useCallback(async () => {
     if (!avatar) return;
     setSaving(true);
@@ -109,12 +100,10 @@ export function useAvatarStudio({
     front: avatar?.front ?? null,
     sheet: avatar?.sheet ?? null,
     sheetStale: avatar?.sheetStale ?? false,
-    personType: avatar?.personType ?? null,
-    likenessConfirmedAt: avatar?.likenessConfirmedAt ?? null,
   });
 
   return {
     avatar, name, story, gaps, uploading, saving,
-    setName, setStory, uploadImage, declare, markReady, archive,
+    setName, setStory, uploadImage, markReady, archive,
   };
 }

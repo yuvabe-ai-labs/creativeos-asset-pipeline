@@ -7,7 +7,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AVATAR_NAME_MAX, AVATAR_STORY_MAX, READINESS_GAP_LABELS } from "@/lib/avatars/constants";
+import {
+  AVATAR_NAME_MAX, AVATAR_STORY_MAX, PERSON_TYPE_LABELS, READINESS_GAP_LABELS,
+} from "@/lib/avatars/constants";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { ReadinessGap } from "@/lib/avatars/utils";
 import { AvatarArchiveButton } from "./avatar-archive-button";
@@ -44,7 +46,6 @@ export function AvatarStudioCard({
   avatar, name, story, gaps, saving, onName, onStory, onSave, onArchive,
 }: Props) {
   const has = (gap: ReadinessGap) => !gaps.includes(gap);
-  const uploadedFront = avatar?.front?.source.kind === "upload";
 
   return (
     <Card className="sticky top-6 flex flex-col gap-3 self-start p-4 shadow-card">
@@ -69,12 +70,8 @@ export function AvatarStudioCard({
           label="Profile sheet"
           detail={!has("sheet") ? "Needed" : !has("sheet-stale") ? "Out of date" : "Added"}
         />
-        {uploadedFront && (
-          <Row
-            done={has("declaration")}
-            label="Person declaration"
-            detail={has("declaration") ? "Confirmed" : "Needed"}
-          />
+        {avatar?.front && avatar.personType && (
+          <Row done label="Person type" detail={PERSON_TYPE_LABELS[avatar.personType]} />
         )}
       </ul>
 
