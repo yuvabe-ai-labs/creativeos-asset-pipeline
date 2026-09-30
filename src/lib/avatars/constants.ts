@@ -44,3 +44,46 @@ export const READINESS_GAP_LABELS = {
   "sheet-stale": "a profile sheet that matches the new front image",
   consent: "permission to use this person's likeness",
 } as const;
+
+// ── Generation (plan 2) ───────────────────────────────────────────────────────
+
+// Fixed, never operator-selectable: a front image is a portrait, a sheet is a wide strip.
+export const AVATAR_FRONT_ASPECT = "3:4";
+export const AVATAR_SHEET_ASPECT = "16:9";
+
+export const AVATAR_BATCH_DEFAULT = 4;
+export const AVATAR_BATCH_MAX = 8;
+export const AVATAR_DESCRIPTION_MAX = 1500;
+
+export const AVATAR_STYLES = [
+  { id: "photoreal", label: "Photoreal", phrase: "Photorealistic, natural skin texture, shot on a full-frame camera." },
+  { id: "illustrated", label: "Illustrated", phrase: "Clean editorial illustration, consistent line weight, flat considered colour." },
+  { id: "3d", label: "3D", phrase: "Stylised 3D character render, soft global illumination, subsurface skin." },
+] as const;
+export type AvatarStyleId = (typeof AVATAR_STYLES)[number]["id"];
+
+// Optional quick chips. Each adds one plain phrase to the prompt; nothing is stored separately.
+export const AVATAR_ATTRIBUTES = {
+  gender: ["Female", "Male", "Non-binary"],
+  age: ["18–24", "25–34", "35–44", "45–54", "55+"],
+  ethnicity: [
+    "South Asian", "East Asian", "Southeast Asian", "Black", "Middle Eastern",
+    "Latino", "White", "Mixed",
+  ],
+} as const;
+export type AvatarAttributes = Partial<Record<keyof typeof AVATAR_ATTRIBUTES, string>>;
+
+// Appended to every front prompt. These are the conditions that make a usable face reference,
+// so the operator cannot write them away.
+export const AVATAR_FRAMING_CLAUSE =
+  "One person only, facing the camera, waist-up, neutral relaxed expression, even soft light, " +
+  "plain light-grey seamless background, no text, no logos, no props in hand.";
+
+// The only image model whose faces Seedance accepts as a reference (spec §8, D290). Named
+// once: if the live model list shows a different id (spec §10, question 3), change it here.
+export const SEEDANCE_FACE_MODEL_ID = "seedream:seedream-5-0-lite";
+
+// A generated avatar runs on Seedance, so the default is the model Seedance will take.
+export const AVATAR_DEFAULT_FRONT_MODEL_ID = SEEDANCE_FACE_MODEL_ID;
+// The handoff design takes the model sheet from Nano Banana, whichever face it starts with.
+export const AVATAR_DEFAULT_SHEET_MODEL_ID = "gemini:gemini-3-pro-image";
