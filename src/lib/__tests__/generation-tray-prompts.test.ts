@@ -10,6 +10,7 @@ function makeJob(overrides: Partial<GenerationRow>): GenerationRow {
   return {
     id: crypto.randomUUID(),
     node_id: "node-1",
+    avatar_id: null,
     org_id: "org-1",
     client_id: null,
     type: "prompt",

@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { GenerationRow } from "./types";
 import { getReservationAmounts } from "./credit-transactions";
 import type { GenerationRow as ImpersonationGenerationRow } from "@/lib/auth/impersonation-audit-view";
+import { isUuid } from "@/lib/avatars/utils";
 
 // Real settled credits per version, keyed by version_id — for the node focus views' usage
 // popovers, which used to recompute an estimate client-side from paramsUsed.tokensUsed. That
@@ -31,7 +32,9 @@ export async function getCreditsChargedByVersionIds(
 }
 
 export async function insertGeneration(input: {
-  nodeId: string;
+  // Exactly one owner: a canvas node, or an avatar (Avatar Studio images, D291).
+  nodeId?: string;
+  avatarId?: string;
   orgId: string;
   clientId?: string;
   userId?: string;
@@ -41,11 +44,15 @@ export async function insertGeneration(input: {
   paramsSnapshot?: Record<string, unknown>;
   inputsSnapshot?: Record<string, unknown>;
 }): Promise<GenerationRow> {
+  if (!input.nodeId && !input.avatarId) {
+    throw new Error("A generation must belong to a node or an avatar.");
+  }
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("generations")
     .insert({
-      node_id: input.nodeId,
+      node_id: input.nodeId ?? null,
+      avatar_id: input.avatarId ?? null,
       org_id: input.orgId,
       client_id: input.clientId ?? null,
       user_id: input.userId ?? null,
@@ -67,7 +74,7 @@ export async function insertGeneration(input: {
 
 export async function succeedGeneration(input: {
   generationId: string;
-  versionId: string;
+  versionId?: string;
   costUsd?: number;
   creditsCharged?: number;
   tokensUsed?: Record<string, unknown> | null;
@@ -77,7 +84,7 @@ export async function succeedGeneration(input: {
   const supabase = createServerSupabase();
   const update: Record<string, unknown> = {
     status: "succeeded",
-    version_id: input.versionId,
+    version_id: input.versionId ?? null,
     cost_usd: input.costUsd ?? null,
     credits_charged: input.creditsCharged ?? null,
     updated_at: new Date().toISOString(),
@@ -236,4 +243,51 @@ export async function listGenerationsInWindowForOrg(
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as unknown as ImpersonationGenerationRow[];
+}
+
+// ── Avatar-owned generations (D291) ───────────────────────────────────────────
+
+/** One generation of one avatar. Null for a malformed id, a missing row, or another avatar's. */
+export async function getAvatarGeneration(
+  avatarId: string,
+  generationId: string,
+): Promise<GenerationRow | null> {
+  if (!isUuid(avatarId) || !isUuid(generationId)) return null;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("*")
+    .eq("id", generationId)
+    .eq("avatar_id", avatarId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as GenerationRow | null) ?? null;
+}
+
+export async function listAvatarGenerations(avatarId: string): Promise<GenerationRow[]> {
+  if (!isUuid(avatarId)) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("*")
+    .eq("avatar_id", avatarId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as GenerationRow[];
+}
+
+/** Credits actually charged for this avatar's images — the ledger's settled amounts. */
+export async function sumAvatarCredits(avatarId: string): Promise<number> {
+  if (!isUuid(avatarId)) return 0;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("credits_charged")
+    .eq("avatar_id", avatarId)
+    .eq("status", "succeeded");
+  if (error) throw error;
+  return ((data ?? []) as { credits_charged: number | null }[]).reduce(
+    (sum, row) => sum + (row.credits_charged ?? 0),
+    0,
+  );
 }

@@ -107,7 +107,10 @@ export type NodeVersionRow = {
 
 export type GenerationRow = {
   id: string;
-  node_id: string;
+  // Null for a generation owned by an avatar (migration 0042). Exactly one of node_id /
+  // avatar_id is set on every row written since; older rows always have node_id.
+  node_id: string | null;
+  avatar_id: string | null;
   org_id: string; // RLS backstop (D78), added in migration 0014
   client_id: string | null; // forward-looking, added in 0016 — nullable, not backfilled
   type: "image" | "video" | "prompt" | "voice";

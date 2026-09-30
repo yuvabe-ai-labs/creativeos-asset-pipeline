@@ -614,3 +614,34 @@ select policyname from pg_policies where tablename = 'client_avatars';
 select column_name from information_schema.columns
 where table_name = 'client_avatars' and column_name like 'likeness%';
 ```
+
+## Migration 0042 — a generation can belong to an avatar (2026-09-30)
+
+`supabase/migrations/0042_generations_avatar.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0041** (`client_avatars`).
+
+Makes `generations.node_id` nullable, adds `avatar_id` (cascade) with an index, and adds a
+check that every row has a node or an avatar (D291). This is what lets Avatar Studio images use
+the existing credit ledger.
+
+**Existing rows are untouched** — each already has a `node_id`, so the check passes.
+
+**Safe to re-run.** `add column if not exists`, `create index if not exists`, and the constraint
+is dropped before it is added.
+
+**Ordering:** apply before deploying the app code. Until it lands, generating in the Avatar
+Studio fails with `null value in column "node_id"`.
+
+**Verify after running:**
+
+```sql
+-- expect: is_nullable = YES
+select is_nullable from information_schema.columns
+where table_name = 'generations' and column_name = 'node_id';
+
+-- expect 1 row
+select conname from pg_constraint where conname = 'generations_owner_check';
+
+-- expect 0 — no row is owned by nothing
+select count(*) from generations where node_id is null and avatar_id is null;
+```
