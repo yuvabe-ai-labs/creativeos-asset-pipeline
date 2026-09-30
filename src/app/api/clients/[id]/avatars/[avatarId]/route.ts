@@ -2,7 +2,9 @@ import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import { archiveAvatar, getAvatar, updateAvatar } from "@/lib/db/avatars";
-import { planAvatarUpdate } from "@/lib/avatars/utils";
+import { LIKENESS_CONSENT_CHANGED_ERROR } from "@/lib/avatars/constants";
+import { planAvatarUpdate, type AvatarPatch, type AvatarUpdateInput } from "@/lib/avatars/utils";
+import type { Avatar } from "@/lib/avatars/schema";
 
 type Ctx = { params: Promise<{ id: string; avatarId: string }> };
 
@@ -13,8 +15,21 @@ const PatchSchema = z.object({
   name: z.string().optional(),
   story: z.string().optional(),
   status: z.literal("ready").optional(),
-  consent: z.literal(true).optional(),
+  consent: z.object({ frontUrl: z.string().min(1) }).optional(),
 });
+
+// Whether the write must fail rather than land on a front image the caller never saw: a
+// consent confirmation is for the specific photo `planAvatarUpdate` already matched, and
+// marking an uploaded-front avatar ready must not write over a front that changed mid-request
+// (D289 amended). Both need the same precondition — the avatar's CURRENT front image.
+function frontPrecondition(
+  current: Avatar, input: AvatarUpdateInput, patch: AvatarPatch,
+): { ifFrontUrl?: string } {
+  if (current.front?.source.kind !== "upload") return {};
+  const confirmingConsent = input.consent !== undefined;
+  const markingReady = patch.status === "ready";
+  return confirmingConsent || markingReady ? { ifFrontUrl: current.front.url } : {};
+}
 
 // GET /api/clients/:id/avatars/:avatarId
 export async function GET(req: Request, { params }: Ctx) {
@@ -47,8 +62,17 @@ export async function PATCH(req: Request, { params }: Ctx) {
       );
       if (!plan.ok) return apiError(plan.error, 400);
 
-      const avatar = await updateAvatar(clientId, avatarId, plan.patch);
-      if (!avatar) return apiError(NOT_FOUND, 404);
+      const precondition = frontPrecondition(current, parsed.data, plan.patch);
+      const avatar = await updateAvatar(clientId, avatarId, plan.patch, precondition);
+      if (!avatar) {
+        // `current`, above, confirms the row existed a moment ago — when the write carried a
+        // front-image precondition, a null result means that precondition caught a race, not
+        // that the avatar itself vanished.
+        if (precondition.ifFrontUrl !== undefined) {
+          return apiError(LIKENESS_CONSENT_CHANGED_ERROR, 409);
+        }
+        return apiError(NOT_FOUND, 404);
+      }
       return apiOk({ avatar });
     }),
   );

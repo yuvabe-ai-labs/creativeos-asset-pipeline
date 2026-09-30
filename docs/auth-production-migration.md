@@ -609,4 +609,8 @@ select relname, relrowsecurity from pg_class where relname = 'client_avatars';
 
 -- expect 0 rows (no policies by design)
 select policyname from pg_policies where tablename = 'client_avatars';
+
+-- expect 2 rows
+select column_name from information_schema.columns
+where table_name = 'client_avatars' and column_name like 'likeness%';
 ```

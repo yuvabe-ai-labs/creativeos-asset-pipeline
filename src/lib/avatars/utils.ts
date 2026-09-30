@@ -1,6 +1,7 @@
 import {
-  AVATAR_IMAGE_EXTENSION_CONTENT_TYPES, AVATAR_IMAGE_EXTENSIONS, AVATAR_IMAGE_MAX_BYTES,
-  AVATAR_IMAGE_MAX_LABEL, AVATAR_NAME_MAX, AVATAR_STORY_MAX, READINESS_GAP_LABELS,
+  AVATAR_IMAGE_CONTENT_TYPES, AVATAR_IMAGE_EXTENSION_CONTENT_TYPES, AVATAR_IMAGE_EXTENSIONS,
+  AVATAR_IMAGE_MAX_BYTES, AVATAR_IMAGE_MAX_LABEL, AVATAR_NAME_MAX, AVATAR_STORY_MAX,
+  LIKENESS_CONSENT_CHANGED_ERROR, READINESS_GAP_LABELS,
 } from "./constants";
 import type { Avatar, AvatarImage } from "./schema";
 
@@ -21,7 +22,9 @@ export type AvatarUpdateInput = {
   name?: string;
   story?: string;
   status?: "ready";
-  consent?: true;
+  // The front image the operator saw when they ticked the statement — bound so consent never
+  // attaches to a photo they never looked at (D289 amended).
+  consent?: { frontUrl: string };
 };
 
 /** A real person's likeness needs a consent record. Only an uploaded front is ever a real
@@ -96,8 +99,17 @@ export function planAvatarUpdate(
     if (current.front?.source.kind !== "upload") {
       return { ok: false, error: "Only an uploaded front image needs consent." };
     }
-    patch.likenessConsentBy = ctx.userId;
-    patch.likenessConsentAt = ctx.now;
+    // The operator ticked the box looking at a specific photo — a stale tab, a second
+    // operator, or a front replacement racing this request must not attach it elsewhere.
+    if (current.front.url !== input.consent.frontUrl) {
+      return { ok: false, error: LIKENESS_CONSENT_CHANGED_ERROR };
+    }
+    // Already recorded for this exact front: a repeated confirmation is a no-op, keeping the
+    // original who/when rather than overwriting it with the caller of the repeat.
+    if (!current.likenessConsentAt) {
+      patch.likenessConsentBy = ctx.userId;
+      patch.likenessConsentAt = ctx.now;
+    }
   }
   if (input.status === "ready") {
     const gaps = avatarReadinessGaps({ ...current, ...patch });
@@ -130,11 +142,12 @@ export function validateAvatarImageFile(file: { name: string; size: number }): s
   return null;
 }
 
-/** Some OSes report an empty `file.type` for certain image files (notably .jpg). Falls back to
- *  the extension so the signed upload still gets a content type the avatar sign route accepts,
- *  rather than the generic "application/octet-stream" it rejects. */
+/** Some OSes report an empty `file.type` for certain image files (notably .jpg); others report
+ *  a non-canonical type the sign route doesn't recognise (`image/jpg`, `image/pjpeg`). Either
+ *  way, falls back to the extension so the signed upload still gets a content type the avatar
+ *  sign route accepts, rather than the generic "application/octet-stream" it rejects. */
 export function avatarImageContentType(file: { name: string; type: string }): string {
-  if (file.type) return file.type;
+  if (file.type && AVATAR_IMAGE_CONTENT_TYPES.has(file.type)) return file.type;
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   return AVATAR_IMAGE_EXTENSION_CONTENT_TYPES[ext] ?? "application/octet-stream";
 }

@@ -28,6 +28,14 @@ export const PERSON_TYPE_LABELS: Record<PersonType, string> = {
 
 export const LIKENESS_CONSENT_STATEMENT = "I have this person's permission to use their likeness";
 
+// Consent is bound to the photo the operator saw (D289 amended): a stale tab, a second
+// operator, or a front replacement racing the request must never attach the confirmation to a
+// different photo. Shared by planAvatarUpdate (the 400 when the request's frontUrl no longer
+// matches), the PATCH route (the 409 when the DB write's own precondition catches a race the
+// read-then-write window left open), and the Studio (matching the thrown message to know when
+// to reload rather than merely toast).
+export const LIKENESS_CONSENT_CHANGED_ERROR = "The front image changed. Confirm the permission again.";
+
 // Completes the sentence "Still needed: …".
 export const READINESS_GAP_LABELS = {
   name: "a name",

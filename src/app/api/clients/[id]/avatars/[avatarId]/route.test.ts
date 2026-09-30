@@ -65,34 +65,87 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
     expect(written).not.toHaveProperty("personType");
   });
 
-  it("PATCH { consent: true } records the caller and the time, for an uploaded front", async () => {
-    vi.mocked(getAvatar).mockResolvedValue(
-      makeAvatar({ status: "draft", likenessConsentBy: null, likenessConsentAt: null }),
-    );
+  it("PATCH consent with the matching frontUrl records the caller and the time", async () => {
+    const current = makeAvatar({ status: "draft", likenessConsentBy: null, likenessConsentAt: null });
+    vi.mocked(getAvatar).mockResolvedValue(current);
     const { PATCH } = await import("./route");
-    const res = await PATCH(patch({ consent: true }), { params });
+    const res = await PATCH(patch({ consent: { frontUrl: current.front!.url } }), { params });
     expect(res.status).toBe(200);
     const written = vi.mocked(updateAvatar).mock.calls[0][2];
     expect(written.likenessConsentBy).toBe("user-9");
     expect(typeof written.likenessConsentAt).toBe("string");
   });
 
-  it("PATCH { consent: true } is a 400 for a generated front, and does not write", async () => {
-    vi.mocked(getAvatar).mockResolvedValue(
-      makeAvatar({ front: makeImage(GENERATED), likenessConsentBy: null, likenessConsentAt: null }),
-    );
+  it("PATCH consent with a different frontUrl is refused, and does not write", async () => {
+    const current = makeAvatar({ status: "draft", likenessConsentBy: null, likenessConsentAt: null });
+    vi.mocked(getAvatar).mockResolvedValue(current);
     const { PATCH } = await import("./route");
-    const res = await PATCH(patch({ consent: true }), { params });
+    const res = await PATCH(
+      patch({ consent: { frontUrl: "https://storage.googleapis.com/b/other/face.png" } }), { params },
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("The front image changed. Confirm the permission again.");
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
+  it("PATCH consent is a 400 for a generated front, and does not write", async () => {
+    const current = makeAvatar({
+      front: makeImage(GENERATED), likenessConsentBy: null, likenessConsentAt: null,
+    });
+    vi.mocked(getAvatar).mockResolvedValue(current);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ consent: { frontUrl: current.front!.url } }), { params });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("Only an uploaded front image needs consent.");
     expect(updateAvatar).not.toHaveBeenCalled();
   });
 
-  it("PATCH { consent: false } is a 400 — the schema only accepts true", async () => {
+  it("PATCH { consent: true } (the old shape) is a 400", async () => {
     vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ status: "draft" }));
     const { PATCH } = await import("./route");
-    const res = await PATCH(patch({ consent: false }), { params });
+    const res = await PATCH(patch({ consent: true }), { params });
     expect(res.status).toBe(400);
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
+  it("PATCH passes the front-URL precondition to updateAvatar for a consent patch", async () => {
+    const current = makeAvatar({ status: "draft", likenessConsentBy: null, likenessConsentAt: null });
+    vi.mocked(getAvatar).mockResolvedValue(current);
+    const { PATCH } = await import("./route");
+    await PATCH(patch({ consent: { frontUrl: current.front!.url } }), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: current.front!.url });
+  });
+
+  it("PATCH passes the front-URL precondition for status: ready on an uploaded front", async () => {
+    const current = makeAvatar({ status: "draft" }); // already complete and consented by default
+    vi.mocked(getAvatar).mockResolvedValue(current);
+    const { PATCH } = await import("./route");
+    await PATCH(patch({ status: "ready" }), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: current.front!.url });
+  });
+
+  it("PATCH does not pass a front-URL precondition for a plain name/story patch", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ status: "draft" }));
+    const { PATCH } = await import("./route");
+    await PATCH(patch({ name: "Riya" }), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({});
+  });
+
+  it("PATCH is a 409 when updateAvatar finds no row for a consent patch, though the avatar exists", async () => {
+    const current = makeAvatar({ status: "draft", likenessConsentBy: null, likenessConsentAt: null });
+    vi.mocked(getAvatar).mockResolvedValue(current);
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ consent: { frontUrl: current.front!.url } }), { params });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("The front image changed. Confirm the permission again.");
+  });
+
+  it("PATCH is a 404 when the avatar does not exist", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(null);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ name: "x" }), { params });
+    expect(res.status).toBe(404);
     expect(updateAvatar).not.toHaveBeenCalled();
   });
 

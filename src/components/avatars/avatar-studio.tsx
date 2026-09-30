@@ -32,6 +32,21 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
   );
   const front = s.avatar?.front ?? null;
 
+  // Shown on both steps (D289 amended): an uploaded-front avatar that opens on the sheet step
+  // (front already present, sheet missing or stale) would otherwise hide consent on a step the
+  // operator never visits, while the Studio card already shows "Permission · Needed" and
+  // blocks Save. Not shown mid front-upload — the photo it would apply to is about to change.
+  const consent = s.avatar && front?.source.kind === "upload" && s.uploading !== "front" ? (
+    <div className="w-full max-w-xs">
+      <AvatarLikenessConsent
+        key={front.url}
+        avatar={s.avatar}
+        confirming={s.confirmingConsent}
+        onConfirm={s.confirmConsent}
+      />
+    </div>
+  ) : null;
+
   return (
     <section className="animate-rise mt-4">
       <header className="mb-6 flex flex-wrap items-center gap-3">
@@ -75,20 +90,11 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
                   aspect="3 / 4"
                   image={front}
                   uploading={s.uploading === "front"}
-                  disabled={s.uploading !== null}
+                  disabled={s.uploading !== null || s.confirmingConsent}
                   onFile={(file) => s.uploadImage("front", file)}
                 />
               </div>
-              {s.avatar && front?.source.kind === "upload" && s.uploading !== "front" && (
-                <div className="w-full max-w-xs">
-                  <AvatarLikenessConsent
-                    key={front.url}
-                    avatar={s.avatar}
-                    confirming={s.confirmingConsent}
-                    onConfirm={s.confirmConsent}
-                  />
-                </div>
-              )}
+              {consent}
               {front && (
                 <Button variant="outline" className="self-start" onClick={() => setStep("sheet")}>
                   Continue to profile sheet
@@ -103,6 +109,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
                   Front, three-quarter, side and back views of the same person, in one image.
                 </p>
               </div>
+              {consent}
               {s.avatar?.sheetStale && (
                 <p className="rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-sm">
                   The front image changed. Replace the sheet so it shows the same person.

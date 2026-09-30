@@ -18,6 +18,13 @@ class AvatarsService {
     return (await readJson<{ avatar: Avatar }>(res, "Could not create the avatar.")).avatar;
   }
 
+  /** Reloads the avatar's real, current state — used after a write is refused because the
+   *  screen was showing a photo that had already changed underneath it. */
+  async get(clientId: string, avatarId: string): Promise<Avatar> {
+    const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}`);
+    return (await readJson<{ avatar: Avatar }>(res, "Could not load the avatar.")).avatar;
+  }
+
   async update(clientId: string, avatarId: string, input: AvatarUpdateInput): Promise<Avatar> {
     const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}`, {
       method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify(input),

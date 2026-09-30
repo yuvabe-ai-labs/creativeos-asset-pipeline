@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { avatarsService } from "@/services/avatars.service";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { avatarReadinessGaps, validateAvatarImageFile } from "@/lib/avatars/utils";
+import { LIKENESS_CONSENT_CHANGED_ERROR } from "@/lib/avatars/constants";
 import type { Avatar, AvatarImageSlot } from "@/lib/avatars/schema";
 
 const SAVE_DELAY_MS = 600;
@@ -111,12 +112,16 @@ export function useAvatarStudio({
   }, [avatar, clientId, name, story, libraryHref]);
 
   // Merges only the fields consent owns, so a response that resolves late never clobbers a
-  // newer image upload (same guard as `saveFields`).
+  // newer image upload (same guard as `saveFields`). Sends the front image currently on
+  // screen, so the server can refuse a confirmation that no longer matches the real photo
+  // (D289 amended).
   const confirmConsent = useCallback(async () => {
-    if (!avatar) return;
+    if (!avatar?.front) return;
     setConfirmingConsent(true);
     try {
-      const updated = await avatarsService.update(clientId, avatar.id, { consent: true });
+      const updated = await avatarsService.update(clientId, avatar.id, {
+        consent: { frontUrl: avatar.front.url },
+      });
       setAvatar((prev) => (prev && !isStale(prev, updated) ? {
         ...prev,
         likenessConsentBy: updated.likenessConsentBy,
@@ -125,7 +130,18 @@ export function useAvatarStudio({
         updatedAt: updated.updatedAt,
       } : prev ?? updated));
     } catch (e) {
-      toast.error(message(e, "Could not confirm"));
+      const errorMessage = message(e, "Could not confirm");
+      toast.error(errorMessage);
+      // The front image changed underneath the operator (a 409 from the DB precondition, or
+      // the 400 planAvatarUpdate returns for the same reason) — reload so the screen shows the
+      // real photo instead of the stale one the tick was given for.
+      if (errorMessage === LIKENESS_CONSENT_CHANGED_ERROR) {
+        try {
+          setAvatar(await avatarsService.get(clientId, avatar.id));
+        } catch {
+          // Best-effort refresh; the toast above already told the operator what happened.
+        }
+      }
     } finally {
       setConfirmingConsent(false);
     }

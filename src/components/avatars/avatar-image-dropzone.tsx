@@ -40,6 +40,7 @@ export function AvatarImageDropzone({
       style={{ aspectRatio: aspect }}
       onDragOver={(e) => {
         e.preventDefault();
+        if (uploading || disabled) return;
         setOver(true);
       }}
       onDragLeave={() => setOver(false)}

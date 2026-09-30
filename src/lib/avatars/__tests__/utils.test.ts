@@ -105,11 +105,21 @@ describe("planAvatarUpdate", () => {
     expect(result).toEqual({ ok: true, patch: { name: "", status: "draft" } });
   });
 
-  it("consent records who confirmed and when", () => {
+  it("consent with the matching frontUrl records who confirmed and when", () => {
     const current = makeAvatar({ likenessConsentBy: null, likenessConsentAt: null });
-    const result = planAvatarUpdate(current, { consent: true }, ctx);
+    const result = planAvatarUpdate(current, { consent: { frontUrl: current.front!.url } }, ctx);
     expect(result).toEqual({
       ok: true, patch: { likenessConsentBy: ctx.userId, likenessConsentAt: ctx.now },
+    });
+  });
+
+  it("refuses consent when the frontUrl no longer matches the avatar's front image", () => {
+    const current = makeAvatar({ likenessConsentBy: null, likenessConsentAt: null });
+    const result = planAvatarUpdate(
+      current, { consent: { frontUrl: "https://storage.googleapis.com/b/other/face.png" } }, ctx,
+    );
+    expect(result).toEqual({
+      ok: false, error: "The front image changed. Confirm the permission again.",
     });
   });
 
@@ -117,13 +127,22 @@ describe("planAvatarUpdate", () => {
     const current = makeAvatar({
       front: makeImage(GENERATED), likenessConsentBy: null, likenessConsentAt: null,
     });
-    const result = planAvatarUpdate(current, { consent: true }, ctx);
+    const result = planAvatarUpdate(current, { consent: { frontUrl: current.front!.url } }, ctx);
     expect(result).toEqual({ ok: false, error: "Only an uploaded front image needs consent." });
+  });
+
+  it("a repeated consent for the same front keeps the original who and when", () => {
+    // makeAvatar()'s default is already consented for its default front image.
+    const current = makeAvatar();
+    const result = planAvatarUpdate(current, { consent: { frontUrl: current.front!.url } }, ctx);
+    expect(result).toEqual({ ok: true, patch: {} });
   });
 
   it("confirms consent and marks ready in the same call", () => {
     const current = makeAvatar({ status: "draft", likenessConsentBy: null, likenessConsentAt: null });
-    const result = planAvatarUpdate(current, { consent: true, status: "ready" }, ctx);
+    const result = planAvatarUpdate(
+      current, { consent: { frontUrl: current.front!.url }, status: "ready" }, ctx,
+    );
     expect(result).toEqual({
       ok: true,
       patch: { likenessConsentBy: ctx.userId, likenessConsentAt: ctx.now, status: "ready" },
@@ -142,12 +161,20 @@ describe("validateAvatarImageFile", () => {
 });
 
 describe("avatarImageContentType", () => {
-  it("returns a present type as is", () => {
+  it("returns a present, canonical type as is", () => {
     expect(avatarImageContentType({ name: "face.png", type: "image/png" })).toBe("image/png");
   });
 
   it("falls back to the extension when type is empty", () => {
     expect(avatarImageContentType({ name: "face.JPG", type: "" })).toBe("image/jpeg");
+  });
+
+  it("falls back to the extension for a non-canonical type like image/jpg", () => {
+    expect(avatarImageContentType({ name: "face.jpg", type: "image/jpg" })).toBe("image/jpeg");
+  });
+
+  it("falls back to the extension for image/pjpeg", () => {
+    expect(avatarImageContentType({ name: "face.jpeg", type: "image/pjpeg" })).toBe("image/jpeg");
   });
 
   it("falls back to octet-stream for an empty type and an unknown extension", () => {

@@ -59,16 +59,24 @@ export async function updateAvatar(
   clientId: string,
   avatarId: string,
   patch: AvatarPatch,
+  // Optional precondition closing the read-then-write window: a PATCH reads the avatar, plans
+  // the change, then writes it, and a front replacement can land in between. Filtering the
+  // write itself on the front image the caller saw makes the update match no row — rather than
+  // silently landing on a different photo — when that race happens; the route tells this apart
+  // from "avatar not found" (D289 amended).
+  opts?: { ifFrontUrl?: string },
 ): Promise<Avatar | null> {
   if (!isUuid(avatarId)) return null;
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  const query = supabase
     .from("client_avatars")
     .update({ ...patchToRow(patch), updated_at: new Date().toISOString() })
     .eq("id", avatarId)
-    .eq("client_id", clientId)
-    .select("*")
-    .maybeSingle();
+    .eq("client_id", clientId);
+  // PostgREST JSON-path filter on a jsonb text field, same form as node-file-cleanup.ts's
+  // `.eq("data->>fileUrl", fileUrl)`.
+  if (opts?.ifFrontUrl !== undefined) query.eq("front->>url", opts.ifFrontUrl);
+  const { data, error } = await query.select("*").maybeSingle();
   if (error) throw error;
   return data ? rowToAvatar(data as AvatarRow) : null;
 }
