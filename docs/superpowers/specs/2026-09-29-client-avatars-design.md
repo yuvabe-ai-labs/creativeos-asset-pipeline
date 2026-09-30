@@ -74,7 +74,7 @@ Both new tables enable RLS with zero policies, as `0027_brand_kit.sql` does.
 | `sheet_stale` | boolean default false | set when `front` changes after a sheet exists |
 | `voice` | jsonb | `{ voiceId, name, labels, previewUrl }`, the ElevenLabs account voice |
 | `voice_sample` | jsonb | `{ url, durationSeconds, sourceKey }`, §6.3 |
-| `status` | text check in (`draft`, `ready`) | §4.4 |
+| `status` | text check in (`draft`, `ready`) | §4.6 |
 | `archived_at` | timestamptz | null = live |
 | `created_by`, `created_at`, `updated_at` | | |
 
@@ -160,14 +160,65 @@ Unique on `(client_id, elevenlabs_voice_id)`.
 
 ## 4. Avatar Studio
 
-A full page, not a dialog. Left column: the current step. Right column: a sticky avatar card that
-fills in (front, sheet, voice, Seedance status, name, story) and shows credits spent so far. A
-step tracker in the header: **Look → Profile sheet → Voice**. Steps can be revisited in any order
-once a front image exists.
+A full page in three columns (D297): a **side stepper** on the left, the current step's **panel**
+in the middle, and a sticky **summary card** on the right. Approved mockup (v2, 2026-09-30):
+https://claude.ai/artifact/6Mg4qUZ5Ptw61HAxV6SxDR — it is the reference for layout and copy.
+
+### 4.0 Frame
+
+**Header.** A ghost **‹ Avatars** back button; the eyebrow `{client name} · Avatars`; the title,
+which **is the avatar's name** and is edited in place (the design system's inline-edit affordance:
+a dotted underline and `bg-primary/5` on hover, placeholder "Untitled avatar"); a status badge
+(§4.6); once a draft exists, an autosave indicator (`Saving…` / `Saved`); once anything has been
+charged, the credits spent on this avatar (**✦ N spent**); and the **⋯** menu (§4.6).
+
+**Stepper.** Five steps, in order:
+
+| # | Step | Required | Status line under the title |
+|---|---|---|---|
+| 1 | Look | Yes | Needed · the image model's name · Uploaded photo · Needs permission |
+| 2 | Profile sheet | No | Optional · Generating… · Added · Out of date · Skipped |
+| 3 | Voice | No | Optional · Engine's own voice · {voice name} · Skipped |
+| 4 | Preview | No | Optional · Generating… · Clip ready · Voice reference saved · Out of date · Skipped |
+| 5 | Name & save | Yes | Needs a name · Ready to save · In the library |
+
+A finished step shows a check in place of its number. **Look is always open. The other four open
+once Look is done** — a front image and, for an uploaded photo, the confirmed permission; until
+then they show a lock and cannot be clicked. Any open step can be clicked, in any order. "Skipped"
+means an optional step was left unfinished with **Continue** in this visit; it is not stored, so on
+a later visit the step reads "Optional" again.
+
+**Where the Studio opens.** Derived from what is stored, never remembered:
+
+| Avatar | Opens on |
+|---|---|
+| New, or a draft without a finished Look | Look |
+| A draft with Look done | The first of Profile sheet → Voice → Preview that is not done; Name & save if all are |
+| In the library | Name & save, with every step open (editing, not creating) |
+
+**Panel.** A header — eyebrow `Step N of 5` (`· Optional` on optional steps), the step's heading
+in the display face, and one line saying what the step is for — then the step's content, then a
+footer pinned to the bottom of the panel:
+
+- **Left:** `‹ Back to {previous step}`. Absent on Look.
+- **Right:** exactly one primary button, `Continue to {next step}`. On an optional step this is
+  also how it is skipped: there is **no separate Skip button** (D297). On Look it is disabled until
+  Look is done, with the reason beside it — "Pick a front image to continue" or "Confirm
+  permission to continue". On Name & save it is **Save to library** for a draft and **Done** for
+  an avatar already in the library (back to the library).
+
+**Summary card.** The front image (square), the name (or "Untitled avatar"), and rows for Face
+(`Generated · Seedream`, `Generated · {model}`, or `Real person`), Profile sheet, Voice, and —
+only with the engine's own voice — Voice reference (`4.8 s saved` / `Not yet`). Then **Works
+with**: the names of the video models this avatar can be used with (§8), nothing more. The card
+carries no Save and no Archive.
+
+**Narrow screens.** Under 780 px the stepper becomes a horizontal row of titles above the panel
+and the summary card moves below it.
 
 ### 4.1 Look
 
-A segmented control: **Describe | Upload photo**. Switching keeps everything already entered.
+A segmented control: **Describe | Upload a photo**. Switching keeps everything already entered.
 
 **Describe.**
 - A prompt `Textarea`, plus optional attribute chips (gender, age range, ethnicity). Chips add
@@ -178,15 +229,20 @@ A segmented control: **Describe | Upload photo**. Switching keeps everything alr
   (photoreal, illustrated, 3D — a prompt phrase), a **count stepper** (1–8, default 4), and
   **Generate ✦ N**. Aspect ratio is fixed at 3:4. Each image is its own request, so a batch of N
   is N requests with N reservations.
-- The non-pro Seedream 5.0 model carries a "Seedance" tag in the model list (§8).
+- Under the settings row, one line names the models the chosen image model's faces will work
+  with (§8): "Works with Seedance, Gemini Omni, Kling and Veo." for Seedream 5.0 Lite; "Works with
+  Gemini Omni, Kling and Veo. For Seedance too, use Seedream 5.0 Lite." for any other. The choice
+  that decides Seedance is made here, so this is where it is said.
 - Each Generate click is one batch. Batches stack newest first and stay for the life of the
   draft, so models can be compared. Clicking an image sets it as the front; clicking the current
-  front does nothing. What was typed in Describe survives switching to Upload photo or to the
-  sheet step and back.
+  front does nothing.
 
-**Upload photo.** The existing signed-upload pattern (`sign` → PUT → `finalize`), validated with
-`validateFileExtension` / `validateFileSize`. The avatar becomes a `specific` person and the
-consent statement appears under the image (§3.3).
+**Upload a photo.** The existing signed-upload pattern (`sign` → PUT → `finalize`), validated with
+`validateFileExtension` / `validateFileSize`. The avatar becomes a `specific` person. Beside the
+photo, a note ("An uploaded photo is treated as a real person. Real faces work with Gemini Omni
+and Kling.") and the consent statement (§3.3), which Continue waits for.
+
+Once a front image is chosen, a strip under it reads **This face works with** and names the models.
 
 ### 4.2 Profile sheet
 
@@ -196,12 +252,13 @@ production input — it is a reference document for the people working on the cl
 
 One generated image at 16:9 showing three full-body views of the person, head to toe: front,
 side profile and back (operator decisions, 2026-09-30). The front image is waist-up, so the prompt
-asks for the whole body outright and tells the model to continue the outfit down to the feet. It is made from the front image by an image-edit model with
-`buildAvatarSheetPrompt`: same person and outfit in every view, plain light-grey background.
+asks for the whole body outright and tells the model to continue the outfit down to the feet. It
+is made from the front image by an image-edit model with `buildAvatarSheetPrompt`: same person
+and outfit in every view, plain light-grey background.
 
-- Generated when the operator clicks **Generate ✦ N** on the sheet step. It does not start on
-  its own: operators sometimes bring their own sheet, and an automatic run would spend credits
-  they did not ask to spend.
+- Generated when the operator clicks **Generate ✦ N**. It does not start on its own: operators
+  sometimes bring their own sheet, and an automatic run would spend credits they did not ask to
+  spend.
 - Controls: a model picker (default Nano Banana Pro, per the handoff design), **Generate** /
   **Regenerate**, and **Add your own** (upload).
 - If the front image changes later, `sheet_stale` is set and the step says so. It is never
@@ -210,23 +267,70 @@ asks for the whole body outright and tells the model to continue the outfit down
 
 ### 4.3 Voice
 
-One field, identical to Change voice's trigger (name, gender · language · accent, preview button).
-It opens the shared picker (§6). Optional.
+Two option cards, the chosen one checked:
 
-With a voice declared — named or the engine's own — a **Preview** block sits under the field
-(§6.6). On the engine's own voice, that preview also saves the avatar's voice reference (§6.7).
+- **The engine's own voice** — generated avatars only. "Seedance invents a voice. Keep it in the
+  Preview step and every Seedance video reuses it. No ElevenLabs cost."
+- **A named voice** — "An ElevenLabs voice, applied after generation. The same voice on every
+  model." Choosing it shows the voice field, identical to Change voice's trigger (name, gender ·
+  language · accent, preview button), which opens the shared picker (§6).
 
-### 4.4 Draft, ready, archive
+A real person sees only the named voice, with a note: "A real person runs on Gemini Omni and
+Kling. Neither takes a voice reference, so the voice is applied after generation." A ghost
+**Remove the voice** clears the declaration. The preview is no longer on this step (§4.4).
 
-- The avatar row is created as `draft` at the first Generate or upload. Drafts appear in the
-  library with a "Draft" badge.
-- `ready` requires a name, a front image and, for an uploaded front, the likeness consent. The
-  profile sheet and the voice are both optional (D295); a stale sheet is shown as out of date
-  but never blocks Save.
-  `isAvatarReady(avatar)` is the single check, used by the Save button and the route.
-- Text fields save last-write-wins. Front, sheet and voice are separate actions.
-- Delete archives (`archived_at`). Archived avatars leave the library and pickers; their files and
-  voice stay.
+### 4.4 Preview
+
+The voice preview of §6.6, as a step of its own. Two columns:
+
+- **Left:** a "Made with" line naming the engine and settings (`Seedance 2.5 · 480p · 5 s`, or
+  `Gemini Omni 1.1 Flash · 720p · 6 s, then {voice} applied`); the **What the avatar says** box
+  (default "Hi, I'm {name}. This is how I sound."); and the generate button with its cost —
+  **Generate preview** / **Regenerate** for a named voice, **Generate voice & reference** /
+  **Generate a new voice** for the engine's own. With the engine's own voice, a card shows the
+  saved reference ("Voice reference saved · 4.8 s — sent with every Seedance video of this
+  avatar"), or before one exists, a note that the voice generated here becomes the reference.
+- **Right:** the 9:16 clip — an empty frame, then a placeholder of the same size while it runs
+  ("You can keep working on other steps"), then the clip with its line under it and, when the
+  face or voice has changed since, an **Out of date** badge.
+
+With no voice declared, the step shows an empty state — "Choose a voice first. The voice decides
+which model makes the preview." — and a **Back to voice** button. Continue still moves on.
+
+### 4.5 Name & save
+
+**Name** (required) and **Background story** (optional), side by side. **Save to library**
+checks the name only: every other requirement is already met, because this step opens only once
+Look is done. An empty name shows "Give the avatar a name to save it." under the field and puts
+the focus there. `isAvatarReady` stays the server's single check.
+
+### 4.6 Lifecycle and its actions
+
+**An action appears only when the thing it acts on exists** (D297). Destructive actions live in
+the header's **⋯** menu, never beside Save.
+
+| State | How it begins | Header badge | ⋯ menu |
+|---|---|---|---|
+| New | Opening **New avatar**; no row exists yet | New | No menu |
+| Draft | The first Generate or upload creates the row — it is what the spent credits belong to | Draft | **Discard draft** |
+| In the library | **Save to library** (`status = ready`) | In the library | **Archive avatar** |
+
+- The moment a draft is created, a toast says so: "Saved as a draft so nothing is lost. The ⋯ menu
+  can discard it."
+- **Discard draft** asks first: "Discard this draft? The draft and its images are removed." plus,
+  when anything was charged, "The N credits already spent on it stay spent." It archives the draft
+  through the existing `DELETE` route — no second deletion path.
+- **Archive avatar** asks first: "Archive {name}? It leaves the library and can no longer be
+  picked. Videos that already use it keep working."
+- Either way, the operator goes back to the library. Drafts appear there with a "Draft" badge;
+  archived avatars leave the library and pickers, and their files and voice stay.
+
+**Saving as you go.** Name and story save as the operator types (debounced, about 600 ms,
+`PATCH`) once a row exists; before that they are held and sent with the request that creates
+the draft. Front, sheet, voice and preview were already separate actions that save themselves.
+**Save to library** is the only deliberate save. An avatar already in the library never
+autosaves an empty name — that would drop it back to draft — and the field says "An avatar in
+the library needs a name." instead.
 
 ---
 
@@ -402,15 +506,36 @@ billed in a later credits pass. Until then the cost is absorbed.
 
 ## 8. Engines and Seedance
 
-**The avatar's kind decides the engine** (handoff design). Nothing about the engine is stored on
-the avatar; it is derived.
+**The face decides which models an avatar works with** (D297, refining D290). It is derived,
+never stored:
 
-| Avatar | Engine | Clip ceiling | Face reference |
-|---|---|---|---|
-| Generated (`generic`) | Seedance 2.5 | 30 s | A Seedream-generated face |
-| Real person (`specific`) | Gemini Omni | 10 s | The uploaded photograph, Google's filters permitting |
+| Face | Works with |
+|---|---|
+| Generated with Seedream 5.0 Lite | Seedance 2.5, Gemini Omni, Kling, Veo 3.1 |
+| Generated with any other image model | Gemini Omni, Kling, Veo 3.1 |
+| An uploaded photo (a real person) | Gemini Omni, Kling |
 
-Kling and Veo are not used for avatars: neither takes a trusted face reference.
+The Studio shows these **names only** (§4.0, §4.1). A per-model table — how the face goes in, what
+happens to the voice, the longest clip — was built into the first mockup and cut in review as too
+technical for the people using the Studio (D297). For the record, and for the canvas lane:
+
+| Model | How the face goes in | Longest clip |
+|---|---|---|
+| Seedance 2.5 | Reference image | 30 s |
+| Gemini Omni 1.1 Flash | First frame or reference image | 10 s |
+| Kling 3.0 Omni · Kling O1 | Reference image | 15 s · 10 s |
+| Kling 3.0 | First frame only | 15 s |
+| Veo 3.1 Fast · Quality | Up to 3 reference images | 8 s |
+| Veo 3.1 Lite | First frame only | 8 s |
+
+- **Kling follows Gemini Omni's rule for now:** the front image goes in as a plain reference. Kling
+  3.0 Omni's Elements — a registered subject built from two to four views of the same person — are
+  not set up (§10).
+- **Veo is left off a real person.** It accepts people, but Google may refuse a real, identifiable
+  face depending on region, and a names-only list cannot say "maybe".
+- **The voice** follows §6.3 on every model: a named voice is applied after generation, and the
+  engine's own voice is kept consistent only on Seedance, through the voice reference (§6.7).
+- **The preview's engine** is still chosen by the voice declaration (§6.6), not from this list.
 
 **Seedance accepts only Seedream 5.0 non-pro faces.** The face of a generated avatar must come
 from the non-pro Seedream 5.0 model; the pro variant's faces are refused. Take the model id from
@@ -444,6 +569,11 @@ at generation time. If BytePlus starts enforcing provenance, those fields are wh
 ---
 
 ## 10. Open questions
+
+- **Kling Elements from the profile sheet.** Kling 3.0 Omni builds an Element from two to four views
+  of one person, which is what the profile sheet is. Registering the sheet as an Element could
+  give Kling a stronger identity lock than a single reference image — and give the sheet its first
+  production use. Untested; Kling follows Omni's plain-reference rule until then (§8).
 
 1. **Sheet model.** The handoff design takes the model sheet from Nano Banana (Gemini) for both
    kinds. Confirm face consistency across angles on Seedream faces before fixing the default.

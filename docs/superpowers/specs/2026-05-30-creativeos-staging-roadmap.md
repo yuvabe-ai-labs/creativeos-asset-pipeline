@@ -6144,3 +6144,40 @@ still never been measured on a real generation (handoff §7).
 **Refines.** D290 (the engine follows the avatar's kind), D293 (its deferred anchor), D294.
 **Originated →** `2026-09-29-client-avatars-design.md` §6.6, §6.7.
 
+### D297 — The Avatar Studio is a five-step side stepper; lifecycle actions appear only when their object exists *(recorded 2026-09-30)*
+
+**Decision.** The Studio becomes three columns: a side stepper (Look → Profile sheet → Voice →
+Preview → Name & save), the step's panel with a footer pinned to its bottom, and a summary card.
+The footer has Back and **one** primary `Continue to {next step}`, which on an optional step is
+also how it is skipped. Look is always open; the rest open once Look is done; a saved avatar opens
+with all five open. The name is the page title, edited in place, and is asked for on the last
+step; name and story save as the operator types, and **Save to library** is the only deliberate
+save. Preview moves out of the Voice step into its own. Lifecycle actions follow what exists: a new
+avatar has no menu, a draft's ⋯ menu offers **Discard draft** (an archive, through the existing
+route), an avatar in the library offers **Archive**. "Runs on" becomes **Works with**, the names of
+the models the face can be used with: a Seedream face works with Seedance, Gemini Omni, Kling and
+Veo; any other generated face with all but Seedance; a real person's photo with Gemini Omni and
+Kling. Kling takes the front image as a plain reference, as Omni does.
+
+**Why.** Operator review of the first Studio (2026-09-30): the Archive button showed on an avatar
+nobody had saved — the draft row exists from the first Generate, because it owns the spent
+credits, and the button rendered whenever the row did; the steps had no Back or Next where the
+work happens; and the name field sat in a side card, reading as an afterthought. Wizard guidance
+(NN/G, PatternFly) asks for a visible list of steps with the current one marked, descriptive
+Next labels, Back always available, and a way to leave midway and resume — which drafts already
+are. In the second round the operator cut the Skip button (it did exactly what Continue did) and
+the per-model table (too technical for the people using the Studio), and chose the side stepper
+over a top one, because the summary card stays in view.
+
+**Rejected.** A top stepper with the summary folded into the last step (loses sight of the face
+and voice while working). Skip beside Continue (two buttons, one behaviour). A per-model table of
+how the face goes in, voice handling and clip length (kept in the spec for the canvas lane, not
+shown). Hard-deleting a discarded draft (a second deletion path, and the ledger rows need their
+avatar). Offering Veo to a real person (Google may refuse the face by region; a names-only list
+cannot hedge). Removing sheet generation (the operator kept it, optional).
+
+**Refines.** D287 (the Studio), D290 (the engine no longer follows the kind alone — the face
+decides which models an avatar works with), D294 (the preview becomes a step), D295.
+**Originated →** `2026-09-29-client-avatars-design.md` §4, §8, §10. Mockup:
+https://claude.ai/artifact/6Mg4qUZ5Ptw61HAxV6SxDR.
+
