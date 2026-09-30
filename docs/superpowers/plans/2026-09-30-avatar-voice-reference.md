@@ -597,3 +597,29 @@ The task runs on Trigger.dev: `npx trigger.dev@latest dev`, with `APP_URL`, `TRI
 6. Replace the generated front with an uploaded photo: the native declaration and the reference both go, and the Voice row reads Optional.
 7. Save an avatar with **no sheet at all**: it goes Ready. The card's sheet row reads Optional.
 8. An avatar with a stale sheet also saves; the row reads Out of date.
+
+---
+
+## As built (2026-09-30)
+
+Built inline in one session, test-first, in the order above. Commits: `75f342bc` (D295),
+`c3f302ab` (D296). Checks at that head: **2811 tests pass**, `tsc --noEmit` clean, eslint clean
+on every file touched.
+
+Three things landed differently from the plan, all noted in the spec:
+
+- **`buildSeedanceBody` is now exported** rather than tested through `generate()`. The request's
+  shape is the fact worth pinning down, and Gemini Omni's provider already exports its body
+  builder for exactly this reason (`buildOmniRequestBody`). New file:
+  `src/lib/video-gen/__tests__/seedance-request.test.ts`, which also pins the
+  frames-XOR-references rule that was previously untested.
+- **The voice reference is written best-effort, after settlement.** If the row cannot be updated
+  the generation still succeeds: the clip is generated, stored and paid for by then, and an
+  operator who can regenerate is in a better place than one refunded for a clip they can watch.
+  The failure is logged.
+- **`useAvatarStudio` gained `reload(avatarId)`.** A native preview writes to the avatar row from
+  a background task, so the Studio has to re-read it; `replaceAvatar`'s staleness guard applies,
+  and the id is a parameter so the callback's identity stays stable for the polling effect.
+
+**Still unmeasured:** no generation has used a stored reference yet — the canvas sends it in
+Phase 2, and the vendor's "can differ significantly" warning (handoff §7) is untested either way.
