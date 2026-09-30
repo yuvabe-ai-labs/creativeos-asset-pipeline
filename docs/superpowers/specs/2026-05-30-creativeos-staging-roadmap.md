@@ -6082,7 +6082,65 @@ charged. One task attempt: a retry would pay for the clip again, so only the voi
 retried, against the same clip. Only named voices can be previewed; "the engine's own voice" has
 nothing to apply.
 
+**Amended (2026-09-30).** The preview has two modes, one per declaration: a named voice is heard
+through Omni plus a re-voice (as above), and the engine's own voice is heard through Seedance,
+whose audio is then kept as the avatar's voice reference (D296). There is no preview until a voice
+is declared — the declaration is what picks the engine.
+
 **Refines.** D284 (the re-voice steps, reused unchanged), D291 (a generation owned by an avatar
 may now be a video), D293.
 **Originated →** `2026-09-29-client-avatars-design.md` §6.6.
+
+### D295 — The profile sheet and the voice are optional; only a name, a front image and consent make an avatar ready *(recorded 2026-09-30)*
+
+**Decision.** `avatarReadinessGaps` keeps `name`, `front` and `consent`. The profile sheet and the
+voice declaration no longer block **Save**: the card shows the sheet as Optional, Out of date or
+Added, and the step, its tab and its generate control are unchanged.
+
+**Why.** The sheet is produced by editing the front image, and Seedance refuses an edited image as
+a reference (D290, handoff §3.3). So a sheet can never be a production input on the lane these
+avatars are built for — it is a reference document for the people working on the client, and
+requiring one held back avatars that were ready to use. The voice was already optional in the UI;
+this makes the readiness rule say so.
+
+**Rejected.** Hiding the sheet step behind a disclosure (a bigger UI change for a step that is
+still useful). Removing sheet generation altogether (throws away working code and the sheet's
+value to humans). Keeping the sheet required for a *generated* avatar only (two readiness rules to
+explain, for no gain).
+
+**Refines.** D287, D288.
+**Originated →** `2026-09-29-client-avatars-design.md` §4.2, §4.4.
+
+### D296 — A native preview's own voice is extracted and kept as the avatar's `reference_audio` *(recorded 2026-09-30)*
+
+**Decision.** This builds the anchor declaration D293 deferred. When an avatar declares the
+engine's own voice, its preview is a Seedance 2.5 clip (5 s, 480p) generated from the front image;
+the task stores the clip, extracts its audio to a mono 24 kHz mp3 with the bench's ffmpeg flags,
+stores that beside the clip, and the generation webhook records it on `client_avatars.voice_sample`
+(the column migration 0041 already added — no migration). `buildSeedanceContent()` gains the
+`role: "reference_audio"` part, so later Seedance generations send the sample and the avatar keeps
+one voice. Regenerating replaces the sample; a front change that makes the avatar a real person
+drops the native declaration and the sample together.
+
+**Why.** Seedance invents a fresh voice per clip, so a reel would be one face in several voices —
+the handoff spec calls the anchor "a port, not a design" (§6.4), already proven in the UGC bench.
+Extracting the audio rather than re-sending the clip is what makes it free: audio is outside
+Seedance's token formula, while a reference video would add its own duration to the bill. It also
+gives a generated avatar a voice with no ElevenLabs cost at all.
+
+**Rejected.** A separate route and task for the sample (90% the same flow as the preview, and a
+second paid concept to explain). Extracting on demand inside the API route, the bench's own shape
+(needs `ffmpeg-static` traced into the Next.js runtime and pushes the whole video through a
+serverless function again; "Regenerate" already covers auditioning at the same price). Storing the
+mp3 as a base64 data URL as the bench does (the product has GCS). Making the preview declare
+native by itself when no voice is set (the operator should say what they want to hear first —
+operator decision).
+
+**Known limits.** The vendor warns the generated voice can "differ significantly" from the
+reference; the written voice description that mitigates it belongs to the canvas lane. Nothing
+passes the reference yet — the provider accepts it, the canvas sends it in Phase 2. The anchor has
+still never been measured on a real generation (handoff §7).
+
+**Refines.** D290 (the engine follows the avatar's kind), D293 (its deferred anchor), D294.
+**Originated →** `2026-09-29-client-avatars-design.md` §6.6, §6.7.
 

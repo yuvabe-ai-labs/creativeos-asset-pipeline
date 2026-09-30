@@ -190,6 +190,10 @@ consent statement appears under the image (§3.3).
 
 ### 4.2 Profile sheet
 
+**Optional (D295).** An avatar is ready without one. The sheet is made by editing the front
+image, and Seedance refuses an edited image as a reference (§8), so a sheet can never be a
+production input — it is a reference document for the people working on the client.
+
 One generated image at 16:9 showing three full-body views of the person, head to toe: front,
 side profile and back (operator decisions, 2026-09-30). The front image is waist-up, so the prompt
 asks for the whole body outright and tells the model to continue the outfit down to the feet. It is made from the front image by an image-edit model with
@@ -209,14 +213,16 @@ asks for the whole body outright and tells the model to continue the outfit down
 One field, identical to Change voice's trigger (name, gender · language · accent, preview button).
 It opens the shared picker (§6). Optional.
 
-With a named voice declared, a **Preview** block sits under the field (§6.6).
+With a voice declared — named or the engine's own — a **Preview** block sits under the field
+(§6.6). On the engine's own voice, that preview also saves the avatar's voice reference (§6.7).
 
 ### 4.4 Draft, ready, archive
 
 - The avatar row is created as `draft` at the first Generate or upload. Drafts appear in the
   library with a "Draft" badge.
-- `ready` requires a name, a front image, a non-stale sheet and, for an uploaded front, the
-  likeness consent.
+- `ready` requires a name, a front image and, for an uploaded front, the likeness consent. The
+  profile sheet and the voice are both optional (D295); a stale sheet is shown as out of date
+  but never blocks Save.
   `isAvatarReady(avatar)` is the single check, used by the Save button and the route.
 - Text fields save last-write-wins. Front, sheet and voice are separate actions.
 - Delete archives (`archived_at`). Archived avatars leave the library and pickers; their files and
@@ -279,7 +285,7 @@ consistency"). It is set in the Studio's third step, **Voice**, which is optiona
 |---|---|---|---|
 | Native | The engine's own generated voice | Generated avatars (Seedance) | Built |
 | Named voice | An ElevenLabs account voice, applied by re-voicing after generation (D282–D284) | Both kinds | Built |
-| Anchor | The audio of the first clip the operator likes, carried forward as `reference_audio` | Generated avatars (Seedance) | Deferred: it needs a generated clip, so it arrives with canvas use |
+| Anchor | Not a separate declaration: a native avatar's preview clip supplies the `reference_audio` that keeps its voice the same (§6.7) | Generated avatars (Seedance) | Built (D296) |
 
 A real-person avatar runs on Gemini Omni, which accepts no audio input, so its only option is a
 named voice. `PUT /api/clients/[id]/avatars/[avatarId]/voice` takes `{ mode: "none" | "native" }`
@@ -287,7 +293,7 @@ or `{ mode: "named", voiceId }`; the server looks a named voice up on the accoun
 this client's or a stock voice, and stores a snapshot (id, name, labels, preview URL) in `voice`.
 The write is conditioned on the front image that decided what was allowed. A front change that
 turns a generated avatar into a real person drops a native voice; a named voice survives.
-`voice_sample` is unused until Anchor is built.
+`voice_sample` holds the anchor the native preview extracts (§6.7).
 
 ### 6.4 Removing a voice
 
@@ -303,36 +309,69 @@ ElevenLabs plans cap custom voices, and library saves and clones both count. A `
 ElevenLabs is answered with 409 and: "The ElevenLabs account has no free voice slots. Remove an unused voice, or
 upgrade the plan."
 
-### 6.6 Voice preview (D294)
+### 6.6 Voice preview (D294, D296)
 
-A short clip of the avatar speaking in its named voice, so the operator can judge the pairing of
-voice and face before making videos.
+A short clip of the avatar speaking, so the operator can judge the pairing of voice and face
+before making videos. The preview follows the declaration, because the declaration decides the
+engine:
+
+| | Named voice | The engine's own voice |
+|---|---|---|
+| Shown when | `voice.mode = "named"` | `voice.mode = "native"` (generated avatars only) |
+| Engine | Gemini Omni 1.1 Flash, front image as the first frame | Seedance 2.5, front image as `reference_image` |
+| Clip | 6 s, 720p, 9:16 | 5 s, 480p, 9:16 |
+| Voice | the clip's audio is extracted, converted with ElevenLabs speech-to-speech (default settings) and put back; more than 0.25 s of drift is rejected | Seedance invents it with the clip (`generate_audio` defaults to true) |
+| Cost | about 615 credits — clip plus voice change | about 515 credits — the clip alone |
+| Keeps | the clip | the clip **and** the voice reference (§6.7) |
+
+There is no button until a voice is declared: with nothing declared there is no engine to pick,
+and the operator has not said what they want to hear. A real person can only declare a named
+voice (§6.3), so the Seedance branch is reached only by a generated avatar — which is also the
+only kind Seedance accepts as a reference (D290).
+
+Input either way: the front image and one line of up to 120 characters, default
+"Hi, I'm {name}. This is how I sound."
+
+**Flow.** `POST /api/clients/[id]/avatars/[avatarId]/voice-preview` checks the avatar has a front
+image and a declared voice and that no preview is already running (409), inserts a video
+`generations` row owned by the avatar (`inputs_snapshot`: slot `voice-preview`, mode, line,
+prompt, front URL, and for a named voice its id, name and price multiplier), reserves the
+credits, signs the uploads — the clip, plus the mp3 on a native preview — and queues the
+`avatar-voice-preview` task. The task runs the mode's steps and calls the generation webhook;
+`completeGeneration` settles the real cost, records the clip as the generation's output, and on a
+native preview writes the voice reference onto the avatar. `GET` on the same path returns the
+latest preview and the next one's cost; the Studio polls it every four seconds while one runs.
+
+**Failure.** Any failure refunds the whole reservation: a refused generation, an out-of-sync
+re-voice, a clip with no audio track, a sample below Seedance's 2 s floor. The paid clip is
+generated once per run — only the ElevenLabs step is retried, against the same clip. A preview
+still running after 15 minutes is failed and refunded when the Studio next reads it, and by the
+reconciliation sweep.
+
+**Out of date.** A preview records the mode, the voice and the front image it was made with. When
+the avatar's differ, the clip stays playable and is labelled out of date.
+
+### 6.7 The voice reference (D296)
+
+Seedance invents a new voice for every clip, so without an anchor one avatar would speak with a
+different voice in every video. The anchor is the native preview's own audio, kept:
 
 | | |
 |---|---|
-| Where | Voice step, under the voice field, when the declared voice is a named one. |
-| Input | The front image and one line, up to 120 characters. Default: "Hi, I'm {name}. This is how I sound." |
-| Clip | Gemini Omni 1.1 Flash, 6 seconds, 720p, 9:16, front image as the first frame. |
-| Voice | The clip's audio is extracted, converted with ElevenLabs speech-to-speech to the avatar's voice (default settings) and put back. A result more than 0.25 s out of sync is rejected. |
-| Cost | The Omni clip plus the voice change over the same seconds: about 615 credits at the standard voice rate. Shown on the button. |
+| Extraction | In the task, from the stored clip: `-vn -ac 1 -ar 24000 -b:a 96k -t 30` → a mono mp3 — the bench's flags (`src/lib/ugc/voice.ts`), which match Seedance's limits: mp3 or wav, 2–30 s. |
+| Stored | `clients/{clientId}/avatars/{avatarId}/voice-sample/{generationId}.mp3`, beside the clip. |
+| Recorded | `client_avatars.voice_sample` = `{ url, durationSeconds, sourceKey: generationId }`, the column migration 0041 already added. **No migration.** |
+| Used | `buildSeedanceContent()` appends `{ type: "audio_url", audio_url: { url }, role: "reference_audio" }`. Audio is a *third* part type: the frames-XOR-references exclusion does not apply to it. |
+| Cost to use | Free — audio sits outside Seedance's token formula. A reference *video* would add its own duration to the bill, which is why the audio is extracted rather than the clip re-sent. |
 
-**Flow.** `POST /api/clients/[id]/avatars/[avatarId]/voice-preview` checks the avatar has a front
-image and a named voice and that no preview is already running (409), inserts a video
-`generations` row owned by the avatar (`inputs_snapshot`: slot `voice-preview`, line, prompt,
-voice id and name, price multiplier, front URL), reserves the credits, signs the clip's upload
-and queues the `avatar-voice-preview` task. The task generates the clip, re-voices it, uploads
-it and calls the generation webhook; `completeGeneration` settles the real cost and records the
-clip as the generation's output. `GET` on the same path returns the latest preview and the cost
-of the next one; the Studio polls it every four seconds while a preview is running.
+Regenerating a native preview replaces the reference. A front change that turns the avatar into a
+real person drops the native declaration and the reference together, since Omni accepts no audio
+input. The canvas sends the reference on an avatar's videos in Phase 2; the provider accepts it
+now, so the stored file is usable rather than inert.
 
-**Failure.** Any failure — Google refusing the face, the voice change failing twice, an
-out-of-sync result — fails the generation with the provider's message and refunds the whole
-reservation. The task runs once; only the voice change is retried, against the same clip. A
-preview still running after 15 minutes is failed and refunded when the Studio next reads it (the
-reconciliation sweep does the same on its own schedule).
-
-**Out of date.** A preview records the voice and the front image it was made with. When either
-differs from the avatar's current one, the clip stays playable and is labelled out of date.
+**Vendor-stated weakness** (handoff §3.4): the generated voice can "differ significantly" from
+the reference. The mitigation, when the canvas lane arrives, is to describe the voice in words as
+well and to say *timbre only*, so the anchor clip's effects do not ride along with its timbre.
 
 ---
 
