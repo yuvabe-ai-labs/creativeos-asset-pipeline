@@ -160,6 +160,17 @@ export function pathForAvatarVoicePreview(args: {
   return `clients/${args.clientId}/avatars/${args.avatarId}/voice-preview/${args.generationId}.mp4`;
 }
 
+/** D296 — an avatar's voice reference: the mp3 extracted from its native preview clip. Keyed by
+ *  the generation that produced it, beside that clip, so the pair can always be traced to each
+ *  other and a regenerated sample never collides with the one it replaces. */
+export function pathForAvatarVoiceSample(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): string {
+  return `clients/${args.clientId}/avatars/${args.avatarId}/voice-sample/${args.generationId}.mp3`;
+}
+
 /** Where a Studio-generated avatar image lives — under `generated/`, apart from uploads, so
  *  the upload finalize route's prefix check can never be satisfied by a generated object. */
 export function pathForAvatarGenerated(args: {

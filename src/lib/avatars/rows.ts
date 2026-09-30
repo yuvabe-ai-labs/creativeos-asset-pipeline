@@ -55,6 +55,7 @@ const COLUMN: Record<keyof AvatarPatch, string> = {
   sheetStale: "sheet_stale",
   status: "status",
   voice: "voice",
+  voiceSample: "voice_sample",
 };
 
 /** Only keys present in the patch are written; `undefined` is skipped, `null` is kept. */

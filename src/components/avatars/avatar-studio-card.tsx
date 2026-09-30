@@ -89,6 +89,10 @@ export function AvatarStudioCard({
         {avatar?.front && (
           <Row done={avatar.voice !== null} label="Voice" detail={avatarVoiceLabel(avatar.voice) ?? "Optional"} />
         )}
+        {/* D296 — what later videos are sent so this avatar keeps one voice. */}
+        {avatar?.voiceSample && (
+          <Row done label="Voice reference" detail={`${avatar.voiceSample.durationSeconds.toFixed(1)}s`} />
+        )}
       </ul>
 
       <div className="flex flex-col gap-1.5">

@@ -111,6 +111,18 @@ export function useAvatarStudio({
     setAvatar((prev) => (prev && isStale(prev, updated) ? prev : updated));
   }, []);
 
+  // D296 — re-reads the row. A background job can write to the avatar itself (a native voice
+  // preview saves its voice reference there), and nothing on screen would otherwise know. Takes
+  // the id rather than closing over it, so its identity stays stable for the callers that use it
+  // as an effect dependency. Guarded by replaceAvatar, like every other full replace.
+  const reload = useCallback(async (avatarId: string) => {
+    try {
+      replaceAvatar(await avatarsService.get(clientId, avatarId));
+    } catch {
+      // Best-effort: the screen keeps what it has.
+    }
+  }, [clientId, replaceAvatar]);
+
   const uploadImage = useCallback(async (slot: AvatarImageSlot, file: File) => {
     // Two quick drops (or a front and a sheet drop together) must not both start: they'd
     // create two drafts, or race to clear each other's placeholder.
@@ -205,6 +217,6 @@ export function useAvatarStudio({
   return {
     avatar, name, story, gaps, uploading, saving, confirmingConsent,
     setName, setStory, uploadImage, markReady, archive, confirmConsent,
-    ensureAvatar, replaceAvatar,
+    ensureAvatar, replaceAvatar, reload,
   };
 }

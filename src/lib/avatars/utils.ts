@@ -16,7 +16,7 @@ export type ReadinessInput = Pick<
 export type AvatarPatch = Partial<Pick<
   Avatar,
   | "name" | "story" | "personType" | "front" | "sheet" | "sheetStale" | "status"
-  | "likenessConsentBy" | "likenessConsentAt" | "voice"
+  | "likenessConsentBy" | "likenessConsentAt" | "voice" | "voiceSample"
 >>;
 
 export type AvatarUpdateInput = {
@@ -66,8 +66,10 @@ export function frontChangePatch(current: Avatar, image: AvatarImage): AvatarPat
     likenessConsentBy: null,
     likenessConsentAt: null,
     // Only stated when the declaration stops being possible (a native voice on what is now a
-    // real person, D293); a voice that survives the change is left untouched.
-    ...(voice !== current.voice ? { voice } : {}),
+    // real person, D293); a voice that survives the change is left untouched. The voice sample
+    // goes with it (D296): it is the engine's own voice, and the engine a real person runs on
+    // accepts no audio at all, so a sample left behind could never be sent anywhere.
+    ...(voice !== current.voice ? { voice, voiceSample: null } : {}),
   };
 }
 

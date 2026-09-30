@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { GENERATED, makeAvatar, makeImage } from "@/lib/avatars/__tests__/fixtures";
 import { AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
-import { estimateVoicePreviewCredits, VOICE_PREVIEW_MODEL_ID } from "@/lib/avatars/voice-preview";
+import { estimateVoicePreviewCredits, VOICE_PREVIEW_ENGINE } from "@/lib/avatars/voice-preview";
 import type { AvatarVoice } from "@/lib/avatars/schema";
 
 vi.mock("server-only", () => ({}));
@@ -20,7 +20,7 @@ vi.mock("@/lib/db/credit-transactions", () => {
   return { CreditLimitError, reserveCredits: vi.fn(), refundReservation: vi.fn() };
 });
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({ getVoiceCached: vi.fn() }));
-vi.mock("@/lib/storage", () => ({ signAvatarVoicePreviewUrl: vi.fn() }));
+vi.mock("@/lib/storage", () => ({ signAvatarVoicePreviewUrl: vi.fn(), signAvatarVoiceSampleUrl: vi.fn() }));
 
 import { tasks } from "@trigger.dev/sdk/v3";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
@@ -30,7 +30,7 @@ import { getAvatar } from "@/lib/db/avatars";
 import { insertGeneration, failGeneration, getLatestAvatarVoicePreview } from "@/lib/db/generations";
 import { reserveCredits, refundReservation } from "@/lib/db/credit-transactions";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
-import { signAvatarVoicePreviewUrl } from "@/lib/storage";
+import { signAvatarVoicePreviewUrl, signAvatarVoiceSampleUrl } from "@/lib/storage";
 
 const params = Promise.resolve({ id: "c1", avatarId: "a1" });
 const url = "http://localhost/api/clients/c1/avatars/a1/voice-preview";
@@ -40,8 +40,8 @@ const post = (body: unknown) =>
 const NAMED: AvatarVoice = { mode: "named", voiceId: "v1", name: "Surabhi", labels: {}, previewUrl: null };
 const FRONT = makeImage().url;
 const inputs = {
-  slot: AVATAR_VOICE_PREVIEW_SLOT, line: "Hello there.", voiceId: "v1", voiceName: "Surabhi",
-  priceMultiplier: 2, frontUrl: FRONT,
+  slot: AVATAR_VOICE_PREVIEW_SLOT, mode: "named", line: "Hello there.", voiceId: "v1",
+  voiceName: "Surabhi", priceMultiplier: 2, frontUrl: FRONT,
 };
 const row = (overrides: Record<string, unknown> = {}) => ({
   id: "g1", avatar_id: "a1", node_id: null, org_id: "org-1", status: "running", error: null,
@@ -64,6 +64,7 @@ beforeEach(() => {
   vi.mocked(failGeneration).mockResolvedValue(undefined as never);
   vi.mocked(refundReservation).mockResolvedValue(undefined as never);
   vi.mocked(signAvatarVoicePreviewUrl).mockResolvedValue({ putUrl: "https://signed/put", url: "https://storage.googleapis.com/b/p.mp4" });
+  vi.mocked(signAvatarVoiceSampleUrl).mockResolvedValue({ putUrl: "https://signed/sample", url: "https://storage.googleapis.com/b/s.mp3" });
 });
 
 describe("GET voice-preview", () => {
@@ -76,10 +77,10 @@ describe("GET voice-preview", () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.preview).toMatchObject({ generationId: "g1", status: "succeeded", url: "https://storage.googleapis.com/b/p.mp4", line: "Hello there." });
-    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits(2));
+    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits("named", 2));
   });
 
-  it("has no preview and no estimate for an avatar without a named voice", async () => {
+  it("has no preview and no estimate for an avatar with no voice declared", async () => {
     vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ voice: null }));
     const { GET } = await import("./route");
     const json = await (await GET(new NextRequest(url), { params })).json();
@@ -111,12 +112,12 @@ describe("POST voice-preview", () => {
     expect((await res.json()).preview).toMatchObject({ generationId: "g1", status: "running" });
     expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
       avatarId: "a1", orgId: "org-1", clientId: "c1", userId: "user-9", type: "video",
-      modelUsed: VOICE_PREVIEW_MODEL_ID,
+      modelUsed: VOICE_PREVIEW_ENGINE.named.modelId,
       inputsSnapshot: expect.objectContaining({ ...inputs, prompt: expect.stringContaining('"Hello there."') }),
     }));
-    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits(2));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("named", 2));
     expect(tasks.trigger).toHaveBeenCalledWith("avatar-voice-preview", expect.objectContaining({
-      generationId: "g1", frontUrl: FRONT, voiceId: "v1",
+      mode: "named", generationId: "g1", frontUrl: FRONT, voiceId: "v1",
       revoicedPutUrl: "https://signed/put", revoicedUrl: "https://storage.googleapis.com/b/p.mp4",
       params: expect.objectContaining({ duration: 6, resolution: "720p" }),
     }));
@@ -128,13 +129,12 @@ describe("POST voice-preview", () => {
     expect(insertGeneration).not.toHaveBeenCalled();
   });
 
-  it("refuses an avatar using its engine's own voice — there is no voice to apply", async () => {
-    vi.mocked(getAvatar).mockResolvedValue(
-      makeAvatar({ personType: "generic", front: makeImage(GENERATED), voice: { mode: "native" } }),
-    );
+  it("refuses a preview when no voice is declared — the declaration picks the engine", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ voice: null }));
     const { POST } = await import("./route");
     const res = await POST(post({ line: "Hi." }), { params });
     expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/choose a voice/i);
     expect(insertGeneration).not.toHaveBeenCalled();
   });
 
@@ -172,5 +172,55 @@ describe("POST voice-preview", () => {
     expect((await POST(post({ line: "Hi." }), { params })).status).toBe(500);
     expect(failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "Trigger.dev unreachable" });
     expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+  });
+});
+
+describe("POST voice-preview — the engine's own voice (D296)", () => {
+  const nativeAvatar = makeAvatar({ personType: "generic", front: makeImage(GENERATED), voice: { mode: "native" } });
+  beforeEach(() => {
+    vi.mocked(getAvatar).mockResolvedValue(nativeAvatar);
+    vi.mocked(insertGeneration).mockResolvedValue(
+      row({ inputs_snapshot: { slot: AVATAR_VOICE_PREVIEW_SLOT, mode: "native", line: "Hi.", frontUrl: nativeAvatar.front!.url } }) as never,
+    );
+  });
+
+  it("runs Seedance at 480p, signs both uploads, and never asks ElevenLabs anything", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ line: "Hi." }), { params });
+    expect(res.status).toBe(202);
+    expect(getVoiceCached).not.toHaveBeenCalled();
+    expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
+      modelUsed: VOICE_PREVIEW_ENGINE.native.modelId,
+      paramsSnapshot: expect.objectContaining({ resolution: "480p", duration: 5, ratio: "9:16" }),
+      inputsSnapshot: expect.objectContaining({ mode: "native", line: "Hi." }),
+    }));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("native"));
+    expect(tasks.trigger).toHaveBeenCalledWith("avatar-voice-preview", expect.objectContaining({
+      mode: "native",
+      clipPutUrl: "https://signed/put",
+      samplePutUrl: "https://signed/sample",
+      sampleUrl: "https://storage.googleapis.com/b/s.mp3",
+    }));
+  });
+
+  it("records no voice id — Seedance's voice exists only in the clip", async () => {
+    const { POST } = await import("./route");
+    await POST(post({ line: "Hi." }), { params });
+    const inputs = vi.mocked(insertGeneration).mock.calls[0][0].inputsSnapshot!;
+    expect(inputs.voiceId).toBeUndefined();
+    expect(inputs.priceMultiplier).toBeUndefined();
+  });
+
+  it("runs without an ElevenLabs key at all", async () => {
+    delete process.env.ELEVEN_LABS_API_KEY;
+    const { POST } = await import("./route");
+    expect((await POST(post({ line: "Hi." }), { params })).status).toBe(202);
+  });
+
+  it("reports the next one's cost as the Seedance clip alone", async () => {
+    vi.mocked(getLatestAvatarVoicePreview).mockResolvedValue(null);
+    const { GET } = await import("./route");
+    const json = await (await GET(new NextRequest(url), { params })).json();
+    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits("native"));
   });
 });

@@ -115,3 +115,9 @@ export const AVATAR_VOICE_PREVIEW_LINE_MAX = 120;
 // Longer than the task can run (5 minutes, one attempt). A preview still "running" past this
 // lost its task or its webhook: it is failed and refunded the next time the Studio reads it.
 export const AVATAR_VOICE_PREVIEW_TIMEOUT_MS = 15 * 60 * 1000;
+
+// D296 — a native preview is a Seedance clip whose own invented voice becomes the avatar's
+// reference audio. 480p is Seedance's draft tier: the deliverable here is the voice, which no
+// resolution improves, and the picture only has to be good enough to judge the pairing.
+export const AVATAR_VOICE_SAMPLE_SECONDS = 5;
+export const AVATAR_VOICE_SAMPLE_RESOLUTION = "480p";

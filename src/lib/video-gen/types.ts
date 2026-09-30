@@ -13,6 +13,13 @@ export type VideoGenInput = {
   startFrameUrl?: string;
   endFrameUrl?: string;
   referenceUrls: string[];
+  /**
+   * D296 — an audio clip whose VOICE the model should reuse. Seedance 2.5 only: it invents a
+   * fresh voice for every clip, so this is what keeps one avatar sounding the same across a
+   * reel (an avatar's stored voice sample). Every other provider ignores it — Gemini Omni and
+   * Veo accept no audio input at all.
+   */
+  referenceAudioUrl?: string;
   params: Record<string, unknown>;
 };
 

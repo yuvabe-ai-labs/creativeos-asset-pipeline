@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,11 +37,25 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     onAvatar: s.replaceAvatar,
   });
   const v = useAvatarVoice({ clientId, avatarId: s.avatar?.id ?? null, onAvatar: s.replaceAvatar });
+  // Pulled out so the callback below can depend on the two stable functions rather than on the
+  // hook objects that carry them — a new identity every render would restart the preview poll.
+  const { refreshSpentCredits } = g;
+  const { reload } = s;
   const preview = useAvatarVoicePreview({
     clientId,
     avatarId: s.avatar?.id ?? null,
-    voiceId: s.avatar?.voice?.mode === "named" ? s.avatar.voice.voiceId : null,
-    onSettled: g.refreshSpentCredits,
+    declaration: s.avatar?.voice
+      ? `${s.avatar.voice.mode}:${s.avatar.voice.mode === "named" ? s.avatar.voice.voiceId : ""}`
+      : null,
+    // A finished native preview writes the voice reference onto the avatar, so the row has to be
+    // read again — the card and the sample player both show what it saved.
+    onSettled: useCallback(
+      (id: string) => {
+        void refreshSpentCredits(id);
+        void reload(id);
+      },
+      [refreshSpentCredits, reload],
+    ),
   });
   // Open on the step that still needs work.
   const [step, setStep] = useState<Step>(

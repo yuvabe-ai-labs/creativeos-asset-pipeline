@@ -56,15 +56,17 @@ export type AvatarCandidate = {
   sizeBytes: number;
 };
 
-// The avatar speaking one line in its named voice (D294). Read back from `generations`; no
-// table of its own. `voiceId` and `frontUrl` are what it was made with, so the Studio can tell
-// when it no longer shows this avatar.
+// The avatar speaking one line (D294, D296). Read back from `generations`; no table of its own.
+// `mode` is which engine made it — a named ElevenLabs voice through Omni, or the engine's own
+// voice through Seedance — and `voiceId`/`frontUrl` are what it was made with, so the Studio can
+// tell when it no longer shows this avatar. A native preview has no `voiceId`.
 export type VoicePreview = {
   generationId: string;
+  mode: "named" | "native";
   status: "running" | "succeeded" | "failed";
   url: string | null;
   line: string;
-  voiceId: string;
+  voiceId: string | null;
   voiceName: string;
   frontUrl: string;
   error: string | null;

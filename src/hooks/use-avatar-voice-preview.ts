@@ -13,13 +13,15 @@ const POLL_MS = 4000;
 // server for it every few seconds; it lives in the Studio (not the Voice step) so the wait
 // carries on while the operator is on another step.
 export function useAvatarVoicePreview({
-  clientId, avatarId, voiceId, onSettled,
+  clientId, avatarId, declaration, onSettled,
 }: {
   clientId: string;
   avatarId: string | null;
-  /** The declared named voice, or null. The estimate depends on it, so a change reloads. */
-  voiceId: string | null;
-  /** A preview finished, either way: what the avatar has cost may have changed. */
+  /** The declaration, as a key: its mode and, for a named voice, which one. Both the engine and
+   *  the estimate follow it, so a change reloads. */
+  declaration: string | null;
+  /** A preview finished, either way. What the avatar has cost has changed, and a native preview
+   *  has written a voice reference onto the avatar itself. */
   onSettled: (avatarId: string) => void;
 }) {
   const [preview, setPreview] = useState<VoicePreview | null>(null);
@@ -43,7 +45,7 @@ export function useAvatarVoicePreview({
     return () => {
       cancelled = true;
     };
-  }, [clientId, avatarId, voiceId]);
+  }, [clientId, avatarId, declaration]);
 
   useEffect(() => {
     if (!avatarId || !running) return;

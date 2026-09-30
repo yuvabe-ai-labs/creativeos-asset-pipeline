@@ -18,6 +18,7 @@ import {
   pathForAvatarImage,
   pathForAvatarGenerated,
   pathForAvatarVoicePreview,
+  pathForAvatarVoiceSample,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 import type { AvatarImageSlot } from "@/lib/avatars/schema";
@@ -275,6 +276,17 @@ export async function signAvatarVoicePreviewUrl(args: {
 }): Promise<{ putUrl: string; url: string }> {
   const path = pathForAvatarVoicePreview(args);
   return { putUrl: await _signPutUrl(path, "video/mp4", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
+// D296 — the voice reference extracted from a native preview's clip. Signed by the route
+// alongside the clip's own upload, for the same reason: the task has no GCS credentials.
+export async function signAvatarVoiceSampleUrl(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): Promise<{ putUrl: string; url: string }> {
+  const path = pathForAvatarVoiceSample(args);
+  return { putUrl: await _signPutUrl(path, "audio/mpeg", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
 }
 
 // Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —
