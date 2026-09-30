@@ -5910,19 +5910,24 @@ elements on it. That followed from not having read the handoff design; phase 2 f
 design instead.
 **Originated →** `docs/superpowers/specs/2026-09-29-client-avatars-design.md` §2–5.
 
-### D288 — An avatar is a front image plus a profile sheet generated from it *(recorded 2026-09-30)*
+### D288 — An avatar is a front image plus a three-view profile sheet generated from it *(recorded 2026-09-30; amended the same day)*
 
-**Decision.** `ready` requires a name, a front image and a current profile sheet (front, ¾, side,
-back in one 16:9 image). The sheet is generated from the front by an image-edit model as soon as a
-front exists; the operator may regenerate or upload one. A later change of front marks the sheet
-stale and never regenerates it silently.
+**Decision.** `ready` requires a name, a front image and a current profile sheet. The sheet is one
+16:9 image showing three views of the person — front, side profile, back — generated from the
+front image by an image-edit model when the operator clicks Generate; the operator may
+regenerate it or upload their own. A later change of front marks the sheet stale and never
+regenerates it silently.
 
 **Why.** The handoff design's avatar is a base face plus a model sheet of several angles, made
 by Nano Banana from whichever face it starts with; requiring both gives every engine the same
-identity reference. Auto-regenerating on a front change would spend credits unasked.
+identity reference. Operators sometimes bring their own sheet, so generation is a click, not an
+automatic run that spends credits unasked.
 
-**Rejected.** Sheet optional (an avatar would then give engines a single angle). Operator uploads both (Describe cannot work). Front and sheet as a matched
-text-only pair in one Seedream call (weaker identity match; considered only for Seedance trust).
+**Rejected.** Sheet optional (an avatar would then give engines a single angle). Operator uploads
+both (Describe cannot work). Four views including three-quarter (the first recording; the
+operator asked for three). Generating the sheet automatically as soon as a front exists (the
+first recording; spends credits on a sheet the operator may already have). Front and sheet as a
+matched text-only pair in one Seedream call (weaker identity match).
 
 **Originated →** `2026-09-29-client-avatars-design.md` §4.2, §4.4.
 

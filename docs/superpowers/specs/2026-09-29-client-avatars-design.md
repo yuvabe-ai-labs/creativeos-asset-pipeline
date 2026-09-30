@@ -187,14 +187,17 @@ consent statement appears under the image (§3.3).
 
 ### 4.2 Profile sheet
 
-Generated from the front image by an image-edit model with `buildAvatarSheetPrompt`: front, ¾,
-side and back; same person and outfit; plain light-grey background; one 16:9 image.
+One generated image at 16:9 showing three views of the person: front, side profile and back
+(operator decision, 2026-09-30). It is made from the front image by an image-edit model with
+`buildAvatarSheetPrompt`: same person and outfit in every view, plain light-grey background.
 
-- Starts automatically the first time a front image is set.
-- Controls: a model picker (default Gemini, to be confirmed by §10.1), **Regenerate ✦ N**,
-  **Upload my own**.
-- If the front image changes later, `sheet_stale` is set and the slot shows "Front image changed —
-  regenerate the sheet". It is never regenerated silently.
+- Generated when the operator clicks **Generate ✦ N** on the sheet step. It does not start on
+  its own: operators sometimes bring their own sheet, and an automatic run would spend credits
+  they did not ask to spend.
+- Controls: a model picker (default Nano Banana Pro, per the handoff design), **Generate** /
+  **Regenerate**, and **Add your own** (upload).
+- If the front image changes later, `sheet_stale` is set and the step says so. It is never
+  regenerated silently.
 - The loading placeholder occupies the exact box the finished sheet will, so nothing moves.
 
 ### 4.3 Voice
