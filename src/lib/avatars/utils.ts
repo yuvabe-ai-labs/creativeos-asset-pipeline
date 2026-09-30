@@ -65,10 +65,17 @@ export function sheetChangePatch(image: AvatarImage): AvatarPatch {
   return { sheet: image, sheetStale: false };
 }
 
-/** A ready avatar that no longer meets the bar goes back to draft. */
+/** States `status: "draft"` whenever the merged avatar (`current` with `patch` applied) is
+ *  incomplete — regardless of what `current.status` already was. Read-then-write races (a
+ *  concurrent front or sheet write landing between this caller's read and write) mean the row
+ *  actually being written over may no longer match `current`; if this patch only omits
+ *  `status` when `current` already said "draft", a write that races a promotion to "ready"
+ *  would leave "ready" on an incomplete avatar. Stating it every time the merge is incomplete
+ *  closes that gap. Never promotes to ready — that only happens where the caller explicitly
+ *  sets `status: "ready"` after checking readiness (see `planAvatarUpdate`). */
 export function withStatus(current: Avatar, patch: AvatarPatch): AvatarPatch {
   const merged = { ...current, ...patch };
-  if (merged.status === "ready" && !isAvatarReady(merged)) return { ...patch, status: "draft" };
+  if (!isAvatarReady(merged)) return { ...patch, status: "draft" };
   return patch;
 }
 

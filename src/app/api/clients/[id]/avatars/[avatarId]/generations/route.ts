@@ -55,6 +55,8 @@ export async function GET(req: Request, { params }: Ctx) {
 
 // POST …/generations — generate ONE front candidate. The browser sends one request per image
 // in a batch, so each image has its own reservation, its own failure, and its own placeholder.
+// Not wrapped in withTryCatch: a CreditLimitError must answer 402 (the credit-cap toast), and
+// withTryCatch's catch-all would turn it into an undifferentiated 500 instead.
 export async function POST(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
   return withClient(req, params, async (clientId, client) => {

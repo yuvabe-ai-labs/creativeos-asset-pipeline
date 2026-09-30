@@ -30,12 +30,23 @@ export async function POST(
       if (!image) return apiError("That image cannot be used as a front image.", 400);
 
       // frontChangePatch makes the avatar generic, clears consent and stales the sheet.
+      // Conditioned on the front THIS request read: a concurrent front pick or a consent/ready
+      // PATCH landing in between must not be overwritten by a write planned from a stale read
+      // (`current.front === null` on a fresh draft becomes the "front is still empty" form).
       const avatar = await updateAvatar(
         clientId,
         avatarId,
         withStatus(current, frontChangePatch(current, image)),
+        { ifFrontUrl: current.front?.url ?? null },
       );
-      if (!avatar) return apiError("Avatar not found.", 404);
+      if (!avatar) {
+        // `current`, above, confirms the row existed a moment ago — a null result here means
+        // the front precondition caught a race, not that the avatar itself vanished, unless it
+        // was archived or deleted in between (the same distinction the PATCH route draws).
+        const stillThere = await getAvatar(clientId, avatarId);
+        if (stillThere) return apiError("The front image changed. Pick again.", 409);
+        return apiError("Avatar not found.", 404);
+      }
 
       // An uploaded photo it replaces is removed; a generated one stays — its batch still shows it.
       const replaced = current.front;

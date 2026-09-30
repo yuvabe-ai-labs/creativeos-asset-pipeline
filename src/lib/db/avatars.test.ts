@@ -36,21 +36,27 @@ const ROW: AvatarRow = {
 // and every `.eq()` call is recorded so the test can assert which filters were applied.
 type UpdateChain = {
   eq: (column: string, value: unknown) => UpdateChain;
+  is: (column: string, value: null) => UpdateChain;
   select: (columns: string) => UpdateChain;
   maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
 };
 
 function makeUpdateChain(result: { data: unknown; error: unknown }) {
   const eqCalls: [string, unknown][] = [];
+  const isCalls: [string, unknown][] = [];
   const chain: UpdateChain = {
     eq: vi.fn((column: string, value: unknown) => {
       eqCalls.push([column, value]);
       return chain;
     }),
+    is: vi.fn((column: string, value: null) => {
+      isCalls.push([column, value]);
+      return chain;
+    }),
     select: vi.fn(() => chain),
     maybeSingle: vi.fn(async () => result),
   };
-  return { chain, eqCalls };
+  return { chain, eqCalls, isCalls };
 }
 
 // Postgres throws on a non-UUID id; getAvatar/updateAvatar/archiveAvatar treat a malformed id
@@ -102,5 +108,18 @@ describe("updateAvatar — front-image precondition", () => {
     );
 
     expect(result).toBeNull();
+  });
+
+  // The "front is still empty" form (D291 amended) — a first front pick on a new draft has no
+  // existing front URL to compare against, so the precondition is expressed as a null check on
+  // the whole jsonb column instead of a text-path equality.
+  it("adds an is-null filter on front when ifFrontUrl is null, instead of a text-path filter", async () => {
+    const { chain, eqCalls, isCalls } = makeUpdateChain({ data: ROW, error: null });
+    mockFrom.mockReturnValue({ update: vi.fn(() => chain) });
+
+    await updateAvatar("c1", VALID_ID, { name: "x" }, { ifFrontUrl: null });
+
+    expect(isCalls).toContainEqual(["front", null]);
+    expect(eqCalls.some(([column]) => column === "front->>url")).toBe(false);
   });
 });

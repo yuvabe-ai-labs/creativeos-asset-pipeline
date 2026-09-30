@@ -17,6 +17,8 @@ export const maxDuration = 300;
 const SheetSchema = z.object({ modelId: z.string().min(1) });
 
 // POST …/sheet — generate the profile sheet FROM the front image (D288) and make it current.
+// Not wrapped in withTryCatch: a CreditLimitError must answer 402 (the credit-cap toast), and
+// withTryCatch's catch-all would turn it into an undifferentiated 500 instead.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string; avatarId: string }> },
@@ -57,8 +59,22 @@ export async function POST(
         return apiError("The front image changed while the sheet was generating. Generate it again.", 409);
       }
 
-      const avatar = await updateAvatar(clientId, avatarId, withStatus(latest, sheetChangePatch(image)));
-      if (!avatar) return apiError("Avatar not found.", 404);
+      // Conditioned on the front this sheet was generated from: the compare above closes most
+      // of the window, but the front can still change between that re-read and this write —
+      // conditioning the write itself closes the rest of it.
+      const avatar = await updateAvatar(
+        clientId, avatarId, withStatus(latest, sheetChangePatch(image)), { ifFrontUrl: frontUrl },
+      );
+      if (!avatar) {
+        // `latest`, above, confirms the row existed a moment ago — a null result here means the
+        // front precondition caught a (narrower) race, not that the avatar vanished, unless it
+        // was archived or deleted in between.
+        const stillThere = await getAvatar(clientId, avatarId);
+        if (stillThere) {
+          return apiError("The front image changed while the sheet was generating. Generate it again.", 409);
+        }
+        return apiError("Avatar not found.", 404);
+      }
 
       const replaced = latest.sheet;
       if (replaced?.source.kind === "upload" && replaced.url !== image.url) {

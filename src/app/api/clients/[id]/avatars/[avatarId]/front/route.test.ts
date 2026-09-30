@@ -74,4 +74,40 @@ describe("POST front", () => {
     expect((await POST(post({ generationId: "g1" }), { params })).status).toBe(400);
     expect(updateAvatar).not.toHaveBeenCalled();
   });
+
+  it("passes the front-URL precondition read for this request", async () => {
+    const { POST } = await import("./route");
+    const current = makeAvatar();
+    vi.mocked(getAvatar).mockResolvedValue(current);
+    await POST(post({ generationId: "g1" }), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: current.front!.url });
+  });
+
+  it("passes a null precondition — 'front is still empty' — for a fresh draft with no front yet", async () => {
+    const { POST } = await import("./route");
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ front: null, sheet: null }));
+    await POST(post({ generationId: "g1" }), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: null });
+  });
+
+  it("is a 409 when updateAvatar finds no row, though the avatar still exists — the front changed mid-request", async () => {
+    const { POST } = await import("./route");
+    vi.mocked(getAvatar)
+      .mockResolvedValueOnce(makeAvatar())
+      .mockResolvedValueOnce(makeAvatar()); // still there on the existence re-check
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const res = await POST(post({ generationId: "g1" }), { params });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("The front image changed. Pick again.");
+  });
+
+  it("is a 404 when updateAvatar finds no row and the avatar no longer exists", async () => {
+    const { POST } = await import("./route");
+    vi.mocked(getAvatar)
+      .mockResolvedValueOnce(makeAvatar())
+      .mockResolvedValueOnce(null); // gone by the existence re-check
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const res = await POST(post({ generationId: "g1" }), { params });
+    expect(res.status).toBe(404);
+  });
 });

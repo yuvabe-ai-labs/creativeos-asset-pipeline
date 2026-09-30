@@ -78,6 +78,18 @@ describe("withStatus", () => {
   it("leaves status alone when the avatar stays complete", () => {
     expect(withStatus(makeAvatar(), { story: "new" }).status).toBeUndefined();
   });
+
+  it("states status: draft when the result is incomplete, even if current.status is already draft", () => {
+    // Guards the race this fixes: a caller must never rely on current.status already being
+    // "draft" to skip stating it — the row it writes over may not match `current` any more.
+    const current = makeAvatar({ status: "draft", sheet: null });
+    expect(withStatus(current, { story: "new" }).status).toBe("draft");
+  });
+
+  it("never promotes to ready — an already-complete, ready-eligible patch is left as is", () => {
+    const current = makeAvatar({ status: "draft" }); // complete except for the status field
+    expect(withStatus(current, { story: "new" })).toEqual({ story: "new" });
+  });
 });
 
 describe("planAvatarUpdate", () => {

@@ -62,6 +62,13 @@ describe("POST sheet", () => {
     expect((await res.json()).creditsCharged).toBe(40);
   });
 
+  it("passes the front-URL precondition for the front it generated from", async () => {
+    const front = makeAvatar().front!;
+    const { POST } = await import("./route");
+    await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: front.url });
+  });
+
   it("removes an uploaded sheet it replaces", async () => {
     const { POST } = await import("./route");
     await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
@@ -94,5 +101,31 @@ describe("POST sheet", () => {
     const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
     expect(res.status).toBe(409);
     expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
+  it("is a 409 when the write's own front precondition catches a race the re-read compare missed", async () => {
+    // getAvatar's compare (above) passes — the re-read still shows the same front — but the
+    // conditioned write itself finds no matching row, meaning the front changed again right
+    // after that re-read. The avatar still exists on the follow-up existence check.
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ sheetStale: true, status: "draft" }));
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(
+      "The front image changed while the sheet was generating. Generate it again.",
+    );
+  });
+
+  it("is a 404 when the write's precondition finds no row and the avatar no longer exists", async () => {
+    const avatar = makeAvatar({ sheetStale: true, status: "draft" });
+    vi.mocked(getAvatar)
+      .mockResolvedValueOnce(avatar) // initial read
+      .mockResolvedValueOnce(avatar) // re-read compare after generation
+      .mockResolvedValueOnce(null); // existence re-check after the conditioned write returns null
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(404);
   });
 });
