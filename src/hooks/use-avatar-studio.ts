@@ -32,7 +32,9 @@ export function useAvatarStudio({
   const [uploading, setUploading] = useState<AvatarImageSlot | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmingConsent, setConfirmingConsent] = useState(false);
-  const createdHere = useRef(false);
+  // The in-flight (or finished) draft creation. Kept so concurrent callers — an upload, or the
+  // four requests of one Generate click — share a single draft instead of creating one each.
+  const creatingRef = useRef<Promise<Avatar> | null>(null);
   // `uploading` state is stale inside `uploadImage` between renders (two quick calls can both
   // read it as null before either commits); the ref is checked synchronously instead.
   const uploadingRef = useRef(false);
@@ -76,6 +78,28 @@ export function useAvatarStudio({
     saveFields({ name, story: next });
   }, [saveFields, name]);
 
+  // Creates the draft the first time anything needs a row (an upload or a Generate click),
+  // carrying the name and story typed so far, then moves the URL to /avatars/<id> in place.
+  // Not router.replace: /new and /[avatarId] are different route segments, so that would
+  // unmount and remount the Studio mid-flow. The Native History API integrates with the
+  // Next.js router (app/getting-started/linking-and-navigating.md, "Native History API"), and
+  // a reload still resumes this same draft.
+  const ensureAvatar = useCallback((): Promise<Avatar> => {
+    if (avatar) return Promise.resolve(avatar);
+    creatingRef.current ??= avatarsService
+      .create(clientId, { name, story })
+      .then((created) => {
+        setAvatar(created);
+        window.history.replaceState(null, "", `${libraryHref}/${created.id}`);
+        return created;
+      })
+      .catch((e) => {
+        creatingRef.current = null;
+        throw e;
+      });
+    return creatingRef.current;
+  }, [avatar, clientId, name, story, libraryHref]);
+
   const uploadImage = useCallback(async (slot: AvatarImageSlot, file: File) => {
     // Two quick drops (or a front and a sheet drop together) must not both start: they'd
     // create two drafts, or race to clear each other's placeholder.
@@ -88,28 +112,15 @@ export function useAvatarStudio({
     uploadingRef.current = true;
     setUploading(slot);
     try {
-      let target = avatar;
-      if (!target) {
-        target = await avatarsService.create(clientId, { name, story });
-        createdHere.current = true;
-        setAvatar(target);
-      }
+      const target = await ensureAvatar();
       setAvatar(await avatarsService.uploadImage(clientId, target.id, slot, file));
-      if (createdHere.current) {
-        createdHere.current = false;
-        // Move the URL in place, without a navigation: /new and /[avatarId] are different route
-        // segments, so router.replace would unmount and remount the Studio mid-flow. The Native
-        // History API integrates with the Next.js router (app/getting-started/linking-and-
-        // navigating.md, "Native History API"), and a reload still resumes this same draft.
-        window.history.replaceState(null, "", `${libraryHref}/${target.id}`);
-      }
     } catch (e) {
       toast.error(message(e, "Upload failed"));
     } finally {
       uploadingRef.current = false;
       setUploading(null);
     }
-  }, [avatar, clientId, name, story, libraryHref]);
+  }, [clientId, ensureAvatar]);
 
   // Merges only the fields consent owns, so a response that resolves late never clobbers a
   // newer image upload (same guard as `saveFields`). Sends the front image currently on
@@ -183,5 +194,6 @@ export function useAvatarStudio({
   return {
     avatar, name, story, gaps, uploading, saving, confirmingConsent,
     setName, setStory, uploadImage, markReady, archive, confirmConsent,
+    ensureAvatar, replaceAvatar: setAvatar,
   };
 }

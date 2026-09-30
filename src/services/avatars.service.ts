@@ -1,6 +1,7 @@
 import { readImageSize, uploadViaSignedUrl } from "@/lib/uploads/client";
-import type { Avatar, AvatarImageSlot } from "@/lib/avatars/schema";
+import type { Avatar, AvatarCandidate, AvatarImageSlot } from "@/lib/avatars/schema";
 import { avatarImageContentType, type AvatarUpdateInput } from "@/lib/avatars/utils";
+import type { AvatarAttributes, AvatarStyleId } from "@/lib/avatars/constants";
 import { readJson } from "./read-json";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -53,6 +54,50 @@ class AvatarsService {
       contentType: avatarImageContentType(file),
     });
     return avatar;
+  }
+
+  async listGenerations(
+    clientId: string,
+    avatarId: string,
+  ): Promise<{ candidates: AvatarCandidate[]; spentCredits: number }> {
+    const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/generations`);
+    return readJson(res, "Could not load the generated images.");
+  }
+
+  /** ONE front candidate. The Studio calls this once per image in a batch. */
+  async generateFront(
+    clientId: string,
+    avatarId: string,
+    body: {
+      description: string;
+      attributes: AvatarAttributes;
+      styleId: AvatarStyleId;
+      modelId: string;
+      batchId: string;
+    },
+  ): Promise<{ candidate: AvatarCandidate; creditsCharged: number }> {
+    const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/generations`, {
+      method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body),
+    });
+    return readJson(res, "Could not generate the image.");
+  }
+
+  async pickFront(clientId: string, avatarId: string, generationId: string): Promise<Avatar> {
+    const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/front`, {
+      method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ generationId }),
+    });
+    return (await readJson<{ avatar: Avatar }>(res, "Could not set the front image.")).avatar;
+  }
+
+  async generateSheet(
+    clientId: string,
+    avatarId: string,
+    modelId: string,
+  ): Promise<{ avatar: Avatar; creditsCharged: number }> {
+    const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/sheet`, {
+      method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ modelId }),
+    });
+    return readJson(res, "Could not generate the profile sheet.");
   }
 }
 

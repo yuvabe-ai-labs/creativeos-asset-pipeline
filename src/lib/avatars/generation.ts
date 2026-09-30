@@ -5,6 +5,7 @@ import {
   AVATAR_FRAMING_CLAUSE, AVATAR_STYLES, SEEDANCE_FACE_MODEL_ID,
   type AvatarAttributes, type AvatarStyleId,
 } from "./constants";
+import type { Avatar, AvatarCandidate } from "./schema";
 
 // Pure, and deliberately without a "server-only" guard: the Studio calls these to show a cost
 // before generating, and the routes call the same functions to reserve — so the number on the
@@ -75,4 +76,66 @@ export function estimateAvatarImageCredits(input: {
 
 export function isSeedanceFaceModel(modelId: string): boolean {
   return modelId === SEEDANCE_FACE_MODEL_ID;
+}
+
+// ── Batches (the Studio's candidate grid) ─────────────────────────────────────
+
+/** A placeholder for an image still generating. */
+export type PendingCandidate = { key: string; batchId: string; modelId: string };
+
+export type CandidateBatch = {
+  batchId: string;
+  modelId: string;
+  /** Null while the batch has produced nothing yet. */
+  createdAt: string | null;
+  candidates: AvatarCandidate[];
+  pendingCount: number;
+};
+
+/** De-duplicated by generation, newest first — a list load and a just-finished image can both
+ *  deliver the same row. */
+export function mergeCandidates(
+  current: AvatarCandidate[],
+  incoming: AvatarCandidate[],
+): AvatarCandidate[] {
+  const byId = new Map<string, AvatarCandidate>();
+  for (const c of [...current, ...incoming]) byId.set(c.generationId, c);
+  return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** One group per Generate click, newest first. A batch still generating sorts first so its
+ *  placeholders appear where the operator is looking. */
+export function groupCandidatesByBatch(
+  candidates: AvatarCandidate[],
+  pending: PendingCandidate[],
+): CandidateBatch[] {
+  const batches = new Map<string, CandidateBatch>();
+  const batchFor = (batchId: string, modelId: string) => {
+    let batch = batches.get(batchId);
+    if (!batch) {
+      batch = { batchId, modelId, createdAt: null, candidates: [], pendingCount: 0 };
+      batches.set(batchId, batch);
+    }
+    return batch;
+  };
+  for (const p of pending) batchFor(p.batchId, p.modelId).pendingCount += 1;
+  for (const c of candidates) {
+    const batch = batchFor(c.batchId ?? c.generationId, c.modelId);
+    batch.candidates.push(c);
+    if (!batch.createdAt || c.createdAt > batch.createdAt) batch.createdAt = c.createdAt;
+  }
+  return [...batches.values()].sort((a, b) => {
+    if ((a.pendingCount > 0) !== (b.pendingCount > 0)) return a.pendingCount > 0 ? -1 : 1;
+    return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+  });
+}
+
+/** Which engine this avatar will run on (spec §8, D290). Derived, never stored. */
+export function avatarEngineNote(avatar: Pick<Avatar, "front" | "personType">): string | null {
+  if (!avatar.front || !avatar.personType) return null;
+  if (avatar.personType === "specific") return "Gemini Omni · clips up to 10 s";
+  const source = avatar.front.source;
+  return source.kind === "generated" && isSeedanceFaceModel(source.modelId)
+    ? "Seedance · clips up to 30 s"
+    : "Seedance will not accept this face — generate it with Seedream 5.0 Lite";
 }

@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarImageParams, buildAvatarFrontPrompt, buildAvatarSheetPrompt,
-  estimateAvatarImageCostUsd, estimateAvatarImageCredits, isSeedanceFaceModel,
+  avatarEngineNote, avatarImageParams, buildAvatarFrontPrompt, buildAvatarSheetPrompt,
+  estimateAvatarImageCostUsd, estimateAvatarImageCredits, groupCandidatesByBatch,
+  isSeedanceFaceModel, mergeCandidates,
 } from "../generation";
 import {
   AVATAR_DEFAULT_SHEET_MODEL_ID, AVATAR_FRAMING_CLAUSE, AVATAR_FRONT_ASPECT,
   AVATAR_SHEET_ASPECT, SEEDANCE_FACE_MODEL_ID,
 } from "../constants";
+import { GENERATED, makeAvatar, makeImage } from "./fixtures";
+import type { AvatarCandidate } from "../schema";
 
 describe("buildAvatarFrontPrompt", () => {
   it("joins the description, the chosen attributes, the style and the fixed framing", () => {
@@ -80,5 +83,74 @@ describe("isSeedanceFaceModel", () => {
     expect(isSeedanceFaceModel(SEEDANCE_FACE_MODEL_ID)).toBe(true);
     expect(isSeedanceFaceModel("seedream:seedream-5-0-pro")).toBe(false);
     expect(isSeedanceFaceModel("gemini:gemini-3-pro-image")).toBe(false);
+  });
+});
+
+const cand = (over: Partial<AvatarCandidate>): AvatarCandidate => ({
+  generationId: "g1", batchId: "b1", url: "u1", modelId: SEEDANCE_FACE_MODEL_ID,
+  createdAt: "2026-09-30T10:00:00.000Z", width: 3, height: 4, sizeBytes: 1, ...over,
+});
+
+describe("mergeCandidates", () => {
+  it("adds new images, keeps one copy of a repeated one, newest first", () => {
+    const a = cand({ generationId: "g1", createdAt: "2026-09-30T10:00:00.000Z" });
+    const b = cand({ generationId: "g2", createdAt: "2026-09-30T10:05:00.000Z" });
+    expect(mergeCandidates([a], [b, a]).map((c) => c.generationId)).toEqual(["g2", "g1"]);
+  });
+});
+
+describe("groupCandidatesByBatch", () => {
+  it("groups by batch, newest batch first, and counts images still generating", () => {
+    const batches = groupCandidatesByBatch(
+      [
+        cand({ generationId: "g1", batchId: "old", createdAt: "2026-09-30T10:00:00.000Z" }),
+        cand({ generationId: "g2", batchId: "new", createdAt: "2026-09-30T10:05:00.000Z" }),
+      ],
+      [{ key: "new-1", batchId: "new", modelId: SEEDANCE_FACE_MODEL_ID }],
+    );
+    expect(batches.map((b) => b.batchId)).toEqual(["new", "old"]);
+    expect(batches[0]).toMatchObject({ pendingCount: 1, createdAt: "2026-09-30T10:05:00.000Z" });
+    expect(batches[0].candidates).toHaveLength(1);
+  });
+
+  it("shows a batch that has only placeholders so far, ahead of finished ones", () => {
+    const batches = groupCandidatesByBatch(
+      [cand({ generationId: "g1", batchId: "old" })],
+      [{ key: "p-0", batchId: "fresh", modelId: "gemini:gemini-3-pro-image" }],
+    );
+    expect(batches[0]).toMatchObject({
+      batchId: "fresh", modelId: "gemini:gemini-3-pro-image", createdAt: null, pendingCount: 1,
+    });
+  });
+
+  it("gives an image with no batch a group of its own", () => {
+    const batches = groupCandidatesByBatch([cand({ generationId: "solo", batchId: null })], []);
+    expect(batches).toHaveLength(1);
+    expect(batches[0].candidates[0].generationId).toBe("solo");
+  });
+});
+
+describe("avatarEngineNote", () => {
+  it("a real person runs on Gemini Omni", () => {
+    expect(avatarEngineNote(makeAvatar())).toBe("Gemini Omni · clips up to 10 s");
+  });
+
+  it("a generated Seedream face runs on Seedance", () => {
+    const avatar = makeAvatar({ personType: "generic", front: makeImage(GENERATED) });
+    expect(avatarEngineNote(avatar)).toBe("Seedance · clips up to 30 s");
+  });
+
+  it("a face generated on another model is called out", () => {
+    // GENERATED is typed as the AvatarImageSource union, so a spread needs the kind narrowed
+    // first — otherwise TS can't tell the override still matches the "generated" variant's shape.
+    const source = GENERATED.kind === "generated"
+      ? { ...GENERATED, modelId: "gemini:gemini-3-pro-image" }
+      : GENERATED;
+    const front = makeImage(source);
+    expect(avatarEngineNote(makeAvatar({ personType: "generic", front }))).toMatch(/Seedance will not accept/);
+  });
+
+  it("says nothing before there is a front image", () => {
+    expect(avatarEngineNote(makeAvatar({ front: null, personType: null }))).toBeNull();
   });
 });
