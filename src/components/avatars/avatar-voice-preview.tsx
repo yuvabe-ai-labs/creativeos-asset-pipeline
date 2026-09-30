@@ -5,7 +5,6 @@ import { Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import type { useAvatarVoicePreview } from "@/hooks/use-avatar-voice-preview";
 import { AVATAR_VOICE_PREVIEW_LINE_MAX } from "@/lib/avatars/constants";
@@ -16,6 +15,7 @@ import {
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import type { Avatar } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
+import { AvatarGeneratingTile } from "./avatar-generating-tile";
 import { AvatarVoiceSample } from "./avatar-voice-sample";
 
 type Props = {
@@ -101,7 +101,7 @@ export function AvatarVoicePreview({ avatar, preview: p, disabled }: Props) {
       <div className="flex max-w-[12rem] flex-col gap-2">
         {busy ? (
           <>
-            <Skeleton className="aspect-[9/16] w-full rounded-xl" />
+            <AvatarGeneratingTile label="Making the clip…" className="aspect-[9/16] w-full rounded-xl" />
             <p className="text-xs text-muted-foreground">
               {mode === "native" ? "Seedance usually takes a minute or two." : "Usually about a minute."}{" "}
               You can keep working on other steps.

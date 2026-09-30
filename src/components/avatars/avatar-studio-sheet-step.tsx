@@ -41,7 +41,9 @@ export function AvatarStudioSheetStep({ studio: s, generation: g }: Props) {
         aspect="16 / 9"
         image={sheet}
         uploading={s.uploading === "sheet" || g.generatingSheet}
+        busyLabel={g.generatingSheet ? "Generating the profile sheet…" : "Uploading…"}
         disabled={working}
+        zoomTitle="Profile sheet"
         onFile={(file) => s.uploadImage("sheet", file)}
       />
     </>

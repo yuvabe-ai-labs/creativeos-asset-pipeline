@@ -229,13 +229,22 @@ export function useAvatarStudio({
     }
   }, [avatar, clientId, name, story, router, libraryHref]);
 
+  // Discard draft and Archive both come here (D297). The confirm dialog closes on the click, so a
+  // loading toast carries the wait until the library opens — otherwise nothing moved at all.
   const archive = useCallback(async () => {
     if (!avatar) return;
+    const draft = avatar.status !== "ready";
+    const done = avatarsService.archive(clientId, avatar.id);
+    toast.promise(done, {
+      loading: draft ? "Discarding the draft…" : "Archiving…",
+      success: draft ? "Draft discarded" : "Archived",
+      error: (e) => errorMessage(e, draft ? "Could not discard the draft" : "Could not archive the avatar"),
+    });
     try {
-      await avatarsService.archive(clientId, avatar.id);
+      await done;
       router.push(libraryHref);
-    } catch (e) {
-      toast.error(errorMessage(e, "Could not archive the avatar"));
+    } catch {
+      // The toast above already says why.
     }
   }, [avatar, clientId, router, libraryHref]);
 

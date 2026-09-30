@@ -68,6 +68,7 @@ export function AvatarStudioLookStep({ studio: s, generation: g, consent }: Prop
               image={front}
               uploading={s.uploading === "front"}
               disabled={s.uploading !== null || s.confirmingConsent || busy || g.generatingSheet}
+              zoomTitle="Front image"
               onFile={(file) => s.uploadImage("front", file)}
             />
           </div>

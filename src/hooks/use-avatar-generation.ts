@@ -79,18 +79,23 @@ export function useAvatarGeneration({
   }, [clientId, applySpent]);
 
   const generate = useCallback(async (input: GenerateFrontInput) => {
-    let target: Avatar;
-    try {
-      target = await ensureAvatar();
-    } catch (e) {
-      toast.error(errorMessage(e, "Could not start the avatar"));
-      return;
-    }
+    // The placeholders go up on the click itself. The first Generate of a new avatar also has to
+    // create its draft, and waiting for that round trip before showing anything left the click
+    // looking dead for seconds (D297 review).
     const batchId = crypto.randomUUID();
     const tiles: PendingCandidate[] = Array.from({ length: input.count }, (_, i) => ({
       key: `${batchId}-${i}`, batchId, modelId: input.modelId,
     }));
     setPending((prev) => [...tiles, ...prev]);
+
+    let target: Avatar;
+    try {
+      target = await ensureAvatar();
+    } catch (e) {
+      setPending((prev) => prev.filter((p) => p.batchId !== batchId));
+      toast.error(errorMessage(e, "Could not start the avatar"));
+      return;
+    }
 
     // The same failure (the credit cap, a blocked prompt) usually hits every image in the
     // batch: report each distinct message once.

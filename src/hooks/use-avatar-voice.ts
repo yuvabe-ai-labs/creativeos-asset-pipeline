@@ -8,9 +8,20 @@ import { errorMessage } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 
+/** The choice being saved, shown at once rather than after the server confirms it. */
+export type PendingVoiceChoice =
+  | { mode: "named"; voice: PickerVoice }
+  | { mode: "native" }
+  | { mode: "none" };
+
 // D293 — the avatar's voice declaration in the Studio: a named ElevenLabs voice, the engine's
 // own voice, or none. A Voice Library pick is first saved for this client (D292), then declared
 // with the account voice id the save returns.
+//
+// `pending` is the choice in flight. A Library pick is two round trips, and until they return
+// the field used to keep showing the old voice — or "Pick a voice" — so a pick looked like it had
+// not registered at all (D297 review). The Studio shows `pending` straight away, marked as
+// saving, and drops it when the server answers either way.
 export function useAvatarVoice({
   clientId, avatarId, onAvatar,
 }: {
@@ -18,7 +29,8 @@ export function useAvatarVoice({
   avatarId: string | null;
   onAvatar: (avatar: Avatar) => void;
 }) {
-  const [saving, setSaving] = useState(false);
+  const [pending, setPending] = useState<PendingVoiceChoice | null>(null);
+  const saving = pending !== null;
 
   const declare = useCallback(
     async (choice: { mode: "none" } | { mode: "native" } | { mode: "named"; voiceId: string }) => {
@@ -28,20 +40,20 @@ export function useAvatarVoice({
     [clientId, avatarId, onAvatar],
   );
 
-  const run = useCallback(async (work: () => Promise<void>, fallback: string) => {
-    setSaving(true);
+  const run = useCallback(async (choice: PendingVoiceChoice, work: () => Promise<void>, fallback: string) => {
+    setPending(choice);
     try {
       await work();
     } catch (e) {
       toast.error(errorMessage(e, fallback));
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }, []);
 
   const chooseNamed = useCallback(
     (voice: PickerVoice) =>
-      run(async () => {
+      run({ mode: "named", voice }, async () => {
         const accountVoice =
           voice.source === "library"
             ? await elevenLabsApi.saveClientVoice(clientId, {
@@ -56,14 +68,14 @@ export function useAvatarVoice({
   );
 
   const chooseNative = useCallback(
-    () => run(() => declare({ mode: "native" }), "Could not set the voice"),
+    () => run({ mode: "native" }, () => declare({ mode: "native" }), "Could not set the voice"),
     [declare, run],
   );
 
   const clear = useCallback(
-    () => run(() => declare({ mode: "none" }), "Could not remove the voice"),
+    () => run({ mode: "none" }, () => declare({ mode: "none" }), "Could not remove the voice"),
     [declare, run],
   );
 
-  return { saving, chooseNamed, chooseNative, clear };
+  return { saving, pending, chooseNamed, chooseNative, clear };
 }

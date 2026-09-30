@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Info } from "lucide-react";
+import { Check, Info, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useVoicePreview } from "@/hooks/use-voice-preview";
@@ -34,7 +34,12 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
   const modes = allowedVoiceModes(avatar.personType);
   const sample = useVoicePreview();
   const declared = avatar.voice;
-  const named = avatarVoiceToPickerVoice(declared);
+  const pending = v.pending;
+  // What the operator chose wins over what the server has confirmed, for as long as it is saving.
+  const chosenMode = pending ? (pending.mode === "none" ? null : pending.mode) : declared?.mode ?? null;
+  const named = pending?.mode === "named" ? pending.voice
+    : pending?.mode === "none" ? null
+      : avatarVoiceToPickerVoice(declared);
   // Which option is open. A named voice has to be picked before anything is saved, so the
   // choice of "named" lives here until then.
   const [open, setOpen] = useState<AvatarVoiceMode | null>(
@@ -55,13 +60,18 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
         <div className="grid max-w-2xl gap-2 sm:grid-cols-2">
           {modes.map((mode) => {
             const active = open === mode;
+            const savingThis = pending?.mode === mode;
             return (
               <Button
                 key={mode}
                 variant="outline"
                 aria-pressed={active}
-                disabled={v.saving}
+                aria-busy={savingThis || undefined}
+                // Only the other card dims while a choice saves; the one being saved stays bright
+                // and shows it is working.
+                disabled={v.saving && !savingThis}
                 onClick={() => {
+                  if (v.saving) return;
                   setOpen(mode);
                   if (mode === "native" && declared?.mode !== "native") void v.chooseNative();
                 }}
@@ -71,7 +81,8 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
                 )}
               >
                 <span className="flex items-center gap-1.5 text-sm font-semibold">
-                  {declared?.mode === mode && <Check className="size-4 text-primary" strokeWidth={1.5} />}
+                  {savingThis ? <Loader2 className="size-4 animate-spin text-primary" strokeWidth={1.5} />
+                    : chosenMode === mode && <Check className="size-4 text-primary" strokeWidth={1.5} />}
                   {MODE_COPY[mode].title}
                 </span>
                 <span className="text-xs font-normal text-muted-foreground">{MODE_COPY[mode].body}</span>
@@ -86,7 +97,8 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
           <VideoGenChangeVoicePicker
             clientId={clientId}
             voice={named}
-            saving={v.saving}
+            saving={pending?.mode === "named"}
+            savingLabel="Saving…"
             playing={Boolean(named && sample.playingId === named.voiceId)}
             onTogglePreview={() => named && sample.toggle(named)}
             onSelect={(picked) => {
@@ -97,7 +109,7 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
         </div>
       )}
 
-      {declared && (
+      {(declared || pending) && pending?.mode !== "native" && (
         <Button
           variant="ghost"
           size="sm"
@@ -109,7 +121,7 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
             void v.clear();
           }}
         >
-          Remove the voice
+          {pending?.mode === "none" ? "Removing…" : "Remove the voice"}
         </Button>
       )}
     </>

@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { avatarWorksWith } from "@/lib/avatars/generation";
 import { avatarFaceLabel } from "@/lib/avatars/studio";
 import { avatarVoiceLabel } from "@/lib/avatars/voice";
 import type { Avatar } from "@/lib/avatars/schema";
+import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 
 function sheetLabel(avatar: Avatar | null): string {
   if (!avatar?.sheet) return "Optional";
@@ -16,6 +19,7 @@ function sheetLabel(avatar: Avatar | null): string {
 // D297 — the avatar so far, beside every step: its face, what it has, and the names of the video
 // models it can be used with. It carries no Save and no Archive; those have their own places.
 export function AvatarStudioSummary({ avatar, name }: { avatar: Avatar | null; name: string }) {
+  const [zoomed, setZoomed] = useState(false);
   const models = avatar ? avatarWorksWith(avatar) : [];
   const native = avatar?.voice?.mode === "native";
 
@@ -23,8 +27,15 @@ export function AvatarStudioSummary({ avatar, name }: { avatar: Avatar | null; n
     <Card className="flex flex-col gap-3 self-start p-4 shadow-card lg:sticky lg:top-6">
       <div className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-muted">
         {avatar?.front ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatar.front.url} alt="" className="size-full object-cover" />
+          <Button
+            variant="ghost"
+            aria-label="View the front image full size"
+            className="size-full cursor-zoom-in rounded-none p-0"
+            onClick={() => setZoomed(true)}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={avatar.front.url} alt="" className="size-full object-cover" />
+          </Button>
         ) : (
           <UserRound className="size-10 text-muted-foreground/40" strokeWidth={1.5} />
         )}
@@ -59,6 +70,9 @@ export function AvatarStudioSummary({ avatar, name }: { avatar: Avatar | null; n
           <p className="text-xs text-muted-foreground">Pick a front image first.</p>
         )}
       </div>
+      {zoomed && avatar?.front && (
+        <FullScreenImageZoom imageUrl={avatar.front.url} title="Front image" onClose={() => setZoomed(false)} />
+      )}
     </Card>
   );
 }
