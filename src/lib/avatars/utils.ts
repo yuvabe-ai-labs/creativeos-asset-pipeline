@@ -1,6 +1,6 @@
 import {
-  AVATAR_IMAGE_EXTENSIONS, AVATAR_IMAGE_MAX_BYTES, AVATAR_IMAGE_MAX_LABEL,
-  AVATAR_NAME_MAX, AVATAR_STORY_MAX, READINESS_GAP_LABELS,
+  AVATAR_IMAGE_EXTENSION_CONTENT_TYPES, AVATAR_IMAGE_EXTENSIONS, AVATAR_IMAGE_MAX_BYTES,
+  AVATAR_IMAGE_MAX_LABEL, AVATAR_NAME_MAX, AVATAR_STORY_MAX, READINESS_GAP_LABELS,
 } from "./constants";
 import type { Avatar, AvatarImage } from "./schema";
 
@@ -128,4 +128,13 @@ export function validateAvatarImageFile(file: { name: string; size: number }): s
     return `This image is larger than the ${AVATAR_IMAGE_MAX_LABEL} limit.`;
   }
   return null;
+}
+
+/** Some OSes report an empty `file.type` for certain image files (notably .jpg). Falls back to
+ *  the extension so the signed upload still gets a content type the avatar sign route accepts,
+ *  rather than the generic "application/octet-stream" it rejects. */
+export function avatarImageContentType(file: { name: string; type: string }): string {
+  if (file.type) return file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return AVATAR_IMAGE_EXTENSION_CONTENT_TYPES[ext] ?? "application/octet-stream";
 }

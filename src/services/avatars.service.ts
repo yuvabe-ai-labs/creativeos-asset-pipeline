@@ -1,6 +1,6 @@
 import { readImageSize, uploadViaSignedUrl } from "@/lib/uploads/client";
 import type { Avatar, AvatarImageSlot } from "@/lib/avatars/schema";
-import type { AvatarUpdateInput } from "@/lib/avatars/utils";
+import { avatarImageContentType, type AvatarUpdateInput } from "@/lib/avatars/utils";
 import { readJson } from "./read-json";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -43,6 +43,7 @@ class AvatarsService {
       finalizeEndpoint: base,
       signBody: { slot },
       finalizeBody: { slot, ...(await readImageSize(file)) },
+      contentType: avatarImageContentType(file),
     });
     return avatar;
   }

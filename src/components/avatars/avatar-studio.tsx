@@ -75,6 +75,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
                   aspect="3 / 4"
                   image={front}
                   uploading={s.uploading === "front"}
+                  disabled={s.uploading !== null}
                   onFile={(file) => s.uploadImage("front", file)}
                 />
               </div>
@@ -113,6 +114,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
                 aspect="16 / 9"
                 image={s.avatar?.sheet ?? null}
                 uploading={s.uploading === "sheet"}
+                disabled={s.uploading !== null}
                 onFile={(file) => s.uploadImage("sheet", file)}
               />
             </>

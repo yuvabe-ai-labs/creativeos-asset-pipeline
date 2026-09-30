@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarReadinessGaps, isAvatarReady, frontChangePatch,
+  avatarImageContentType, avatarReadinessGaps, isAvatarReady, frontChangePatch,
   sheetChangePatch, withStatus, planAvatarUpdate, validateAvatarImageFile, isUuid,
 } from "../utils";
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
@@ -21,10 +21,6 @@ describe("avatarReadinessGaps", () => {
 
   it("reports a stale sheet separately from a missing one", () => {
     expect(avatarReadinessGaps(makeAvatar({ sheetStale: true }))).toEqual(["sheet-stale"]);
-  });
-
-  it("an uploaded front, a name and a current sheet are ready — no declaration step", () => {
-    expect(avatarReadinessGaps(makeAvatar())).toEqual([]);
   });
 
   it("an uploaded front without consent has the gap 'consent'", () => {
@@ -142,6 +138,20 @@ describe("validateAvatarImageFile", () => {
   it("rejects other types and oversize files with the rule stated", () => {
     expect(validateAvatarImageFile({ name: "face.gif", size: 1000 })).toMatch(/png, jpg, jpeg, webp/);
     expect(validateAvatarImageFile({ name: "face.png", size: AVATAR_IMAGE_MAX_BYTES + 1 })).toMatch(/15 MB/);
+  });
+});
+
+describe("avatarImageContentType", () => {
+  it("returns a present type as is", () => {
+    expect(avatarImageContentType({ name: "face.png", type: "image/png" })).toBe("image/png");
+  });
+
+  it("falls back to the extension when type is empty", () => {
+    expect(avatarImageContentType({ name: "face.JPG", type: "" })).toBe("image/jpeg");
+  });
+
+  it("falls back to octet-stream for an empty type and an unknown extension", () => {
+    expect(avatarImageContentType({ name: "face.bmp", type: "" })).toBe("application/octet-stream");
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { avatarsService } from "@/services/avatars.service";
@@ -10,6 +10,13 @@ import type { Avatar, AvatarImageSlot } from "@/lib/avatars/schema";
 
 const SAVE_DELAY_MS = 600;
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+
+// A response is stale if it is older than what is already on screen — same server column
+// (`updatedAt`), compared as dates. Applying it anyway could set a stale `status` (e.g.
+// "Ready" beside "Still needed…") from a save that resolved out of order.
+function isStale(prev: Avatar, updated: Avatar): boolean {
+  return new Date(updated.updatedAt).getTime() < new Date(prev.updatedAt).getTime();
+}
 
 // D287 — the Avatar Studio's state. `initialAvatar` is null on /avatars/new: no row exists until
 // the first upload, which creates the draft (carrying the name and story typed so far) and then
@@ -30,16 +37,28 @@ export function useAvatarStudio({
   const uploadingRef = useRef(false);
   const libraryHref = `/clients/${clientSlug}/avatars`;
 
+  // D287 amended (re-review) — `window.history.replaceState` in `uploadImage` below moves the
+  // URL to /avatars/<id> without a navigation, so Next's router tree still thinks this is /new.
+  // After Save navigates to the library, pressing Back can restore that /new tree under the
+  // avatar's URL: a Studio with `initialAvatar === null` where an upload would create a SECOND
+  // draft. A full reload re-renders from the server, which resolves the real avatar for that URL.
+  useEffect(() => {
+    if (initialAvatar === null && !window.location.pathname.endsWith("/new")) {
+      window.location.reload();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Typing alone never creates a draft; it is saved once the avatar exists. Merges only the
   // fields a text save owns, so a save that resolves late never clobbers a newer image upload.
   const saveFields = useDebouncedCallback((fields: { name: string; story: string }) => {
     if (!avatar) return;
     avatarsService.update(clientId, avatar.id, fields)
       .then((updated) => {
-        setAvatar((prev) => (prev ? {
+        setAvatar((prev) => (prev && !isStale(prev, updated) ? {
           ...prev, name: updated.name, story: updated.story,
           status: updated.status, updatedAt: updated.updatedAt,
-        } : updated));
+        } : prev ?? updated));
       })
       .catch((e) => {
         toast.error(message(e, "Could not save"));
@@ -98,13 +117,13 @@ export function useAvatarStudio({
     setConfirmingConsent(true);
     try {
       const updated = await avatarsService.update(clientId, avatar.id, { consent: true });
-      setAvatar((prev) => (prev ? {
+      setAvatar((prev) => (prev && !isStale(prev, updated) ? {
         ...prev,
         likenessConsentBy: updated.likenessConsentBy,
         likenessConsentAt: updated.likenessConsentAt,
         status: updated.status,
         updatedAt: updated.updatedAt,
-      } : updated));
+      } : prev ?? updated));
     } catch (e) {
       toast.error(message(e, "Could not confirm"));
     } finally {

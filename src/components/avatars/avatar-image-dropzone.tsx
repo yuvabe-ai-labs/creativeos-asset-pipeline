@@ -18,12 +18,18 @@ type Props = {
   aspect: string;
   image: AvatarImage | null;
   uploading: boolean;
+  /** True while the OTHER slot is uploading: this slot's buttons are disabled and drops are
+   *  ignored, with the button's own disabled styling as the feedback (rather than silently
+   *  dropping the file). The slot that is itself uploading keeps showing its skeleton instead. */
+  disabled?: boolean;
   onFile: (file: File) => void;
 };
 
 // One image slot of the Studio: a dashed primary "add" area, a same-size loading placeholder,
 // then the image with a Replace action. Click, or drop a file on it.
-export function AvatarImageDropzone({ label, hint, aspect, image, uploading, onFile }: Props) {
+export function AvatarImageDropzone({
+  label, hint, aspect, image, uploading, disabled, onFile,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const pick = () => inputRef.current?.click();
@@ -40,7 +46,7 @@ export function AvatarImageDropzone({ label, hint, aspect, image, uploading, onF
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
-        if (uploading) return;
+        if (uploading || disabled) return;
         const file = e.dataTransfer.files?.[0];
         if (file) onFile(file);
       }}
@@ -51,7 +57,13 @@ export function AvatarImageDropzone({ label, hint, aspect, image, uploading, onF
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image.url} alt={label} className="size-full rounded-xl border object-cover" />
-          <Button variant="outline" size="sm" className="absolute bottom-2 right-2 bg-card" onClick={pick}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            className="absolute bottom-2 right-2 bg-card"
+            onClick={pick}
+          >
             Replace
           </Button>
         </>
@@ -59,6 +71,7 @@ export function AvatarImageDropzone({ label, hint, aspect, image, uploading, onF
         <Button
           variant="outline"
           aria-label={label}
+          disabled={disabled}
           onClick={pick}
           className="size-full flex-col gap-1.5 whitespace-normal rounded-xl border-dashed border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
         >

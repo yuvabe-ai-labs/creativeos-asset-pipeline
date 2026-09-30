@@ -13,6 +13,11 @@ export type UploadViaSignedUrlOptions = {
   signBody?: Record<string, unknown>;
   // Extra fields merged into the finalize request body (e.g. image dimensions).
   finalizeBody?: Record<string, unknown>;
+  // Overrides `file.type` for BOTH the sign request body and the PUT header — they must match
+  // or the signed PUT fails. Callers pass this when the browser reports an empty `file.type`
+  // (e.g. some OSes don't set it for .jpg) and a route that only accepts specific types would
+  // otherwise reject "application/octet-stream". Omit it to keep the previous behaviour.
+  contentType?: string;
 };
 
 // Uploads `file` and returns the parsed JSON from the finalize endpoint (T is the
@@ -21,7 +26,7 @@ export async function uploadViaSignedUrl<T>(
   file: File,
   opts: UploadViaSignedUrlOptions,
 ): Promise<T> {
-  const contentType = file.type || "application/octet-stream";
+  const contentType = opts.contentType || file.type || "application/octet-stream";
 
   // 1. Ask the server to validate and authorize the upload.
   const signRes = await fetch(opts.signEndpoint, {

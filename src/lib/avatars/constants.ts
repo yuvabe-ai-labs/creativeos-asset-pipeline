@@ -9,6 +9,15 @@ export const AVATAR_IMAGE_ACCEPT = [...AVATAR_IMAGE_CONTENT_TYPES].join(",");
 export const AVATAR_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
 export const AVATAR_IMAGE_MAX_LABEL = "15 MB";
 
+// Falls back for a file whose browser-reported `type` is empty (some OSes don't set one for
+// .jpg). Keys are lowercased extensions, without the dot.
+export const AVATAR_IMAGE_EXTENSION_CONTENT_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+};
+
 export const AVATAR_NAME_MAX = 60;
 export const AVATAR_STORY_MAX = 1000;
 
