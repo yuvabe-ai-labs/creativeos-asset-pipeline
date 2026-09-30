@@ -2,7 +2,7 @@ import { defaultsForModel, imageGenClientModelMap } from "@/lib/image-gen/client
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
-  AVATAR_FRAMING_CLAUSE, AVATAR_STYLES, SEEDANCE_FACE_MODEL_ID,
+  AVATAR_FRAMING_CLAUSE, AVATAR_STYLES, AVATAR_WORKS_WITH, SEEDANCE_FACE_MODEL_ID,
   type AvatarAttributes, type AvatarStyleId,
 } from "./constants";
 import type { Avatar, AvatarCandidate } from "./schema";
@@ -140,17 +140,23 @@ export function groupCandidatesByBatch(
   });
 }
 
-/** Which engine this avatar will run on (spec §8, D290). Derived, never stored. `ok: false`
- *  is the one case that is a warning, not a stated fact — a generated face on a model Seedance
- *  will not accept — so the Studio card can withhold the "Runs on" row's check mark for it. */
-export function avatarEngineNote(
-  avatar: Pick<Avatar, "front" | "personType">,
-): { text: string; ok: boolean } | null {
-  if (!avatar.front || !avatar.personType) return null;
-  if (avatar.personType === "specific") return { text: "Gemini Omni · clips up to 10 s", ok: true };
+// ── Which models an avatar works with (D297, spec §8) ─────────────────────────
+
+/** What a face made with this image model will work with — said while the model is chosen,
+ *  since that choice is what decides Seedance. */
+export function imageModelWorksWith(modelId: string): readonly string[] {
+  return isSeedanceFaceModel(modelId) ? AVATAR_WORKS_WITH.seedream : AVATAR_WORKS_WITH.generated;
+}
+
+/** The video models this avatar can be used with, by its face. Derived, never stored. */
+export function avatarWorksWith(avatar: Pick<Avatar, "front">): readonly string[] {
+  if (!avatar.front) return [];
   const source = avatar.front.source;
-  if (source.kind === "generated" && isSeedanceFaceModel(source.modelId)) {
-    return { text: "Seedance · clips up to 30 s", ok: true };
-  }
-  return { text: `Seedance will not accept this face — generate it with ${seedanceFaceModelLabel()}`, ok: false };
+  return source.kind === "generated" ? imageModelWorksWith(source.modelId) : AVATAR_WORKS_WITH.real;
+}
+
+/** "A, B and C" — for the one-line model lists the Studio shows. */
+export function listSentence(names: readonly string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }

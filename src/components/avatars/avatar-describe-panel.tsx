@@ -12,7 +12,8 @@ import {
   AVATAR_FRONT_ASPECT, AVATAR_STYLES, type AvatarStyleId,
 } from "@/lib/avatars/constants";
 import {
-  estimateAvatarImageCredits, isSeedanceFaceModel, seedanceFaceModelLabel,
+  estimateAvatarImageCredits, imageModelWorksWith, isSeedanceFaceModel, listSentence,
+  seedanceFaceModelLabel,
 } from "@/lib/avatars/generation";
 import type { GenerateFrontInput } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
@@ -125,12 +126,11 @@ export function AvatarDescribePanel({ busy, composer, onComposerChange, onGenera
         </Button>
       </div>
 
-      {!isSeedanceFaceModel(modelId) && (
-        <p className="text-xs text-muted-foreground">
-          Seedance only accepts faces made with {seedanceFaceLabel}. An avatar generated on this
-          model will not run on Seedance.
-        </p>
-      )}
+      {/* D297 — the model chosen here decides Seedance, so this is where it is said. */}
+      <p className="text-xs text-muted-foreground">
+        Works with {listSentence(imageModelWorksWith(modelId))}.
+        {!isSeedanceFaceModel(modelId) && ` For Seedance too, use ${seedanceFaceLabel}.`}
+      </p>
     </div>
   );
 }

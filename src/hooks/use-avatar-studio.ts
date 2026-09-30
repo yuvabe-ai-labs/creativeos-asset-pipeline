@@ -5,11 +5,18 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { avatarsService } from "@/services/avatars.service";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
-import { avatarReadinessGaps, errorMessage, validateAvatarImageFile } from "@/lib/avatars/utils";
+import { errorMessage, validateAvatarImageFile } from "@/lib/avatars/utils";
 import { LIKENESS_CONSENT_CHANGED_ERROR } from "@/lib/avatars/constants";
 import type { Avatar, AvatarImageSlot } from "@/lib/avatars/schema";
 
 const SAVE_DELAY_MS = 600;
+
+// D297 — the copy for the name's two refusals (spec §4.5, §4.6).
+const NAME_NEEDED_TO_SAVE = "Give the avatar a name to save it.";
+const NAME_NEEDED_IN_LIBRARY = "An avatar in the library needs a name.";
+
+/** The header's autosave line: nothing until a row exists, then "Saving…" / "Saved". */
+export type StudioSaveState = "idle" | "saving" | "saved";
 
 // A response is stale if it is older than what is already on screen — same server column
 // (`updatedAt`), compared as dates. Applying it anyway could set a stale `status` (e.g.
@@ -34,6 +41,8 @@ export function useAvatarStudio({
   const [uploading, setUploading] = useState<AvatarImageSlot | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmingConsent, setConfirmingConsent] = useState(false);
+  const [saveState, setSaveState] = useState<StudioSaveState>("idle");
+  const [nameError, setNameError] = useState<string | null>(null);
   // The in-flight (or finished) draft creation. Kept so concurrent callers — an upload, or the
   // four requests of one Generate click — share a single draft instead of creating one each.
   const creatingRef = useRef<Promise<Avatar> | null>(null);
@@ -64,21 +73,39 @@ export function useAvatarStudio({
           ...prev, name: updated.name, story: updated.story,
           status: updated.status, updatedAt: updated.updatedAt,
         } : prev ?? updated));
+        setSaveState("saved");
       })
       .catch((e) => {
+        setSaveState("idle");
         toast.error(errorMessage(e, "Could not save"));
       });
   }, SAVE_DELAY_MS);
 
+  // Name and story save as the operator types (D297). Before the row exists they are only held,
+  // and ensureAvatar sends them with the request that creates the draft.
+  const scheduleSave = useCallback((fields: { name: string; story: string }) => {
+    if (avatar) setSaveState("saving");
+    saveFields(fields);
+  }, [avatar, saveFields]);
+
   const setName = useCallback((next: string) => {
     setNameState(next);
-    saveFields({ name: next, story });
-  }, [saveFields, story]);
+    // An avatar in the library saved with no name would drop back to draft (withStatus), so the
+    // empty name is held on screen and never sent.
+    if (avatar?.status === "ready" && !next.trim()) {
+      setNameError(NAME_NEEDED_IN_LIBRARY);
+      return;
+    }
+    setNameError(null);
+    scheduleSave({ name: next, story });
+  }, [avatar?.status, scheduleSave, story]);
 
   const setStory = useCallback((next: string) => {
     setStoryState(next);
-    saveFields({ name, story: next });
-  }, [saveFields, name]);
+    // While the library avatar's name is empty, the name is not sent along with the story.
+    const keptName = avatar?.status === "ready" && !name.trim() ? avatar.name : name;
+    scheduleSave({ name: keptName, story: next });
+  }, [avatar, scheduleSave, name]);
 
   // Creates the draft the first time anything needs a row (an upload or a Generate click),
   // carrying the name and story typed so far, then moves the URL to /avatars/<id> in place.
@@ -93,6 +120,8 @@ export function useAvatarStudio({
       .then((created) => {
         setAvatar(created);
         window.history.replaceState(null, "", `${libraryHref}/${created.id}`);
+        // D297 — the moment the ⋯ menu appears, say why.
+        toast("Saved as a draft so nothing is lost. The ⋯ menu can discard it.");
         return created;
       })
       .catch((e) => {
@@ -183,6 +212,11 @@ export function useAvatarStudio({
 
   const markReady = useCallback(async () => {
     if (!avatar) return;
+    // The only requirement Name & save can still be missing: the step opens once Look is done.
+    if (!name.trim()) {
+      setNameError(NAME_NEEDED_TO_SAVE);
+      return;
+    }
     setSaving(true);
     try {
       await avatarsService.update(clientId, avatar.id, { name, story, status: "ready" });
@@ -205,17 +239,8 @@ export function useAvatarStudio({
     }
   }, [avatar, clientId, router, libraryHref]);
 
-  // `name` comes from local state so the list updates as the operator types.
-  const gaps = avatarReadinessGaps({
-    name,
-    front: avatar?.front ?? null,
-    sheet: avatar?.sheet ?? null,
-    sheetStale: avatar?.sheetStale ?? false,
-    likenessConsentAt: avatar?.likenessConsentAt ?? null,
-  });
-
   return {
-    avatar, name, story, gaps, uploading, saving, confirmingConsent,
+    avatar, name, story, uploading, saving, confirmingConsent, saveState, nameError,
     setName, setStory, uploadImage, markReady, archive, confirmConsent,
     ensureAvatar, replaceAvatar, reload,
   };

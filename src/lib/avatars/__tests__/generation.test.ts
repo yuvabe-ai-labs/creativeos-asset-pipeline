@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarEngineNote, avatarImageParams, buildAvatarFrontPrompt, buildAvatarSheetPrompt,
+  avatarImageParams, avatarWorksWith, buildAvatarFrontPrompt, buildAvatarSheetPrompt,
   estimateAvatarImageCostUsd, estimateAvatarImageCredits, groupCandidatesByBatch,
-  isSeedanceFaceModel, mergeCandidates,
+  imageModelWorksWith, isSeedanceFaceModel, listSentence, mergeCandidates,
 } from "../generation";
 import {
   AVATAR_DEFAULT_SHEET_MODEL_ID, AVATAR_FRAMING_CLAUSE, AVATAR_FRONT_ASPECT,
@@ -138,31 +138,41 @@ describe("groupCandidatesByBatch", () => {
   });
 });
 
-describe("avatarEngineNote", () => {
-  it("a real person runs on Gemini Omni, and the row is done", () => {
-    expect(avatarEngineNote(makeAvatar())).toEqual({ text: "Gemini Omni · clips up to 10 s", ok: true });
-  });
+// D297 — which video models an avatar can be used with, by its face (spec §8).
+describe("avatarWorksWith", () => {
+  // GENERATED is typed as the AvatarImageSource union, so a spread needs the kind narrowed first.
+  const otherModel = GENERATED.kind === "generated"
+    ? { ...GENERATED, modelId: "gemini:gemini-3-pro-image" }
+    : GENERATED;
 
-  it("a generated Seedream face runs on Seedance, and the row is done", () => {
-    const avatar = makeAvatar({ personType: "generic", front: makeImage(GENERATED) });
-    expect(avatarEngineNote(avatar)).toEqual({ text: "Seedance · clips up to 30 s", ok: true });
+  it("a Seedream face works with every model, Seedance included", () => {
+    expect(avatarWorksWith(makeAvatar({ front: makeImage(GENERATED) })))
+      .toEqual(["Seedance", "Gemini Omni", "Kling", "Veo"]);
   });
-
-  it("a face generated on another model is called out, names the required model by its live " +
-    "label, and the row is NOT done — it is a warning, not a fact", () => {
-    // GENERATED is typed as the AvatarImageSource union, so a spread needs the kind narrowed
-    // first — otherwise TS can't tell the override still matches the "generated" variant's shape.
-    const source = GENERATED.kind === "generated"
-      ? { ...GENERATED, modelId: "gemini:gemini-3-pro-image" }
-      : GENERATED;
-    const front = makeImage(source);
-    const note = avatarEngineNote(makeAvatar({ personType: "generic", front }));
-    expect(note?.ok).toBe(false);
-    expect(note?.text).toMatch(/Seedance will not accept/);
-    expect(note?.text).toContain("Seedream 5.0 Lite");
+  it("a face from any other image model drops Seedance", () => {
+    expect(avatarWorksWith(makeAvatar({ front: makeImage(otherModel) })))
+      .toEqual(["Gemini Omni", "Kling", "Veo"]);
   });
+  it("a real person's photo works on Gemini Omni and Kling — Seedance refuses it, Veo may", () => {
+    expect(avatarWorksWith(makeAvatar())).toEqual(["Gemini Omni", "Kling"]);
+  });
+  it("names nothing before there is a front image", () => {
+    expect(avatarWorksWith(makeAvatar({ front: null }))).toEqual([]);
+  });
+});
 
-  it("says nothing before there is a front image", () => {
-    expect(avatarEngineNote(makeAvatar({ front: null, personType: null }))).toBeNull();
+describe("imageModelWorksWith", () => {
+  it("says, while the model is being chosen, what its faces will work with", () => {
+    expect(imageModelWorksWith(SEEDANCE_FACE_MODEL_ID)).toContain("Seedance");
+    expect(imageModelWorksWith("gemini:gemini-3-pro-image")).not.toContain("Seedance");
+  });
+});
+
+describe("listSentence", () => {
+  it("joins with commas and a final 'and'", () => {
+    expect(listSentence([])).toBe("");
+    expect(listSentence(["A"])).toBe("A");
+    expect(listSentence(["A", "B"])).toBe("A and B");
+    expect(listSentence(["A", "B", "C", "D"])).toBe("A, B, C and D");
   });
 });

@@ -1,25 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useVoicePreview } from "@/hooks/use-voice-preview";
 import type { useAvatarVoice } from "@/hooks/use-avatar-voice";
-import type { useAvatarVoicePreview } from "@/hooks/use-avatar-voice-preview";
 import { allowedVoiceModes, avatarVoiceToPickerVoice } from "@/lib/avatars/voice";
 import type { Avatar, AvatarVoiceMode } from "@/lib/avatars/schema";
 import { VideoGenChangeVoicePicker } from "@/components/nodes/video-gen-change-voice-picker";
-import { AvatarVoicePreview } from "./avatar-voice-preview";
 
 const MODE_COPY: Record<AvatarVoiceMode, { title: string; body: string }> = {
   native: {
     title: "The engine's own voice",
-    body: "Seedance invents the voice. Generate a preview to keep one, as this avatar's voice reference.",
+    body: "Seedance invents a voice. Keep it in the Preview step and every Seedance video reuses it. No ElevenLabs cost.",
   },
   named: {
     title: "A named voice",
-    body: "An ElevenLabs voice, applied after generation, so every clip sounds the same.",
+    body: "An ElevenLabs voice, applied after generation. The same voice on every model.",
   },
 };
 
@@ -27,15 +25,14 @@ type Props = {
   clientId: string;
   avatar: Avatar;
   voice: ReturnType<typeof useAvatarVoice>;
-  preview: ReturnType<typeof useAvatarVoicePreview>;
 };
 
-// D293 — step 3 of the Studio: the voice this avatar speaks with. Optional. A generated avatar
-// may use its engine's own voice or a named one; a real person runs on an engine that takes no
-// audio input, so only a named voice is offered.
-export function AvatarStudioVoiceStep({ clientId, avatar, voice: v, preview: clip }: Props) {
+// D293, D297 — the Voice step: how this avatar sounds in every video. Optional. A generated avatar
+// may use its engine's own voice or a named one; a real person runs on engines that take no voice
+// reference, so only a named voice is offered. The preview is its own step now (spec §4.4).
+export function AvatarStudioVoiceStep({ clientId, avatar, voice: v }: Props) {
   const modes = allowedVoiceModes(avatar.personType);
-  const preview = useVoicePreview();
+  const sample = useVoicePreview();
   const declared = avatar.voice;
   const named = avatarVoiceToPickerVoice(declared);
   // Which option is open. A named voice has to be picked before anything is saved, so the
@@ -46,17 +43,16 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v, preview: cli
 
   return (
     <>
-      <div>
-        <p className="text-eyebrow text-muted-foreground">Voice</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Optional. The voice this avatar speaks with in every video.
-          {modes.length === 1 &&
-            " A real person's avatar runs on Gemini Omni, which takes no voice input, so its voice is applied after generation."}
+      {modes.length === 1 && (
+        <p className="flex max-w-xl gap-2 rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
+          <Info className="mt-0.5 size-4 shrink-0" strokeWidth={1.5} />
+          A real person runs on Gemini Omni and Kling. Neither takes a voice reference, so the voice is
+          applied after generation.
         </p>
-      </div>
+      )}
 
       {modes.length > 1 && (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid max-w-2xl gap-2 sm:grid-cols-2">
           {modes.map((mode) => {
             const active = open === mode;
             return (
@@ -70,7 +66,7 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v, preview: cli
                   if (mode === "native" && declared?.mode !== "native") void v.chooseNative();
                 }}
                 className={cn(
-                  "h-auto flex-col items-start gap-1 whitespace-normal p-3 text-left",
+                  "h-auto flex-col items-start gap-1 whitespace-normal p-3.5 text-left",
                   active && "border-primary/50 bg-primary/5 hover:bg-primary/10",
                 )}
               >
@@ -91,20 +87,14 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v, preview: cli
             clientId={clientId}
             voice={named}
             saving={v.saving}
-            playing={Boolean(named && preview.playingId === named.voiceId)}
-            onTogglePreview={() => named && preview.toggle(named)}
+            playing={Boolean(named && sample.playingId === named.voiceId)}
+            onTogglePreview={() => named && sample.toggle(named)}
             onSelect={(picked) => {
-              preview.stop();
+              sample.stop();
               void v.chooseNamed(picked);
             }}
           />
         </div>
-      )}
-
-      {/* D294, D296 — the declaration picks the engine: a named voice is applied to an Omni clip,
-          the engine's own voice is generated by Seedance and kept as the voice reference. */}
-      {declared && open === declared.mode && (
-        <AvatarVoicePreview avatar={avatar} preview={clip} disabled={v.saving} />
       )}
 
       {declared && (
@@ -114,7 +104,7 @@ export function AvatarStudioVoiceStep({ clientId, avatar, voice: v, preview: cli
           className="self-start text-muted-foreground"
           disabled={v.saving}
           onClick={() => {
-            preview.stop();
+            sample.stop();
             setOpen(modes.length === 1 ? modes[0] : null);
             void v.clear();
           }}

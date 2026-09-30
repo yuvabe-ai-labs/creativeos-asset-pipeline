@@ -89,6 +89,16 @@ export const AVATAR_FRAMING_CLAUSE =
   "One person only, facing the camera, waist-up, neutral relaxed expression, even soft light, " +
   "plain light-grey seamless background, no text, no logos, no props in hand.";
 
+// D297 — which video models an avatar can be used with, by the kind of face it has (spec §8).
+// Names only: the per-model detail (how the face goes in, voice, longest clip) stays in the spec.
+// Veo is left off a real person because Google may refuse a real face by region, and a
+// names-only list cannot say "maybe".
+export const AVATAR_WORKS_WITH = {
+  seedream: ["Seedance", "Gemini Omni", "Kling", "Veo"],
+  generated: ["Gemini Omni", "Kling", "Veo"],
+  real: ["Gemini Omni", "Kling"],
+} as const;
+
 // The only image model whose faces Seedance accepts as a reference (spec §8, D290). Named
 // once: if the live model list shows a different id (spec §10, question 3), change it here.
 export const SEEDANCE_FACE_MODEL_ID = "seedream:seedream-5-0-lite";
