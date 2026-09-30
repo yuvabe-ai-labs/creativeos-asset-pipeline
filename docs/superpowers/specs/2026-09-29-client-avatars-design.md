@@ -4,30 +4,35 @@
 ADRs: D287–D293. Builds on D264–D266 (Character node), D283–D284 (voice picker, Change voice)
 and D285 (Seedream). Visual summary: https://claude.ai/artifact/QtMgQLh161QfodbQQDajW2
 
+**Amended 30 September 2026** to follow `2026-09-22-seedream-seedance-handoff.md` (the UGC avatar
+design this feature serves) and two operator decisions taken that day. Changed: §3.3 (person type
+and consent), §6.3 (voice), §8 (engines and Seedance), the phase 2 row of the out-of-scope table,
+and §10.
+
 ---
 
 ## 1. Problem
 
-A person in a client's videos is rebuilt by hand on every canvas: the operator uploads faces into a
-Character node (D264, unmerged on `feat/character-node`) and picks a voice again each time. Nothing
-is shared between canvases, nothing records where a face came from, and there is no place to make a
-character in the first place.
+The handoff design makes the avatar a persistent, client-level asset set: what is true of the
+person wherever they appear — face, model sheet, voice. Nothing holds that today. A person in a
+client's videos is rebuilt by hand on every canvas, nothing records where a face came from, and
+there is no place to make one.
 
 **Goal.** A client-level library of avatars. An avatar is a front image, a profile sheet, an
-optional ElevenLabs voice and an optional background story. It is created once in a dedicated
+optional voice declaration and an optional background story. It is created once in a dedicated
 studio, with credit costs shown, and is the single record later phases read from.
 
 **In scope (Phase 1).** The Avatars page, the Avatar Studio, the shared voice picker with a
-client-scoped tab and voice cloning, the per-avatar voice sample, source and person-type records,
-Seedance eligibility shown on the avatar, and billing of image generations through the existing
+client-scoped tab and voice cloning, the avatar's voice declaration, source and person-type
+records, likeness consent for real people, and billing of image generations through the existing
 ledger.
 
 **Out of scope.**
 
 | Item | Where it goes |
 |---|---|
-| Character node reading `{ avatarId }`; Kling element cache keyed on the avatar; Change voice pre-selecting the avatar's voice; Seedance actually consuming eligible avatars | Phase 2, after `feat/character-node` merges (its `0039_character_provider_registrations` migration must be renumbered) |
-| Billing ElevenLabs usage (clone, voice sample, saving a library voice) in credits | Deferred, §7.3 |
+| Using an avatar on a canvas: one avatar per reel, attached once to the Script node and chosen before shots are grouped; the engine follows the avatar's kind (§8); re-voicing runs automatically after generation | Phase 2, per the handoff spec §6. The `feat/character-node` branch (D264–D266: per-shot Character nodes and Kling elements) is not the route for avatars. |
+| Billing ElevenLabs usage (clone, saving a library voice) in credits | Deferred, §7.3 |
 | BytePlus private virtual portrait library and real-human asset library (`asset://`) | Later; needs paid Advanced Creation Rights and AK/SK auth |
 | ElevenLabs Voice Design; OpenArt's "Build your character" wizard | Not planned |
 
@@ -63,6 +68,7 @@ Both new tables enable RLS with zero policies, as `0027_brand_kit.sql` does.
 | `name` | text | empty while a draft |
 | `story` | text | optional |
 | `person_type` | text check in (`generic`, `specific`) | derived from the front image's source, §3.3 |
+| `likeness_consent_by` / `likeness_consent_at` | uuid / timestamptz | who confirmed permission for a real person's likeness, and when, §3.3 |
 | `front` | jsonb | an `AvatarImage`, §3.2 |
 | `sheet` | jsonb | an `AvatarImage`, §3.2 |
 | `sheet_stale` | boolean default false | set when `front` changes after a sheet exists |
@@ -76,8 +82,9 @@ Index on `(client_id, archived_at)`.
 
 ### 3.2 Image source (`AvatarImage`)
 
-Every avatar image records how it was made. Seedance eligibility (§8) is computed from these
-fields and is never stored.
+Every avatar image records how it was made. The person type (§3.3) and the engine (§8) follow
+from it. Plan 2 adds `vendorUrl` to the generated source — the vendor's original URL, kept as
+insurance and read by nothing (§8).
 
 ```ts
 // src/lib/avatars/schema.ts
@@ -94,28 +101,35 @@ export type AvatarImageSource =
     };
 
 export type AvatarImage = {
-  url: string; width: number; height: number; sizeBytes: number;
+  url: string; width: number | null; height: number | null; sizeBytes: number;
   source: AvatarImageSource;
 };
 ```
 
-### 3.3 Person type
+### 3.3 Person type and consent
 
-Person type follows the front image's source. The operator is never asked (amended 2026-09-30,
-D289).
+Person type follows the front image's source. The operator is never asked whether the person is
+real (D289).
 
-| Front image | `person_type` |
-|---|---|
-| Uploaded | `specific` |
-| Generated in the Studio (any model) | `generic` |
-| None yet | null |
+| Front image | `person_type` | Consent |
+|---|---|---|
+| Uploaded | `specific` (a real person) | required |
+| Generated in the Studio (any model) | `generic` | none |
+| None yet | null | — |
 
-It is set whenever the front image is set or replaced. There is no declaration, no consent tick
-and no record of who confirmed. The library shows a "Real person" tag on `specific` avatars and
-filters by type.
+The type is set whenever the front image is set or replaced.
 
-An uploaded image of a fictional face is therefore filed as `specific`. That is accepted: the
-label errs toward the stricter treatment (a `specific` avatar is never Seedance-eligible, §8).
+**Consent.** A real person's likeness needs a record of who agreed and when (handoff design:
+"Consent — required: who agreed, and when"). For an uploaded front the Studio shows one statement
+to tick: "I have this person's permission to use their likeness". Confirming records
+`likeness_consent_by` and `likeness_consent_at`. Replacing the front image clears both, so a new
+photo asks again. A generated front carries no consent. An avatar with an uploaded front cannot
+become `ready` without it.
+
+An uploaded image of a fictional face is filed as `specific` and asked for consent. That is
+accepted: the label errs toward the stricter treatment.
+
+The library shows a "Real person" tag on `specific` avatars and filters by type.
 
 ### 3.4 `client_voices`
 
@@ -163,12 +177,13 @@ A segmented control: **Describe | Upload photo**. Switching keeps everything alr
 - Settings row: **Model** (text-to-image models from `image-gen/registry.ts`), **Style**
   (photoreal, illustrated, 3D — a prompt phrase), a **count stepper** (1 to the model's maximum,
   default 4), and **Generate ✦ N**. Aspect ratio is fixed at 3:4.
-- Seedream 5.0 Lite carries a "Seedance" tag in the model list (§8).
+- The non-pro Seedream 5.0 model carries a "Seedance" tag in the model list (§8).
 - Each Generate is one batch. Batches stack newest first and stay for the life of the draft, so
   models can be compared. Clicking an image sets it as the front.
 
 **Upload photo.** The existing signed-upload pattern (`sign` → PUT → `finalize`), validated with
-`validateFileExtension` / `validateFileSize`. The avatar becomes a `specific` person (§3.3).
+`validateFileExtension` / `validateFileSize`. The avatar becomes a `specific` person and the
+consent statement appears under the image (§3.3).
 
 ### 4.2 Profile sheet
 
@@ -191,7 +206,8 @@ It opens the shared picker (§6). Optional.
 
 - The avatar row is created as `draft` at the first Generate or upload. Drafts appear in the
   library with a "Draft" badge.
-- `ready` requires a name, a front image and a non-stale sheet.
+- `ready` requires a name, a front image, a non-stale sheet and, for an uploaded front, the
+  likeness consent.
   `isAvatarReady(avatar)` is the single check, used by the Save button and the route.
 - Text fields save last-write-wins. Front, sheet and voice are separate actions.
 - Delete archives (`archived_at`). Archived avatars leave the library and pickers; their files and
@@ -203,7 +219,7 @@ It opens the shared picker (§6). Optional.
 
 An 8-across grid of square tiles (4 at tablet width, 3 at phone width). The name and voice sit on a
 soft gradient over the face. The first tile is a dashed-border primary "New" tile. Tile badges:
-Draft, Real person, and "Seedance · {date}" while eligible. Clicking a tile opens the Studio for
+Draft and Real person. Clicking a tile opens the Studio for
 that avatar. A filter for person type; search by name once a client has more than one screen of
 avatars.
 
@@ -234,13 +250,21 @@ calls ElevenLabs `POST /v1/voices/add` with the name `{client name} · {name}`, 
 `client_voices` with `source = 'clone'`, invalidates the account-voice cache, and returns the
 voice selected. Without consent the route returns 400.
 
-### 6.3 Voice sample
+### 6.3 Voice declaration
 
-When an avatar's voice is set or changed, the route has ElevenLabs speak a fixed neutral script
-(`AVATAR_VOICE_SAMPLE_SCRIPT`, versioned, about 20 seconds), stores the mp3, measures its
-duration against Kling's 5–30 s window (D264) and writes `voice_sample` with
-`sourceKey = voiceId + script version`. A failure leaves the voice saved and shows "Voice sample
-missing — retry" on the card.
+The avatar declares one voice and every generation realises it (handoff design, "voice
+consistency"). The declaration is one of:
+
+| Declaration | Meaning | Available for |
+|---|---|---|
+| Native | The engine's own generated voice | Generated avatars (Seedance) |
+| Anchor | The audio of the first clip the operator likes, carried forward as `reference_audio` | Generated avatars (Seedance) |
+| Named voice | An ElevenLabs `voiceId` and its settings, applied by re-voicing after generation (D282–D284) | Both kinds |
+
+A real-person avatar runs on Gemini Omni, which accepts no audio input, so its only option is a
+named voice. Plan 3 stores the declaration in `voice`; `voice_sample` holds the anchor clip (the
+extracted mp3 and which clip it came from) when the declaration is Anchor. No sample is
+synthesised for Kling: avatars do not run on Kling (§8).
 
 ### 6.4 Removing a voice
 
@@ -273,40 +297,38 @@ consumption for the avatar's generations.
 
 ### 7.3 Deferred: ElevenLabs costs
 
-Cloning, voice samples and library saves are not charged in Phase 1. They are to be priced and
+Cloning and library saves are not charged in Phase 1. They are to be priced and
 billed in a later credits pass. Until then the cost is absorbed.
 
 ---
 
-## 8. Seedance eligibility
+## 8. Engines and Seedance
 
-BytePlus refuses Seedance reference images that show a realistic face, except original
-face-containing outputs of Seedream 5.0 Lite text-to-image generated on the same account within
-30 days (`ref/byteplus-docs/`, "Use trusted model outputs as input assets"). Avatars follow that
-rule exactly.
+**The avatar's kind decides the engine** (handoff design). Nothing about the engine is stored on
+the avatar; it is derived.
 
-```ts
-// src/lib/avatars/seedance.ts
-seedanceEligibility(avatar, now): 
-  | { eligible: true; expiresAt: string; expiringSoon: boolean }   // soon = 7 days or less
-  | { eligible: false; reason: "real-person" | "not-seedream-lite" | "edited" | "modified" | "expired" }
-```
+| Avatar | Engine | Clip ceiling | Face reference |
+|---|---|---|---|
+| Generated (`generic`) | Seedance 2.5 | 30 s | A Seedream-generated face |
+| Real person (`specific`) | Gemini Omni | 10 s | The uploaded photograph, Google's filters permitting |
 
-Eligible when all hold: `person_type = 'generic'`; `front.source.kind = 'generated'`;
-the model is Seedream 5.0 Lite; `mode = 'text'`; `untouched = true`; and `generatedAt` is less
-than 30 days ago. Only the front image is ever sent to Seedance. The sheet is an edit and is
-excluded.
+Kling and Veo are not used for avatars: neither takes a trusted face reference.
 
-**Storage rule.** For Seedream Lite text-to-image outputs, the Studio stores the decoded
-`b64_json` bytes as they arrive, with no resize, re-encode or metadata strip, and sets
-`untouched = true`. Any path that transforms the bytes sets it to false.
+**Seedance accepts only Seedream 5.0 non-pro faces.** The face of a generated avatar must come
+from the non-pro Seedream 5.0 model; the pro variant's faces are refused. Take the model id from
+`GET /api/v3/models`, not from the vendor's docs (handoff spec §0). The Studio tags that model
+"Seedance" in the Describe model list and warns when another model is chosen for a generated
+avatar.
 
-**Phase 1 shows** the status on the avatar card and library tile: "Seedance · usable until
-{date}", a warning in the last 7 days, then "Seedance expired". **Phase 2 enforces** it: Seedance
-receives eligible avatars' front image and refuses the rest before reserving credits, stating the
-reason.
+**No freshness machinery.** The vendor's documented policy trusts only original outputs, for 30
+days. A probe on 2026-09-24 sent a byte-identical copy from our own bucket and Seedance accepted
+it; the evidence fits a real-likeness detector, not a provenance check (handoff spec §0.1,
+finding 1). So there is no expiry date, no expiry badge and no age check. The generated source
+records `generatedAt`, the model and, as insurance, the vendor's original URL; nothing reads them
+at generation time. If BytePlus starts enforcing provenance, those fields are what lets us react.
 
----
+**Open.** Whether Seedance accepts the Nano Banana profile sheet of a Seedream face is untested
+(§10). Until it is, a generated avatar sends Seedance the front image only.
 
 ## 9. Failures
 
@@ -324,27 +346,27 @@ reason.
 
 ## 10. Open questions
 
-1. **Sheet model.** Compare Gemini, GPT Image and Seedream on the same front images for
-   face consistency across angles before fixing the default.
-2. **Trust of stored Seedream bytes.** One real Seedance call with a stored Seedream 5.0 Lite
-   portrait. If refused, also keep the original in BytePlus TOS and send that URL.
-3. **Voice slots.** Confirm the plan's custom-voice cap and whether stock voices are exempt.
-
-Question 2 blocks only the Phase 2 Seedance path. Phase 1 records the facts either way.
-
----
+1. **Sheet model.** The handoff design takes the model sheet from Nano Banana (Gemini) for both
+   kinds. Confirm face consistency across angles on Seedream faces before fixing the default.
+2. **The sheet on Seedance.** One probe: a generated avatar's Nano Banana sheet as a second
+   `reference_image`. Accepted means both images go; refused means front only.
+3. **Seedream model id.** The shipped provider (D285) names a "lite" id; the handoff design says
+   only the non-pro 5.0 id exists. Read `GET /api/v3/models` and correct whichever is wrong.
+4. **Voice slots.** Confirm the ElevenLabs plan's custom-voice cap and whether stock voices are
+   exempt.
 
 ## 11. Testing
 
 Vitest, run per directory (the full run has known timeout flakes).
 
 - **Pure:** `buildAvatarFrontPrompt`, `buildAvatarSheetPrompt`, `isAvatarReady`,
-  `canRemoveVoice`, `seedanceEligibility` (each reason, the 30-day boundary, the 7-day warning).
+  `canRemoveVoice`, the engine derived from the avatar's kind.
 - **Routes:** client scoping on every avatar and voice route; draft → ready; reserve → settle and
   reserve → refund; cap → 402; clone with and without consent; person type set from the front
-  image's source on every front change.
+  image's source on every front change; likeness consent required for an uploaded front and
+  cleared when the front is replaced.
 - **Migration:** a generation needs a node or an avatar; existing rows pass.
 - **UI:** the picker's This client tab lists only that client's voices plus defaults; Studio
   placeholders match the size of what replaces them.
 - **Manual:** create a Describe avatar on Seedream Lite and an Upload avatar with a cloned voice;
-  check spent credits against the ledger and the Seedance badge date; archive one.
+  check spent credits against the ledger and the Seedance tag on the model list; archive one.
