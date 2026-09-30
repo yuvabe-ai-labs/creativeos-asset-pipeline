@@ -13,6 +13,7 @@ import {
   pathForMarketThumb,
   pathForMarketMedia,
   extForContentType,
+  pathForAvatarImage,
 } from "./paths";
 
 describe("sanitizeSlug", () => {
@@ -209,5 +210,19 @@ describe("extForContentType", () => {
   // archive is best-effort and a weird content-type is not worth losing the bytes.
   it("falls back to bin for anything unrecognised", () => {
     expect(extForContentType("application/x-unknown")).toBe("bin");
+  });
+});
+
+describe("pathForAvatarImage", () => {
+  const args = { clientId: "c1", avatarId: "a1", filename: "My Face.PNG" };
+
+  it("nests under the client, the avatar and the slot", () => {
+    const path = pathForAvatarImage({ ...args, slot: "front" });
+    expect(path.startsWith("clients/c1/avatars/a1/front/")).toBe(true);
+    expect(path.endsWith(".png")).toBe(true);
+  });
+
+  it("keeps the two slots apart", () => {
+    expect(pathForAvatarImage({ ...args, slot: "sheet" })).toContain("/avatars/a1/sheet/");
   });
 });

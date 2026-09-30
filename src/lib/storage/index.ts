@@ -15,8 +15,10 @@ import {
   pathForReviewAnnotation,
   pathForVideoGen,
   pathForVideoGenVoice,
+  pathForAvatarImage,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
+import type { AvatarImageSlot } from "@/lib/avatars/schema";
 
 export type UploadResult = { url: string; path: string };
 
@@ -223,6 +225,22 @@ export async function signClientBrandAssetUpload(args: {
     clientId: args.clientId,
     category: args.category,
     assetId: args.assetId,
+    filename: args.filename,
+  });
+  return _sign(path, args.contentType);
+}
+
+export async function signAvatarImageUpload(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  filename: string;
+  contentType: string;
+}): Promise<SignedUploadResult> {
+  const path = pathForAvatarImage({
+    clientId: args.clientId,
+    avatarId: args.avatarId,
+    slot: args.slot,
     filename: args.filename,
   });
   return _sign(path, args.contentType);

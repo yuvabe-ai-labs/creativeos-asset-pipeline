@@ -1,4 +1,5 @@
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
+import type { AvatarImageSlot } from "@/lib/avatars/schema";
 
 const MAX_SLUG_LENGTH = 60;
 
@@ -133,6 +134,20 @@ export function pathForBrandAsset(args: {
 }): string {
   const name = buildStoredName(args.filename);
   return `clients/${args.clientId}/brand-kit/${args.category}/${args.assetId}/${name}`;
+}
+
+/**
+ * Where an avatar's uploaded image lives (D287). The slot is part of the path so the finalize
+ * route can check that a path signed for the sheet is not recorded as the front.
+ */
+export function pathForAvatarImage(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  filename: string;
+}): string {
+  const name = buildStoredName(args.filename);
+  return `clients/${args.clientId}/avatars/${args.avatarId}/${args.slot}/${name}`;
 }
 
 /**
