@@ -16,11 +16,23 @@ describe("avatarReadinessGaps", () => {
 
   it("lists every missing part of an empty draft", () => {
     const gaps = avatarReadinessGaps(makeAvatar({ name: "  ", front: null, sheet: null }));
-    expect(gaps).toEqual(["name", "front", "sheet"]);
+    expect(gaps).toEqual(["name", "front"]);
   });
 
-  it("reports a stale sheet separately from a missing one", () => {
-    expect(avatarReadinessGaps(makeAvatar({ sheetStale: true }))).toEqual(["sheet-stale"]);
+  // D295 — the sheet is an edit of the front, and Seedance refuses an edited image, so it can
+  // never be a production input. It is a reference document for people, and never blocks Save.
+  it("a profile sheet is optional — an avatar without one is ready", () => {
+    const avatar = makeAvatar({ sheet: null });
+    expect(avatarReadinessGaps(avatar)).toEqual([]);
+    expect(isAvatarReady(avatar)).toBe(true);
+  });
+
+  it("a voice is optional", () => {
+    expect(avatarReadinessGaps(makeAvatar({ voice: null }))).toEqual([]);
+  });
+
+  it("a stale sheet does not block ready either", () => {
+    expect(avatarReadinessGaps(makeAvatar({ sheetStale: true }))).toEqual([]);
   });
 
   it("an uploaded front without consent has the gap 'consent'", () => {
@@ -83,7 +95,7 @@ describe("withStatus", () => {
   it("states status: draft when the result is incomplete, even if current.status is already draft", () => {
     // Guards the race this fixes: a caller must never rely on current.status already being
     // "draft" to skip stating it — the row it writes over may not match `current` any more.
-    const current = makeAvatar({ status: "draft", sheet: null });
+    const current = makeAvatar({ status: "draft", front: null });
     expect(withStatus(current, { story: "new" }).status).toBe("draft");
   });
 
@@ -102,9 +114,9 @@ describe("planAvatarUpdate", () => {
   });
 
   it("refuses ready while something is missing, and names it", () => {
-    const current = makeAvatar({ status: "draft", sheet: null });
+    const current = makeAvatar({ status: "draft", front: null });
     const result = planAvatarUpdate(current, { status: "ready" }, ctx);
-    expect(result).toEqual({ ok: false, error: "Still needed: a profile sheet." });
+    expect(result).toEqual({ ok: false, error: "Still needed: a front image." });
   });
 
   it("allows ready when the same request supplies the missing name", () => {

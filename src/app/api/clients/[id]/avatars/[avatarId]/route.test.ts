@@ -49,11 +49,11 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
   });
 
   it("PATCH refuses ready while a part is missing, and says which", async () => {
-    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ status: "draft", sheet: null }));
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ status: "draft", front: null }));
     const { PATCH } = await import("./route");
     const res = await PATCH(patch({ status: "ready" }), { params });
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("Still needed: a profile sheet.");
+    expect((await res.json()).error).toBe("Still needed: a front image.");
   });
 
   it("PATCH ignores an unknown 'declaration' field in the body", async () => {

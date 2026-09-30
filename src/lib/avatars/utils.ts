@@ -38,8 +38,6 @@ export function avatarReadinessGaps(avatar: ReadinessInput): ReadinessGap[] {
   const gaps: ReadinessGap[] = [];
   if (!avatar.name.trim()) gaps.push("name");
   if (!avatar.front) gaps.push("front");
-  if (!avatar.sheet) gaps.push("sheet");
-  else if (avatar.sheetStale) gaps.push("sheet-stale");
   if (needsLikenessConsent(avatar)) gaps.push("consent");
   return gaps;
 }

@@ -53,7 +53,9 @@ describe("POST front", () => {
     expect(removeObject).not.toHaveBeenCalled();
   });
 
-  it("a generated front makes the avatar generic, clears consent, stales the sheet and returns to draft", async () => {
+  // D295 — the sheet is optional, so the one thing this invalidates no longer blocks Save: a
+  // ready avatar stays ready through a front swap, with its sheet marked out of date.
+  it("a generated front makes the avatar generic, clears consent and stales the sheet, staying ready", async () => {
     const { POST } = await import("./route");
     const res = await POST(post({ generationId: "g1" }), { params });
     expect(res.status).toBe(200);
@@ -61,9 +63,9 @@ describe("POST front", () => {
     const patch = vi.mocked(updateAvatar).mock.calls[0][2];
     expect(patch.front?.source).toMatchObject({ kind: "generated", generationId: "g1", mode: "text" });
     expect(patch).toMatchObject({
-      personType: "generic", likenessConsentBy: null, likenessConsentAt: null,
-      sheetStale: true, status: "draft",
+      personType: "generic", likenessConsentBy: null, likenessConsentAt: null, sheetStale: true,
     });
+    expect(patch.status).toBeUndefined();
   });
 
   it("removes the uploaded photo it replaces", async () => {

@@ -37,11 +37,13 @@ export const LIKENESS_CONSENT_STATEMENT = "I have this person's permission to us
 export const LIKENESS_CONSENT_CHANGED_ERROR = "The front image changed. Confirm the permission again.";
 
 // Completes the sentence "Still needed: …".
+// D295 — the profile sheet and the voice are deliberately absent. A sheet is made by editing
+// the front image, and Seedance refuses an edited image as a reference, so a sheet can never be
+// a production input: it is a reference document for people, and requiring one held back
+// avatars that were ready to use. The Studio card still shows its state, as information.
 export const READINESS_GAP_LABELS = {
   name: "a name",
   front: "a front image",
-  sheet: "a profile sheet",
-  "sheet-stale": "a profile sheet that matches the new front image",
   consent: "permission to use this person's likeness",
 } as const;
 

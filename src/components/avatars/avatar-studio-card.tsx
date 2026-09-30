@@ -73,10 +73,11 @@ export function AvatarStudioCard({
 
       <ul>
         <Row done={has("front")} label="Front image" detail={has("front") ? "Added" : "Needed"} />
+        {/* D295 — information, not a gap: a sheet never blocks Save. */}
         <Row
-          done={has("sheet") && has("sheet-stale")}
+          done={Boolean(avatar?.sheet) && !avatar?.sheetStale}
           label="Profile sheet"
-          detail={!has("sheet") ? "Needed" : !has("sheet-stale") ? "Out of date" : "Added"}
+          detail={!avatar?.sheet ? "Optional" : avatar.sheetStale ? "Out of date" : "Added"}
         />
         {avatar?.front && avatar.personType && (
           <Row done label="Person type" detail={PERSON_TYPE_LABELS[avatar.personType]} />
