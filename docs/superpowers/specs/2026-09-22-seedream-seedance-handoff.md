@@ -374,7 +374,7 @@ a voice checkbox in B2 that nobody reconciles.
 - **OmniHuman** account access (§7) — unrelated to these specs, still blocked.
 
 
-## 0.4 The prompt changes, inspected line by line (2026-09-30)
+## 0.4 The prompt changes — what to build (2026-09-30)
 
 **Genre and packing are independent —
 brand and UGC each have a single-shot and a multishot form, and all four cells are real.** The
@@ -407,21 +407,45 @@ It is premise:**
 | What they do | wear or use the product in a scene | **talk to camera** about it |
 | Preservation | the product survives the beat | the product **and the person** survive across beats |
 
-### The walk from the Script — what changes where
+### The walk from the Script — what to change, file by file
 
-| Stage | File | Brand | UGC |
-|---|---|---|---|
-| Script parse | `script-parse.ts` | — | **no change.** It transcribes; `ai_production_type` is free text, a default hint at most, never routing |
-| Grouping | *(no prompt)* | — | — |
-| Composer *(Shot node only)* | `shot-compose.ts` | unchanged | new record — today it is *"a shot composer for premium, slow, tactile D2C beauty reels"* |
-| | `shot-roles.ts` | unchanged | new role set + default — `lifestyle` *forbids* body-contact as the subject; `DEFAULT_SHOT_ROLE` is `hero` |
-| | `shot-controls.ts` | unchanged | new options — 24–100 mm + softbox today; UGC wants handheld, phone, ring light |
-| Image prompt | `prompt-generate.ts` | **fix: branch by model** — OpenAI receives a prompt headed "for Nano Banana" today | per-shot stills are unused in UGC; base face, model sheet and composite each have their own record |
-| Motion, single | `video-prompt-{veo,kling,omni,seedance}` | unchanged | **2 new:** `-ugc-seedance`, `-ugc-omni` |
-| Motion, multishot | `multishot-prompt-{omni,kling,seedance}` | unchanged | **2 new:** `-ugc-seedance`, `-ugc-omni` |
-| Shared | `SPINE` | unchanged | **new `UGC_SPINE`** — `SPINE` is first-frame and preservation-first |
-| Shared | `VO_PERFORMANCE_RULES` | **fix: wire into the 4 single-shot records** | inherits the fix |
-| Shared | `MULTISHOT_SHARED_CRAFT` | **add person-preservation** | inherits it |
+| Stage | File | The change to make |
+|---|---|---|
+| Script parse | `script-parse.ts` | **Nothing.** It transcribes what the designer wrote |
+| Grouping | *(no prompt)* | Nothing |
+| Composer *(single-shot only)* | `shot-compose.ts` | **Add `shot-compose-ugc`:** *"a shot composer for fast, handheld, spoken-to-camera UGC."* Ideas must be concrete about what the person does with the product, what they say, and where they stand. Avoid: studio staging, product-only frames, glamour slow-motion |
+| | `shot-roles.ts` | **Add a UGC role set and make `talk-to-camera` its default** — see the catalog below |
+| | `shot-controls.ts` | **Add UGC options** to each control — see the catalog below |
+| Image prompt | `prompt-generate.ts` | **Split it by model** — an `imagePromptFor(target)` switch with a Nano Banana record and an OpenAI one, exhaustive, no `default`. UGC adds nothing here: base face, model sheet and composite each carry their own record |
+| Motion, single | `video-prompt-{veo,kling,omni,seedance}` | **Add `-ugc-seedance` and `-ugc-omni`,** each composing `UGC_SPINE` where the others compose `SPINE`. Veo and Kling get no UGC form — neither takes a face reference |
+| Motion, multishot | `multishot-prompt-{omni,kling,seedance}` | **Add `-ugc-seedance` and `-ugc-omni`,** composing the existing multishot blocks **plus** `UGC_SPINE` |
+| Shared | `SPINE` | **Leave it.** Write `UGC_SPINE` alongside — two rules, text below |
+| Shared | `VO_PERFORMANCE_RULES` | **Import it into the four single-shot records.** No text change; they simply do not use it today |
+| Shared | `MULTISHOT_SHARED_CRAFT` | **Extend `PRESERVATION` to people** — text below |
+
+### The two catalogs, as content
+
+**`shot-roles.ts` — the UGC roles.** Same `ShotRole` shape: `key`, `label`, `slots`, `avoid`.
+
+| Role | Must make concrete | Avoid |
+|---|---|---|
+| **`talk-to-camera`** *(default)* | the line delivered, where they stand, what the hands do, framing | staged product beauty, no eye contact, wide environmental scenes |
+| `unboxing` | the packaging, the reveal, the first reaction, the hands | studio seamless, glamour slow-motion |
+| `demo` | the action demonstrated, the product in use, what visibly changes | impossible results, before/after splits |
+| `problem` | the annoyance, how it reads on the face, the product absent | medical framing, exaggerated distress |
+| `first-impression` | the reaction, the detail they notice, the verdict | scripted-ad delivery |
+
+**`shot-controls.ts` — the UGC options,** added to the existing three controls:
+
+| Control | Add |
+|---|---|
+| lens | front camera (selfie), phone wide, handheld 35 mm |
+| composition | arm's length, over-the-shoulder product, close on hands |
+| lighting | window daylight, ring light, available indoor |
+
+These matter more than a preset list usually would: `prompt-generate.ts` states that the Shot
+controls block **overrides** its own vocabulary, so without them a UGC shot inherits
+"85 mm f/1.8, studio softbox" whatever the writer asks for.
 
 Two of those are **brand-side fixes UGC merely exposes** — the image-prompt branching and the
 `VO_PERFORMANCE_RULES` wiring — and are worth doing on their own.
