@@ -35,6 +35,19 @@ export type AvatarVoice = {
 
 export type AvatarVoiceSample = { url: string; durationSeconds: number; sourceKey: string };
 
+// One generated front image the operator can pick (plan 2). Read back from `generations`;
+// no table of its own.
+export type AvatarCandidate = {
+  generationId: string;
+  batchId: string | null;
+  url: string;
+  modelId: string;
+  createdAt: string;
+  width: number | null;
+  height: number | null;
+  sizeBytes: number;
+};
+
 export type Avatar = {
   id: string;
   clientId: string;

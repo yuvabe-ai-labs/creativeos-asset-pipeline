@@ -1,7 +1,8 @@
 import type {
-  Avatar, AvatarImage, AvatarStatus, AvatarVoice, AvatarVoiceSample, PersonType,
+  Avatar, AvatarImage, AvatarStatus, AvatarVoice, AvatarVoiceSample, PersonType, AvatarCandidate,
 } from "./schema";
 import type { AvatarPatch } from "./utils";
+import type { GenerationRow } from "@/lib/db/types";
 
 export type AvatarRow = {
   id: string;
@@ -62,4 +63,50 @@ export function patchToRow(patch: AvatarPatch): Record<string, unknown> {
     if (patch[key] !== undefined) out[COLUMN[key]] = patch[key];
   }
   return out;
+}
+
+// ── Generations → avatar images (plan 2) ──────────────────────────────────────
+
+type GenerationInputs = { slot?: string; prompt?: string; batchId?: string | null; referenceUrls?: unknown[] };
+type GenerationMeta = { width?: number | null; height?: number | null; sizeBytes?: number };
+
+/** A succeeded avatar generation as an image whose source records how it was made (D289). */
+export function generationToImage(row: GenerationRow): AvatarImage | null {
+  if (row.status !== "succeeded" || !row.output_snapshot) return null;
+  const inputs = (row.inputs_snapshot ?? {}) as GenerationInputs;
+  const meta = (row.meta ?? {}) as GenerationMeta;
+  return {
+    url: row.output_snapshot,
+    width: meta.width ?? null,
+    height: meta.height ?? null,
+    sizeBytes: meta.sizeBytes ?? 0,
+    source: {
+      kind: "generated",
+      modelId: row.model_used ?? "",
+      mode: (inputs.referenceUrls?.length ?? 0) > 0 ? "edit" : "text",
+      prompt: inputs.prompt ?? "",
+      generatedAt: row.created_at,
+      generationId: row.id,
+      // runAvatarGeneration stores the provider's bytes as they arrive.
+      untouched: true,
+    },
+  };
+}
+
+/** A succeeded FRONT generation as something the operator can pick. */
+export function generationToCandidate(row: GenerationRow): AvatarCandidate | null {
+  const inputs = (row.inputs_snapshot ?? {}) as GenerationInputs;
+  if (inputs.slot !== "front") return null;
+  const image = generationToImage(row);
+  if (!image) return null;
+  return {
+    generationId: row.id,
+    batchId: inputs.batchId ?? null,
+    url: image.url,
+    modelId: row.model_used ?? "",
+    createdAt: row.created_at,
+    width: image.width,
+    height: image.height,
+    sizeBytes: image.sizeBytes,
+  };
 }

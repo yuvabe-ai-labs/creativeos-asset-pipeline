@@ -14,6 +14,7 @@ import {
   pathForMarketMedia,
   extForContentType,
   pathForAvatarImage,
+  pathForAvatarGenerated,
 } from "./paths";
 
 describe("sanitizeSlug", () => {
@@ -224,5 +225,15 @@ describe("pathForAvatarImage", () => {
 
   it("keeps the two slots apart", () => {
     expect(pathForAvatarImage({ ...args, slot: "sheet" })).toContain("/avatars/a1/sheet/");
+  });
+});
+
+describe("pathForAvatarGenerated", () => {
+  it("keeps generated images apart from uploads, per slot", () => {
+    const path = pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "front", ext: "png" });
+    expect(path.startsWith("clients/c1/avatars/a1/generated/front/")).toBe(true);
+    expect(path.endsWith(".png")).toBe(true);
+    expect(pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "jpg" }))
+      .toContain("/generated/sheet/");
   });
 });

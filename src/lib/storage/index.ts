@@ -16,6 +16,7 @@ import {
   pathForVideoGen,
   pathForVideoGenVoice,
   pathForAvatarImage,
+  pathForAvatarGenerated,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 import type { AvatarImageSlot } from "@/lib/avatars/schema";
@@ -244,6 +245,24 @@ export async function signAvatarImageUpload(args: {
     filename: args.filename,
   });
   return _sign(path, args.contentType);
+}
+
+// Stores a generated avatar image exactly as the provider returned it (no re-encode).
+export async function uploadAvatarGenerated(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  ext: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForAvatarGenerated({
+    clientId: args.clientId,
+    avatarId: args.avatarId,
+    slot: args.slot,
+    ext: args.ext,
+  });
+  return _upload(path, args.body, args.contentType);
 }
 
 // Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —

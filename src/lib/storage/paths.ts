@@ -150,6 +150,18 @@ export function pathForAvatarImage(args: {
   return `clients/${args.clientId}/avatars/${args.avatarId}/${args.slot}/${name}`;
 }
 
+/** Where a Studio-generated avatar image lives — under `generated/`, apart from uploads, so
+ *  the upload finalize route's prefix check can never be satisfied by a generated object. */
+export function pathForAvatarGenerated(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  ext: string;
+}): string {
+  const name = buildStoredName(undefined, { slug: "output", ext: args.ext });
+  return `clients/${args.clientId}/avatars/${args.avatarId}/generated/${args.slot}/${name}`;
+}
+
 /**
  * Where a review annotation's painted overlay lives — under the node it annotates, so the
  * mask sits beside the image or video it marks up.
