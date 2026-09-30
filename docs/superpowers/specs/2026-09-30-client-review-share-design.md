@@ -117,8 +117,10 @@ shape would bend the internal approval model.
 | `GET /api/r/[token]/video` | same-origin, Range-capable stream of **this review's** `video_path` only |
 
 - Note routes check `note.review_id === review.id`, so one token cannot touch another review's notes.
-- Note body validation reuses `validateAnnotations` from `lib/review-annotations/payload.ts`;
-  `author_name` is trimmed and capped at 60 characters, `note` at the existing note limit.
+- Mask validation reuses `MAX_MASK_BYTES` (1 MB) from `lib/review-annotations/constants.ts`.
+  One note carries at most one mask, so a request stays far under Vercel's 4.5 MB function body
+  cap. `author_name` is trimmed, required, and capped at 60 characters; `note` is required and
+  capped at 2,000 characters (new constants in `src/lib/client-review/constants.ts`).
 - The page sends `X-Robots-Tag: noindex` and `Referrer-Policy: no-referrer`.
 
 **Why a dedicated video proxy:** painting a frame draws the paused `<video>` onto a `<canvas>`;
