@@ -645,3 +645,33 @@ select conname from pg_constraint where conname = 'generations_owner_check';
 -- expect 0 — no row is owned by nothing
 select count(*) from generations where node_id is null and avatar_id is null;
 ```
+
+## Migration 0043 — `client_voices` (2026-09-30)
+
+`supabase/migrations/0043_client_voices.sql`. Paste into the Supabase SQL editor → Run.
+
+Creates `client_voices` (D292): which ElevenLabs account voices belong to which client — one
+row per voice cloned for the client or saved from the Voice Library for it. One ElevenLabs
+account serves every client, so this is what keeps one client's clone out of another's picker.
+RLS is enabled with zero policies (default-deny, as `0041`).
+
+**Purely additive** — one new table, no existing table altered, no backfill. Voices already on
+the ElevenLabs account (anything picked in Change voice before this, or cloned by hand) are not
+recorded for any client and do not appear under "This client" in the Avatar Studio; Change voice
+on Video Gen still lists the whole account and is unaffected.
+
+**Not safe to re-run:** `create table` fails if the table exists. That failure is harmless.
+
+**Ordering:** apply before deploying the app code. Until it lands, the Avatar Studio's voice
+picker fails to load with `relation "client_voices" does not exist`.
+
+**Verify after running:**
+
+```sql
+-- expect 1 row, rowsecurity = true
+select relname, relrowsecurity from pg_class where relname = 'client_voices';
+
+-- expect 1 row: the (client_id, elevenlabs_voice_id) uniqueness
+select conname from pg_constraint
+where conrelid = 'client_voices'::regclass and contype = 'u';
+```

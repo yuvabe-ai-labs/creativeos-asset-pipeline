@@ -6016,6 +6016,12 @@ clones to all. Two consumers (Studio, Change voice) is the point at which the pi
 Auto-deleting a voice when its avatar is archived (archived avatars stay on canvases that may
 still be re-voiced). Voice Design (not needed now).
 
+**As built (2026-09-30).** The picker takes an optional `clientId` and only the Avatar Studio
+passes one. Change voice on Video Gen still lists the whole account: voices chosen there before
+this, or cloned by hand, are recorded for no client, and scoping it now would hide them. The
+picker files also stay under `components/nodes/video-gen-*` for now. Both are follow-ups, not
+reversals. Removal deletes the ElevenLabs voice only when no other client has it recorded.
+
 **Refines.** D283, D284.
 **Originated →** `2026-09-29-client-avatars-design.md` §6.
 
@@ -6036,6 +6042,11 @@ costs are small and pricing them needs its own pass.
 recording of this entry; avatars do not run on Kling — D290). Voice as a per-clip choice in the
 Video Gen focus view (today's shape; consistency becomes operator discipline).
 
-**Deferred.** Billing ElevenLabs usage in credits.
+**As built (2026-09-30).** Native and named are built; the declaration is set through its own
+route and stored as a snapshot on the avatar, conditioned on the front image that decided what
+was allowed. A front change that makes the avatar a real person drops a native voice. Anchor is
+deferred: it needs a generated clip, so it arrives with canvas use.
+
+**Deferred.** Billing ElevenLabs usage in credits. The anchor declaration.
 **Originated →** `2026-09-29-client-avatars-design.md` §6.3, §7.3.
 

@@ -236,53 +236,69 @@ avatars.
 
 ### 6.1 Shared picker
 
-The picker moves from `src/components/nodes/video-gen-change-voice-*` and
-`video-gen-voice-picker-*` to `src/components/voice/`, since it now has two consumers. Layout,
-filters, search, sort and rows are unchanged. Changes:
+The Change voice picker is reused as it is, with an optional `clientId`. Layout, filters,
+search, sort and rows are unchanged. With a `clientId`:
 
 | Change | Detail |
 |---|---|
-| "My voices" → **This client** | Lists `client_voices` for the client plus ElevenLabs stock voices tagged *default*. Rows are tagged *cloned* or *from library*. |
-| **Voice Library** tab | Unchanged. Picking a voice calls the existing save route, which now also inserts a `client_voices` row. |
-| **+ Clone voice** | A dashed primary button in the dialog header. The dialog body swaps to the clone form with a back arrow. |
-| Client context | The picker takes a `clientId`. Change voice on Video Gen passes the canvas's client, so it shows the same client-scoped list. |
+| "My voices" → **This client** | The client's voices (`client_voices`) plus ElevenLabs stock voices, read from `GET /api/clients/[id]/voices`. |
+| **Voice Library** tab | Unchanged. The Studio saves a pick through `POST /api/clients/[id]/voices/save`, which saves it to the account (or reuses the copy there) and records it for the client. |
+| **+ Clone voice** | A dashed primary button in the dialog header. The dialog body swaps to the clone form with a back arrow; a cloned voice is used straight away. |
+| Remove | A client's own voice has a remove control in its row, confirmed in the row. |
 
-Voices already chosen on existing nodes keep working; nodes store the ElevenLabs id.
+**As built (2026-09-30), two things are deferred:**
+
+- **Change voice on Video Gen still lists the whole account.** Voices chosen there before this
+  feature, or cloned by hand, are recorded for no client, so switching it to "This client" now
+  would hide them. It passes no `clientId` and behaves exactly as before. Switching it needs a
+  way to attach existing account voices to a client first.
+- **The picker files stay under `src/components/nodes/video-gen-*`.** They now have two
+  consumers and belong in `src/components/voice/` (where the clone form already is); the move
+  is mechanical and was left out to keep this change small.
 
 ### 6.2 Clone
 
-`POST /api/clients/[id]/voices/clone`, multipart. Fields: one or more audio files (mp3, wav, m4a)
-or a browser recording, name, labels, remove-background-noise, and a required consent flag. It
-calls ElevenLabs `POST /v1/voices/add` with the name `{client name} · {name}`, inserts
+`POST /api/clients/[id]/voices/clone`, multipart: one to ten audio files (mp3, wav, m4a), a name,
+an optional description, remove-background-noise, and a required consent flag. It calls
+ElevenLabs `POST /v1/voices/add` with the name `{client name} · {name}`, records the voice in
 `client_voices` with `source = 'clone'`, invalidates the account-voice cache, and returns the
 voice selected. Without consent the route returns 400.
+
+The audio passes through a serverless function, whose request body is capped at 4.5 MB, so the
+files may total at most 4 MB — a one to two minute mp3, which is what ElevenLabs recommends, is
+well inside that. Larger uploads need the signed-upload path and are not supported yet.
 
 ### 6.3 Voice declaration
 
 The avatar declares one voice and every generation realises it (handoff design, "voice
-consistency"). The declaration is one of:
+consistency"). It is set in the Studio's third step, **Voice**, which is optional.
 
-| Declaration | Meaning | Available for |
-|---|---|---|
-| Native | The engine's own generated voice | Generated avatars (Seedance) |
-| Anchor | The audio of the first clip the operator likes, carried forward as `reference_audio` | Generated avatars (Seedance) |
-| Named voice | An ElevenLabs `voiceId` and its settings, applied by re-voicing after generation (D282–D284) | Both kinds |
+| Declaration | Meaning | Available for | Status |
+|---|---|---|---|
+| Native | The engine's own generated voice | Generated avatars (Seedance) | Built |
+| Named voice | An ElevenLabs account voice, applied by re-voicing after generation (D282–D284) | Both kinds | Built |
+| Anchor | The audio of the first clip the operator likes, carried forward as `reference_audio` | Generated avatars (Seedance) | Deferred: it needs a generated clip, so it arrives with canvas use |
 
 A real-person avatar runs on Gemini Omni, which accepts no audio input, so its only option is a
-named voice. Plan 3 stores the declaration in `voice`; `voice_sample` holds the anchor clip (the
-extracted mp3 and which clip it came from) when the declaration is Anchor. No sample is
-synthesised for Kling: avatars do not run on Kling (§8).
+named voice. `PUT /api/clients/[id]/avatars/[avatarId]/voice` takes `{ mode: "none" | "native" }`
+or `{ mode: "named", voiceId }`; the server looks a named voice up on the account, checks it is
+this client's or a stock voice, and stores a snapshot (id, name, labels, preview URL) in `voice`.
+The write is conditioned on the front image that decided what was allowed. A front change that
+turns a generated avatar into a real person drops a native voice; a named voice survives.
+`voice_sample` is unused until Anchor is built.
 
 ### 6.4 Removing a voice
 
-Voices are never deleted automatically. **This client → ⋯ → Remove voice** deletes the voice from
-ElevenLabs and its `client_voices` row, and is allowed only when no non-archived avatar of that
-client uses it (`canRemoveVoice`).
+Voices are never deleted automatically. A client's own voice has a remove control in the
+picker. `DELETE /api/clients/[id]/voices/[voiceId]` is refused (409, naming the avatars) while a
+non-archived avatar of that client declares it. The ElevenLabs voice itself, and its slot, is
+deleted only when no other client has the same voice recorded; ElevenLabs is called first, so a
+refusal leaves the record in place.
 
 ### 6.5 Slot limits
 
-ElevenLabs plans cap custom voices, and library saves and clones both count. A voice-limit error
-is translated to: "The ElevenLabs account has no free voice slots. Remove an unused voice, or
+ElevenLabs plans cap custom voices, and library saves and clones both count. A `voice_limit_reached` error from
+ElevenLabs is answered with 409 and: "The ElevenLabs account has no free voice slots. Remove an unused voice, or
 upgrade the plan."
 
 ---
