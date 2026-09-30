@@ -7,6 +7,7 @@ import {
   missingRefsMessage,
   singleTakeRefDialect,
   refEntriesOf,
+  resolveRefMentions,
 } from "../ref-binding";
 import {
   imageRefDialect,
@@ -113,5 +114,34 @@ describe("refEntriesOf", () => {
       { id: "a", label: "File: A.png" },
       { id: "g", label: "Image" },
     ]);
+  });
+});
+
+describe("resolveRefMentions", () => {
+  const refs = [
+    { id: "a", label: "File: turnaround.png" },
+    { id: "b", label: "File: kitchen.png" },
+  ];
+
+  it("numbers a connected image by its position in the roster, 1-based, with its name", () => {
+    expect(
+      resolveRefMentions("@[File: turnaround.png](a) is the character, identity only", refs),
+    ).toBe("reference image 1 (turnaround.png) is the character, identity only");
+  });
+
+  it("numbers every mention independently", () => {
+    expect(
+      resolveRefMentions("look from @[File: kitchen.png](b), face from @[File: turnaround.png](a)", refs),
+    ).toBe("look from reference image 2 (kitchen.png), face from reference image 1 (turnaround.png)");
+  });
+
+  // A disconnected image must never be renumbered onto whatever now sits in its old slot.
+  it("degrades a mention of an image no longer connected to its plain name", () => {
+    expect(resolveRefMentions("use @[File: gone.png](z)", refs)).toBe("use gone.png");
+  });
+
+  it("returns text with no mentions unchanged", () => {
+    expect(resolveRefMentions("keep it warm", refs)).toBe("keep it warm");
+    expect(resolveRefMentions("", refs)).toBe("");
   });
 });

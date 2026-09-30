@@ -332,7 +332,13 @@ export async function POST(
       });
       await setActiveVersion(nodeId, version.id);
 
-      const cost = result.tokensUsed ? computeImageCost(modelId, result.tokensUsed) : null;
+      // A provider billed per image (Seedream) reports its exact charge; token-billed ones don't.
+      const cost =
+        result.costUsd !== undefined
+          ? { usd: result.costUsd }
+          : result.tokensUsed
+            ? computeImageCost(modelId, result.tokensUsed)
+            : null;
       // cost is only ever null when the provider returned no token usage — an actual cost
       // of 0 credits in that case, not a reason to skip settlement.
       const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;

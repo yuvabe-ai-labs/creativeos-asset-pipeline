@@ -15,6 +15,19 @@ export type VoLine = {
   language?: string;
 };
 
+/**
+ * D286 — one suggested cut inside a scene. The parse splits a scene only where the script itself
+ * signals cuts; a continuous scene is exactly one beat. Never rendered on the Script node — beats
+ * become cuts only when the operator turns multishot on.
+ *
+ * Visual only — no voiceover. A split scene's lines play over the WHOLE multishot sequence
+ * (`MultishotNodeData.sequenceVoiceover`): never split, never parked on one short cut.
+ */
+export type SceneBeat = {
+  description: string;
+  duration_seconds: number;
+};
+
 export type ReelShot = {
   description?: string;
   /** Timing exactly as written in the script — "0-3 sec". Display only. */
@@ -41,6 +54,10 @@ export type ReelShot = {
    * checked invariant rather than silent drift.
    */
   voiceover?: VoLine[];
+  /** D286 — the parser's suggested cuts for this scene. Absent on a pre-v10 parse. */
+  beats?: SceneBeat[];
+  /** D286 — `sceneFingerprint` of this row when `beats` were split; a mismatch marks them stale. */
+  beatsFor?: string;
 };
 
 export type ReelScript = {

@@ -192,7 +192,11 @@ export function checkLadder(
   if (cap.maxCuts !== null && cuts.length > cap.maxCuts) {
     return {
       ok: false,
-      reason: `${cuts.length} shots · ${cap.label} allows ${cap.maxCuts}. Regroup the shots on the Script.`,
+      // D279 — was "Regroup the shots on the Script.", which was the only route before shots
+      // could be removed on the node itself. This sentence renders verbatim on the Multishot
+      // card, the Multishot focus view and Video Gen's disabled Generate, so it must name an
+      // action reachable from all three.
+      reason: `${cuts.length} shots · ${cap.label} allows ${cap.maxCuts}. Remove a shot, or switch the model.`,
     };
   }
   const short = cuts.find((c) => c.seconds < cap.minCutSeconds);

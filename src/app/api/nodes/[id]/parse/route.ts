@@ -11,6 +11,7 @@ import { normalizeSlices, buildParseContext } from "@/lib/kb/parse-context";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { compileScript } from "@/lib/nodes/script";
 import { scriptParsePrompt } from "@/prompts/script-parse";
+import { stampSceneBeats } from "@/lib/nodes/normalize-beats";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
 // POST /api/nodes/:id/parse  — extract a finished reel script into structured JSON.
@@ -68,7 +69,9 @@ export async function POST(
         ],
       });
       const content = completion.choices[0]?.message?.content ?? "{}";
-      const output = JSON.parse(content);
+      // D286 — make each scene's beats add up and keep only valid tied lines, and record which row
+      // text they were split from, so a later edit reads as a stale split.
+      const output = stampSceneBeats(JSON.parse(content));
 
       const version = await insertVersion({
         nodeId,

@@ -6,6 +6,7 @@ import {
   checkPlanLimits,
   planIsDirty,
   setBeatText,
+  planCoverage,
   storePlanRefs,
   renderPlanRefs,
   planMissingRefs,
@@ -749,5 +750,119 @@ describe("plan reference binding (BUG-010)", () => {
     const beat = `${"x".repeat(500)} @[File: A-very-long-reference-name.png](a)`;
     const p: MultishotPlan = { version: 1, look: "", beats: [{ cutId: "c1", text: beat }] };
     expect(checkPlanLimits(p, [{ id: "c1", text: "", seconds: 3 }], KLING, ["a"])).toEqual({ ok: true });
+  });
+});
+
+describe("planCoverage", () => {
+  const cut = (id: string): MultishotCut => ({ id, text: `shot ${id}`, seconds: 2 });
+  const plan = (...beats: [string, string][]): MultishotPlan => ({
+    version: 1,
+    look: "Warm low sun.",
+    beats: beats.map(([cutId, text]) => ({ cutId, text })),
+  });
+
+  it("reports nothing when every cut has a written beat", () => {
+    expect(planCoverage(plan(["c1", "keys"], ["c2", "cab"]), [cut("c1"), cut("c2")])).toEqual({
+      unwritten: [],
+      orphaned: [],
+    });
+  });
+
+  it("reports a cut with no beat at all", () => {
+    expect(planCoverage(plan(["c1", "keys"]), [cut("c1"), cut("c2")])).toEqual({
+      unwritten: ["c2"],
+      orphaned: [],
+    });
+  });
+
+  // THE CASE THIS FUNCTION EXISTS FOR. renderPlan resolves a missing beat to "", so a blank beat
+  // and an absent one produce the identical shipped artifact — an empty shot, billed.
+  it("counts a blank beat as unwritten", () => {
+    expect(planCoverage(plan(["c1", "keys"], ["c2", "   "]), [cut("c1"), cut("c2")])).toEqual({
+      unwritten: ["c2"],
+      orphaned: [],
+    });
+  });
+
+  it("reports a beat whose cut is gone as orphaned, not unwritten", () => {
+    expect(planCoverage(plan(["c1", "keys"], ["c9", "gone"]), [cut("c1")])).toEqual({
+      unwritten: [],
+      orphaned: ["c9"],
+    });
+  });
+
+  it("reports both at once", () => {
+    expect(planCoverage(plan(["c9", "gone"]), [cut("c1"), cut("c2")])).toEqual({
+      unwritten: ["c1", "c2"],
+      orphaned: ["c9"],
+    });
+  });
+
+  // Discriminating on purpose: c3's beat is PRESENT but blank, and sits FIRST in plan.beats while
+  // c3 is last on the ladder. Cut order gives ["c2","c3"]; anything deriving the order from
+  // plan.beats gives ["c3","c2"]. The previous version of this test used two entirely-absent cuts,
+  // which have no beat-order position at all — so it passed under either implementation.
+  it("returns unwritten in CUT order, not beat order", () => {
+    const result = planCoverage(plan(["c3", "   "], ["c1", "keys"]), [
+      cut("c1"),
+      cut("c2"),
+      cut("c3"),
+    ]);
+    expect(result.unwritten).toEqual(["c2", "c3"]);
+  });
+
+  it("treats an empty ladder as covered — checkLadder is what rejects that", () => {
+    expect(planCoverage(plan(["c1", "keys"]), [])).toEqual({
+      unwritten: [],
+      orphaned: ["c1"],
+    });
+  });
+});
+
+// D286 — a line that spans the sequence renders ONCE, between the look and the ladder, and never
+// inside any shot.
+describe("renderPlan — sequence voiceover", () => {
+  const seq: VoLine[] = [{ text: "Made slowly; by hand.", speaker: "narrator" }];
+  const look = "Low sun from camera-left, warm grey concrete, 35mm at knee height.";
+
+  it("sits between the look and Omni's ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], seq)).toBe(
+      `${look}\n\n` +
+        'Across every shot — Voiceover: "Made slowly; by hand."\n\n' +
+        "[0-2s] A hand sweeps keys off oak.\n" +
+        "[2-5s] A cab door swings open onto sunlit paving.",
+    );
+  });
+
+  it("replaces semicolons on Kling so the line cannot end a shot", () => {
+    const rendered = renderPlan(perModelPlan, planCuts, KLING, [], seq);
+    expect(rendered).toContain('Across every shot — Voiceover: "Made slowly, by hand."\n\nshot 1, 2,');
+    expect(rendered.match(/;/g)).toHaveLength(2);
+  });
+
+  it("sits before Seedance's ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, SEEDANCE, [], seq)).toContain(
+      'Across every shot — Voiceover: "Made slowly; by hand."\n\n0-2s:',
+    );
+  });
+
+  it("leads the prompt when there is no look", () => {
+    expect(
+      renderPlan({ ...perModelPlan, look: "" }, planCuts, OMNI, [], seq).startsWith("Across every shot — "),
+    ).toBe(true);
+  });
+
+  it("renders nothing for no lines or an empty list", () => {
+    const plain = renderPlan(perModelPlan, planCuts, OMNI);
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], [])).toBe(plain);
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], undefined)).toBe(plain);
+  });
+
+  it("counts against the whole-prompt budget, not any cut's", () => {
+    const long: VoLine[] = [{ text: "x".repeat(KLING.maxPromptChars!), speaker: "narrator" }];
+    const result = checkPlanLimits(perModelPlan, planCuts, KLING, [], long);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/whole prompt/);
+    expect(checkPlanLimits(perModelPlan, planCuts, KLING).ok).toBe(true);
   });
 });

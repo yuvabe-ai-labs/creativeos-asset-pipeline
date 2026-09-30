@@ -1,6 +1,7 @@
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { renderVoiceover } from "@/lib/nodes/voiceover";
+import { readVoLines, renderVoiceover } from "@/lib/nodes/voiceover";
+import { SEQUENCE_VO_PREFIX } from "@/lib/nodes/multishot-plan";
 
 export type NodeOutputInput = {
   type: string;
@@ -44,7 +45,7 @@ export function getNodeOutput(node: NodeOutputInput): string {
       // activeOutput, so every surface asking a Multishot node what it holds got "" and
       // rendered "No content yet." beside a node full of shots.
       const cuts = (node.data.cuts ?? []) as MultishotCut[];
-      return cuts
+      const shots = cuts
         .filter((c) => c && typeof c.text === "string")
         .map((c, i) => {
           // The spoken line is part of what this cut IS — it is appended to this shot's beat in
@@ -53,8 +54,10 @@ export function getNodeOutput(node: NodeOutputInput): string {
           const spoken = renderVoiceover(c.voiceover);
           const head = `Shot ${i + 1} (${c.seconds}s): ${c.text.trim() || "(no description yet)"}`;
           return spoken ? `${head} ${spoken}` : head;
-        })
-        .join("\n");
+        });
+      // D286 — lines over the whole clip lead, as they do in the rendered prompt.
+      const spanning = renderVoiceover(readVoLines(node.data.sequenceVoiceover));
+      return [...(spanning ? [`${SEQUENCE_VO_PREFIX}${spanning}`] : []), ...shots].join("\n");
     }
     case "file": {
       // File nodes have no version system — content lives in node.data.

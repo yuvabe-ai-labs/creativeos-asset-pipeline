@@ -1,6 +1,6 @@
 import type { ZodTypeAny } from "zod";
 
-export type ImageProvider = "openai" | "gemini";
+export type ImageProvider = "openai" | "gemini" | "seedream";
 
 export type ImageTokenUsage = {
   text_input_tokens: number;
@@ -21,6 +21,7 @@ export type ImageGenResult = {
   imageBase64: string;       // raw bytes from provider, uploaded to Storage immediately
   mimeType: string;          // "image/png" | "image/jpeg" | "image/webp"
   tokensUsed: ImageTokenUsage;
+  costUsd?: number;          // exact per-image charge, for providers not billed by token (Seedream)
 };
 
 // ── Param manifest types ──────────────────────────────────────────────────────

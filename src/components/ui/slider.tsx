@@ -8,6 +8,14 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  // Base UI's Root renders a wrapping `<div>` — `id`/`aria-*` left in `...props` would land
+  // there, not on the focusable element. The only thing screen readers expose is each
+  // Thumb's nested `<input type="range">` (SliderThumb accepts `aria-label` directly and
+  // forwards it to that input), so a caller's accessible name is pulled out here and given
+  // to every thumb instead. Single-thumb sliders (every caller today) get the plain label;
+  // a future range slider should pass distinct labels via Thumb's own `getAriaLabel`.
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
   ...props
 }: SliderPrimitive.Root.Props) {
   const _values = Array.isArray(value)
@@ -41,6 +49,8 @@ function Slider({
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
             className="relative block size-3 shrink-0 rounded-full border border-ring bg-white ring-ring/50 transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:ring-3 focus-visible:ring-3 focus-visible:outline-hidden active:ring-3 disabled:pointer-events-none disabled:opacity-50"
           />
         ))}

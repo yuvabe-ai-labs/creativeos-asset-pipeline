@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { imageGenRegistry, imageGenModelGroups } from "../registry";
+import { imageGenRegistry, imageGenModelGroups, DEFAULT_MODEL_ID } from "../registry";
+import { imageGenClientModels, imageGenClientModelGroups } from "../client-models";
 
 const EXPECTED_IDS = [
   "openai:gpt-image-2",
@@ -8,10 +9,12 @@ const EXPECTED_IDS = [
   "gemini:gemini-2.5-flash-image",
   "gemini:gemini-3.1-flash-image",
   "gemini:gemini-3-pro-image",
+  "seedream:seedream-5-0-lite",
+  "seedream:seedream-5-0-pro",
 ];
 
 describe("imageGenRegistry", () => {
-  it("contains all 6 expected models", () => {
+  it("contains all 8 expected models", () => {
     for (const id of EXPECTED_IDS) {
       expect(imageGenRegistry[id], `missing model: ${id}`).toBeDefined();
     }
@@ -42,5 +45,26 @@ describe("imageGenRegistry", () => {
     expect(imageGenRegistry["openai:gpt-image-1-mini"].supportsMask).toBe(true);
     expect(imageGenRegistry["gemini:gemini-2.5-flash-image"].supportsMask ?? false).toBe(false);
     expect(imageGenRegistry["gemini:gemini-3-pro-image"].supportsMask ?? false).toBe(false);
+    expect(imageGenRegistry["seedream:seedream-5-0-lite"].supportsMask).toBe(false);
+    expect(imageGenRegistry["seedream:seedream-5-0-pro"].supportsMask).toBe(false);
+  });
+
+  it("groups Seedream after Gemini and leaves the default model alone", () => {
+    expect(imageGenModelGroups.map((g) => g.provider)).toEqual(["openai", "gemini", "seedream"]);
+    expect(DEFAULT_MODEL_ID).toBe("gemini:gemini-3-pro-image");
+  });
+
+  it("the client model list mirrors the server registry", () => {
+    // The two lists are hand-kept side by side; a field drifting between them would show a limit
+    // in the UI that the server does not enforce, or the reverse.
+    for (const client of imageGenClientModels) {
+      const server = imageGenRegistry[client.id];
+      expect(server, `client model ${client.id} missing on the server`).toBeDefined();
+      expect(client.params).toBe(server.params);
+      expect(client.maxReferenceImages).toBe(server.maxReferenceImages);
+      expect(client.maxReferenceSizeBytes).toBe(server.maxReferenceSizeBytes);
+      expect(client.supportsMask ?? false).toBe(server.supportsMask ?? false);
+    }
+    expect(imageGenClientModelGroups.map((g) => g.provider)).toEqual(["openai", "gemini", "seedream"]);
   });
 });

@@ -5719,3 +5719,170 @@ over-limit message quotes.
 
 **Refines.** D257, D258, D259, D273. **Originated →**
 `docs/superpowers/specs/2026-09-23-scene-parse-and-script-ui-design.md`.
+
+### D281 — Reference images are identity-only unless the operator's Direction says otherwise *(recorded 2026-09-24)*
+
+**Decision.** The Multishot Prompt node regains a sequence-level Direction box (the existing
+`instruction` field) in which the operator @-mentions references and says what each is for. The
+route labels each attached image `Reference image N:` and resolves the Direction's chips to
+`reference image N (name)` over the same roster (`refEntriesOf`). Both writers share a rule: a
+reference carries identity only — never its backdrop, studio light, angle or framing — unless the
+Direction names it as the source of the look.
+
+**Why.** A three-angle character turnaround on a grey seamless was read as the location, and the
+plan arrived on a light studio background. D262 already forbade deriving look from references, in
+one sentence; the images arrived unnumbered and the operator had nowhere to say what each was for,
+so the writer guessed.
+
+**Rejected.** Per-reference role pickers (Subject / Product / Look) — a second control for what one
+free-text box with mentions covers; revisit if operators keep typing the same roles. A prompt-only
+fix — still guesswork without a way to point at a specific image; kept as the backstop instead.
+
+**Refines.** D233, D262. **Originated →**
+`docs/superpowers/specs/2026-09-24-multishot-reference-direction-design.md`.
+
+### D282 — Voice change runs in a child task; the original is stored before it runs *(recorded 2026-09-24)*
+
+**Decision.** An optional `voiceId` on the Video Gen node re-voices the generated clip with
+ElevenLabs speech-to-speech. `video-generate` generates, stores the original in GCS through a
+signed PUT URL minted by the route, then calls a separate `video-revoice` task with
+`triggerAndWait` (ffmpeg extract → ElevenLabs → ffmpeg mux → signed PUT). The node gets one
+version: the re-voiced video, or the original with a "voice change failed" note. The voice cost
+($0.12/min) is reserved with the video and settled only when applied. The picker lists every voice
+on the ElevenLabs account, live from `GET /v1/voices`.
+
+**Why.** `video-generate` retries (maxAttempts 2); an ElevenLabs error thrown inside it would
+regenerate — and re-pay for — the video. A child task retries the voice step alone. Storing the
+original first makes the fallback free. Signed PUT URLs let the task write to GCS without GCS
+credentials in Trigger.dev. `video-revoice` caps its queue at `concurrencyLimit: 2` to match the
+ElevenLabs Free plan's concurrent speech-to-speech limit, and its `maxDuration: 120` ×
+`retry.maxAttempts: 2` (aborting immediately on non-retryable 4xx/no-audio failures) keeps every
+attempt inside the 15-minute stuck-reservation sweep.
+
+**Rejected.** Voice step inline in `video-generate` — one careless throw pays for the video twice.
+Voice step in the webhook (`completeGeneration`) — needs ffmpeg on Vercel and a long-running
+webhook request. Keeping both original and re-voiced as versions — doubles version history for no
+decision the operator makes. A hard-coded voice list — needs a deploy per new voice.
+
+**Originated →** `docs/superpowers/specs/2026-09-24-elevenlabs-voice-change-design.md`.
+
+### D283 — Voice picker browses the account and the ElevenLabs Voice Library *(recorded 2026-09-25; refines D282)*
+
+**Decision.** The Video Gen voice control becomes a rich popover with two tabs. **My voices**
+loads every account voice from `GET /v2/voices` (all pages, cached 5 min) and searches/filters it
+in the browser. **Voice Library** pages `GET /v1/shared-voices` 30 at a time with ElevenLabs'
+own search and filters (infinite scroll). Picking a Library voice saves it to the account
+(`POST /v1/voices/add/{public_user_id}/{voice_id}`) and selects the returned account id. Every
+row has inline preview; one plays at a time. The node resolves its selected voice with a
+single-voice lookup (`/v2/voices?voice_ids=`), which also replaces D282's full-list check in the
+generate route. Voices with a legacy custom rate show an `N×` badge and are reserved/settled with
+that multiplier — if a live check shows the multiplier doesn't survive saving, they are hidden
+instead (`include_custom_rates=false`). Final-fixes update (same day): Library picks select
+optimistically and save in the background, reconciling or reverting when the save settles;
+Library voices don't use ElevenLabs' custom-voice slots, so this never risks running out of them.
+
+**Why.** 21 account voices vs ~18,000 Library voices (checked live 2026-09-25). A live test showed
+Library voices work for speech-to-speech on this account, saved or not. Loading all account voices
+makes filtering instant and exact (`/v2/voices` has no gender/age/accent filters); the Library is
+too large for that. Saving makes the voice visible to the whole team and resolvable by the same
+single lookup the route uses. `/v2/voices` is the current list endpoint; D282 used `/v1/voices`.
+
+**Rejected.** A full-screen voice-browser dialog — heavier for a quick pick. Upgrading the
+`Select` — can't hold tabs, filters or per-row playback. Infinite scroll for My voices — slower and
+inexact for 21 voices. Using Library voices without saving — every generation would need a Library
+lookup to validate and price the voice. Reading the plan tier to gate the Library tab — the key
+has no user-read permission (401).
+
+**Refines.** D282. **Originated →** `docs/superpowers/specs/2026-09-25-voice-picker-library-design.md`.
+
+### D284 — Voice change is a version action, not a generation option *(recorded 2026-09-25; supersedes D282's generate-time voice and D283's popover)*
+
+**Decision.** Generate produces plain video again. A **Change voice** toggle on the Video Gen
+focus view turns the centre into a workspace — the D283 voice browser as a full panel plus every
+timing-safe ElevenLabs speech-to-speech setting (stability, similarity, style, speaker boost,
+background-noise removal, model, seed; not speed). Applying re-voices a chosen version's
+**original model audio** in a `video-voice-change` job and appends a **new version**
+(`inputs_used.voiceChange` records base/root version, voice, settings, drift); the source version
+is untouched. It is billed as its own `voice` generation — voice cost × multiplier only. A sync
+check (source vs returned audio, > 0.25 s drift) fails the job and refunds rather than create an
+out-of-sync version.
+
+**Why.** Re-voicing every draft spends on takes nobody keeps and hides the voice behind a
+dropdown; operators decide on voice only after they like a take. A separate version keeps the
+original and the voice's provenance side by side, and always starting from the original audio
+avoids stacking conversion loss.
+
+**Rejected.** Keeping generate-time voice alongside — two paths to the same result, and the
+wasteful one would stay the default. Overwriting the source version's output — loses the original.
+Converting an already-converted voice — quality degrades with each hop. Exposing speed — breaks lip
+sync.
+
+**Supersedes.** D282 (generate-time voice; the `video-revoice` internals, ffmpeg helpers and
+billing plumbing are reused), D283 (the popover trigger; catalog, routes and browser are reused).
+**Originated →** `docs/superpowers/specs/2026-09-25-change-voice-workspace-design.md`.
+
+### D285 — Seedream 5.0 image models on a direct Ark client, billed per image *(recorded 2026-09-28)*
+
+**Decision.** Seedream 5.0 Lite and Pro join the image-gen picker as a third provider group
+(`seedream:*`) beside OpenAI and Gemini, for Generate and Edit. A small `fetch` client
+(`image-gen/providers/seedream.ts`) calls Ark's synchronous `/images/generations` with the
+Seedance host and `BYTEPLUS_API_KEY`. We send an explicit `WxH` from the vendor's resolution x
+ratio table (not a bare resolution level), `png`, `b64_json`, `watermark: false`, one image. Edit
+targets regions from the prompt text (D38); no mask. `ImageGenResult` gains an optional `costUsd`:
+Seedream bills per image (Lite $0.035 flat; Pro $0.045 up to 1.5K, $0.09 at 2K, plus $0.003 per
+reference after the first), so the provider reports the exact charge and the route settles on it
+ahead of the token formula. The resolution param is named `image_size` so the shared estimate path
+prices it unchanged. The default model is unchanged.
+
+**Why.** Ark's endpoint is OpenAI-shaped, but our OpenAI provider carries `sharp` and mask
+handling that don't apply. An explicit size keeps a 9:16 reel 9:16 whatever the prompt says, at
+the same pixels the model would have chosen. Base64 avoids the 24-hour result URL. Per-image
+pricing is exact, so tokens would only approximate it.
+
+**Rejected.** The OpenAI SDK with a swapped base URL (its mask and edit paths would have to be
+fenced off). Size by resolution level with the ratio in the prompt (the vendor's recommended
+form, but the ratio then depends on the prompt writer). Pro's `<bbox>` interactive editing,
+layer decomposition, batch output and a Seedream-specific prompt writer are deferred, not
+rejected. Seedream 5.0 Flash waits for a confirmed BytePlus model ID and price.
+**Originated →** `docs/superpowers/specs/2026-09-19-seedream-5-image-models-design.md`.
+
+### D286 — The parser suggests cuts inside a scene; they apply only when multishot is turned on *(recorded 2026-09-29; refines D278)*
+
+**Decision.** script-parse v10 gives every scene row a hidden `beats` list — the scene's suggested
+cuts — plus a `beatsFor` fingerprint of the row it was split from. It splits only where the script
+signals cuts (montage, "A → B → C", "quick cuts of…", "cut to", separate setups); a continuous
+scene is one beat. The row itself is unchanged (still one row per scene), and the Script node
+never renders beats. Under grouping v3, `recommendMultishot` is `beats.length > 1`. Turning
+multishot on builds the cuts from the beats; when the row was edited since the split (fingerprint
+mismatch) or predates v10, the toggle first calls `POST /api/nodes/:id/split-scene` for that one
+scene. A re-split is cached on the Script node's own data (`sceneBeats`, keyed by fingerprint), not
+written into `parsed` — that is the active version's output (D19), and rewriting it would reseed
+the focus view's unsaved draft. The split rules are one shared constant (`SCENE_SPLIT_RULES`) used
+by both prompts. A stale split still drives the badge but never becomes cuts; no call runs on edit.
+**Voiceover across cuts:** beats are visual only; when a scene is split, ALL its lines span the
+sequence — stored once as `MultishotNodeData.sequenceVoiceover` and rendered once in the prompt
+header (`Across every shot — …`), never split and never parked on one short cut. The split rules
+carry worked examples: with only "quick cuts of" listed, the operator's "Handheld cuts — A, B, C"
+came back as one beat 3/3 runs; with them, all five scenes of that script split correctly 15/15
+(script-parse v11).
+
+**Why.** Under v3 a flip to multishot produced one cut, so the operator split every montage by
+hand, and the recommendation was hard-coded off because its only signal (a generation spanning
+several rows) could no longer occur. The operator: "when toggled to multishot you need to split
+them as separate shots; right now the user does it manually … have an internal thing, and if an
+edit happens re-parse that particular scene only." On VO: "I can't share the voice to split 1s
+and all" — under D267 a scene-long line would land on one short cut; then "by default have the
+VO at sequence level".
+
+**Rejected.** Tying a line to one beat when the script times it to that visual (first draft —
+dropped the same day for the simpler sequence-level default; the operator can still put a line on
+one cut by hand); keeping every line per cut (the D267 behaviour that produces the rushed line); splitting a line's
+text across cuts. A director-style split of long continuous action into camera beats (the parser making
+editing choices the script did not); splitting to fit a model's window (D278's reason for dropping
+packing); re-splitting on every edit commit (a call per edit for a badge); a lazy-only badge that
+goes quiet after any edit.
+
+**Refines.** D278 — reverses its rejection of "splitting a montage inside a scene into cuts", but
+only as a suggestion applied at the operator's toggle. D267 — a split scene's lines live on the
+node as sequence voiceover; a cut's own `voiceover` holds only lines the operator adds to it. **Originated →**
+`docs/superpowers/specs/2026-09-29-scene-beats-multishot-design.md`.

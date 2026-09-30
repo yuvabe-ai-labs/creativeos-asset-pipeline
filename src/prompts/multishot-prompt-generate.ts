@@ -22,7 +22,9 @@ import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 // @9 (D267, Task 5): the writer no longer writes the spoken words — `voiceoverRules` is replaced by
 //     the shared VO_PERFORMANCE_RULES, which tells it a line is coming (on-screen/off-screen) and
 //     forbids writing it; renderPlan appends the actual line afterwards.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@9";
+// @10 (D281): references are identity-only unless the operator's direction says otherwise; images
+//     arrive labelled "Reference image N" and the direction may cite them by that number.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@10";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -49,9 +51,11 @@ export function referenceIdentificationBlock(format: "timecode" | "triple"): str
     [3-6s] A young professional steps past a cafe chair in the tan CHUPPS Sliders.`;
 
   return `REFERENCES
-The reference images are ATTACHED to your message. LOOK AT THEM and identify what each one shows. Their labels are filenames and mean nothing; what a reference is, you decide from the image itself.
+The reference images are ATTACHED to your message, each preceded by "Reference image N". LOOK AT THEM and identify what each one shows. The number exists only so the operator's direction can point at a picture; what a reference is, you decide from the image itself.
 
-DO NOT WRITE REFERENCE TOKENS. Never write <IMAGE_REF_0>, "the first image", @Image1, or any other pointer into the attachment list. Which picture binds to which beat is the operator's decision, made by hand after reading your draft. A token you assign yourself binds a specific photograph silently, and a wrong binding raises no error — it is only visible in a clip already paid for.
+A REFERENCE IS IDENTITY ONLY unless the operator's direction says to take something else from it. From a reference, carry who or what it shows — face, build, hair, wardrobe, the product's design. Never carry its background, backdrop, studio lighting, the colour of a seamless, its camera angle or its framing into the look or into any beat. A sheet showing one subject from several angles on a plain background is an identity sheet, never a location.
+
+DO NOT WRITE REFERENCE TOKENS. Never write <IMAGE_REF_0>, "the first image", "reference image 2", @Image1, or any other pointer into the attachment list. Which picture binds to which beat is the operator's decision, made by hand after reading your draft. A token you assign yourself binds a specific photograph silently, and a wrong binding raises no error — it is only visible in a clip already paid for.
 
 Instead, NAME WHAT YOU SAW, in prose, wherever that thing appears in a beat:
 
@@ -94,7 +98,10 @@ script gives a time of day and nothing else, the look is that time of day and no
 
 Never derive the look from the brand context, the product, the market, the season or the
 reference images. None of those is a statement of how THIS film looks, and filling the gap from
-them invents a setting the script never asked for.
+them invents a setting the script never asked for. The one exception is stated direction itself:
+when the operator's direction names a reference as the source of the look ("take the setting and
+light from reference image 2"), describe that image's setting and light as repeatable physical
+facts. A reference the direction does not name that way contributes nothing to the look.
 
 If nothing states any look direction, return an empty string for the look. An empty look is
 correct, not a failure — do not write a default.

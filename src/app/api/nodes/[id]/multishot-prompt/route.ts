@@ -7,7 +7,7 @@ import {
   storePlanRefs,
   renderPlanRefs,
 } from "@/lib/nodes/multishot-plan";
-import { refEntriesOf } from "@/lib/nodes/ref-binding";
+import { refEntriesOf, resolveRefMentions } from "@/lib/nodes/ref-binding";
 import { resolvePlanMentions } from "@/lib/nodes/plan-mentions";
 import {
   MULTISHOT_LOOK_SCHEMA,
@@ -118,9 +118,14 @@ export async function POST(
         clientContext: resolved.clientContext,
         upstream: resolved.upstream,
         cuts: resolved.cuts,
-        instruction,
+        // D281 — the Direction's `@[Label](id)` image chips, resolved to "reference image N
+        // (name)" over the SAME roster the images are labelled with below. The raw form is what
+        // gets recorded (paramsUsed / snapshot), so a version still says which image was meant.
+        instruction: resolveRefMentions(instruction, refs),
         cutInstructions,
         scriptNotes: resolved.scriptNotes,
+        // D286 — lines spanning every shot, stated once so the writer frames for them.
+        sequenceVoiceover: resolved.sequenceVoiceover,
         // D267 (Task 5) — the same per-cut ceiling `checkPlanLimits` measures the rendered
         // voiceover against, so the "Room for your beat" hint agrees with what actually gets
         // rejected after generation. `planCap` is the model THIS write is for (D236): the node's
@@ -246,7 +251,9 @@ export async function POST(
               { role: "system", content: spec.system },
               {
                 role: "user",
-                content: buildUserContent(user, resolved.upstream.filter(isVisionAttachment)),
+                content: buildUserContent(user, resolved.upstream.filter(isVisionAttachment), {
+                  labelImages: true,
+                }),
               },
             ],
           });
@@ -304,7 +311,13 @@ export async function POST(
         // the money path. On a narrow refine of a plan written for the other model that stamp is
         // NOT the node's current one, and rendering against the node would show the operator a
         // prompt in a format nothing will ever send.
-        prompt: renderPlan(output, resolved.cuts, multishotCapabilityFor(output.targetModel), refIds),
+        prompt: renderPlan(
+          output,
+          resolved.cuts,
+          multishotCapabilityFor(output.targetModel),
+          refIds,
+          resolved.sequenceVoiceover,
+        ),
         versionId,
       });
     } catch (e) {

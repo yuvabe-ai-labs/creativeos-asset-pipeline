@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import { looksLikeReelScript, type ReelScript } from "@/lib/nodes/reel-script";
 import { describeGenerations, shotSeconds, type GroupingVersion } from "@/lib/nodes/group-shots";
 import { joinVoLines, type VoLine } from "@/lib/nodes/voiceover";
+import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EditableField } from "./editable-field";
@@ -18,6 +19,8 @@ type ScriptDocumentProps = {
   scriptNodeId: string;
   groupModes?: Record<string, boolean>;
   groupingVersion?: GroupingVersion;
+  /** D286 — the Script node's re-split cache, read by each generation's recommendation. */
+  sceneBeats?: SceneBeatCache;
   readOnly?: boolean;
   onChange?: (path: Path, value: unknown) => void;
   onAddItem?: (path: Path, item: unknown) => void;
@@ -79,6 +82,7 @@ export function ScriptDocument({
   scriptNodeId,
   groupModes,
   groupingVersion,
+  sceneBeats,
   readOnly = false,
   onChange,
   onAddItem,
@@ -104,7 +108,7 @@ export function ScriptDocument({
     onChange?.(["visual_script", "shots", i, "voiceover"], next);
     onChange?.(["voiceover"], joinVoLines(nextShots));
   };
-  const generations = describeGenerations(shots, groupModes, groupingVersion ?? 1);
+  const generations = describeGenerations(shots, groupModes, groupingVersion ?? 1, sceneBeats);
   const body = script.on_screen_text?.body ?? [];
   const qc = script.qc_notes ?? [];
   const links = script.product_links ?? [];

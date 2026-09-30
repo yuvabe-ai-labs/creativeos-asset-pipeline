@@ -308,4 +308,16 @@ export function joinVoLines(shots: ReelShot[]): string {
     .join(" ");
 }
 
+/**
+ * D286 — a node's stored VO list, read defensively: node data arrives as `unknown`, and a
+ * malformed line must not reach `renderVoiceover` (which calls `.trim()` on `text`). Anything that
+ * is not an array is "no list"; an empty array stays empty.
+ */
+export function readVoLines(value: unknown): VoLine[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(
+    (l): l is VoLine => !!l && typeof l.text === "string" && typeof l.speaker === "string",
+  );
+}
+
 export type { VoLine };

@@ -3,6 +3,8 @@ import { renderPlan, planMissingRefs, type MultishotPlan } from "@/lib/nodes/mul
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
+import { readVoLines } from "@/lib/nodes/voiceover";
+import type { VoLine } from "@/lib/nodes/reel-script";
 import {
   refEntriesOf,
   renderRefs,
@@ -38,6 +40,8 @@ export type ResolvedPrompt =
       promptUpstream: UpstreamOutput[];
       /** Only set for the multishot lane — the cut list the ladder (and its duration) rest on. */
       cuts: MultishotCut[] | null;
+      /** D286 — only set for the multishot lane — lines spanning every cut, rendered in the header. */
+      sequenceVoiceover: VoLine[] | undefined;
       /**
        * Only set for the multishot lane — the model the plan was WRITTEN for (D236), read off the
        * plan's own `targetModel` stamp and NOT off the Multishot node's current field. The route
@@ -107,6 +111,7 @@ export async function resolveVideoGenPrompt(
       promptNode,
       promptUpstream,
       cuts: null,
+      sequenceVoiceover: undefined,
       targetModel: null,
       missingRefs: rendered.missing,
     };
@@ -147,13 +152,15 @@ export async function resolveVideoGenPrompt(
   const targetModel = typeof plan.targetModel === "string" ? plan.targetModel : null;
   const cap = multishotCapabilityFor(targetModel);
   const refIds = refIdsOf(promptUpstream);
+  const sequenceVoiceover = readVoLines(multishotNode.data.sequenceVoiceover);
 
   return {
     ok: true,
-    prompt: renderPlan(plan, cuts, cap, refIds),
+    prompt: renderPlan(plan, cuts, cap, refIds, sequenceVoiceover),
     promptNode,
     promptUpstream,
     cuts,
+    sequenceVoiceover,
     targetModel,
     missingRefs: planMissingRefs(plan, cap, refIds),
   };
