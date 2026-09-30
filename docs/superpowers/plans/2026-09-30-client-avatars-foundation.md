@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-29-client-avatars-design.md` · **ADR:** D287, D288 (D289–D293 are plans 2 and 3)
 
+**Amended after execution (2026-09-30):** the person-type declaration in Tasks 1, 5 and 9 was removed. Person type now follows the front image's source (upload → specific, generated → generic); there is no question, tick or confirmer record, and no `declaration` readiness gap. The code is the reference for those parts; the task text below is as originally executed. See spec §3.3 and D289.
+
 **Plans in this series:** 1 Foundation (this file) · 2 Generation and credits (Describe batches, sheet generation, ledger, Seedance badge) · 3 Voices (`client_voices`, shared picker, Clone, voice sample).
 
 ## Global Constraints

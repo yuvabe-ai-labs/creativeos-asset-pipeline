@@ -62,8 +62,7 @@ Both new tables enable RLS with zero policies, as `0027_brand_kit.sql` does.
 | `client_id` | uuid not null → `clients(id)` on delete cascade | |
 | `name` | text | empty while a draft |
 | `story` | text | optional |
-| `person_type` | text check in (`generic`, `specific`) | §3.3 |
-| `likeness_confirmed_by` / `likeness_confirmed_at` | uuid / timestamptz | who ticked the declaration, §3.3 |
+| `person_type` | text check in (`generic`, `specific`) | derived from the front image's source, §3.3 |
 | `front` | jsonb | an `AvatarImage`, §3.2 |
 | `sheet` | jsonb | an `AvatarImage`, §3.2 |
 | `sheet_stale` | boolean default false | set when `front` changes after a sheet exists |
@@ -102,17 +101,21 @@ export type AvatarImage = {
 
 ### 3.3 Person type
 
-Person type is declared, because source alone cannot decide it: an upload may be a real person or
-a fictional face made elsewhere.
+Person type follows the front image's source. The operator is never asked (amended 2026-09-30,
+D289).
 
-| Front image | `person_type` | Declaration required |
-|---|---|---|
-| Generated in the Studio | `generic`, set automatically | none |
-| Uploaded | asked: "Is this a real person?" | yes → `specific`, tick "I have this person's permission to use their likeness". No → `generic`, tick "This is not a real person". |
+| Front image | `person_type` |
+|---|---|
+| Uploaded | `specific` |
+| Generated in the Studio (any model) | `generic` |
+| None yet | null |
 
-The tick records `likeness_confirmed_by` and `likeness_confirmed_at`. Replacing the front image of
-a `specific` avatar clears both and asks again. The library shows a "Real person" tag and filters
-by type.
+It is set whenever the front image is set or replaced. There is no declaration, no consent tick
+and no record of who confirmed. The library shows a "Real person" tag on `specific` avatars and
+filters by type.
+
+An uploaded image of a fictional face is therefore filed as `specific`. That is accepted: the
+label errs toward the stricter treatment (a `specific` avatar is never Seedance-eligible, §8).
 
 ### 3.4 `client_voices`
 
@@ -165,7 +168,7 @@ A segmented control: **Describe | Upload photo**. Switching keeps everything alr
   models can be compared. Clicking an image sets it as the front.
 
 **Upload photo.** The existing signed-upload pattern (`sign` → PUT → `finalize`), validated with
-`validateFileExtension` / `validateFileSize`. The person-type question (§3.3) follows.
+`validateFileExtension` / `validateFileSize`. The avatar becomes a `specific` person (§3.3).
 
 ### 4.2 Profile sheet
 
@@ -188,7 +191,7 @@ It opens the shared picker (§6). Optional.
 
 - The avatar row is created as `draft` at the first Generate or upload. Drafts appear in the
   library with a "Draft" badge.
-- `ready` requires a name, a front image, a non-stale sheet and, for uploads, the declaration.
+- `ready` requires a name, a front image and a non-stale sheet.
   `isAvatarReady(avatar)` is the single check, used by the Save button and the route.
 - Text fields save last-write-wins. Front, sheet and voice are separate actions.
 - Delete archives (`archived_at`). Archived avatars leave the library and pickers; their files and
@@ -338,8 +341,8 @@ Vitest, run per directory (the full run has known timeout flakes).
 - **Pure:** `buildAvatarFrontPrompt`, `buildAvatarSheetPrompt`, `isAvatarReady`,
   `canRemoveVoice`, `seedanceEligibility` (each reason, the 30-day boundary, the 7-day warning).
 - **Routes:** client scoping on every avatar and voice route; draft → ready; reserve → settle and
-  reserve → refund; cap → 402; clone with and without consent; person-type declaration required
-  for uploads and cleared when a `specific` front is replaced.
+  reserve → refund; cap → 402; clone with and without consent; person type set from the front
+  image's source on every front change.
 - **Migration:** a generation needs a node or an avatar; existing rows pass.
 - **UI:** the picker's This client tab lists only that client's voices plus defaults; Studio
   placeholders match the size of what replaces them.

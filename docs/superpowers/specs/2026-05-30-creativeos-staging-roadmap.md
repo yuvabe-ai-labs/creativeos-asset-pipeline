@@ -5922,21 +5922,22 @@ text-only pair in one Seedream call (weaker identity match; considered only for 
 
 **Originated →** `2026-09-29-client-avatars-design.md` §4.2, §4.4.
 
-### D289 — Each avatar image stores its source; person type is declared, not derived *(recorded 2026-09-30)*
+### D289 — Each avatar image stores its source; person type follows it *(recorded 2026-09-30; amended the same day)*
 
 **Decision.** `front` and `sheet` each carry a `source`: `upload` (filename, who, when) or
 `generated` (model, text or edit, prompt, generation time, generation id, whether the stored bytes
-are the vendor's). The avatar carries `person_type`: `generic` for Studio-generated fronts,
-declared by the operator for uploads ("Is this a real person?"), with a required tick either way
-and the confirmer and time recorded. Replacing a `specific` front asks again.
+are the vendor's). The avatar's `person_type` is derived from the front image's source every time
+the front is set: an uploaded front is `specific`, a generated front is `generic`. The operator is
+never asked, and nothing records a consent.
 
-**Why.** Vendor rules and likeness rights both turn on provenance, and it cannot be reconstructed
-later. Source cannot decide person type: an upload may be a real person or a fictional face made
-elsewhere.
+**Why.** Vendor rules turn on provenance, and it cannot be reconstructed later. The first design
+asked "Is this a real person?" with a required tick; the operator removed it the day it was
+built: uploads are, in practice, real people, and a question on every upload is friction for an
+answer that rarely varies. Deriving the type errs strict — an uploaded fictional face is filed as
+`specific`, which only ever withholds Seedance (D290).
 
-**Rejected.** Inferring real-versus-fictional from source (wrong for uploaded AI faces). A
-free-text note (not queryable, not enforceable). No tick for generic uploads (no record when a
-real face is uploaded as fictional).
+**Rejected.** A declared person type with a consent tick and a who/when record (built, then
+removed — see Why). A free-text note (not queryable, not enforceable).
 
 **Originated →** `2026-09-29-client-avatars-design.md` §3.2–3.3.
 
