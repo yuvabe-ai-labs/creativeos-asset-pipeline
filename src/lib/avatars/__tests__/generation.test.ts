@@ -41,6 +41,14 @@ describe("buildAvatarSheetPrompt", () => {
     expect(prompt).toContain("character reference sheet");
     expect(prompt).toContain("same person");
   });
+
+  it("asks for the whole body in every view, not the front image's waist-up crop", () => {
+    const prompt = buildAvatarSheetPrompt();
+    expect(prompt).toContain("full body");
+    expect(prompt).toContain("head to toe");
+    expect(prompt).toContain("feet");
+    expect(prompt).not.toContain("upper body");
+  });
 });
 
 describe("avatarImageParams", () => {

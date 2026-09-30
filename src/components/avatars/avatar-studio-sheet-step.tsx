@@ -25,8 +25,8 @@ export function AvatarStudioSheetStep({ studio: s, generation: g, consent }: Pro
       <div>
         <p className="text-eyebrow text-muted-foreground">Profile sheet</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Three views of the same person in one wide image: front, side and back. Generate it
-          from the front image, or add your own.
+          Three full-body views of the same person in one wide image: front, side and back.
+          Generate it from the front image, or add your own.
         </p>
       </div>
       {consent}

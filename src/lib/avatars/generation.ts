@@ -28,13 +28,18 @@ export function buildAvatarFrontPrompt(input: {
 
 /** The profile sheet is made from the front image, so the prompt only describes the layout.
  *  "character reference sheet" is stated because a multi-angle image on a plain backdrop has
- *  been read as a location before (roadmap D281). */
+ *  been read as a location before (roadmap D281). The front image is waist-up, so the prompt
+ *  has to ask for the whole body outright — left unsaid, models copy the reference's crop. */
 export function buildAvatarSheetPrompt(): string {
   return (
     "A character reference sheet of the same person as the reference image: three views side by " +
-    "side in one wide image — front, side profile, and back. Same person, same face, " +
-    "same hair, same outfit in every view. Standing, full upper body, neutral expression, even " +
-    "soft light, plain light-grey seamless background. No text, no labels, no borders."
+    "side in one wide image — front, side profile, and back. Each view is a full body shot, " +
+    "head to toe, standing upright with the feet visible and a little space above the head and " +
+    "below the feet. The reference image may be cropped at the waist: continue the same " +
+    "outfit down to the feet with matching trousers or skirt and shoes. Same person, same " +
+    "face, same hair, same outfit and the same scale in every view. Arms relaxed at the sides, " +
+    "neutral expression, even soft light, plain light-grey seamless background. No text, no " +
+    "labels, no borders."
   );
 }
 

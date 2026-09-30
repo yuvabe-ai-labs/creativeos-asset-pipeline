@@ -190,8 +190,9 @@ consent statement appears under the image (§3.3).
 
 ### 4.2 Profile sheet
 
-One generated image at 16:9 showing three views of the person: front, side profile and back
-(operator decision, 2026-09-30). It is made from the front image by an image-edit model with
+One generated image at 16:9 showing three full-body views of the person, head to toe: front,
+side profile and back (operator decisions, 2026-09-30). The front image is waist-up, so the prompt
+asks for the whole body outright and tells the model to continue the outfit down to the feet. It is made from the front image by an image-edit model with
 `buildAvatarSheetPrompt`: same person and outfit in every view, plain light-grey background.
 
 - Generated when the operator clicks **Generate ✦ N** on the sheet step. It does not start on
