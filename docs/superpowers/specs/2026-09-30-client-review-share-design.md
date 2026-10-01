@@ -25,10 +25,11 @@ Said:
 - Everyone with the link sees everyone's comments.
 - A new cut is a new node.
 - Comments can be **edited by anyone** with the link (an edit records who made it).
+- When a client **pauses and writes**, the paused timestamp is attached to the comment.
 
 Assumed — strike at review if wrong:
 - Comments **cannot be deleted** — only edited. Clearing a comment's text is not allowed.
-- Each comment is **stamped with the paused frame**: writing a comment pauses the video, and the comment carries that moment.
+- Focusing the comment box **pauses the video** for them, so the stamp can't drift while typing.
 - Only the client comments; the team **reads** comments on the canvas.
 
 ### Success criteria
@@ -100,6 +101,12 @@ canvas_review_comments (
   comments. Only `body` is editable — never the timecode or the original author.
 
 - The page sends `X-Robots-Tag: noindex` and `Referrer-Policy: no-referrer`.
+- **No app chrome on `/r/*`.** `src/app/layout.tsx` renders the CreativeOS header (brand, help,
+  review inbox, profile) on every route; the inbox and profile call session-only APIs, which would
+  401 for a client. The header moves into a small client component, `AppHeader`, that renders
+  nothing when the path starts with `/r/` (the same `usePathname` check `HeaderActions` already
+  uses for `/login`). `resolveImpersonationState` is safe for anonymous visitors (it uses
+  `resolveCallerContextOrNull`), so the layout itself needs no other change.
 
 ## 4. Client page — `src/app/r/[token]/page.tsx` (mobile-first)
 
