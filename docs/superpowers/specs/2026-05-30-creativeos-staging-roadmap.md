@@ -6453,24 +6453,24 @@ is likely refused as a real face).
 
 **Originated →** `2026-10-06-avatar-references-and-limits-design.md`.
 
-### D279 — Public token-scoped review links for canvas reviews *(recorded 2026-09-30; draft, pending spec approval)*
+### D279 — Public token-scoped review links for canvas reviews *(recorded 2026-10-01; draft, pending spec approval)*
 
 **Decision.** A Client review node holds one uploaded cut (`canvas_reviews`, one row per node) and
 a plain-stored 32-byte `share_token`. `/r/[token]` and `/api/r/[token]/*` are exempted in
-`src/proxy.ts` and every such route goes through `withShareToken` in `route-helpers.ts` — the
-single sanctioned exception to session auth. Clients give a typed name, see everyone's notes and
-can edit any note (`canvas_review_notes`, soft delete, `edited_by_name`). The public page reads by
-polling; the canvas hears new notes through an org-isolation SELECT policy + Realtime. Video is
-served through a proxy locked to the review's own `video_path` so frame capture stays untainted.
-A new cut is a new node.
+`src/proxy.ts`, and every such route goes through `withShareToken` in `route-helpers.ts` — the
+single sanctioned exception to session auth. The client page is mobile-first: the reviewer's name
+is asked once and kept in `localStorage`; comments are text, stamped with the video's current time,
+add-only, and visible to everyone with the link (`canvas_review_comments`). The canvas node shows
+the count and lists the comments read-only. A new cut is a new node.
 
-**Why.** The operator shares stitched edits with clients who have no account, and wants their
-frame-level feedback to land on the canvas where the cut lives. One named helper at one proxy
+**Why.** The operator shares stitched edits with clients who have no account, mostly on phones, and
+wants the feedback to land on the canvas where the cut lives. One named helper at one proxy
 exemption keeps the unauthenticated surface auditable.
 
-**Rejected.** Reusing `node_version_annotations` (tied to approval decisions and a user id); the
-Post-node share design (a different feature); an anon RLS policy for client Realtime (reverses
-D86 table-wide); replacing the video inside a node (stale timecodes); per-reviewer edit ownership.
+**Rejected.** Frame painting and masks for clients (heavy on a phone, and it forces a token-locked
+video proxy to keep frame capture untainted); reusing `node_version_annotations` (tied to approval
+decisions and a user id); the Post-node share design (a different feature); an anon RLS policy for
+live updates (reverses D86 table-wide); editing comments; replacing the video inside a node.
 
-**Refines.** D44, D46, D245, D248, D86. **Originated →**
+**Refines.** D44, D46, D86. **Originated →**
 `docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
