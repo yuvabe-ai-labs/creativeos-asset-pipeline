@@ -10,6 +10,7 @@ import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
+import { ScriptPresenterRow } from "./script-presenter";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { ProcessingPill } from "./processing-pill";
@@ -135,14 +136,16 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
           </div>
         </div>
       ) : (
-        <div className="px-3 py-3">
+        <div className="flex flex-col gap-1.5 px-3 py-3">
           <Button
             variant="ghost"
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
+            className="nodrag -mx-1.5 h-auto self-start gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
           >
             Open ↗
           </Button>
+          {/* D298 — who presents this script, or the chip to cast one once it is parsed. */}
+          <ScriptPresenterRow scriptId={id} parsed={parsed !== null} />
         </div>
       )}
 
