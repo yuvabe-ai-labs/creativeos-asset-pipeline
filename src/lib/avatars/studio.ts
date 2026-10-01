@@ -1,4 +1,5 @@
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { PERSON_TYPE_LABELS } from "./constants";
 import { needsLikenessConsent } from "./utils";
 import { isVoicePreviewStale } from "./voice-preview";
 import type { Avatar, VoicePreview } from "./schema";
@@ -113,7 +114,7 @@ export function stepStatusLine(id: StudioStepId, snap: StudioSnapshot): string {
   switch (id) {
     case "look": {
       if (!a?.front) return "Needed";
-      if (a.front.source.kind === "upload") return isLookDone(a) ? "Uploaded photo" : "Needs permission";
+      if (a.front.source.kind === "upload") return isLookDone(a) ? PERSON_TYPE_LABELS.specific : "Needs permission";
       return imageModelLabel(a.front.source.modelId);
     }
     case "sheet":
@@ -152,5 +153,7 @@ export function avatarLifecycle(avatar: Pick<Avatar, "status"> | null): AvatarLi
 export function avatarFaceLabel(avatar: Pick<Avatar, "front">): string | null {
   if (!avatar.front) return null;
   const source = avatar.front.source;
-  return source.kind === "upload" ? "Real person" : `Generated · ${imageModelLabel(source.modelId)}`;
+  return source.kind === "upload"
+    ? PERSON_TYPE_LABELS.specific
+    : `${PERSON_TYPE_LABELS.generic} · ${imageModelLabel(source.modelId)}`;
 }

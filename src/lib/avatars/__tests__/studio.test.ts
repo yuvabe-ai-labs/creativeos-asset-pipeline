@@ -96,7 +96,7 @@ describe("stepStatusLine", () => {
   it("Look asks for a front, names the image model, or asks for permission", () => {
     expect(stepStatusLine("look", snap({ avatar: null }))).toBe("Needed");
     expect(stepStatusLine("look", snap({ avatar: generated() }))).toBe("Seedream 5.0 Lite");
-    expect(stepStatusLine("look", snap({ avatar: makeAvatar() }))).toBe("Uploaded photo");
+    expect(stepStatusLine("look", snap({ avatar: makeAvatar() }))).toBe("Specific");
     expect(stepStatusLine("look", snap({ avatar: makeAvatar({ likenessConsentAt: null }) }))).toBe("Needs permission");
   });
   it("the sheet line follows its state", () => {
@@ -141,8 +141,8 @@ describe("avatarLifecycle", () => {
 
 describe("avatarFaceLabel", () => {
   it("says how the face was made", () => {
-    expect(avatarFaceLabel(makeAvatar())).toBe("Real person");
-    expect(avatarFaceLabel(generated())).toBe("Generated · Seedream 5.0 Lite");
+    expect(avatarFaceLabel(makeAvatar())).toBe("Specific");
+    expect(avatarFaceLabel(generated())).toBe("Generic · Seedream 5.0 Lite");
     expect(avatarFaceLabel(makeAvatar({ front: null }))).toBeNull();
   });
 });

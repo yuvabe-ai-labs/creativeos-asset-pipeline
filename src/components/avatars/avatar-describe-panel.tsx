@@ -17,6 +17,7 @@ import {
 } from "@/lib/avatars/generation";
 import type { GenerateFrontInput } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
+import { AvatarAdvancedSettings } from "./avatar-advanced-settings";
 import { AvatarModelSelect } from "./avatar-model-select";
 
 type Props = {
@@ -30,6 +31,8 @@ type Props = {
 
 // The composer of the Look step: what the character is, the settings, and Generate with its
 // credit cost. Framing is fixed (facing camera, waist-up, plain background) and is not a field.
+// The style and the model have sensible defaults and sit under Advanced, closed: most people
+// never change them.
 export function AvatarDescribePanel({ busy, composer, onComposerChange, onGenerate }: Props) {
   const { description, attributes, styleId, modelId, count } = composer;
 
@@ -78,25 +81,6 @@ export function AvatarDescribePanel({ busy, composer, onComposerChange, onGenera
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-        <AvatarModelSelect
-          id="avatar-front-model"
-          value={modelId}
-          onChange={(v) => onComposerChange({ modelId: v })}
-        />
-        <Select
-          value={styleId}
-          onValueChange={(v) => { if (typeof v === "string") onComposerChange({ styleId: v as AvatarStyleId }); }}
-        >
-          <SelectTrigger size="sm" aria-label="Style">
-            <SelectValue>{AVATAR_STYLES.find((s) => s.id === styleId)?.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {AVATAR_STYLES.map((style) => (
-              <SelectItem key={style.id} value={style.id}>{style.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         <div className="flex items-center rounded-lg border">
           <Button
             variant="ghost" size="icon-sm" aria-label="Fewer images"
@@ -126,11 +110,39 @@ export function AvatarDescribePanel({ busy, composer, onComposerChange, onGenera
         </Button>
       </div>
 
-      {/* D297 — the model chosen here decides Seedance, so this is where it is said. */}
-      <p className="text-xs text-muted-foreground">
-        Works with {listSentence(imageModelWorksWith(modelId))}.
-        {!isSeedanceFaceModel(modelId) && ` For Seedance too, use ${seedanceFaceLabel}.`}
-      </p>
+      <AvatarAdvancedSettings className="border-t">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="avatar-front-style" className="text-xs text-muted-foreground">Style</Label>
+                <Select
+                  value={styleId}
+                  onValueChange={(v) => { if (typeof v === "string") onComposerChange({ styleId: v as AvatarStyleId }); }}
+                >
+                  <SelectTrigger id="avatar-front-style" size="sm">
+                    <SelectValue>{AVATAR_STYLES.find((st) => st.id === styleId)?.label}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AVATAR_STYLES.map((style) => (
+                      <SelectItem key={style.id} value={style.id}>{style.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="avatar-front-model" className="text-xs text-muted-foreground">Image model</Label>
+                <AvatarModelSelect
+                  id="avatar-front-model"
+                  value={modelId}
+                  onChange={(v) => onComposerChange({ modelId: v })}
+                />
+              </div>
+            </div>
+            {/* D297 — the model chosen here decides Seedance, so this is where it is said. */}
+            <p className="text-xs text-muted-foreground">
+              Works with {listSentence(imageModelWorksWith(modelId))}.
+              {!isSeedanceFaceModel(modelId) && ` For Seedance too, use ${seedanceFaceLabel}.`}
+            </p>
+      </AvatarAdvancedSettings>
     </div>
   );
 }

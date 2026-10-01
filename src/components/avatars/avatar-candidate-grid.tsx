@@ -48,10 +48,9 @@ export function AvatarCandidateGrid({ candidates, pending, frontUrl, picking, lo
           {Array.from({ length: emptyCount }, (_, i) => (
             <div
               key={i}
-              className="flex aspect-[3/4] flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed px-2 text-center text-xs text-muted-foreground"
+              className="flex aspect-[3/4] items-center justify-center rounded-lg border border-dashed text-muted-foreground/50"
             >
               <ImageIcon className="size-5" strokeWidth={1.5} />
-              {i === 0 && "Your images appear here"}
             </div>
           ))}
         </div>

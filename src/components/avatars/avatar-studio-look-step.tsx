@@ -80,7 +80,7 @@ export function AvatarStudioLookStep({ studio: s, generation: g, consent }: Prop
           <div className="flex min-w-0 flex-1 basis-64 flex-col gap-3">
             <p className="flex gap-2 rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
               <Info className="mt-0.5 size-4 shrink-0" strokeWidth={1.5} />
-              An uploaded photo is treated as a real person. Real faces work with Gemini Omni and Kling.
+              An uploaded photo makes a Specific avatar: a real person. Real faces work with Gemini Omni and Kling.
             </p>
             {consent}
           </div>
