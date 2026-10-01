@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { useAvatarGeneration } from "@/hooks/use-avatar-generation";
 import { useAvatarStudio } from "@/hooks/use-avatar-studio";
 import { useAvatarVoice } from "@/hooks/use-avatar-voice";
@@ -79,6 +80,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
   };
   const busy = s.uploading !== null || g.picking !== null || g.generatingSheet || g.pending.length > 0 || v.saving;
   const lookDone = isLookDone(avatar);
+  const lookStep = step.id === "look";
 
   // Not shown mid front-upload — the photo it would apply to is about to change.
   const consent = avatar && front?.source.kind === "upload" && s.uploading !== "front" ? (
@@ -148,7 +150,9 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
         onArchive={s.archive}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[13.5rem_minmax(0,1fr)_16rem]">
+      {/* On the Look step the summary gives its column to the step, whose generated images sit on
+          the right; the summary would only repeat the front those images already show. */}
+      <div className={cn("grid gap-6", lookStep ? "lg:grid-cols-[13.5rem_minmax(0,1fr)]" : "lg:grid-cols-[13.5rem_minmax(0,1fr)_16rem]")}>
         <AvatarStudioStepper current={steps.current} snapshot={snapshot} onGo={steps.go} />
 
         <Card role="region" className="min-h-[34rem] gap-0 overflow-visible py-0 shadow-card" aria-labelledby="studio-step-title">
@@ -169,7 +173,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
           />
         </Card>
 
-        <AvatarStudioSummary avatar={avatar} name={s.name} />
+        {!lookStep && <AvatarStudioSummary avatar={avatar} name={s.name} />}
       </div>
     </section>
     </>

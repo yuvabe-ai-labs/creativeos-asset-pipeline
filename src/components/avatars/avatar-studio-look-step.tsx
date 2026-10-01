@@ -41,23 +41,28 @@ export function AvatarStudioLookStep({ studio: s, generation: g, consent }: Prop
       </Tabs>
 
       {mode === "describe" ? (
-        <>
-          <AvatarDescribePanel
-            busy={busy}
-            composer={g.composer}
-            onComposerChange={g.setComposer}
-            onGenerate={g.generate}
-          />
+        // The prompt on the left, what it made on the right: the results get their own column
+        // rather than piling up under the composer. Stacks on narrower screens.
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <AvatarDescribePanel
+              busy={busy}
+              composer={g.composer}
+              onComposerChange={g.setComposer}
+              onGenerate={g.generate}
+            />
+            {consent}
+          </div>
           <AvatarCandidateGrid
             candidates={g.candidates}
             pending={g.pending}
             frontUrl={front?.url ?? null}
             picking={g.picking}
             locked={g.generatingSheet}
+            emptyCount={g.composer.count}
             onPick={g.pickFront}
           />
-          {consent}
-        </>
+        </div>
       ) : (
         <div className="flex flex-wrap items-start gap-5">
           <div className="w-full max-w-[13rem]">
