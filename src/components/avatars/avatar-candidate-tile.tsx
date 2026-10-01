@@ -3,6 +3,7 @@
 import { Loader2, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { AvatarCandidate } from "@/lib/avatars/schema";
 
@@ -40,8 +41,10 @@ export function AvatarCandidateTile({ candidate, isFront, isPicking, disabled, o
           isPicking && "disabled:opacity-100",
         )}
       >
+        {/* Under the image until it has downloaded; the image covers it once it paints. */}
+        <Skeleton className="absolute inset-0 rounded-none" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={candidate.url} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+        <img src={candidate.url} alt="" loading="lazy" decoding="async" className="relative size-full object-cover" />
         {isPicking && (
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background/60 text-xs font-medium text-foreground">
             <Loader2 className="size-5 animate-spin text-primary" strokeWidth={1.5} />

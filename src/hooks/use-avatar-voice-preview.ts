@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/avatars/utils";
-import { useStartVoicePreview, useVoicePreviewQuery } from "@/hooks/queries/avatars";
+import { useStartVoicePreview, useVoicePreviewQuery, type VoicePreviewData } from "@/hooks/queries/avatars";
 import type { VoicePreview } from "@/lib/avatars/schema";
 
 // D294 — the avatar's voice preview in the Studio: the latest clip, what the next one costs, and
@@ -12,18 +12,20 @@ import type { VoicePreview } from "@/lib/avatars/schema";
 // this hook keeps the Studio's shape and adds the one thing the Studio needs on top, "a preview
 // just finished". It lives in the Studio (not the Voice step) so the wait carries on across steps.
 export function useAvatarVoicePreview({
-  clientId, avatarId, declaration, onSettled,
+  clientId, avatarId, declaration, initial, onSettled,
 }: {
   clientId: string;
   avatarId: string | null;
   /** The declaration, as a key: its mode and, for a named voice, which one. Both the engine and
    *  the estimate follow it, so a change reloads. */
   declaration: string | null;
+  /** What the page read on the server, for the declaration it was read under. */
+  initial?: { declaration: string | null; data: VoicePreviewData } | null;
   /** A preview finished, either way. What the avatar has cost has changed, and a native preview
    *  has written a voice reference onto the avatar itself. */
   onSettled: (avatarId: string) => void;
 }) {
-  const query = useVoicePreviewQuery(clientId, avatarId, declaration);
+  const query = useVoicePreviewQuery(clientId, avatarId, declaration, initial);
   const start = useStartVoicePreview(clientId, avatarId);
   const preview = query.data?.preview ?? null;
   const estimateCredits = query.data?.estimateCredits ?? null;
@@ -49,5 +51,7 @@ export function useAvatarVoicePreview({
     [avatarId, start, running],
   );
 
-  return { preview, estimateCredits, starting: start.isPending, running, generate };
+  // Not yet known — the step and the stepper wait rather than calling it not done.
+  const loading = Boolean(avatarId) && query.isPending;
+  return { preview, estimateCredits, starting: start.isPending, running, loading, generate };
 }

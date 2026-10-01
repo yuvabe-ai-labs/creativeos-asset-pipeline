@@ -24,21 +24,24 @@ const DEFAULT_COMPOSER: GenerateFrontInput = {
 // model — both live here, not as local state in their panels, so switching to "Upload photo" or
 // leaving the Look step (which unmounts the panels) never loses what was typed.
 export function useAvatarGeneration({
-  clientId, avatarId, ensureAvatar, onAvatar,
+  clientId, avatarId, initial, ensureAvatar, onAvatar,
 }: {
   clientId: string;
   avatarId: string | null;
+  /** What the page read on the server for this avatar — shown at once, and not fetched again. */
+  initial?: { candidates: AvatarCandidate[]; spentCredits: number } | null;
   ensureAvatar: () => Promise<Avatar>;
   onAvatar: (avatar: Avatar) => void;
 }) {
-  const [candidates, setCandidates] = useState<AvatarCandidate[]>([]);
+  const [candidates, setCandidates] = useState<AvatarCandidate[]>(() => initial?.candidates ?? []);
   const [pending, setPending] = useState<PendingCandidate[]>([]);
-  const [spentCredits, setSpentCredits] = useState(0);
+  const [spentCredits, setSpentCredits] = useState(() => initial?.spentCredits ?? 0);
   const [picking, setPicking] = useState<string | null>(null);
   const [generatingSheet, setGeneratingSheet] = useState(false);
   const [composer, setComposerState] = useState<GenerateFrontInput>(DEFAULT_COMPOSER);
   const [sheetModelId, setSheetModelId] = useState(AVATAR_DEFAULT_SHEET_MODEL_ID);
-  const loadedFor = useRef<string | null>(null);
+  // Seeded from the server, the first avatar is already loaded.
+  const loadedFor = useRef<string | null>(initial ? avatarId : null);
 
   const setComposer = useCallback((patch: Partial<GenerateFrontInput>) => {
     setComposerState((prev) => ({ ...prev, ...patch }));

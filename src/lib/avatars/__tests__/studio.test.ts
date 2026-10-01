@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarFaceLabel, avatarLifecycle, isLookDone, isStepDone, isStepOpen, stepStatusLine,
+  avatarFaceLabel, avatarLifecycle, isLookDone, isStepDone, isStepLoading, isStepOpen, stepStatusLine,
   studioOpeningStep, STUDIO_STEPS, type StudioSnapshot,
 } from "../studio";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
@@ -144,5 +144,13 @@ describe("avatarFaceLabel", () => {
     expect(avatarFaceLabel(makeAvatar())).toBe("Real person");
     expect(avatarFaceLabel(generated())).toBe("Generated · Seedream 5.0 Lite");
     expect(avatarFaceLabel(makeAvatar({ front: null }))).toBeNull();
+  });
+});
+
+describe("isStepLoading", () => {
+  it("holds the Preview step while its preview is being read, and only that step", () => {
+    expect(isStepLoading("preview", snap({ previewLoading: true }))).toBe(true);
+    expect(isStepLoading("voice", snap({ previewLoading: true }))).toBe(false);
+    expect(isStepLoading("preview", snap({}))).toBe(false);
   });
 });

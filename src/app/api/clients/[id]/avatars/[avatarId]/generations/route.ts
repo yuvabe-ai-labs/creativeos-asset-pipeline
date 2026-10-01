@@ -2,7 +2,8 @@ import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar } from "@/lib/db/avatars";
-import { listAvatarGenerations, sumAvatarCredits } from "@/lib/db/generations";
+import { sumAvatarCredits } from "@/lib/db/generations";
+import { loadAvatarGenerations } from "@/lib/avatars/studio-server";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { runAvatarGeneration } from "@/lib/avatars/generate";
@@ -12,7 +13,6 @@ import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 import {
   AVATAR_DESCRIPTION_MAX, AVATAR_FRONT_ASPECT, AVATAR_STYLES,
 } from "@/lib/avatars/constants";
-import type { AvatarCandidate } from "@/lib/avatars/schema";
 
 // One image can take over a minute on some models.
 export const maxDuration = 300;
@@ -42,14 +42,7 @@ export async function GET(req: Request, { params }: Ctx) {
     withTryCatch("Could not load the generated images.", async () => {
       const avatar = await getAvatar(clientId, avatarId);
       if (!avatar) return apiError("Avatar not found.", 404);
-      const [rows, spentCredits] = await Promise.all([
-        listAvatarGenerations(avatarId),
-        sumAvatarCredits(avatarId),
-      ]);
-      const candidates = rows
-        .map(generationToCandidate)
-        .filter((c): c is AvatarCandidate => c !== null);
-      return apiOk({ candidates, spentCredits });
+      return apiOk(await loadAvatarGenerations(avatarId));
     }),
   );
 }

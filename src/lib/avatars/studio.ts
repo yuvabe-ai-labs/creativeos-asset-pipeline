@@ -55,8 +55,16 @@ export type StudioSnapshot = {
   name: string;
   preview: Pick<VoicePreview, "status" | "mode" | "voiceId" | "frontUrl"> | null;
   sheetGenerating: boolean;
+  /** The preview is still being read, so whether Preview is done is not yet known. */
+  previewLoading?: boolean;
   skipped: ReadonlySet<StudioStepId>;
 };
+
+/** A step whose state is still being read — the stepper shows a placeholder for it rather than
+ *  calling it not done and then flipping to done a moment later. */
+export function isStepLoading(id: StudioStepId, snap: StudioSnapshot): boolean {
+  return id === "preview" && Boolean(snap.previewLoading);
+}
 
 /** Look is done with a front image — and, for an uploaded photo, the confirmed permission. */
 export function isLookDone(avatar: Pick<Avatar, "front" | "likenessConsentAt"> | null): boolean {

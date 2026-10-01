@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import type { AvatarGenerations, VoicePreviewState } from "@/lib/avatars/studio-server";
 import { cn } from "@/lib/utils";
 import { useAvatarGeneration } from "@/hooks/use-avatar-generation";
 import { useAvatarStudio } from "@/hooks/use-avatar-studio";
@@ -31,17 +32,23 @@ type Props = {
   clientSlug: string;
   clientName: string;
   initialAvatar: Avatar | null;
+  /** Read on the server with the avatar, so a revisit opens with them known (null: load here). */
+  initialGenerations?: AvatarGenerations | null;
+  initialVoicePreview?: VoicePreviewState | null;
 };
 
 // D287, D297 — the Avatar Studio: a full page in three columns. The five steps down the side,
 // the current step's panel with its footer pinned to the bottom, and the avatar so far.
-export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }: Props) {
+export function AvatarStudio({
+  clientId, clientSlug, clientName, initialAvatar, initialGenerations, initialVoicePreview,
+}: Props) {
   const router = useRouter();
   const libraryHref = `/clients/${clientSlug}/avatars`;
   const s = useAvatarStudio({ clientId, clientSlug, initialAvatar });
   const g = useAvatarGeneration({
     clientId,
     avatarId: s.avatar?.id ?? null,
+    initial: initialGenerations,
     ensureAvatar: s.ensureAvatar,
     onAvatar: s.replaceAvatar,
   });
@@ -54,6 +61,9 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     clientId,
     avatarId: s.avatar?.id ?? null,
     declaration: voiceDeclarationKey(s.avatar?.voice ?? null),
+    initial: initialVoicePreview
+      ? { declaration: voiceDeclarationKey(initialAvatar?.voice ?? null), data: initialVoicePreview }
+      : null,
     // A finished native preview writes the voice reference onto the avatar, so the row has to
     // be read again — the summary and the reference card both show what it saved.
     onSettled: useCallback(
@@ -76,6 +86,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     name: s.name,
     preview: preview.preview,
     sheetGenerating: g.generatingSheet,
+    previewLoading: preview.loading,
     skipped: steps.skipped,
   };
   const busy = s.uploading !== null || g.picking !== null || g.generatingSheet || g.pending.length > 0 || v.saving;

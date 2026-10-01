@@ -5,6 +5,7 @@ import { Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import type { useAvatarVoicePreview } from "@/hooks/use-avatar-voice-preview";
 import { AVATAR_VOICE_PREVIEW_LINE_MAX } from "@/lib/avatars/constants";
@@ -50,6 +51,20 @@ export function AvatarVoicePreview({ avatar, preview: p, disabled }: Props) {
   const clip = p.preview?.status === "succeeded" ? p.preview : null;
   const failed = p.preview?.status === "failed" ? p.preview : null;
   if (!mode) return null;
+  // The same shape as the loaded step, so nothing moves when the preview's state arrives.
+  if (p.loading) {
+    return (
+      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_12rem]" aria-busy="true">
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-14 w-full rounded-lg" />
+          <Skeleton className="h-3.5 w-36" />
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-9 w-44 rounded-lg" />
+        </div>
+        <Skeleton className="aspect-[9/16] w-full max-w-[12rem] rounded-xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_12rem]">
