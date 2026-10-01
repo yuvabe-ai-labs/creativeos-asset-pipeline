@@ -6181,3 +6181,34 @@ decides which models an avatar works with), D294 (the preview becomes a step), D
 **Originated →** `2026-09-29-client-avatars-design.md` §4, §8, §10. Mockup:
 https://claude.ai/artifact/6Mg4qUZ5Ptw61HAxV6SxDR.
 
+### D298 — An avatar reaches the canvas as a node that presents a script; the node holds only the avatar's id *(recorded 2026-10-01)*
+
+**Decision.** Avatars come to the canvas in two parts. Part 1: the gallery gains an **Avatars**
+tab listing the client's saved avatars; a tile drags onto the canvas as an **Avatar node**
+(`type: "avatar"`, `data: { avatarId }`), or onto a Script node already connected to it.
+`avatar → script` is the node's only connection, and a script has **one presenter** — a second
+replaces the first. The parse reads the presenter from the database and adds a brief (name,
+story, voice) to the system prompt, below the compliance rule: the presenter's on-camera lines
+get `speaker: "{name}"` and on-camera visuals describe that person. Clicking the node opens a
+**read-only focus view** with the latest preview clip and the references (front, sheet, voice,
+story, works-with). Part 2 — shots and video nodes using the face and the voice — reaches the
+presenter through the script that created each shot; part 1 copies nothing onto shots.
+
+**Why.** The client-avatars design always meant one avatar per reel, attached to the Script
+before shots are grouped (its §1). A node rather than a picker keeps the presenter visible in the
+graph, which part 2 has to read. Holding only the id keeps one truth: a voice or face changed in
+the Studio reaches every canvas without re-dropping, and the parse reads what the database says.
+VO lines already name their `speaker`, so a presenter is a small, natural extension of the parse,
+not a new concept. Read-only keeps consent, credits and staleness in one place, the Studio.
+
+**Rejected.** A snapshot of the avatar copied into the node (Studio edits would never reach the
+canvas; two copies drift). A "Presenter" picker inside the Script node (hides the presenter from
+the graph). Connecting avatars straight to Image Gen / Video Gen in part 1 (those nodes do not
+yet know what to do with a voice or the model rules — part 2). Several presenters per script
+(every shot would need to know which face is on screen; deferred until a dialogue reel needs it).
+Building parts 1 and 2 as one (part 2's design would be fixed before part 1 had been tried).
+Editing the avatar from the canvas focus view (a second place to edit the same thing).
+
+**Refines.** D287 (the library), D294/D296 (the preview the focus view shows), D297 (works-with).
+**Originated →** `2026-10-01-avatars-on-canvas-design.md`.
+
