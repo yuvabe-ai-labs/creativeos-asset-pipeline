@@ -51,8 +51,10 @@ export function useAvatarVoice({
     }
   }, []);
 
+  // D301 — `origin` records which card the voice came from: the library, or one made from a
+  // recording (already an account voice, so it needs no library save).
   const chooseNamed = useCallback(
-    (voice: PickerVoice) =>
+    (voice: PickerVoice, origin: "library" | "custom" = "library") =>
       run({ mode: "named", voice }, async () => {
         const accountVoice =
           voice.source === "library"
@@ -62,7 +64,7 @@ export function useAvatarVoice({
                 name: voice.name,
               })
             : voice;
-        await declare({ mode: "named", voiceId: accountVoice.voiceId });
+        await declare({ mode: "named", voiceId: accountVoice.voiceId, origin });
       }, `Couldn't use "${voice.name}"`),
     [clientId, declare, run],
   );

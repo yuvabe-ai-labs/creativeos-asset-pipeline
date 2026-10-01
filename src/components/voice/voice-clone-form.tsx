@@ -15,14 +15,32 @@ import {
 import { formatBytes } from "@/lib/kb/utils";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 
+/** D301 — the Avatar Studio's wording: what the operator gets, without the word "clone". */
+const INLINE_COPY = {
+  hint: "mp3, wav or m4a · one speaker · 1–2 minutes works best, at least 30 seconds",
+  upload: "Upload a recording",
+  name: "Voice name",
+  consent: "I have this person's permission to use their voice.",
+  idle: "Create voice",
+  busy: "Creating the voice…",
+  done: (name: string) => `Voice "${name}" created`,
+};
+
 // D292 — Instant Voice Clone for one client, shown inside the voice picker dialog. The cloned
-// voice is recorded for the client and handed back, ready to use.
+// voice is recorded for the client and handed back, ready to use. D301 — `inline` shows it in
+// the Studio's Voice step: no dialog padding, the name filled in, background-noise removal left on
+// without asking, and the Studio's plain wording.
 export function VoiceCloneForm({
-  clientId, onCloned,
-}: { clientId: string; onCloned: (voice: PickerVoice) => void }) {
+  clientId, onCloned, inline = false, defaultName = "",
+}: {
+  clientId: string;
+  onCloned: (voice: PickerVoice) => void;
+  inline?: boolean;
+  defaultName?: string;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(defaultName);
   const [description, setDescription] = useState("");
   const [removeNoise, setRemoveNoise] = useState(true);
   const [consent, setConsent] = useState(false);
@@ -32,7 +50,8 @@ export function VoiceCloneForm({
   const problem = validateVoiceCloneInput({
     name, consent, files: files.map((f) => ({ name: f.name, size: f.size })),
   });
-  const touched = files.length > 0 || name.trim().length > 0;
+  // A name filled in for the operator is not them starting.
+  const touched = files.length > 0 || (name.trim().length > 0 && name.trim() !== defaultName.trim());
 
   async function clone() {
     if (problem || cloning) return;
@@ -45,7 +64,7 @@ export function VoiceCloneForm({
       form.set("consent", "true");
       for (const file of files) form.append("files", file);
       const voice = await elevenLabsApi.cloneClientVoice(clientId, form);
-      toast.success(`Cloned "${name.trim()}"`);
+      toast.success(inline ? INLINE_COPY.done(name.trim()) : `Cloned "${name.trim()}"`);
       onCloned(voice);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not clone this voice.");
@@ -55,7 +74,7 @@ export function VoiceCloneForm({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-4 overflow-y-auto px-6 py-5">
+    <div className={inline ? "flex w-full flex-col gap-4" : "mx-auto flex w-full max-w-xl flex-col gap-4 overflow-y-auto px-6 py-5"}>
       <Button
         type="button"
         variant="outline"
@@ -63,9 +82,11 @@ export function VoiceCloneForm({
         className="h-auto flex-col gap-1.5 whitespace-normal rounded-xl border-dashed border-primary/40 py-6 text-primary hover:bg-primary/5 hover:text-primary"
       >
         <Upload className="size-5" strokeWidth={1.5} />
-        <span className="text-sm font-semibold">Add audio of the speaker</span>
+        <span className="text-sm font-semibold">{inline ? INLINE_COPY.upload : "Add audio of the speaker"}</span>
         <span className="text-xs font-normal text-muted-foreground">
-          mp3, wav or m4a · up to {VOICE_CLONE_MAX_LABEL} in total · one to two minutes of clean speech works best
+          {inline
+            ? INLINE_COPY.hint
+            : `mp3, wav or m4a · up to ${VOICE_CLONE_MAX_LABEL} in total · one to two minutes of clean speech works best`}
         </span>
       </Button>
       <Input
@@ -104,7 +125,7 @@ export function VoiceCloneForm({
       )}
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="voice-clone-name">Name</Label>
+        <Label htmlFor="voice-clone-name">{inline ? INLINE_COPY.name : "Name"}</Label>
         <Input
           id="voice-clone-name"
           value={name}
@@ -113,6 +134,7 @@ export function VoiceCloneForm({
           onChange={(e) => setName(e.target.value)}
         />
       </div>
+      {!inline && (
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="voice-clone-description">Description (optional)</Label>
         <Input
@@ -123,11 +145,14 @@ export function VoiceCloneForm({
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
+      )}
 
-      <div className="flex items-center gap-2">
-        <Checkbox id="voice-clone-noise" checked={removeNoise} onCheckedChange={(v) => setRemoveNoise(v === true)} />
-        <Label htmlFor="voice-clone-noise" className="text-sm font-normal">Remove background noise</Label>
-      </div>
+      {!inline && (
+        <div className="flex items-center gap-2">
+          <Checkbox id="voice-clone-noise" checked={removeNoise} onCheckedChange={(v) => setRemoveNoise(v === true)} />
+          <Label htmlFor="voice-clone-noise" className="text-sm font-normal">Remove background noise</Label>
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <Checkbox
           id="voice-clone-consent"
@@ -136,13 +161,13 @@ export function VoiceCloneForm({
           className="mt-0.5"
         />
         <Label htmlFor="voice-clone-consent" className="text-sm font-normal leading-snug">
-          {VOICE_CLONE_CONSENT_STATEMENT}
+          {inline ? INLINE_COPY.consent : VOICE_CLONE_CONSENT_STATEMENT}
         </Label>
       </div>
 
       <div className="flex items-center gap-3">
         <Button type="button" disabled={problem !== null || cloning} onClick={() => void clone()}>
-          {cloning ? "Cloning…" : "Clone voice"}
+          {inline ? (cloning ? INLINE_COPY.busy : INLINE_COPY.idle) : cloning ? "Cloning…" : "Clone voice"}
         </Button>
         {touched && problem && <p className="text-xs text-muted-foreground">{problem}</p>}
       </div>

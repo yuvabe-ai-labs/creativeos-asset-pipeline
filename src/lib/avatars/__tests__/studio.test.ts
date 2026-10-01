@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   avatarFaceLabel, avatarLifecycle, isLookDone, isStepDone, isStepLoading, isStepOpen, stepStatusLine,
-  studioOpeningStep, STUDIO_STEPS, type StudioSnapshot,
+  studioOpeningStep, STUDIO_STEPS, voiceChoiceOf, type StudioSnapshot,
 } from "../studio";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
 import type { Avatar, AvatarVoice, AvatarVoiceSample } from "../schema";
@@ -95,7 +95,7 @@ describe("studioOpeningStep", () => {
 describe("stepStatusLine", () => {
   it("Look asks for a front, names the image model, or asks for permission", () => {
     expect(stepStatusLine("look", snap({ avatar: null }))).toBe("Needed");
-    expect(stepStatusLine("look", snap({ avatar: generated() }))).toBe("Seedream 5.0 Lite");
+    expect(stepStatusLine("look", snap({ avatar: generated() }))).toBe("Generic");
     expect(stepStatusLine("look", snap({ avatar: makeAvatar() }))).toBe("Specific");
     expect(stepStatusLine("look", snap({ avatar: makeAvatar({ likenessConsentAt: null }) }))).toBe("Needs permission");
   });
@@ -114,7 +114,7 @@ describe("stepStatusLine", () => {
   });
   it("the voice line names the voice", () => {
     expect(stepStatusLine("voice", snap({ avatar: makeAvatar({ voice: NAMED }) }))).toBe("Surabhi");
-    expect(stepStatusLine("voice", snap({ avatar: generated({ voice: { mode: "native" } }) }))).toBe("Engine's own voice");
+    expect(stepStatusLine("voice", snap({ avatar: generated({ voice: { mode: "native" } }) }))).toBe("Chosen for me");
   });
   it("the preview says when it saved a voice reference, and when it is out of date", () => {
     const avatar = generated({ voice: { mode: "native" }, voiceSample: SAMPLE });
@@ -142,7 +142,7 @@ describe("avatarLifecycle", () => {
 describe("avatarFaceLabel", () => {
   it("says how the face was made", () => {
     expect(avatarFaceLabel(makeAvatar())).toBe("Specific");
-    expect(avatarFaceLabel(generated())).toBe("Generic · Seedream 5.0 Lite");
+    expect(avatarFaceLabel(generated())).toBe("Generic");
     expect(avatarFaceLabel(makeAvatar({ front: null }))).toBeNull();
   });
 });
@@ -152,5 +152,15 @@ describe("isStepLoading", () => {
     expect(isStepLoading("preview", snap({ previewLoading: true }))).toBe(true);
     expect(isStepLoading("voice", snap({ previewLoading: true }))).toBe(false);
     expect(isStepLoading("preview", snap({}))).toBe(false);
+  });
+});
+
+describe("voiceChoiceOf", () => {
+  it("opens the Voice step on the card the declaration came from", () => {
+    expect(voiceChoiceOf({ mode: "native" })).toBe("auto");
+    expect(voiceChoiceOf({ ...NAMED, origin: "custom" } as AvatarVoice)).toBe("custom");
+    expect(voiceChoiceOf({ ...NAMED, origin: "library" } as AvatarVoice)).toBe("library");
+    expect(voiceChoiceOf(NAMED)).toBe("library");
+    expect(voiceChoiceOf(null)).toBeNull();
   });
 });

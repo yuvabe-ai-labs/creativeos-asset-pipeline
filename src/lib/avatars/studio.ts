@@ -1,8 +1,19 @@
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 import { PERSON_TYPE_LABELS } from "./constants";
 import { needsLikenessConsent } from "./utils";
 import { isVoicePreviewStale } from "./voice-preview";
-import type { Avatar, VoicePreview } from "./schema";
+import { avatarVoiceLabel } from "./voice";
+import type { Avatar, AvatarVoice, VoicePreview } from "./schema";
+
+/** D301 — the Voice step's three cards. */
+export type VoiceChoice = "auto" | "library" | "custom";
+
+/** The card a declaration came from: the voice chosen for the avatar, a library voice, or a voice
+ *  made from a recording. Declarations from before D301 carry no origin and read as library. */
+export function voiceChoiceOf(voice: AvatarVoice | null): VoiceChoice | null {
+  if (!voice) return null;
+  if (voice.mode === "native") return "auto";
+  return voice.origin === "custom" ? "custom" : "library";
+}
 
 // D297 — the Avatar Studio's rules: its five steps, which are done, which are open, where the
 // Studio opens, each step's status line, and the avatar's lifecycle. Pure, so the stepper, the
@@ -103,10 +114,6 @@ export function studioOpeningStep(avatar: StudioAvatar | null): StudioStepId {
   return "preview";
 }
 
-function imageModelLabel(modelId: string): string {
-  return imageGenClientModelMap[modelId]?.label ?? "another model";
-}
-
 /** The one-line status under each step's title in the stepper (spec §4.0). */
 export function stepStatusLine(id: StudioStepId, snap: StudioSnapshot): string {
   const a = snap.avatar;
@@ -115,16 +122,14 @@ export function stepStatusLine(id: StudioStepId, snap: StudioSnapshot): string {
     case "look": {
       if (!a?.front) return "Needed";
       if (a.front.source.kind === "upload") return isLookDone(a) ? PERSON_TYPE_LABELS.specific : "Needs permission";
-      return imageModelLabel(a.front.source.modelId);
+      return PERSON_TYPE_LABELS.generic;
     }
     case "sheet":
       if (snap.sheetGenerating) return "Generating…";
       if (a?.sheet) return a.sheetStale ? "Out of date" : "Added";
       return optional;
     case "voice":
-      if (a?.voice?.mode === "native") return "Engine's own voice";
-      if (a?.voice?.mode === "named") return a.voice.name;
-      return optional;
+      return avatarVoiceLabel(a?.voice ?? null) ?? optional;
     case "preview": {
       const p = snap.preview;
       if (p?.status === "running") return "Generating…";
@@ -152,8 +157,6 @@ export function avatarLifecycle(avatar: Pick<Avatar, "status"> | null): AvatarLi
 /** How the face was made, for the summary card. */
 export function avatarFaceLabel(avatar: Pick<Avatar, "front">): string | null {
   if (!avatar.front) return null;
-  const source = avatar.front.source;
-  return source.kind === "upload"
-    ? PERSON_TYPE_LABELS.specific
-    : `${PERSON_TYPE_LABELS.generic} · ${imageModelLabel(source.modelId)}`;
+  // D301 — no model names: what made the face is the Studio's business, not the operator's.
+  return avatar.front.source.kind === "upload" ? PERSON_TYPE_LABELS.specific : PERSON_TYPE_LABELS.generic;
 }
