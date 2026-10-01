@@ -17,6 +17,7 @@ vi.mock("next/server", async (importOriginal) => ({
   after: vi.fn(),
 }));
 vi.mock("@/lib/avatars/voice-reference", () => ({ prepareNamedVoiceReference: vi.fn() }));
+vi.mock("@/lib/elevenlabs/voice-catalog", () => ({ deleteVoice: vi.fn() }));
 
 import { resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
@@ -26,6 +27,7 @@ import { listClientVoiceIds } from "@/lib/db/client-voices";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
 import { after } from "next/server";
 import { prepareNamedVoiceReference } from "@/lib/avatars/voice-reference";
+import { deleteVoice } from "@/lib/elevenlabs/voice-catalog";
 
 const params = Promise.resolve({ id: "c1", avatarId: "a1" });
 const put = (body: unknown) =>
@@ -103,12 +105,48 @@ describe("PUT avatar voice", () => {
     expect(vi.mocked(updateAvatar).mock.calls[0][2]).toEqual({ voice: { mode: "native" } });
   });
 
-  it("refuses the engine's own voice for a real person", async () => {
+  it("lets a real person's avatar have a voice chosen for it too (D301)", async () => {
     const { PUT } = await import("./route");
     const res = await PUT(put({ mode: "native" }), { params });
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/named voice/);
-    expect(updateAvatar).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(vi.mocked(updateAvatar).mock.calls[0][2]).toEqual({ voice: { mode: "native" } });
+  });
+
+  it("records a custom voice's origin", async () => {
+    const { PUT } = await import("./route");
+    await PUT(put({ mode: "named", voiceId: "mine", origin: "custom" }), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][2]).toMatchObject({ voice: { mode: "named", origin: "custom" } });
+  });
+
+  describe("the auto voice (D301)", () => {
+    const withAuto = () => makeAvatar({ voice: { mode: "native", autoVoice: { voiceId: "auto1", sourceKey: "g1" } } });
+    const runAfter = async () => {
+      for (const [task] of vi.mocked(after).mock.calls) await (typeof task === "function" ? task() : task);
+    };
+
+    it("is kept when the voice chosen for the avatar is chosen again", async () => {
+      vi.mocked(getAvatar).mockResolvedValue(withAuto());
+      const { PUT } = await import("./route");
+      await PUT(put({ mode: "native" }), { params });
+      expect(vi.mocked(updateAvatar).mock.calls[0][2]).toEqual({ voice: withAuto().voice });
+      await runAfter();
+      expect(deleteVoice).not.toHaveBeenCalled();
+    });
+
+    it("is removed from the account once the voice moves to a named one, or to none", async () => {
+      vi.mocked(getAvatar).mockResolvedValue(withAuto());
+      vi.mocked(deleteVoice).mockResolvedValue(undefined);
+      const { PUT } = await import("./route");
+      await PUT(put({ mode: "named", voiceId: "mine" }), { params });
+      await runAfter();
+      expect(deleteVoice).toHaveBeenCalledWith("auto1");
+
+      vi.mocked(deleteVoice).mockClear();
+      vi.mocked(after).mockClear();
+      await PUT(put({ mode: "none" }), { params });
+      await runAfter();
+      expect(deleteVoice).toHaveBeenCalledWith("auto1");
+    });
   });
 
   it("needs a front image before a voice can be chosen", async () => {

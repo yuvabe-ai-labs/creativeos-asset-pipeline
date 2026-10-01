@@ -33,7 +33,7 @@ export function useAvatarVoice({
   const saving = pending !== null;
 
   const declare = useCallback(
-    async (choice: { mode: "none" } | { mode: "native" } | { mode: "named"; voiceId: string }) => {
+    async (choice: { mode: "none" } | { mode: "native" } | { mode: "named"; voiceId: string; origin?: "library" | "custom" }) => {
       if (!avatarId) return;
       onAvatar(await avatarsService.setVoice(clientId, avatarId, choice));
     },

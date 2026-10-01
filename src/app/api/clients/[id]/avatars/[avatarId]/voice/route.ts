@@ -10,13 +10,26 @@ import { preconditionFailed } from "@/lib/avatars/route-responses";
 import { isVoiceAllowed, pickerVoiceToAvatarVoice } from "@/lib/avatars/voice";
 import type { AvatarVoice } from "@/lib/avatars/schema";
 import { prepareNamedVoiceReference } from "@/lib/avatars/voice-reference";
+import { deleteVoice } from "@/lib/elevenlabs/voice-catalog";
+
+/** D301 — the auto voice belongs to the voice chosen for the avatar. Once the declaration moves
+ *  off it, it is removed from the shared ElevenLabs account after the response, best-effort. */
+function releaseAutoVoice(previous: AvatarVoice | null, next: AvatarVoice | null) {
+  const autoVoiceId = previous?.mode === "native" ? previous.autoVoice?.voiceId : undefined;
+  if (!autoVoiceId || next === previous) return;
+  after(() =>
+    deleteVoice(autoVoiceId).catch((e) => {
+      console.error("[avatar voice] could not remove the auto voice", { autoVoiceId, error: e instanceof Error ? e.message : String(e) });
+    }),
+  );
+}
 
 export const dynamic = "force-dynamic";
 
 const VoiceSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("none") }),
   z.object({ mode: z.literal("native") }),
-  z.object({ mode: z.literal("named"), voiceId: z.string().min(1) }),
+  z.object({ mode: z.literal("named"), voiceId: z.string().min(1), origin: z.enum(["library", "custom"]).optional() }),
 ]);
 
 const FRONT_CHANGED = "The front image changed. Choose the voice again.";
@@ -40,7 +53,9 @@ export async function PUT(
 
       if (choice.mode === "none") {
         const avatar = await updateAvatar(clientId, avatarId, { voice: null });
-        return avatar ? apiOk({ avatar }) : apiError("Avatar not found.", 404);
+        if (!avatar) return apiError("Avatar not found.", 404);
+        releaseAutoVoice(current.voice, null);
+        return apiOk({ avatar });
       }
 
       // What may be declared depends on the person type, which follows the front image.
@@ -48,23 +63,25 @@ export async function PUT(
 
       let voice: AvatarVoice;
       if (choice.mode === "native") {
-        voice = { mode: "native" };
+        // Choosing it again keeps the auto voice its last preview made.
+        voice = current.voice?.mode === "native" ? current.voice : { mode: "native" };
       } else {
         const picked = await getVoiceCached(choice.voiceId);
         // Missing, or another client's: a 404 either way, never confirming a foreign voice.
         if (!picked || !isVoiceAvailableToClient(picked, await listClientVoiceIds(clientId))) {
           return apiError("Voice not found.", 404);
         }
-        voice = pickerVoiceToAvatarVoice(picked);
+        voice = pickerVoiceToAvatarVoice(picked, choice.origin);
       }
       if (!isVoiceAllowed(voice, current.personType)) {
-        return apiError("A real person's avatar needs a named voice.", 400);
+        return apiError("Add a front image before choosing a voice.", 400);
       }
 
-      // Conditioned on the front that decided what was allowed: a front swap landing in between
-      // could otherwise leave a native voice on what is now a real person.
+      // Conditioned on the front the choice was made for: a front swap landing in between asks for
+      // the voice to be chosen again.
       const avatar = await updateAvatar(clientId, avatarId, { voice }, { ifFrontUrl: current.front.url });
       if (!avatar) return preconditionFailed(clientId, avatarId, FRONT_CHANGED);
+      releaseAutoVoice(current.voice, voice);
       // D299 — a named voice on a Seedream face gets the audio Seedance is given as its reference.
       // Made after the response, so choosing a voice is not slowed by an ElevenLabs download or a
       // text-to-speech call; it never throws, and the video route makes it on demand if needed.

@@ -38,7 +38,7 @@ class AvatarsService {
   async setVoice(
     clientId: string,
     avatarId: string,
-    choice: { mode: "none" } | { mode: "native" } | { mode: "named"; voiceId: string },
+    choice: { mode: "none" } | { mode: "native" } | { mode: "named"; voiceId: string; origin?: "library" | "custom" },
   ): Promise<Avatar> {
     const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/voice`, {
       method: "PUT", headers: JSON_HEADERS, body: JSON.stringify(choice),
