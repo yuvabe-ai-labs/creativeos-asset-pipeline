@@ -45,6 +45,13 @@ export function voicePreviewMode(avatar: Pick<Avatar, "voice">): VoicePreviewMod
   return avatar.voice?.mode ?? null;
 }
 
+/** The declaration as a cache key: its mode and, for a named voice, which one. The preview's
+ *  estimate depends on both, so the Studio and the canvas key the preview query by it. */
+export function voiceDeclarationKey(voice: Avatar["voice"]): string | null {
+  if (!voice) return null;
+  return `${voice.mode}:${voice.mode === "named" ? voice.voiceId : ""}`;
+}
+
 /** True for the mode whose clip's own voice is kept as the avatar's reference audio. */
 export function voicePreviewKeepsSample(mode: VoicePreviewMode): boolean {
   return mode === "native";

@@ -68,7 +68,7 @@ type VoicePreviewData = { preview: VoicePreview | null; estimateCredits: number 
 
 /** The avatar's latest voice preview and what the next one costs (D294, D296). While one is
  *  running it is polled; once it settles, polling stops on its own. */
-export function useVoicePreview(clientId: string, avatarId: string | null, declaration: string | null) {
+export function useVoicePreviewQuery(clientId: string, avatarId: string | null, declaration: string | null) {
   return useQuery({
     // The estimate depends on the declaration, so a declaration change is a different query.
     queryKey: [...avatarKeys.voicePreview(clientId, avatarId ?? ""), declaration] as const,

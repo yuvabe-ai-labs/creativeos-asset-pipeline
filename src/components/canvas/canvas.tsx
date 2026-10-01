@@ -22,6 +22,7 @@ import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { fileNodeService } from "@/services/file-node.service";
+import { AvatarNode } from "@/components/nodes/avatar-node";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -46,7 +47,7 @@ import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
-import { ClientIdProvider } from "./client-id-context";
+import { ClientIdProvider, ClientSlugProvider } from "./client-id-context";
 import { GenerationTray } from "./generation-tray";
 import { CopilotPanel } from "./copilot-panel";
 import { LockBanner } from "./lock-banner";
@@ -62,6 +63,7 @@ import type { ClientKBJobRow } from "@/lib/db/types";
 const nodeTypes: NodeTypes = {
   script: ScriptNode,
   kb: KBNode,
+  avatar: AvatarNode,
   file: FileNode,
   text: TextNode,
   prompt: PromptNode,
@@ -78,12 +80,14 @@ const nodeTypes: NodeTypes = {
 export function Canvas({
   canvasId,
   clientId,
+  clientSlug,
   initialKBJob,
   hasActiveKB,
   initialDriveRootFolder,
 }: {
   canvasId: string;
   clientId: string;
+  clientSlug: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
   initialDriveRootFolder: { id: string; name: string } | null;
@@ -361,6 +365,7 @@ export function Canvas({
   return (
     <ReactFlowProvider>
     <ClientIdProvider value={clientId}>
+    <ClientSlugProvider value={clientSlug}>
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
@@ -503,6 +508,7 @@ export function Canvas({
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>
+    </ClientSlugProvider>
     </ClientIdProvider>
     </ReactFlowProvider>
   );

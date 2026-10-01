@@ -11,6 +11,7 @@ import { useStudioSteps } from "@/hooks/use-studio-steps";
 import {
   isLookDone, isStepDone, studioOpeningStep, STUDIO_STEPS, type StudioSnapshot,
 } from "@/lib/avatars/studio";
+import { voiceDeclarationKey } from "@/lib/avatars/voice-preview";
 import type { Avatar } from "@/lib/avatars/schema";
 import { AvatarLikenessConsent } from "./avatar-likeness-consent";
 import { AvatarStudioFooter } from "./avatar-studio-footer";
@@ -50,9 +51,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
   const preview = useAvatarVoicePreview({
     clientId,
     avatarId: s.avatar?.id ?? null,
-    declaration: s.avatar?.voice
-      ? `${s.avatar.voice.mode}:${s.avatar.voice.mode === "named" ? s.avatar.voice.voiceId : ""}`
-      : null,
+    declaration: voiceDeclarationKey(s.avatar?.voice ?? null),
     // A finished native preview writes the voice reference onto the avatar, so the row has to
     // be read again — the summary and the reference card both show what it saved.
     onSettled: useCallback(

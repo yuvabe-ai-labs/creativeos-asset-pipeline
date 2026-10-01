@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/avatars/utils";
-import { useStartVoicePreview, useVoicePreview } from "@/hooks/queries/avatars";
+import { useStartVoicePreview, useVoicePreviewQuery } from "@/hooks/queries/avatars";
 import type { VoicePreview } from "@/lib/avatars/schema";
 
 // D294 — the avatar's voice preview in the Studio: the latest clip, what the next one costs, and
@@ -23,7 +23,7 @@ export function useAvatarVoicePreview({
    *  has written a voice reference onto the avatar itself. */
   onSettled: (avatarId: string) => void;
 }) {
-  const query = useVoicePreview(clientId, avatarId, declaration);
+  const query = useVoicePreviewQuery(clientId, avatarId, declaration);
   const start = useStartVoicePreview(clientId, avatarId);
   const preview = query.data?.preview ?? null;
   const estimateCredits = query.data?.estimateCredits ?? null;
