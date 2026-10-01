@@ -1,0 +1,162 @@
+import type { UpstreamOutput } from "@/lib/db/nodes";
+import { isOnScreenLine } from "@/lib/nodes/voiceover";
+import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
+import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import { avatarWorksWith } from "./generation";
+import type { Avatar, AvatarVoice, AvatarVoiceSample } from "./schema";
+
+// D299 — the presenter in a shot. Pure: the server walks the database and the browser walks the
+// canvas store, and both feed these the same rows, so they cannot disagree about a shot.
+
+/** An upstream row, as `getUpstreamOutputs` returns it — only the fields read here. */
+export type PresenterRowInput = Pick<UpstreamOutput, "nodeId" | "type" | "data">;
+
+const SEEDED_TYPES = new Set(["shot", "multishot"]);
+
+/** The script that created the prompt node's Shot or Multishot — where its presenter lives. */
+export function seedingScriptId(rows: readonly PresenterRowInput[]): string | null {
+  for (const row of rows) {
+    if (!SEEDED_TYPES.has(row.type)) continue;
+    const id = (row.data.seededFrom as { scriptNodeId?: unknown } | undefined)?.scriptNodeId;
+    if (typeof id === "string" && id) return id;
+  }
+  return null;
+}
+
+function linesOf(row: PresenterRowInput): VoLine[] {
+  if (row.type === "shot") {
+    const script = row.data.script as ReelScript | undefined;
+    return (script?.visual_script?.shots ?? []).flatMap((s) => s.voiceover ?? []);
+  }
+  if (row.type === "multishot") {
+    const cuts = (row.data.cuts ?? []) as { voiceover?: VoLine[] }[];
+    const sequence = (row.data.sequenceVoiceover ?? []) as VoLine[];
+    return [...cuts.flatMap((c) => c.voiceover ?? []), ...sequence];
+  }
+  return [];
+}
+
+/** Whether the shot puts a line in someone's mouth on camera — the presenter switch's default. */
+export function hasOnCameraLine(rows: readonly PresenterRowInput[]): boolean {
+  return rows.some((row) => linesOf(row).some(isOnScreenLine));
+}
+
+/** Is the presenter in this shot? The operator's stored choice wins; otherwise the default. */
+export function presenterInShot(
+  stored: { inShot: boolean } | undefined,
+  rows: readonly PresenterRowInput[],
+): boolean {
+  return stored ? stored.inShot : hasOnCameraLine(rows);
+}
+
+/**
+ * The presenter as a virtual File input on the prompt node: an image row under the Avatar node's
+ * own id. Every reader of a prompt node's upstream — the writers' reference roster, the stored
+ * references (by id, BUG-010), the generation routes, Video Gen's image roles and each model's
+ * limits — already handles a file image, so the face needs no path of its own.
+ */
+export function presenterUpstreamRow(
+  avatarNodeId: string,
+  avatar: Pick<Avatar, "name" | "front">,
+): UpstreamOutput | null {
+  if (!avatar.front) return null;
+  return {
+    nodeId: avatarNodeId,
+    type: "file",
+    data: {
+      // Read by the upstream mappers: label "Presenter", name = the avatar's name, so the roster
+      // entry reads "Presenter: Riya".
+      presenter: true,
+      title: avatar.name,
+      fileKind: "image",
+      fileUrl: avatar.front.url,
+      // A file node's processedOutput is its text block for the writer (node-output.ts).
+      processedOutput: `The presenter, ${avatar.name}: the person on camera in this shot. Show them as they appear in this image.`,
+    },
+    activeOutput: null,
+    versionId: null,
+  };
+}
+
+const NAMED_SAMPLE_PREFIX = "elevenlabs:";
+
+/** The `sourceKey` a named voice's reference is recorded under. */
+export function namedVoiceSampleKey(voiceId: string): string {
+  return `${NAMED_SAMPLE_PREFIX}${voiceId}`;
+}
+
+/** The voice reference that belongs to the avatar's current declaration, or null. A sample made
+ *  for another voice — or for the engine's own voice after a named one is chosen — is ignored. */
+export function matchingVoiceReference(
+  avatar: Pick<Avatar, "voice" | "voiceSample">,
+): AvatarVoiceSample | null {
+  const sample = avatar.voiceSample;
+  const voice = avatar.voice;
+  if (!sample || !voice) return null;
+  if (voice.mode === "named") return sample.sourceKey === namedVoiceSampleKey(voice.voiceId) ? sample : null;
+  return sample.sourceKey.startsWith(NAMED_SAMPLE_PREFIX) ? null : sample;
+}
+
+/** What Seedance's text says about the audio reference: bind it by position, keep it to the
+ *  voice's timbre (or the reference's music and effects come along), and describe the voice in
+ *  words — BytePlus's own fix for a generated voice that drifts from its reference. */
+export function seedanceVoiceText(voice: AvatarVoice): string {
+  const bind = "Reference only the voice timbre in @Audio 1, not its music or sound effects.";
+  if (voice.mode === "native") return `${bind} The voice is the presenter's own voice from that reference.`;
+  const words = [voice.labels.gender, voice.labels.age, voice.labels.language, voice.labels.accent, voice.labels.description]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .map((v) => v.trim());
+  return words.length ? `${bind} The voice: ${words.join(", ")}.` : bind;
+}
+
+/** The prompt node's stored switch, or undefined when the operator has not chosen. */
+export function readPresenterSwitch(raw: unknown): { inShot: boolean } | undefined {
+  const inShot = (raw as { inShot?: unknown } | undefined)?.inShot;
+  return typeof inShot === "boolean" ? { inShot } : undefined;
+}
+
+const FAMILY_BY_PROVIDER: Record<string, string> = {
+  seedance: "Seedance", gemini: "Gemini Omni", kling: "Kling", veo: "Veo",
+};
+
+/** Why a video model can't use this presenter's face — the operator reads this on the chip. */
+function unavailableReason(family: string, avatar: Pick<Avatar, "front">): string {
+  if (family === "Seedance") {
+    return avatar.front?.source.kind === "generated"
+      ? "Seedance only takes faces made with Seedream 5.0 Lite"
+      : "Seedance refuses a real person's face";
+  }
+  return "Google may refuse a real person's face";
+}
+
+/** The video models the presenter's face rules out, by model id, each with its reason (D299). */
+export function unavailableModelsFor(avatar: Pick<Avatar, "front">): Record<string, string> {
+  const works = avatarWorksWith(avatar);
+  const out: Record<string, string> = {};
+  for (const [id, spec] of Object.entries(videoGenClientModelMap)) {
+    const family = FAMILY_BY_PROVIDER[spec.provider];
+    if (family && !works.includes(family)) out[id] = unavailableReason(family, avatar);
+  }
+  return out;
+}
+
+/** What Video Gen tells the operator about the presenter on this model (D299 spec §4, §5.3). */
+export function presenterVideoNotes(args: {
+  avatar: Pick<Avatar, "voice" | "voiceSample">;
+  provider: string | undefined;
+  hasStartFrame: boolean;
+}): string[] {
+  const { avatar, provider, hasStartFrame } = args;
+  const notes: string[] = [];
+  if (provider === "seedance") {
+    if (hasStartFrame) {
+      notes.push("Seedance uses the still as its first frame, so the presenter's face can't be sent as well. The voice still is.");
+    }
+    if (avatar.voice?.mode === "native" && !matchingVoiceReference(avatar)) {
+      notes.push("The presenter's voice reference is missing, so Seedance will make up a voice. Make a voice preview in the Studio to record one.");
+    }
+  } else if (avatar.voice?.mode === "native") {
+    notes.push("Only Seedance keeps the engine's own voice the same across clips.");
+  }
+  return notes;
+}

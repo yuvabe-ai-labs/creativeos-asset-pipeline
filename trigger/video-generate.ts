@@ -14,6 +14,8 @@ export const videoGenerateTask = task({
     startFrameUrl?: string;
     endFrameUrl?: string;
     referenceUrls: string[];
+    /** D299 — the presenter's voice, on Seedance. Other providers ignore it. */
+    referenceAudioUrl?: string;
     params: Record<string, unknown>;
     mockMode?: boolean;
   }) => {
@@ -57,6 +59,7 @@ export const videoGenerateTask = task({
         startFrameUrl: payload.startFrameUrl,
         endFrameUrl: payload.endFrameUrl,
         referenceUrls: payload.referenceUrls ?? [],
+        referenceAudioUrl: payload.referenceAudioUrl,
         params: payload.params,
       });
 

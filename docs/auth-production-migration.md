@@ -583,3 +583,95 @@ select tablename from pg_publication_tables
 
 Application code that depends on this: `src/lib/realtime/org-market-updates.ts` (filters on
 `org_id`) and `src/hooks/use-market-updates.ts`.
+
+## Migration 0041 — `client_avatars` (2026-09-30)
+
+`supabase/migrations/0041_client_avatars.sql`. Paste into the Supabase SQL editor → Run.
+Same manual dashboard process as every other migration in this doc.
+
+Creates `client_avatars` (D287, D288): one row per avatar, owned by a client, with its front
+image and profile sheet as JSON that records each image's source. RLS is enabled with zero
+policies (default-deny, as `0027`); the app reads and writes through the service role. The table
+also records likeness consent (D289) — who confirmed and when — for an uploaded front image.
+
+**Purely additive** — one new table, no existing table altered, no backfill.
+
+**Not safe to re-run:** `create table` fails if the table exists. That failure is harmless.
+
+**Ordering:** apply before deploying the app code. The Avatars page fails with
+`relation "client_avatars" does not exist` until it lands.
+
+**Verify after running:**
+
+```sql
+-- expect 1 row, rowsecurity = true
+select relname, relrowsecurity from pg_class where relname = 'client_avatars';
+
+-- expect 0 rows (no policies by design)
+select policyname from pg_policies where tablename = 'client_avatars';
+
+-- expect 2 rows
+select column_name from information_schema.columns
+where table_name = 'client_avatars' and column_name like 'likeness%';
+```
+
+## Migration 0042 — a generation can belong to an avatar (2026-09-30)
+
+`supabase/migrations/0042_generations_avatar.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0041** (`client_avatars`).
+
+Makes `generations.node_id` nullable, adds `avatar_id` (cascade) with an index, and adds a
+check that every row has a node or an avatar (D291). This is what lets Avatar Studio images use
+the existing credit ledger.
+
+**Existing rows are untouched** — each already has a `node_id`, so the check passes.
+
+**Safe to re-run.** `add column if not exists`, `create index if not exists`, and the constraint
+is dropped before it is added.
+
+**Ordering:** apply before deploying the app code. Until it lands, generating in the Avatar
+Studio fails with `null value in column "node_id"`.
+
+**Verify after running:**
+
+```sql
+-- expect: is_nullable = YES
+select is_nullable from information_schema.columns
+where table_name = 'generations' and column_name = 'node_id';
+
+-- expect 1 row
+select conname from pg_constraint where conname = 'generations_owner_check';
+
+-- expect 0 — no row is owned by nothing
+select count(*) from generations where node_id is null and avatar_id is null;
+```
+
+## Migration 0043 — `client_voices` (2026-09-30)
+
+`supabase/migrations/0043_client_voices.sql`. Paste into the Supabase SQL editor → Run.
+
+Creates `client_voices` (D292): which ElevenLabs account voices belong to which client — one
+row per voice cloned for the client or saved from the Voice Library for it. One ElevenLabs
+account serves every client, so this is what keeps one client's clone out of another's picker.
+RLS is enabled with zero policies (default-deny, as `0041`).
+
+**Purely additive** — one new table, no existing table altered, no backfill. Voices already on
+the ElevenLabs account (anything picked in Change voice before this, or cloned by hand) are not
+recorded for any client and do not appear under "This client" in the Avatar Studio; Change voice
+on Video Gen still lists the whole account and is unaffected.
+
+**Not safe to re-run:** `create table` fails if the table exists. That failure is harmless.
+
+**Ordering:** apply before deploying the app code. Until it lands, the Avatar Studio's voice
+picker fails to load with `relation "client_voices" does not exist`.
+
+**Verify after running:**
+
+```sql
+-- expect 1 row, rowsecurity = true
+select relname, relrowsecurity from pg_class where relname = 'client_voices';
+
+-- expect 1 row: the (client_id, elevenlabs_voice_id) uniqueness
+select conname from pg_constraint
+where conrelid = 'client_voices'::regclass and contype = 'u';
+```

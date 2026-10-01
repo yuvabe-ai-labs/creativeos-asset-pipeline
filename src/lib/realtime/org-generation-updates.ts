@@ -3,7 +3,9 @@
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-export type GenerationUpdateRow = { node_id: string; status: string };
+// node_id is null for an avatar-owned generation (migration 0042, D291) — this channel
+// filters only on org_id, so an avatar's UPDATE events pass through here too.
+export type GenerationUpdateRow = { node_id: string | null; status: string };
 
 // One shared Realtime channel per org for `generations` UPDATE events — any number of
 // callers (per-node cost, canvas cost) subscribe without each opening its own duplicate

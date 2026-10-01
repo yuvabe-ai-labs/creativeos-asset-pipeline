@@ -141,6 +141,13 @@ describe("flowToPersisted (image-gen edit fields)", () => {
 });
 
 describe("canConnect", () => {
+  it("D298 — an avatar connects to a script and to nothing else", () => {
+    expect(canConnect("avatar", "script")).toBe(true);
+    expect(canConnect("avatar", "video-gen")).toBe(false);
+    expect(canConnect("avatar", "prompt")).toBe(false);
+    expect(canConnect("script", "avatar")).toBe(false);
+  });
+
   it("allows a documented pair (draw → prompt)", () => {
     expect(canConnect("draw", "prompt")).toBe(true);
   });

@@ -280,10 +280,17 @@ export function renderVoiceover(lines: VoLine[] | undefined): string {
  * `renderPlan` (multishot-plan.ts), via `renderVoiceover` above, is what actually puts the words on
  * the wire.
  */
+/** A line spoken by someone on camera: a named speaker, not the off-screen narrator. Shared by the
+ *  writer brief below and the presenter switch's default (D299). */
+export function isOnScreenLine(line: Pick<VoLine, "speaker">): boolean {
+  const speaker = line.speaker?.trim();
+  return Boolean(speaker && speaker !== "narrator");
+}
+
 export function describeVoLineForWriter(line: VoLine): string {
   const speaker = line.speaker?.trim();
   const delivery = line.delivery?.trim();
-  const onScreen = Boolean(speaker && speaker !== "narrator");
+  const onScreen = isOnScreenLine(line);
   const who = onScreen ? speaker : "narrator";
   const where = onScreen ? "on-screen" : "off-screen";
   const deliveryPart = delivery ? `, ${delivery}` : "";

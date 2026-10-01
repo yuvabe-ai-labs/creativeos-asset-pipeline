@@ -1,4 +1,5 @@
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
+import type { AvatarImageSlot } from "@/lib/avatars/schema";
 
 const MAX_SLUG_LENGTH = 60;
 
@@ -133,6 +134,64 @@ export function pathForBrandAsset(args: {
 }): string {
   const name = buildStoredName(args.filename);
   return `clients/${args.clientId}/brand-kit/${args.category}/${args.assetId}/${name}`;
+}
+
+/**
+ * Where an avatar's uploaded image lives (D287). The slot is part of the path so the finalize
+ * route can check that a path signed for the sheet is not recorded as the front.
+ */
+export function pathForAvatarImage(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  filename: string;
+}): string {
+  const name = buildStoredName(args.filename);
+  return `clients/${args.clientId}/avatars/${args.avatarId}/${args.slot}/${name}`;
+}
+
+/** An avatar's voice preview clip (D294). Keyed by generation id, not a random name, because
+ *  the route signs the upload before the task that writes it runs. */
+export function pathForAvatarVoicePreview(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): string {
+  return `clients/${args.clientId}/avatars/${args.avatarId}/voice-preview/${args.generationId}.mp4`;
+}
+
+/** D296 — an avatar's voice reference: the mp3 extracted from its native preview clip. Keyed by
+ *  the generation that produced it, beside that clip, so the pair can always be traced to each
+ *  other and a regenerated sample never collides with the one it replaces. */
+export function pathForAvatarVoiceSample(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): string {
+  return `clients/${args.clientId}/avatars/${args.avatarId}/voice-sample/${args.generationId}.mp3`;
+}
+
+/** D299 — a named voice's reference for Seedance, one per avatar and voice: replacing it for the
+ *  same voice overwrites, and another voice gets its own file. */
+export function pathForAvatarNamedVoiceSample(args: {
+  clientId: string;
+  avatarId: string;
+  voiceId: string;
+}): string {
+  const safe = args.voiceId.replace(/[^A-Za-z0-9_-]/g, "");
+  return `clients/${args.clientId}/avatars/${args.avatarId}/voice-sample/elevenlabs-${safe}.mp3`;
+}
+
+/** Where a Studio-generated avatar image lives — under `generated/`, apart from uploads, so
+ *  the upload finalize route's prefix check can never be satisfied by a generated object. */
+export function pathForAvatarGenerated(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  ext: string;
+}): string {
+  const name = buildStoredName(undefined, { slug: "output", ext: args.ext });
+  return `clients/${args.clientId}/avatars/${args.avatarId}/generated/${args.slot}/${name}`;
 }
 
 /**

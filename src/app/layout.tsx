@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { QueryProvider } from "@/components/layout/query-provider";
 import { HeaderBrand } from "@/components/layout/header-brand";
 import { HeaderActions } from "@/components/layout/header-actions";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
@@ -55,6 +56,7 @@ export default async function RootLayout({
       className={`${clash.variable} ${gilroy.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <QueryProvider>
         <ImpersonationBanner />
         <header
           className={cn(
@@ -67,6 +69,7 @@ export default async function RootLayout({
         </header>
         {children}
         <Toaster />
+        </QueryProvider>
       </body>
     </html>
   );

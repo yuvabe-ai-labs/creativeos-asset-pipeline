@@ -40,6 +40,31 @@ describe("onConnect", () => {
     expect(UUID_RE.test(edges[0].id)).toBe(true);
   });
 
+  // D298 — one presenter per script.
+  it("a second avatar connected to a script replaces the first, and says so once", () => {
+    const store = createCanvasStore([
+      { id: "s", type: "script", position: { x: 0, y: 0 }, data: {} },
+      { id: "v1", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a1" } },
+      { id: "v2", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a2" } },
+    ] as AppNode[], [{ id: "e1", source: "v1", target: "s" } as Edge]);
+    vi.mocked(toast).mockClear();
+    store.getState().onConnect({ source: "v2", target: "s", sourceHandle: null, targetHandle: null });
+    expect(store.getState().edges.map((e) => e.source)).toEqual(["v2"]);
+    expect(store.getState().removedEdgeIds).toContain("e1");
+    expect(toast).toHaveBeenCalledTimes(1);
+  });
+
+  it("connectNodes keeps one presenter too — the gallery path", () => {
+    const store = createCanvasStore([
+      { id: "s", type: "script", position: { x: 0, y: 0 }, data: {} },
+      { id: "v1", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a1" } },
+      { id: "v2", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a2" } },
+    ] as AppNode[], [{ id: "e1", source: "v1", target: "s" } as Edge]);
+    store.getState().connectNodes("v2", "s");
+    expect(store.getState().edges.map((e) => e.source)).toEqual(["v2"]);
+    expect(store.getState().removedEdgeIds).toContain("e1");
+  });
+
   it("still rejects a loop-creating edge", () => {
     const store = createCanvasStore(nodes, []);
     store.getState().onConnect({ source: "a", target: "b", sourceHandle: null, targetHandle: null });
@@ -460,7 +485,7 @@ describe("canvas store — tombstones", () => {
 
 const genRow = (over: Partial<GenerationRow>): GenerationRow =>
   ({
-    id: "j", node_id: "g", org_id: "org-1", client_id: null, type: "image", status: "running",
+    id: "j", node_id: "g", avatar_id: null, org_id: "org-1", client_id: null, type: "image", status: "running",
     provider_job_id: null, model_used: null, params_snapshot: null,
     inputs_snapshot: null, output_snapshot: null, tokens_used: null, cost_usd: null, credits_charged: null,
     version_id: null, user_id: null, error: null, meta: null,

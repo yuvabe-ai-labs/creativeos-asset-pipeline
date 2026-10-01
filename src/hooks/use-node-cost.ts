@@ -42,7 +42,8 @@ export function useNodeCost(nodeId: string, upstreamNodeIds?: string[]) {
     if (orgId) {
       const relevantIds = new Set([nodeId, ...(upstreamNodeIds ?? [])]);
       unsubscribe = subscribeToOrgGenerationUpdates(orgId, (row) => {
-        if (row.status === "succeeded" && relevantIds.has(row.node_id)) void fetchCost();
+        if (row.status === "succeeded" && row.node_id !== null && relevantIds.has(row.node_id))
+          void fetchCost();
       });
     }
 

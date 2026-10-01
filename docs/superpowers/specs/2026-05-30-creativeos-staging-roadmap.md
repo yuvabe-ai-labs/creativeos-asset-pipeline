@@ -5886,3 +5886,402 @@ goes quiet after any edit.
 only as a suggestion applied at the operator's toggle. D267 — a split scene's lines live on the
 node as sequence voiceover; a cut's own `voiceover` holds only lines the operator adds to it. **Originated →**
 `docs/superpowers/specs/2026-09-29-scene-beats-multishot-design.md`.
+
+### D287 — Avatars are a client-level library, and the record is the source of truth *(recorded 2026-09-30; amended the same day)*
+
+**Decision.** A person is a row in `client_avatars`, owned by one client: a front image, a profile
+sheet, an optional voice declaration and an optional story. It is made and edited in a full-page
+Avatar Studio at `/clients/[id]/avatars`. There is one current version and no history. Delete
+archives: the avatar leaves the library and pickers, and nothing is removed.
+
+**Why.** The handoff design (`2026-09-22-seedream-seedance-handoff.md`) makes the avatar a
+persistent client asset holding only what is true of the person wherever they appear — belongs to
+the client not a canvas, always the latest, cannot be deleted. Nothing held that, and there was
+no place to make one. One record per client means one improvement reaches every canvas.
+
+**Rejected.** The library as templates copied into standalone nodes (edits do not propagate). The
+per-shot Character node of D264–D266 as the route for avatars (the handoff design attaches one
+avatar per reel to the Script node and derives the engine from its kind — see D290). Creation in
+a dialog (two dialog mockups were rejected in design: generation batches, a sheet step and a
+voice picker do not fit one). Hard delete (canvases keep no snapshot to fall back on).
+
+**Amended.** The first recording made the D264 Character node point at the avatar and keyed Kling
+elements on it. That followed from not having read the handoff design; phase 2 follows that
+design instead.
+**Originated →** `docs/superpowers/specs/2026-09-29-client-avatars-design.md` §2–5.
+
+### D288 — An avatar is a front image plus a three-view profile sheet generated from it *(recorded 2026-09-30; amended the same day)*
+
+**Decision.** `ready` requires a name, a front image and a current profile sheet. The sheet is one
+16:9 image showing three views of the person — front, side profile, back — generated from the
+front image by an image-edit model when the operator clicks Generate; the operator may
+regenerate it or upload their own. A later change of front marks the sheet stale and never
+regenerates it silently.
+
+**Why.** The handoff design's avatar is a base face plus a model sheet of several angles, made
+by Nano Banana from whichever face it starts with; requiring both gives every engine the same
+identity reference. Operators sometimes bring their own sheet, so generation is a click, not an
+automatic run that spends credits unasked.
+
+**Rejected.** Sheet optional (an avatar would then give engines a single angle). Operator uploads
+both (Describe cannot work). Four views including three-quarter (the first recording; the
+operator asked for three). Generating the sheet automatically as soon as a front exists (the
+first recording; spends credits on a sheet the operator may already have). Front and sheet as a
+matched text-only pair in one Seedream call (weaker identity match).
+
+**Originated →** `2026-09-29-client-avatars-design.md` §4.2, §4.4.
+
+### D289 — Person type follows the front image's source; a real person needs a consent record *(recorded 2026-09-30; amended twice the same day)*
+
+**Decision.** `front` and `sheet` each carry a `source`: `upload` (filename, who, when) or
+`generated` (model, text or edit, prompt, generation time, generation id). The avatar's
+`person_type` is derived from the front image's source whenever the front is set: uploaded is
+`specific`, generated is `generic`. The operator is never asked whether the person is real. For
+an uploaded front the operator ticks one statement — "I have this person's permission to use
+their likeness" — and the server records `likeness_consent_by` and `likeness_consent_at`.
+Replacing the front clears the consent. An uploaded-front avatar cannot become `ready` without it. Consent is bound to the photo it was
+given for: the request carries the front image's URL, the server refuses a mismatch, and the
+write is conditioned on that URL (`updateAvatar(…, { ifFrontUrl })`; `null` means "still no
+front"), answering 409 if the front changed mid-request. The same precondition guards the
+front-pick and sheet writes (D291).
+
+**Why.** Provenance decides the engine (D290) and cannot be reconstructed later. The handoff
+design requires a consent record for a real likeness: who agreed, and when. The first build asked
+"Is this a real person?" on every upload; the operator removed the question the day it shipped —
+uploads are, in practice, real people — and kept the consent. Deriving the type errs strict: an
+uploaded fictional face is filed as `specific` and asked for consent.
+
+**Rejected.** A declared person type (built, then removed — a question on every upload for an
+answer that rarely varies). No consent record at all (built for an hour; contradicts the handoff
+design). A free-text note (not queryable, not enforceable).
+
+**Originated →** `2026-09-29-client-avatars-design.md` §3.2–3.3.
+
+### D290 — The avatar's kind decides the engine; Seedance gets Seedream faces with no freshness check *(recorded 2026-09-30; amended the same day; extends D285)*
+
+**Decision.** Nothing about the engine is stored on the avatar. A generated (`generic`) avatar
+runs on Seedance (30 s ceiling); a real-person (`specific`) avatar runs on Gemini Omni (10 s).
+Kling and Veo are not used for avatars. A generated avatar's face must come from the non-pro
+Seedream 5.0 model, whose id is read from `GET /api/v3/models`. The generated source records the
+generation time, the model and the vendor's original URL as insurance; nothing reads them at
+generation time, and there is no expiry date, badge or age check.
+
+**Why.** Seedance refuses a real face and, of the image models, accepts only non-pro Seedream 5.0
+faces; Omni animates an uploaded face when Google's two safety gates pass. The vendor documents
+"original outputs, 30 days", but a probe on 2026-09-24 sent a byte-identical copy from our own
+bucket and Seedance accepted it — the evidence fits a real-likeness detector, not a provenance
+check (handoff spec §0.1 finding 1, which deleted the planned freshness build).
+
+**Rejected.** A computed `seedanceEligibility` with a 30-day expiry and a "Seedance until {date}"
+badge (the first recording of this entry — written from the vendor's doc before the handoff
+spec's probe was read; it rebuilt what that spec deleted). The private virtual portrait library
+(needs paid Advanced Creation Rights; unnecessary while generated faces pass). Choosing the
+engine on the avatar or the node (a second copy of a fact the kind already states).
+
+**Open.** Whether Seedance accepts the Nano Banana sheet of a Seedream face is untested; until it
+is, Seedance gets the front image only.
+**Extends.** D285.
+**Originated →** `2026-09-29-client-avatars-design.md` §8; `2026-09-22-seedream-seedance-handoff.md` §0.1.
+
+### D291 — Studio generations bill through the existing ledger; a generation belongs to a node or an avatar *(recorded 2026-09-30)*
+
+**Decision.** `generations.node_id` becomes nullable and the table gains `avatar_id`, with a check
+that one of them is set. Each Studio image is one generation — a batch of four is four
+requests and four rows — reserve, run, settle on the provider's cost or refund. The spend shown
+on the avatar is read back from the server, never summed in the browser. Generate controls show the estimate from `image-gen/estimate.ts`
+via `usdToFinalCredits`.
+
+**Why.** The monthly cap, refunds, the stuck-reservation sweep, the admin table and org breakdowns
+all key on `generations`. Reusing it gives avatars every one of them for one relaxed constraint.
+
+**Rejected.** A separate `avatar_generations` table and ledger path (duplicates reservation and
+sweep logic). A hidden per-client node to hang generations on (a fake node every canvas query
+would have to skip).
+
+**Originated →** `2026-09-29-client-avatars-design.md` §3.5, §7.
+
+### D292 — Voices are scoped to a client; one shared picker gains Clone *(recorded 2026-09-30; refines D283, D284)*
+
+**Decision.** `client_voices` records which ElevenLabs account voices belong to which client. The
+voice picker moves to `src/components/voice/`, takes a `clientId`, and its first tab becomes
+**This client** (that client's voices plus stock voices). A **+ Clone voice** action in the dialog
+header runs Instant Voice Clone behind a required consent tick and names the voice
+`{client} · {name}`. Voices are removed only by an explicit action, and only when no non-archived
+avatar uses them.
+
+**Why.** One ElevenLabs account serves every client, so D283's "My voices" showed one client's
+clones to all. Two consumers (Studio, Change voice) is the point at which the picker is extracted.
+
+**Rejected.** An ElevenLabs sub-account per client (plan and key management per client).
+Auto-deleting a voice when its avatar is archived (archived avatars stay on canvases that may
+still be re-voiced). Voice Design (not needed now).
+
+**As built (2026-09-30).** The picker takes an optional `clientId` and only the Avatar Studio
+passes one. Change voice on Video Gen still lists the whole account: voices chosen there before
+this, or cloned by hand, are recorded for no client, and scoping it now would hide them. The
+picker files also stay under `components/nodes/video-gen-*` for now. Both are follow-ups, not
+reversals. Removal deletes the ElevenLabs voice only when no other client has it recorded.
+
+**Refines.** D283, D284.
+**Originated →** `2026-09-29-client-avatars-design.md` §6.
+
+### D293 — The avatar declares a voice; ElevenLabs costs are not billed yet *(recorded 2026-09-30; amended the same day)*
+
+**Decision.** An avatar carries one voice declaration: native (the engine's own voice), anchor
+(the audio of the first clip the operator likes, carried forward as `reference_audio`) or a named
+ElevenLabs voice with its settings, applied by re-voicing after generation (D282–D284). Native
+and anchor exist only for generated avatars on Seedance; a real-person avatar on Omni, which takes
+no audio input, has a named voice only. Cloning and library saves are not charged in credits in
+Phase 1.
+
+**Why.** The handoff design: the avatar declares, every generation realises, and the operator
+never manages an mp3. Re-voicing works on either engine for about a cent a clip. The ElevenLabs
+costs are small and pricing them needs its own pass.
+
+**Rejected.** A synthesised ~20 s sample stored per avatar for Kling's voice input (the first
+recording of this entry; avatars do not run on Kling — D290). Voice as a per-clip choice in the
+Video Gen focus view (today's shape; consistency becomes operator discipline).
+
+**As built (2026-09-30).** Native and named are built; the declaration is set through its own
+route and stored as a snapshot on the avatar, conditioned on the front image that decided what
+was allowed. A front change that makes the avatar a real person drops a native voice. Anchor is
+deferred: it needs a generated clip, so it arrives with canvas use.
+
+**Deferred.** Billing ElevenLabs usage in credits. The anchor declaration.
+**Originated →** `2026-09-29-client-avatars-design.md` §6.3, §7.3.
+
+### D294 — An avatar's voice can be previewed as a short talking clip *(recorded 2026-09-30)*
+
+**Decision.** In the Studio's Voice step, an avatar with a named voice has **Generate preview**:
+Gemini Omni Flash animates the front image speaking one editable line (6 s, 720p, 9:16), and the
+clip's voice is then replaced with the avatar's ElevenLabs voice by speech-to-speech — the Change
+voice steps (D282–D284), so the timing and the lip-sync are the clip's own. The preview is one
+avatar-owned video `generations` row (`inputs_snapshot.slot = "voice-preview"`); no table and
+no migration. A background task (`avatar-voice-preview`) does both halves and reports through
+the generation webhook, where `completeGeneration` gains one branch for it. Credits for both
+halves are reserved up front and settled on success; any failure refunds the whole reservation.
+A preview is marked out of date once the avatar's voice or front image differs from the ones it
+was made with.
+
+**Why.** The ElevenLabs sample on a voice says how the voice sounds, not how it sounds on this
+face. The operator should hear and see the pairing before spending on real videos. Omni is the
+engine for real-person avatars already (D290) and accepts any front image, so one engine covers
+both kinds. Re-voicing an Omni clip is exactly what a real-person avatar's videos will do, so the
+preview is a faithful sample of the production path rather than a separate trick.
+
+**Rejected.** Text-to-speech plus a lip-sync model (a second vendor and a second look; the
+preview would not resemble the videos). Seedance for generated avatars (2.3× the price, and the
+point of the preview is the named voice, which is applied the same way on either engine). A
+`preview` column on the avatar (a second record of something the generation already holds).
+Running it inside the request like the Studio's images (a clip plus a voice change does not fit
+a request; the canvas already runs both as tasks). Charging for the Omni half when the voice
+change fails (the operator has nothing to play; the cost is absorbed).
+
+**Known limits.** Google can refuse a real person's face; its message is shown and nothing is
+charged. One task attempt: a retry would pay for the clip again, so only the voice change is
+retried, against the same clip. Only named voices can be previewed; "the engine's own voice" has
+nothing to apply.
+
+**Amended (2026-09-30).** The preview has two modes, one per declaration: a named voice is heard
+through Omni plus a re-voice (as above), and the engine's own voice is heard through Seedance,
+whose audio is then kept as the avatar's voice reference (D296). There is no preview until a voice
+is declared — the declaration is what picks the engine.
+
+**Refines.** D284 (the re-voice steps, reused unchanged), D291 (a generation owned by an avatar
+may now be a video), D293.
+**Originated →** `2026-09-29-client-avatars-design.md` §6.6.
+
+### D295 — The profile sheet and the voice are optional; only a name, a front image and consent make an avatar ready *(recorded 2026-09-30)*
+
+**Decision.** `avatarReadinessGaps` keeps `name`, `front` and `consent`. The profile sheet and the
+voice declaration no longer block **Save**: the card shows the sheet as Optional, Out of date or
+Added, and the step, its tab and its generate control are unchanged.
+
+**Why.** The sheet is produced by editing the front image, and Seedance refuses an edited image as
+a reference (D290, handoff §3.3). So a sheet can never be a production input on the lane these
+avatars are built for — it is a reference document for the people working on the client, and
+requiring one held back avatars that were ready to use. The voice was already optional in the UI;
+this makes the readiness rule say so.
+
+**Rejected.** Hiding the sheet step behind a disclosure (a bigger UI change for a step that is
+still useful). Removing sheet generation altogether (throws away working code and the sheet's
+value to humans). Keeping the sheet required for a *generated* avatar only (two readiness rules to
+explain, for no gain).
+
+**Refines.** D287, D288.
+**Originated →** `2026-09-29-client-avatars-design.md` §4.2, §4.4.
+
+### D296 — A native preview's own voice is extracted and kept as the avatar's `reference_audio` *(recorded 2026-09-30)*
+
+**Decision.** This builds the anchor declaration D293 deferred. When an avatar declares the
+engine's own voice, its preview is a Seedance 2.5 clip (5 s, 480p) generated from the front image;
+the task stores the clip, extracts its audio to a mono 24 kHz mp3 with the bench's ffmpeg flags,
+stores that beside the clip, and the generation webhook records it on `client_avatars.voice_sample`
+(the column migration 0041 already added — no migration). `buildSeedanceContent()` gains the
+`role: "reference_audio"` part, so later Seedance generations send the sample and the avatar keeps
+one voice. Regenerating replaces the sample; a front change that makes the avatar a real person
+drops the native declaration and the sample together.
+
+**Why.** Seedance invents a fresh voice per clip, so a reel would be one face in several voices —
+the handoff spec calls the anchor "a port, not a design" (§6.4), already proven in the UGC bench.
+Extracting the audio rather than re-sending the clip is what makes it free: audio is outside
+Seedance's token formula, while a reference video would add its own duration to the bill. It also
+gives a generated avatar a voice with no ElevenLabs cost at all.
+
+**Rejected.** A separate route and task for the sample (90% the same flow as the preview, and a
+second paid concept to explain). Extracting on demand inside the API route, the bench's own shape
+(needs `ffmpeg-static` traced into the Next.js runtime and pushes the whole video through a
+serverless function again; "Regenerate" already covers auditioning at the same price). Storing the
+mp3 as a base64 data URL as the bench does (the product has GCS). Making the preview declare
+native by itself when no voice is set (the operator should say what they want to hear first —
+operator decision).
+
+**Known limits.** The vendor warns the generated voice can "differ significantly" from the
+reference; the written voice description that mitigates it belongs to the canvas lane. Nothing
+passes the reference yet — the provider accepts it, the canvas sends it in Phase 2. The anchor has
+still never been measured on a real generation (handoff §7).
+
+**Refines.** D290 (the engine follows the avatar's kind), D293 (its deferred anchor), D294.
+**Originated →** `2026-09-29-client-avatars-design.md` §6.6, §6.7.
+
+### D297 — The Avatar Studio is a five-step side stepper; lifecycle actions appear only when their object exists *(recorded 2026-09-30)*
+
+**Decision.** The Studio becomes three columns: a side stepper (Look → Profile sheet → Voice →
+Preview → Name & save), the step's panel with a footer pinned to its bottom, and a summary card.
+The footer has Back and **one** primary `Continue to {next step}`, which on an optional step is
+also how it is skipped. Look is always open; the rest open once Look is done; a saved avatar opens
+with all five open. The name is the page title, edited in place, and is asked for on the last
+step; name and story save as the operator types, and **Save to library** is the only deliberate
+save. Preview moves out of the Voice step into its own. Lifecycle actions follow what exists: a new
+avatar has no menu, a draft's ⋯ menu offers **Discard draft** (an archive, through the existing
+route), an avatar in the library offers **Archive**. "Runs on" becomes **Works with**, the names of
+the models the face can be used with: a Seedream face works with Seedance, Gemini Omni, Kling and
+Veo; any other generated face with all but Seedance; a real person's photo with Gemini Omni and
+Kling. Kling takes the front image as a plain reference, as Omni does.
+
+**Why.** Operator review of the first Studio (2026-09-30): the Archive button showed on an avatar
+nobody had saved — the draft row exists from the first Generate, because it owns the spent
+credits, and the button rendered whenever the row did; the steps had no Back or Next where the
+work happens; and the name field sat in a side card, reading as an afterthought. Wizard guidance
+(NN/G, PatternFly) asks for a visible list of steps with the current one marked, descriptive
+Next labels, Back always available, and a way to leave midway and resume — which drafts already
+are. In the second round the operator cut the Skip button (it did exactly what Continue did) and
+the per-model table (too technical for the people using the Studio), and chose the side stepper
+over a top one, because the summary card stays in view.
+
+**Rejected.** A top stepper with the summary folded into the last step (loses sight of the face
+and voice while working). Skip beside Continue (two buttons, one behaviour). A per-model table of
+how the face goes in, voice handling and clip length (kept in the spec for the canvas lane, not
+shown). Hard-deleting a discarded draft (a second deletion path, and the ledger rows need their
+avatar). Offering Veo to a real person (Google may refuse the face by region; a names-only list
+cannot hedge). Removing sheet generation (the operator kept it, optional).
+
+**Refines.** D287 (the Studio), D290 (the engine no longer follows the kind alone — the face
+decides which models an avatar works with), D294 (the preview becomes a step), D295.
+**Originated →** `2026-09-29-client-avatars-design.md` §4, §8, §10. Mockup:
+https://claude.ai/artifact/6Mg4qUZ5Ptw61HAxV6SxDR.
+
+### D298 — An avatar reaches the canvas as a node that presents a script; the node holds only the avatar's id *(recorded 2026-10-01)*
+
+**Decision.** Avatars come to the canvas in two parts. Part 1: the gallery gains an **Avatars**
+tab listing the client's saved avatars; a tile drags onto the canvas as an **Avatar node**
+(`type: "avatar"`, `data: { avatarId }`), or onto a Script node already connected to it.
+`avatar → script` is the node's only connection, and a script has **one presenter** — a second
+replaces the first. The Script shows its presenter — a row on its card (a dashed **+ Presenter**
+chip once parsed) and a block in its focus view with Change and Remove — read from the edge.
+**The presenter does not touch the parse.** Clicking the node opens a
+**read-only focus view** with the latest preview clip and the references (front, sheet, voice,
+story, works-with). Part 2 — shots and video nodes using the face and the voice — reaches the
+presenter through the script that created each shot; part 1 copies nothing onto shots.
+
+**Why.** The client-avatars design always meant one avatar per reel, attached to the Script
+before shots are grouped (its §1). A node rather than a picker keeps the presenter visible in the
+graph, which part 2 has to read. Holding only the id keeps one truth: a voice or face changed in
+the Studio reaches every canvas without re-dropping, and the parse reads what the database says.
+Read-only keeps consent, credits and staleness in one place, the Studio.
+
+**Amended (2026-10-01, same day).** The first recording had the parse write on-camera lines for
+the presenter. Withdrawn in review: the usual order is to parse a script and then cast it, so the
+presenter must not depend on, or change, the parse. It is shown on the Script and used by part 2.
+Parts 1 and 2 are designed now and built back to back, because part 1 alone shows a presenter
+that nothing uses.
+
+**Rejected.** A snapshot of the avatar copied into the node (Studio edits would never reach the
+canvas; two copies drift). A "Presenter" picker inside the Script node (hides the presenter from
+the graph). Connecting avatars straight to Image Gen / Video Gen in part 1 (those nodes do not
+yet know what to do with a voice or the model rules — part 2). Several presenters per script
+(every shot would need to know which face is on screen; deferred until a dialogue reel needs it).
+A presenter brief in the parse prompt (the first recording — withdrawn; casting follows parsing).
+Editing the avatar from the canvas focus view (a second place to edit the same thing).
+
+**Refines.** D287 (the library), D294/D296 (the preview the focus view shows), D297 (works-with).
+**Originated →** `2026-10-01-avatars-on-canvas-design.md`.
+
+### D299 — The presenter reaches a shot through the node that writes its prompt; Seedance gets the voice as audio, others a pre-selected Edit voice *(recorded 2026-10-01)*
+
+**Decision.** A shot's presenter is found by walking from its prompt-writing node (Prompt,
+Motion Prompt, Multishot Prompt) up to the Shot or Multishot, its script, and the script's avatar.
+That prompt node carries an **In this shot** switch — on by default when the shot has an on-camera
+line (a VO line whose speaker is not "narrator"), the operator's choice stored and winning — and
+Image Gen and Video Gen follow it. With it on, the presenter's front image joins the prompt's
+reference roster as "Presenter: {name}", so the writer names them and the still and the video
+receive the face through the existing reference machinery. On **Seedance**, the avatar's voice
+reference goes as `reference_audio`, bound in the text to "@Audio 1 — voice timbre only" and
+described in words; when a still is the first frame, Seedance cannot also take the face, so only
+the voice goes and the picker points to the Multishot lane. The voice reference is one stored
+sample matched to the current declaration: the native preview's extracted audio (D296), or for a
+named voice its ElevenLabs sample copied into our bucket — made by ElevenLabs text-to-speech when
+the voice has none. On **Gemini Omni, Kling and Veo**, which take no audio, **Edit voice** opens
+with the presenter's named voice chosen and is never applied automatically. The Video Gen model
+picker disables the models the face does not work with.
+
+**Why.** The prompt node is where a shot is written, so it is where "who is in this shot" is
+answered — once, for both the still and the video. Riding the reference roster means the face
+gets the citing, storage and limit checks uploaded images already have, instead of a parallel
+path. Seedance is the one engine that can take a voice; sending its reference costs nothing (audio
+is outside the token formula) and the vendor's prompt guidance is known from the UGC bench.
+Re-voicing is a paid, take-by-take decision the operator already makes in Edit voice; making it
+automatic would spend credits on takes nobody keeps.
+
+**Rejected.** A switch on each Video Gen node (the still and the video could disagree about the
+same shot). Letting the prompt-writing model decide whether the presenter appears (plain-text
+output, and the answer would change on every regeneration). Automatic re-voicing after every
+generation (operator decision). Skipping the audio reference for voices with no ElevenLabs sample
+(cloned voices — the client's own — would get the weakest result; text-to-speech fixes it for
+cents). Direct Avatar → Image Gen / Video Gen connections (a second path through every rule, not
+yet needed).
+
+**Refines.** D284 (Edit voice), D290/D297 (models a face works with), D296 (the voice reference),
+D298.
+**Originated →** `2026-10-01-avatars-in-videos-design.md`.
+
+### D300 — Browser data goes through TanStack Query, in three layers; project instructions live in AGENTS.md *(recorded 2026-10-01)*
+
+**Decision.** Client-side reads and writes against the app's own API routes use **TanStack Query**
+(`@tanstack/react-query` v5), with one `QueryClient` provided in the root layout
+(`src/components/layout/query-provider.tsx`; `staleTime` 30 s, no refetch on window focus). Every
+resource has three layers: the **API file** (`src/services/<feature>.service.ts`, plain calls
+through `readJson`), the **query file** (`src/hooks/queries/<resource>.ts`: the query-key factory
+and the `useQuery` / `useMutation` hooks), and the **consumers**, which only call those hooks. One
+owner per resource; details seeded from cached lists; polling by `refetchInterval`. `readJson`
+throws an `ApiError` carrying the HTTP status, so a 404 can be told from a failure worth retrying.
+Existing hand-rolled hooks move over when next substantially changed. Server Components keep
+fetching directly. The first resource on it is the client's avatars (the canvas, D298) and the
+avatar voice preview, whose Studio hook moved over in the same change. The project's agent
+instructions are consolidated in **AGENTS.md**; CLAUDE.md is a one-line `@AGENTS.md` import.
+
+**Why.** Avatars on the canvas need one list read by many components at once — gallery tab,
+every Avatar node, the Script — plus by-id lookups and a polled preview, which the hand-rolled
+`useEffect` hooks would have had to re-implement as a bespoke context and cache. The Next.js
+docs name React Query for client-side fetching. One AGENTS.md means every agent tool reads the
+same instructions; a symlink was not possible on the Windows checkouts (no symlink privilege,
+`core.symlinks=false`), and an import line needs none.
+
+**Rejected.** A hand-built avatars context with its own Map cache (the first plan for D298 —
+exactly what a query library is for). SWR (TanStack's mutation and `setQueriesData` story fits the
+Studio's write-heavy screens better). Migrating every existing fetch hook now (a large, risky sweep
+for no user-visible gain; they move as they are touched). AGENTS.md as a symlink to CLAUDE.md
+(needs admin or Developer Mode on Windows).
+
+**Originated →** operator request, 2026-10-01; `AGENTS.md` ("Data fetching").
+

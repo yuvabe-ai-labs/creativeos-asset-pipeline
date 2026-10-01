@@ -1,4 +1,5 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
+import { getPromptUpstream, withStillPresenter } from "@/lib/avatars/presenter-server";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { readVoLines } from "@/lib/nodes/voiceover";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
@@ -19,7 +20,9 @@ export async function GET(
 ) {
   return withNode(req, params, async (nodeId, node) => {
     try {
-      const direct = await getUpstreamOutputs(nodeId);
+      // D299 — a still sees its Prompt's presenter as a connected image, as image-generate does.
+      const nodeUpstream = await getUpstreamOutputs(nodeId);
+      const direct = node.type === "image-gen" ? await withStillPresenter(nodeUpstream) : nodeUpstream;
 
       // Also collect upstream of any prompt nodes (2-level traversal) — video-prompt OR
       // multishot-prompt. Surfaces file/draw nodes in pattern: node → prompt-node → video-gen.
@@ -27,7 +30,7 @@ export async function GET(
         (u) => u.type === "video-prompt" || u.type === "multishot-prompt",
       );
       const promptUpstreamBatches = await Promise.all(
-        promptNodes.map((u) => getUpstreamOutputs(u.nodeId)),
+        promptNodes.map((u) => getPromptUpstream(u.nodeId)),
       );
 
       // Merge and deduplicate; direct edges take precedence.

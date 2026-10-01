@@ -33,9 +33,12 @@ function getApiKey(): string {
 type SeedanceContent = Record<string, unknown>;
 
 /**
- * Frames and references are MUTUALLY EXCLUSIVE on this endpoint, so this returns one or the
- * other and never both. The client rules (client-models.ts) disable the unavailable input, and
- * this is the backstop for a caller that bypassed them.
+ * Frames and references are MUTUALLY EXCLUSIVE on this endpoint, so this sends one or the other
+ * and never both. The client rules (client-models.ts) disable the unavailable input, and this is
+ * the backstop for a caller that bypassed them.
+ *
+ * A voice reference (D296) is NOT part of that exclusion — audio is a third part type and rides
+ * with either, which is why the image branches now fall through instead of returning early.
  */
 function buildSeedanceContent(input: VideoGenInput, maxRefs: number): SeedanceContent[] {
   const content: SeedanceContent[] = [{ type: "text", text: input.prompt }];
@@ -45,16 +48,28 @@ function buildSeedanceContent(input: VideoGenInput, maxRefs: number): SeedanceCo
     if (input.endFrameUrl) {
       content.push({ type: "image_url", image_url: { url: input.endFrameUrl }, role: "last_frame" });
     }
-    return content;
+  } else {
+    for (const url of (input.referenceUrls ?? []).slice(0, maxRefs)) {
+      content.push({ type: "image_url", image_url: { url }, role: "reference_image" });
+    }
   }
 
-  for (const url of (input.referenceUrls ?? []).slice(0, maxRefs)) {
-    content.push({ type: "image_url", image_url: { url }, role: "reference_image" });
+  // D296 — the avatar's voice. Seedance invents a new one for every clip unless it is given
+  // this, so a reel would be one face in several voices. Last in the array, so the @ImageN
+  // numbering a prompt uses still counts the images from 1. Free: audio sits outside the token
+  // formula, unlike a reference VIDEO, which would add its own duration to the bill.
+  if (input.referenceAudioUrl) {
+    content.push({
+      type: "audio_url",
+      audio_url: { url: input.referenceAudioUrl },
+      role: "reference_audio",
+    });
   }
   return content;
 }
 
-function buildSeedanceBody(input: VideoGenInput, maxRefs: number): Record<string, unknown> {
+/** Exported for its tests: the request's shape is the thing worth pinning down. */
+export function buildSeedanceBody(input: VideoGenInput, maxRefs: number): Record<string, unknown> {
   const duration = Number(input.params.duration ?? 5);
   return {
     model: VENDOR_MODEL,

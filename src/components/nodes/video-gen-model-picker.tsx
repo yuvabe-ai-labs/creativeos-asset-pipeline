@@ -4,10 +4,11 @@ import type { ReactNode } from "react";
 import { Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   videoGenClientModelGroups,
   modelPickerLabel,
+  videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -29,6 +30,7 @@ export function VideoGenModelPicker({
   lockedToModelId,
   restrictionReason,
   loading = false,
+  unavailable,
   children,
 }: {
   modelId: string;
@@ -58,6 +60,12 @@ export function VideoGenModelPicker({
    * bug whichever way round it happens, so the list is withheld until it is known to be right.
    */
   loading?: boolean;
+  /**
+   * D299 — models the shot's presenter can't be used with, by id, each with the reason. Shown
+   * disabled with the reason on hover rather than removed: the operator should see that the
+   * presenter is what rules them out, not wonder where Seedance went.
+   */
+  unavailable?: Record<string, string>;
   /** Settings that belong to the chosen model (resolution, duration) and share its card. */
   children?: ReactNode;
 }) {
@@ -75,8 +83,7 @@ export function VideoGenModelPicker({
     // Flat, like the image-gen output settings: the controls are the page's work,
     // and a card around them competes with the generated video for emphasis.
     // The provider is here for `children` — the model's own settings render inside this card and
-    // may carry tooltips. The picker itself no longer has any: the tooltip existed to explain a
-    // disabled chip, and unusable models are not rendered at all now.
+    // may carry tooltips — and so do chips the shot's presenter rules out (D299).
     <TooltipProvider delay={200}>
       <div>
         <div className="mb-3 flex items-center gap-1.5">
@@ -106,14 +113,15 @@ export function VideoGenModelPicker({
               <div className="flex flex-wrap items-center gap-1.5">
                 {providerGroup.models.map((m) => {
                   const active = m.id === modelId;
-                  return (
+                  const reason = unavailable?.[m.id];
+                  const chip = (
                     <Button
                       key={m.id}
                       type="button"
                       variant="ghost"
                       size="xs"
                       aria-pressed={active}
-                      disabled={!editable} // D33 only — unusable models are no longer rendered
+                      disabled={!editable || Boolean(reason)} // D33, or the presenter rules it out (D299)
                       onClick={() => onModelChange(m.id)}
                       className={cn(
                         "h-auto rounded-md border px-3 py-1.5 text-[0.8rem] font-semibold transition-colors",
@@ -125,11 +133,26 @@ export function VideoGenModelPicker({
                       {modelPickerLabel(m)}
                     </Button>
                   );
+                  if (!reason) return chip;
+                  // A disabled button gets no pointer events, so the tooltip hangs off a wrapper.
+                  return (
+                    <Tooltip key={m.id}>
+                      <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>{chip}</TooltipTrigger>
+                      <TooltipContent>{reason}</TooltipContent>
+                    </Tooltip>
+                  );
                 })}
               </div>
             </div>
           ))}
         </div>
+        )}
+
+        {!loading && unavailable?.[modelId] && (
+          <p className="mt-2 text-[0.7rem] text-destructive">
+            {modelPickerLabel(videoGenClientModelMap[modelId])} can&apos;t use this shot&apos;s presenter: {unavailable[modelId]}. Pick
+            another model, or turn the presenter off in the prompt.
+          </p>
         )}
 
         {!loading && restrictionReason && (

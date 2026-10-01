@@ -1,0 +1,180 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
+import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
+vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
+vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
+vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
+vi.mock("@/lib/db/avatars", () => ({ getAvatar: vi.fn(), updateAvatar: vi.fn() }));
+vi.mock("@/lib/db/generations", () => ({ sumAvatarCredits: vi.fn() }));
+vi.mock("@/lib/db/credit-transactions", () => {
+  class CreditLimitError extends Error {}
+  return { CreditLimitError };
+});
+vi.mock("@/lib/avatars/generate", () => ({ runAvatarGeneration: vi.fn() }));
+vi.mock("@/lib/storage", () => ({ removeObject: vi.fn() }));
+
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
+import { resolveImpersonationState } from "@/lib/auth/impersonation";
+import { getClientById } from "@/lib/db/clients";
+import { getAvatar, updateAvatar } from "@/lib/db/avatars";
+import { sumAvatarCredits } from "@/lib/db/generations";
+import { CreditLimitError } from "@/lib/db/credit-transactions";
+import { runAvatarGeneration } from "@/lib/avatars/generate";
+import { removeObject } from "@/lib/storage";
+
+const params = Promise.resolve({ id: "c1", avatarId: "a1" });
+const post = (body: unknown) =>
+  new NextRequest("http://localhost/api/clients/c1/avatars/a1/sheet", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+const row = {
+  id: "g5", status: "succeeded", model_used: "gemini:gemini-3-pro-image",
+  inputs_snapshot: { slot: "sheet", prompt: "sheet", batchId: null, referenceUrls: ["front-url"] },
+  output_snapshot: "https://storage.googleapis.com/b/sheet.png", meta: { width: 16, height: 9, sizeBytes: 3 },
+  created_at: "2026-09-30T10:00:00.000Z",
+};
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(resolveOrgId).mockResolvedValue("org-1");
+  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-9", email: "op@x.com", orgId: "org-1" } as never);
+  vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
+  vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1" } as never);
+  vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ sheetStale: true, status: "draft" }));
+  vi.mocked(runAvatarGeneration).mockResolvedValue({ generation: row as never, creditsCharged: 40 });
+  vi.mocked(updateAvatar).mockImplementation(async (_c, _a, p) => makeAvatar(p));
+  vi.mocked(sumAvatarCredits).mockResolvedValue(40);
+});
+
+describe("POST sheet", () => {
+  it("generates the sheet from the front image and makes it current", async () => {
+    const front = makeAvatar().front!;
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(runAvatarGeneration).mock.calls[0][0]).toMatchObject({
+      slot: "sheet", aspect: "16:9", modelId: "gemini:gemini-3-pro-image",
+      referenceUrls: [front.url], batchId: null, userId: "user-9",
+    });
+    const patch = vi.mocked(updateAvatar).mock.calls[0][2];
+    expect(patch.sheet?.source).toMatchObject({ kind: "generated", mode: "edit", generationId: "g5" });
+    expect(patch.sheetStale).toBe(false);
+    const json = await res.json();
+    expect(json.creditsCharged).toBe(40);
+    expect(json.spentCredits).toBe(40);
+  });
+
+  it("is a 400 for a model that is not in the registry, before touching the avatar", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "nope:none" }), { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Unknown model.");
+    expect(runAvatarGeneration).not.toHaveBeenCalled();
+    expect(getAvatar).not.toHaveBeenCalled();
+  });
+
+  it("passes the front-URL precondition for the front it generated from", async () => {
+    const front = makeAvatar().front!;
+    const { POST } = await import("./route");
+    await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: front.url });
+  });
+
+  it("removes an uploaded sheet it replaces", async () => {
+    const { POST } = await import("./route");
+    await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(removeObject).toHaveBeenCalledTimes(1);
+  });
+
+  it("needs a front image first", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ front: null, sheet: null, status: "draft" }));
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(400);
+    expect(runAvatarGeneration).not.toHaveBeenCalled();
+  });
+
+  it("answers 402 at the credit cap and leaves the avatar alone", async () => {
+    vi.mocked(runAvatarGeneration).mockRejectedValue(new CreditLimitError("Monthly credit limit reached"));
+    const { POST } = await import("./route");
+    expect((await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params })).status).toBe(402);
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the front image changed while the sheet was generating", async () => {
+    const before = makeAvatar({ sheetStale: true, status: "draft" });
+    const after = makeAvatar({
+      status: "draft",
+      front: { ...before.front!, url: "https://storage.googleapis.com/b/other.png" },
+    });
+    vi.mocked(getAvatar).mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(409);
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+
+  it("is a 409 when the write's own front precondition catches a race the re-read compare missed", async () => {
+    // getAvatar's compare (above) passes — the re-read still shows the same front — but the
+    // conditioned write itself finds no matching row, meaning the front changed again right
+    // after that re-read. The avatar still exists on the follow-up existence check.
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ sheetStale: true, status: "draft" }));
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(
+      "The front image changed while the sheet was generating. Generate it again.",
+    );
+  });
+
+  it("is a 404 when the write's precondition finds no row and the avatar no longer exists", async () => {
+    const avatar = makeAvatar({ sheetStale: true, status: "draft" });
+    vi.mocked(getAvatar)
+      .mockResolvedValueOnce(avatar) // initial read
+      .mockResolvedValueOnce(avatar) // re-read compare after generation
+      .mockResolvedValueOnce(null); // existence re-check after the conditioned write returns null
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(404);
+  });
+
+  it("formats a thrown failure ahead of generation (e.g. resolveCallerContext) as a 500, via withTryCatch", async () => {
+    vi.mocked(resolveCallerContext).mockRejectedValue(new Error("Session expired"));
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("Session expired");
+    expect(runAvatarGeneration).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 when the write's precondition finds no row and the avatar is archived", async () => {
+    const avatar = makeAvatar({ sheetStale: true, status: "draft" });
+    const archived = makeAvatar({ sheetStale: true, status: "draft", archivedAt: "2026-09-30T10:00:00.000Z" });
+    vi.mocked(getAvatar)
+      .mockResolvedValueOnce(avatar) // initial read
+      .mockResolvedValueOnce(avatar) // re-read compare after generation
+      .mockResolvedValueOnce(archived); // existence re-check after the conditioned write returns null
+    vi.mocked(updateAvatar).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST sheet — the spend total is best-effort", () => {
+  it("still returns the attached sheet when the total cannot be read", async () => {
+    vi.mocked(sumAvatarCredits).mockRejectedValue(new Error("db down"));
+    const { POST } = await import("./route");
+    const res = await POST(post({ modelId: "gemini:gemini-3-pro-image" }), { params });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.avatar).toBeTruthy();
+    expect(json.spentCredits).toBeNull();
+    expect(updateAvatar).toHaveBeenCalledTimes(1);
+  });
+});

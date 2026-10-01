@@ -138,6 +138,7 @@ export default async function CanvasPage({
           <Canvas
             canvasId={canvas.id}
             clientId={client.id}
+            clientSlug={client.slug}
             initialKBJob={latestKBJob}
             hasActiveKB={!!activeKBVersion}
             initialDriveRootFolder={initialDriveRootFolder}

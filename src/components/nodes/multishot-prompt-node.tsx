@@ -19,6 +19,7 @@ import { DEFAULT_IMAGE_PROMPT_SLICES } from "@/lib/kb/parse-context";
 import type { MultishotNodeData, MultishotPromptNodeData } from "@/lib/canvas-nodes";
 import { readVoLines } from "@/lib/nodes/voiceover";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { PresenterFace } from "./presenter-face";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
@@ -147,10 +148,13 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
           placeholder="Multishot prompt"
           onCommitTitle={(t) => updateNodeData(id, { title: t })}
           status={
-            <span
-              className={cn("size-1.5 rounded-full", plan ? "bg-primary" : "bg-muted-foreground/40")}
-              title={plan ? "Generated" : "Not generated"}
-            />
+            <span className="flex items-center gap-1.5">
+              <PresenterFace promptNodeId={id} />
+              <span
+                className={cn("size-1.5 rounded-full", plan ? "bg-primary" : "bg-muted-foreground/40")}
+                title={plan ? "Generated" : "Not generated"}
+              />
+            </span>
           }
         />
 

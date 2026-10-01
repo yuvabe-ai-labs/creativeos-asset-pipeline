@@ -29,12 +29,17 @@ type Props = {
   onChange: (next: VoiceChangeNodeState) => void;
   /** The job was accepted — the caller marks the node as changing its voice. */
   onApplied: () => void;
+  /** D299 — the presenter's named voice, pre-selected while the node has no voice of its own.
+   *  Only pre-selected: nothing is re-voiced until the operator presses Apply. */
+  defaultVoiceId?: string | null;
 };
 
 // D284 — Edit voice, in the focus view's centre column (where Image Gen puts its Edit tools):
 // the take, the voice, the settings and Apply. The output column keeps showing the video.
-export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, changing, value, onChange, onApplied }: Props) {
-  const state: VoiceChangeNodeState = value ?? { voiceId: null, settings: DEFAULT_VOICE_CHANGE_SETTINGS };
+export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, changing, value, onChange, onApplied, defaultVoiceId }: Props) {
+  // Until the node has a choice of its own, the presenter's voice is pre-selected. Once anything is
+  // stored — a pick, a clear, a voice that no longer exists — the node's own choice wins.
+  const state: VoiceChangeNodeState = value ?? { voiceId: defaultVoiceId ?? null, settings: DEFAULT_VOICE_CHANGE_SETTINGS };
   const sourceVersion = versions.find((v) => v.id === sourceId) ?? null;
   const takeLabel = sourceId ? versionLabelsById(versions).get(sourceId) : undefined;
   const choice = useVoiceChoice(state.voiceId, (voiceId) => onChange({ ...state, voiceId }), true);
