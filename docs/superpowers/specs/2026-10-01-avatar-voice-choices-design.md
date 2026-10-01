@@ -24,7 +24,7 @@ voice" stays.
 | Where the recording comes from | Upload only (mp3, wav, m4a). No in-browser recording |
 | Which engine makes "Choose a voice for me" | Seedance when the face was made with Seedream 5.0 Lite; Gemini Omni for every other face |
 | How that voice is kept for other models | Its audio is cloned into an ElevenLabs voice for the avatar (the **auto voice**), for every face — Seedream ones too |
-| What the screens say | No engine, model or provider names and no costs-of-provider wording on the Voice and Preview steps. Plain words about what happens |
+| What the screens say | No engine, model or provider names, and no provider costs, on the Voice and Preview steps. Plain words about what happens |
 
 ## 2. The Voice step
 
@@ -40,7 +40,7 @@ selected card, a short line under each title, and a small tag.
 Below the cards, the selected card's panel:
 
 - **Choose a voice for me** — saved the moment the card is clicked ("Saving…" in place, then
-  "Saved"). The panel: "We'll pick a voice that suits {name}. Continue to Preview to hear her say a
+  "Saved"). The panel: "We'll pick a voice that suits {name}. Continue to Preview to hear {name} say a
   line. Not right? Make another until it is. Once you keep one, {name} sounds the same in every
   video."
 - **Pick from the library** — the existing voice picker (D292), inline. Picking a voice saves it,
