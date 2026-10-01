@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { after } from "next/server";
 import { apiError, apiOk, withClient } from "@/lib/api/route-helpers";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { listClientVoiceIds } from "@/lib/db/client-voices";
@@ -8,6 +9,7 @@ import { elevenLabsRouteError } from "@/lib/elevenlabs/route-errors";
 import { preconditionFailed } from "@/lib/avatars/route-responses";
 import { isVoiceAllowed, pickerVoiceToAvatarVoice } from "@/lib/avatars/voice";
 import type { AvatarVoice } from "@/lib/avatars/schema";
+import { prepareNamedVoiceReference } from "@/lib/avatars/voice-reference";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +65,10 @@ export async function PUT(
       // could otherwise leave a native voice on what is now a real person.
       const avatar = await updateAvatar(clientId, avatarId, { voice }, { ifFrontUrl: current.front.url });
       if (!avatar) return preconditionFailed(clientId, avatarId, FRONT_CHANGED);
+      // D299 — a named voice on a Seedream face gets the audio Seedance is given as its reference.
+      // Made after the response, so choosing a voice is not slowed by an ElevenLabs download or a
+      // text-to-speech call; it never throws, and the video route makes it on demand if needed.
+      if (voice.mode === "named") after(() => prepareNamedVoiceReference(clientId, avatar));
       return apiOk({ avatar });
     } catch (e) {
       return elevenLabsRouteError(e);

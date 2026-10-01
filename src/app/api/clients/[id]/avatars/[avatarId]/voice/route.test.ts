@@ -11,6 +11,12 @@ vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/avatars", () => ({ getAvatar: vi.fn(), updateAvatar: vi.fn() }));
 vi.mock("@/lib/db/client-voices", () => ({ listClientVoiceIds: vi.fn() }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({ getVoiceCached: vi.fn() }));
+// `after` only runs inside a real request; here it records what was scheduled.
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: vi.fn(),
+}));
+vi.mock("@/lib/avatars/voice-reference", () => ({ prepareNamedVoiceReference: vi.fn() }));
 
 import { resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
@@ -18,6 +24,8 @@ import { getClientById } from "@/lib/db/clients";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { listClientVoiceIds } from "@/lib/db/client-voices";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
+import { after } from "next/server";
+import { prepareNamedVoiceReference } from "@/lib/avatars/voice-reference";
 
 const params = Promise.resolve({ id: "c1", avatarId: "a1" });
 const put = (body: unknown) =>
@@ -52,6 +60,23 @@ describe("PUT avatar voice", () => {
       voice: { mode: "named", voiceId: "mine", name: "Acme · James", labels: { gender: "male" }, previewUrl: "https://x/p.mp3" },
     });
     expect(vi.mocked(updateAvatar).mock.calls[0][3]).toEqual({ ifFrontUrl: current.front!.url });
+  });
+
+  // D299 — a named voice gets its Seedance reference after the response, never in its way.
+  it("schedules the voice reference after responding, for a named voice only", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar());
+    const { PUT } = await import("./route");
+    await PUT(put({ mode: "named", voiceId: "mine" }), { params });
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(prepareNamedVoiceReference).not.toHaveBeenCalled(); // not before the response
+    const task = vi.mocked(after).mock.calls[0][0];
+    await (typeof task === "function" ? task() : task);
+    expect(prepareNamedVoiceReference).toHaveBeenCalledWith("c1", expect.anything());
+
+    vi.mocked(after).mockClear();
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ personType: "generic", front: makeImage(GENERATED) }));
+    await PUT(put({ mode: "native" }), { params });
+    expect(after).not.toHaveBeenCalled();
   });
 
   it("is a 404 for another client's voice, and for a voice no longer on the account", async () => {

@@ -19,6 +19,7 @@ import {
   pathForAvatarGenerated,
   pathForAvatarVoicePreview,
   pathForAvatarVoiceSample,
+  pathForAvatarNamedVoiceSample,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 import type { AvatarImageSlot } from "@/lib/avatars/schema";
@@ -287,6 +288,16 @@ export async function signAvatarVoiceSampleUrl(args: {
 }): Promise<{ putUrl: string; url: string }> {
   const path = pathForAvatarVoiceSample(args);
   return { putUrl: await _signPutUrl(path, "audio/mpeg", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
+// D299 — a named voice's reference audio, made in the web server (no signed upload needed).
+export async function uploadAvatarNamedVoiceSample(args: {
+  clientId: string;
+  avatarId: string;
+  voiceId: string;
+  body: Buffer;
+}): Promise<UploadResult> {
+  return _upload(pathForAvatarNamedVoiceSample(args), args.body, "audio/mpeg");
 }
 
 // Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —

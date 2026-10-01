@@ -47,3 +47,30 @@ export async function speechToSpeech(
   }
   return Buffer.from(await res.arrayBuffer());
 }
+
+/** D299 — the model a short text-to-speech sample is read with: ElevenLabs' multilingual model,
+ *  so a Hindi or Tamil voice reads its line in its own language's accent. */
+export const TEXT_TO_SPEECH_MODEL_ID = "eleven_multilingual_v2";
+
+/**
+ * D299 — a voice reading one line, as mp3 (44.1 kHz, 128 kbps). Used to make a voice reference
+ * for a voice ElevenLabs has no preview sample for — common for cloned voices.
+ */
+export async function textToSpeech(
+  args: { voiceId: string; text: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<Buffer> {
+  const res = await fetchImpl(
+    `${ELEVENLABS_API_BASE}/v1/text-to-speech/${encodeURIComponent(args.voiceId)}?output_format=mp3_44100_128`,
+    {
+      method: "POST",
+      headers: { "xi-api-key": elevenLabsKey(), "Content-Type": "application/json", Accept: "audio/mpeg" },
+      body: JSON.stringify({ text: args.text, model_id: TEXT_TO_SPEECH_MODEL_ID }),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new ElevenLabsHttpError(res.status, detail, "text-to-speech");
+  }
+  return Buffer.from(await res.arrayBuffer());
+}

@@ -171,6 +171,17 @@ export function pathForAvatarVoiceSample(args: {
   return `clients/${args.clientId}/avatars/${args.avatarId}/voice-sample/${args.generationId}.mp3`;
 }
 
+/** D299 — a named voice's reference for Seedance, one per avatar and voice: replacing it for the
+ *  same voice overwrites, and another voice gets its own file. */
+export function pathForAvatarNamedVoiceSample(args: {
+  clientId: string;
+  avatarId: string;
+  voiceId: string;
+}): string {
+  const safe = args.voiceId.replace(/[^A-Za-z0-9_-]/g, "");
+  return `clients/${args.clientId}/avatars/${args.avatarId}/voice-sample/elevenlabs-${safe}.mp3`;
+}
+
 /** Where a Studio-generated avatar image lives — under `generated/`, apart from uploads, so
  *  the upload finalize route's prefix check can never be satisfied by a generated object. */
 export function pathForAvatarGenerated(args: {
