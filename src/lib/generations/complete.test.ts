@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   uploadVideoGen: vi.fn(async () => ({ url: "https://storage.googleapis.com/b/uploaded.mp4" })),
   getClientById: vi.fn(async (): Promise<{ id: string; org_id: string } | null> => ({ id: "c1", org_id: "org-1" })),
   updateAvatar: vi.fn(async () => null),
+  keepAutoVoice: vi.fn(async (): Promise<string | null> => "auto1"),
 }));
 
 vi.mock("@/lib/db/versions", () => ({
@@ -32,6 +33,7 @@ vi.mock("@/lib/storage", () => ({
 }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: mocks.getClientById }));
 vi.mock("@/lib/db/avatars", () => ({ updateAvatar: mocks.updateAvatar }));
+vi.mock("@/lib/avatars/auto-voice", () => ({ keepAutoVoice: mocks.keepAutoVoice }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: () => ({
     from: () => ({
@@ -253,6 +255,14 @@ describe("completeGeneration — a native voice preview keeps its voice (D296)",
       voiceSample: { url: SAMPLE, durationSeconds: 4.8, sourceKey: "g1" },
     });
     expect(mocks.insertVersion).not.toHaveBeenCalled();
+  });
+
+  it("keeps the voice as an auto voice before marking the preview succeeded (D301)", async () => {
+    await succeed({ voiceSample: { url: SAMPLE, durationSeconds: 4.8 } });
+    expect(mocks.keepAutoVoice).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: "c1", avatarId: "a1", sample: { url: SAMPLE, durationSeconds: 4.8, sourceKey: "g1" },
+    }));
+    expect(mocks.keepAutoVoice.mock.invocationCallOrder[0]).toBeLessThan(mocks.succeedGeneration.mock.invocationCallOrder[0]);
   });
 
   it("does not price the voice change into a native preview — Seedance's voice arrives with the clip", async () => {
