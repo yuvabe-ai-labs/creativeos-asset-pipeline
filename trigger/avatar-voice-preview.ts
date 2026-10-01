@@ -23,8 +23,9 @@ async function clipGenerator(modelId: string): Promise<GenerateClip> {
 //
 //   named  — Gemini Omni animates the front image, then the clip is re-voiced with the avatar's
 //            ElevenLabs voice, and the result is stored at the URL the route signed.
-//   native — Seedance draws the front image speaking, inventing a voice; the clip is stored and
-//            its voice extracted to a mono mp3, which becomes the avatar's reference audio.
+//   native — Seedance (Seedream face) or Gemini Omni (any other face) draws the front image
+//            speaking, inventing a voice; the clip is stored and its voice extracted to a mono
+//            mp3, which becomes the avatar's reference audio and its auto voice (D301).
 //
 // The route reserved the credits for whatever the mode costs.
 //
@@ -48,7 +49,8 @@ export const avatarVoicePreviewTask = task({
     let meta: Record<string, unknown>;
     let clipUrl: string;
     try {
-      const modelId = VOICE_PREVIEW_ENGINE[mode].modelId;
+      // A named voice is always re-voiced on Omni; the engine's own voice follows the face (D301).
+      const modelId = VOICE_PREVIEW_ENGINE[payload.mode === "native" ? payload.engine : "omni"].modelId;
       const generateClip = await clipGenerator(modelId);
 
       if (mode === "native") {

@@ -3,7 +3,7 @@ import {
   buildVoicePreviewPrompt, defaultVoicePreviewLine, estimateVoicePreviewCredits,
   generationToVoicePreview, isVoicePreviewAbandoned, isVoicePreviewGeneration, isVoicePreviewStale,
   voicePreviewBlocker, voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewMode,
-  voicePreviewParams, voicePreviewRowMode, VOICE_PREVIEW_ENGINE,
+  voicePreviewEngine, voicePreviewParams, voicePreviewRowEngine, voicePreviewRowMode, VOICE_PREVIEW_ENGINE,
 } from "../voice-preview";
 import { AVATAR_VOICE_PREVIEW_SLOT, AVATAR_VOICE_SAMPLE_SECONDS } from "../constants";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
@@ -25,7 +25,7 @@ function row(overrides: Partial<GenerationRow> = {}): GenerationRow {
   return {
     id: "g1", node_id: null, avatar_id: "a1", org_id: "org-1", client_id: "c1", type: "video",
     status: "succeeded", provider_job_id: null, model_used: GEMINI_OMNI_MODEL_ID,
-    params_snapshot: voicePreviewParams("named"),
+    params_snapshot: voicePreviewParams("omni"),
     inputs_snapshot: {
       slot: AVATAR_VOICE_PREVIEW_SLOT, mode: "named", line: "Hello there.", voiceId: "v1",
       voiceName: "Surabhi", priceMultiplier: 1, frontUrl: FRONT,
@@ -41,7 +41,7 @@ function row(overrides: Partial<GenerationRow> = {}): GenerationRow {
 const nativeRow = (overrides: Partial<GenerationRow> = {}) =>
   row({
     model_used: SEEDANCE_MODEL_ID,
-    params_snapshot: voicePreviewParams("native"),
+    params_snapshot: voicePreviewParams("seedance"),
     inputs_snapshot: {
       slot: AVATAR_VOICE_PREVIEW_SLOT, mode: "native", line: "Hello there.", frontUrl: FRONT,
     },
@@ -61,13 +61,38 @@ describe("voicePreviewMode", () => {
 });
 
 describe("VOICE_PREVIEW_ENGINE", () => {
-  it("runs a named voice on Omni and the engine's own voice on Seedance at 480p", () => {
-    expect(VOICE_PREVIEW_ENGINE.named).toEqual({ modelId: GEMINI_OMNI_MODEL_ID, resolution: "720p", seconds: 6 });
-    expect(VOICE_PREVIEW_ENGINE.native).toEqual({ modelId: SEEDANCE_MODEL_ID, resolution: "480p", seconds: 5 });
+  it("runs Omni at 720p for 6 s and Seedance at 480p for 5 s", () => {
+    expect(VOICE_PREVIEW_ENGINE.omni).toEqual({ modelId: GEMINI_OMNI_MODEL_ID, resolution: "720p", seconds: 6 });
+    expect(VOICE_PREVIEW_ENGINE.seedance).toEqual({ modelId: SEEDANCE_MODEL_ID, resolution: "480p", seconds: 5 });
   });
   it("keeps a sample only from the engine's own voice", () => {
     expect(voicePreviewKeepsSample("native")).toBe(true);
     expect(voicePreviewKeepsSample("named")).toBe(false);
+  });
+});
+
+describe("voicePreviewEngine", () => {
+  const named: AvatarVoice = { mode: "named", voiceId: "v1", name: "Surabhi", labels: {}, previewUrl: null };
+  it("re-voices a named voice on Omni, whatever the face", () => {
+    expect(voicePreviewEngine({ voice: named, front: makeImage(GENERATED) })).toBe("omni");
+  });
+  it("makes the engine's own voice with Seedance on a Seedream face, and with Omni on any other", () => {
+    expect(voicePreviewEngine({ voice: { mode: "native" }, front: makeImage(GENERATED) })).toBe("seedance");
+    expect(voicePreviewEngine({ voice: { mode: "native" }, front: makeImage() })).toBe("omni");
+    const nano = { ...GENERATED, modelId: "gemini:gemini-3.1-flash-image" } as typeof GENERATED;
+    expect(voicePreviewEngine({ voice: { mode: "native" }, front: makeImage(nano) })).toBe("omni");
+  });
+  it("is null without a voice or a front", () => {
+    expect(voicePreviewEngine({ voice: null, front: makeImage() })).toBeNull();
+    expect(voicePreviewEngine({ voice: { mode: "native" }, front: null })).toBeNull();
+  });
+});
+
+describe("voicePreviewRowEngine", () => {
+  it("reads the engine a preview was made with, and infers it for rows written before D301", () => {
+    expect(voicePreviewRowEngine({ inputs_snapshot: { mode: "native", engine: "omni" } } as never)).toBe("omni");
+    expect(voicePreviewRowEngine({ inputs_snapshot: { mode: "native" } } as never)).toBe("seedance");
+    expect(voicePreviewRowEngine({ inputs_snapshot: {} } as never)).toBe("omni");
   });
 });
 
@@ -100,33 +125,37 @@ describe("buildVoicePreviewPrompt", () => {
 
 describe("voicePreviewParams", () => {
   it("sends Omni an aspect_ratio and Seedance a ratio — neither takes the other's key", () => {
-    expect(voicePreviewParams("named")).toEqual({ resolution: "720p", duration: 6, aspect_ratio: "9:16" });
-    expect(voicePreviewParams("native")).toEqual({ resolution: "480p", duration: 5, ratio: "9:16" });
+    expect(voicePreviewParams("omni")).toEqual({ resolution: "720p", duration: 6, aspect_ratio: "9:16" });
+    expect(voicePreviewParams("seedance")).toEqual({ resolution: "480p", duration: 5, ratio: "9:16" });
   });
 });
 
 describe("cost", () => {
   it("a named preview is the Omni clip plus the voice change, at the voice's rate", () => {
     const video = computeVideoCost(GEMINI_OMNI_MODEL_ID, 6, false, "720p")!.usd;
-    expect(voicePreviewCostUsd("named", 6, "720p", 2)).toBeCloseTo(video + computeVoiceChangeCost(6, 2).usd);
+    expect(voicePreviewCostUsd("named", "omni", 6, "720p", 2)).toBeCloseTo(video + computeVoiceChangeCost(6, 2).usd);
   });
   it("a native preview is the Seedance clip alone — its voice arrives with it", () => {
-    expect(voicePreviewCostUsd("native", 5, "480p", 1))
+    expect(voicePreviewCostUsd("native", "seedance", 5, "480p", 1))
       .toBeCloseTo(computeVideoCost(SEEDANCE_MODEL_ID, 5, false, "480p")!.usd);
   });
   it("a voice's price multiplier never touches a native preview", () => {
-    expect(voicePreviewCostUsd("native", 5, "480p", 3)).toBe(voicePreviewCostUsd("native", 5, "480p", 1));
+    expect(voicePreviewCostUsd("native", "seedance", 5, "480p", 3)).toBe(voicePreviewCostUsd("native", "seedance", 5, "480p", 1));
   });
   it("estimates each mode at its own fixed length", () => {
-    expect(estimateVoicePreviewCredits("native")).toBe(
-      usdToFinalCredits(voicePreviewCostUsd("native", AVATAR_VOICE_SAMPLE_SECONDS, "480p", 1)!),
+    expect(estimateVoicePreviewCredits("native", "seedance")).toBe(
+      usdToFinalCredits(voicePreviewCostUsd("native", "seedance", AVATAR_VOICE_SAMPLE_SECONDS, "480p", 1)!),
     );
-    expect(estimateVoicePreviewCredits("named", 1)).toBe(
-      usdToFinalCredits(voicePreviewCostUsd("named", 6, "720p", 1)!),
+    expect(estimateVoicePreviewCredits("named", "omni", 1)).toBe(
+      usdToFinalCredits(voicePreviewCostUsd("named", "omni", 6, "720p", 1)!),
     );
   });
+  it("an engine's own voice on Omni is the Omni clip alone — nothing is re-voiced", () => {
+    expect(voicePreviewCostUsd("native", "omni", 6, "720p", 2))
+      .toBeCloseTo(computeVideoCost(GEMINI_OMNI_MODEL_ID, 6, false, "720p")!.usd);
+  });
   it("has no price for a resolution the engine does not sell", () => {
-    expect(voicePreviewCostUsd("named", 6, "8k", 1)).toBeNull();
+    expect(voicePreviewCostUsd("named", "omni", 6, "8k", 1)).toBeNull();
   });
 });
 

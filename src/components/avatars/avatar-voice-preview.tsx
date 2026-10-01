@@ -10,10 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import type { useAvatarVoicePreview } from "@/hooks/use-avatar-voice-preview";
 import { AVATAR_VOICE_PREVIEW_LINE_MAX } from "@/lib/avatars/constants";
 import {
-  defaultVoicePreviewLine, isVoicePreviewStale, voicePreviewMode, VOICE_PREVIEW_ENGINE,
-  type VoicePreviewMode,
+  defaultVoicePreviewLine, isVoicePreviewStale, voicePreviewMode, type VoicePreviewMode,
 } from "@/lib/avatars/voice-preview";
-import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import type { Avatar } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarGeneratingTile } from "./avatar-generating-tile";
@@ -31,13 +29,6 @@ const BUTTON: Record<VoicePreviewMode, { first: string; again: string }> = {
   native: { first: "Generate voice & reference", again: "Generate a new voice" },
 };
 
-/** "Seedance 2.5 · 480p · 5 s", or the Omni line with the named voice applied after. */
-function engineLine(avatar: Avatar, mode: VoicePreviewMode): string {
-  const engine = VOICE_PREVIEW_ENGINE[mode];
-  const model = videoGenClientModelMap[engine.modelId]?.label ?? engine.modelId;
-  const base = `${model} · ${engine.resolution} · ${engine.seconds} s`;
-  return avatar.voice?.mode === "named" ? `${base}, then ${avatar.voice.name} applied` : base;
-}
 
 // D294, D296, D297 — hear and see the avatar speak (spec §4.4). The declaration picks the
 // engine: a named voice is applied to a Gemini Omni clip; the engine's own voice is made by
@@ -69,11 +60,6 @@ export function AvatarVoicePreview({ avatar, preview: p, disabled }: Props) {
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_12rem]">
       <div className="flex flex-col gap-3">
-        <div className="rounded-lg bg-muted px-3 py-2.5">
-          <p className="text-eyebrow text-muted-foreground">Made with</p>
-          <p className="text-sm font-medium">{engineLine(avatar, mode)}</p>
-        </div>
-
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="avatar-voice-preview-line">What the avatar says</Label>
           <Textarea

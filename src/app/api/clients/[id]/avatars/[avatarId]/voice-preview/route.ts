@@ -13,7 +13,7 @@ import { signAvatarVoicePreviewUrl, signAvatarVoiceSampleUrl } from "@/lib/stora
 import { AVATAR_VOICE_PREVIEW_LINE_MAX, AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
 import {
   buildVoicePreviewPrompt, estimateVoicePreviewCredits, generationToVoicePreview,
-  voicePreviewBlocker, voicePreviewMode, voicePreviewParams, VOICE_PREVIEW_ENGINE,
+  voicePreviewBlocker, voicePreviewEngine, voicePreviewMode, voicePreviewParams, VOICE_PREVIEW_ENGINE,
 } from "@/lib/avatars/voice-preview";
 import { loadVoicePreviewState, readLatestPreview } from "@/lib/avatars/studio-server";
 import type { AvatarVoicePreviewTaskPayload } from "@/lib/avatars/voice-preview-run";
@@ -56,7 +56,8 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!avatar || avatar.archivedAt) return apiError("Avatar not found.", 404);
       const blocker = voicePreviewBlocker(avatar);
       const mode = voicePreviewMode(avatar);
-      if (blocker || !mode || !avatar.front) {
+      const engine = voicePreviewEngine(avatar);
+      if (blocker || !mode || !engine || !avatar.front) {
         return apiError(blocker ?? "This avatar cannot have a preview yet.", 400);
       }
       // Only a named voice involves ElevenLabs at all.
@@ -80,7 +81,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const caller = await resolveCallerContext();
       const line = parsed.data.line;
       const prompt = buildVoicePreviewPrompt(line, mode);
-      const paramsSnapshot = voicePreviewParams(mode);
+      const paramsSnapshot = voicePreviewParams(engine);
       const generation = await insertGeneration({
         avatarId,
         orgId: client.org_id,
@@ -88,11 +89,12 @@ export async function POST(req: Request, { params }: Ctx) {
         userId: caller.userId,
         userEmail: caller.email,
         type: "video",
-        modelUsed: VOICE_PREVIEW_ENGINE[mode].modelId,
+        modelUsed: VOICE_PREVIEW_ENGINE[engine].modelId,
         paramsSnapshot,
         inputsSnapshot: {
           slot: AVATAR_VOICE_PREVIEW_SLOT,
           mode,
+          engine,
           line,
           prompt,
           frontUrl: avatar.front.url,
@@ -103,7 +105,7 @@ export async function POST(req: Request, { params }: Ctx) {
       });
 
       try {
-        const credits = estimateVoicePreviewCredits(mode, voice?.priceMultiplier ?? 1);
+        const credits = estimateVoicePreviewCredits(mode, engine, voice?.priceMultiplier ?? 1);
         if (credits === null) throw new Error("No cost estimate available for the voice preview.");
         const reservation = await reserveCredits(client.org_id, generation.id, credits);
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
@@ -116,6 +118,7 @@ export async function POST(req: Request, { params }: Ctx) {
           const sample = await signAvatarVoiceSampleUrl({ clientId, avatarId, generationId: generation.id });
           payload = {
             mode: "native",
+            engine,
             generationId: generation.id,
             frontUrl: avatar.front.url,
             prompt,

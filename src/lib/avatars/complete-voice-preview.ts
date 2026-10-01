@@ -8,7 +8,7 @@ import { isOwnStoredUrl } from "@/lib/storage";
 import { asResolutionString } from "@/lib/video-gen/cost";
 import type { GenerationRow } from "@/lib/db/types";
 import type { CompleteGenerationInput } from "@/lib/generations/complete";
-import { voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewRowMode } from "./voice-preview";
+import { voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewRowEngine, voicePreviewRowMode } from "./voice-preview";
 
 /** What the task reports about the voice it extracted (D296). */
 type VoiceSampleMeta = { url?: unknown; durationSeconds?: unknown };
@@ -62,6 +62,7 @@ export async function completeAvatarVoicePreview(
   const multiplier = Number((generation.inputs_snapshot as { priceMultiplier?: unknown } | null)?.priceMultiplier);
   const usd = voicePreviewCostUsd(
     mode,
+    voicePreviewRowEngine(generation),
     input.durationSeconds,
     asResolutionString(generation.params_snapshot?.resolution),
     Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : 1,
