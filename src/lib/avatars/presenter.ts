@@ -1,6 +1,8 @@
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import { isOnScreenLine } from "@/lib/nodes/voiceover";
 import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
+import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import { avatarWorksWith } from "./generation";
 import type { Avatar, AvatarVoice, AvatarVoiceSample } from "./schema";
 
 // D299 — the presenter in a shot. Pure: the server walks the database and the browser walks the
@@ -111,4 +113,50 @@ export function seedanceVoiceText(voice: AvatarVoice): string {
 export function readPresenterSwitch(raw: unknown): { inShot: boolean } | undefined {
   const inShot = (raw as { inShot?: unknown } | undefined)?.inShot;
   return typeof inShot === "boolean" ? { inShot } : undefined;
+}
+
+const FAMILY_BY_PROVIDER: Record<string, string> = {
+  seedance: "Seedance", gemini: "Gemini Omni", kling: "Kling", veo: "Veo",
+};
+
+/** Why a video model can't use this presenter's face — the operator reads this on the chip. */
+function unavailableReason(family: string, avatar: Pick<Avatar, "front">): string {
+  if (family === "Seedance") {
+    return avatar.front?.source.kind === "generated"
+      ? "Seedance only takes faces made with Seedream 5.0 Lite"
+      : "Seedance refuses a real person's face";
+  }
+  return "Google may refuse a real person's face";
+}
+
+/** The video models the presenter's face rules out, by model id, each with its reason (D299). */
+export function unavailableModelsFor(avatar: Pick<Avatar, "front">): Record<string, string> {
+  const works = avatarWorksWith(avatar);
+  const out: Record<string, string> = {};
+  for (const [id, spec] of Object.entries(videoGenClientModelMap)) {
+    const family = FAMILY_BY_PROVIDER[spec.provider];
+    if (family && !works.includes(family)) out[id] = unavailableReason(family, avatar);
+  }
+  return out;
+}
+
+/** What Video Gen tells the operator about the presenter on this model (D299 spec §4, §5.3). */
+export function presenterVideoNotes(args: {
+  avatar: Pick<Avatar, "voice" | "voiceSample">;
+  provider: string | undefined;
+  hasStartFrame: boolean;
+}): string[] {
+  const { avatar, provider, hasStartFrame } = args;
+  const notes: string[] = [];
+  if (provider === "seedance") {
+    if (hasStartFrame) {
+      notes.push("Seedance uses the still as its first frame, so the presenter's face can't be sent as well. The voice still is.");
+    }
+    if (avatar.voice?.mode === "native" && !matchingVoiceReference(avatar)) {
+      notes.push("The presenter's voice reference is missing, so Seedance will make up a voice. Make a voice preview in the Studio to record one.");
+    }
+  } else if (avatar.voice?.mode === "native") {
+    notes.push("Only Seedance keeps the engine's own voice the same across clips.");
+  }
+  return notes;
 }

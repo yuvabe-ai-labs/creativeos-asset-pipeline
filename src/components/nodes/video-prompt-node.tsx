@@ -21,6 +21,7 @@ import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
 import { NodeCreditsFooter } from "./node-credits-footer";
+import { PresenterFace } from "./presenter-face";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
@@ -130,10 +131,13 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
           placeholder="Motion prompt"
           onCommitTitle={(t) => updateNodeData(id, { title: t })}
           status={
-            <span
-              className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
-              title={output ? "Generated" : "Not generated"}
-            />
+            <span className="flex items-center gap-1.5">
+              <PresenterFace promptNodeId={id} />
+              <span
+                className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
+                title={output ? "Generated" : "Not generated"}
+              />
+            </span>
           }
         />
 

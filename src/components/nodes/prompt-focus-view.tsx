@@ -76,6 +76,7 @@ import {
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
+import { PresenterSwitch } from "./presenter-switch";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -600,6 +601,7 @@ export function PromptFocusView({
                 );
               })
             )}
+            <PresenterSwitch promptNodeId={nodeId} />
 
             <div className="mx-2.5 my-2 h-px bg-border" />
             <RailItem

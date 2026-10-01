@@ -102,6 +102,9 @@ import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
+import { VideoGenPresenterNotes } from "./video-gen-presenter-notes";
+import { useShotPresenter } from "@/hooks/use-shot-presenter";
+import { presenterVideoNotes, unavailableModelsFor } from "@/lib/avatars/presenter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import {
@@ -502,6 +505,9 @@ export function VideoGenFocusView({
   );
   const [upstreamImages, setUpstreamImages] = useState<UpstreamImage[]>([]);
   const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
+  // D299 — the script's presenter, when it is in this shot.
+  const shotPresenter = useShotPresenter(promptNode?.id);
+  const presenterAvatar = shotPresenter?.inShot ? shotPresenter.avatar : null;
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   // ── D243 review annotations (video): paint on a PAUSED FRAME, not the player ──
@@ -1245,12 +1251,26 @@ export function VideoGenFocusView({
     isMultishotPromptConnected && upstreamMultishotCuts
       ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
       : null;
-  const disableGenerate = constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok);
+  // D299 — models the presenter's face rules out; a node already on one can't generate with it.
+  const presenterUnavailable = presenterAvatar ? unavailableModelsFor(presenterAvatar) : undefined;
+  const presenterBlock = presenterUnavailable?.[modelId];
+  const presenterNotes = presenterAvatar
+    ? presenterVideoNotes({
+        avatar: presenterAvatar,
+        provider: currentModel?.provider,
+        hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
+      })
+    : [];
+  const presenterVoiceId = presenterAvatar?.voice?.mode === "named" ? presenterAvatar.voice.voiceId : null;
+  const disableGenerate =
+    constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock);
   const disableGenerateReason = constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
       ? ladderCheck.reason
-      : constraints.disableGenerateReason;
+      : presenterBlock
+        ? presenterBlock
+        : constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -1534,6 +1554,7 @@ export function VideoGenFocusView({
                     running={isGenerating}
                     changing={isChangingVoice}
                     value={voiceChangeProp}
+                    defaultVoiceId={presenterVoiceId}
                     onChange={(next) => onPatch({ voiceChange: next })}
                     // Stays open, like Image Gen's Edit: the video on the right shows the
                     // change in progress. Marked now rather than on the Realtime insert, so
@@ -1559,6 +1580,7 @@ export function VideoGenFocusView({
                     modelId={modelId}
                     onModelChange={handleModelChange}
                     loading={loadingConnected}
+                    unavailable={presenterUnavailable}
                     lockedToModelId={multishotTargetModel}
                     restrictionReason={
                       isMultishotPromptConnected
@@ -1624,6 +1646,9 @@ export function VideoGenFocusView({
                       </Accordion>
                     )}
                   </VideoGenModelPicker>
+                  {presenterAvatar && (
+                    <VideoGenPresenterNotes name={presenterAvatar.name} notes={presenterNotes} />
+                  )}
                   {(() => {
                     return (
                       <>

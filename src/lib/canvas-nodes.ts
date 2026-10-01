@@ -98,6 +98,8 @@ export type PromptNodeData = {
   instruction?: string; // operator instruction
   parsed?: unknown; // active output (generated prompt text) — DISPLAY ONLY, hydrated from the active version (D19)
   kbSlices?: KBSliceKey[]; // ambient KB slices injected into the compiled prompt
+  /** D299 — the operator's "In this shot" choice for the script's presenter. Absent = default. */
+  presenter?: { inShot: boolean };
 };
 
 export type ImageGenNodeData = {
@@ -118,6 +120,8 @@ export type VideoPromptNodeData = {
   kbSlices?: KBSliceKey[];      // ambient brand tone, like the Prompt node
   targetProvider?: VideoProvider; // D77: text-camera (veo/sora) vs external-camera (kling)
   parsed?: unknown;             // D19: active version output (motion prompt text) — display only
+  /** D299 — the operator's "In this shot" choice for the script's presenter. Absent = default. */
+  presenter?: { inShot: boolean };
 };
 
 export type VideoGenNodeData = {
@@ -210,6 +214,8 @@ export type MultishotPromptNodeData = {
   kbSlices?: KBSliceKey[];
   /** D19: the active version's output — always a MultishotPlan, never a string. */
   parsed?: unknown;
+  /** D299 — the operator's "In this shot" choice for the script's presenter. Absent = default. */
+  presenter?: { inShot: boolean };
 };
 
 export type PostNodeData = {

@@ -21,6 +21,7 @@ import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { AddConnection } from "./add-connection";
 import { RailItem } from "./focus-rail-item";
+import { PresenterSwitch } from "./presenter-switch";
 import {
   ConnectedDetailView,
   NodeIcon,
@@ -312,6 +313,7 @@ export function PromptFocusShell({
                 );
               })
             )}
+            <PresenterSwitch promptNodeId={nodeId} />
 
             <div className="mx-2.5 my-2 h-px bg-border" />
             {/* Every other versioned node type (Image Gen, Video Gen) carries History in its

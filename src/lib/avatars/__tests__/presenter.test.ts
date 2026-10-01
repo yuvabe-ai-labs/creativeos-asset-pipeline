@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   hasOnCameraLine, matchingVoiceReference, namedVoiceSampleKey, presenterInShot, presenterUpstreamRow,
-  seedanceVoiceText, seedingScriptId,
+  presenterVideoNotes, seedanceVoiceText, seedingScriptId, unavailableModelsFor,
 } from "../presenter";
+import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 import { makeAvatar, makeImage, GENERATED } from "./fixtures";
 import type { AvatarVoice, AvatarVoiceSample } from "../schema";
 
@@ -99,5 +100,44 @@ describe("seedanceVoiceText", () => {
   });
   it("describes the engine's own voice plainly", () => {
     expect(seedanceVoiceText({ mode: "native" })).toMatch(/the presenter's own voice/);
+  });
+});
+
+describe("unavailableModelsFor", () => {
+  it("a real person's photo rules out Seedance and Veo, each with its reason", () => {
+    const out = unavailableModelsFor(makeAvatar());
+    expect(out[SEEDANCE_MODEL_ID]).toMatch(/refuses a real person's face/);
+    expect(out["veo:veo-3.1-fast"]).toMatch(/may refuse a real person's face/);
+    expect(out[GEMINI_OMNI_MODEL_ID]).toBeUndefined();
+    expect(out["kling:kling-3-0"]).toBeUndefined();
+  });
+  it("a Seedream face rules out nothing", () => {
+    expect(unavailableModelsFor(makeAvatar({ personType: "generic", front: makeImage(GENERATED) }))).toEqual({});
+  });
+  it("another generated face rules out Seedance only, saying which model it needs", () => {
+    const other = GENERATED.kind === "generated" ? { ...GENERATED, modelId: "gemini:gemini-3-pro-image" } : GENERATED;
+    const out = unavailableModelsFor(makeAvatar({ personType: "generic", front: makeImage(other) }));
+    expect(Object.keys(out)).toEqual([SEEDANCE_MODEL_ID]);
+    expect(out[SEEDANCE_MODEL_ID]).toMatch(/Seedream 5\.0 Lite/);
+  });
+});
+
+describe("presenterVideoNotes", () => {
+  const native = { mode: "native" as const };
+  const sample = { url: "u", durationSeconds: 5, sourceKey: "gen-1" };
+  it("on Seedance with a still as first frame, says the face is left out", () => {
+    const notes = presenterVideoNotes({ avatar: makeAvatar(), provider: "seedance", hasStartFrame: true });
+    expect(notes).toEqual([expect.stringMatching(/first frame/)]);
+  });
+  it("on Seedance, says when the engine's own voice has no reference", () => {
+    expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native }), provider: "seedance", hasStartFrame: false }))
+      .toEqual([expect.stringMatching(/reference is missing/)]);
+    expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native, voiceSample: sample }), provider: "seedance", hasStartFrame: false }))
+      .toEqual([]);
+  });
+  it("elsewhere, says only Seedance keeps the engine's own voice", () => {
+    expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native }), provider: "kling", hasStartFrame: true }))
+      .toEqual(["Only Seedance keeps the engine's own voice the same across clips."]);
+    expect(presenterVideoNotes({ avatar: makeAvatar(), provider: "kling", hasStartFrame: false })).toEqual([]);
   });
 });
