@@ -1,5 +1,6 @@
 import "server-only";
 import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes";
+import { getPromptUpstream } from "@/lib/avatars/presenter-server";
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
 import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
@@ -20,6 +21,12 @@ const TYPE_LABEL: Record<string, string> = {
   "video-prompt": "Motion Prompt",
   multishot: "Multishot",
 };
+
+/** D299 — the presenter's virtual row is labelled "Presenter", so the roster reads
+ *  "Presenter: Riya" rather than "File: Riya". */
+function labelOf(u: { type: string; data: Record<string, unknown> }): string {
+  return u.data.presenter === true ? "Presenter" : TYPE_LABEL[u.type] ?? u.type;
+}
 
 export type UpstreamPreview = {
   nodeId: string;
@@ -54,7 +61,8 @@ export async function resolvePromptInputs(
   const slices = normalizeSlices(slicesInput);
   const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
 
-  const ups = await getUpstreamOutputs(nodeId);
+  // D299 — with the presenter as a virtual input when it is in the shot.
+  const ups = await getPromptUpstream(nodeId);
 
   // A Shot already carries the full reel script narrowed to its one shot (D21), so
   // we do NOT walk to its parent Script — that would pass the entire reel (all shots)
@@ -62,8 +70,11 @@ export async function resolvePromptInputs(
   const upstream = ups.map((u) => ({
     nodeId: u.nodeId,
     versionId: u.versionId,
-    label: TYPE_LABEL[u.type] ?? u.type,
+    label: labelOf(u),
     type: u.type,
+    // Only the presenter's row is named here: the image-Prompt roster never named file nodes, and
+    // this keeps every other node's prompt text exactly as it was.
+    ...(u.data.presenter === true && typeof u.data.title === "string" ? { name: u.data.title } : {}),
     text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
     fileUrl:
       u.type === "file" || u.type === "draw"
@@ -97,7 +108,7 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
   const base: UpstreamPreview = {
     nodeId: u.nodeId,
     versionId: u.versionId,
-    label: TYPE_LABEL[u.type] ?? u.type,
+    label: labelOf(u),
     type: u.type,
     text: "",
   };
@@ -144,7 +155,7 @@ export async function resolveVideoPromptInputs(
   const slices = normalizeSlices(slicesInput);
   const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
 
-  const ups = await getUpstreamOutputs(nodeId);
+  const ups = await getPromptUpstream(nodeId);
   const upstream = ups.map((u) =>
     mapUpstreamForVideo({
       nodeId: u.nodeId,
@@ -232,7 +243,7 @@ export async function resolveMultishotPromptInputs(
   const slices = normalizeSlices(slicesInput);
   const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
 
-  const ups = await getUpstreamOutputs(nodeId);
+  const ups = await getPromptUpstream(nodeId);
   const upstream = ups.map((u) => mapUpstreamForVideo(u));
   const source = ups.find((u) => u.type === "multishot");
   // Beyond `id` truthiness, also require the two fields buildMultishotUserTurn reads

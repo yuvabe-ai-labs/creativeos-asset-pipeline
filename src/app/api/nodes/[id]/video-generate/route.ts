@@ -22,6 +22,7 @@ import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-model
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
+import { getPromptUpstream } from "@/lib/avatars/presenter-server";
 import {
   missingRefsMessage,
   refEntriesOf,
@@ -74,9 +75,11 @@ export async function POST(
     // Two prompt-node lanes can feed this node (see resolve-prompt.ts): a video-prompt node's
     // STRING output, or a multishot-prompt node's MultishotPlan OBJECT rendered against its
     // upstream Multishot node's cuts. Never falls through to a stringified object.
+    // D299 — the prompt node's upstream includes the presenter's virtual input when it is in the
+    // shot, so its face resolves, takes an image role and is sent like any connected image.
     const resolved = await resolveVideoGenPrompt(
       upstream,
-      getUpstreamOutputs,
+      getPromptUpstream,
       singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider),
     );
     if (!resolved.ok) return apiError(resolved.reason, 400);

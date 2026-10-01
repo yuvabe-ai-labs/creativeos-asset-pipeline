@@ -61,7 +61,16 @@ export function presenterUpstreamRow(
   return {
     nodeId: avatarNodeId,
     type: "file",
-    data: { title: `Presenter: ${avatar.name}`, fileKind: "image", fileUrl: avatar.front.url },
+    data: {
+      // Read by the upstream mappers: label "Presenter", name = the avatar's name, so the roster
+      // entry reads "Presenter: Riya".
+      presenter: true,
+      title: avatar.name,
+      fileKind: "image",
+      fileUrl: avatar.front.url,
+      // A file node's processedOutput is its text block for the writer (node-output.ts).
+      processedOutput: `The presenter, ${avatar.name}: the person on camera in this shot. Show them as they appear in this image.`,
+    },
     activeOutput: null,
     versionId: null,
   };
@@ -96,4 +105,10 @@ export function seedanceVoiceText(voice: AvatarVoice): string {
     .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
     .map((v) => v.trim());
   return words.length ? `${bind} The voice: ${words.join(", ")}.` : bind;
+}
+
+/** The prompt node's stored switch, or undefined when the operator has not chosen. */
+export function readPresenterSwitch(raw: unknown): { inShot: boolean } | undefined {
+  const inShot = (raw as { inShot?: unknown } | undefined)?.inShot;
+  return typeof inShot === "boolean" ? { inShot } : undefined;
 }

@@ -55,7 +55,13 @@ describe("presenterUpstreamRow", () => {
     expect(presenterUpstreamRow("avatar-node-1", avatar)).toEqual({
       nodeId: "avatar-node-1",
       type: "file",
-      data: { title: "Presenter: Riya", fileKind: "image", fileUrl: avatar.front!.url },
+      data: {
+        presenter: true,
+        title: "Riya",
+        fileKind: "image",
+        fileUrl: avatar.front!.url,
+        processedOutput: "The presenter, Riya: the person on camera in this shot. Show them as they appear in this image.",
+      },
       activeOutput: null,
       versionId: null,
     });
