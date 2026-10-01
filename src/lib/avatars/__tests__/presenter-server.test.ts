@@ -5,11 +5,14 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/nodes", () => ({ getUpstreamOutputs: vi.fn() }));
 vi.mock("@/lib/db/presenter", () => ({ getNodeClientAndData: vi.fn(), getScriptPresenterSource: vi.fn() }));
 vi.mock("@/lib/db/avatars", () => ({ getAvatar: vi.fn() }));
+vi.mock("../voice-reference", () => ({ prepareNamedVoiceReference: vi.fn() }));
 
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getNodeClientAndData, getScriptPresenterSource } from "@/lib/db/presenter";
 import { getAvatar } from "@/lib/db/avatars";
-import { getPromptUpstream, loadPresenterForPromptNode, withStillPresenter } from "../presenter-server";
+import { prepareNamedVoiceReference } from "../voice-reference";
+import { getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withStillPresenter } from "../presenter-server";
+import { GENERATED, makeImage } from "./fixtures";
 
 const riyaLine = { text: "Hi", speaker: "Riya", delivery: "", language: "en" };
 const narratorLine = { text: "Hi", speaker: "narrator", delivery: "", language: "en" };
@@ -87,5 +90,34 @@ describe("withStillPresenter", () => {
   it("leaves a still with no Prompt alone", async () => {
     const ups = await withStillPresenter([{ nodeId: "f", type: "file", data: {}, activeOutput: null, versionId: null }]);
     expect(ups).toHaveLength(1);
+  });
+});
+
+describe("presenterVoiceForSeedance", () => {
+  const named = { mode: "named" as const, voiceId: "v1", name: "Surabhi", labels: { gender: "female" }, previewUrl: null };
+  const seedream = (over: object) => makeAvatar({ personType: "generic", front: makeImage(GENERATED), ...over });
+
+  it("sends a named voice's reference, making it on demand when it is not there yet", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(seedream({ voice: named, voiceSample: null }));
+    vi.mocked(prepareNamedVoiceReference).mockResolvedValue({ url: "https://x/v1.mp3", durationSeconds: 8, sourceKey: "elevenlabs:v1" });
+    const voice = await presenterVoiceForSeedance("prompt-1", [shotRow([riyaLine])] as never);
+    expect(voice).toMatchObject({ referenceAudioUrl: "https://x/v1.mp3" });
+    expect(voice?.text).toContain("@Audio 1");
+  });
+
+  it("uses the engine's own voice's sample as it is", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(seedream({ voice: { mode: "native" }, voiceSample: { url: "https://x/n.mp3", durationSeconds: 5, sourceKey: "gen-1" } }));
+    const voice = await presenterVoiceForSeedance("prompt-1", [shotRow([riyaLine])] as never);
+    expect(voice?.referenceAudioUrl).toBe("https://x/n.mp3");
+    expect(prepareNamedVoiceReference).not.toHaveBeenCalled();
+  });
+
+  it("goes ahead without audio when the avatar has no voice", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(seedream({ voice: null }));
+    expect(await presenterVoiceForSeedance("prompt-1", [shotRow([riyaLine])] as never)).toMatchObject({ referenceAudioUrl: null, text: null });
+  });
+
+  it("is nothing when the presenter is not in the shot", async () => {
+    expect(await presenterVoiceForSeedance("prompt-1", [shotRow([narratorLine])] as never)).toBeNull();
   });
 });

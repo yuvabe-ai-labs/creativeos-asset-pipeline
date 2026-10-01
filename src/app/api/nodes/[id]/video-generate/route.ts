@@ -22,7 +22,7 @@ import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-model
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
-import { getPromptUpstream } from "@/lib/avatars/presenter-server";
+import { getPromptUpstream, presenterVoiceForSeedance } from "@/lib/avatars/presenter-server";
 import {
   missingRefsMessage,
   refEntriesOf,
@@ -254,6 +254,14 @@ export async function POST(
     });
     if (violation) return apiError(violation, 400);
 
+    // D299 — on Seedance, the presenter's voice goes in as an audio reference, and the text binds
+    // it ("@Audio 1", timbre only). After the rules check, so a refused request never makes one.
+    const presenterVoice = config.provider === "seedance"
+      ? await presenterVoiceForSeedance(promptNode.nodeId, promptUpstream)
+      : null;
+    const requestPrompt = presenterVoice?.text ? `${prompt}\n\n${presenterVoice.text}` : prompt;
+    const referenceAudioUrl = presenterVoice?.referenceAudioUrl ?? undefined;
+
     // Insert generation record (status: 'running')
     const generation = await insertGeneration({
       nodeId,
@@ -268,10 +276,11 @@ export async function POST(
         promptNodeId: promptNode.nodeId,
         promptNodeType: promptNode.type,
         promptVersionId: promptNode.versionId,
-        prompt,
+        prompt: requestPrompt,
         startFrameUrl,
         endFrameUrl,
         referenceUrls,
+        ...(presenterVoice ? { presenter: { avatarId: presenterVoice.avatarId, referenceAudioUrl: referenceAudioUrl ?? null } } : {}),
       },
     });
 
@@ -293,10 +302,11 @@ export async function POST(
       await tasks.trigger("video-generate", {
         generationId: generation.id,
         modelId,
-        prompt,
+        prompt: requestPrompt,
         startFrameUrl,
         endFrameUrl,
         referenceUrls,
+        ...(referenceAudioUrl ? { referenceAudioUrl } : {}),
         params: resolvedParams,
         mockMode,
       });

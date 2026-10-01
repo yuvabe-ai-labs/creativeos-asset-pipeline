@@ -3,7 +3,11 @@ import { getUpstreamOutputs, type UpstreamOutput } from "@/lib/db/nodes";
 import { getNodeClientAndData, getScriptPresenterSource } from "@/lib/db/presenter";
 import { getAvatar } from "@/lib/db/avatars";
 import type { Avatar } from "./schema";
-import { presenterInShot, presenterUpstreamRow, readPresenterSwitch, seedingScriptId } from "./presenter";
+import {
+  matchingVoiceReference, presenterInShot, presenterUpstreamRow, readPresenterSwitch, seedanceVoiceText,
+  seedingScriptId,
+} from "./presenter";
+import { prepareNamedVoiceReference } from "./voice-reference";
 
 // D299 — the presenter of a shot, from the database, and the virtual input it becomes.
 
@@ -57,4 +61,37 @@ export async function withStillPresenter(imageGenUps: UpstreamOutput[]): Promise
   if (!prompt) return imageGenUps;
   const promptUps = await getUpstreamOutputs(prompt.nodeId);
   return withPresenterRow(imageGenUps, await loadPresenterForPromptNode(prompt.nodeId, promptUps));
+}
+
+export type SeedanceVoice = {
+  avatarId: string;
+  /** The audio Seedance is given, or null when there is none to give. */
+  referenceAudioUrl: string | null;
+  /** What the request's text adds about it, or null without a reference. */
+  text: string | null;
+};
+
+/**
+ * On Seedance, the presenter's voice as an audio reference (D299): the voice reference matching
+ * the avatar's declaration, made on demand for a named voice whose reference is not there yet
+ * (the voice route makes it after declaring; this covers it failing or not having run). Null when
+ * the presenter is not in the shot. With no voice, or a reference that cannot be made, the
+ * generation goes ahead without audio and Seedance invents a voice — recorded, never refused.
+ */
+export async function presenterVoiceForSeedance(
+  promptNodeId: string,
+  promptUps: readonly UpstreamOutput[],
+): Promise<SeedanceVoice | null> {
+  const presenter = await loadPresenterForPromptNode(promptNodeId, promptUps);
+  if (!presenter?.inShot) return null;
+  const { avatar } = presenter;
+  if (!avatar.voice) return { avatarId: avatar.id, referenceAudioUrl: null, text: null };
+  const reference =
+    matchingVoiceReference(avatar) ??
+    (avatar.voice.mode === "named" ? await prepareNamedVoiceReference(avatar.clientId, avatar) : null);
+  return {
+    avatarId: avatar.id,
+    referenceAudioUrl: reference?.url ?? null,
+    text: reference ? seedanceVoiceText(avatar.voice) : null,
+  };
 }
