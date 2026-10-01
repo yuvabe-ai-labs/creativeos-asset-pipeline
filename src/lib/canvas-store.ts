@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
@@ -117,6 +118,9 @@ function defaultData(type: string): AppNode["data"] {
   switch (type) {
     case "file":
       return { title: "" };
+    case "avatar":
+      // Filled by whoever adds the node (the gallery) — an Avatar node is never added bare.
+      return { avatarId: "" };
     case "text":
       return {};
     case "shot":
@@ -236,7 +240,14 @@ export function createCanvasStore(
 
       // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
       // which the edges.id uuid column rejects (failing the whole save batch).
-      set({ edges: addEdge({ ...connection, id: crypto.randomUUID() }, get().edges) });
+      // D298 — a script has one presenter: another avatar's edge into it is replaced.
+      const replaced = source && target ? replacedPresenterEdges(get().nodes, get().edges, source, target) : [];
+      const kept = replaced.length ? get().edges.filter((e) => !replaced.includes(e)) : get().edges;
+      set({
+        edges: addEdge({ ...connection, id: crypto.randomUUID() }, kept),
+        ...(replaced.length && { removedEdgeIds: [...get().removedEdgeIds, ...replaced.map((e) => e.id)] }),
+      });
+      if (replaced.length) toast(PRESENTER_REPLACED_MESSAGE);
     },
     addNode: (type, position, id) =>
       set({
@@ -258,13 +269,16 @@ export function createCanvasStore(
             : n,
         ),
       }),
-    connectNodes: (sourceId, targetId) =>
+    connectNodes: (sourceId, targetId) => {
+      // D298 — the gallery's path keeps one presenter per script too, announced once, here.
+      const replaced = replacedPresenterEdges(get().nodes, get().edges, sourceId, targetId);
+      const kept = replaced.length ? get().edges.filter((e) => !replaced.includes(e)) : get().edges;
       set({
-        edges: addEdge(
-          { source: sourceId, target: targetId, id: crypto.randomUUID() },
-          get().edges,
-        ),
-      }),
+        edges: addEdge({ source: sourceId, target: targetId, id: crypto.randomUUID() }, kept),
+        ...(replaced.length && { removedEdgeIds: [...get().removedEdgeIds, ...replaced.map((e) => e.id)] }),
+      });
+      if (replaced.length) toast(PRESENTER_REPLACED_MESSAGE);
+    },
     // The counterpart to connectNodes: drop the wire, keep both nodes. Dropped edge ids MUST
     // land in removedEdgeIds — autosave sends that list as the delete set, so an edge removed
     // from `edges` alone is only gone in memory and resurrects on the next load. Same cascade

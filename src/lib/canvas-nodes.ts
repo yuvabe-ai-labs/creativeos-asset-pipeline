@@ -41,6 +41,12 @@ export type ScriptNodeData = {
   signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
 };
 
+/** D298 — an avatar on the canvas. Only the id: the avatar is read live, so a name, face or
+ *  voice changed in the Avatar Studio reaches every canvas without re-dropping. */
+export type AvatarNodeData = {
+  avatarId: string;
+};
+
 export type KBNodeData = {
   clientId: string;
   clientSlug: string;
@@ -240,6 +246,7 @@ export type PostNodeData = {
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
+  | Node<AvatarNodeData, "avatar">
   | Node<FileNodeData, "file">
   | Node<TextNodeData, "text">
   | Node<PromptNodeData, "prompt">
@@ -260,6 +267,9 @@ export type AppNode =
 // never read, so `prompt` is deliberately absent from video-gen's source list here.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   kb:                 ["script"],
+  // D298 — an avatar presents a script, and nothing else. Its face and voice reach the shots
+  // through that script (part 2, D299), not through edges of their own.
+  avatar:             ["script"],
   script:             ["prompt"],
   shot:               ["prompt", "video-prompt"],
   // The multishot lane skips the still entirely: a start frame fixes ONE composition and
