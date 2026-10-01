@@ -8,15 +8,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function AvatarStudioSkeleton() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
+      {/* The breadcrumb, as on the library page. */}
+      <Skeleton className="h-4 w-72" />
       {/* mt-4 mirrors the live section's own top margin (avatar-studio.tsx's
        *  `<section className="animate-rise mt-4">`) so nothing shifts down when it resolves. */}
       <div className="mt-4">
         <header className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Skeleton className="h-8 w-24" />
-          <div className="flex-1 basis-72 space-y-2">
-            <Skeleton className="h-3 w-40" />
-            <Skeleton className="h-8 w-56" />
-          </div>
+          <Skeleton className="h-8 w-56" />
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[13.5rem_minmax(0,1fr)_16rem]">

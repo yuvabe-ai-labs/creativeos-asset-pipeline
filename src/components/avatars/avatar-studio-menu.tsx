@@ -14,14 +14,13 @@ import {
 type Props = {
   lifecycle: "draft" | "library";
   name: string;
-  spentCredits: number;
   onConfirm: () => void;
 };
 
 // D297 — the header's ⋯ menu. It exists only once there is something to act on: a draft offers
 // Discard draft, an avatar in the library offers Archive. Both archive the row (the ledger's rows
 // still need their avatar), and both ask first.
-export function AvatarStudioMenu({ lifecycle, name, spentCredits, onConfirm }: Props) {
+export function AvatarStudioMenu({ lifecycle, name, onConfirm }: Props) {
   const [confirming, setConfirming] = useState(false);
   const draft = lifecycle === "draft";
   const Icon = draft ? Trash2 : Archive;
@@ -60,9 +59,7 @@ export function AvatarStudioMenu({ lifecycle, name, spentCredits, onConfirm }: P
             </AlertDialogTitle>
             <AlertDialogDescription>
               {draft
-                ? `The draft and its images are removed.${spentCredits > 0
-                  ? ` The ${spentCredits.toLocaleString()} credits already spent on it stay spent.`
-                  : ""}`
+                ? "The draft and its images are removed. Credits already spent on it stay spent."
                 : "It leaves the library and can no longer be picked. Videos that already use it keep working."}
             </AlertDialogDescription>
           </AlertDialogHeader>

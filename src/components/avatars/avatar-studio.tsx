@@ -15,6 +15,7 @@ import { voiceDeclarationKey } from "@/lib/avatars/voice-preview";
 import type { Avatar } from "@/lib/avatars/schema";
 import { AvatarLikenessConsent } from "./avatar-likeness-consent";
 import { AvatarStudioFooter } from "./avatar-studio-footer";
+import { AvatarStudioBreadcrumb } from "./avatar-studio-breadcrumb";
 import { AvatarStudioHeader } from "./avatar-studio-header";
 import { AvatarStudioLookStep } from "./avatar-studio-look-step";
 import { AvatarStudioPreviewStep } from "./avatar-studio-preview-step";
@@ -135,15 +136,14 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     : null;
 
   return (
+    <>
+    <AvatarStudioBreadcrumb clientSlug={clientSlug} clientName={clientName} name={s.name} />
     <section className="animate-rise mt-4">
       <AvatarStudioHeader
-        libraryHref={libraryHref}
-        clientName={clientName}
         avatar={avatar}
         name={s.name}
         nameError={s.nameError}
         saveState={s.saveState}
-        spentCredits={g.spentCredits}
         onName={s.setName}
         onArchive={s.archive}
       />
@@ -172,5 +172,6 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
         <AvatarStudioSummary avatar={avatar} name={s.name} />
       </div>
     </section>
+    </>
   );
 }

@@ -1,16 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { Check, ChevronLeft } from "lucide-react";
+import { Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AVATAR_NAME_MAX } from "@/lib/avatars/constants";
 import { avatarLifecycle, type AvatarLifecycle } from "@/lib/avatars/studio";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { StudioSaveState } from "@/hooks/use-avatar-studio";
-import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarStudioMenu } from "./avatar-studio-menu";
 
 const BADGE: Record<AvatarLifecycle, { label: string; className: string }> = {
@@ -20,34 +17,26 @@ const BADGE: Record<AvatarLifecycle, { label: string; className: string }> = {
 };
 
 type Props = {
-  libraryHref: string;
-  clientName: string;
   avatar: Avatar | null;
   name: string;
   nameError: string | null;
   saveState: StudioSaveState;
-  spentCredits: number;
   onName: (value: string) => void;
   onArchive: () => void;
 };
 
 // D297 — the Studio's header. The title IS the avatar's name, edited in place with the house
 // inline-edit affordance, so the name is always in view rather than tucked into a side card.
+// The way back is the breadcrumb above it, as on the client's other pages.
 export function AvatarStudioHeader({
-  libraryHref, clientName, avatar, name, nameError, saveState, spentCredits, onName, onArchive,
+  avatar, name, nameError, saveState, onName, onArchive,
 }: Props) {
   const lifecycle = avatarLifecycle(avatar);
   const badge = BADGE[lifecycle];
 
   return (
     <header className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-      <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={libraryHref} />}>
-        <ChevronLeft className="size-4" strokeWidth={1.5} />
-        Avatars
-      </Button>
-
       <div className="min-w-0 flex-1 basis-72">
-        <p className="text-eyebrow text-muted-foreground">{clientName} · Avatars</p>
         <div className="flex flex-wrap items-center gap-2.5">
           <Input
             value={name}
@@ -78,17 +67,11 @@ export function AvatarStudioHeader({
         </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        {spentCredits > 0 && (
-          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-            <AvatarCreditCost credits={spentCredits} />
-            spent
-          </span>
-        )}
-        {lifecycle !== "new" && (
-          <AvatarStudioMenu lifecycle={lifecycle} name={name} spentCredits={spentCredits} onConfirm={onArchive} />
-        )}
-      </div>
+      {lifecycle !== "new" && (
+        <div className="ml-auto flex items-center gap-2">
+          <AvatarStudioMenu lifecycle={lifecycle} name={name} onConfirm={onArchive} />
+        </div>
+      )}
     </header>
   );
 }
