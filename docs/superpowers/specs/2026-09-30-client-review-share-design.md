@@ -56,7 +56,6 @@ canvas_reviews (
   canvas_id    uuid not null references canvases(id) on delete cascade,
   node_id      uuid not null unique references nodes(id) on delete cascade,
   org_id       uuid not null,                  -- set by trigger from canvas → client → org
-  title        text not null default '',
   video_path   text not null,                  -- GCS object path
   share_token  text not null unique,           -- 32 random bytes, base64url
   created_by   uuid not null,
@@ -187,7 +186,9 @@ canvas_review_comments (
   in the middle (read-only for the team; shows *"edited by"*), where tapping a timecode seeks the video; **Copy link** and
   **Open as client** at the top.
 - Team routes (session-gated, `withNode`): `GET /api/nodes/[id]/client-review` (review + comments),
-  `POST /api/nodes/[id]/client-review` (create after upload), `PATCH` (title).
+  `POST /api/nodes/[id]/client-review` (create after upload), `POST .../client-review/sign`.
+- **Title lives in the node's own data** (`data.title`, autosaved like every node title); the
+  public `GET` reads it from the node row. No title column, no title route.
 - The count refreshes when the canvas loads and when the focus view opens.
 
 ## 6. Failure cases
