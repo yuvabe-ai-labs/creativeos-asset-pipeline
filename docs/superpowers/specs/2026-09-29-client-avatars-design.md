@@ -31,7 +31,7 @@ ledger.
 
 | Item | Where it goes |
 |---|---|
-| Using an avatar on a canvas: one avatar per reel, attached once to the Script node and chosen before shots are grouped; the engine follows the avatar's kind (§8); re-voicing runs automatically after generation | Phase 2, per the handoff spec §6 — designed in `2026-10-01-avatars-on-canvas-design.md` (D298): part 1 puts the avatar on the canvas as the Script's presenter, part 2 carries its face and voice into the videos. The `feat/character-node` branch (D264–D266: per-shot Character nodes and Kling elements) is not the route for avatars. |
+| Using an avatar on a canvas: one avatar per reel, attached once to the Script node and chosen before shots are grouped; the engine follows the avatar's kind (§8); re-voicing runs automatically after generation | Phase 2, per the handoff spec §6 — designed in `2026-10-01-avatars-on-canvas-design.md` (D298, part 1: the avatar on the canvas as the Script's presenter) and `2026-10-01-avatars-in-videos-design.md` (D299, part 2: its face and voice in the stills and videos). The `feat/character-node` branch (D264–D266: per-shot Character nodes and Kling elements) is not the route for avatars. |
 | Billing ElevenLabs usage (clone, saving a library voice) in credits | Deferred, §7.3 |
 | BytePlus private virtual portrait library and real-human asset library (`asset://`) | Later; needs paid Advanced Creation Rights and AK/SK auth |
 | ElevenLabs Voice Design; OpenArt's "Build your character" wizard | Not planned |

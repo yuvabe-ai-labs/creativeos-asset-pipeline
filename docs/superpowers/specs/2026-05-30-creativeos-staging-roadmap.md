@@ -6187,9 +6187,9 @@ https://claude.ai/artifact/6Mg4qUZ5Ptw61HAxV6SxDR.
 tab listing the client's saved avatars; a tile drags onto the canvas as an **Avatar node**
 (`type: "avatar"`, `data: { avatarId }`), or onto a Script node already connected to it.
 `avatar → script` is the node's only connection, and a script has **one presenter** — a second
-replaces the first. The parse reads the presenter from the database and adds a brief (name,
-story, voice) to the system prompt, below the compliance rule: the presenter's on-camera lines
-get `speaker: "{name}"` and on-camera visuals describe that person. Clicking the node opens a
+replaces the first. The Script shows its presenter — a row on its card (a dashed **+ Presenter**
+chip once parsed) and a block in its focus view with Change and Remove — read from the edge.
+**The presenter does not touch the parse.** Clicking the node opens a
 **read-only focus view** with the latest preview clip and the references (front, sheet, voice,
 story, works-with). Part 2 — shots and video nodes using the face and the voice — reaches the
 presenter through the script that created each shot; part 1 copies nothing onto shots.
@@ -6198,17 +6198,60 @@ presenter through the script that created each shot; part 1 copies nothing onto 
 before shots are grouped (its §1). A node rather than a picker keeps the presenter visible in the
 graph, which part 2 has to read. Holding only the id keeps one truth: a voice or face changed in
 the Studio reaches every canvas without re-dropping, and the parse reads what the database says.
-VO lines already name their `speaker`, so a presenter is a small, natural extension of the parse,
-not a new concept. Read-only keeps consent, credits and staleness in one place, the Studio.
+Read-only keeps consent, credits and staleness in one place, the Studio.
+
+**Amended (2026-10-01, same day).** The first recording had the parse write on-camera lines for
+the presenter. Withdrawn in review: the usual order is to parse a script and then cast it, so the
+presenter must not depend on, or change, the parse. It is shown on the Script and used by part 2.
+Parts 1 and 2 are designed now and built back to back, because part 1 alone shows a presenter
+that nothing uses.
 
 **Rejected.** A snapshot of the avatar copied into the node (Studio edits would never reach the
 canvas; two copies drift). A "Presenter" picker inside the Script node (hides the presenter from
 the graph). Connecting avatars straight to Image Gen / Video Gen in part 1 (those nodes do not
 yet know what to do with a voice or the model rules — part 2). Several presenters per script
 (every shot would need to know which face is on screen; deferred until a dialogue reel needs it).
-Building parts 1 and 2 as one (part 2's design would be fixed before part 1 had been tried).
+A presenter brief in the parse prompt (the first recording — withdrawn; casting follows parsing).
 Editing the avatar from the canvas focus view (a second place to edit the same thing).
 
 **Refines.** D287 (the library), D294/D296 (the preview the focus view shows), D297 (works-with).
 **Originated →** `2026-10-01-avatars-on-canvas-design.md`.
+
+### D299 — The presenter reaches a shot through the node that writes its prompt; Seedance gets the voice as audio, others a pre-selected Edit voice *(recorded 2026-10-01)*
+
+**Decision.** A shot's presenter is found by walking from its prompt-writing node (Prompt,
+Motion Prompt, Multishot Prompt) up to the Shot or Multishot, its script, and the script's avatar.
+That prompt node carries an **In this shot** switch — on by default when the shot has an on-camera
+line (a VO line whose speaker is not "narrator"), the operator's choice stored and winning — and
+Image Gen and Video Gen follow it. With it on, the presenter's front image joins the prompt's
+reference roster as "Presenter: {name}", so the writer names them and the still and the video
+receive the face through the existing reference machinery. On **Seedance**, the avatar's voice
+reference goes as `reference_audio`, bound in the text to "@Audio 1 — voice timbre only" and
+described in words; when a still is the first frame, Seedance cannot also take the face, so only
+the voice goes and the picker points to the Multishot lane. The voice reference is one stored
+sample matched to the current declaration: the native preview's extracted audio (D296), or for a
+named voice its ElevenLabs sample copied into our bucket — made by ElevenLabs text-to-speech when
+the voice has none. On **Gemini Omni, Kling and Veo**, which take no audio, **Edit voice** opens
+with the presenter's named voice chosen and is never applied automatically. The Video Gen model
+picker disables the models the face does not work with.
+
+**Why.** The prompt node is where a shot is written, so it is where "who is in this shot" is
+answered — once, for both the still and the video. Riding the reference roster means the face
+gets the citing, storage and limit checks uploaded images already have, instead of a parallel
+path. Seedance is the one engine that can take a voice; sending its reference costs nothing (audio
+is outside the token formula) and the vendor's prompt guidance is known from the UGC bench.
+Re-voicing is a paid, take-by-take decision the operator already makes in Edit voice; making it
+automatic would spend credits on takes nobody keeps.
+
+**Rejected.** A switch on each Video Gen node (the still and the video could disagree about the
+same shot). Letting the prompt-writing model decide whether the presenter appears (plain-text
+output, and the answer would change on every regeneration). Automatic re-voicing after every
+generation (operator decision). Skipping the audio reference for voices with no ElevenLabs sample
+(cloned voices — the client's own — would get the weakest result; text-to-speech fixes it for
+cents). Direct Avatar → Image Gen / Video Gen connections (a second path through every rule, not
+yet needed).
+
+**Refines.** D284 (Edit voice), D290/D297 (models a face works with), D296 (the voice reference),
+D298.
+**Originated →** `2026-10-01-avatars-in-videos-design.md`.
 
