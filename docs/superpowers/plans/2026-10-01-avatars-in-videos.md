@@ -57,7 +57,7 @@
 - `seedanceVoiceText(voice: AvatarVoice): string` — the binding sentence + the voice in words (named: labels; native: "the presenter's own voice")
 - `namedVoiceSampleKey(voiceId: string): string` — `elevenlabs:${voiceId}`
 
-- [ ] Tests first for each (Shot with a narrator-only line → off; with "Riya" → on; stored `false` beats an on-camera line; Multishot sequence lines count; row null without a front; reference matching per declaration; the text contains "@Audio 1" and "timbre only"); run, implement, run, commit `feat(avatars): the presenter's rules for a shot (D299)`.
+- [x] Tests first for each (Shot with a narrator-only line → off; with "Riya" → on; stored `false` beats an on-camera line; Multishot sequence lines count; row null without a front; reference matching per declaration; the text contains "@Audio 1" and "timbre only"); run, implement, run, commit `feat(avatars): the presenter's rules for a shot (D299)`.
 
 ---
 
@@ -70,8 +70,8 @@
 - `getPromptUpstream(nodeId): Promise<UpstreamOutput[]>` — `getUpstreamOutputs(nodeId)` + the virtual row when in the shot.
 - `withStillPresenter(imageGenUps): Promise<UpstreamOutput[]>` — for Image Gen: when its upstream Prompt node has the presenter in the shot, the virtual row is appended to Image Gen's own upstream (a still takes connected images directly).
 
-- [ ] Replace `getUpstreamOutputs` with `getPromptUpstream` in the three prompt resolvers, in `resolveVideoGenPrompt`'s injected fetch (video route), and for the prompt-node batches in `upstream-images`; use `withStillPresenter` in `image-generate` and for Image Gen in `upstream-images`.
-- [ ] Route tests: a Motion Prompt with the presenter on lists "Presenter: Riya" among its references; switched off, not; a Video Gen on Omni sends the face as a reference; on Seedance with a still as the first frame, the face is not sent (existing rules) — commit `feat(avatars): the presenter enters a shot as a virtual input on its prompt node (D299)`.
+- [x] Replace `getUpstreamOutputs` with `getPromptUpstream` in the three prompt resolvers, in `resolveVideoGenPrompt`'s injected fetch (video route), and for the prompt-node batches in `upstream-images`; use `withStillPresenter` in `image-generate` and for Image Gen in `upstream-images`.
+- [x] Route tests: a Motion Prompt with the presenter on lists "Presenter: Riya" among its references; switched off, not; a Video Gen on Omni sends the face as a reference; on Seedance with a still as the first frame, the face is not sent (existing rules) — commit `feat(avatars): the presenter enters a shot as a virtual input on its prompt node (D299)`.
 
 ---
 
@@ -79,9 +79,9 @@
 
 **Files:** modify `video-generate/route.ts`, `trigger/video-generate.ts`; extend the route test.
 
-- [ ] When the model is Seedance and the prompt node's presenter is in the shot: `referenceAudioUrl = matchingVoiceReference(avatar)?.url`, appended to the task payload and passed by the task to `config.generate`; the prompt gets `seedanceVoiceText(avatar.voice)` appended. Recorded in `inputsSnapshot.presenter = { avatarId, referenceAudioUrl }`.
-- [ ] If the reference is missing for a named voice, prepare it on demand (Task 4's function) before sending; still missing → generate without audio, recorded.
-- [ ] Tests, commit `feat(avatars): Seedance hears the presenter's voice (D299)`.
+- [x] When the model is Seedance and the prompt node's presenter is in the shot: `referenceAudioUrl = matchingVoiceReference(avatar)?.url`, appended to the task payload and passed by the task to `config.generate`; the prompt gets `seedanceVoiceText(avatar.voice)` appended. Recorded in `inputsSnapshot.presenter = { avatarId, referenceAudioUrl }`.
+- [x] If the reference is missing for a named voice, prepare it on demand (Task 4's function) before sending; still missing → generate without audio, recorded.
+- [x] Tests, commit `feat(avatars): Seedance hears the presenter's voice (D299)`.
 
 ---
 
@@ -89,7 +89,7 @@
 
 **Files:** `src/lib/elevenlabs/client.ts` (`textToSpeech({ voiceId, text }): Promise<Buffer>` — `POST /v1/text-to-speech/{voiceId}`, `eleven_multilingual_v2`, mp3); `src/lib/avatars/voice-reference.ts` (`prepareNamedVoiceReference(clientId, avatar): Promise<AvatarVoiceSample | null>` — only for a Seedream face; download `voice.previewUrl` when set, else TTS of "Hi, I'm {name}. This is how I sound when I talk about the things I care about."; store at `clients/{c}/avatars/{a}/voice-sample/elevenlabs-{voiceId}.mp3`; probe its duration; write `voice_sample` with `namedVoiceSampleKey`); the voice route calls it after declaring a named voice, best-effort.
 
-- [ ] Tests with injected fetch/TTS/storage: a preview is copied; no preview → TTS; a real person → nothing; a failure leaves the declaration and returns null. Commit `feat(avatars): a named voice gets a voice reference for Seedance (D299)`.
+- [x] Tests with injected fetch/TTS/storage: a preview is copied; no preview → TTS; a real person → nothing; a failure leaves the declaration and returns null. Commit `feat(avatars): a named voice gets a voice reference for Seedance (D299)`.
 
 ---
 
@@ -97,17 +97,32 @@
 
 **Files:** `canvas-nodes.ts` (`presenter?`), `use-shot-presenter.ts`, `presenter-switch.tsx`, the three prompt focus views, `video-gen-change-voice.tsx`, `video-gen-model-picker.tsx`, `video-gen-focus-view.tsx`.
 
-- [ ] `useShotPresenter(promptNodeId)` walks the canvas store: prompt node → upstream Shot/Multishot → `seededFrom.scriptNodeId` → `presenterAvatarId` (part 1) → `useAvatar`; returns `{ avatar, avatarNodeId, inShot, stored }` or null — `inShot` from the same `presenterInShot`.
-- [ ] `PresenterSwitch` — the face, "Presenter: {name}", a `Switch` "In this shot"; toggling writes `presenter: { inShot }` to the prompt node. The three prompt node cards show the presenter's small round face while it is in the shot (spec §3).
-- [ ] Edit voice: with no voice of its own, its value defaults to the presenter's named voice id when the feeding prompt node has the presenter in the shot. Never applied without Apply.
-- [ ] Model picker: while the presenter is in the shot, models outside `avatarWorksWith` are disabled with the reason; a selected one shows it in place of Generate. Notes in the Video Gen focus view for "Seedance uses the still as its first frame…" and "Only Seedance keeps the engine's own voice the same across clips."; and, on Seedance with the presenter in the shot but no matching voice reference, "The presenter's voice reference is missing, so Seedance will invent a voice." (spec §8)
-- [ ] `tsc` + eslint; commit `feat(avatars): the presenter switch, Edit voice and the model list (D299)`.
+- [x] `useShotPresenter(promptNodeId)` walks the canvas store: prompt node → upstream Shot/Multishot → `seededFrom.scriptNodeId` → `presenterAvatarId` (part 1) → `useAvatar`; returns `{ avatar, avatarNodeId, inShot, stored }` or null — `inShot` from the same `presenterInShot`.
+- [x] `PresenterSwitch` — the face, "Presenter: {name}", a `Switch` "In this shot"; toggling writes `presenter: { inShot }` to the prompt node. The three prompt node cards show the presenter's small round face while it is in the shot (spec §3).
+- [x] Edit voice: with no voice of its own, its value defaults to the presenter's named voice id when the feeding prompt node has the presenter in the shot. Never applied without Apply.
+- [x] Model picker: while the presenter is in the shot, models outside `avatarWorksWith` are disabled with the reason; a selected one shows it in place of Generate. Notes in the Video Gen focus view for "Seedance uses the still as its first frame…" and "Only Seedance keeps the engine's own voice the same across clips."; and, on Seedance with the presenter in the shot but no matching voice reference, "The presenter's voice reference is missing, so Seedance will invent a voice." (spec §8)
+- [x] `tsc` + eslint; commit `feat(avatars): the presenter switch, Edit voice and the model list (D299)`.
 
 ---
 
 ### Task 6: Record it
 
-- [ ] As built; spec amended where it differs; commit.
+- [x] As built; spec amended where it differs; commit.
+
+## As built (2026-10-01)
+
+All six tasks done. Commits: `bc7b77e1` (rules), `c9145237` (virtual input), `24191c81`
+(named voice reference), `d73bed41` (Seedance voice), `74fed089` (switch, card face, Video Gen).
+
+- Task 5 also added `presenter-face.tsx` (the card face) and `video-gen-presenter-notes.tsx`, plus
+  two pure rules in `presenter.ts`: `unavailableModelsFor` and `presenterVideoNotes`, both tested.
+- `useShotPresenter` returns `chosen` (whether the operator set the switch), not `stored`.
+- Edit voice's default applies only while the node has no stored `voiceChange`: it can't loop
+  on a voice ElevenLabs no longer has.
+- The missing-reference note covers the engine's own voice only; a named voice's reference is made
+  at generation time.
+- Not built: suggesting the Multishot lane for Seedance shots with a still (spec §4, §11).
+- Components were checked with `tsc` and eslint only — vitest runs in node.
 
 ## Verify in the running app
 

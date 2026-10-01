@@ -74,9 +74,9 @@ it, storing it, the per-model image limits and the missing-reference checks all 
 - **Seedance with a still upstream.** Seedance takes a first frame *or* reference images, never
   both. When the shot's still is its first frame, the face cannot go too: it is left out, and the
   Video Gen focus view says so ("Seedance uses the still as its first frame, so the presenter's
-  face can't be sent as well. The voice still is."). The voice reference still goes (§5). The
-  model picker suggests the Multishot lane, which has no still, for Seedance shots with the
-  presenter.
+  face can't be sent as well. The voice still is."). The voice reference still goes (§5).
+  *(As built: the note is shown; suggesting the Multishot lane in the picker was not built — see
+  §11.)*
 
 ## 5. The voice
 
@@ -160,7 +160,7 @@ No migration: `voice_sample` exists (0041) and node data is JSON.
 | Case | Behaviour |
 |---|---|
 | The presenter is removed from the script | Every shot loses it on its next prompt or generation; finished takes are untouched |
-| The voice reference cannot be prepared | The Seedance shot generates without `reference_audio` (the engine invents a voice), and the focus view says the voice reference is missing |
+| The voice reference cannot be prepared | The Seedance shot generates without `reference_audio` (the engine invents a voice). The focus view says the reference is missing for the engine's own voice with no sample; a named voice's reference is made at generation time, so the browser cannot know in advance that it will fail (§11) |
 | A named voice is changed | The old sample no longer matches and is ignored; the new one is prepared |
 | Seedance refuses the face | The provider's message is shown and the generation is refunded, as today |
 | The prompt node's switch is on but the shot's model cannot take any image | The face is left out, with the reason |
@@ -180,3 +180,28 @@ No migration: `voice_sample` exists (0041) and node data is JSON.
 
 Avatars connecting straight to Image Gen or Video Gen. Several presenters per script. Billing
 ElevenLabs text-to-speech. Kling Elements from the profile sheet (client avatars spec §10).
+
+## 11. As built (2026-10-01)
+
+Built as designed, with these differences:
+
+- **Where it lives.** The pure rules are in `src/lib/avatars/presenter.ts`: the presenter lookup,
+  the switch default, the virtual File row, voice-reference matching, the Seedance text,
+  `unavailableModelsFor` (§6) and `presenterVideoNotes` (the focus-view notes). The server reads
+  them through `src/lib/avatars/presenter-server.ts` (`getPromptUpstream`, `withStillPresenter`,
+  `presenterVoiceForSeedance`); the browser through `useShotPresenter`. Both feed the same rows
+  to the same functions, so the switch shows what generation does.
+- **The switch** sits in the focus view's rail, under the connected inputs — in the shared
+  shell (Motion Prompt, Multishot Prompt) and in the image Prompt's own view. The card's face sits
+  beside the status dot in the header.
+- **The model list.** Ruled-out models stay visible but disabled, with the reason on hover. Veo
+  on a real person's face says "Google may refuse a real person's face". A node already on a
+  ruled-out model shows the reason under the picker and in place of Generate.
+- **Edit voice** pre-selects the presenter's named voice only while the node has stored no voice
+  choice at all. Once anything is stored — a pick, a clear, or a voice ElevenLabs no longer has —
+  the node's own choice wins, so a deleted voice can't loop.
+- **The missing-reference note** covers the engine's own voice with no sample (make a voice
+  preview in the Studio). A named voice's reference is made on demand when Seedance generates.
+- **Not built:** suggesting the Multishot lane in the picker for Seedance shots with a still (§4).
+- **No migration.** The switch is node data; the voice reference reuses `voice_sample`. Named
+  references are stored at `clients/{c}/avatars/{a}/voice-sample/elevenlabs-{voiceId}.mp3`.
