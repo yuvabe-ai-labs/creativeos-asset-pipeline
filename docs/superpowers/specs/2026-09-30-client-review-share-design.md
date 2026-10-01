@@ -134,11 +134,18 @@ canvas_review_comments (
   pauses nothing; it stamps `currentTime` at the moment of posting.
 - Tapping a comment's timecode seeks the video there.
 - *change* clears `reviewer_name` and shows the name screen.
-- After a post the list refetches; the list also refetches on page load. No polling.
+- First load arrives server-rendered with comments; after a post the list refetches from
+  `GET /api/r/[token]`. No polling.
 - **Name storage:** one site-wide key, `reviewer_name`, so a second cut doesn't ask again. Every
-  read/write is wrapped in `try/catch`. The server cannot see `localStorage`, so the page renders a
-  neutral loading shell until it has read the key, then picks the name or review screen — no flash
-  of the name screen for returning reviewers.
+  read/write is wrapped in `try/catch`.
+- **No flash, decided on the client before paint:** the page is server-rendered with the review
+  already loaded (the server component resolves the token and reads title, video URL and comments
+  directly — no client fetch on first load). Both the name screen and the review screen are in the
+  HTML. A tiny inline `<script>` in `<head>` (the `next-themes` pattern) reads `reviewer_name`
+  before first paint and sets `data-reviewer="known"` on `<html>`; CSS hides whichever screen
+  doesn't apply. React then takes over with the same answer, so returning reviewers see the video
+  on the very first frame. If storage throws, the script leaves the attribute unset and the name
+  screen shows.
 - **In-app browsers:** links shared on WhatsApp / Instagram / Gmail open in the app's own webview,
   with storage separate from Safari/Chrome; a reviewer who switches browsers is asked their name
   again. Accepted. Names are labels, not identity.
