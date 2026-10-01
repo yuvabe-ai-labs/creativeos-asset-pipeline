@@ -14,6 +14,7 @@ const TABS: { id: GalleryTab; label: string }[] = [
   { id: "assets", label: "Assets" },
   { id: "moodboard", label: "Moodboards" },
   { id: "signals", label: "Signals" },
+  { id: "avatars", label: "Avatars" },
 ];
 
 export function GalleryTabs({ value, onChange }: Props) {

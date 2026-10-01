@@ -38,6 +38,12 @@ export function useLibraryAvatars(clientId: string) {
   });
 }
 
+/** Refetch the client's avatar list — the gallery header's refresh button. */
+export function useRefreshAvatars(clientId: string) {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: avatarKeys.list(clientId) });
+}
+
 export type AvatarLookup =
   | { status: "loading"; avatar: null }
   | { status: "ready"; avatar: Avatar }
