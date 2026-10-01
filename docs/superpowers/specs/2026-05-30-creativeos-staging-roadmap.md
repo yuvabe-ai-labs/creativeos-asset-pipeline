@@ -6460,7 +6460,7 @@ a plain-stored 32-byte `share_token`. `/r/[token]` and `/api/r/[token]/*` are ex
 `src/proxy.ts`, and every such route goes through `withShareToken` in `route-helpers.ts` — the
 single sanctioned exception to session auth. The client page is mobile-first: the reviewer's name
 is asked once and kept in `localStorage`; comments are text, stamped with the video's current time,
-add-only, and visible to everyone with the link (`canvas_review_comments`). The canvas node shows
+editable by anyone with the link (`edited_by_name`), not deletable, and visible to everyone with the link (`canvas_review_comments`). The canvas node shows
 the count and lists the comments read-only. A new cut is a new node.
 
 **Why.** The operator shares stitched edits with clients who have no account, mostly on phones, and
@@ -6470,7 +6470,8 @@ exemption keeps the unauthenticated surface auditable.
 **Rejected.** Frame painting and masks for clients (heavy on a phone, and it forces a token-locked
 video proxy to keep frame capture untainted); reusing `node_version_annotations` (tied to approval
 decisions and a user id); the Post-node share design (a different feature); an anon RLS policy for
-live updates (reverses D86 table-wide); editing comments; replacing the video inside a node.
+live updates (reverses D86 table-wide);
+deleting comments; replacing the video inside a node.
 
 **Refines.** D44, D46, D86. **Originated →**
 `docs/superpowers/specs/2026-09-30-client-review-share-design.md`.

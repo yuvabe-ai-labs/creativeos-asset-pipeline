@@ -24,9 +24,10 @@ Said:
   `localStorage` so it is not asked again.
 - Everyone with the link sees everyone's comments.
 - A new cut is a new node.
+- Comments can be **edited by anyone** with the link (an edit records who made it).
 
 Assumed — strike at review if wrong:
-- Comments are **add-only**: no edit, no delete. A follow-up comment is the correction.
+- Comments **cannot be deleted** — only edited. Clearing a comment's text is not allowed.
 - Each comment is **stamped with the video's current time**.
 - Only the client comments; the team **reads** comments on the canvas.
 
@@ -35,13 +36,14 @@ Assumed — strike at review if wrong:
 1. The operator uploads a cut into a Client review node and copies its link.
 2. On a phone, a client opens the link, enters a name, and posts a comment at a moment in the cut.
 3. Reopening the link on that phone goes straight to the video — no name prompt.
-4. A second reviewer on the same link sees the first reviewer's comments.
+4. A second reviewer on the same link sees the first reviewer's comments and can edit them; the
+   edited comment shows *"edited by {name}"*.
 5. The canvas node shows the comment count, and its focus view lists the comments; tapping one
    seeks the video to that moment.
 
 ### Non-goals
 
-Painting / frame annotation · editing or deleting comments · replies · team comments · approve /
+Painting / frame annotation · deleting comments · replies · team comments · approve /
 request-changes verdict · live updates · revoking or regenerating links · link expiry · replacing
 the video inside a node · the moodboard gallery (step 2).
 
@@ -65,8 +67,10 @@ canvas_review_comments (
   review_id    uuid not null references canvas_reviews(id) on delete cascade,
   author_name  text not null,                  -- 1–60 chars
   body         text not null,                  -- 1–2,000 chars
-  timecode_ms  int  not null,
-  created_at   timestamptz not null default now()
+  timecode_ms     int  not null,
+  edited_by_name  text,                        -- set on edit; null until then
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
 )
 ```
 
@@ -90,6 +94,10 @@ canvas_review_comments (
 |---|---|
 | `GET /api/r/[token]` | `{ title, videoUrl, comments[] }` — **no org, client, canvas or node ids** |
 | `POST /api/r/[token]/comments` | `{ authorName, body, timecodeMs }` → the new comment |
+| `PATCH /api/r/[token]/comments/[commentId]` | `{ editorName, body }` → the updated comment; sets `edited_by_name`, `updated_at` |
+
+- `PATCH` checks `comment.review_id === review.id`, so one token cannot edit another review's
+  comments. Only `body` is editable — never the timecode or the original author.
 
 - The page sends `X-Robots-Tag: noindex` and `Referrer-Policy: no-referrer`.
 
@@ -133,6 +141,8 @@ canvas_review_comments (
 - The composer is pinned to the bottom and shows the current time in its placeholder. **Post**
   pauses nothing; it stamps `currentTime` at the moment of posting.
 - Tapping a comment's timecode seeks the video there.
+- **Edit:** each comment has an *Edit* action (anyone's comment). It turns the comment into an
+  inline `Textarea` with **Save** / **Cancel**; saving shows *"edited by {name}"* under the body.
 - *change* clears `reviewer_name` and shows the name screen.
 - First load arrives server-rendered with comments; after a post the list refetches from
   `GET /api/r/[token]`. No polling.
@@ -163,7 +173,7 @@ canvas_review_comments (
   the `canvas_reviews` row with a fresh token.
 - **On the node:** poster, inline-editable title, and **"5 comments"**.
 - **Focus view** (copies the video-gen focus-view shell): the video on the right; the comment list
-  in the middle, read-only, where tapping a timecode seeks the video; **Copy link** and
+  in the middle (read-only for the team; shows *"edited by"*), where tapping a timecode seeks the video; **Copy link** and
   **Open as client** at the top.
 - Team routes (session-gated, `withNode`): `GET /api/nodes/[id]/client-review` (review + comments),
   `POST /api/nodes/[id]/client-review` (create after upload), `PATCH` (title).
@@ -175,6 +185,8 @@ canvas_review_comments (
 |---|---|
 | Unknown token / node deleted | Friendly page: *"This review link is no longer active — ask your contact for a new one."* (HTTP 404) |
 | Post fails | The text stays in the composer with an inline error and **Post** re-enabled |
+| Two people edit the same comment | Last write wins; *"edited by"* shows who changed it last |
+| Edit to empty text | **Save** disabled; deleting by emptying is not possible |
 | Empty name or comment | **Start review** / **Post** disabled until there is text |
 | `localStorage` unavailable (private mode) | The name lives in memory for the visit; the prompt returns next time |
 | Video fails to load | Standard error state; comments remain readable |
@@ -184,7 +196,8 @@ canvas_review_comments (
 - **Unit:** payload validation (lengths, required fields, non-negative timecode); token generation
   is 32 bytes base64url.
 - **Route:** unknown token → 404; the public `GET` response contains no org, client, canvas or node
-  ids; `POST` stores the comment against the token's review only.
+  ids; `POST` stores the comment against the token's review only; `PATCH` with token A on a comment
+  from review B → 404; `PATCH` cannot change `timecode_ms` or `author_name`.
 - **Proxy:** `/r/*` and `/api/r/*` load without a session; other paths stay gated.
 - **Manual:** upload → copy link → open on a phone in a private window → enter name → post at a
   timecode → reopen (no name prompt) → the comment appears on the canvas node and in its focus view.
