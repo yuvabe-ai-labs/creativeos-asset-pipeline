@@ -68,8 +68,8 @@ A fifth tab, after Signals: **References · Assets · Moodboards · Signals · A
 `type: "avatar"`, `data: { avatarId: string }`. Nothing else about the avatar is copied into
 the node. `nodes.type` is plain text, so **no migration**.
 
-The canvas loads the client's avatars once — the same list the gallery tab shows — and every
-Avatar node renders from it. An avatar that is not in that list (archived since it was placed,
+The canvas reads the client's avatars through TanStack Query (D300, `src/hooks/queries/avatars.ts`)
+— one cached list, the same the gallery tab shows — and every Avatar node renders from it. An avatar that is not in that list (archived since it was placed,
 or never this client's) is fetched by id from `GET /api/clients/[id]/avatars/[avatarId]`, which
 returns archived avatars and answers 404 for another client's. So a name, face or voice changed
 in the Studio shows on the canvas without re-dropping.
@@ -124,9 +124,11 @@ It reads the avatar as the card does, plus the latest preview from the existing
 - `VALID_CONNECTIONS` gains `avatar: ["script"]` and nothing else: every caller of `canConnect`
   (manual drag, drag affordance, copilot, focus-view add) learns it at once.
 - **One presenter.** Connecting an avatar to a script that already has one **replaces** the old
-  edge, in the store's `onConnect` — beside the multishot rule already there — with a toast:
-  "Riya is now this script's presenter, replacing Arjun." The gallery's drop and connect mode go
-  through the same path.
+  edge, in the store's `onConnect` and `connectNodes` — beside the multishot rule already there —
+  with one toast: "The new avatar is now this script's presenter, replacing the previous one." (As
+  built: the store holds only avatar ids, not names, so the toast names neither; announcing it in
+  the store means it is said once whichever path made the connection.) The gallery's drop and
+  connect mode go through the same path. Connecting the avatar a script already has is a no-op.
 - Wherever the presenter is read (§5 here, and part 2), if a script somehow has several avatar
   edges — older data, another path — the **newest** is the presenter.
 
@@ -147,6 +149,9 @@ The presenter is read from the edge every time; nothing is written to the Script
 - **With one:** the avatar's face, name and voice line, and one line: "On-camera shots from this
   script use Riya's face and voice when they're made into stills and videos." **Change** opens
   the gallery in connect mode; **Remove** deletes the edge and leaves the Avatar node on the canvas.
+- **Change** and **+ Add a presenter** close the focus view first, through its own close path (so
+  its "Discard unsaved changes?" guard still applies), then open the gallery: the drawer cannot
+  sit over a modal sheet.
 - **Without one:** the **+ Add a presenter** chip and "Optional. The avatar whose face and voice
   this script's stills and videos use."
 

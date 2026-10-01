@@ -170,3 +170,26 @@ Built as the first TanStack Query resource instead of a hand-made context (opera
 6. In the Script focus view: the Presenter block; **Remove** disconnects (the node stays); **Change** opens the gallery.
 7. Archive the avatar in the Studio: the node says "Archived — still works here" and the Script still shows it.
 8. Parse a script with a presenter connected: the output is what it would be without one.
+
+---
+
+## As built (2026-10-01)
+
+Built inline in one session. Commits: `fb2d27e7` (Task 1), `b08fed04` (TanStack Query, D300 —
+replaces Task 2's hand-built context), `89002557` (Task 3), `c86e3ce5` (Task 4), `aaaa0533`
+(Task 5). Checks at that head: **2877 tests pass**, `tsc --noEmit` clean, eslint clean on every
+file touched.
+
+Where it differs from the plan or the first spec:
+
+- **Data through TanStack Query** (operator request mid-build): `useLibraryAvatars`, `useAvatar`
+  (seeded from the list; a 404 is "gone"), `useVoicePreviewQuery`. The Studio's preview hook moved
+  onto the same query, so the canvas focus view and the Studio share one polled preview.
+- **The client's slug** is now a canvas context (`useClientSlug`), passed from the canvas page —
+  "Open in Studio" and the tab's library links need it, and the canvas only had the id.
+- **The replacement toast names no one** — the store has ids, not names. Spec §4 amended.
+- **The Script focus view closes before the gallery opens** — `requestClose` gained an optional
+  next step. Spec §5 amended.
+- **Re-connecting the presenter a script already has** adds nothing.
+
+**Not yet opened in a browser.** Run the checklist above. Part 1 ships with part 2.
