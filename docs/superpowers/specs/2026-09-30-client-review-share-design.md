@@ -28,7 +28,7 @@ Said:
 
 Assumed — strike at review if wrong:
 - Comments **cannot be deleted** — only edited. Clearing a comment's text is not allowed.
-- Each comment is **stamped with the video's current time**.
+- Each comment is **stamped with the paused frame**: writing a comment pauses the video, and the comment carries that moment.
 - Only the client comments; the team **reads** comments on the canvas.
 
 ### Success criteria
@@ -138,8 +138,12 @@ canvas_review_comments (
 ```
 
 - The video is sticky at the top; comments scroll beneath, oldest first.
-- The composer is pinned to the bottom and shows the current time in its placeholder. **Post**
-  pauses nothing; it stamps `currentTime` at the moment of posting.
+- The composer is pinned to the bottom. **The timestamp is the paused frame:** focusing the
+  composer pauses the video, and the comment is stamped with that paused position — so a client
+  who pauses on a moment and writes about it gets exactly that moment attached. A chip above the
+  input shows it (*"at 0:07"*). If they scrub while the video is paused, the chip follows, because
+  the frame on screen is what they're commenting on. Typing never resumes playback, so the stamp
+  cannot drift while they write; **Post** sends the paused position.
 - Tapping a comment's timecode seeks the video there.
 - **Edit:** each comment has an *Edit* action (anyone's comment). It turns the comment into an
   inline `Textarea` with **Save** / **Cancel**; saving shows *"edited by {name}"* under the body.
