@@ -141,9 +141,11 @@ canvas_review_comments (
 - **No flash, decided on the client before paint:** the page is server-rendered with the review
   already loaded (the server component resolves the token and reads title, video URL and comments
   directly — no client fetch on first load). Both the name screen and the review screen are in the
-  HTML. A tiny inline `<script>` in `<head>` (the `next-themes` pattern) reads `reviewer_name`
-  before first paint and sets `data-reviewer="known"` on `<html>`; CSS hides whichever screen
-  doesn't apply. React then takes over with the same answer, so returning reviewers see the video
+  HTML. A tiny inline `<script>` (the `next-themes` pattern), placed immediately after the page's
+  wrapper element opens, reads `reviewer_name` before first paint and sets
+  `data-reviewer="known"` on that wrapper — not on `<html>`, which belongs to the shared root
+  layout. The wrapper carries `suppressHydrationWarning`, scoping the workaround to this page. CSS
+  hides whichever screen doesn't apply. React then takes over with the same answer, so returning reviewers see the video
   on the very first frame. If storage throws, the script leaves the attribute unset and the name
   screen shows.
 - **In-app browsers:** links shared on WhatsApp / Instagram / Gmail open in the app's own webview,
