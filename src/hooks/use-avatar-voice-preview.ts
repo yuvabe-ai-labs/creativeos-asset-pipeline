@@ -1,17 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { avatarsService } from "@/services/avatars.service";
 import { errorMessage } from "@/lib/avatars/utils";
+import { useStartVoicePreview, useVoicePreview } from "@/hooks/queries/avatars";
 import type { VoicePreview } from "@/lib/avatars/schema";
 
-const POLL_MS = 4000;
-
 // D294 — the avatar's voice preview in the Studio: the latest clip, what the next one costs, and
-// starting one. A preview is made by a background task, so while one is running this asks the
-// server for it every few seconds; it lives in the Studio (not the Voice step) so the wait
-// carries on while the operator is on another step.
+// starting one. D300 — the data now lives in TanStack Query (`hooks/queries/avatars.ts`), which
+// polls a running preview by itself and shares the result with the canvas's Avatar focus view;
+// this hook keeps the Studio's shape and adds the one thing the Studio needs on top, "a preview
+// just finished". It lives in the Studio (not the Voice step) so the wait carries on across steps.
 export function useAvatarVoicePreview({
   clientId, avatarId, declaration, onSettled,
 }: {
@@ -24,64 +23,31 @@ export function useAvatarVoicePreview({
    *  has written a voice reference onto the avatar itself. */
   onSettled: (avatarId: string) => void;
 }) {
-  const [preview, setPreview] = useState<VoicePreview | null>(null);
-  const [estimateCredits, setEstimateCredits] = useState<number | null>(null);
-  const [starting, setStarting] = useState(false);
+  const query = useVoicePreview(clientId, avatarId, declaration);
+  const start = useStartVoicePreview(clientId, avatarId);
+  const preview = query.data?.preview ?? null;
+  const estimateCredits = query.data?.estimateCredits ?? null;
   const running = preview?.status === "running";
 
+  // "Finished" is the moment a preview this screen saw running stops running.
+  const lastStatus = useRef<VoicePreview["status"] | null>(null);
   useEffect(() => {
-    if (!avatarId) return;
-    let cancelled = false;
-    avatarsService
-      .getVoicePreview(clientId, avatarId)
-      .then((loaded) => {
-        if (cancelled) return;
-        setPreview(loaded.preview);
-        setEstimateCredits(loaded.estimateCredits);
-      })
-      .catch(() => {
-        // The preview is a convenience; a failed load leaves the block empty.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId, avatarId, declaration]);
-
-  useEffect(() => {
-    if (!avatarId || !running) return;
-    let cancelled = false;
-    const timer = setInterval(() => {
-      avatarsService
-        .getVoicePreview(clientId, avatarId)
-        .then((loaded) => {
-          if (cancelled) return;
-          setPreview(loaded.preview);
-          if (loaded.preview?.status !== "running") onSettled(avatarId);
-        })
-        .catch(() => {
-          // A missed poll is retried by the next one.
-        });
-    }, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [clientId, avatarId, running, onSettled]);
+    const status = preview?.status ?? null;
+    if (lastStatus.current === "running" && status && status !== "running" && avatarId) onSettled(avatarId);
+    lastStatus.current = status;
+  }, [preview?.status, avatarId, onSettled]);
 
   const generate = useCallback(
     async (line: string) => {
-      if (!avatarId || starting || running) return;
-      setStarting(true);
+      if (!avatarId || start.isPending || running) return;
       try {
-        setPreview(await avatarsService.startVoicePreview(clientId, avatarId, line));
+        await start.mutateAsync(line);
       } catch (e) {
         toast.error(errorMessage(e, "Could not start the voice preview"));
-      } finally {
-        setStarting(false);
       }
     },
-    [clientId, avatarId, starting, running],
+    [avatarId, start, running],
   );
 
-  return { preview, estimateCredits, starting, running, generate };
+  return { preview, estimateCredits, starting: start.isPending, running, generate };
 }

@@ -6255,3 +6255,33 @@ yet needed).
 D298.
 **Originated →** `2026-10-01-avatars-in-videos-design.md`.
 
+### D300 — Browser data goes through TanStack Query, in three layers; project instructions live in AGENTS.md *(recorded 2026-10-01)*
+
+**Decision.** Client-side reads and writes against the app's own API routes use **TanStack Query**
+(`@tanstack/react-query` v5), with one `QueryClient` provided in the root layout
+(`src/components/layout/query-provider.tsx`; `staleTime` 30 s, no refetch on window focus). Every
+resource has three layers: the **API file** (`src/services/<feature>.service.ts`, plain calls
+through `readJson`), the **query file** (`src/hooks/queries/<resource>.ts`: the query-key factory
+and the `useQuery` / `useMutation` hooks), and the **consumers**, which only call those hooks. One
+owner per resource; details seeded from cached lists; polling by `refetchInterval`. `readJson`
+throws an `ApiError` carrying the HTTP status, so a 404 can be told from a failure worth retrying.
+Existing hand-rolled hooks move over when next substantially changed. Server Components keep
+fetching directly. The first resource on it is the client's avatars (the canvas, D298) and the
+avatar voice preview, whose Studio hook moved over in the same change. The project's agent
+instructions are consolidated in **AGENTS.md**; CLAUDE.md is a one-line `@AGENTS.md` import.
+
+**Why.** Avatars on the canvas need one list read by many components at once — gallery tab,
+every Avatar node, the Script — plus by-id lookups and a polled preview, which the hand-rolled
+`useEffect` hooks would have had to re-implement as a bespoke context and cache. The Next.js
+docs name React Query for client-side fetching. One AGENTS.md means every agent tool reads the
+same instructions; a symlink was not possible on the Windows checkouts (no symlink privilege,
+`core.symlinks=false`), and an import line needs none.
+
+**Rejected.** A hand-built avatars context with its own Map cache (the first plan for D298 —
+exactly what a query library is for). SWR (TanStack's mutation and `setQueriesData` story fits the
+Studio's write-heavy screens better). Migrating every existing fetch hook now (a large, risky sweep
+for no user-visible gain; they move as they are touched). AGENTS.md as a symlink to CLAUDE.md
+(needs admin or Developer Mode on Windows).
+
+**Originated →** operator request, 2026-10-01; `AGENTS.md` ("Data fetching").
+

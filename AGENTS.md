@@ -67,6 +67,33 @@ See **[docs/component-structure.md](docs/component-structure.md)** for the full 
 folder ownership, component rules (one per file, named export, split at ~200 lines, no prop drilling), and shadcn/ui usage (Base UI registry — `render` prop, not `asChild`).
 <!-- END:component-structure -->
 
+<!-- BEGIN:controls -->
+# Controls — shadcn primitives only, never native
+
+Every interactive control in JSX MUST be a shadcn primitive from
+`src/components/ui/*` (Base UI registry — https://ui.shadcn.com). **Never** use a
+raw `<button>`, `<textarea>`, `<input>`, `<select>`, `<option>`, checkbox, radio,
+switch, or slider. Use `Button`, `Textarea`, `Input`, `Select`, etc. — Base UI
+components compose via the `render` prop (not `asChild`). If the primitive you
+need doesn't exist yet, add it to `src/components/ui/` rather than dropping to a
+native element. Non-interactive elements (`span`/`div`/`p` for labels, badges,
+and layout) are fine.
+
+**This holds for anything *inside* a control too.** An icon, unit label, or button
+sitting in a field — a show/hide password eye, a search icon, a "https://" prefix,
+a clear button — is composed with `InputGroup` / `InputGroupInput` /
+`InputGroupAddon` / `InputGroupButton` from `src/components/ui/input-group.tsx`.
+It is **never** a raw `<button>` absolutely positioned over an `Input`. The group
+owns the field's focus ring, disabled and invalid states, so an overlaid element
+sits on top of that styling instead of participating in it, and the seam shows the
+moment the field is focused or errors.
+
+Before hand-rolling any control arrangement, check whether the registry already
+composes it (https://ui.shadcn.com) and whether the primitive is already vendored
+in `src/components/ui/`. `input-group.tsx` is the one most often missed, because it
+solves a layout problem rather than naming a control.
+<!-- END:controls -->
+
 <!-- BEGIN:api-routes -->
 # API routes
 
@@ -113,3 +140,41 @@ Before writing any constant, utility function, or helper, **search the module fi
 - **Two call sites = extract. One = leave inline.** Don't abstract speculatively; wait for a real second consumer.
 - **Narrower sets are intentional.** A subset (e.g. binary-only extensions) that is intentionally smaller than the canonical set is not a duplicate — leave it separate and name it clearly.
 <!-- END:reusability -->
+
+<!-- BEGIN:data-fetching -->
+# Data fetching — TanStack Query, three layers
+
+Browser-side reads and writes against our own API routes go through **TanStack Query**
+(`@tanstack/react-query` v5, D300). Never hand-roll a cache, a context that loads a list, or a
+`useEffect` + `useState` fetch for data the server owns. The one `QueryClient` is provided in
+`src/components/layout/query-provider.tsx`, inside the root layout. Server Components keep
+fetching directly, without TanStack Query.
+
+Every resource is split into three layers, and nothing skips one:
+
+1. **API file:** `src/services/<feature>.service.ts`. Plain async functions (or the existing
+   service-class methods) that call one route each and return typed data through `readJson`.
+   No React, no caching, no toasts.
+2. **Query file:** `src/hooks/queries/<resource>.ts`. The resource's **query-key factory**
+   (`avatarKeys.list(clientId)`, `avatarKeys.detail(clientId, id)`, …) and its consumer hooks:
+   `useQuery` wrappers for reads (`useAvatars(clientId)`) and `useMutation` wrappers for writes
+   (`useArchiveAvatar(clientId)`), which update or invalidate the keys they change. Keys are
+   only ever built through the factory, never written inline.
+3. **Consumers:** components and feature hooks call the query file's hooks. They never call
+   a service for data a query owns, and never call `fetch` directly.
+
+- **One owner per resource.** When a resource moves to TanStack Query, every reader of it
+  moves in the same change; never cache the same data two ways.
+- **Seed details from lists.** A detail query whose row is already in a cached list uses that
+  row as `initialData`, so opening an item never refetches what is on screen.
+- **Existing hand-rolled hooks** (`useAvatarGeneration`, `useAvatarStudio` and the like) move
+  to this pattern when they are next substantially changed, not in passing.
+- **Polling** uses `refetchInterval` (a function returning `false` once the work is done),
+  not `setInterval`.
+<!-- END:data-fetching -->
+
+<!-- TRIGGER.DEV SKILLS START -->
+## Trigger.dev agent skills
+
+This project has Trigger.dev agent skills installed in `.claude/skills/`. Before writing or changing Trigger.dev code (background tasks, scheduled tasks, realtime, or chat.agent AI agents), load the most relevant skill: `trigger-authoring-chat-agent`.
+<!-- TRIGGER.DEV SKILLS END -->

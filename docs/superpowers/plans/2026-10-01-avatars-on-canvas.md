@@ -4,7 +4,7 @@
 
 **Goal:** Put a client's avatars on the canvas: an Avatars tab in the gallery, an Avatar node with a read-only focus view, and Avatar → Script as the script's one presenter, shown on the Script.
 
-**Architecture:** The node stores only `{ avatarId }`. A canvas-level context loads the client's avatars once and fetches any missing one by id, so every node, the gallery tab and the Script read one live list. The presenter is never stored on the Script: it is the newest avatar edge into it, worked out by a pure function. One store rule keeps a single presenter per script. Parsing is untouched.
+**Architecture:** The node stores only `{ avatarId }`. The client's avatars come from TanStack Query (D300: `src/hooks/queries/avatars.ts`) — one cached list, with any missing avatar fetched by id — so every node, the gallery tab and the Script read one live list. The presenter is never stored on the Script: it is the newest avatar edge into it, worked out by a pure function. One store rule keeps a single presenter per script. Parsing is untouched.
 
 **Tech Stack:** Next.js 16 · React 19 · `@xyflow/react` · zustand canvas store · shadcn on Base UI · vitest (node env).
 
@@ -28,8 +28,8 @@
 | `src/lib/canvas-nodes.ts` | modify | `AvatarNodeData`, `AppNode` union, `VALID_CONNECTIONS.avatar` |
 | `src/lib/canvas-store.ts` | modify | `defaultData("avatar")`; one presenter per script in `onConnect` and `connectNodes` |
 | `src/lib/avatars/canvas.ts` | **create** | Drag MIME + payload parser, `presenterEdge`, `avatarVoiceLine` |
-| `src/components/canvas/canvas-avatars-context.tsx` | **create** | The client's avatars, loaded once; by-id fallback |
-| `src/components/canvas/canvas.tsx` | modify | Provider; `avatar: AvatarNode` in `nodeTypes` |
+| `src/hooks/queries/avatars.ts` | done (D300) | `useLibraryAvatars`, `useAvatar` (by id, seeded from the list, 404 → gone), `useVoicePreview` |
+| `src/components/canvas/canvas.tsx` | modify | `avatar: AvatarNode` in `nodeTypes` |
 | `src/components/nodes/avatar-node.tsx` | **create** | The card |
 | `src/components/nodes/avatar-focus-view.tsx` | **create** | The read-only focus view |
 | `src/components/canvas/gallery-drawer/gallery-avatars-tab.tsx` | **create** | The tab |
@@ -115,14 +115,9 @@ it("a script has one presenter: a second avatar replaces the first", () => {
 
 ---
 
-### Task 2: The client's avatars on the canvas
+### Task 2: The client's avatars on the canvas — done with D300
 
-**Files:** create `src/components/canvas/canvas-avatars-context.tsx`; modify `canvas.tsx`.
-
-**Interfaces — produces:** `CanvasAvatarsProvider({ clientId, children })`; `useCanvasAvatars(): { avatars: Avatar[]; loading: boolean; error: string | null; refresh(): void }` (the library: ready, not archived); `useCanvasAvatar(avatarId): { avatar: Avatar | null; status: "loading" | "ready" | "gone" }` — from the list, else fetched once by id (`avatarsService.get`) and cached; a 404 is `gone`.
-
-- [ ] Implement with `useState`/`useEffect` and a ref-held `Map` cache for by-id fetches; wrap Canvas's tree inside `ClientIdProvider`.
-- [ ] `npx tsc --noEmit && npx eslint src/components/canvas` · commit `feat(canvas): load the client's avatars once for the canvas (D298)`.
+Built as the first TanStack Query resource instead of a hand-made context (operator request, D300): `src/hooks/queries/avatars.ts` provides `useLibraryAvatars(clientId)`, `useAvatar(clientId, avatarId): { status: "loading" | "ready" | "gone"; avatar }` and `useVoicePreview`. The Studio's preview hook moved onto it in the same change. Consumers below use these hooks only.
 
 ---
 
