@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Quote } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AVATAR_NAME_MAX, AVATAR_STORY_MAX } from "@/lib/avatars/constants";
-import { defaultVoicePreviewLine } from "@/lib/avatars/voice-preview";
 
 type Props = {
   name: string;
@@ -17,8 +15,7 @@ type Props = {
 };
 
 // D297 — the name, asked for properly, and the optional story; both save as they are typed. The
-// first step: the preview has the avatar say their name, so it is needed before anything else —
-// and the line they will say is shown under the field, so the reason is visible.
+// first step: the preview has the avatar say their name, so it is needed before anything else.
 export function AvatarStudioNameStep({ name, story, nameError, onName, onStory }: Props) {
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -39,20 +36,11 @@ export function AvatarStudioNameStep({ name, story, nameError, onName, onStory }
           maxLength={AVATAR_NAME_MAX}
           placeholder="e.g. Riya"
           aria-invalid={nameError ? true : undefined}
-          aria-describedby={nameError ? "avatar-name-error" : "avatar-name-line"}
+          aria-describedby={nameError ? "avatar-name-error" : undefined}
           onChange={(e) => onName(e.target.value)}
           className="h-11 max-w-sm text-base md:text-base"
         />
-        {nameError ? (
-          <p id="avatar-name-error" className="text-xs text-destructive-text">{nameError}</p>
-        ) : (
-          <p id="avatar-name-line" className="flex items-start gap-1.5 text-sm text-muted-foreground">
-            <Quote className="mt-0.5 size-3.5 shrink-0 text-primary/60" strokeWidth={1.5} />
-            <span>
-              In the preview they say: <span className="text-foreground">“{defaultVoicePreviewLine(name)}”</span>
-            </span>
-          </p>
-        )}
+        {nameError && <p id="avatar-name-error" className="text-xs text-destructive-text">{nameError}</p>}
       </div>
 
       <div className="flex flex-col gap-2">
