@@ -181,7 +181,7 @@ export function VideoPromptFocusView({
 
   // The attached images in `<IMAGE_REF_N>` order. Shared with the strip below and with the chips
   // rendered inside the generated prompt, via one filter — see visionAttachmentsOf.
-  const promptRefImages = visionAttachmentsOf(upstream).map((u) => ({
+  const promptRefImages = visionAttachmentsOf(mentionUpstream).map((u) => ({
     id: u.id,
     label: u.label,
     fileUrl: u.fileUrl,
@@ -222,8 +222,8 @@ export function VideoPromptFocusView({
   // and a fresh dialect each time would re-run the editor's population effect and fight the caret.
   const refIdsKey = promptRefImages.map((r) => r.id).join(",");
   const labelOfRef = useCallback(
-    (id: string) => upstream.find((u) => u.id === id)?.label,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `upstream` is rebuilt every render
+    (id: string) => mentionUpstream.find((u) => u.id === id)?.label,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `mentionUpstream` is rebuilt every render
     [refIdsKey],
   );
   const omniRefs = useMemo(() => {
