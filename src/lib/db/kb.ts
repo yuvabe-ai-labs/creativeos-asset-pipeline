@@ -182,6 +182,8 @@ export async function insertImportedBrandImage(input: {
   sourceUrl: string | null;
   postedAt: string | null;
   sourceRef: string;
+  width: number | null;
+  height: number | null;
 }): Promise<ClientBrandImageRow | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
@@ -199,6 +201,8 @@ export async function insertImportedBrandImage(input: {
       source_url: input.sourceUrl,
       posted_at: input.postedAt,
       source_ref: input.sourceRef,
+      width: input.width,
+      height: input.height,
     })
     .select()
     .single();

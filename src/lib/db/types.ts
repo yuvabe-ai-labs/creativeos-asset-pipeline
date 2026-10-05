@@ -34,6 +34,9 @@ export type ClientBrandImageRow = {
   source_ref: string | null;
   /** coalesce(posted_at, created_at) — the imported-assets page order (generated column). */
   sort_at: string;
+  /** Pixel size, recorded at import (0046); null for uploads and older imports. */
+  width: number | null;
+  height: number | null;
 };
 
 export type ClientKBDocumentRow = {

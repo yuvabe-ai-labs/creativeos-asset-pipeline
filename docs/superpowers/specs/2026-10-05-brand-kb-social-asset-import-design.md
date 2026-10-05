@@ -162,6 +162,13 @@ are dropped; at most 80 website assets. Size caps reuse the market archive limit
   `InfiniteScrollSentinel` (`useInfiniteQuery`). The polled `GET …/asset-imports` carries only
   the import status and head-only counts for the chips; the pages themselves are never polled —
   they refetch once when an import settles, and a "N new assets" pill offers mid-import arrivals.
+- **Masonry + carousel:** the grid is a `MasonryPhotoAlbum` (react-photo-album — already used by
+  the canvas gallery) whose tiles keep each asset's true aspect ratio from the `width`/`height`
+  recorded at import (0046; older rows are measured in the browser). A tile opens
+  **yet-another-react-lightbox** (the album's companion): image zoom, video playback, a filmstrip,
+  a counter, a caption (source, post date, link to the post) and "open original"; its slides are
+  the loaded pages, and nearing the last one fetches the next, so arrowing never hits a wall.
+  Image slides carry a srcSet (preview + original) so the filmstrip never loads originals.
 - **Previews:** every imported image (and video poster) gets a ≤480px WebP preview at import
   (`sharp`), stored as `thumbnail_url`; the grid shows it with `loading="lazy"`, never the original.
   SVG and GIF are shown as they are.

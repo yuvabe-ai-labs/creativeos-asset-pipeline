@@ -91,17 +91,19 @@ async function saveAsset(
     const filename = importedFilename(asset, ext);
     const stored = await uploadImportedBrandMedia({ clientId, imageId: id, filename, body: media.body, contentType: media.contentType });
 
-    // The grid shows a small preview, never the original: an image's own, a video's from its
-    // poster. Decoration only — an asset whose preview fails is still kept.
-    let thumbnailUrl: string | null = null;
-    const previewSource =
+    // The still that stands for the asset: the image itself, or a video's poster. It gives the
+    // masonry its aspect ratio and the grid its small preview. Both are decoration — an asset
+    // whose still cannot be read is still kept.
+    const still =
       asset.mediaType === "video"
         ? asset.thumbnailUrl
           ? (await download(asset.thumbnailUrl, THUMBNAIL_SIZE_LIMIT, fetchImpl).catch(() => null))?.body
           : undefined
-        : PREVIEWABLE.has(media.contentType)
-          ? media.body
-          : undefined;
+        : media.body;
+    const size = still ? await measure(still) : null;
+
+    let thumbnailUrl: string | null = null;
+    const previewSource = asset.mediaType === "video" || PREVIEWABLE.has(media.contentType) ? still : undefined;
     if (previewSource) {
       const preview = await makePreview(previewSource);
       if (preview) {
@@ -124,6 +126,8 @@ async function saveAsset(
       sourceUrl: asset.sourceUrl ?? null,
       postedAt: asset.postedAt ?? null,
       sourceRef: asset.ref,
+      width: size?.width ?? null,
+      height: size?.height ?? null,
     });
     return row ? "saved" : "duplicate";
   } catch {
@@ -134,6 +138,18 @@ async function saveAsset(
 /** Raster types worth a preview. An SVG is already tiny and sharp would flatten it; a GIF would
  *  lose its animation. Both are shown as they are. */
 const PREVIEWABLE = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
+
+/** Displayed pixel size, or null when the bytes cannot be decoded. EXIF orientations 5–8 are
+ *  rotated a quarter turn, so their stored width and height are swapped on screen. */
+async function measure(body: Buffer): Promise<{ width: number; height: number } | null> {
+  try {
+    const { width, height, orientation } = await sharp(body).metadata();
+    if (!width || !height) return null;
+    return orientation && orientation >= 5 ? { width: height, height: width } : { width, height };
+  } catch {
+    return null;
+  }
+}
 
 /** A WebP no wider or taller than IMPORT_PREVIEW_PX, or null when the bytes cannot be decoded. */
 async function makePreview(body: Buffer): Promise<Buffer | null> {

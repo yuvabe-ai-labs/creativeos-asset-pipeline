@@ -21,7 +21,14 @@ vi.mock("@/lib/storage", () => ({
 vi.mock("./apify", () => ({ runImportActor: vi.fn() }));
 // sharp decodes real images; these tests only care that a preview is made and stored.
 vi.mock("sharp", () => {
-  const chain = { rotate: () => chain, resize: () => chain, webp: () => chain, toBuffer: async () => Buffer.from("webp") };
+  const chain = {
+    rotate: () => chain,
+    resize: () => chain,
+    webp: () => chain,
+    toBuffer: async () => Buffer.from("webp"),
+    // EXIF orientation 6 = rotated a quarter turn: stored 1350×1080 shows as 1080×1350.
+    metadata: async () => ({ width: 1350, height: 1080, orientation: 6 }),
+  };
   return { default: vi.fn(() => chain) };
 });
 
@@ -91,6 +98,8 @@ describe("runAssetImport", () => {
     const rows = vi.mocked(insertImportedBrandImage).mock.calls.map((c) => c[0]);
     expect(rows.map((r) => r.mediaType).sort()).toEqual(["image", "video"]);
     for (const r of rows) expect(r.thumbnailUrl).toMatch(/\/preview\.webp$/);
+    // Displayed size, for the masonry — width and height swapped for the rotated orientation.
+    for (const r of rows) expect([r.width, r.height]).toEqual([1080, 1350]);
     const previewUpload = vi.mocked(uploadImportedBrandMedia).mock.calls.find((c) => c[0].filename === "preview.webp");
     expect(previewUpload?.[0].contentType).toBe("image/webp");
   });

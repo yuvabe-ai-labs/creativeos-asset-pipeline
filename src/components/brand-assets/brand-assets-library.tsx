@@ -19,9 +19,11 @@ import {
   useStartAssetImport,
 } from "@/hooks/queries/asset-imports";
 import { AssetImportRefreshMenu } from "./asset-import-refresh-menu";
-import { ImportedAssetTile } from "./imported-asset-tile";
+import { BrandAssetsMasonry } from "./brand-assets-masonry";
+import { BrandAssetsLightbox } from "./brand-assets-lightbox";
 
-const GRID = "grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6";
+/** Loading placeholder heights — a masonry-like rhythm rather than a uniform grid. */
+const SKELETON_HEIGHTS = [220, 300, 180, 260, 320, 200, 240, 280, 190, 310];
 
 /**
  * The Brand assets page body (D302) — a media library: title and one Refresh menu, a notice only
@@ -33,6 +35,7 @@ const GRID = "grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6";
  */
 export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
   const [filters, setFilters] = useState<ImportedAssetFilters>({ source: null, media: null });
+  const [openIndex, setOpenIndex] = useState(-1);
   const status = useAssetImports(clientId);
   const pages = useImportedAssets(clientId, filters);
   const refreshAssets = useRefreshImportedAssets(clientId);
@@ -45,6 +48,9 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
   const live = imports.filter(isImportLive);
   const failed = imports.filter((i) => i.status === "failed");
   const items = pages.data?.pages.flatMap((p) => p.items) ?? [];
+  const loadMore = () => {
+    if (pages.hasNextPage && !pages.isFetchingNextPage) void pages.fetchNextPage();
+  };
   const unfiltered = !filters.source && !filters.media;
   // Assets an import has added since the grid loaded — offered, not forced into view.
   const newSinceLoad =
@@ -153,31 +159,33 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
 
       {items.length > 0 ? (
         <>
-          <div className={GRID}>
-            {items.map((asset) => (
-              <ImportedAssetTile
-                key={asset.id}
-                asset={asset}
-                onRemove={() => remove.mutate(asset.id, { onError: (e) => toast.error(e.message) })}
-              />
-            ))}
-          </div>
+          <BrandAssetsMasonry
+            assets={items}
+            onOpen={setOpenIndex}
+            onRemove={(asset) => remove.mutate(asset.id, { onError: (e) => toast.error(e.message) })}
+          />
+          <BrandAssetsLightbox
+            assets={items}
+            index={openIndex}
+            onIndexChange={setOpenIndex}
+            onClose={() => setOpenIndex(-1)}
+            hasMore={Boolean(pages.hasNextPage)}
+            onNeedMore={loadMore}
+          />
           {pages.hasNextPage && (
             // Keyed by page count so each new page re-observes: a page too short to scroll would
             // otherwise leave the sentinel visible with no further intersection change.
             <InfiniteScrollSentinel
               key={pages.data?.pages.length ?? 0}
               loading={pages.isFetchingNextPage}
-              onVisible={() => {
-                if (!pages.isFetchingNextPage) void pages.fetchNextPage();
-              }}
+              onVisible={loadMore}
             />
           )}
         </>
       ) : pages.isPending || (live.length > 0 && unfiltered) ? (
-        <div className={GRID}>
-          {Array.from({ length: 12 }, (_, i) => (
-            <Skeleton key={i} className="aspect-square w-full rounded-md" />
+        <div className="columns-2 gap-3 sm:columns-3 lg:columns-5">
+          {SKELETON_HEIGHTS.map((h, i) => (
+            <Skeleton key={i} className="mb-3 w-full break-inside-avoid rounded-lg" style={{ height: h }} />
           ))}
         </div>
       ) : pages.isError ? (

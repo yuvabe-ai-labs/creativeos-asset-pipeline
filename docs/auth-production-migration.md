@@ -739,3 +739,26 @@ select count(*) from client_brand_images where sort_at is null;
 -- expect 1 row
 select indexname from pg_indexes where indexname = 'client_brand_images_imported_page_idx';
 ```
+
+## Migration 0046 — `client_brand_images.width` / `height` (2026-10-05)
+
+`supabase/migrations/0046_brand_images_dimensions.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0044.**
+
+Adds nullable `width` and `height` (positive integers): each imported asset's displayed pixel size,
+recorded at import so the Brand assets masonry knows every tile's aspect ratio before the image
+loads. Existing rows stay null; the browser measures those.
+
+**Not safe to re-run:** `add column` fails if it exists. That failure is harmless.
+
+**Ordering:** apply **before** deploying the `asset-import` Trigger task. The task writes these
+columns; until they exist **every imported asset fails to save** (the import reports them as
+failed and the job still succeeds with 0 new).
+
+**Verify after running:**
+
+```sql
+-- expect 2 rows
+select column_name from information_schema.columns
+where table_name = 'client_brand_images' and column_name in ('width', 'height');
+```
