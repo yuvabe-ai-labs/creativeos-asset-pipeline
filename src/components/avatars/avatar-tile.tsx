@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { AudioLines, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { PERSON_TYPE_LABELS } from "@/lib/avatars/constants";
 import type { Avatar } from "@/lib/avatars/schema";
 import { avatarVoiceLabel } from "@/lib/avatars/voice";
 
@@ -31,9 +30,6 @@ export function AvatarTile({ avatar, clientSlug }: { avatar: Avatar; clientSlug:
 
       <span className="absolute left-1.5 top-1.5 flex flex-col items-start gap-1">
         {avatar.status === "draft" && <Badge className="bg-card">Draft</Badge>}
-        {avatar.personType === "specific" && (
-          <Badge className="bg-card">{PERSON_TYPE_LABELS.specific}</Badge>
-        )}
       </span>
 
       <span className="absolute inset-x-0 bottom-0 flex flex-col bg-gradient-to-t from-foreground/75 to-transparent px-2 pb-1.5 pt-6 text-background">
