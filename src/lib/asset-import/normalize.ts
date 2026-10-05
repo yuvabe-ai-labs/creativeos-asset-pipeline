@@ -14,18 +14,21 @@ import {
 
 type ErrorRow = { error?: string; errorDescription?: string };
 
+// What people are told. The provider's own wording is never shown: it names the provider and its
+// internals, and it changes without notice.
 const ERROR_MESSAGES: Record<string, string> = {
   not_available: "This page isn't public, so its posts can't be imported.",
-  not_found: "We couldn't find this page — check the handle.",
-  // Also what an inactive page returns: the actor finds nothing inside the 3-month window.
+  not_found: "We couldn't find this page. Check the handle.",
+  // Also what an inactive page returns: nothing was posted inside the 3-month window.
   no_items: "No posts in the last 3 months.",
 };
+const UNREADABLE = "We couldn't read this page. Check the handle and try again.";
 
-/** When every row is an error row, the source produced nothing — say why. */
-function errorOf(rows: ErrorRow[]): string | undefined {
+/** When every row is an error row, the source produced nothing: say why, in plain words. */
+function errorOf(rows: ErrorRow[]): { error: string; errorCode: string } | undefined {
   if (rows.length === 0 || !rows.every((r) => r.error)) return undefined;
-  const first = rows[0];
-  return ERROR_MESSAGES[first.error!] ?? first.errorDescription ?? first.error;
+  const code = rows[0].error!;
+  return { error: ERROR_MESSAGES[code] ?? UNREADABLE, errorCode: code };
 }
 
 // ── Instagram (apify/instagram-scraper, resultsType "posts") ────────────────
@@ -40,8 +43,8 @@ type InstagramPost = InstagramMedia &
   ErrorRow & { url?: string; timestamp?: string; childPosts?: InstagramMedia[] };
 
 export function normalizeInstagram(rows: InstagramPost[], now: Date = new Date()): NormalizeResult {
-  const error = errorOf(rows);
-  if (error) return { assets: [], error };
+  const failure = errorOf(rows);
+  if (failure) return { assets: [], ...failure };
 
   const assets: ScrapedAsset[] = [];
   for (const post of rows) {
@@ -80,8 +83,8 @@ type FacebookMedia = {
 type FacebookPost = ErrorRow & { url?: string; time?: string; media?: FacebookMedia[] };
 
 export function normalizeFacebook(rows: FacebookPost[], now: Date = new Date()): NormalizeResult {
-  const error = errorOf(rows);
-  if (error) return { assets: [], error };
+  const failure = errorOf(rows);
+  if (failure) return { assets: [], ...failure };
 
   const assets: ScrapedAsset[] = [];
   for (const post of rows) {
@@ -125,8 +128,8 @@ const WEB_IMAGE_EXT = new Set(["jpg", "jpeg", "png", "webp", "gif", "avif", "svg
 const WEB_VIDEO_EXT = new Set(["mp4", "webm", "mov"]);
 
 export function normalizeWebsite(rows: WebsiteMedia[]): NormalizeResult {
-  const error = errorOf(rows);
-  if (error) return { assets: [], error };
+  const failure = errorOf(rows);
+  if (failure) return { assets: [], ...failure };
 
   // One entry per asset, whichever rendition is largest — a CMS can list the same banner at five
   // widths under five different paths (D305).

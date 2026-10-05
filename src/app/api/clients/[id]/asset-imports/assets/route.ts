@@ -1,4 +1,4 @@
-import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withClient, withQuietErrors } from "@/lib/api/route-helpers";
 import { listImportedBrandImagesPage } from "@/lib/db/kb";
 import {
   IMPORT_SOURCES,
@@ -12,7 +12,7 @@ import { decodeAssetCursor, encodeAssetCursor } from "@/lib/asset-import/utils";
 // assets, newest first (D302). `nextCursor` is null on the last page.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId) =>
-    withTryCatch("Could not load the brand assets.", async () => {
+    withQuietErrors("Couldn't load the brand assets. Try again.", async () => {
       const q = new URL(req.url).searchParams;
 
       const rawCursor = q.get("cursor");

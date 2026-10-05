@@ -42,7 +42,11 @@ export function SourceHandleForm({ clientId, source, target, onDone, onCancel }:
       { source, value },
       {
         onSuccess: () => {
-          toast.success(`Importing from ${IMPORT_SOURCE_LABELS[source]}`);
+          toast.success(
+            source === "website"
+              ? "Saved. Bringing in the website's images and videos now."
+              : `Saved. Bringing in ${IMPORT_SOURCE_LABELS[source]} posts now.`,
+          );
           onDone?.();
         },
         onError: (err) => toast.error(err.message),

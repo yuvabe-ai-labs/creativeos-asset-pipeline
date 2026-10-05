@@ -8,6 +8,7 @@ import { JobLockedError, type BackgroundJobRow } from "@/lib/jobs/types";
 import { IMPORT_SOURCES, IMPORT_SOURCE_LABELS, type ImportSource } from "./constants";
 import type { AssetImport, AssetImportInput, AssetImportResult } from "./types";
 import { facebookPageUrl, instagramProfileUrl, websiteUrl } from "./utils";
+import { importCopy } from "./messages";
 
 type ImportJob = BackgroundJobRow<AssetImportInput, AssetImportResult>;
 
@@ -108,8 +109,10 @@ export async function startAssetImports(args: {
         const run = await tasks.trigger("asset-import", { jobId: job.id });
         await setJobRunId(job.id, run.id);
       } catch (e) {
-        // Release the lock, or this source could never be imported again.
-        await failJob(job.id, e instanceof Error ? e.message : "Could not start the import.");
+        // Release the lock, or this source could never be imported again. The cause goes to the
+        // logs; people get a plain sentence.
+        console.error("[asset-import] could not queue", { jobId: job.id, source, error: e instanceof Error ? e.message : String(e) });
+        await failJob(job.id, importCopy.couldNotStart);
       }
       return job;
     }),

@@ -1,4 +1,4 @@
-import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withClient, withQuietErrors } from "@/lib/api/route-helpers";
 import { countImportedBrandImages } from "@/lib/db/kb";
 import { resolveCallerContextOrNull } from "@/lib/dal";
 import { IMPORT_SOURCES, type ImportSource } from "@/lib/asset-import/constants";
@@ -9,7 +9,7 @@ import { listImportTargets, listLatestAssetImports, startAssetImports } from "@/
 // paged from ./assets.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId) =>
-    withTryCatch("Could not load the imported assets.", async () => {
+    withQuietErrors("Couldn't load the brand assets. Try again.", async () => {
       const [imports, counts, targets] = await Promise.all([
         listLatestAssetImports(clientId),
         countImportedBrandImages(clientId),
@@ -24,12 +24,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // with a saved target when omitted. Returns at once; the scrapes run in the background.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId) =>
-    withTryCatch("Could not start the import.", async () => {
+    withQuietErrors("Couldn't start the refresh. Try again.", async () => {
       const body = (await req.json().catch(() => ({}))) as { sources?: unknown };
       let sources: ImportSource[] | undefined;
       if (body.sources !== undefined) {
         if (!Array.isArray(body.sources) || !body.sources.every((s) => IMPORT_SOURCES.includes(s))) {
-          return apiError("sources must be a list of website, instagram, facebook.", 400);
+          return apiError("Choose Website, Instagram or Facebook.", 400);
         }
         sources = body.sources as ImportSource[];
       }

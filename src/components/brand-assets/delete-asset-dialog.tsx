@@ -28,8 +28,9 @@ export function DeleteAssetDialog({ asset, onConfirm, onCancel }: Props) {
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this {kind}?</AlertDialogTitle>
           <AlertDialogDescription>
-            It is removed from the brand assets and its stored file is deleted. A Refresh can import
-            it again if it is still on the {asset?.source === "website" ? "website" : "brand's profile"}.
+            {asset?.source === "website"
+              ? "It will be removed from the brand assets for everyone. If it is still on the website, it may come back the next time the website is refreshed."
+              : "It will be removed from the brand assets for everyone, and it won't come back when you refresh."}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -14,7 +14,6 @@ import {
   IMPORT_SOURCE_LABELS,
   SOCIAL_POST_LIMIT,
   SOCIAL_WINDOW_MONTHS,
-  WEBSITE_MAX_PAGES,
   type ImportSource,
 } from "@/lib/asset-import/constants";
 import { importTargetLabel, refreshSince } from "@/lib/asset-import/utils";
@@ -45,7 +44,7 @@ export function RefreshConfirmDialog({ plan, onConfirm, onCancel }: Props) {
                 </li>
               ))}
             </ul>
-            <p className="mt-3">Assets you already have are skipped. It runs in the background.</p>
+            <p className="mt-3">Nothing you already have is added twice, and you can keep working while it runs.</p>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -58,13 +57,12 @@ export function RefreshConfirmDialog({ plan, onConfirm, onCancel }: Props) {
 }
 
 function describe(p: RefreshPlan): string {
-  if (p.source === "website") {
-    return `scans ${importTargetLabel(p.target)} again, up to ${WEBSITE_MAX_PAGES} pages. A website has no post dates, so it is checked in full.`;
-  }
+  const where = importTargetLabel(p.target);
+  if (p.source === "website") return `checks ${where} again for new images and videos.`;
   const since = refreshSince(p.lastSucceededAt);
   if (since) {
-    const date = new Date(`${since}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
-    return `checks ${importTargetLabel(p.target)} for posts since ${date}.`;
+    const date = new Date(`${since}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+    return `looks for new posts on ${where} since ${date}.`;
   }
-  return `imports up to ${SOCIAL_POST_LIMIT} posts from the last ${SOCIAL_WINDOW_MONTHS} months of ${importTargetLabel(p.target)}.`;
+  return `brings in up to ${SOCIAL_POST_LIMIT} posts from the last ${SOCIAL_WINDOW_MONTHS} months on ${where}.`;
 }

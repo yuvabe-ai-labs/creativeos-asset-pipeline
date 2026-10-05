@@ -74,6 +74,12 @@ function stillOf(asset: ClientBrandImageRow): string | null {
   return asset.thumbnail_url ?? (asset.media_type === "video" ? null : asset.storage_url);
 }
 
+/** "Instagram video", "Website image" — for screen readers; a stored filename means nothing. */
+function describeAsset(asset: ClientBrandImageRow): string {
+  const source = asset.source === "upload" ? "Uploaded" : asset.source.charAt(0).toUpperCase() + asset.source.slice(1);
+  return `${source} ${asset.media_type}`;
+}
+
 function Tile(props: {
   photo: AlbumPhoto;
   width: number;
@@ -92,7 +98,7 @@ function Tile(props: {
       <Button
         variant="ghost"
         onClick={props.onOpen}
-        aria-label={`Open ${asset.filename}`}
+        aria-label={`Open ${describeAsset(asset)}`}
         className="block size-full rounded-none p-0 hover:bg-transparent dark:hover:bg-transparent"
       >
         {still ? (
@@ -119,7 +125,7 @@ function Tile(props: {
         variant="ghost"
         size="icon-xs"
         title="Delete"
-        aria-label={`Delete ${asset.filename}`}
+        aria-label={`Delete ${describeAsset(asset)}`}
         onClick={props.onDelete}
         className="absolute right-1.5 top-1.5 rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-black/70 hover:text-white dark:hover:bg-black/70"
       >

@@ -152,10 +152,26 @@ describe("runAssetImport", () => {
     expect(failJob).toHaveBeenCalledWith("job-1", expect.stringMatching(/isn't public/));
   });
 
-  it("fails the job when the scrape throws", async () => {
+  it("fails in plain words when the provider breaks, keeping the cause out of sight", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(getJob).mockResolvedValue(job("website") as never);
-    vi.mocked(runImportActor).mockRejectedValue(new Error("Apify could not start"));
+    vi.mocked(runImportActor).mockRejectedValue(new Error("Apify could not start the website scrape (HTTP 402)."));
     await runAssetImport("job-1", { fetchImpl: mediaFetch() });
-    expect(failJob).toHaveBeenCalledWith("job-1", "Apify could not start");
+    const shown = vi.mocked(failJob).mock.calls[0][1];
+    expect(shown).toBe("We couldn't load the website right now. Try again in a few minutes.");
+    expect(shown).not.toMatch(/apify|http|scrape/i);
+    expect(log).toHaveBeenCalled(); // the real cause is logged on the server
+    log.mockRestore();
+  });
+
+  it("treats a refresh with nothing new as done, not failed", async () => {
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([
+      { id: "old", status: "succeeded", created_at: new Date(Date.now() - 86_400_000).toISOString(), input: { source: "instagram", target: "https://www.instagram.com/brand/" } },
+    ] as never);
+    vi.mocked(runImportActor).mockResolvedValue([{ error: "no_items" }]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(failJob).not.toHaveBeenCalled();
+    expect(succeedJob).toHaveBeenCalledWith("job-1", expect.objectContaining({ assetCount: 0 }), "No new posts");
   });
 });

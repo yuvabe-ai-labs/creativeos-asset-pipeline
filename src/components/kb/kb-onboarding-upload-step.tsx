@@ -227,7 +227,7 @@ export function KBOnboardingUploadStep({
         }
         // D302 — the asset import runs in the background, on its own; the KB build never waits for it.
         startImport.mutate(undefined, {
-          onError: (e) => toast.error(`Asset import didn't start: ${e.message}`),
+          onError: () => toast.error("Couldn't start bringing in the brand assets. You can try again from Brand assets."),
         });
         await startKBBuildJob(clientId);
         // Don't redirect here — the useEffect above will redirect when the
@@ -270,8 +270,8 @@ export function KBOnboardingUploadStep({
           />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          We&apos;ll import the brand&apos;s images and videos from the site and the last 3 months
-          of posts, in the background — the build won&apos;t wait for it.
+          We&apos;ll also bring in the brand&apos;s images and videos from the website and its posts
+          from the last 3 months. You don&apos;t need to wait for this.
         </p>
         {importData && importData.imports.length > 0 && (
           <div className="mt-3">

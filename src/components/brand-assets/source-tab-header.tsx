@@ -51,8 +51,8 @@ export function SourceTabHeader({ clientId, source, target, lastImport, count }:
       <Panel icon={<PlugIcon className="size-6" strokeWidth={1.5} />} title={`Connect ${label}`}>
         <p>
           {source === "website"
-            ? "Add the brand's website to import its images and videos."
-            : `Add the brand's ${label} to import its last 3 months of posts.`}
+            ? "Add the brand's website to bring in its images and videos."
+            : `Add the brand's ${label} to bring in its posts from the last 3 months.`}
         </p>
         <div className="mt-4 flex justify-center">
           <SourceHandleForm clientId={clientId} source={source} target={null} />
@@ -66,8 +66,8 @@ export function SourceTabHeader({ clientId, source, target, lastImport, count }:
     return (
       <>
         {confirmDialog}
-        <Panel icon={<AlertCircleIcon className="size-6 text-destructive-text" strokeWidth={1.5} />} title={lastImport?.error ?? "The import failed"}>
-          {target && <p>We looked at {importTargetLabel(target)}.</p>}
+        <Panel icon={<AlertCircleIcon className="size-6 text-destructive-text" strokeWidth={1.5} />} title={lastImport?.error ?? "Couldn't bring in the assets"}>
+          {target && <p>Checked {importTargetLabel(target)}.</p>}
           <div className="mt-4 flex justify-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <PencilIcon className="size-3.5" strokeWidth={1.5} />
@@ -115,7 +115,7 @@ export function SourceTabHeader({ clientId, source, target, lastImport, count }:
               {target && (
                 <Button variant="outline" size="sm" onClick={refresh} disabled={live || start.isPending}>
                   <RefreshCwIcon className={live ? "size-3.5 animate-spin" : "size-3.5"} strokeWidth={1.5} />
-                  {live ? "Importing" : "Refresh"}
+                  {live ? "Refreshing…" : "Refresh"}
                 </Button>
               )}
             </div>
@@ -128,12 +128,12 @@ export function SourceTabHeader({ clientId, source, target, lastImport, count }:
 
 function Status({ lastImport, count }: { lastImport: AssetImport | undefined; count: number }) {
   if (!lastImport) return <span>{count} assets</span>;
-  if (isImportLive(lastImport)) return <span>{lastImport.phaseMessage ?? "Importing…"}</span>;
+  if (isImportLive(lastImport)) return <span>{lastImport.phaseMessage ?? "Refreshing…"}</span>;
   if (lastImport.status === "failed") {
     return (
       <span className="flex items-center gap-1.5 text-destructive-text">
         <AlertCircleIcon className="size-3.5" strokeWidth={1.5} />
-        {lastImport.error ?? "The last import failed"}
+        {lastImport.error ?? "The last refresh didn't finish"}
       </span>
     );
   }

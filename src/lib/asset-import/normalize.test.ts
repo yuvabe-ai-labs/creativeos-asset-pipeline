@@ -64,6 +64,12 @@ describe("normalizeFacebook", () => {
     expect(assets.some((a) => a.sourceUrl === facebookPosts[2].url)).toBe(false);
   });
 
+  it("never shows the provider's own wording for an unknown error", () => {
+    const result = normalizeFacebook([{ error: "rate_limited", errorDescription: "Apify proxy quota exceeded" }], NOW);
+    expect(result.error).toBe("We couldn't read this page. Check the handle and try again.");
+    expect(result.errorCode).toBe("rate_limited");
+  });
+
   it("reports a page that is not public", () => {
     const result = normalizeFacebook(facebookNotAvailable, NOW);
     expect(result.assets).toEqual([]);

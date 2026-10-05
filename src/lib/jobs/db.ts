@@ -100,7 +100,7 @@ export async function failStaleJobs(clientId: string, kind: JobKind, maxAgeMs: n
   const now = new Date();
   const { error } = await supabase
     .from(TABLE)
-    .update({ status: "failed", error: "This job stopped responding.", finished_at: now.toISOString(), updated_at: now.toISOString() })
+    .update({ status: "failed", error: "This stopped before it finished. Try again.", finished_at: now.toISOString(), updated_at: now.toISOString() })
     .eq("client_id", clientId)
     .eq("kind", kind)
     .in("status", ["queued", "running"])

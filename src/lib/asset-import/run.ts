@@ -21,6 +21,7 @@ import { runImportActor } from "./apify";
 import { normalizeFacebook, normalizeInstagram, normalizeWebsite } from "./normalize";
 import type { AssetImportInput, AssetImportResult, NormalizeResult, ScrapedAsset } from "./types";
 import { importedFilename, refreshSince } from "./utils";
+import { importCopy } from "./messages";
 
 const NORMALIZERS: Record<AssetImportInput["source"], (rows: never[]) => NormalizeResult> = {
   instagram: normalizeInstagram,
@@ -37,7 +38,6 @@ export async function runAssetImport(
   if (!job || !job.client_id) return null;
   const clientId = job.client_id;
   const { source, target } = job.input;
-  const label = IMPORT_SOURCE_LABELS[source];
 
   try {
     const token = process.env.APIFY_TOKEN;
@@ -46,17 +46,23 @@ export async function runAssetImport(
     // A social refresh asks only for posts since the last import of this same target, so Apify
     // bills for what is new. A website has no post dates: it is always crawled whole.
     const since = source === "website" ? null : refreshSince(await lastSuccessAt(clientId, jobId, job.input));
-    await startJob(jobId, since ? `Checking ${label} for posts since ${since}…` : `Scraping ${label}…`);
+    await startJob(jobId, importCopy.collecting(source, since));
     const rows = await runImportActor(source, target, { token, fetchImpl, since });
-    const { assets, error } = NORMALIZERS[source](rows as never[]);
+    const { assets, error, errorCode } = NORMALIZERS[source](rows as never[]);
     if (error) {
+      // A refresh that finds nothing newer than last time has worked: there is just nothing new.
+      if (since && errorCode === "no_items") {
+        const result = { assetCount: 0, found: 0, failed: 0, since };
+        await succeedJob(jobId, result, importCopy.nothingNew);
+        return result;
+      }
       await failJob(jobId, error);
       return null;
     }
 
     const have = await listBrandImageRefs(clientId);
     const fresh = assets.filter((a) => !have.has(a.ref));
-    await setJobPhase(jobId, `Saving ${fresh.length} new from ${label}…`);
+    await setJobPhase(jobId, importCopy.adding(fresh.length));
 
     let saved = 0;
     let failed = 0;
@@ -67,11 +73,12 @@ export async function runAssetImport(
     });
 
     const result = { assetCount: saved, found: assets.length, failed, since };
-    const summary = saved === 0 && assets.length > 0 ? "Already up to date" : `${saved} new`;
-    await succeedJob(jobId, result, summary);
+    await succeedJob(jobId, result, importCopy.done(saved, assets.length));
     return result;
   } catch (e) {
-    await failJob(jobId, e instanceof Error ? e.message : String(e));
+    // The cause (provider, HTTP status, configuration) belongs in the server logs, not on screen.
+    console.error("[asset-import] failed", { jobId, source, error: e instanceof Error ? e.message : String(e) });
+    await failJob(jobId, importCopy.unavailable(source));
     return null;
   }
 }

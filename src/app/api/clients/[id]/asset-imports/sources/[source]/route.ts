@@ -1,4 +1,4 @@
-import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withClient, withQuietErrors } from "@/lib/api/route-helpers";
 import { resolveCallerContextOrNull } from "@/lib/dal";
 import { IMPORT_SOURCES, type ImportSource } from "@/lib/asset-import/constants";
 import { ImportTargetError, setImportTarget, startAssetImports } from "@/lib/asset-import/start";
@@ -13,11 +13,11 @@ export async function PUT(
 ) {
   const { source } = await params;
   return withClient(req, params, async (clientId) =>
-    withTryCatch("Could not save the source.", async () => {
+    withQuietErrors("Couldn't save that. Try again.", async () => {
       if (!IMPORT_SOURCES.includes(source as ImportSource)) return apiError("Unknown source.", 404);
       const body = (await req.json().catch(() => null)) as { value?: unknown } | null;
-      if (typeof body?.value !== "string") return apiError("value must be a string.", 400);
-      if (body.value.length > MAX_TARGET_LENGTH) return apiError("That is too long.", 400);
+      if (typeof body?.value !== "string") return apiError("Enter a handle or link.", 400);
+      if (body.value.length > MAX_TARGET_LENGTH) return apiError("That's too long for a handle or link.", 400);
 
       let targets;
       try {

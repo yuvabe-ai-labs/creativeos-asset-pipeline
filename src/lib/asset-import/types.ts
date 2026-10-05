@@ -18,7 +18,13 @@ export type ScrapedAsset = {
 };
 
 /** What a normalizer returns: the assets, or why the source produced none. */
-export type NormalizeResult = { assets: ScrapedAsset[]; error?: string };
+export type NormalizeResult = {
+  assets: ScrapedAsset[];
+  /** Why the source produced nothing, worded for people. */
+  error?: string;
+  /** The provider's code for it (e.g. "no_items"), for decisions in code, never for display. */
+  errorCode?: string;
+};
 
 /** An `asset-import` background job's input and result (D306). */
 export type AssetImportInput = { source: ImportSource; target: string };

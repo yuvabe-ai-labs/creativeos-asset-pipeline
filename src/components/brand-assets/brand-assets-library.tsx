@@ -114,7 +114,7 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
           onClick={askRefreshAll}
         >
           <RefreshCwIcon className={anyLive ? "size-3.5 animate-spin" : "size-3.5"} strokeWidth={1.5} />
-          {anyLive ? "Importing" : "Refresh all"}
+          {anyLive ? "Refreshing…" : "Refresh all"}
         </Button>
       </header>
 
@@ -202,7 +202,7 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
         </p>
       ) : tab === "all" ? (
         <p className="py-12 text-center text-sm text-muted-foreground">
-          Nothing imported yet. Open a source tab to connect it.
+          Nothing here yet. Choose Website, Instagram or Facebook above to connect one.
         </p>
       ) : null}
 
@@ -225,7 +225,7 @@ function SourceTrigger(props: { value: SourceTab; label: string; count?: number;
       {props.live ? (
         <span className="size-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent text-muted-foreground" />
       ) : failed && props.value !== "all" ? (
-        <span aria-label="Last import failed" className="size-1.5 rounded-full bg-destructive" />
+        <span aria-label="Needs attention" className="size-1.5 rounded-full bg-destructive" />
       ) : props.count ? (
         <span className="text-xs tabular-nums text-muted-foreground">{props.count}</span>
       ) : null}
