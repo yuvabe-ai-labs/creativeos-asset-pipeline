@@ -35,7 +35,9 @@ export function AvatarCandidateTile({ candidate, isFront, isPicking, disabled, o
         tabIndex={-1}
         onClick={pick}
         className={cn(
-          "size-full overflow-hidden rounded-lg border p-0",
+          // A block, with the image pinned to its edges: as a flex item the image's 100% height did
+          // not resolve against the tile's aspect-ratio box, and it rendered short of the bottom.
+          "relative block size-full overflow-hidden rounded-lg border p-0",
           isFront && "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background",
           // The one being picked stays bright while the rest dim.
           isPicking && "disabled:opacity-100",
@@ -44,7 +46,7 @@ export function AvatarCandidateTile({ candidate, isFront, isPicking, disabled, o
         {/* Under the image until it has downloaded; the image covers it once it paints. */}
         <Skeleton className="absolute inset-0 rounded-none" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={candidate.url} alt="" loading="lazy" decoding="async" className="relative size-full object-cover" />
+        <img src={candidate.url} alt="" loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover" />
         {isPicking && (
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background/60 text-xs font-medium text-foreground">
             <Loader2 className="size-5 animate-spin text-primary" strokeWidth={1.5} />
