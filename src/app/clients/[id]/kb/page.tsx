@@ -9,6 +9,7 @@ import {
 } from "@/lib/db/kb";
 import { getLatestKBJob } from "@/lib/db/kb-jobs";
 import { getBrandDetails } from "@/lib/db/brand-kit";
+import { ClientIdentity } from "@/components/clients/client-identity";
 import { KBOnboardingUploadStep } from "@/components/kb/kb-onboarding-upload-step";
 import { KBOnboardingReviewStep } from "@/components/kb/kb-onboarding-review-step";
 import {
@@ -96,10 +97,9 @@ export default async function KBPage({
       ) : (
         <>
           <header className="animate-rise mb-8 mt-4">
-            <h1 className="font-display text-3xl font-semibold tracking-tight">
-              Brand Knowledge Base
-            </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
+            <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
+            <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} size="md" />
+            <p className="mt-3 text-sm text-muted-foreground">
               Upload brand documents and images to extract your brand knowledge base.
             </p>
           </header>
