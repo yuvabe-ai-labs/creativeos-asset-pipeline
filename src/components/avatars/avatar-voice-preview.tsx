@@ -12,6 +12,7 @@ import { AVATAR_VOICE_PREVIEW_LINE_MAX } from "@/lib/avatars/constants";
 import {
   defaultVoicePreviewLine, isVoicePreviewStale, voicePreviewMode, type VoicePreviewMode,
 } from "@/lib/avatars/voice-preview";
+import { avatarAutoVoiceMissing } from "@/lib/avatars/presenter";
 import type { Avatar } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarGeneratingTile } from "./avatar-generating-tile";
@@ -26,7 +27,7 @@ type Props = {
 
 const BUTTON: Record<VoicePreviewMode, { first: string; again: string }> = {
   named: { first: "Generate preview", again: "Regenerate" },
-  native: { first: "Generate voice & reference", again: "Generate a new voice" },
+  native: { first: "Make a voice", again: "Make another" },
 };
 
 
@@ -37,6 +38,7 @@ export function AvatarVoicePreview({ avatar, preview: p, disabled }: Props) {
   // Null until the operator types: the box then follows the last preview's line, or the default.
   const [typed, setTyped] = useState<string | null>(null);
   const mode = voicePreviewMode(avatar);
+  const name = avatar.name.trim() || "This avatar";
   const line = typed ?? p.preview?.line ?? defaultVoicePreviewLine(avatar.name);
   const busy = p.starting || p.running;
   const clip = p.preview?.status === "succeeded" ? p.preview : null;
@@ -87,10 +89,17 @@ export function AvatarVoicePreview({ avatar, preview: p, disabled }: Props) {
         ) : (
           <p className="flex gap-2 rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0" strokeWidth={1.5} />
-            The voice Seedance generates here is saved as this avatar&apos;s voice reference.
-            Regenerate until you like it.
+            The voice you keep here is the one {name} uses in every video. Make another until you like it.
           </p>
         ))}
+
+        {/* D301 — the voice was kept for Seedance but not copied for the other models. */}
+        {mode === "native" && !busy && avatarAutoVoiceMissing(avatar) && (
+          <p className="flex gap-2 rounded-lg bg-warning/15 px-3 py-2.5 text-sm text-warning-text">
+            <Info className="mt-0.5 size-4 shrink-0" strokeWidth={1.5} />
+            {name}&apos;s voice couldn&apos;t be kept for every video. Make the preview again to retry.
+          </p>
+        )}
 
         {!busy && failed && (
           <p className="text-xs text-destructive-text">
@@ -104,8 +113,7 @@ export function AvatarVoicePreview({ avatar, preview: p, disabled }: Props) {
           <>
             <AvatarGeneratingTile label="Making the clip…" className="aspect-[9/16] w-full rounded-xl" />
             <p className="text-xs text-muted-foreground">
-              {mode === "native" ? "Seedance usually takes a minute or two." : "Usually about a minute."}{" "}
-              You can keep working on other steps.
+              Usually a minute or two. You can keep working on other steps.
             </p>
           </>
         ) : clip?.url ? (

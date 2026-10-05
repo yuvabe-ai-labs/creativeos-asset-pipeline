@@ -135,7 +135,7 @@ export function stepStatusLine(id: StudioStepId, snap: StudioSnapshot): string {
       if (p?.status === "running") return "Generating…";
       if (p?.status === "succeeded" && a) {
         if (isVoicePreviewStale(p, a)) return "Out of date";
-        return p.mode === "native" && a.voiceSample ? "Voice reference saved" : "Clip ready";
+        return p.mode === "native" && a.voiceSample ? "Voice kept" : "Clip ready";
       }
       return optional;
     }

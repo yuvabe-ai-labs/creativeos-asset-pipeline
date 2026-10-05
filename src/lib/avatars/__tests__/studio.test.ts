@@ -119,7 +119,7 @@ describe("stepStatusLine", () => {
   it("the preview says when it saved a voice reference, and when it is out of date", () => {
     const avatar = generated({ voice: { mode: "native" }, voiceSample: SAMPLE });
     const preview = { status: "succeeded", mode: "native", voiceId: null, frontUrl: avatar.front!.url } as const;
-    expect(stepStatusLine("preview", snap({ avatar, preview }))).toBe("Voice reference saved");
+    expect(stepStatusLine("preview", snap({ avatar, preview }))).toBe("Voice kept");
     expect(stepStatusLine("preview", snap({ avatar: { ...avatar, voiceSample: null }, preview }))).toBe("Clip ready");
     expect(stepStatusLine("preview", snap({ avatar: { ...avatar, voice: NAMED }, preview }))).toBe("Out of date");
     expect(stepStatusLine("preview", snap({ avatar, preview: { ...preview, status: "running" } }))).toBe("Generating…");
