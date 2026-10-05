@@ -56,7 +56,13 @@ import {
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import type { ModuleKey, FieldPath, StagedChanges } from "@/lib/kb/types";
-import { MODULES, FIELD_LABELS, DOC_EXTENSIONS, IMG_EXTENSIONS } from "@/lib/kb/constants";
+import {
+  MODULES,
+  FIELD_LABELS,
+  DOC_EXTENSIONS,
+  IMG_EXTENSIONS,
+  MODULES_WITHOUT_CONFIDENCE,
+} from "@/lib/kb/constants";
 import {
   getModuleFields,
   getFieldPath,
@@ -670,6 +676,7 @@ export function KBOnboardingReviewStep({
                   onApprove={() => handleApprove(selectedModule, fieldKey)}
                   onReject={() => handleReject(selectedModule, fieldKey)}
                   onReanalyze={(comment) => handleReanalyzeField(selectedModule, fieldKey, comment)}
+                  showConfidence={!MODULES_WITHOUT_CONFIDENCE.has(selectedModule)}
                 />
               ))}
             </div>

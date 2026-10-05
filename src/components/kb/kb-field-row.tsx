@@ -12,15 +12,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { KBField } from "@/lib/kb/schema";
+import { COLOUR_FIELD_KEYS } from "@/lib/kb/constants";
 
-// Fields whose values are brand colours (hex codes embedded in labels). Their
-// committed value renders as colour swatches while staying click-to-edit.
-const COLOR_FIELD_KEYS = new Set([
-  "colour_palette_primary",
-  "colour_palette_secondary",
-  "colour_palette_avoid",
-  "dominant_colors",
-]);
 
 const CONFIDENCE_LABEL = { high: "High", medium: "Med", low: "Low" };
 const CONFIDENCE_CLASSES = {
@@ -44,6 +37,8 @@ type Props = {
   onApprove: () => void;
   onReject: () => void;
   onReanalyze: (comment: string) => void;
+  /** Show the High / Med / Low pill. Some modules hide it (MODULES_WITHOUT_CONFIDENCE). */
+  showConfidence?: boolean;
 };
 
 export function KBFieldRow({
@@ -55,6 +50,7 @@ export function KBFieldRow({
   onApprove,
   onReject,
   onReanalyze,
+  showConfidence = true,
 }: Props) {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
@@ -63,7 +59,7 @@ export function KBFieldRow({
   const displayValue = formatValue(field.value);
   const isEmpty = !field.value || (Array.isArray(field.value) && field.value.length === 0);
   const isRejected = field.status === "rejected";
-  const isColorField = COLOR_FIELD_KEYS.has(fieldKey);
+  const isColorField = COLOUR_FIELD_KEYS.has(fieldKey);
 
   // Commit an inline edit. Arrays are stored back as a comma-split list; a manual
   // edit always lands as status "edited" (EditableField fires onCommit only when
@@ -107,14 +103,16 @@ export function KBFieldRow({
           {label}
         </span>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <span
-            className={cn(
-              "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
-              CONFIDENCE_CLASSES[field.confidence],
-            )}
-          >
-            {CONFIDENCE_LABEL[field.confidence]}
-          </span>
+          {showConfidence && (
+            <span
+              className={cn(
+                "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
+                CONFIDENCE_CLASSES[field.confidence],
+              )}
+            >
+              {CONFIDENCE_LABEL[field.confidence]}
+            </span>
+          )}
           {field.evidence_type === "inferred" && (
             <span className="text-[0.6rem] text-muted-foreground">inferred</span>
           )}
