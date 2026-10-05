@@ -1,14 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import type { useAvatarVoicePreview } from "@/hooks/use-avatar-voice-preview";
-import { AVATAR_VOICE_PREVIEW_LINE_MAX } from "@/lib/avatars/constants";
 import {
   defaultVoicePreviewLine, isVoicePreviewStale, voicePreviewMode, type VoicePreviewMode,
 } from "@/lib/avatars/voice-preview";
@@ -35,11 +31,10 @@ const BUTTON: Record<VoicePreviewMode, { first: string; again: string }> = {
 // engine: a named voice is applied to a Gemini Omni clip; the engine's own voice is made by
 // Seedance and kept as the avatar's voice reference. Controls on the left, the clip on the right.
 export function AvatarVoicePreview({ avatar, preview: p, disabled }: Props) {
-  // Null until the operator types: the box then follows the last preview's line, or the default.
-  const [typed, setTyped] = useState<string | null>(null);
   const mode = voicePreviewMode(avatar);
   const name = avatar.name.trim() || "This avatar";
-  const line = typed ?? p.preview?.line ?? defaultVoicePreviewLine(avatar.name);
+  // The line is fixed — the avatar introduces themself by name — so there is nothing to write.
+  const line = defaultVoicePreviewLine(avatar.name);
   const busy = p.starting || p.running;
   const clip = p.preview?.status === "succeeded" ? p.preview : null;
   const failed = p.preview?.status === "failed" ? p.preview : null;
@@ -62,16 +57,10 @@ export function AvatarVoicePreview({ avatar, preview: p, disabled }: Props) {
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_12rem]">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="avatar-voice-preview-line">What the avatar says</Label>
-          <Textarea
-            id="avatar-voice-preview-line"
-            value={line}
-            rows={2}
-            maxLength={AVATAR_VOICE_PREVIEW_LINE_MAX}
-            disabled={busy}
-            onChange={(e) => setTyped(e.target.value)}
-          />
+        {/* One fixed line, so there is nothing to write: the avatar introduces themself. */}
+        <div className="flex flex-col gap-1">
+          <p className="text-eyebrow text-muted-foreground">What {name} says</p>
+          <p className="rounded-lg bg-muted px-3 py-2.5 text-sm">“{line}”</p>
         </div>
 
         <Button

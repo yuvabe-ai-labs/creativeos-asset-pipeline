@@ -14,15 +14,15 @@ type Props = {
   onStory: (value: string) => void;
 };
 
-// D297 — the last step: the name, asked for properly, and the optional story. Both save as they
-// are typed; the step's footer holds Save to library.
-export function AvatarStudioSaveStep({ name, story, nameError, onName, onStory }: Props) {
+// D297 — the name, asked for properly, and the optional story; both save as they are typed. The
+// first step: the preview has the avatar say their name, so it is needed before anything else.
+export function AvatarStudioNameStep({ name, story, nameError, onName, onStory }: Props) {
   const nameRef = useRef<HTMLInputElement>(null);
 
-  // Save to library refused an empty name: put the operator in the field. Not while they are
-  // already typing somewhere (the header's title shares the name and its error).
+  // Opening the Studio on this step, or Save refusing an empty name, puts the operator in the
+  // field — unless they are already typing somewhere (the header's title shares the name).
   useEffect(() => {
-    if (nameError && document.activeElement?.tagName !== "INPUT") nameRef.current?.focus();
+    if (document.activeElement?.tagName !== "INPUT") nameRef.current?.focus();
   }, [nameError]);
 
   return (

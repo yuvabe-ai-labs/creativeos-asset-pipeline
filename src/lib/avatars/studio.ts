@@ -19,7 +19,7 @@ export function voiceChoiceOf(voice: AvatarVoice | null): VoiceChoice | null {
 // Studio opens, each step's status line, and the avatar's lifecycle. Pure, so the stepper, the
 // footer and the summary all read the same answers (spec §4.0, §4.6).
 
-export type StudioStepId = "look" | "sheet" | "voice" | "preview" | "save";
+export type StudioStepId = "name" | "look" | "sheet" | "voice" | "preview";
 
 export type StudioStep = {
   id: StudioStepId;
@@ -32,7 +32,13 @@ export type StudioStep = {
   optional: boolean;
 };
 
+// The name comes first: the preview has the avatar say it ("Hi, I'm {name}…"), so it is needed
+// before anything else. Saving to the library is the last step's footer action.
 export const STUDIO_STEPS: readonly StudioStep[] = [
+  {
+    id: "name", title: "Name", heading: "Name", optional: false,
+    lede: "What this avatar is called. They say it in their preview, so it comes first.",
+  },
   {
     id: "look", title: "Look", heading: "Front image", optional: false,
     lede: "Facing the camera, waist-up, even light, plain background. Every video model starts from this image.",
@@ -49,15 +55,11 @@ export const STUDIO_STEPS: readonly StudioStep[] = [
     id: "preview", title: "Preview", heading: "Preview", optional: true,
     lede: "See and hear the avatar speak before you put it in a video.",
   },
-  {
-    id: "save", title: "Name & save", heading: "Name & save", optional: false,
-    lede: "Give the avatar a name. Saving puts it in this client's library, ready to use in videos.",
-  },
 ];
 
 type StudioAvatar = Pick<
   Avatar,
-  "front" | "likenessConsentAt" | "sheet" | "sheetStale" | "voice" | "voiceSample" | "status"
+  "name" | "front" | "likenessConsentAt" | "sheet" | "sheetStale" | "voice" | "voiceSample" | "status"
 >;
 
 /** Everything the rules read. `name` is the one being typed, which runs ahead of the stored one;
@@ -86,29 +88,33 @@ export function isLookDone(avatar: Pick<Avatar, "front" | "likenessConsentAt"> |
 export function isStepDone(id: StudioStepId, snap: StudioSnapshot): boolean {
   const a = snap.avatar;
   switch (id) {
+    case "name": return snap.name.trim().length > 0;
     case "look": return isLookDone(a);
     case "sheet": return Boolean(a?.sheet) && !a?.sheetStale;
     case "voice": return Boolean(a?.voice);
     case "preview":
       return Boolean(a) && snap.preview?.status === "succeeded" && !isVoicePreviewStale(snap.preview, a!);
-    case "save": return a?.status === "ready";
   }
 }
 
-/** Look is always open; the other four open once Look is done. An avatar already in the library
- *  opens every step — the operator is editing it, not creating it. */
+/** Name is always open; Look opens once there is a name; the rest once Look is done too. An
+ *  avatar already in the library opens every step while it has a name — the operator is editing
+ *  it, not creating it. */
 export function isStepOpen(id: StudioStepId, snap: StudioSnapshot): boolean {
+  if (id === "name") return true;
+  if (!snap.name.trim()) return false;
   return id === "look" || isLookDone(snap.avatar) || snap.avatar?.status === "ready";
 }
 
 /**
- * Where the Studio opens, from what is stored. A draft with Look done opens on its first
- * unfinished optional step. The preview loads after the page, so it is not consulted: an avatar
- * whose preview is already done still opens on Preview, one Continue away from saving.
+ * Where the Studio opens, from what is stored: Name until there is one, then Look until it is
+ * done. A draft past that opens on its first unfinished optional step; an avatar in the library on
+ * the last step, where Done is.
  */
 export function studioOpeningStep(avatar: StudioAvatar | null): StudioStepId {
-  if (!avatar || !isLookDone(avatar)) return "look";
-  if (avatar.status === "ready") return "save";
+  if (!avatar?.name.trim()) return "name";
+  if (!isLookDone(avatar)) return "look";
+  if (avatar.status === "ready") return "preview";
   if (!avatar.sheet || avatar.sheetStale) return "sheet";
   if (!avatar.voice) return "voice";
   return "preview";
@@ -119,6 +125,8 @@ export function stepStatusLine(id: StudioStepId, snap: StudioSnapshot): string {
   const a = snap.avatar;
   const optional = snap.skipped.has(id) ? "Skipped" : "Optional";
   switch (id) {
+    case "name":
+      return snap.name.trim() || "Needed";
     case "look": {
       if (!a?.front) return "Needed";
       if (a.front.source.kind === "upload") return isLookDone(a) ? PERSON_TYPE_LABELS.specific : "Needs permission";
@@ -139,9 +147,6 @@ export function stepStatusLine(id: StudioStepId, snap: StudioSnapshot): string {
       }
       return optional;
     }
-    case "save":
-      if (a?.status === "ready") return "In the library";
-      return snap.name.trim() ? "Ready to save" : "Needs a name";
   }
 }
 

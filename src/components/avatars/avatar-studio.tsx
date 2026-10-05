@@ -21,7 +21,7 @@ import { AvatarStudioBreadcrumb } from "./avatar-studio-breadcrumb";
 import { AvatarStudioHeader } from "./avatar-studio-header";
 import { AvatarStudioLookStep } from "./avatar-studio-look-step";
 import { AvatarStudioPreviewStep } from "./avatar-studio-preview-step";
-import { AvatarStudioSaveStep } from "./avatar-studio-save-step";
+import { AvatarStudioNameStep } from "./avatar-studio-name-step";
 import { AvatarStudioSheetStep } from "./avatar-studio-sheet-step";
 import { AvatarStudioStepper } from "./avatar-studio-stepper";
 import { AvatarStudioSummary } from "./avatar-studio-summary";
@@ -110,9 +110,9 @@ export function AvatarStudio({
     body = <AvatarStudioLookStep studio={s} generation={g} consent={consent} />;
   } else if (step.id === "sheet") {
     body = <AvatarStudioSheetStep studio={s} generation={g} />;
-  } else if (step.id === "save") {
+  } else if (step.id === "name") {
     body = (
-      <AvatarStudioSaveStep
+      <AvatarStudioNameStep
         name={s.name}
         story={s.story}
         nameError={s.nameError}
@@ -134,19 +134,28 @@ export function AvatarStudio({
     );
   }
 
-  const primary = step.id !== "save"
+  const named = s.name.trim().length > 0;
+  // Saving is the last step's action; the name it needs comes first, so an empty one (cleared in
+  // the header) sends the operator back to it.
+  const save = () => {
+    if (!named) steps.go("name");
+    void s.markReady();
+  };
+  const primary = following
     ? {
-        label: `Continue to ${following?.title.toLowerCase() ?? ""}`,
+        label: `Continue to ${following.title.toLowerCase()}`,
         onClick: () => steps.next(isStepDone(step.id, snapshot)),
-        disabled: step.id === "look" && !lookDone,
+        disabled: (step.id === "name" && !named) || (step.id === "look" && !lookDone),
         forward: true,
       }
     : avatar?.status === "ready"
       ? { label: "Done", onClick: () => router.push(libraryHref) }
-      : { label: s.saving ? "Saving…" : "Save to library", onClick: s.markReady, disabled: busy || s.saving || !avatar };
-  const reason = step.id === "look" && !lookDone
-    ? front ? "Confirm permission to continue" : "Pick a front image to continue"
-    : null;
+      : { label: s.saving ? "Saving…" : "Save to library", onClick: save, disabled: busy || s.saving || !avatar };
+  const reason = step.id === "name" && !named
+    ? "Give the avatar a name to continue"
+    : step.id === "look" && !lookDone
+      ? front ? "Confirm permission to continue" : "Pick a front image to continue"
+      : null;
 
   return (
     <>
