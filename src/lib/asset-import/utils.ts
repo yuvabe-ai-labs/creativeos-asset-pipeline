@@ -48,6 +48,23 @@ export function websiteUrl(input: string | null | undefined): string | null {
   }
 }
 
+/** A target as people read it: "instagram.com/cocacola", "chupps.com". */
+export function importTargetLabel(url: string): string {
+  return url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+}
+
+/** What the handle field starts with when editing a target: a social handle alone (the field
+ *  shows the domain as its prefix), a website as its label. */
+export function importTargetEditValue(source: "website" | "instagram" | "facebook", url: string | null): string {
+  if (!url) return "";
+  if (source === "website") return importTargetLabel(url);
+  try {
+    return new URL(url).pathname.split("/").filter(Boolean)[0] ?? "";
+  } catch {
+    return "";
+  }
+}
+
 // ── Refs (D305) ──────────────────────────────────────────────────────────────
 
 /**

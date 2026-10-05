@@ -1,8 +1,8 @@
 // Starting imports (D302): one background job and one Trigger.dev run per source, all at once.
 import "server-only";
 import { tasks } from "@trigger.dev/sdk";
-import { getClientById } from "@/lib/db/clients";
-import { getBrandDetails } from "@/lib/db/brand-kit";
+import { getClientById, updateClientWebsiteUrl } from "@/lib/db/clients";
+import { getBrandDetails, patchBrandDetails } from "@/lib/db/brand-kit";
 import { insertJob, listRecentJobs, setJobRunId, failJob, failStaleJobs } from "@/lib/jobs/db";
 import { JobLockedError, type BackgroundJobRow } from "@/lib/jobs/types";
 import { IMPORT_SOURCES, IMPORT_SOURCE_LABELS, type ImportSource } from "./constants";
@@ -17,6 +17,46 @@ const STALE_AFTER_MS = 45 * 60_000;
 /** The lock that keeps one live import per client and source. */
 export const assetImportLockKey = (clientId: string, source: ImportSource) =>
   `asset-import:${clientId}:${source}`;
+
+export type ImportTargets = Record<ImportSource, string | null>;
+
+/** A handle or URL that cannot be what it is meant to be — the route answers 400. */
+export class ImportTargetError extends Error {}
+
+const TARGET_PARSERS: Record<ImportSource, (raw: string) => string | null> = {
+  website: websiteUrl,
+  instagram: instagramProfileUrl,
+  facebook: facebookPageUrl,
+};
+
+/**
+ * Saves where one source imports from — the website on the client row, a social handle in its
+ * Brand Kit details (one owner each, as before) — and returns every source's target. A blank
+ * value disconnects the source; its imported assets stay.
+ */
+export async function setImportTarget(clientId: string, source: ImportSource, raw: string): Promise<ImportTargets> {
+  const value = raw.trim();
+  const target = value ? TARGET_PARSERS[source](value) : null;
+  if (value && !target) {
+    throw new ImportTargetError(
+      source === "website" ? "That isn't a website address." : `That isn't a ${IMPORT_SOURCE_LABELS[source]} handle or link.`,
+    );
+  }
+  if (source === "website") {
+    await updateClientWebsiteUrl(clientId, target);
+  } else {
+    // Stored as the bare handle — what the Brand Kit panel shows and edits.
+    const handle = target ? new URL(target).pathname.split("/").filter(Boolean)[0] : "";
+    await patchBrandDetails(clientId, { [source]: handle });
+  }
+  return listImportTargets(clientId);
+}
+
+/** Every source's target, null where none is saved. */
+export async function listImportTargets(clientId: string): Promise<ImportTargets> {
+  const found = await resolveImportTargets(clientId);
+  return { website: found.website ?? null, instagram: found.instagram ?? null, facebook: found.facebook ?? null };
+}
 
 /** What each source would scrape for this client, from what is saved today. */
 export async function resolveImportTargets(clientId: string): Promise<Partial<Record<ImportSource, string>>> {

@@ -17,6 +17,7 @@ vi.mock("@/lib/db/clients", () => ({
 vi.mock("@/lib/db/kb", () => ({ countImportedBrandImages: vi.fn() }));
 vi.mock("@/lib/asset-import/start", () => ({
   listLatestAssetImports: vi.fn(),
+  listImportTargets: vi.fn(async () => ({ website: null, instagram: null, facebook: null })),
   startAssetImports: vi.fn(),
 }));
 

@@ -9,8 +9,11 @@ export type ImportedAssetCounts = {
   byMedia: Record<"image" | "video", number>;
 };
 
+/** Where each source imports from (a URL), null when not connected. */
+export type ImportTargets = Record<ImportSource, string | null>;
+
 /** What the polled status endpoint returns — small on purpose; no assets. */
-export type AssetImportStatus = { imports: AssetImport[]; counts: ImportedAssetCounts };
+export type AssetImportStatus = { imports: AssetImport[]; counts: ImportedAssetCounts; targets: ImportTargets };
 
 export type ImportedAssetFilters = { source: ImportSource | null; media: "image" | "video" | null };
 export type ImportedAssetPage = { items: ClientBrandImageRow[]; nextCursor: string | null };
@@ -40,6 +43,20 @@ class AssetImportsService {
       body: JSON.stringify(sources ? { sources } : {}),
     });
     return (await readJson<{ imports: AssetImport[] }>(res, "Could not start the import.")).imports;
+  }
+
+  /** Sets where one source imports from and imports it; a blank value disconnects it. */
+  async setSource(
+    clientId: string,
+    source: ImportSource,
+    value: string,
+  ): Promise<{ targets: ImportTargets; imports?: AssetImport[] }> {
+    const res = await fetch(`/api/clients/${clientId}/asset-imports/sources/${source}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+    return readJson(res, "Could not save the source.");
   }
 
   async removeAsset(clientId: string, assetId: string): Promise<void> {

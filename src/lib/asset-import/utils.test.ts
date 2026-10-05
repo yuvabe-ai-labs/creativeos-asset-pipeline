@@ -4,6 +4,8 @@ import {
   encodeAssetCursor,
   dedupeByRef,
   facebookPageUrl,
+  importTargetEditValue,
+  importTargetLabel,
   importedFilename,
   instagramProfileUrl,
   isWithinWindow,
@@ -32,6 +34,19 @@ describe("instagramProfileUrl / facebookPageUrl", () => {
   it("reads Facebook pages, including the Brand Kit placeholder's /page form", () => {
     expect(facebookPageUrl("/thechuppslife")).toBe("https://www.facebook.com/thechuppslife/");
     expect(facebookPageUrl("https://www.facebook.com/thechuppslife/")).toBe("https://www.facebook.com/thechuppslife/");
+  });
+});
+
+describe("importTargetLabel / importTargetEditValue", () => {
+  it("reads a target the way people write it", () => {
+    expect(importTargetLabel("https://www.instagram.com/cocacola/")).toBe("instagram.com/cocacola");
+    expect(importTargetLabel("https://chupps.com/")).toBe("chupps.com");
+  });
+
+  it("edits a social handle alone and a website as its label", () => {
+    expect(importTargetEditValue("instagram", "https://www.instagram.com/cocacola/")).toBe("cocacola");
+    expect(importTargetEditValue("website", "https://www.coca-cola.com/")).toBe("coca-cola.com");
+    expect(importTargetEditValue("facebook", null)).toBe("");
   });
 });
 

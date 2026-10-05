@@ -89,6 +89,22 @@ export function useStartAssetImport(clientId: string) {
   });
 }
 
+/** Set where one source imports from (and import it). The new targets and imports land in the
+ *  status cache at once, so the tab shows the handle and starts polling without a round trip. */
+export function useSetImportSource(clientId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ source, value }: { source: ImportSource; value: string }) =>
+      assetImportsService.setSource(clientId, source, value),
+    onSuccess: ({ targets, imports }) => {
+      queryClient.setQueryData<AssetImportStatus>(assetImportKeys.status(clientId), (old: AssetImportStatus | undefined) =>
+        old ? { ...old, targets, imports: imports ?? old.imports } : old,
+      );
+      void queryClient.invalidateQueries({ queryKey: assetImportKeys.status(clientId) });
+    },
+  });
+}
+
 /** Remove one imported asset — dropped from every cached page at once, restored on failure. */
 export function useRemoveImportedAsset(clientId: string) {
   const queryClient = useQueryClient();
