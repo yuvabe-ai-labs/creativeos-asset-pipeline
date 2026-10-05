@@ -16,7 +16,8 @@ type ErrorRow = { error?: string; errorDescription?: string };
 const ERROR_MESSAGES: Record<string, string> = {
   not_available: "This page isn't public, so its posts can't be imported.",
   not_found: "We couldn't find this page — check the handle.",
-  no_items: "No posts were found.",
+  // Also what an inactive page returns: the actor finds nothing inside the 3-month window.
+  no_items: "No posts in the last 3 months.",
 };
 
 /** When every row is an error row, the source produced nothing — say why. */

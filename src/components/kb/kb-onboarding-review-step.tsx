@@ -81,8 +81,6 @@ type Props = {
   docIdsAtExtraction?: string[];
   clientName: string;
   clientLogoUrl: string | null;
-  initialInstagram?: string | null;
-  initialFacebook?: string | null;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -99,8 +97,6 @@ export function KBOnboardingReviewStep({
   docIdsAtExtraction = [],
   clientName,
   clientLogoUrl,
-  initialInstagram = null,
-  initialFacebook = null,
 }: Props) {
   const router = useRouter();
 
@@ -567,7 +563,7 @@ export function KBOnboardingReviewStep({
         >
           <TabsList
             variant="line"
-            className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
+            className="scrollbar-thin h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
           >
             {MODULES.map(({ key, label }) => {
               const ready = getModuleStatus(getModuleFields(kb, key)) === "ready";
@@ -615,12 +611,7 @@ export function KBOnboardingReviewStep({
             transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.6 }}
             className="pt-5 pb-12"
           >
-            <KBBrandAssetsTab
-              clientId={clientId}
-              websiteUrl={initialWebsiteUrl}
-              initialInstagram={initialInstagram}
-              initialFacebook={initialFacebook}
-            />
+            <KBBrandAssetsTab clientId={clientId} />
           </motion.div>
         ) : reExtracting ? (
           <div className="pt-5 pb-12">
