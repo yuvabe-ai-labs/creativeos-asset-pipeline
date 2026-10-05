@@ -115,6 +115,38 @@ export function dedupeByRef(assets: ScrapedAsset[]): ScrapedAsset[] {
   });
 }
 
+// ── Website renditions ───────────────────────────────────────────────────────
+// CMSs put an image's display size in the PATH, not the query, so the website actor's variant
+// merging (query params and srcset) misses them. Seen on coca-cola.com (Adobe AEM):
+// `…/banner-mo.png/width3840.png`, `/width2674.png`, `/width1960.png` — one banner, five rows.
+
+const RENDITION_PATTERNS: RegExp[] = [
+  /(\.[a-z0-9]+)\/width\d+\.[a-z0-9]+$/i, // AEM:        name.png/width3840.png → name.png
+  /\.coreimg(?:\.\d+)*(\.[a-z0-9]+)(?:\/.*)?$/i, // AEM core: name.coreimg.85.1024.jpeg → name.jpeg
+  /-\d{2,5}x\d{2,5}(\.[a-z0-9]+)$/i, // WordPress:  name-300x200.jpg → name.jpg
+  /_\d{2,5}x\d{0,5}(\.[a-z0-9]+)$/i, // Shopify:    name_1080x.jpg, name_640x480.jpg → name.jpg
+  /@\dx(\.[a-z0-9]+)$/i, // retina:     name@2x.png → name.png
+];
+
+/** The dedupe key of a website asset: its URL without query string or path-embedded size. */
+export function websiteMediaRef(url: string): string {
+  try {
+    const u = new URL(url);
+    let path = u.pathname;
+    for (const re of RENDITION_PATTERNS) path = path.replace(re, "$1");
+    return `url:${u.host}${path}`;
+  } catch {
+    return urlRef(url);
+  }
+}
+
+/** The pixel width a rendition URL names, when it names one — used to keep the largest. */
+export function renditionWidth(url: string): number | null {
+  const m = url.match(/\/width(\d+)\.|\.coreimg(?:\.\d+)?\.(\d+)\.|-(\d{2,5})x\d{2,5}\.|_(\d{2,5})x\d{0,5}\.|[?&](?:width|w)=(\d+)/i);
+  const n = m ? Number(m.slice(1).find(Boolean)) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
 // ── Page cursors ─────────────────────────────────────────────────────────────
 // Keyset pagination over (sort_at desc, id desc): the cursor is the last row's pair, opaque to
 // the browser. Unlike an offset it stays correct while an import inserts rows mid-scroll.

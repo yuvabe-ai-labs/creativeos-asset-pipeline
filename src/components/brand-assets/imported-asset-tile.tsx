@@ -1,19 +1,16 @@
 "use client";
 
 import { PlayIcon, XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { ClientBrandImageRow } from "@/lib/db/types";
 
 type Props = {
   asset: ClientBrandImageRow;
   onRemove: () => void;
-  /** `sm` — a fixed 80px thumbnail (the source drawer); `fill` — fills its grid cell. */
-  size?: "sm" | "fill";
 };
 
 /** One imported image or video (D302). Opens the stored file in a new tab; × removes it. */
-export function ImportedAssetTile({ asset, onRemove, size = "sm" }: Props) {
+export function ImportedAssetTile({ asset, onRemove }: Props) {
   const isVideo = asset.media_type === "video";
   // The small WebP preview made at import (D302) — never the original in a grid. An SVG/GIF has no
   // preview and is shown as itself; a video without one falls back to its first frame.
@@ -21,10 +18,7 @@ export function ImportedAssetTile({ asset, onRemove, size = "sm" }: Props) {
   const posted = asset.posted_at ? new Date(asset.posted_at).toLocaleDateString() : null;
   return (
     <div
-      className={cn(
-        "group relative shrink-0 overflow-hidden rounded-md border border-border bg-muted",
-        size === "sm" ? "size-20" : "aspect-square w-full",
-      )}
+      className="group relative aspect-square w-full overflow-hidden rounded-md border border-border bg-muted"
     >
       <a
         href={asset.storage_url}

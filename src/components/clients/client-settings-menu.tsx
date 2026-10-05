@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Globe, Settings, UserRound } from "lucide-react";
+import { BookOpen, Globe, Images, Settings, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -18,6 +18,12 @@ export function ClientSettingsMenu({ slug }: { slug: string }) {
       icon: BookOpen,
       label: "Brand KB",
       hint: "Positioning, products, audience",
+    },
+    {
+      href: `/clients/${slug}/brand-assets`,
+      icon: Images,
+      label: "Brand assets",
+      hint: "Imported from website and socials",
     },
     {
       href: `/clients/${slug}/market`,

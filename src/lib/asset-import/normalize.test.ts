@@ -87,6 +87,25 @@ describe("normalizeWebsite", () => {
     expect(assets.find((a) => a.url.endsWith(".mp4"))?.mediaType).toBe("video");
   });
 
+  it("keeps one asset per banner when the CMS puts the width in the path — the largest (coca-cola.com)", () => {
+    const base = "https://www.coca-cola.com/content/dam/onexp/us/en/hero-banners/fanta-halloween-banner-mo.png";
+    const rows = [1338, 3840, 1960, 2674].map((w) => ({
+      mediaUrl: `${base}/width${w}.png`,
+      mediaType: "image",
+      fileExtension: "png",
+      width: null,
+      height: null,
+    }));
+    const other = {
+      mediaUrl: "https://www.coca-cola.com/content/dam/x/fall-banner-desktop.png/width1960.png",
+      mediaType: "image",
+      fileExtension: "png",
+    };
+    const { assets: out } = normalizeWebsite([...rows, other]);
+    expect(out).toHaveLength(2);
+    expect(out.find((a) => a.url.includes("fanta"))?.url).toBe(`${base}/width3840.png`);
+  });
+
   it("drops a raster image under 200px", () => {
     const { assets: out } = normalizeWebsite([
       { mediaUrl: "https://x.com/badge.png", mediaType: "image", fileExtension: "png", width: 64, height: 64 },

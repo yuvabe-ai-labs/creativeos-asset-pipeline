@@ -8,7 +8,9 @@ import {
   instagramProfileUrl,
   isWithinWindow,
   metaMediaRef,
+  renditionWidth,
   stripFacebookDisplaySize,
+  websiteMediaRef,
   urlRef,
   websiteUrl,
 } from "./utils";
@@ -52,6 +54,31 @@ describe("refs", () => {
   it("falls back to the query-less URL", () => {
     expect(metaMediaRef("https://cdn.x.com/a/b.jpg?w=1")).toBe("url:cdn.x.com/a/b.jpg");
     expect(urlRef("https://chupps.com/cdn/logo.svg?v=1&width=360")).toBe(urlRef("https://chupps.com/cdn/logo.svg?width=120"));
+  });
+});
+
+describe("websiteMediaRef / renditionWidth", () => {
+  it.each([
+    ["https://x.com/dam/banner.png/width3840.png", "https://x.com/dam/banner.png/width1338.png"],
+    ["https://x.com/img/hero.coreimg.85.1024.jpeg", "https://x.com/img/hero.coreimg.85.480.jpeg"],
+    ["https://x.com/wp/hero-1024x768.jpg", "https://x.com/wp/hero-300x200.jpg?ver=2"],
+    ["https://cdn.shop.com/files/hero_1080x.jpg", "https://cdn.shop.com/files/hero_640x480.jpg"],
+    ["https://x.com/logo@2x.png", "https://x.com/logo.png"],
+  ])("treats %s and %s as one asset", (a, b) => {
+    expect(websiteMediaRef(a)).toBe(websiteMediaRef(b));
+  });
+
+  it("keeps genuinely different files apart (mobile vs desktop crops)", () => {
+    expect(websiteMediaRef("https://x.com/dam/banner-mo.png/width3840.png")).not.toBe(
+      websiteMediaRef("https://x.com/dam/banner-desktop.png/width3840.png"),
+    );
+  });
+
+  it("reads the width a rendition URL names", () => {
+    expect(renditionWidth("https://x.com/a.png/width2674.png")).toBe(2674);
+    expect(renditionWidth("https://x.com/a-300x200.jpg")).toBe(300);
+    expect(renditionWidth("https://cdn.shop.com/a.jpg?v=1&width=1600")).toBe(1600);
+    expect(renditionWidth("https://x.com/a.jpg")).toBeNull();
   });
 });
 

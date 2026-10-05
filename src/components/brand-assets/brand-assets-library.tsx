@@ -24,14 +24,14 @@ import { ImportedAssetTile } from "./imported-asset-tile";
 const GRID = "grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6";
 
 /**
- * The Brand KB's "Brand assets" tab (D302) — a media library: title and one Refresh menu, a
- * notice only while something is importing or has failed, one filter row, then the grid. Not a
- * KB module: nothing here is reviewed and it never gates Mark KB Ready (D303).
+ * The Brand assets page body (D302) — a media library: title and one Refresh menu, a notice only
+ * while something is importing or has failed, one filter row, then the grid. Its own page rather
+ * than a Brand KB tab: nothing here is reviewed and it never gates Mark KB Ready (D303).
  *
  * The grid is paged from the server (keyset cursor), filtered in the query, and loads the next
- * page as the sentinel nears the bottom of the scroll area.
+ * page as the sentinel nears the bottom of the page.
  */
-export function KBBrandAssetsTab({ clientId }: { clientId: string }) {
+export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
   const [filters, setFilters] = useState<ImportedAssetFilters>({ source: null, media: null });
   const status = useAssetImports(clientId);
   const pages = useImportedAssets(clientId, filters);
@@ -85,11 +85,11 @@ export function KBBrandAssetsTab({ clientId }: { clientId: string }) {
     <div className="space-y-5">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-display text-lg font-semibold">
+          <h1 className="font-display text-3xl font-semibold tracking-tight">
             Brand assets
-            {total > 0 && <span className="ml-2 text-sm font-normal text-muted-foreground">{total}</span>}
-          </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+            {total > 0 && <span className="ml-2.5 text-base font-normal text-muted-foreground tabular-nums">{total}</span>}
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
             From the brand&apos;s website and socials — kept as assets, not analysed by the KB.
           </p>
         </div>
@@ -157,7 +157,6 @@ export function KBBrandAssetsTab({ clientId }: { clientId: string }) {
             {items.map((asset) => (
               <ImportedAssetTile
                 key={asset.id}
-                size="fill"
                 asset={asset}
                 onRemove={() => remove.mutate(asset.id, { onError: (e) => toast.error(e.message) })}
               />
@@ -168,7 +167,6 @@ export function KBBrandAssetsTab({ clientId }: { clientId: string }) {
             // otherwise leave the sentinel visible with no further intersection change.
             <InfiniteScrollSentinel
               key={pages.data?.pages.length ?? 0}
-              scrollRoot="nearest"
               loading={pages.isFetchingNextPage}
               onVisible={() => {
                 if (!pages.isFetchingNextPage) void pages.fetchNextPage();

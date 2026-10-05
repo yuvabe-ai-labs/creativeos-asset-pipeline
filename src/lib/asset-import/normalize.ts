@@ -7,8 +7,9 @@ import {
   dedupeByRef,
   isWithinWindow,
   metaMediaRef,
+  renditionWidth,
   stripFacebookDisplaySize,
-  urlRef,
+  websiteMediaRef,
 } from "./utils";
 
 type ErrorRow = { error?: string; errorDescription?: string };
@@ -127,23 +128,30 @@ export function normalizeWebsite(rows: WebsiteMedia[]): NormalizeResult {
   const error = errorOf(rows);
   if (error) return { assets: [], error };
 
-  const assets: ScrapedAsset[] = [];
+  // One entry per asset, whichever rendition is largest — a CMS can list the same banner at five
+  // widths under five different paths (D305).
+  const best = new Map<string, { asset: ScrapedAsset; width: number }>();
+  const keep = (asset: ScrapedAsset, width: number) => {
+    const current = best.get(asset.ref);
+    if (!current || width > current.width) best.set(asset.ref, { asset, width });
+  };
   for (const row of rows) {
     if (row.error || !row.mediaUrl || row.mediaUrl.startsWith("data:")) continue;
     const ext = (row.fileExtension ?? "").toLowerCase();
-    const base = { source: "website" as const, url: row.mediaUrl, sourceUrl: row.pageUrl, alt: row.alt ?? undefined, ref: urlRef(row.mediaUrl) };
+    const width = row.width ?? renditionWidth(row.mediaUrl) ?? 0;
+    const base = { source: "website" as const, url: row.mediaUrl, sourceUrl: row.pageUrl, alt: row.alt ?? undefined, ref: websiteMediaRef(row.mediaUrl) };
 
     if (row.mediaType === "video" && WEB_VIDEO_EXT.has(ext)) {
-      assets.push({ ...base, mediaType: "video" });
+      keep({ ...base, mediaType: "video" }, width);
       continue;
     }
     // Favicons arrive as "icon"; tracking pixels as 1×1 images with a .htm "extension".
     if (row.mediaType !== "image" || !WEB_IMAGE_EXT.has(ext)) continue;
     // A vector logo is drawn small and is still the logo — size says nothing about an SVG.
     if (ext !== "svg" && isSmall(row.width, row.height)) continue;
-    assets.push({ ...base, mediaType: "image" });
+    keep({ ...base, mediaType: "image" }, width);
   }
-  return { assets: dedupeByRef(assets) };
+  return { assets: [...best.values()].map((b) => b.asset) };
 }
 
 function isSmall(width?: number | null, height?: number | null): boolean {

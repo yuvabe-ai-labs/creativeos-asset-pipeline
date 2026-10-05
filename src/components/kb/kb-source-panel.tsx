@@ -9,7 +9,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import type { StagedChanges } from "@/lib/kb/types";
 import { formatBytes } from "@/lib/kb/utils";
-import { ImportedAssetsSection } from "./imported-assets-section";
 
 type Props = {
   clientId: string;
@@ -29,8 +28,6 @@ type Props = {
   onSaveChanges: () => void;
   cancelingChanges: boolean;
   savingChanges: boolean;
-  /** Opens the Brand assets tab, where imported assets are browsed. */
-  onOpenAssets?: () => void;
 };
 
 // The source-files manager, rendered as the body of a side drawer. Documents and
@@ -53,7 +50,6 @@ export function KBSourcePanel({
   onSaveChanges,
   cancelingChanges,
   savingChanges,
-  onOpenAssets,
 }: Props) {
   const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? "");
   const { pendingDocRemovals, pendingImageRemovals, newlyAddedDocIds, newlyAddedImageIds } = staged;
@@ -273,7 +269,6 @@ export function KBSourcePanel({
               })}
             </div>
           )}
-          <ImportedAssetsSection clientId={clientId} onOpenAssets={onOpenAssets} />
         </TabsContent>
       </Tabs>
 

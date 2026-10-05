@@ -148,10 +148,14 @@ are dropped; at most 80 website assets. Size caps reuse the market archive limit
   prefix) and **Facebook** (`facebook.com/` prefix). Saved to the existing `brand_details.instagram`
   / `.facebook` (one owner), then the import starts alongside the KB build. The helper text says the
   import runs in the background.
-- **Review page → "Brand assets" tab** (after the module tabs, behind a divider; spinner while
-  importing, else the asset count). Not a KB module: never counted as reviewed, never gates Mark
-  KB Ready. Holds a Sources card (website, Instagram/Facebook handles, per-source status with
-  Refresh/Retry, Import / Save & import) and the library grid with source and type filter chips.
+- **Brand assets page — `/clients/<slug>/brand-assets`.** Its own page, not a Brand KB tab
+  (the module tab bar overflowed) and not in Source files (those are KB inputs; these are not).
+  Reached from a **Brand assets** button in the KB header beside Source files (live count, or a
+  spinner while importing) and from the client's Settings menu. A media library: title + count
+  and one **Refresh** menu (all sources, or one — each item shows that source's last result), a
+  slim notice only while importing or after a failure (with Retry), one filter row (source chips +
+  Images/Videos segmented control), then the grid. No handle fields here — they are set during
+  setup (and in Brand Kit details).
 - **Paging, not loading everything:** the grid reads `GET …/asset-imports/assets?cursor&source&media`
   — keyset pagination on a stored `sort_at = coalesce(posted_at, created_at)` (newest post first,
   indexed), 24 per page, filters applied in the query — and loads the next page through an
@@ -162,8 +166,8 @@ are dropped; at most 80 website assets. Size caps reuse the market archive limit
   (`sharp`), stored as `thumbnail_url`; the grid shows it with `loading="lazy"`, never the original.
   SVG and GIF are shown as they are.
 - **Header:** the client's logo and name (`ClientIdentity`), editable in place, on both steps.
-- **Source panel → Images tab:** a summary (status per source, "View N brand assets" → the tab).
-  Before this change it was: a status row per source — spinner "Importing from Instagram…",
+- Earlier iterations (a section in the Source files drawer, then a tab after the modules) were
+  dropped for the reasons above. Before that the plan was: a status row per source — spinner "Importing from Instagram…",
   "42 imported · Refresh", or the error with Retry — plus the thumbnails grouped by source with a
   small source label; videos show a play badge. Uploads keep their current section and behaviour.
 - Status reads through TanStack Query (`assetImportKeys`), polling with `refetchInterval` only while
@@ -179,6 +183,11 @@ Real runner + normalizers + downloads, no DB/GCS writes:
 | instagram.com/chuppslife | 25 posts → 63 assets (46 images, 17 videos), 63/63 downloaded, 135 MB, 99 s |
 | facebook.com/thechuppslife | "This page isn't public, so its posts can't be imported." (5 s) |
 | facebook.com/bluetokaicoffee | 50 posts → 80 assets (53 images, 27 videos), 80/80, median 667 KB (full size), 119 s |
+
+Website refs collapse **path-embedded renditions** — coca-cola.com (Adobe AEM) serves one banner as
+`…/banner-mo.png/width3840.png`, `/width2674.png`, `/width1960.png`…, which the actor's variant merging
+(query params, srcset) does not catch. `websiteMediaRef` strips AEM `/widthN.ext` and `.coreimg.*`,
+WordPress `-WxH`, Shopify `_Wx` and `@2x`, and the largest rendition is kept.
 
 Video refs key on the **poster** filename, not the video's: Instagram and Facebook serve different
 video files for the same reel but the same poster (5 of 6 Blue Tokai reels matched).
