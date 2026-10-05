@@ -42,6 +42,14 @@ describe("getPromptUpstream", () => {
     expect(getAvatar).toHaveBeenCalledWith("c1", "a1");
   });
 
+  it("names the script's on-camera speaker after the avatar, so the words and the face agree", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ name: "Razel" }));
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([{ ...riyaLine, speaker: "creator" }])] as never);
+    const [shot] = await getPromptUpstream("prompt-1");
+    const script = shot.data.script as { visual_script: { shots: { voiceover: { speaker: string }[] }[] } };
+    expect(script.visual_script.shots[0].voiceover[0].speaker).toBe("Razel");
+  });
+
   it("leaves a narration-only shot alone", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([narratorLine])] as never);
     expect(await getPromptUpstream("prompt-1")).toHaveLength(1);

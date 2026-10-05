@@ -20,6 +20,8 @@ import type { MultishotNodeData, MultishotPromptNodeData } from "@/lib/canvas-no
 import { readVoLines } from "@/lib/nodes/voiceover";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { PresenterFace } from "./presenter-face";
+import { useShotPresenter } from "@/hooks/use-shot-presenter";
+import { withAvatarAsSpeaker } from "@/lib/avatars/presenter";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
@@ -57,11 +59,18 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
     return nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
   }, [nodes, edges, id]);
   const budget = (multishotSource?.data as MultishotNodeData | undefined)?.totalSeconds;
-  const cuts = (multishotSource?.data as MultishotNodeData | undefined)?.cuts ?? [];
-  // D286 — lines spanning every cut; the preview renders them exactly as the money path sends them.
-  const sequenceVoiceover = readVoLines(
-    (multishotSource?.data as MultishotNodeData | undefined)?.sequenceVoiceover,
-  );
+  // The avatar in this shot speaks the script's on-camera lines: the server renames that speaker
+  // for the writer and the request (withAvatarAsSpeaker), so the preview renames it the same way.
+  const presenter = useShotPresenter(id);
+  const avatarName = presenter?.inShot ? presenter.avatar.name : "";
+  const { cuts, sequenceVoiceover } = useMemo(() => {
+    const data = multishotSource?.data as MultishotNodeData | undefined;
+    const source = { cuts: data?.cuts ?? [], sequenceVoiceover: readVoLines(data?.sequenceVoiceover) };
+    if (!avatarName) return source;
+    // D286 — lines spanning every cut; the preview renders them exactly as the money path sends them.
+    const [row] = withAvatarAsSpeaker([{ nodeId: id, type: "multishot", data: source }], avatarName);
+    return row.data as typeof source;
+  }, [multishotSource, avatarName, id]);
   // D236 — the model the ladder was built for. This node never SETS it; the choice lives on the
   // Multishot node, and reading it here is what keeps the beat editor's token syntax and the
   // rendered prompt agreeing with what will actually be generated.

@@ -205,3 +205,19 @@ Built as designed, with these differences:
 - **Not built:** suggesting the Multishot lane in the picker for Seedance shots with a still (§4).
 - **No migration.** The switch is node data; the voice reference reuses `voice_sample`. Named
   references are stored at `clients/{c}/avatars/{a}/voice-sample/elevenlabs-{voiceId}.mp3`.
+
+### 11.1 Fix after the first Seedance multishot on staging (2026-10-05)
+
+The request named the avatar in the beats ("Razel, the woman…") but voiced the lines as the
+script's speaker (`creator says: "…"`), so the model heard two people. The look also invented "a clean
+white studio background for the presenter cut" from the portrait. Now:
+
+- **The avatar speaks the on-camera lines.** With the avatar in the shot and exactly one on-camera
+  speaker in the script, that speaker is renamed to the avatar (`withAvatarAsSpeaker`) where the
+  avatar joins the prompt node's upstream. The writer, the stored plan, the request and the Multishot
+  Prompt preview all read the same name. Two or more on-camera speakers are left as written.
+- **The avatar image is identity only:** its text for the writer asks for face, hair, build and
+  clothing, never the portrait's background, lighting or framing.
+- **Seedance's voice line is in words:** "female, middle-aged, English, Indian accent", not
+  ElevenLabs' slugs.
+

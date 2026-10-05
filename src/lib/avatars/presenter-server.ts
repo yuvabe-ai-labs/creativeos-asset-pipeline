@@ -5,7 +5,7 @@ import { getAvatar } from "@/lib/db/avatars";
 import type { Avatar } from "./schema";
 import {
   matchingVoiceReference, presenterInShot, presenterUpstreamRow, readPresenterSwitch, seedanceVoiceText,
-  seedingScriptId,
+  seedingScriptId, withAvatarAsSpeaker,
 } from "./presenter";
 import { prepareNamedVoiceReference } from "./voice-reference";
 
@@ -36,14 +36,16 @@ export async function loadPresenterForPromptNode(
   };
 }
 
-/** The upstream with the presenter's virtual row appended when it is in the shot. */
+/** The upstream with the presenter's virtual row appended when it is in the shot — and the
+ *  script's on-camera speaker renamed as the avatar, so the writer, the stored prompt and the
+ *  request all say the same person speaks (`withAvatarAsSpeaker`). */
 export function withPresenterRow(
   ups: UpstreamOutput[],
   presenter: ShotPresenter | null,
 ): UpstreamOutput[] {
   if (!presenter?.inShot || ups.some((u) => u.nodeId === presenter.avatarNodeId)) return ups;
   const row = presenterUpstreamRow(presenter.avatarNodeId, presenter.avatar);
-  return row ? [...ups, row] : ups;
+  return row ? [...withAvatarAsSpeaker(ups, presenter.avatar.name), row] : ups;
 }
 
 /** A prompt node's upstream as everything downstream should see it — with the presenter as a

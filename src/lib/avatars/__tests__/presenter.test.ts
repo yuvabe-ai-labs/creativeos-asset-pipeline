@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hasOnCameraLine, matchingVoiceReference, namedVoiceSampleKey, presenterInShot, presenterUpstreamRow,
   avatarAutoVoiceMissing, presenterDefaultVoiceId, presenterVideoNotes, seedanceVoiceText, seedingScriptId,
-  unavailableModelsFor,
+  unavailableModelsFor, withAvatarAsSpeaker,
 } from "../presenter";
 import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 import { makeAvatar, makeImage, GENERATED } from "./fixtures";
@@ -62,7 +62,7 @@ describe("presenterUpstreamRow", () => {
         title: "Riya",
         fileKind: "image",
         fileUrl: avatar.front!.url,
-        processedOutput: "The presenter, Riya: the person on camera in this shot. Show them as they appear in this image.",
+        processedOutput: "Riya, the person on camera in this shot. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.",
       },
       activeOutput: null,
       versionId: null,
@@ -98,6 +98,12 @@ describe("seedanceVoiceText", () => {
     expect(text).toMatch(/not its music or sound effects/i);
     expect(text).toMatch(/female/);
     expect(text).toMatch(/Hindi/);
+  });
+  it("turns ElevenLabs' raw labels into words", () => {
+    const raw: AvatarVoice = {
+      ...NAMED, labels: { gender: "female", age: "middle_aged", language: "en", accent: "indian" },
+    };
+    expect(seedanceVoiceText(raw)).toMatch(/The voice: female, middle-aged, English, Indian accent\.$/);
   });
   it("describes the engine's own voice plainly", () => {
     expect(seedanceVoiceText({ mode: "native" })).toMatch(/the presenter's own voice/);
@@ -166,5 +172,40 @@ describe("avatarAutoVoiceMissing", () => {
     expect(avatarAutoVoiceMissing({ voice: { mode: "native", autoVoice: { voiceId: "a", sourceKey: "g2" } }, voiceSample: sample })).toBe(false);
     expect(avatarAutoVoiceMissing({ voice: { mode: "native" }, voiceSample: null })).toBe(false);
     expect(avatarAutoVoiceMissing({ voice: { mode: "named", voiceId: "v", name: "S", labels: {}, previewUrl: null }, voiceSample: sample })).toBe(false);
+  });
+});
+
+describe("withAvatarAsSpeaker", () => {
+  const creator = (text: string) => ({ text, speaker: "creator", delivery: "", language: "English" });
+  const multishot = (cuts: object[], sequenceVoiceover: object[] = []) => ({
+    nodeId: "ms-1", type: "multishot", activeOutput: null, versionId: null,
+    data: { seededFrom: { scriptNodeId: "script-1" }, cuts, sequenceVoiceover },
+  });
+
+  it("gives the script's one on-camera speaker the avatar's name, so the words and the face agree", () => {
+    const [row] = withAvatarAsSpeaker([multishot([
+      { id: "c1", voiceover: [creator("Jackfruit365 is easy.")] },
+      { id: "c2", voiceover: [creator("I add it to batter."), narrator] },
+    ])], "Razel");
+    const cuts = row.data.cuts as { voiceover: { speaker: string }[] }[];
+    expect(cuts.flatMap((c) => c.voiceover.map((l) => l.speaker))).toEqual(["Razel", "Razel", "narrator"]);
+  });
+
+  it("renames a Shot's lines too", () => {
+    const [row] = withAvatarAsSpeaker([shot([{ ...riya, speaker: "host" }])], "Razel");
+    const script = row.data.script as { visual_script: { shots: { voiceover: { speaker: string }[] }[] } };
+    expect(script.visual_script.shots[0].voiceover[0].speaker).toBe("Razel");
+  });
+
+  it("leaves a script with two on-camera speakers alone — which one is the avatar is not known", () => {
+    const rows = [multishot([{ id: "c1", voiceover: [creator("One."), { ...creator("Two."), speaker: "friend" }] }])];
+    expect(withAvatarAsSpeaker(rows, "Razel")).toBe(rows);
+  });
+
+  it("leaves narration-only rows, other rows and an unnamed avatar alone", () => {
+    const rows = [multishot([{ id: "c1", voiceover: [narrator] }]), { nodeId: "f", type: "file", data: {}, activeOutput: null, versionId: null }];
+    expect(withAvatarAsSpeaker(rows, "Razel")).toBe(rows);
+    const named = [multishot([{ id: "c1", voiceover: [creator("One.")] }])];
+    expect(withAvatarAsSpeaker(named, "  ")).toBe(named);
   });
 });

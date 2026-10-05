@@ -70,8 +70,10 @@ export function presenterUpstreamRow(
       title: avatar.name,
       fileKind: "image",
       fileUrl: avatar.front.url,
-      // A file node's processedOutput is its text block for the writer (node-output.ts).
-      processedOutput: `The presenter, ${avatar.name}: the person on camera in this shot. Show them as they appear in this image.`,
+      // A file node's processedOutput is its text block for the writer (node-output.ts). Identity
+      // only: "as they appear in this image" once had the writer copy the portrait's plain
+      // backdrop into the look as a "white studio" shot.
+      processedOutput: `${avatar.name}, the person on camera in this shot. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.`,
     },
     activeOutput: null,
     versionId: null,
@@ -103,10 +105,85 @@ export function matchingVoiceReference(
 export function seedanceVoiceText(voice: AvatarVoice): string {
   const bind = "Reference only the voice timbre in @Audio 1, not its music or sound effects.";
   if (voice.mode === "native") return `${bind} The voice is the presenter's own voice from that reference.`;
-  const words = [voice.labels.gender, voice.labels.age, voice.labels.language, voice.labels.accent, voice.labels.description]
-    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-    .map((v) => v.trim());
+  const { gender, age, language, accent, description } = voice.labels;
+  const words = [
+    clean(gender),
+    clean(age),
+    languageName(clean(language)),
+    clean(accent) && `${titleCase(clean(accent)!)} accent`,
+    clean(description),
+  ].filter((v): v is string => Boolean(v));
   return words.length ? `${bind} The voice: ${words.join(", ")}.` : bind;
+}
+
+/** ElevenLabs labels are slugs ("middle_aged"); the model reads words. */
+function clean(label: string | undefined): string | undefined {
+  const text = label?.trim().replace(/_/g, "-");
+  return text || undefined;
+}
+
+function titleCase(text: string): string {
+  return text.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** "en" → "English"; a label that is already a name passes through. */
+function languageName(label: string | undefined): string | undefined {
+  if (!label) return undefined;
+  if (!/^[a-z]{2,3}(-[a-z]{2})?$/i.test(label)) return label;
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(label) ?? label;
+  } catch {
+    return label;
+  }
+}
+
+/**
+ * The script's on-camera speaker, renamed as the avatar in the shot. A script says who talks —
+ * "creator", "host" — while the beats name the avatar ("Razel, the woman…"), and a video model
+ * hearing `creator says` beside a woman called Razel has no way to know they are one person. With
+ * exactly one on-camera speaker across the shot's lines, that speaker is the avatar; with two or
+ * more, which one is unknown and nothing changes. Narration stays narration. Same rows back
+ * (identity) when there is nothing to rename.
+ */
+export function withAvatarAsSpeaker<T extends PresenterRowInput>(rows: T[], avatarName: string): T[] {
+  const name = avatarName.trim();
+  if (!name) return rows;
+  const speakers = new Set(
+    rows.flatMap(linesOf).filter(isOnScreenLine).map((l) => l.speaker!.trim().toLowerCase()),
+  );
+  if (speakers.size !== 1) return rows;
+  const rename = (lines: VoLine[] | undefined) =>
+    lines?.map((l) => (isOnScreenLine(l) ? { ...l, speaker: name } : l));
+
+  return rows.map((row) => {
+    if (row.type === "multishot") {
+      const cuts = (row.data.cuts ?? []) as { voiceover?: VoLine[] }[];
+      return {
+        ...row,
+        data: {
+          ...row.data,
+          cuts: cuts.map((c) => (c.voiceover ? { ...c, voiceover: rename(c.voiceover) } : c)),
+          ...(row.data.sequenceVoiceover ? { sequenceVoiceover: rename(row.data.sequenceVoiceover as VoLine[]) } : {}),
+        },
+      };
+    }
+    if (row.type === "shot") {
+      const script = row.data.script as ReelScript | undefined;
+      const shots = script?.visual_script?.shots;
+      if (!script || !shots) return row;
+      return {
+        ...row,
+        data: {
+          ...row.data,
+          script: {
+            ...script,
+            visual_script: { ...script.visual_script, shots: shots.map((sh) => ({ ...sh, voiceover: rename(sh.voiceover) })) },
+          },
+        },
+      };
+    }
+    return row;
+  });
 }
 
 /** The prompt node's stored switch, or undefined when the operator has not chosen. */
