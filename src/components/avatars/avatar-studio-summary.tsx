@@ -52,7 +52,7 @@ export function AvatarStudioSummary({ avatar, name }: { avatar: Avatar | null; n
         <dd className="text-right font-medium">{avatarVoiceLabel(avatar?.voice ?? null) ?? "Optional"}</dd>
         {native && (
           <>
-            <dt className="text-muted-foreground">Voice reference</dt>
+            <dt className="text-muted-foreground">Voice kept</dt>
             <dd className="text-right font-medium">
               {avatar?.voiceSample ? `${avatar.voiceSample.durationSeconds.toFixed(1)} s saved` : "Not yet"}
             </dd>

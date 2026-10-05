@@ -2,9 +2,10 @@
 
 import { Check, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
-  isStepDone, isStepOpen, stepStatusLine, STUDIO_STEPS, type StudioSnapshot, type StudioStepId,
+  isStepDone, isStepLoading, isStepOpen, stepStatusLine, STUDIO_STEPS, type StudioSnapshot, type StudioStepId,
 } from "@/lib/avatars/studio";
 
 type Props = {
@@ -24,6 +25,7 @@ export function AvatarStudioStepper({ current, snapshot, onGo }: Props) {
           const done = isStepDone(step.id, snapshot);
           const open = isStepOpen(step.id, snapshot);
           const skipped = snapshot.skipped.has(step.id) && !done;
+          const loading = isStepLoading(step.id, snapshot);
           return (
             <li key={step.id} className="relative shrink-0">
               {i < STUDIO_STEPS.length - 1 && (
@@ -45,6 +47,9 @@ export function AvatarStudioStepper({ current, snapshot, onGo }: Props) {
                   isCurrent && "bg-primary/5 hover:bg-primary/10",
                 )}
               >
+                {loading && !isCurrent ? (
+                  <Skeleton className="size-6 shrink-0 rounded-full" />
+                ) : (
                 <span
                   className={cn(
                     "grid size-6 shrink-0 place-items-center rounded-full border-[1.5px] text-xs font-semibold tabular-nums",
@@ -60,13 +65,18 @@ export function AvatarStudioStepper({ current, snapshot, onGo }: Props) {
                     : !open ? <Lock className="size-3" strokeWidth={1.5} />
                       : i + 1}
                 </span>
+                )}
                 <span className="flex min-w-0 flex-col pt-0.5">
                   <span className={cn("text-sm leading-tight", isCurrent ? "font-semibold" : "font-medium")}>
                     {step.title}
                   </span>
-                  <span className="hidden text-xs font-normal leading-snug text-muted-foreground lg:block">
-                    {stepStatusLine(step.id, snapshot)}
-                  </span>
+                  {loading ? (
+                    <Skeleton className="mt-1 hidden h-3 w-20 lg:block" />
+                  ) : (
+                    <span className="hidden text-xs font-normal leading-snug text-muted-foreground lg:block">
+                      {stepStatusLine(step.id, snapshot)}
+                    </span>
+                  )}
                 </span>
               </Button>
             </li>

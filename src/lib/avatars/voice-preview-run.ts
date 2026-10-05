@@ -1,5 +1,6 @@
 import { revoiceVideo, NonRetryableRevoiceError, type RevoiceDeps } from "@/lib/voice-change/revoice";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
+import type { VoicePreviewEngine } from "./voice-preview";
 import { VOICE_MAX_SECONDS, VOICE_MIN_SECONDS } from "@/lib/ugc/constants";
 
 // D294, D296 — the avatar-voice-preview task's steps, with every outside call injected so they
@@ -102,6 +103,8 @@ export type NativeVoicePreviewPayload = {
 
 export type NativeVoicePreviewTaskPayload = NativeVoicePreviewPayload & {
   mode: "native";
+  /** D301 — Seedance on a Seedream face, Gemini Omni on any other. */
+  engine: VoicePreviewEngine;
   generationId: string;
 };
 

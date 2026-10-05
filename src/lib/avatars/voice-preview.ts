@@ -8,36 +8,50 @@ import {
   AVATAR_VOICE_PREVIEW_SLOT, AVATAR_VOICE_PREVIEW_TIMEOUT_MS,
   AVATAR_VOICE_SAMPLE_RESOLUTION, AVATAR_VOICE_SAMPLE_SECONDS,
 } from "./constants";
+import { isSeedanceFaceModel } from "./generation";
 import type { Avatar, VoicePreview } from "./schema";
 
 // D294, D296 — the voice preview: a short clip of the avatar's front image speaking one line.
-// The declaration decides the engine, so there are two modes:
+// The declaration decides the mode, and the mode and the face decide the engine:
 //
 //   named  — Gemini Omni animates the front image, then the clip is re-voiced with the avatar's
 //            ElevenLabs voice (D284's steps). The clip is what you get.
-//   native — Seedance generates the clip AND invents the voice, and that voice is extracted and
-//            kept as the avatar's reference audio (§6.7), so every later generation sounds the
-//            same. Generated avatars only: Seedance refuses a real face.
+//   native — the engine generates the clip AND invents the voice, and that voice is extracted
+//            and kept as the avatar's reference audio (§6.7) and as its auto voice (D301), so
+//            every later generation sounds the same. Seedance on a face it accepts (Seedream
+//            5.0 Lite); Gemini Omni, with its own voice and no re-voice, on every other face.
 //
 // Pure rules, shared by the Studio, the route, the task and completeGeneration.
 
 export type VoicePreviewMode = "named" | "native";
 
+export type VoicePreviewEngine = "seedance" | "omni";
+
 export const VOICE_PREVIEW_ENGINE: Record<
-  VoicePreviewMode,
+  VoicePreviewEngine,
   { modelId: string; resolution: string; seconds: number }
 > = {
-  named: {
+  omni: {
     modelId: GEMINI_OMNI_MODEL_ID,
     resolution: AVATAR_VOICE_PREVIEW_RESOLUTION,
     seconds: AVATAR_VOICE_PREVIEW_SECONDS,
   },
-  native: {
+  seedance: {
     modelId: SEEDANCE_MODEL_ID,
     resolution: AVATAR_VOICE_SAMPLE_RESOLUTION,
     seconds: AVATAR_VOICE_SAMPLE_SECONDS,
   },
 };
+
+/** D301 — the engine that makes this avatar's preview: a named voice is always a re-voiced Omni
+ *  clip; the engine's own voice is Seedance's only on a face Seedance accepts (Seedream 5.0 Lite),
+ *  and Omni's on every other face. Null without a voice or a front — nothing to preview. */
+export function voicePreviewEngine(avatar: Pick<Avatar, "voice" | "front">): VoicePreviewEngine | null {
+  if (!avatar.voice || !avatar.front) return null;
+  if (avatar.voice.mode === "named") return "omni";
+  const source = avatar.front.source;
+  return source.kind === "generated" && isSeedanceFaceModel(source.modelId) ? "seedance" : "omni";
+}
 
 /** Which preview this avatar's declaration asks for, or null when it has declared nothing —
  *  the declaration is what picks the engine, so with none there is nothing to preview. */
@@ -84,24 +98,25 @@ export function buildVoicePreviewPrompt(line: string, mode: VoicePreviewMode): s
 
 /** The params each engine takes. Omni's ratio field is `aspect_ratio`; Seedance's is `ratio`,
  *  and neither accepts the other's — a wrong key is a 400 on a request we would have paid for. */
-export function voicePreviewParams(mode: VoicePreviewMode): Record<string, unknown> {
-  const engine = VOICE_PREVIEW_ENGINE[mode];
-  const base = { resolution: engine.resolution, duration: engine.seconds };
-  return mode === "named"
+export function voicePreviewParams(engine: VoicePreviewEngine): Record<string, unknown> {
+  const spec = VOICE_PREVIEW_ENGINE[engine];
+  const base = { resolution: spec.resolution, duration: spec.seconds };
+  return engine === "omni"
     ? { ...base, aspect_ratio: AVATAR_VOICE_PREVIEW_ASPECT }
     : { ...base, ratio: AVATAR_VOICE_PREVIEW_ASPECT };
 }
 
 /** What a preview costs. A named preview pays for the clip and the voice change over the same
- *  seconds; a native one pays for the clip alone, because Seedance's voice arrives with it.
+ *  seconds; a native one pays for the clip alone, because the engine's voice arrives with it.
  *  Null when the engine has no price at that resolution — no estimate, no preview. */
 export function voicePreviewCostUsd(
   mode: VoicePreviewMode,
+  engine: VoicePreviewEngine,
   durationSeconds: number,
   resolution: string | undefined,
   priceMultiplier: number,
 ): number | null {
-  const video = computeVideoCost(VOICE_PREVIEW_ENGINE[mode].modelId, durationSeconds, false, resolution);
+  const video = computeVideoCost(VOICE_PREVIEW_ENGINE[engine].modelId, durationSeconds, false, resolution);
   if (!video) return null;
   if (mode === "native") return video.usd;
   return video.usd + computeVoiceChangeCost(durationSeconds, priceMultiplier).usd;
@@ -109,10 +124,11 @@ export function voicePreviewCostUsd(
 
 export function estimateVoicePreviewCredits(
   mode: VoicePreviewMode,
+  engine: VoicePreviewEngine,
   priceMultiplier = 1,
 ): number | null {
-  const engine = VOICE_PREVIEW_ENGINE[mode];
-  const usd = voicePreviewCostUsd(mode, engine.seconds, engine.resolution, priceMultiplier);
+  const spec = VOICE_PREVIEW_ENGINE[engine];
+  const usd = voicePreviewCostUsd(mode, engine, spec.seconds, spec.resolution, priceMultiplier);
   return usd === null ? null : usdToFinalCredits(usd);
 }
 
@@ -124,7 +140,7 @@ export function voicePreviewBlocker(avatar: Pick<Avatar, "front" | "voice">): st
 }
 
 type PreviewInputs = {
-  slot?: unknown; mode?: unknown; line?: unknown; voiceId?: unknown; voiceName?: unknown;
+  slot?: unknown; mode?: unknown; engine?: unknown; line?: unknown; voiceId?: unknown; voiceName?: unknown;
   frontUrl?: unknown;
 };
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -141,6 +157,14 @@ export function voicePreviewRowMode(
   row: Pick<GenerationRow, "inputs_snapshot">,
 ): VoicePreviewMode {
   return (row.inputs_snapshot as PreviewInputs | null)?.mode === "native" ? "native" : "named";
+}
+
+/** The engine a stored preview was made with. Rows written before D301 carry none: a native one
+ *  was always Seedance, and a named one always Omni. */
+export function voicePreviewRowEngine(row: Pick<GenerationRow, "inputs_snapshot">): VoicePreviewEngine {
+  const inputs = (row.inputs_snapshot ?? {}) as PreviewInputs;
+  if (inputs.engine === "seedance" || inputs.engine === "omni") return inputs.engine;
+  return inputs.mode === "native" ? "seedance" : "omni";
 }
 
 export function generationToVoicePreview(row: GenerationRow): VoicePreview | null {

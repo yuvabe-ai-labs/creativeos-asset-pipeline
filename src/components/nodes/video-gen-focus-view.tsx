@@ -104,7 +104,7 @@ import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
 import { VideoGenPresenterNotes } from "./video-gen-presenter-notes";
 import { useShotPresenter } from "@/hooks/use-shot-presenter";
-import { presenterVideoNotes, unavailableModelsFor } from "@/lib/avatars/presenter";
+import { presenterDefaultVoiceId, presenterVideoNotes, unavailableModelsFor } from "@/lib/avatars/presenter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import {
@@ -1261,7 +1261,7 @@ export function VideoGenFocusView({
         hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
       })
     : [];
-  const presenterVoiceId = presenterAvatar?.voice?.mode === "named" ? presenterAvatar.voice.voiceId : null;
+  const presenterVoiceId = presenterAvatar ? presenterDefaultVoiceId(presenterAvatar) : null;
   const disableGenerate =
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock);
   const disableGenerateReason = constraints.disableGenerate

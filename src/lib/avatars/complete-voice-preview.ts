@@ -8,7 +8,8 @@ import { isOwnStoredUrl } from "@/lib/storage";
 import { asResolutionString } from "@/lib/video-gen/cost";
 import type { GenerationRow } from "@/lib/db/types";
 import type { CompleteGenerationInput } from "@/lib/generations/complete";
-import { voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewRowMode } from "./voice-preview";
+import { keepAutoVoice } from "./auto-voice";
+import { voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewRowEngine, voicePreviewRowMode } from "./voice-preview";
 
 /** What the task reports about the voice it extracted (D296). */
 type VoiceSampleMeta = { url?: unknown; durationSeconds?: unknown };
@@ -62,6 +63,7 @@ export async function completeAvatarVoicePreview(
   const multiplier = Number((generation.inputs_snapshot as { priceMultiplier?: unknown } | null)?.priceMultiplier);
   const usd = voicePreviewCostUsd(
     mode,
+    voicePreviewRowEngine(generation),
     input.durationSeconds,
     asResolutionString(generation.params_snapshot?.resolution),
     Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : 1,
@@ -69,25 +71,18 @@ export async function completeAvatarVoicePreview(
   const credits = usd === null ? 0 : usdToFinalCredits(usd);
 
   await settleGeneration({ orgId: generation.org_id, generationId: generation.id, actualAmount: credits });
-  await succeedGeneration({
-    generationId: generation.id,
-    costUsd: usd ?? undefined,
-    creditsCharged: credits,
-    outputSnapshot: input.videoUrl,
-    meta: input.meta,
-  });
-
-  // The voice the clip was generated with, kept as what every later generation sends (§6.7).
-  // Written after settlement and best-effort: the clip is generated, stored and paid for by now,
-  // so a failed write must not undo any of that. The operator sees a preview with no reference
-  // saved and can regenerate — which is recoverable, where a refund of a clip they can play
-  // would not be.
+  // The voice the clip was generated with, kept as what every later generation sends (§6.7) and
+  // cloned into the avatar's auto voice for every other model (D301). Both are written before
+  // the preview is marked succeeded, because that is what the Studio waits for before it reads
+  // the avatar again. Best-effort: the clip is generated, stored and paid for by now, so a failed
+  // write must not undo any of that. The operator sees a preview whose voice was not kept and can
+  // make another — recoverable, where refunding a clip they can play would not be.
   const sample = voicePreviewKeepsSample(mode) ? readVoiceSample(input.meta) : null;
   if (sample && generation.avatar_id) {
     try {
-      await updateAvatar(client.id, generation.avatar_id, {
-        voiceSample: { ...sample, sourceKey: generation.id },
-      });
+      const voiceSample = { ...sample, sourceKey: generation.id };
+      await updateAvatar(client.id, generation.avatar_id, { voiceSample });
+      await keepAutoVoice({ clientId: client.id, clientName: client.name, avatarId: generation.avatar_id, sample: voiceSample });
     } catch (e) {
       console.error("[completeAvatarVoicePreview] could not record the voice reference", {
         generationId: generation.id,
@@ -95,4 +90,12 @@ export async function completeAvatarVoicePreview(
       });
     }
   }
+
+  await succeedGeneration({
+    generationId: generation.id,
+    costUsd: usd ?? undefined,
+    creditsCharged: credits,
+    outputSnapshot: input.videoUrl,
+    meta: input.meta,
+  });
 }

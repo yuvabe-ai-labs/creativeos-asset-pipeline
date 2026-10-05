@@ -77,7 +77,7 @@ describe("GET voice-preview", () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.preview).toMatchObject({ generationId: "g1", status: "succeeded", url: "https://storage.googleapis.com/b/p.mp4", line: "Hello there." });
-    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits("named", 2));
+    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits("named", "omni", 2));
   });
 
   it("has no preview and no estimate for an avatar with no voice declared", async () => {
@@ -112,10 +112,10 @@ describe("POST voice-preview", () => {
     expect((await res.json()).preview).toMatchObject({ generationId: "g1", status: "running" });
     expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
       avatarId: "a1", orgId: "org-1", clientId: "c1", userId: "user-9", type: "video",
-      modelUsed: VOICE_PREVIEW_ENGINE.named.modelId,
+      modelUsed: VOICE_PREVIEW_ENGINE.omni.modelId,
       inputsSnapshot: expect.objectContaining({ ...inputs, prompt: expect.stringContaining('"Hello there."') }),
     }));
-    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("named", 2));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("named", "omni", 2));
     expect(tasks.trigger).toHaveBeenCalledWith("avatar-voice-preview", expect.objectContaining({
       mode: "named", generationId: "g1", frontUrl: FRONT, voiceId: "v1",
       revoicedPutUrl: "https://signed/put", revoicedUrl: "https://storage.googleapis.com/b/p.mp4",
@@ -190,11 +190,11 @@ describe("POST voice-preview — the engine's own voice (D296)", () => {
     expect(res.status).toBe(202);
     expect(getVoiceCached).not.toHaveBeenCalled();
     expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
-      modelUsed: VOICE_PREVIEW_ENGINE.native.modelId,
+      modelUsed: VOICE_PREVIEW_ENGINE.seedance.modelId,
       paramsSnapshot: expect.objectContaining({ resolution: "480p", duration: 5, ratio: "9:16" }),
       inputsSnapshot: expect.objectContaining({ mode: "native", line: "Hi." }),
     }));
-    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("native"));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("native", "seedance"));
     expect(tasks.trigger).toHaveBeenCalledWith("avatar-voice-preview", expect.objectContaining({
       mode: "native",
       clipPutUrl: "https://signed/put",
@@ -221,6 +221,23 @@ describe("POST voice-preview — the engine's own voice (D296)", () => {
     vi.mocked(getLatestAvatarVoicePreview).mockResolvedValue(null);
     const { GET } = await import("./route");
     const json = await (await GET(new NextRequest(url), { params })).json();
-    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits("native"));
+    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits("native", "seedance"));
+  });
+
+  it("makes the engine's own voice with Gemini Omni on a face Seedance won't take (D301)", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ voice: { mode: "native" } })); // an uploaded face
+    const { POST } = await import("./route");
+    expect((await POST(post({ line: "Hi." }), { params })).status).toBe(202);
+    expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
+      modelUsed: VOICE_PREVIEW_ENGINE.omni.modelId,
+      paramsSnapshot: expect.objectContaining({ resolution: "720p", aspect_ratio: "9:16" }),
+      inputsSnapshot: expect.objectContaining({ mode: "native", engine: "omni" }),
+    }));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("native", "omni"));
+    expect(tasks.trigger).toHaveBeenCalledWith("avatar-voice-preview", expect.objectContaining({
+      mode: "native",
+      engine: "omni",
+      samplePutUrl: "https://signed/sample",
+    }));
   });
 });

@@ -3,6 +3,8 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import type { AvatarGenerations, VoicePreviewState } from "@/lib/avatars/studio-server";
+import { cn } from "@/lib/utils";
 import { useAvatarGeneration } from "@/hooks/use-avatar-generation";
 import { useAvatarStudio } from "@/hooks/use-avatar-studio";
 import { useAvatarVoice } from "@/hooks/use-avatar-voice";
@@ -19,7 +21,7 @@ import { AvatarStudioBreadcrumb } from "./avatar-studio-breadcrumb";
 import { AvatarStudioHeader } from "./avatar-studio-header";
 import { AvatarStudioLookStep } from "./avatar-studio-look-step";
 import { AvatarStudioPreviewStep } from "./avatar-studio-preview-step";
-import { AvatarStudioSaveStep } from "./avatar-studio-save-step";
+import { AvatarStudioNameStep } from "./avatar-studio-name-step";
 import { AvatarStudioSheetStep } from "./avatar-studio-sheet-step";
 import { AvatarStudioStepper } from "./avatar-studio-stepper";
 import { AvatarStudioSummary } from "./avatar-studio-summary";
@@ -30,17 +32,23 @@ type Props = {
   clientSlug: string;
   clientName: string;
   initialAvatar: Avatar | null;
+  /** Read on the server with the avatar, so a revisit opens with them known (null: load here). */
+  initialGenerations?: AvatarGenerations | null;
+  initialVoicePreview?: VoicePreviewState | null;
 };
 
 // D287, D297 — the Avatar Studio: a full page in three columns. The five steps down the side,
 // the current step's panel with its footer pinned to the bottom, and the avatar so far.
-export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }: Props) {
+export function AvatarStudio({
+  clientId, clientSlug, clientName, initialAvatar, initialGenerations, initialVoicePreview,
+}: Props) {
   const router = useRouter();
   const libraryHref = `/clients/${clientSlug}/avatars`;
   const s = useAvatarStudio({ clientId, clientSlug, initialAvatar });
   const g = useAvatarGeneration({
     clientId,
     avatarId: s.avatar?.id ?? null,
+    initial: initialGenerations,
     ensureAvatar: s.ensureAvatar,
     onAvatar: s.replaceAvatar,
   });
@@ -53,6 +61,9 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     clientId,
     avatarId: s.avatar?.id ?? null,
     declaration: voiceDeclarationKey(s.avatar?.voice ?? null),
+    initial: initialVoicePreview
+      ? { declaration: voiceDeclarationKey(initialAvatar?.voice ?? null), data: initialVoicePreview }
+      : null,
     // A finished native preview writes the voice reference onto the avatar, so the row has to
     // be read again — the summary and the reference card both show what it saved.
     onSettled: useCallback(
@@ -75,10 +86,12 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     name: s.name,
     preview: preview.preview,
     sheetGenerating: g.generatingSheet,
+    previewLoading: preview.loading,
     skipped: steps.skipped,
   };
   const busy = s.uploading !== null || g.picking !== null || g.generatingSheet || g.pending.length > 0 || v.saving;
   const lookDone = isLookDone(avatar);
+  const lookStep = step.id === "look";
 
   // Not shown mid front-upload — the photo it would apply to is about to change.
   const consent = avatar && front?.source.kind === "upload" && s.uploading !== "front" ? (
@@ -97,9 +110,9 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     body = <AvatarStudioLookStep studio={s} generation={g} consent={consent} />;
   } else if (step.id === "sheet") {
     body = <AvatarStudioSheetStep studio={s} generation={g} />;
-  } else if (step.id === "save") {
+  } else if (step.id === "name") {
     body = (
-      <AvatarStudioSaveStep
+      <AvatarStudioNameStep
         name={s.name}
         story={s.story}
         nameError={s.nameError}
@@ -121,19 +134,28 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
     );
   }
 
-  const primary = step.id !== "save"
+  const named = s.name.trim().length > 0;
+  // Saving is the last step's action; the name it needs comes first, so an empty one (cleared in
+  // the header) sends the operator back to it.
+  const save = () => {
+    if (!named) steps.go("name");
+    void s.markReady();
+  };
+  const primary = following
     ? {
-        label: `Continue to ${following?.title.toLowerCase() ?? ""}`,
+        label: `Continue to ${following.title.toLowerCase()}`,
         onClick: () => steps.next(isStepDone(step.id, snapshot)),
-        disabled: step.id === "look" && !lookDone,
+        disabled: (step.id === "name" && !named) || (step.id === "look" && !lookDone),
         forward: true,
       }
     : avatar?.status === "ready"
       ? { label: "Done", onClick: () => router.push(libraryHref) }
-      : { label: s.saving ? "Saving…" : "Save to library", onClick: s.markReady, disabled: busy || s.saving || !avatar };
-  const reason = step.id === "look" && !lookDone
-    ? front ? "Confirm permission to continue" : "Pick a front image to continue"
-    : null;
+      : { label: s.saving ? "Saving…" : "Save to library", onClick: save, disabled: busy || s.saving || !avatar };
+  const reason = step.id === "name" && !named
+    ? "Give the avatar a name to continue"
+    : step.id === "look" && !lookDone
+      ? front ? "Confirm permission to continue" : "Pick a front image to continue"
+      : null;
 
   return (
     <>
@@ -148,7 +170,9 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
         onArchive={s.archive}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[13.5rem_minmax(0,1fr)_16rem]">
+      {/* On the Look step the summary gives its column to the step, whose generated images sit on
+          the right; the summary would only repeat the front those images already show. */}
+      <div className={cn("grid gap-6", lookStep ? "lg:grid-cols-[13.5rem_minmax(0,1fr)]" : "lg:grid-cols-[13.5rem_minmax(0,1fr)_16rem]")}>
         <AvatarStudioStepper current={steps.current} snapshot={snapshot} onGo={steps.go} />
 
         <Card role="region" className="min-h-[34rem] gap-0 overflow-visible py-0 shadow-card" aria-labelledby="studio-step-title">
@@ -169,7 +193,7 @@ export function AvatarStudio({ clientId, clientSlug, clientName, initialAvatar }
           />
         </Card>
 
-        <AvatarStudioSummary avatar={avatar} name={s.name} />
+        {!lookStep && <AvatarStudioSummary avatar={avatar} name={s.name} />}
       </div>
     </section>
     </>

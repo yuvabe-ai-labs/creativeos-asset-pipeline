@@ -15,7 +15,7 @@ export function AvatarsLibrarySkeleton() {
         <Skeleton className="h-9 w-32 rounded-lg" />
       </header>
 
-      {/* avatars-library.tsx's filter Tabs (All / Generic / Real person), mb-4 below it — without
+      {/* avatars-library.tsx's filter Tabs (All / Generic / Specific), mb-4 below it — without
        *  this row the grid used to sit higher than it does once the real tabs mount. */}
       <Skeleton className="mb-4 h-9 w-64 rounded-lg" />
 

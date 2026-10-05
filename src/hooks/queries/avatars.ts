@@ -70,16 +70,24 @@ export function useAvatar(clientId: string, avatarId: string): AvatarLookup {
 
 const PREVIEW_POLL_MS = 4000;
 
-type VoicePreviewData = { preview: VoicePreview | null; estimateCredits: number | null };
+export type VoicePreviewData = { preview: VoicePreview | null; estimateCredits: number | null };
 
 /** The avatar's latest voice preview and what the next one costs (D294, D296). While one is
  *  running it is polled; once it settles, polling stops on its own. */
-export function useVoicePreviewQuery(clientId: string, avatarId: string | null, declaration: string | null) {
+export function useVoicePreviewQuery(
+  clientId: string,
+  avatarId: string | null,
+  declaration: string | null,
+  /** What the page read on the server, for the declaration it was read under. */
+  initial?: { declaration: string | null; data: VoicePreviewData } | null,
+) {
   return useQuery({
     // The estimate depends on the declaration, so a declaration change is a different query.
     queryKey: [...avatarKeys.voicePreview(clientId, avatarId ?? ""), declaration] as const,
     queryFn: () => avatarsService.getVoicePreview(clientId, avatarId!),
     enabled: Boolean(clientId && avatarId),
+    // Only for the declaration it was read under: another voice has another estimate.
+    initialData: initial && initial.declaration === declaration ? initial.data : undefined,
     refetchInterval: (query) => (query.state.data?.preview?.status === "running" ? PREVIEW_POLL_MS : false),
   });
 }

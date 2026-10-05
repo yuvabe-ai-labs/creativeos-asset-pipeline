@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   hasOnCameraLine, matchingVoiceReference, namedVoiceSampleKey, presenterInShot, presenterUpstreamRow,
-  presenterVideoNotes, seedanceVoiceText, seedingScriptId, unavailableModelsFor,
+  avatarAutoVoiceMissing, presenterDefaultVoiceId, presenterVideoNotes, seedanceVoiceText, seedingScriptId,
+  unavailableModelsFor,
 } from "../presenter";
 import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 import { makeAvatar, makeImage, GENERATED } from "./fixtures";
@@ -131,13 +132,39 @@ describe("presenterVideoNotes", () => {
   });
   it("on Seedance, says when the engine's own voice has no reference", () => {
     expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native }), provider: "seedance", hasStartFrame: false }))
-      .toEqual([expect.stringMatching(/reference is missing/)]);
+      .toEqual([expect.stringMatching(/voice isn't kept yet/)]);
     expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native, voiceSample: sample }), provider: "seedance", hasStartFrame: false }))
       .toEqual([]);
   });
   it("elsewhere, says only Seedance keeps the engine's own voice", () => {
     expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native }), provider: "kling", hasStartFrame: true }))
-      .toEqual(["Only Seedance keeps the engine's own voice the same across clips."]);
+      .toEqual(["Only Seedance keeps this avatar's voice the same across clips."]);
     expect(presenterVideoNotes({ avatar: makeAvatar(), provider: "kling", hasStartFrame: false })).toEqual([]);
+  });
+});
+
+describe("presenterDefaultVoiceId", () => {
+  const auto = { mode: "native" as const, autoVoice: { voiceId: "auto1", sourceKey: "g1" } };
+  it("is the named voice, or the auto voice kept for a voice chosen for the avatar", () => {
+    expect(presenterDefaultVoiceId(makeAvatar({ voice: { mode: "named", voiceId: "v1", name: "S", labels: {}, previewUrl: null } }))).toBe("v1");
+    expect(presenterDefaultVoiceId(makeAvatar({ voice: auto }))).toBe("auto1");
+    expect(presenterDefaultVoiceId(makeAvatar({ voice: { mode: "native" } }))).toBeNull();
+    expect(presenterDefaultVoiceId(makeAvatar({ voice: null }))).toBeNull();
+  });
+  it("drops the 'only Seedance keeps it' note once there is an auto voice", () => {
+    expect(presenterVideoNotes({ avatar: makeAvatar({ voice: auto }), provider: "kling", hasStartFrame: false })).toEqual([]);
+  });
+});
+
+describe("avatarAutoVoiceMissing", () => {
+  const sample = { url: "u", durationSeconds: 5, sourceKey: "g2" };
+  it("is true when the kept sample is newer than the auto voice", () => {
+    expect(avatarAutoVoiceMissing({ voice: { mode: "native", autoVoice: { voiceId: "a", sourceKey: "g1" } }, voiceSample: sample })).toBe(true);
+    expect(avatarAutoVoiceMissing({ voice: { mode: "native" }, voiceSample: sample })).toBe(true);
+  });
+  it("is false when they match, with no sample, or for a named voice", () => {
+    expect(avatarAutoVoiceMissing({ voice: { mode: "native", autoVoice: { voiceId: "a", sourceKey: "g2" } }, voiceSample: sample })).toBe(false);
+    expect(avatarAutoVoiceMissing({ voice: { mode: "native" }, voiceSample: null })).toBe(false);
+    expect(avatarAutoVoiceMissing({ voice: { mode: "named", voiceId: "v", name: "S", labels: {}, previewUrl: null }, voiceSample: sample })).toBe(false);
   });
 });

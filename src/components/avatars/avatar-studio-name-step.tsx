@@ -14,20 +14,20 @@ type Props = {
   onStory: (value: string) => void;
 };
 
-// D297 — the last step: the name, asked for properly, and the optional story. Both save as they
-// are typed; the step's footer holds Save to library.
-export function AvatarStudioSaveStep({ name, story, nameError, onName, onStory }: Props) {
+// D297 — the name, asked for properly, and the optional story; both save as they are typed. The
+// first step: the preview has the avatar say their name, so it is needed before anything else.
+export function AvatarStudioNameStep({ name, story, nameError, onName, onStory }: Props) {
   const nameRef = useRef<HTMLInputElement>(null);
 
-  // Save to library refused an empty name: put the operator in the field. Not while they are
-  // already typing somewhere (the header's title shares the name and its error).
+  // Opening the Studio on this step, or Save refusing an empty name, puts the operator in the
+  // field — unless they are already typing somewhere (the header's title shares the name).
   useEffect(() => {
-    if (nameError && document.activeElement?.tagName !== "INPUT") nameRef.current?.focus();
+    if (document.activeElement?.tagName !== "INPUT") nameRef.current?.focus();
   }, [nameError]);
 
   return (
-    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-      <div className="flex flex-col gap-1.5">
+    <div className="flex max-w-xl flex-col gap-7">
+      <div className="flex flex-col gap-2">
         <Label htmlFor="avatar-name">Name</Label>
         <Input
           id="avatar-name"
@@ -38,22 +38,30 @@ export function AvatarStudioSaveStep({ name, story, nameError, onName, onStory }
           aria-invalid={nameError ? true : undefined}
           aria-describedby={nameError ? "avatar-name-error" : undefined}
           onChange={(e) => onName(e.target.value)}
+          className="h-11 max-w-sm text-base md:text-base"
         />
         {nameError && <p id="avatar-name-error" className="text-xs text-destructive-text">{nameError}</p>}
       </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="avatar-story">
-          Background story
-          <span className="ml-1.5 text-xs font-normal text-muted-foreground">Optional</span>
-        </Label>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <Label htmlFor="avatar-story">
+            Background story
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">Optional</span>
+          </Label>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {story.length}/{AVATAR_STORY_MAX}
+          </span>
+        </div>
         <Textarea
           id="avatar-story"
           value={story}
           maxLength={AVATAR_STORY_MAX}
-          rows={3}
+          rows={5}
           placeholder="Who they are, how they speak, what they care about"
           onChange={(e) => onStory(e.target.value)}
         />
+        <p className="text-xs text-muted-foreground">For the people working on this avatar: who they are, so everyone keeps them in character.</p>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarFaceLabel, avatarLifecycle, isLookDone, isStepDone, isStepOpen, stepStatusLine,
-  studioOpeningStep, STUDIO_STEPS, type StudioSnapshot,
+  avatarFaceLabel, avatarLifecycle, isLookDone, isStepDone, isStepLoading, isStepOpen, stepStatusLine,
+  studioOpeningStep, STUDIO_STEPS, voiceChoiceOf, type StudioSnapshot,
 } from "../studio";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
 import type { Avatar, AvatarVoice, AvatarVoiceSample } from "../schema";
@@ -24,9 +24,9 @@ function snap(overrides: Partial<StudioSnapshot> = {}): StudioSnapshot {
 }
 
 describe("STUDIO_STEPS", () => {
-  it("runs Look, Profile sheet, Voice, Preview, Name & save, with only the first and last required", () => {
-    expect(STUDIO_STEPS.map((s) => s.id)).toEqual(["look", "sheet", "voice", "preview", "save"]);
-    expect(STUDIO_STEPS.filter((s) => !s.optional).map((s) => s.id)).toEqual(["look", "save"]);
+  it("runs Name, Look, Profile sheet, Voice, Preview, with only the first two required", () => {
+    expect(STUDIO_STEPS.map((s) => s.id)).toEqual(["name", "look", "sheet", "voice", "preview"]);
+    expect(STUDIO_STEPS.filter((s) => !s.optional).map((s) => s.id)).toEqual(["name", "look"]);
   });
 });
 
@@ -45,15 +45,20 @@ describe("isLookDone", () => {
 });
 
 describe("isStepOpen", () => {
-  it("Look is always open, even before the avatar exists", () => {
-    expect(isStepOpen("look", snap({ avatar: null }))).toBe(true);
+  it("Name is always open, even before the avatar exists", () => {
+    expect(isStepOpen("name", snap({ avatar: null, name: "" }))).toBe(true);
   });
-  it("every other step waits for Look", () => {
+  it("Look waits for a name — the preview says it", () => {
+    expect(isStepOpen("look", snap({ avatar: null, name: "  " }))).toBe(false);
+    expect(isStepOpen("look", snap({ avatar: null, name: "Riya" }))).toBe(true);
+  });
+  it("the rest wait for Look", () => {
     const noFront = snap({ avatar: makeAvatar({ front: null, status: "draft" }) });
-    for (const id of ["sheet", "voice", "preview", "save"] as const) expect(isStepOpen(id, noFront)).toBe(false);
+    for (const id of ["sheet", "voice", "preview"] as const) expect(isStepOpen(id, noFront)).toBe(false);
   });
-  it("they open together once Look is done", () => {
-    for (const id of ["sheet", "voice", "preview", "save"] as const) expect(isStepOpen(id, snap())).toBe(true);
+  it("they open together once Look is done and there is a name", () => {
+    for (const id of ["sheet", "voice", "preview"] as const) expect(isStepOpen(id, snap())).toBe(true);
+    for (const id of ["sheet", "voice", "preview"] as const) expect(isStepOpen(id, snap({ name: "" }))).toBe(false);
   });
 });
 
@@ -69,20 +74,23 @@ describe("isStepDone", () => {
     expect(isStepDone("preview", snap({ avatar: { ...avatar, voice: NAMED }, preview }))).toBe(false);
     expect(isStepDone("preview", snap({ avatar, preview: { ...preview, status: "running" } }))).toBe(false);
   });
-  it("Name & save is done once the avatar is in the library", () => {
-    expect(isStepDone("save", snap({ avatar: makeAvatar({ status: "ready" }) }))).toBe(true);
-    expect(isStepDone("save", snap())).toBe(false);
+  it("Name is done once a name is typed", () => {
+    expect(isStepDone("name", snap())).toBe(true);
+    expect(isStepDone("name", snap({ name: "  " }))).toBe(false);
   });
 });
 
 describe("studioOpeningStep", () => {
-  it("a new avatar, or a draft without a finished Look, opens on Look", () => {
-    expect(studioOpeningStep(null)).toBe("look");
+  it("a new avatar, or a draft with no name, opens on Name", () => {
+    expect(studioOpeningStep(null)).toBe("name");
+    expect(studioOpeningStep(makeAvatar({ status: "draft", name: " " }))).toBe("name");
+  });
+  it("a named draft without a finished Look opens on Look", () => {
     expect(studioOpeningStep(makeAvatar({ status: "draft", front: null }))).toBe("look");
     expect(studioOpeningStep(makeAvatar({ status: "draft", likenessConsentAt: null }))).toBe("look");
   });
-  it("an avatar in the library opens on Name & save", () => {
-    expect(studioOpeningStep(makeAvatar({ status: "ready" }))).toBe("save");
+  it("an avatar in the library opens on its last step, where Done is", () => {
+    expect(studioOpeningStep(makeAvatar({ status: "ready" }))).toBe("preview");
   });
   it("a draft opens on its first unfinished optional step", () => {
     expect(studioOpeningStep(makeAvatar({ status: "draft", sheet: null }))).toBe("sheet");
@@ -95,8 +103,8 @@ describe("studioOpeningStep", () => {
 describe("stepStatusLine", () => {
   it("Look asks for a front, names the image model, or asks for permission", () => {
     expect(stepStatusLine("look", snap({ avatar: null }))).toBe("Needed");
-    expect(stepStatusLine("look", snap({ avatar: generated() }))).toBe("Seedream 5.0 Lite");
-    expect(stepStatusLine("look", snap({ avatar: makeAvatar() }))).toBe("Uploaded photo");
+    expect(stepStatusLine("look", snap({ avatar: generated() }))).toBe("Generic");
+    expect(stepStatusLine("look", snap({ avatar: makeAvatar() }))).toBe("Specific");
     expect(stepStatusLine("look", snap({ avatar: makeAvatar({ likenessConsentAt: null }) }))).toBe("Needs permission");
   });
   it("the sheet line follows its state", () => {
@@ -114,20 +122,19 @@ describe("stepStatusLine", () => {
   });
   it("the voice line names the voice", () => {
     expect(stepStatusLine("voice", snap({ avatar: makeAvatar({ voice: NAMED }) }))).toBe("Surabhi");
-    expect(stepStatusLine("voice", snap({ avatar: generated({ voice: { mode: "native" } }) }))).toBe("Engine's own voice");
+    expect(stepStatusLine("voice", snap({ avatar: generated({ voice: { mode: "native" } }) }))).toBe("Chosen for me");
   });
   it("the preview says when it saved a voice reference, and when it is out of date", () => {
     const avatar = generated({ voice: { mode: "native" }, voiceSample: SAMPLE });
     const preview = { status: "succeeded", mode: "native", voiceId: null, frontUrl: avatar.front!.url } as const;
-    expect(stepStatusLine("preview", snap({ avatar, preview }))).toBe("Voice reference saved");
+    expect(stepStatusLine("preview", snap({ avatar, preview }))).toBe("Voice kept");
     expect(stepStatusLine("preview", snap({ avatar: { ...avatar, voiceSample: null }, preview }))).toBe("Clip ready");
     expect(stepStatusLine("preview", snap({ avatar: { ...avatar, voice: NAMED }, preview }))).toBe("Out of date");
     expect(stepStatusLine("preview", snap({ avatar, preview: { ...preview, status: "running" } }))).toBe("Generating…");
   });
-  it("Name & save follows the name being typed, not the stored one", () => {
-    expect(stepStatusLine("save", snap({ name: "  " }))).toBe("Needs a name");
-    expect(stepStatusLine("save", snap({ name: "Riya" }))).toBe("Ready to save");
-    expect(stepStatusLine("save", snap({ avatar: makeAvatar({ status: "ready" }) }))).toBe("In the library");
+  it("Name follows the name being typed, not the stored one", () => {
+    expect(stepStatusLine("name", snap({ name: "  " }))).toBe("Needed");
+    expect(stepStatusLine("name", snap({ name: "Riya" }))).toBe("Riya");
   });
 });
 
@@ -141,8 +148,26 @@ describe("avatarLifecycle", () => {
 
 describe("avatarFaceLabel", () => {
   it("says how the face was made", () => {
-    expect(avatarFaceLabel(makeAvatar())).toBe("Real person");
-    expect(avatarFaceLabel(generated())).toBe("Generated · Seedream 5.0 Lite");
+    expect(avatarFaceLabel(makeAvatar())).toBe("Specific");
+    expect(avatarFaceLabel(generated())).toBe("Generic");
     expect(avatarFaceLabel(makeAvatar({ front: null }))).toBeNull();
+  });
+});
+
+describe("isStepLoading", () => {
+  it("holds the Preview step while its preview is being read, and only that step", () => {
+    expect(isStepLoading("preview", snap({ previewLoading: true }))).toBe(true);
+    expect(isStepLoading("voice", snap({ previewLoading: true }))).toBe(false);
+    expect(isStepLoading("preview", snap({}))).toBe(false);
+  });
+});
+
+describe("voiceChoiceOf", () => {
+  it("opens the Voice step on the card the declaration came from", () => {
+    expect(voiceChoiceOf({ mode: "native" })).toBe("auto");
+    expect(voiceChoiceOf({ ...NAMED, origin: "custom" } as AvatarVoice)).toBe("custom");
+    expect(voiceChoiceOf({ ...NAMED, origin: "library" } as AvatarVoice)).toBe("library");
+    expect(voiceChoiceOf(NAMED)).toBe("library");
+    expect(voiceChoiceOf(null)).toBeNull();
   });
 });

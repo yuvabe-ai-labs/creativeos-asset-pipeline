@@ -24,7 +24,7 @@ export function PresenterSwitch({ promptNodeId }: { promptNodeId: string }) {
         <img src={avatar.front.url} alt="" className="size-8 shrink-0 rounded-md object-cover" />
       ) : null}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-foreground">Presenter: {avatar.name || "Unnamed"}</p>
+        <p className="truncate text-xs font-medium text-foreground">Avatar: {avatar.name || "Unnamed"}</p>
         <label htmlFor={id} className="text-[0.7rem] text-muted-foreground">In this shot</label>
       </div>
       <Switch
@@ -33,7 +33,7 @@ export function PresenterSwitch({ promptNodeId }: { promptNodeId: string }) {
         checked={inShot}
         disabled={!editable}
         onCheckedChange={(checked) => updateNodeData(promptNodeId, { presenter: { inShot: checked } })}
-        aria-label={`${avatar.name || "Presenter"} in this shot`}
+        aria-label={`${avatar.name || "Avatar"} in this shot`}
       />
     </div>
   );

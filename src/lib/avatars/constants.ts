@@ -23,7 +23,7 @@ export const AVATAR_STORY_MAX = 1000;
 
 export const PERSON_TYPE_LABELS: Record<PersonType, string> = {
   generic: "Generic",
-  specific: "Real person",
+  specific: "Specific",
 };
 
 export const LIKENESS_CONSENT_STATEMENT = "I have this person's permission to use their likeness";
@@ -54,7 +54,7 @@ export const AVATAR_FRONT_ASPECT = "3:4";
 export const AVATAR_SHEET_ASPECT = "16:9";
 
 // Two, not four: enough to compare, and half the credits on a first try (operator, 2026-10-01).
-export const AVATAR_BATCH_DEFAULT = 2;
+export const AVATAR_BATCH_DEFAULT = 4;
 export const AVATAR_BATCH_MAX = 8;
 export const AVATAR_DESCRIPTION_MAX = 1500;
 
@@ -106,8 +106,8 @@ export const SEEDANCE_FACE_MODEL_ID = "seedream:seedream-5-0-lite";
 
 // A generated avatar runs on Seedance, so the default is the model Seedance will take.
 export const AVATAR_DEFAULT_FRONT_MODEL_ID = SEEDANCE_FACE_MODEL_ID;
-// The handoff design takes the model sheet from Nano Banana, whichever face it starts with.
-export const AVATAR_DEFAULT_SHEET_MODEL_ID = "gemini:gemini-3-pro-image";
+// The profile sheet defaults to Nano Banana 2, whichever face it starts with.
+export const AVATAR_DEFAULT_SHEET_MODEL_ID = "gemini:gemini-3.1-flash-image";
 
 // A stored upload name as buildStoredName produces it: slug, "__", timestamp, extension. Used as
 // an allow-list by the upload finalize route, so a crafted name ("..", a backslash, "%2e") can

@@ -150,13 +150,30 @@ export function presenterVideoNotes(args: {
   const notes: string[] = [];
   if (provider === "seedance") {
     if (hasStartFrame) {
-      notes.push("Seedance uses the still as its first frame, so the presenter's face can't be sent as well. The voice still is.");
+      notes.push("Seedance uses the still as its first frame, so the avatar's face can't be sent as well. The voice still is.");
     }
     if (avatar.voice?.mode === "native" && !matchingVoiceReference(avatar)) {
-      notes.push("The presenter's voice reference is missing, so Seedance will make up a voice. Make a voice preview in the Studio to record one.");
+      notes.push("The avatar's voice isn't kept yet, so Seedance will make one up. Make a voice preview in the Studio to keep one.");
     }
-  } else if (avatar.voice?.mode === "native") {
-    notes.push("Only Seedance keeps the engine's own voice the same across clips.");
+  } else if (avatar.voice?.mode === "native" && !avatar.voice.autoVoice) {
+    // With an auto voice (D301), Edit voice offers it on these models, so the voice does carry.
+    notes.push("Only Seedance keeps this avatar's voice the same across clips.");
   }
   return notes;
+}
+
+/** D299/D301 — the voice Edit voice pre-selects for the presenter: its named voice, or the auto
+ *  voice kept for a voice chosen for it. Null when there is neither. */
+export function presenterDefaultVoiceId(avatar: Pick<Avatar, "voice">): string | null {
+  const voice = avatar.voice;
+  if (voice?.mode === "named") return voice.voiceId;
+  return voice?.mode === "native" ? voice.autoVoice?.voiceId ?? null : null;
+}
+
+/** D301 — a voice chosen for the avatar whose latest kept sample has no auto voice cloned from it:
+ *  the clone failed, so the voice is not yet kept for models other than Seedance. */
+export function avatarAutoVoiceMissing(avatar: Pick<Avatar, "voice" | "voiceSample">): boolean {
+  if (avatar.voice?.mode !== "native" || !avatar.voiceSample) return false;
+  if (avatar.voiceSample.sourceKey.startsWith(NAMED_SAMPLE_PREFIX)) return false;
+  return avatar.voice.autoVoice?.sourceKey !== avatar.voiceSample.sourceKey;
 }

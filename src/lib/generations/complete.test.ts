@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   uploadVideoGen: vi.fn(async () => ({ url: "https://storage.googleapis.com/b/uploaded.mp4" })),
   getClientById: vi.fn(async (): Promise<{ id: string; org_id: string } | null> => ({ id: "c1", org_id: "org-1" })),
   updateAvatar: vi.fn(async () => null),
+  keepAutoVoice: vi.fn(async (): Promise<string | null> => "auto1"),
 }));
 
 vi.mock("@/lib/db/versions", () => ({
@@ -32,6 +33,7 @@ vi.mock("@/lib/storage", () => ({
 }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: mocks.getClientById }));
 vi.mock("@/lib/db/avatars", () => ({ updateAvatar: mocks.updateAvatar }));
+vi.mock("@/lib/avatars/auto-voice", () => ({ keepAutoVoice: mocks.keepAutoVoice }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: () => ({
     from: () => ({
@@ -175,14 +177,14 @@ describe("completeGeneration — an avatar's voice preview (D294)", () => {
       avatar_id: "a1",
       client_id: "c1",
       type: "video",
-      params_snapshot: voicePreviewParams("named"),
+      params_snapshot: voicePreviewParams("omni"),
       inputs_snapshot: { slot: AVATAR_VOICE_PREVIEW_SLOT, mode: "named", line: "Hi.", voiceId: "v1", voiceName: "Surabhi", priceMultiplier: 2, frontUrl: "f" },
     };
   });
 
   it("settles the clip plus the voice change and records the stored clip, with no version", async () => {
     await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: PREVIEW, durationSeconds: 6, meta: { voiceChange: { driftMs: 30 } } });
-    const credits = usdToFinalCredits(voicePreviewCostUsd("named", 6, "720p", 2)!);
+    const credits = usdToFinalCredits(voicePreviewCostUsd("named", "omni", 6, "720p", 2)!);
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ generationId: "g1", actualAmount: credits }));
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({
       generationId: "g1", outputSnapshot: PREVIEW, creditsCharged: credits, meta: { voiceChange: { driftMs: 30 } },
@@ -236,7 +238,7 @@ describe("completeGeneration — a native voice preview keeps its voice (D296)",
       client_id: "c1",
       type: "video",
       model_used: SEEDANCE_MODEL_ID,
-      params_snapshot: voicePreviewParams("native"),
+      params_snapshot: voicePreviewParams("seedance"),
       inputs_snapshot: { slot: AVATAR_VOICE_PREVIEW_SLOT, mode: "native", line: "Hi.", frontUrl: "f" },
     };
   });
@@ -246,7 +248,7 @@ describe("completeGeneration — a native voice preview keeps its voice (D296)",
 
   it("settles the Seedance clip alone and records the extracted voice on the avatar", async () => {
     await succeed({ voiceSample: { url: SAMPLE, durationSeconds: 4.8 } });
-    const credits = usdToFinalCredits(voicePreviewCostUsd("native", 5, "480p", 1)!);
+    const credits = usdToFinalCredits(voicePreviewCostUsd("native", "seedance", 5, "480p", 1)!);
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ generationId: "g1", actualAmount: credits }));
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ outputSnapshot: CLIP, creditsCharged: credits }));
     expect(mocks.updateAvatar).toHaveBeenCalledWith("c1", "a1", {
@@ -255,11 +257,19 @@ describe("completeGeneration — a native voice preview keeps its voice (D296)",
     expect(mocks.insertVersion).not.toHaveBeenCalled();
   });
 
+  it("keeps the voice as an auto voice before marking the preview succeeded (D301)", async () => {
+    await succeed({ voiceSample: { url: SAMPLE, durationSeconds: 4.8 } });
+    expect(mocks.keepAutoVoice).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: "c1", avatarId: "a1", sample: { url: SAMPLE, durationSeconds: 4.8, sourceKey: "g1" },
+    }));
+    expect(mocks.keepAutoVoice.mock.invocationCallOrder[0]).toBeLessThan(mocks.succeedGeneration.mock.invocationCallOrder[0]);
+  });
+
   it("does not price the voice change into a native preview — Seedance's voice arrives with the clip", async () => {
     mocks.generation = { ...mocks.generation, inputs_snapshot: { ...(mocks.generation.inputs_snapshot as object), priceMultiplier: 3 } };
     await succeed({ voiceSample: { url: SAMPLE, durationSeconds: 4.8 } });
     expect(mocks.settleGeneration).toHaveBeenCalledWith(
-      expect.objectContaining({ actualAmount: usdToFinalCredits(voicePreviewCostUsd("native", 5, "480p", 1)!) }),
+      expect.objectContaining({ actualAmount: usdToFinalCredits(voicePreviewCostUsd("native", "seedance", 5, "480p", 1)!) }),
     );
   });
 

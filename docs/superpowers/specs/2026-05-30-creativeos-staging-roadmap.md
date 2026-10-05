@@ -6286,6 +6286,28 @@ for no user-visible gain; they move as they are touched). AGENTS.md as a symlink
 **Originated →** operator request, 2026-10-01; `AGENTS.md` ("Data fetching").
 
 
+### D301 — An avatar's voice is chosen three ways; "chosen for me" is kept everywhere as an auto voice *(recorded 2026-10-01)*
+
+**Decision.** The Studio's Voice step offers **Choose a voice for me** (the engine's own voice),
+**Pick from the library** (a named ElevenLabs voice) and **Create a custom voice** (Instant Voice
+Clone from an uploaded recording, behind a consent tick), for every face. "Chosen for me" is made by
+Seedance when the face came from Seedream 5.0 Lite and by Gemini Omni otherwise. Its preview's audio
+is kept as the voice reference and also cloned into an ElevenLabs **auto voice** recorded on the
+declaration (`voice.autoVoice`), which Edit voice pre-selects on Gemini Omni, Kling and Veo. A new
+preview replaces the auto voice. The Voice and Preview steps name no engine, model or provider.
+
+**Why.** "The engine's own voice" was only possible on Seedream faces and only consistent on
+Seedance; cloning it makes one voice follow the avatar onto every model. Operators asked for plain
+choices rather than model names.
+
+**Rejected.** Voice Design from a text description (cloning chosen). Recording in the browser
+(upload only). Keeping an Omni voice for the preview only (inconsistent across videos). Restricting
+"chosen for me" to Seedream faces. Listing auto voices in the library picker.
+
+**Refines.** D292 (the clone form, inline), D293 (the declaration gains `autoVoice`, `origin`),
+D296 (the native engine follows the face), D297 (the Voice step), D299 (Edit voice's default).
+
+**Originated →** `2026-10-01-avatar-voice-choices-design.md`.
 ### D302 — Brand assets are imported from the website, Instagram and Facebook by one parallel Apify job per source *(recorded 2026-10-05)*
 
 **Decision.** The Brand KB setup collects the brand's Instagram and Facebook beside its website

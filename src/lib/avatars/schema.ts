@@ -28,17 +28,21 @@ export type AvatarImage = {
   source: AvatarImageSource;
 };
 
-// D293 — the avatar's voice declaration. "native" is the engine's own generated voice; "named"
-// is an ElevenLabs account voice, applied by re-voicing after generation.
+// D293 — the avatar's voice declaration. "native" is the engine's own generated voice ("Choose a
+// voice for me"); "named" is an ElevenLabs account voice, applied by re-voicing after generation.
+// D301 — a native voice carries the ElevenLabs voice cloned from its preview (`autoVoice`, paired
+// with the voice sample by `sourceKey`), so it follows the avatar onto every model; a named voice
+// records which Studio card it came from (`origin`, missing = "library").
 export type AvatarVoiceMode = "native" | "named";
 export type AvatarVoice =
-  | { mode: "native" }
+  | { mode: "native"; autoVoice?: { voiceId: string; sourceKey: string } }
   | {
       mode: "named";
       voiceId: string;
       name: string;
       labels: Record<string, string | undefined>;
       previewUrl: string | null;
+      origin?: "library" | "custom";
     };
 
 export type AvatarVoiceSample = { url: string; durationSeconds: number; sourceKey: string };

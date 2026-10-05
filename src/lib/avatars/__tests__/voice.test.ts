@@ -14,12 +14,9 @@ const NAMED: AvatarVoice = {
 };
 
 describe("allowedVoiceModes", () => {
-  it("a generated avatar can use its engine's own voice or a named one", () => {
+  it("any face can have a voice chosen for it, or a named one (D301)", () => {
     expect(allowedVoiceModes("generic")).toEqual(["native", "named"]);
-  });
-
-  it("a real person runs on an engine that takes no audio input: a named voice only", () => {
-    expect(allowedVoiceModes("specific")).toEqual(["named"]);
+    expect(allowedVoiceModes("specific")).toEqual(["native", "named"]);
   });
 
   it("nothing can be declared before there is a front image", () => {
@@ -28,19 +25,16 @@ describe("allowedVoiceModes", () => {
 });
 
 describe("isVoiceAllowed", () => {
-  it("refuses the native voice for a real person", () => {
-    expect(isVoiceAllowed(NATIVE, "specific")).toBe(false);
-    expect(isVoiceAllowed(NATIVE, "generic")).toBe(true);
-    expect(isVoiceAllowed(NAMED, "specific")).toBe(true);
+  it("allows either voice on any face, and nothing before there is one", () => {
+    expect(isVoiceAllowed(NATIVE, "specific")).toBe(true);
+    expect(isVoiceAllowed(NAMED, "generic")).toBe(true);
+    expect(isVoiceAllowed(NATIVE, null)).toBe(false);
   });
 });
 
 describe("voiceAfterFrontChange", () => {
-  it("drops a native voice when the avatar becomes a real person", () => {
-    expect(voiceAfterFrontChange(NATIVE, "specific")).toBeNull();
-  });
-
-  it("keeps a named voice, and keeps a native one on a generated avatar", () => {
+  it("keeps every voice across a front change — the preview goes stale instead (D301)", () => {
+    expect(voiceAfterFrontChange(NATIVE, "specific")).toBe(NATIVE);
     expect(voiceAfterFrontChange(NAMED, "specific")).toBe(NAMED);
     expect(voiceAfterFrontChange(NATIVE, "generic")).toBe(NATIVE);
     expect(voiceAfterFrontChange(null, "specific")).toBeNull();
@@ -48,9 +42,11 @@ describe("voiceAfterFrontChange", () => {
 });
 
 describe("frontChangePatch and the voice", () => {
-  it("clears a native voice when an uploaded photo replaces a generated face", () => {
+  it("keeps a voice chosen for the avatar when an uploaded photo replaces a generated face", () => {
     const current = makeAvatar({ personType: "generic", front: makeImage(GENERATED), voice: NATIVE });
-    expect(frontChangePatch(current, makeImage())).toMatchObject({ personType: "specific", voice: null });
+    const patch = frontChangePatch(current, makeImage());
+    expect(patch).toMatchObject({ personType: "specific" });
+    expect(patch).not.toHaveProperty("voice");
   });
 
   it("leaves a named voice alone on any front change", () => {
@@ -60,9 +56,9 @@ describe("frontChangePatch and the voice", () => {
 });
 
 describe("avatarVoiceLabel", () => {
-  it("names the voice, or says the engine's own", () => {
+  it("names the voice, or says it was chosen for the avatar", () => {
     expect(avatarVoiceLabel(NAMED)).toBe("Surabhi");
-    expect(avatarVoiceLabel(NATIVE)).toBe("Engine's own voice");
+    expect(avatarVoiceLabel(NATIVE)).toBe("Chosen for me");
     expect(avatarVoiceLabel(null)).toBeNull();
   });
 });
@@ -86,5 +82,12 @@ describe("pickerVoiceToAvatarVoice", () => {
     expect(pickerVoiceToAvatarVoice(picked)).toEqual({
       mode: "named", voiceId: "v9", name: "James", labels: { gender: "male", accent: "indian" }, previewUrl: null,
     });
+  });
+  it("records where the voice came from when told", () => {
+    const picked: PickerVoice = {
+      voiceId: "v9", source: "account", name: "James", description: null, previewUrl: null,
+      labels: {}, category: "cloned", priceMultiplier: 1,
+    };
+    expect(pickerVoiceToAvatarVoice(picked, "custom")).toMatchObject({ origin: "custom" });
   });
 });

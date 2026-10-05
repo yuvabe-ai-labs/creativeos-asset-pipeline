@@ -22,10 +22,10 @@ const TYPE_LABEL: Record<string, string> = {
   multishot: "Multishot",
 };
 
-/** D299 — the presenter's virtual row is labelled "Presenter", so the roster reads
+/** D299 — the avatar's virtual row is labelled "Avatar", so the roster reads
  *  "Presenter: Riya" rather than "File: Riya". */
 function labelOf(u: { type: string; data: Record<string, unknown> }): string {
-  return u.data.presenter === true ? "Presenter" : TYPE_LABEL[u.type] ?? u.type;
+  return u.data.presenter === true ? "Avatar" : TYPE_LABEL[u.type] ?? u.type;
 }
 
 export type UpstreamPreview = {

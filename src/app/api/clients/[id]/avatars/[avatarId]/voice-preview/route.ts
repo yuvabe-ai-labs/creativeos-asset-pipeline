@@ -3,7 +3,7 @@ import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar } from "@/lib/db/avatars";
-import { insertGeneration, failGeneration, getLatestAvatarVoicePreview } from "@/lib/db/generations";
+import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
@@ -13,11 +13,9 @@ import { signAvatarVoicePreviewUrl, signAvatarVoiceSampleUrl } from "@/lib/stora
 import { AVATAR_VOICE_PREVIEW_LINE_MAX, AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
 import {
   buildVoicePreviewPrompt, estimateVoicePreviewCredits, generationToVoicePreview,
-  isVoicePreviewAbandoned, voicePreviewBlocker, voicePreviewMode, voicePreviewParams,
-  VOICE_PREVIEW_ENGINE, VOICE_PREVIEW_TIMED_OUT_MESSAGE,
+  voicePreviewBlocker, voicePreviewEngine, voicePreviewMode, voicePreviewParams, VOICE_PREVIEW_ENGINE,
 } from "@/lib/avatars/voice-preview";
-import type { Avatar } from "@/lib/avatars/schema";
-import type { GenerationRow } from "@/lib/db/types";
+import { loadVoicePreviewState, readLatestPreview } from "@/lib/avatars/studio-server";
 import type { AvatarVoicePreviewTaskPayload } from "@/lib/avatars/voice-preview-run";
 
 export const dynamic = "force-dynamic";
@@ -28,32 +26,6 @@ const BodySchema = z.object({
   line: z.string().trim().min(1).max(AVATAR_VOICE_PREVIEW_LINE_MAX),
 });
 
-/** The avatar's latest preview. One left "running" by a lost task or webhook is failed and
- *  refunded here, on read, so it stops blocking the next preview as soon as the Studio looks.
- *  The reconcile-stuck-generations sweep does the same on its own schedule; both are idempotent
- *  (refundReservation refunds a generation once). */
-async function readLatestPreview(avatarId: string): Promise<GenerationRow | null> {
-  const row = await getLatestAvatarVoicePreview(avatarId);
-  if (!row || !isVoicePreviewAbandoned(row)) return row;
-  await failGeneration({ generationId: row.id, error: VOICE_PREVIEW_TIMED_OUT_MESSAGE });
-  await refundReservation({ orgId: row.org_id, generationId: row.id });
-  return { ...row, status: "failed", error: VOICE_PREVIEW_TIMED_OUT_MESSAGE };
-}
-
-/** What the next preview would cost. A legacy custom-rate ElevenLabs voice costs a multiple of
- *  the standard rate (D283); Seedance's own voice has no such rate, so a native preview asks
- *  ElevenLabs nothing. Display-only, so an unreachable ElevenLabs falls back to the standard
- *  rate rather than failing the read. */
-async function estimateFor(avatar: Avatar): Promise<number | null> {
-  const mode = voicePreviewMode(avatar);
-  if (!mode) return null;
-  if (mode === "native") return estimateVoicePreviewCredits("native");
-  const voice = avatar.voice?.mode === "named"
-    ? await getVoiceCached(avatar.voice.voiceId).catch(() => null)
-    : null;
-  return estimateVoicePreviewCredits("named", voice?.priceMultiplier ?? 1);
-}
-
 // GET …/voice-preview — the latest preview in whatever state it is in (the Studio polls this
 // while one is running) and what the next one would cost.
 export async function GET(req: Request, { params }: Ctx) {
@@ -62,8 +34,7 @@ export async function GET(req: Request, { params }: Ctx) {
     withTryCatch("Could not load the voice preview.", async () => {
       const avatar = await getAvatar(clientId, avatarId);
       if (!avatar) return apiError("Avatar not found.", 404);
-      const [row, estimateCredits] = await Promise.all([readLatestPreview(avatarId), estimateFor(avatar)]);
-      return apiOk({ preview: row ? generationToVoicePreview(row) : null, estimateCredits });
+      return apiOk(await loadVoicePreviewState(avatar));
     }),
   );
 }
@@ -85,7 +56,8 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!avatar || avatar.archivedAt) return apiError("Avatar not found.", 404);
       const blocker = voicePreviewBlocker(avatar);
       const mode = voicePreviewMode(avatar);
-      if (blocker || !mode || !avatar.front) {
+      const engine = voicePreviewEngine(avatar);
+      if (blocker || !mode || !engine || !avatar.front) {
         return apiError(blocker ?? "This avatar cannot have a preview yet.", 400);
       }
       // Only a named voice involves ElevenLabs at all.
@@ -109,7 +81,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const caller = await resolveCallerContext();
       const line = parsed.data.line;
       const prompt = buildVoicePreviewPrompt(line, mode);
-      const paramsSnapshot = voicePreviewParams(mode);
+      const paramsSnapshot = voicePreviewParams(engine);
       const generation = await insertGeneration({
         avatarId,
         orgId: client.org_id,
@@ -117,11 +89,12 @@ export async function POST(req: Request, { params }: Ctx) {
         userId: caller.userId,
         userEmail: caller.email,
         type: "video",
-        modelUsed: VOICE_PREVIEW_ENGINE[mode].modelId,
+        modelUsed: VOICE_PREVIEW_ENGINE[engine].modelId,
         paramsSnapshot,
         inputsSnapshot: {
           slot: AVATAR_VOICE_PREVIEW_SLOT,
           mode,
+          engine,
           line,
           prompt,
           frontUrl: avatar.front.url,
@@ -132,7 +105,7 @@ export async function POST(req: Request, { params }: Ctx) {
       });
 
       try {
-        const credits = estimateVoicePreviewCredits(mode, voice?.priceMultiplier ?? 1);
+        const credits = estimateVoicePreviewCredits(mode, engine, voice?.priceMultiplier ?? 1);
         if (credits === null) throw new Error("No cost estimate available for the voice preview.");
         const reservation = await reserveCredits(client.org_id, generation.id, credits);
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
@@ -145,6 +118,7 @@ export async function POST(req: Request, { params }: Ctx) {
           const sample = await signAvatarVoiceSampleUrl({ clientId, avatarId, generationId: generation.id });
           payload = {
             mode: "native",
+            engine,
             generationId: generation.id,
             frontUrl: avatar.front.url,
             prompt,
