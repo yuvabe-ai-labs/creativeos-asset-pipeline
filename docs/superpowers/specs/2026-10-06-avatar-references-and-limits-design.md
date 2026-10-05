@@ -123,3 +123,22 @@ Seedream avatars; otherwise Seedance stays front only.
   beating priority); the avatar rows with and without a sheet; prompt numbering over \`sent\`.
 - **Route:** sends exactly \`sent\`; refuses over the cap; Seedance never gets the sheet.
 - **Browser:** the toggle and the left-out display, by hand.
+
+## 9. As built (2026-10-06)
+
+Built as designed, with these additions:
+
+- **Frames that exclude references.** `selectReferences` also takes `framesExcludeReferences`
+  (from `areFramesAndRefsExclusive`): on a model like Veo, a start or end frame means no
+  references, each left out with "{model} can't use references with a start or end frame".
+- **Defaults are no longer saved as references.** Video Gen used to save "reference" on every
+  unassigned image, uncapped, which put nodes over the model's cap. On models that take references it
+  now saves nothing and lets the shared rule place them; on models that take none it still saves the
+  start-frame default.
+- **Saved references over the cap** (a node from before, or a model switch) disable Generate with the
+  route's own message, so the refusal is seen before the click.
+- **The prompt is re-numbered only when something is left out.** With every image sent, the request
+  is byte-identical to before.
+- **`upstream-images`** returns the prompt's cited image ids and the avatar's front and sheet ids,
+  so the screen runs the same selection as the route.
+- **Not verified in a browser**; components checked with `tsc` and eslint.

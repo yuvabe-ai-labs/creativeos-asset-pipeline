@@ -42,20 +42,20 @@ export const avatarSheetId: (avatarNodeId: string) => string; // `${id}:sheet`
 ```
 Rules: frames are skipped (not references); `off` → left out "Turned off"; unusable → its reason; explicit `reference` first in order, up to cap (beyond the cap counts toward `overCap`, left out "No room: …"); unassigned fill free slots by priority (front, cited, sheet, rest in order); the rest left out "No room: {model} takes {cap}". `cap === 0` → every non-frame image left out "{model} takes no reference images".
 
-- [ ] Tests for each rule, run (fail), implement, run (pass), commit `feat(video-gen): one rule chooses the references a request sends (D308)`.
+- [x] Tests for each rule, run (fail), implement, run (pass), commit `feat(video-gen): one rule chooses the references a request sends (D308)`.
 
 ### Task 2: The avatar's sheet as a second virtual input
 
 **Files:** `src/lib/avatars/presenter.ts` (`presenterUpstreamRows(avatarNodeId, avatar): UpstreamOutput[]` — front, plus sheet when present and not stale, id `avatarSheetId(...)`, `data.presenter: "sheet"`, writer text per spec §2), `src/lib/avatars/presenter-server.ts` (`withPresenterRow` appends all rows), `src/lib/nodes/resolve-inputs.ts` (`labelOf`: "Avatar sheet" for the sheet row), `src/hooks/use-mention-upstream.ts` (adds the sheet item, type `avatar`). Tests in `presenter.test.ts`, `presenter-server.test.ts`.
 
-- [ ] Tests (rows with/without sheet, stale sheet skipped, server appends both), implement, run, commit `feat(avatars): the profile sheet goes in after the front (D308)`.
+- [x] Tests (rows with/without sheet, stale sheet skipped, server appends both), implement, run, commit `feat(avatars): the profile sheet goes in after the front (D308)`.
 
 ### Task 3: The route sends exactly what was chosen
 
 **Files:** `src/app/api/nodes/[id]/video-generate/route.ts`, `src/lib/video-gen/resolve-prompt.ts` (export `renderResolvedPrompt(resolved, refOrder)`), route test.
 
 - Build `citedIds` (multishot: `planCitedRefIds`; motion prompt: `citedRefIds`), `unusable` (sheet on Seedance), call `selectReferences`; `overCap > 0` → 400 with the spec message; reference URLs = `sent` in order (frames unchanged); the prompt re-rendered over `sent` (left-out citations become names); `checkPlanLimits` measured over `sent`.
-- [ ] Route tests: sends `sent`; refuses over cap; Seedance never gets the sheet; prompt numbered over `sent`. Commit `fix(video-gen): send exactly the chosen references, numbered as sent (D308)`.
+- [x] Route tests: sends `sent`; refuses over cap; Seedance never gets the sheet; prompt numbered over `sent`. Commit `fix(video-gen): send exactly the chosen references, numbered as sent (D308)`.
 
 ### Task 4: Video Gen shows the choice; roles toggle off
 
@@ -63,8 +63,27 @@ Rules: frames are skipped (not references); `off` → left out "Turned off"; unu
 
 - Clicking the active role sets `off` (stored). Clicking a role on an `off` image sets it.
 - `selectReferences` runs on the same inputs as the route (cited ids from the plan/prompt, the avatar ids from `useShotPresenter`, the Seedance sheet rule); left-out images show dimmed in the rail and the image panel with their reason; the Reference chip reads "Off" state clearly.
-- [ ] `tsc`, eslint, commit `feat(video-gen): see which references go, and turn a role off by clicking it again (D308)`.
+- [x] `tsc`, eslint, commit `feat(video-gen): see which references go, and turn a role off by clicking it again (D308)`.
 
 ### Task 5: Record it
 
-- [ ] As-built notes here and in the spec; commit.
+- [x] As-built notes here and in the spec; commit.
+
+## As built (2026-10-06)
+
+Commits: `7c5a9783` (selectReferences, off), `e0e23da9` (the sheet), `7619d757` (route), `10656e15` (Video Gen).
+
+- **Frames that exclude references.** `selectReferences` also takes `framesExcludeReferences`
+  (from `areFramesAndRefsExclusive`): on a model like Veo, a start or end frame means no
+  references, each left out with "{model} can't use references with a start or end frame".
+- **Defaults are no longer saved as references.** Video Gen used to save "reference" on every
+  unassigned image, uncapped, which put nodes over the model's cap. On models that take references it
+  now saves nothing and lets the shared rule place them; on models that take none it still saves the
+  start-frame default.
+- **Saved references over the cap** (a node from before, or a model switch) disable Generate with the
+  route's own message, so the refusal is seen before the click.
+- **The prompt is re-numbered only when something is left out.** With every image sent, the request
+  is byte-identical to before.
+- **`upstream-images`** returns the prompt's cited image ids and the avatar's front and sheet ids,
+  so the screen runs the same selection as the route.
+- **Not verified in a browser**; components checked with `tsc` and eslint.
