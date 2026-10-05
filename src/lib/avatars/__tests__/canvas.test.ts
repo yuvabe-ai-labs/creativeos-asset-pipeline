@@ -61,7 +61,7 @@ describe("replacedPresenterEdges", () => {
 describe("avatarVoiceLine", () => {
   it("names the voice the avatar speaks with", () => {
     expect(avatarVoiceLine(null)).toBe("No voice");
-    expect(avatarVoiceLine({ mode: "native" })).toBe("Engine's own voice");
+    expect(avatarVoiceLine({ mode: "native" })).toBe("Chosen for me");
     expect(avatarVoiceLine({ mode: "named", voiceId: "x", name: "Surabhi", labels: {}, previewUrl: null })).toBe("Surabhi");
   });
 });

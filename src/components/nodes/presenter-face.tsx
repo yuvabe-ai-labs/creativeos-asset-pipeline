@@ -7,7 +7,7 @@ import { useShotPresenter } from "@/hooks/use-shot-presenter";
 export function PresenterFace({ promptNodeId }: { promptNodeId: string }) {
   const presenter = useShotPresenter(promptNodeId);
   if (!presenter?.inShot || !presenter.avatar.front) return null;
-  const label = `Presenter: ${presenter.avatar.name || "Unnamed"} — in this shot`;
+  const label = `Avatar: ${presenter.avatar.name || "Unnamed"} — in this shot`;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- a storage URL, sized by CSS
     <img

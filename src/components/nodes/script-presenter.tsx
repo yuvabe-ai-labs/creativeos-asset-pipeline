@@ -56,7 +56,7 @@ export function ScriptPresenterRow({ scriptId, parsed }: { scriptId: string; par
       >
         <Face avatar={presenter.avatar} size="sm" />
         <span className="min-w-0 truncate text-xs font-medium">{presenter.avatar.name}</span>
-        <span className="ml-auto text-[0.65rem] text-muted-foreground">Presenter</span>
+        <span className="ml-auto text-[0.65rem] text-muted-foreground">Avatar</span>
       </Button>
     );
   }
@@ -68,7 +68,7 @@ export function ScriptPresenterRow({ scriptId, parsed }: { scriptId: string; par
       className={cn(ADD_CHIP, "self-start")}
     >
       <Plus className="size-3" strokeWidth={1.5} />
-      Presenter
+      Avatar
     </Button>
   );
 }
@@ -85,7 +85,7 @@ export function ScriptPresenterBlock({ scriptId, onOpenGallery }: { scriptId: st
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" onClick={onOpenGallery} className={ADD_CHIP}>
           <Plus className="size-3" strokeWidth={1.5} />
-          Add a presenter
+          Add an avatar
         </Button>
         <span className="text-xs text-muted-foreground">
           Optional. The avatar whose face and voice this script&apos;s stills and videos use.
@@ -99,7 +99,7 @@ export function ScriptPresenterBlock({ scriptId, onOpenGallery }: { scriptId: st
     <div className="flex flex-wrap items-center gap-3">
       <Face avatar={avatar} size="md" />
       <div className="flex min-w-0 flex-col">
-        <span className="text-eyebrow text-muted-foreground">Presenter</span>
+        <span className="text-eyebrow text-muted-foreground">Avatar</span>
         <span className="text-sm font-medium">
           {avatar.name}
           <span className="font-normal text-muted-foreground"> · {avatarVoiceLine(avatar.voice)}</span>

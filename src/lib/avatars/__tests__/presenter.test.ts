@@ -132,13 +132,13 @@ describe("presenterVideoNotes", () => {
   });
   it("on Seedance, says when the engine's own voice has no reference", () => {
     expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native }), provider: "seedance", hasStartFrame: false }))
-      .toEqual([expect.stringMatching(/reference is missing/)]);
+      .toEqual([expect.stringMatching(/voice isn't kept yet/)]);
     expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native, voiceSample: sample }), provider: "seedance", hasStartFrame: false }))
       .toEqual([]);
   });
   it("elsewhere, says only Seedance keeps the engine's own voice", () => {
     expect(presenterVideoNotes({ avatar: makeAvatar({ voice: native }), provider: "kling", hasStartFrame: true }))
-      .toEqual(["Only Seedance keeps the engine's own voice the same across clips."]);
+      .toEqual(["Only Seedance keeps this avatar's voice the same across clips."]);
     expect(presenterVideoNotes({ avatar: makeAvatar(), provider: "kling", hasStartFrame: false })).toEqual([]);
   });
 });

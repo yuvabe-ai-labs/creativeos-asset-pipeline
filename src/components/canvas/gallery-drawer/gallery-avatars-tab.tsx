@@ -12,7 +12,7 @@ import { AVATAR_DRAG_MIME, avatarVoiceLine } from "@/lib/avatars/canvas";
 
 type Props = {
   clientId: string;
-  /** Set when the drawer was opened from a Script's "+ Presenter" or "Change": choosing an
+  /** Set when the drawer was opened from a Script's "+ Avatar" or "Change": choosing an
    *  avatar connects it to that script. */
   connectToNodeId?: string;
   /** Where a tile's add button places the node when nothing is being connected. */
@@ -64,7 +64,7 @@ export function GalleryAvatarsTab({ clientId, connectToNodeId, defaultPosition, 
       <p className="text-xs text-muted-foreground">
         {connectToNodeId
           ? "Choose who presents this script."
-          : "Drag an avatar onto the canvas, or onto a script to make it the presenter."}
+          : "Drag an avatar onto the canvas, or onto a script to use it in that script's videos."}
       </p>
       <div className="grid grid-cols-2 gap-3">
         {list.map((avatar) => (
@@ -93,8 +93,8 @@ export function GalleryAvatarsTab({ clientId, connectToNodeId, defaultPosition, 
               <Button
                 variant="outline"
                 size="icon-sm"
-                aria-label={connectToNodeId ? `Make ${avatar.name} the presenter` : `Add ${avatar.name} to the canvas`}
-                title={connectToNodeId ? "Make the presenter" : "Add to canvas"}
+                aria-label={connectToNodeId ? `Use ${avatar.name} in this script` : `Add ${avatar.name} to the canvas`}
+                title={connectToNodeId ? "Use in this script" : "Add to canvas"}
                 onClick={() => {
                   addAvatarNode(avatar.id, { position: defaultPosition(), presenterOf: connectToNodeId });
                   if (connectToNodeId) onDone();

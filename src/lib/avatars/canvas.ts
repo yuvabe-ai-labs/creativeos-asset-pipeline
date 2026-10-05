@@ -54,10 +54,10 @@ export function replacedPresenterEdges(
 }
 
 export const PRESENTER_REPLACED_MESSAGE =
-  "The new avatar is now this script's presenter, replacing the previous one.";
+  "The new avatar replaces the previous one on this script.";
 
 /** The voice an avatar speaks with, in a few words, for cards and tiles. */
 export function avatarVoiceLine(voice: AvatarVoice | null): string {
   if (!voice) return "No voice";
-  return voice.mode === "native" ? "Engine's own voice" : voice.name;
+  return voice.mode === "native" ? "Chosen for me" : voice.name;
 }

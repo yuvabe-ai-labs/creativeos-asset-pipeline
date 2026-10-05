@@ -150,14 +150,14 @@ export function presenterVideoNotes(args: {
   const notes: string[] = [];
   if (provider === "seedance") {
     if (hasStartFrame) {
-      notes.push("Seedance uses the still as its first frame, so the presenter's face can't be sent as well. The voice still is.");
+      notes.push("Seedance uses the still as its first frame, so the avatar's face can't be sent as well. The voice still is.");
     }
     if (avatar.voice?.mode === "native" && !matchingVoiceReference(avatar)) {
-      notes.push("The presenter's voice reference is missing, so Seedance will make up a voice. Make a voice preview in the Studio to record one.");
+      notes.push("The avatar's voice isn't kept yet, so Seedance will make one up. Make a voice preview in the Studio to keep one.");
     }
   } else if (avatar.voice?.mode === "native" && !avatar.voice.autoVoice) {
     // With an auto voice (D301), Edit voice offers it on these models, so the voice does carry.
-    notes.push("Only Seedance keeps the engine's own voice the same across clips.");
+    notes.push("Only Seedance keeps this avatar's voice the same across clips.");
   }
   return notes;
 }

@@ -150,8 +150,8 @@ export function VideoGenModelPicker({
 
         {!loading && unavailable?.[modelId] && (
           <p className="mt-2 text-[0.7rem] text-destructive">
-            {modelPickerLabel(videoGenClientModelMap[modelId])} can&apos;t use this shot&apos;s presenter: {unavailable[modelId]}. Pick
-            another model, or turn the presenter off in the prompt.
+            {modelPickerLabel(videoGenClientModelMap[modelId])} can&apos;t use this shot&apos;s avatar: {unavailable[modelId]}. Pick
+            another model, or turn the avatar off in the prompt.
           </p>
         )}
 
