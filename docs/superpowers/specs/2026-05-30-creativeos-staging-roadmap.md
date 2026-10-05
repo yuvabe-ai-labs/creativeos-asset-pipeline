@@ -6428,3 +6428,27 @@ stored nodes in the database (folding on read and on save needs no migration).
 
 **Originated →** operator request, 2026-10-05.
 
+
+### D308 — The avatar sends its profile sheet; references over a model's cap are chosen in the open *(recorded 2026-10-06)*
+
+**Decision.** The avatar in a shot adds its profile sheet as a second virtual reference after its
+front (stills and Gemini Omni, Kling, Veo; never Seedance until the face-trust experiment says
+otherwise). One pure `selectReferences` decides what a video request sends: frames keep their
+roles, `off` and unusable images are never sent, explicit references go first, and free slots fill
+in priority order — avatar front, cited images, avatar sheet, the rest. Video Gen shows what is left
+out and why; the server sends exactly that list, numbers the prompt over it, and refuses a request
+whose stored references exceed the cap instead of silently keeping the first N. Clicking an image's
+current role in Video Gen sets it `off`.
+
+**Why.** The route's `splice(maxRefs)` dropped the avatar first (it is added last) and left prompt
+citations pointing at images never sent, with no message. The sheet carries build and outfit the
+front portrait cannot.
+
+**Rejected.** Blocking Generate until the operator removes images (more clicks for the common case).
+Auto-dropping with only a notice (no way to choose). The sheet ahead of cited images (Veo's 3 slots
+would push out a named product). Sending the sheet to Seedance before testing (a non-ByteDance sheet
+is likely refused as a real face).
+
+**Refines.** D299 (the avatar as a virtual input), BUG-010, D97.
+
+**Originated →** `2026-10-06-avatar-references-and-limits-design.md`.
