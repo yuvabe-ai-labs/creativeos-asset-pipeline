@@ -52,7 +52,7 @@ export async function POST(
     return withTryCatch("Re-extraction failed", async () => {
       const [docs, images] = await Promise.all([
         listKBDocuments(clientId),
-        listBrandImages(clientId),
+        listBrandImages(clientId, "uploads"),
       ]);
 
       if (docs.length === 0) {

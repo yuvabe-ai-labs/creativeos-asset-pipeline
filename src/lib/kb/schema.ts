@@ -59,13 +59,13 @@ export const TraceableVisualIdentitySchema = z.object({
     "Macro, editorial, lifestyle, flat lay, etc.",
   ),
   colour_palette_primary: kbField(z.array(z.string())).describe(
-    "Main brand colours — always include hex codes: 'turmeric gold #C8A000'",
+    "Main brand colours, each as '<name> #RRGGBB' — never without a hex: 'turmeric gold #C8A000'",
   ),
   colour_palette_secondary: kbField(z.array(z.string())).describe(
-    "Supporting colours with hex codes where available",
+    "Supporting colours, each as '<name> #RRGGBB' — never without a hex",
   ),
   colour_palette_avoid: kbField(z.array(z.string())).describe(
-    "Colours explicitly prohibited by the brand",
+    "Colours explicitly prohibited by the brand, each as '<name> #RRGGBB'",
   ),
   surface_palette: kbField(z.array(z.string())).describe(
     "Physical textures and props: wood, linen, stone, clay, aged terracotta",

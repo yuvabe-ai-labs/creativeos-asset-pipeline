@@ -31,6 +31,10 @@ import { formatBytes } from "@/lib/kb/utils";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import { startKBBuildJob } from "@/lib/actions/kb";
 import { useKBJobStatus } from "./use-kb-job-status";
+import { brandKitService } from "@/services/brand-kit.service";
+import { useAssetImports, useStartAssetImport } from "@/hooks/queries/asset-imports";
+import { KBSocialHandleFields } from "./kb-social-handle-fields";
+import { AssetImportStatusList } from "./asset-import-status-list";
 
 const NON_TERMINAL = KB_JOB_NON_TERMINAL;
 const DOC_LIMIT_BYTES = KB_DOC_SIZE_LIMIT_BYTES;
@@ -77,6 +81,8 @@ type Props = {
   initialDocuments: ClientKBDocumentRow[];
   initialImages: ClientBrandImageRow[];
   initialWebsiteUrl: string | null;
+  initialInstagram: string | null;
+  initialFacebook: string | null;
   initialJob: ClientKBJobRow | null;
 };
 
@@ -86,6 +92,8 @@ export function KBOnboardingUploadStep({
   initialDocuments,
   initialImages,
   initialWebsiteUrl,
+  initialInstagram,
+  initialFacebook,
   initialJob,
 }: Props) {
   const router = useRouter();
@@ -97,7 +105,11 @@ export function KBOnboardingUploadStep({
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadingImgs, setUploadingImgs] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? "");
+  const [instagram, setInstagram] = useState(initialInstagram ?? "");
+  const [facebook, setFacebook] = useState(initialFacebook ?? "");
   const [starting, startStartTransition] = useTransition();
+  const startImport = useStartAssetImport(clientId);
+  const { data: importData } = useAssetImports(clientId);
 
   // Auto-redirect to client page when job succeeds
   useEffect(() => {
@@ -210,6 +222,13 @@ export function KBOnboardingUploadStep({
             body: JSON.stringify({ websiteUrl: websiteUrl.trim() }),
           });
         }
+        if (instagram.trim() !== (initialInstagram ?? "") || facebook.trim() !== (initialFacebook ?? "")) {
+          await brandKitService.patchDetails(clientId, { instagram: instagram.trim(), facebook: facebook.trim() });
+        }
+        // D302 — the asset import runs in the background, on its own; the KB build never waits for it.
+        startImport.mutate(undefined, {
+          onError: () => toast.error("Couldn't start bringing in the brand assets. You can try again from Brand assets."),
+        });
         await startKBBuildJob(clientId);
         // Don't redirect here — the useEffect above will redirect when the
         // Realtime event fires with status 'succeeded'.
@@ -241,6 +260,24 @@ export function KBOnboardingUploadStep({
         <p className="mt-2 text-xs text-muted-foreground">
           We&apos;ll research the site and add it as a knowledge source.
         </p>
+        <div className="mt-4">
+          <KBSocialHandleFields
+            instagram={instagram}
+            facebook={facebook}
+            onInstagramChange={setInstagram}
+            onFacebookChange={setFacebook}
+            disabled={isRunning}
+          />
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          We&apos;ll also bring in the brand&apos;s images and videos from the website and its posts
+          from the last 3 months. You don&apos;t need to wait for this.
+        </p>
+        {importData && importData.imports.length > 0 && (
+          <div className="mt-3">
+            <AssetImportStatusList imports={importData.imports} />
+          </div>
+        )}
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2">

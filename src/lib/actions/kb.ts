@@ -157,7 +157,7 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
 
     const [docs, images] = await Promise.all([
       listKBDocuments(clientId),
-      listBrandImages(clientId),
+      listBrandImages(clientId, "uploads"),
     ]);
 
     if (!client.website_url && docs.length === 0) {
