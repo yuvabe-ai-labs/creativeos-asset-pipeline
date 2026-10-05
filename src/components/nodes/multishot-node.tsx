@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Layers, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ import { MultishotFocusView } from "./multishot-focus-view";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { commitDraft } from "@/lib/nodes/multishot-draft";
+import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
 import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
 import type { MultishotNodeData } from "@/lib/canvas-nodes";
 
@@ -46,6 +47,13 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
   const d = data as MultishotNodeData;
 
   const cuts = d.cuts ?? NO_CUTS;
+  // D307 — the editor works on one voiceover list for the sequence; an older node's cut lines fold
+  // into it here and are written there on Save. Memoised on the stored arrays: the focus view
+  // reseeds its draft whenever these references change.
+  const folded = useMemo(
+    () => foldMultishotVoiceover({ cuts, sequenceVoiceover: d.sequenceVoiceover }),
+    [cuts, d.sequenceVoiceover],
+  );
   const cap = multishotCapabilityFor(d.targetModel);
   // `totalSeconds` is the stored mirror of the ladder's own length, not an independent field —
   // falls back to a fresh totalOf(cuts) only for data seeded before this field existed.
@@ -162,12 +170,12 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
       onOpenChange={handleFocusOpenChange}
       nodeId={id}
       order={d.order}
-      cuts={cuts}
+      cuts={folded.cuts ?? NO_CUTS}
       scriptTitle={d.seededFrom?.scriptTitle}
       targetModel={d.targetModel}
-      // D286 — the STORED array, not a copy: the focus view reseeds its draft whenever this
-      // reference changes, so a fresh array per render would wipe edits in progress.
-      sequenceVoiceover={d.sequenceVoiceover}
+      // D286, D307 — stable across renders (memoised above): the focus view reseeds its draft
+      // whenever this reference changes, so a fresh array per render would wipe edits in progress.
+      sequenceVoiceover={folded.sequenceVoiceover}
       onCommit={commit}
     />
     </>

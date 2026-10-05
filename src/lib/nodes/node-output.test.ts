@@ -175,11 +175,10 @@ describe("shotContextMode", () => {
   });
 });
 
-// The connected-input panel showed "Shot 1 (8s): <description>" with no spoken line, while the
-// rendered prompt for that same cut ends with it — so the panel told the operator the node held
-// less than it does.
-describe("a Multishot node's output states what each cut says", () => {
-  it("appends the cut's spoken line", () => {
+// D307 — a Multishot speaks over the whole sequence: an older node's cut lines are stated once,
+// with the sequence's, ahead of the shots, never on a shot.
+describe("a Multishot node's output states what it says, once, for the sequence", () => {
+  it("leads with every line and leaves the shots as they are", () => {
     const out = getNodeOutput({
       type: "multishot",
       data: {
@@ -195,10 +194,8 @@ describe("a Multishot node's output states what each cut says", () => {
       },
       activeOutput: null,
     });
-    expect(out).toContain(
-      'Shot 1 (8s): She adds Jackfruit365 to a bowl of atta. creator says: "For lunch, I add it to the atta."',
-    );
-    expect(out).toContain("Shot 2 (4s): Steam off the tawa.");
-    expect(out).not.toMatch(/Shot 2 .*says/);
+    expect(out).toContain('Across every shot — creator says: "For lunch, I add it to the atta."');
+    expect(out).toContain("Shot 1 (8s): She adds Jackfruit365 to a bowl of atta.\n");
+    expect(out).not.toMatch(/Shot \d .*says/);
   });
 });

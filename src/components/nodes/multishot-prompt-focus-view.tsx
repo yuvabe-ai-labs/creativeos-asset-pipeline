@@ -59,7 +59,6 @@ import {
   type MultishotPlan,
 } from "@/lib/nodes/multishot-plan";
 import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
-import { renderVoiceover } from "@/lib/nodes/voiceover";
 import type { VoLine } from "@/lib/nodes/reel-script";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 import { useMentionUpstream } from "@/hooks/use-mention-upstream";
@@ -210,7 +209,7 @@ export function MultishotPromptFocusView({
   // The attached images in `<IMAGE_REF_N>` order — shared by every chip editor on this node
   // (sequence steer, per-cut instructions, the look block, every beat) so a reference binds to
   // the same picture wherever it is mentioned.
-  const promptRefImages = visionAttachmentsOf(upstream).map((u) => ({
+  const promptRefImages = visionAttachmentsOf(mentionUpstream).map((u) => ({
     id: u.id,
     label: u.label,
     fileUrl: u.fileUrl,
@@ -232,8 +231,8 @@ export function MultishotPromptFocusView({
   // BUG-010 — wrapped in `storedRefDialect`: chips read from image IDS (and legacy positions),
   // and every edit serialises back to ids, so a saved plan can't be re-pointed by a disconnect.
   const labelOfRef = useCallback(
-    (id: string) => upstream.find((u) => u.id === id)?.label,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `upstream` is rebuilt every render
+    (id: string) => mentionUpstream.find((u) => u.id === id)?.label,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `mentionUpstream` is rebuilt every render
     [refIdsKey],
   );
   const beatDialect = useMemo(
@@ -799,15 +798,6 @@ export function MultishotPromptFocusView({
                                     Not written yet — re-generate, or write this shot.
                                   </p>
                                 )}
-                                {/* What this shot SAYS. Shown because the writer no longer writes
-                                    spoken lines — they are appended to this shot's beat when the
-                                    prompt is rendered — so a card without them read as a shot with
-                                    no voiceover at all. */}
-                                {renderVoiceover(cut.voiceover) && (
-                                  <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-primary/80">
-                                    {renderVoiceover(cut.voiceover)}
-                                  </p>
-                                )}
                               </div>
                             ))}
                           </div>
@@ -1041,9 +1031,6 @@ export function MultishotPromptFocusView({
                               onRerun={() => runRefine("cut", { cutId: beat.cutId })}
                               onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}
                               mentionables={planMentions}
-                              spokenLine={renderVoiceover(
-                                cuts.find((c) => c.id === beat.cutId)?.voiceover,
-                              )}
                               showRerun={SHOW_PER_BEAT_REGENERATE}
                               rerunning={refining?.cutId === beat.cutId}
                               onFocusTimings={focusTimings}

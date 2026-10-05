@@ -8,7 +8,7 @@ import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { describeVoLineForWriter, readVoLines, renderVoiceover } from "@/lib/nodes/voiceover";
+import { describeVoLineForWriter, multishotVoiceover } from "@/lib/nodes/voiceover";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -268,7 +268,8 @@ export async function resolveMultishotPromptInputs(
     cuts,
     targetModel,
     scriptNotes,
-    sequenceVoiceover: readVoLines(source?.data.sequenceVoiceover),
+    // D307 — the Multishot's one voiceover list, with any lines an older node left on its cuts.
+    sequenceVoiceover: source ? multishotVoiceover(source.data) : undefined,
   };
 }
 
@@ -327,25 +328,7 @@ export function buildMultishotUserTurn(args: {
       const steer = (args.cutInstructions[cut.id] ?? "").trim();
       if (steer) lines.push(`  Operator instruction for THIS shot: ${steer}`);
 
-      // D267 (Task 5) — WHAT is spoken over this shot, so the writer can frame a talking face or
-      // keep everyone silent for narration (VO_PERFORMANCE_RULES). Never an instruction to write
-      // the words — `renderPlan` (multishot-plan.ts) appends the actual line afterwards.
-      const voLines = (cut.voiceover ?? []).filter((l) => l.text.trim());
-      for (const l of voLines) {
-        lines.push(`  Voiceover on this shot: ${describeVoLineForWriter(l)}`);
-      }
-
-      // The same line `renderPlan`/`checkPlanLimits` append to this cut's beat, so the writer can
-      // see how much of its own ceiling (e.g. Kling's 512) the voiceover already spends, joined by
-      // the same one space `withVoiceover` inserts (multishot-plan.ts).
-      const rendered = renderVoiceover(cut.voiceover);
-      if (rendered && args.maxCutChars) {
-        const takes = rendered.length + 1;
-        lines.push(
-          `  Room for your beat: ${Math.max(0, args.maxCutChars - takes)} characters ` +
-            `(its voiceover takes ${takes} of ${args.maxCutChars}).`,
-        );
-      }
+      // D307 — no voiceover rides a cut; every line is in the sequence block below.
 
       return lines.join("\n");
     })

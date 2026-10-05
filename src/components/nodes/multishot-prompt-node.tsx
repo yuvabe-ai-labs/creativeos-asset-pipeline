@@ -17,7 +17,7 @@ import { useNodeCost } from "@/hooks/use-node-cost";
 import { MultishotPromptFocusView } from "./multishot-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES } from "@/lib/kb/parse-context";
 import type { MultishotNodeData, MultishotPromptNodeData } from "@/lib/canvas-nodes";
-import { readVoLines } from "@/lib/nodes/voiceover";
+import { foldMultishotVoiceover, multishotVoiceover } from "@/lib/nodes/voiceover";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { PresenterFace } from "./presenter-face";
 import { useShotPresenter } from "@/hooks/use-shot-presenter";
@@ -65,7 +65,8 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
   const avatarName = presenter?.inShot ? presenter.avatar.name : "";
   const { cuts, sequenceVoiceover } = useMemo(() => {
     const data = multishotSource?.data as MultishotNodeData | undefined;
-    const source = { cuts: data?.cuts ?? [], sequenceVoiceover: readVoLines(data?.sequenceVoiceover) };
+    // D307 — one list for the sequence, with any lines an older node left on its cuts.
+    const source = data ? foldMultishotVoiceover({ cuts: data.cuts ?? [], sequenceVoiceover: multishotVoiceover(data) }) : { cuts: [], sequenceVoiceover: undefined };
     if (!avatarName) return source;
     // D286 — lines spanning every cut; the preview renders them exactly as the money path sends them.
     const [row] = withAvatarAsSpeaker([{ nodeId: id, type: "multishot", data: source }], avatarName);

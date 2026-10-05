@@ -128,15 +128,6 @@ function withLook(look: string, ladder: string): string {
   return trimmed ? `${trimmed}\n\n${ladder}` : ladder;
 }
 
-/**
- * D267 (Task 3) — a cut's beat, followed by its rendered voiceover, separated by a single space.
- * A cut with no lines (`voiceover` absent, `[]`, or every line blank) appends nothing, so it
- * renders exactly as it does without this feature.
- */
-function withVoiceover(beatText: string, renderedVoiceover: string): string {
-  return renderedVoiceover ? `${beatText} ${renderedVoiceover}` : beatText;
-}
-
 /** D286 — how lines spanning the whole sequence are introduced in the rendered prompt. */
 export const SEQUENCE_VO_PREFIX = "Across every shot — ";
 
@@ -212,12 +203,9 @@ export function renderPlan(
         // make when it echoes an unknown token rather than renumbering it. Only correctness earns
         // a rewrite.
         //
-        // D267 (Task 3) — the cut's rendered voiceover joins the beat BEFORE the `;` replacement,
-        // so a `;` inside a spoken line is protected the same way one inside the beat's own prose
-        // is: either would otherwise end the shot early on Kling's comma/semicolon parser.
-        const beatText = (byId.get(cut.id) ?? "").trim();
-        const vo = renderVoiceover(cut.voiceover);
-        const text = withVoiceover(beatText, vo).replace(/;/g, ",");
+        // D307 — no voiceover rides a cut: a Multishot's lines span the whole sequence and render
+        // once above the ladder (withSequenceVoiceover, semicolon-safe for this parser).
+        const text = (byId.get(cut.id) ?? "").trim().replace(/;/g, ",");
         return `shot ${i + 1}, ${cut.seconds}, ${text};`;
       })
       .join("\n");
@@ -245,7 +233,7 @@ export function renderPlan(
       .map((cut) => {
         const from = at;
         at += cut.seconds;
-        return `${from}-${at}s: ${withVoiceover((byId.get(cut.id) ?? "").trim(), renderVoiceover(cut.voiceover))}`;
+        return `${from}-${at}s: ${(byId.get(cut.id) ?? "").trim()}`;
       })
       .join("\n");
     return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
@@ -256,7 +244,7 @@ export function renderPlan(
     .map((cut) => {
       const from = at;
       at += cut.seconds;
-      return `[${from}-${at}s] ${withVoiceover((byId.get(cut.id) ?? "").trim(), renderVoiceover(cut.voiceover))}`;
+      return `[${from}-${at}s] ${(byId.get(cut.id) ?? "").trim()}`;
     })
     .join("\n");
 
@@ -352,17 +340,14 @@ export function checkPlanLimits(
   if (cap.maxCutChars !== null) {
     const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
     for (const [i, cut] of cuts.entries()) {
-      const beatText = (byId.get(cut.id) ?? "").trim();
-      // D267 (Task 3) — measured on what is SENT: the cut's own voiceover rides its beat in the
-      // rendered prompt, so it counts against the same per-cut budget. Never truncated — the
-      // reason names the voiceover as the cause so the operator knows which half to shorten.
-      const vo = renderVoiceover(cut.voiceover);
-      const text = withVoiceover(beatText, vo);
+      // Measured on what is SENT. D307 — no voiceover rides a cut any more, so a beat's budget is
+      // the beat alone; the sequence's lines are measured with the whole prompt below.
+      const text = (byId.get(cut.id) ?? "").trim();
       if (text.length > cap.maxCutChars) {
         return {
           ok: false,
           reason:
-            `Shot ${i + 1} is ${text.length} characters${vo ? " (including its voiceover)" : ""} · ` +
+            `Shot ${i + 1} is ${text.length} characters · ` +
             `${cap.label} allows ${cap.maxCutChars}. Shorten it, or rewrite that shot with AI.`,
         };
       }

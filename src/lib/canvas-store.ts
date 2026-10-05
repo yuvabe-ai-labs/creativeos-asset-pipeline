@@ -19,6 +19,7 @@ import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
+import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
 import {
   multishotSeedFor,
   pruneBeatCache,
@@ -539,7 +540,8 @@ export function createCanvasStore(
             id: crypto.randomUUID(),
             type: "multishot",
             position,
-            data: {
+            // D307 — each shot's lines join the sequence's: a Multishot speaks over the whole sequence.
+            data: foldMultishotVoiceover({
               // The envelope only — `cuts` is the sole shot list on this node type.
               script: { ...parsed, visual_script: { ...parsed?.visual_script, shots: undefined } },
               order: generation.index + 1,
@@ -549,7 +551,7 @@ export function createCanvasStore(
               targetModel: bestFitMultishotModel(cuts),
               ...(seed.sequenceVoiceover ? { sequenceVoiceover: seed.sequenceVoiceover } : {}),
               seededFrom,
-            },
+            }),
           };
         }
 

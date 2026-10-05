@@ -1,7 +1,7 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getPromptUpstream, withStillPresenter } from "@/lib/avatars/presenter-server";
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
-import { readVoLines } from "@/lib/nodes/voiceover";
+import { multishotVoiceover } from "@/lib/nodes/voiceover";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
@@ -132,7 +132,7 @@ export async function GET(
             cuts,
             multishotCapabilityFor(plan.targetModel),
             refIds,
-            readVoLines(multishotNode?.data.sequenceVoiceover),
+            multishotNode ? multishotVoiceover(multishotNode.data) : undefined,
           );
         }
       }

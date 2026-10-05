@@ -251,7 +251,8 @@ describe("fanOutShots", () => {
     expect(first.script?.visual_script?.shots?.[0].voiceover).toEqual(vo);
   });
 
-  it("carries a shot's voiceover onto the multishot node's first cut", () => {
+  // D307 — a Multishot speaks over the whole sequence: the shot's lines join the sequence.
+  it("carries a shot's voiceover onto the multishot node's sequence, not its cut", () => {
     const vo = [{ text: "Hi.", speaker: "narrator" }];
     const reelB: AppNode = {
       id: "script-b",
@@ -278,8 +279,9 @@ describe("fanOutShots", () => {
     store.getState().fanOutShots("script-b");
     const multishots = store.getState().nodes.filter((n) => n.type === "multishot");
 
-    const cuts = (multishots[0].data as { cuts?: { voiceover?: unknown }[] }).cuts;
-    expect(cuts?.[0].voiceover).toEqual(vo);
+    const data = multishots[0].data as { cuts?: { voiceover?: unknown }[]; sequenceVoiceover?: unknown };
+    expect(data.sequenceVoiceover).toEqual(vo);
+    expect(data.cuts?.every((c) => c.voiceover === undefined)).toBe(true);
   });
 });
 
@@ -947,7 +949,7 @@ describe("scene beats become cuts (D286)", () => {
     store.getState().fanOutShots("sc");
     store.getState().setGenerationMode("sc", "0", true);
     const data = multishotData(store);
-    expect(data.cuts.every((c) => c.voiceover?.length === 0)).toBe(true);
+    expect(data.cuts.every((c) => c.voiceover === undefined)).toBe(true);
     expect(data.sequenceVoiceover?.map((l) => l.text)).toEqual(["Meet the jar.", "Made by hand."]);
   });
 
@@ -958,13 +960,13 @@ describe("scene beats become cuts (D286)", () => {
     expect(multishotData(store).sequenceVoiceover).toHaveLength(2);
   });
 
-  it("uses one cut, with every line on it, when the beats are stale", () => {
+  it("uses one cut, with every line on the sequence, when the beats are stale", () => {
     const store = createCanvasStore([v3Script({ ...stampedRow, description: "Edited" })], []);
     store.getState().fanOutShots("sc");
     store.getState().setGenerationMode("sc", "0", true);
     expect(cutsOf(store)).toEqual([["Edited", 6]]);
-    expect(multishotData(store).cuts[0].voiceover).toHaveLength(2);
-    expect(multishotData(store)).not.toHaveProperty("sequenceVoiceover");
+    expect(multishotData(store).cuts[0].voiceover).toBeUndefined();
+    expect(multishotData(store).sequenceVoiceover).toHaveLength(2);
   });
 
   it("uses cached beats written by cacheSceneBeats", () => {

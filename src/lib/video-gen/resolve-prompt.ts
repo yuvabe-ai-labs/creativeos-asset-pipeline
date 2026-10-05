@@ -3,7 +3,7 @@ import { renderPlan, planMissingRefs, type MultishotPlan } from "@/lib/nodes/mul
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
-import { readVoLines } from "@/lib/nodes/voiceover";
+import { multishotVoiceover } from "@/lib/nodes/voiceover";
 import type { VoLine } from "@/lib/nodes/reel-script";
 import {
   refEntriesOf,
@@ -152,7 +152,8 @@ export async function resolveVideoGenPrompt(
   const targetModel = typeof plan.targetModel === "string" ? plan.targetModel : null;
   const cap = multishotCapabilityFor(targetModel);
   const refIds = refIdsOf(promptUpstream);
-  const sequenceVoiceover = readVoLines(multishotNode.data.sequenceVoiceover);
+  // D307 — one list for the sequence, with any lines an older node left on its cuts.
+  const sequenceVoiceover = multishotVoiceover(multishotNode.data);
 
   return {
     ok: true,

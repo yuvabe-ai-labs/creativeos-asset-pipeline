@@ -6404,3 +6404,27 @@ and `generations` now (risky sweep; generations carries billing semantics). A ch
 
 **Refines** D302. **Originated →** operator request, 2026-10-05;
 `2026-10-05-brand-kb-social-asset-import-design.md` §3.
+
+### D307 — A Multishot's voiceover is one list for the whole sequence; cuts carry none *(recorded 2026-10-05)*
+
+**Decision.** A Multishot node's voiceover lives only in `sequenceVoiceover`. Cuts no longer carry
+their own lines: the Multishot editor has no per-cut voiceover lane, the rendered prompt puts every
+line once above the ladder ("Across every shot — …"), the writer brief states them once for the
+sequence, and per-cut character budgets measure the beat alone. A Multishot created from a script,
+or converted from a Shot, folds each shot's lines into the sequence (`foldMultishotVoiceover`).
+Nodes written before keep reading correctly: every reader goes through `multishotVoiceover`, which
+appends any lines left on cuts after the sequence's, cut by cut, and the editor saves them in the
+folded form. Single Shot nodes are unchanged; their lines were already per shot.
+
+**Why.** Operator request: simpler to author and read. Per-cut lines tied a spoken line to a 1–2 s
+cut it rarely fits, and splitting a script's voiceover across cuts made the Multishot editor and the
+rendered prompt noisy. The "in this shot" avatar flag (D299) is per prompt node, so per-cut lines
+added granularity nothing else used.
+
+**Rejected.** Keeping per-cut lines alongside the sequence (two places to edit one thing). Migrating
+stored nodes in the database (folding on read and on save needs no migration).
+
+**Refines.** D267 (voiceover rode its cut), D286 (the sequence voiceover).
+
+**Originated →** operator request, 2026-10-05.
+

@@ -328,3 +328,41 @@ export function readVoLines(value: unknown): VoLine[] | undefined {
 }
 
 export type { VoLine };
+
+type MultishotVoiceSource = { cuts?: unknown; sequenceVoiceover?: unknown };
+
+/**
+ * D307 — a Multishot's voiceover is ONE list for the whole sequence; cuts carry no lines of their
+ * own. Nodes written before carried lines on each cut (D267); those fold in after the spanning
+ * lines, cut by cut, so nothing spoken is lost. Every reader of a Multishot's voiceover goes
+ * through this. Undefined when nothing is spoken anywhere.
+ */
+export function multishotVoiceover(data: MultishotVoiceSource): VoLine[] | undefined {
+  const sequence = readVoLines(data.sequenceVoiceover) ?? [];
+  const cuts = Array.isArray(data.cuts) ? (data.cuts as { voiceover?: unknown }[]) : [];
+  const fromCuts = cuts.flatMap((c) => readVoLines(c?.voiceover) ?? []);
+  const all = [...sequence, ...fromCuts];
+  return all.length > 0 ? all : undefined;
+}
+
+/** D307 — the same data with any cut lines moved into the sequence (`multishotVoiceover`) and
+ *  taken off the cuts. For every writer of a Multishot node. The same object back when no cut
+ *  carries lines. */
+export function foldMultishotVoiceover<T extends { cuts?: object[]; sequenceVoiceover?: VoLine[] }>(
+  data: T,
+): T & { sequenceVoiceover?: VoLine[] } {
+  const cuts = (data.cuts ?? []) as { voiceover?: unknown }[];
+  if (!cuts.some((c) => c.voiceover !== undefined)) return data;
+  const sequenceVoiceover = multishotVoiceover(data);
+  const rest: Record<string, unknown> = { ...data };
+  delete rest.sequenceVoiceover;
+  return {
+    ...rest,
+    cuts: cuts.map((c) => {
+      const cut: Record<string, unknown> = { ...c };
+      delete cut.voiceover;
+      return cut;
+    }),
+    ...(sequenceVoiceover ? { sequenceVoiceover } : {}),
+  } as T & { sequenceVoiceover?: VoLine[] };
+}
