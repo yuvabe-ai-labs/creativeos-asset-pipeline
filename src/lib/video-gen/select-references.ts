@@ -21,6 +21,9 @@ export type SelectReferencesInput = {
   avatarSheetId?: string | null;
   /** Images this model cannot take at all, each with the reason (e.g. the sheet on Seedance). */
   unusable?: ReadonlyMap<string, string>;
+  /** The model's rules forbid frames and references together (areFramesAndRefsExclusive): with a
+   *  frame set, no image goes as a reference. */
+  framesExcludeReferences?: boolean;
 };
 
 export type LeftOut = { id: string; reason: string };
@@ -49,6 +52,13 @@ export function selectReferences(input: SelectReferencesInput): SelectedReferenc
 
   if (cap <= 0) {
     for (const { id } of candidates) reasons.set(id, `${modelLabel} takes no reference images`);
+    return finish();
+  }
+  const hasFrame = images.some(({ id }) => roles[id] === "start_frame" || roles[id] === "end_frame");
+  if (input.framesExcludeReferences && hasFrame) {
+    for (const { id } of candidates) {
+      reasons.set(id, `${modelLabel} can't use references with a start or end frame`);
+    }
     return finish();
   }
 

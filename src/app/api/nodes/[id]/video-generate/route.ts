@@ -10,7 +10,7 @@ import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/regist
 // the server registry carries only what generation needs. Importing it here is safe: that
 // module has no `server-only` dependency, it is plain param specs and rule data.
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
-import { validateAgainstRules } from "@/lib/video-gen/constraints";
+import { areFramesAndRefsExclusive, validateAgainstRules } from "@/lib/video-gen/constraints";
 import {
   assignImageRoles,
   autoAssignImageRoles,
@@ -251,6 +251,7 @@ export async function POST(
       citedIds: citedIdsOfResolved(resolved, singleTake),
       avatarFrontId,
       avatarSheetId: avatarSheet,
+      framesExcludeReferences: areFramesAndRefsExclusive(videoGenClientModelMap[modelId]?.rules),
       unusable: config.provider === "seedance" && avatarSheet
         ? new Map([[avatarSheet, "Seedance can't use the profile sheet"]])
         : undefined,

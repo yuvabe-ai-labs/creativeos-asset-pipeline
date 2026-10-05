@@ -65,3 +65,14 @@ describe("selectReferences (D308)", () => {
     expect(r.leftOut).toEqual([{ id: "pack", reason: "Kling 3.0 Omni takes no reference images" }]);
   });
 });
+
+describe("selectReferences — frames that exclude references (D308)", () => {
+  it("sends no references once a frame is set on a model that can't combine them", () => {
+    const r = selectReferences(base({ roles: { pack: "start_frame" }, framesExcludeReferences: true }));
+    expect(r.sent).toEqual([]);
+    expect(r.leftOut[0]).toEqual({ id: "label", reason: "Kling 3.0 Omni can't use references with a start or end frame" });
+  });
+  it("fills references as usual on that model when no frame is set", () => {
+    expect(selectReferences(base({ framesExcludeReferences: true })).sent).toHaveLength(5);
+  });
+});

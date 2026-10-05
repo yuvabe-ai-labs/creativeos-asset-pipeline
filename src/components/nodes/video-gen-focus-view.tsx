@@ -136,6 +136,7 @@ import { readVoiceMeta } from "@/lib/voice-change/meta";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
+import { selectReferences } from "@/lib/video-gen/select-references";
 
 type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
 
@@ -919,12 +920,13 @@ export function VideoGenFocusView({
   }
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
-    const updated = { ...effectiveImageRoles };
+    const updated = { ...imageRolesProp };
 
-    // Toggle: clicking the role already assigned to this image clears it
-    if (updated[imageId] === newRole) {
-      delete updated[imageId];
-      onPatch({ imageRoles: updated });
+    // Toggle: clicking the role an image already plays turns it off (D308). Stored as "off", not
+    // deleted: a deleted role read as unassigned, and the default fill put it straight back.
+    if (effectiveImageRoles[imageId] === newRole) {
+      const next = { ...imageRolesProp, [imageId]: "off" as const };
+      onPatch({ imageRoles: next });
       return;
     }
 
@@ -1018,7 +1020,8 @@ export function VideoGenFocusView({
         modelId,
         // D98: post the reconciled values, never the possibly-stale `params` state.
         params: effectiveParams,
-        imageRoles: effectiveImageRoles,
+        // D308 — the stored roles, "off" included; the server runs the same selectReferences.
+        imageRoles: supportedImageRoles,
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
@@ -1153,8 +1156,13 @@ export function VideoGenFocusView({
   // the same rule the server applies. Persisted, not merely displayed — the constraint state below
   // is computed from these roles, and a client that showed a default it never saved was exactly
   // the divergence that let Generate run on a state the request would then reject.
+  // D308 — only on a model that takes no references: there the default is a start frame, which
+  // must be stored. On a model that takes references, unassigned images are placed by
+  // selectReferences (below, and identically on the server) — saving "reference" on all of them
+  // used to put a node over the model's cap.
   useEffect(() => {
     if (loadingConnected || upstreamImages.length === 0) return;
+    if (imageInputs.maxReferenceImages > 0) return;
     const filled = autoAssignImageRoles(
       upstreamImages.map((img) => ({ nodeId: img.id, url: img.imageUrl, type: img.type })),
       imageRolesProp,
@@ -1197,9 +1205,30 @@ export function VideoGenFocusView({
   // have a rule forbidding them together. Reconciling here (rather than only on model change)
   // also heals nodes already persisted in the contradictory state, which would otherwise stay
   // stuck failing at generate with no way for the operator to see why.
+  // D308 — which references go, by the rule the server applies: the stored choices, then the
+  // avatar's front, cited images, the avatar's sheet and the rest within the cap.
+  const referenceSelection = selectReferences({
+    images: upstreamImages.map((img) => ({ id: img.id })),
+    roles: supportedImageRoles,
+    cap: imageInputs.maxReferenceImages,
+    modelLabel: currentModel?.label ?? modelId,
+    citedIds: new Set(promptNode?.citedIds ?? []),
+    avatarFrontId: promptNode?.avatarFrontId ?? null,
+    avatarSheetId: promptNode?.avatarSheetId ?? null,
+    framesExcludeReferences: areFramesAndRefsExclusive(currentModel?.rules),
+    unusable: currentModel?.provider === "seedance" && promptNode?.avatarSheetId
+      ? new Map([[promptNode.avatarSheetId, "Seedance can't use the profile sheet"]])
+      : undefined,
+  });
+  const leftOutReason = new Map(referenceSelection.leftOut.map((l) => [l.id, l.reason]));
+  // The roles as the request will use them: stored frames, plus "reference" on what is sent.
+  const selectedRoles: Record<string, ImageRole> = Object.fromEntries([
+    ...Object.entries(supportedImageRoles).filter(([, r]) => r === "start_frame" || r === "end_frame"),
+    ...referenceSelection.sent.map((id) => [id, "reference" as const]),
+  ]);
   const effectiveImageRoles = reconcileRolesWithRules(
     currentModel?.rules,
-    supportedImageRoles,
+    selectedRoles,
     params,
   );
   const constraintState = buildConstraintState(
@@ -1262,15 +1291,20 @@ export function VideoGenFocusView({
       })
     : [];
   const presenterVoiceId = presenterAvatar ? presenterDefaultVoiceId(presenterAvatar) : null;
+  // D308 — references saved beyond the cap (a node from before, or a model switch): the server
+  // refuses them rather than cutting, so Generate says so first, in the same words.
+  const overCapReason = referenceSelection.overCap > 0
+    ? `${currentModel?.label ?? modelId} takes ${imageInputs.maxReferenceImages} references; ${imageInputs.maxReferenceImages + referenceSelection.overCap} are selected. Turn some off.`
+    : null;
   const disableGenerate =
-    constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock);
+    constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
       ? ladderCheck.reason
       : presenterBlock
         ? presenterBlock
-        : constraints.disableGenerateReason;
+        : overCapReason ?? constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -1464,6 +1498,7 @@ export function VideoGenFocusView({
             ) : (
               connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                const outReason = c.type === "image" ? leftOutReason.get(c.id) : undefined;
                 const remove = editable ? removeFor(c.id, c.label) : null;
                 return (
                   <RailItem
@@ -1479,7 +1514,11 @@ export function VideoGenFocusView({
                     active={selected === c.id}
                     onClick={() => setSelected(c.id)}
                     badge={
-                      role ? (
+                      outReason ? (
+                        <span title={outReason} className="shrink-0 rounded-full border border-dashed border-border px-1.5 py-0.5 text-[0.6rem] font-semibold text-muted-foreground">
+                          Out
+                        </span>
+                      ) : role ? (
                         <span
                           className={cn(
                             "shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold",
@@ -1666,6 +1705,7 @@ export function VideoGenFocusView({
                               imageInputs={imageInputs}
                               onRoleChange={handleRoleChange}
                               onOpenDetail={(id) => setSelected(id)}
+                              leftOut={leftOutReason}
                               disableFrameInputs={constraints.disableFrameInputs}
                               disableRefs={constraints.disableRefs}
                               onReset={handleReset}
