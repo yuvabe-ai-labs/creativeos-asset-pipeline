@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hasOnCameraLine, matchingVoiceReference, namedVoiceSampleKey, presenterInShot, presenterUpstreamRow,
   avatarAutoVoiceMissing, presenterDefaultVoiceId, presenterVideoNotes, seedanceVoiceText, seedingScriptId,
-  unavailableModelsFor, withAvatarAsSpeaker,
+  presenterUpstreamRows, unavailableModelsFor, withAvatarAsSpeaker,
 } from "../presenter";
 import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 import { makeAvatar, makeImage, GENERATED } from "./fixtures";
@@ -207,5 +207,25 @@ describe("withAvatarAsSpeaker", () => {
     expect(withAvatarAsSpeaker(rows, "Razel")).toBe(rows);
     const named = [multishot([{ id: "c1", voiceover: [creator("One.")] }])];
     expect(withAvatarAsSpeaker(named, "  ")).toBe(named);
+  });
+});
+
+describe("presenterUpstreamRows (D308)", () => {
+  it("is the front, then the profile sheet under its own virtual id", () => {
+    const avatar = makeAvatar({ name: "Riya" });
+    const rows = presenterUpstreamRows("avatar-node-1", avatar);
+    expect(rows.map((r) => r.nodeId)).toEqual(["avatar-node-1", "avatar-node-1:sheet"]);
+    expect(rows[1].data).toMatchObject({ presenter: "sheet", title: "Riya", fileKind: "image", fileUrl: avatar.sheet!.url });
+    expect(rows[1].data.processedOutput).toMatch(/Riya's profile sheet/);
+    expect(rows[1].data.processedOutput).toMatch(/never its plain background/);
+  });
+
+  it("leaves the sheet out when there is none, or it is out of date", () => {
+    expect(presenterUpstreamRows("n", makeAvatar({ sheet: null }))).toHaveLength(1);
+    expect(presenterUpstreamRows("n", makeAvatar({ sheetStale: true }))).toHaveLength(1);
+  });
+
+  it("is nothing without a front image", () => {
+    expect(presenterUpstreamRows("n", makeAvatar({ front: null }))).toEqual([]);
   });
 });

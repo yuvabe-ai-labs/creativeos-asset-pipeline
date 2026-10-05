@@ -25,6 +25,7 @@ const TYPE_LABEL: Record<string, string> = {
 /** D299 — the avatar's virtual row is labelled "Avatar", so the roster reads
  *  "Presenter: Riya" rather than "File: Riya". */
 function labelOf(u: { type: string; data: Record<string, unknown> }): string {
+  if (u.data.presenter === "sheet") return "Avatar sheet";
   return u.data.presenter === true ? "Avatar" : TYPE_LABEL[u.type] ?? u.type;
 }
 
@@ -74,7 +75,7 @@ export async function resolvePromptInputs(
     type: u.type,
     // Only the presenter's row is named here: the image-Prompt roster never named file nodes, and
     // this keeps every other node's prompt text exactly as it was.
-    ...(u.data.presenter === true && typeof u.data.title === "string" ? { name: u.data.title } : {}),
+    ...(u.data.presenter && typeof u.data.title === "string" ? { name: u.data.title } : {}),
     text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
     fileUrl:
       u.type === "file" || u.type === "draw"

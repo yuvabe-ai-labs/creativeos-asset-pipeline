@@ -3,6 +3,7 @@ import { isOnScreenLine } from "@/lib/nodes/voiceover";
 import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { avatarWorksWith } from "./generation";
+import { avatarSheetId } from "@/lib/video-gen/select-references";
 import type { Avatar, AvatarVoice, AvatarVoiceSample } from "./schema";
 
 // D299 — the presenter in a shot. Pure: the server walks the database and the browser walks the
@@ -184,6 +185,37 @@ export function withAvatarAsSpeaker<T extends PresenterRowInput>(rows: T[], avat
     }
     return row;
   });
+}
+
+/**
+ * D308 — every image the avatar brings into a shot: its front (the row above), then its profile
+ * sheet under a virtual id of its own, when it has one that is not out of date. The sheet carries
+ * build and outfit the waist-up front cannot; the text keeps it identity only, because a
+ * multi-view sheet on a plain backdrop has been read as a location before.
+ */
+export function presenterUpstreamRows(
+  avatarNodeId: string,
+  avatar: Pick<Avatar, "name" | "front" | "sheet" | "sheetStale">,
+): UpstreamOutput[] {
+  const front = presenterUpstreamRow(avatarNodeId, avatar);
+  if (!front) return [];
+  if (!avatar.sheet || avatar.sheetStale) return [front];
+  return [
+    front,
+    {
+      nodeId: avatarSheetId(avatarNodeId),
+      type: "file",
+      data: {
+        presenter: "sheet",
+        title: avatar.name,
+        fileKind: "image",
+        fileUrl: avatar.sheet.url,
+        processedOutput: `${avatar.name}'s profile sheet: front, side and back views of the same person, for their build and outfit. Identity only: never its plain background, lighting or layout.`,
+      },
+      activeOutput: null,
+      versionId: null,
+    },
+  ];
 }
 
 /** The prompt node's stored switch, or undefined when the operator has not chosen. */

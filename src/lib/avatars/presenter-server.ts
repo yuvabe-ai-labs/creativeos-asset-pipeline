@@ -4,7 +4,7 @@ import { getNodeClientAndData, getScriptPresenterSource } from "@/lib/db/present
 import { getAvatar } from "@/lib/db/avatars";
 import type { Avatar } from "./schema";
 import {
-  matchingVoiceReference, presenterInShot, presenterUpstreamRow, readPresenterSwitch, seedanceVoiceText,
+  matchingVoiceReference, presenterInShot, presenterUpstreamRows, readPresenterSwitch, seedanceVoiceText,
   seedingScriptId, withAvatarAsSpeaker,
 } from "./presenter";
 import { prepareNamedVoiceReference } from "./voice-reference";
@@ -44,8 +44,9 @@ export function withPresenterRow(
   presenter: ShotPresenter | null,
 ): UpstreamOutput[] {
   if (!presenter?.inShot || ups.some((u) => u.nodeId === presenter.avatarNodeId)) return ups;
-  const row = presenterUpstreamRow(presenter.avatarNodeId, presenter.avatar);
-  return row ? [...withAvatarAsSpeaker(ups, presenter.avatar.name), row] : ups;
+  // D308 — the front, then the profile sheet when there is one.
+  const rows = presenterUpstreamRows(presenter.avatarNodeId, presenter.avatar);
+  return rows.length > 0 ? [...withAvatarAsSpeaker(ups, presenter.avatar.name), ...rows] : ups;
 }
 
 /** A prompt node's upstream as everything downstream should see it — with the presenter as a

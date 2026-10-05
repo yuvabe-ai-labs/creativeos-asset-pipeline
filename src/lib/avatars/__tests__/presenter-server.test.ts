@@ -33,7 +33,7 @@ describe("getPromptUpstream", () => {
   it("adds the presenter as a virtual image input when the shot has an on-camera line", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine])] as never);
     const ups = await getPromptUpstream("prompt-1");
-    expect(ups).toHaveLength(2);
+    expect(ups).toHaveLength(3) // the shot, the front and the sheet (D308);
     expect(ups[1]).toMatchObject({
       nodeId: "avatar-node-1",
       type: "file",
@@ -50,6 +50,12 @@ describe("getPromptUpstream", () => {
     expect(script.visual_script.shots[0].voiceover[0].speaker).toBe("Razel");
   });
 
+  it("adds the profile sheet after the front (D308)", async () => {
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine])] as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet"]);
+  });
+
   it("leaves a narration-only shot alone", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([narratorLine])] as never);
     expect(await getPromptUpstream("prompt-1")).toHaveLength(1);
@@ -58,7 +64,7 @@ describe("getPromptUpstream", () => {
   it("follows the operator's switch over the default", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([narratorLine])] as never);
     vi.mocked(getNodeClientAndData).mockResolvedValue({ clientId: "c1", data: { presenter: { inShot: true } } });
-    expect(await getPromptUpstream("prompt-1")).toHaveLength(2);
+    expect(await getPromptUpstream("prompt-1")).toHaveLength(3);
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine])] as never);
     vi.mocked(getNodeClientAndData).mockResolvedValue({ clientId: "c1", data: { presenter: { inShot: false } } });
     expect(await getPromptUpstream("prompt-1")).toHaveLength(1);
@@ -91,7 +97,7 @@ describe("withStillPresenter", () => {
   it("adds the face to a still's connected images when its Prompt has the presenter in the shot", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine])] as never);
     const ups = await withStillPresenter([{ nodeId: "prompt-1", type: "prompt", data: {}, activeOutput: null, versionId: null }]);
-    expect(ups.map((u) => u.nodeId)).toEqual(["prompt-1", "avatar-node-1"]);
+    expect(ups.map((u) => u.nodeId)).toEqual(["prompt-1", "avatar-node-1", "avatar-node-1:sheet"]);
     expect(getUpstreamOutputs).toHaveBeenCalledWith("prompt-1");
   });
 
