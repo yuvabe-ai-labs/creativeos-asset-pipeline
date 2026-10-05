@@ -53,7 +53,7 @@ export const STUDIO_STEPS: readonly StudioStep[] = [
   },
   {
     id: "preview", title: "Preview", heading: "Preview", optional: true,
-    lede: "See and hear the avatar speak before you put it in a video.",
+    lede: "Generate a preview to see and hear the avatar, then save to library.",
   },
 ];
 
