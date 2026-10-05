@@ -38,7 +38,7 @@ export function estimateVoicePreviewCredits(mode, engine, priceMultiplier?): num
 export function voicePreviewRowEngine(row: Pick<GenerationRow, "inputs_snapshot">): VoicePreviewEngine;
 ```
 
-- [ ] **Step 1: Failing tests** in `voice-preview.test.ts`:
+- [x] **Step 1: Failing tests** in `voice-preview.test.ts`:
 ```ts
 describe("voicePreviewEngine", () => {
   it("named is always Omni", () => {
@@ -68,8 +68,8 @@ it("old rows read their engine from the mode", () => {
   expect(voicePreviewRowEngine({ inputs_snapshot: {} } as never)).toBe("omni");
 });
 ```
-- [ ] **Step 2:** Run `npx vitest run src/lib/avatars/__tests__/voice-preview.test.ts` — FAIL (not exported).
-- [ ] **Step 3: Implement** in `voice-preview.ts`:
+- [x] **Step 2:** Run `npx vitest run src/lib/avatars/__tests__/voice-preview.test.ts` — FAIL (not exported).
+- [x] **Step 3: Implement** in `voice-preview.ts`:
 ```ts
 export type VoicePreviewEngine = "seedance" | "omni";
 export const VOICE_PREVIEW_ENGINE = {
@@ -107,15 +107,15 @@ export function voicePreviewRowEngine(row) {
 }
 ```
 `isSeedanceFaceModel` is imported from `./generation`. Update the header comment: native is Seedance on a Seedream face, Omni otherwise; its voice is kept either way.
-- [ ] **Step 4: Callers.**
+- [x] **Step 4: Callers.**
   - Route POST: `const engine = voicePreviewEngine(avatar)!` (the blocker already guarantees a voice and a front); `voicePreviewParams(engine)`; `modelUsed: VOICE_PREVIEW_ENGINE[engine].modelId`; `inputsSnapshot.engine = engine`; `estimateVoicePreviewCredits(mode, engine, …)`; native payload gains `engine`.
   - `voice-preview-run.ts`: `AvatarVoicePreviewTaskPayload` native variant gains `engine: VoicePreviewEngine`; named stays Omni.
   - Task: `const modelId = VOICE_PREVIEW_ENGINE[payload.mode === "native" ? payload.engine : "omni"].modelId`.
   - `complete-voice-preview.ts`: `voicePreviewCostUsd(mode, voicePreviewRowEngine(generation), …)`.
   - `studio-server.ts` `estimateFor`: `const engine = voicePreviewEngine(avatar); if (!engine) return null;` then pass `engine`.
   - Tests: route test's `VOICE_PREVIEW_ENGINE.named/native` become `.omni/.seedance`; native-on-uploaded-face case expects `modelUsed: VOICE_PREVIEW_ENGINE.omni.modelId` and `engine: "omni"` in the payload; complete.test's `voicePreviewParams("named")` → `("omni")`, `("native")` → `("seedance")`, cost calls gain the engine.
-- [ ] **Step 5:** `npx vitest run src/lib/avatars src/lib/generations "src/app/api/clients/[id]/avatars"` — PASS; `npx tsc --noEmit -p .`.
-- [ ] **Step 6: Commit** `feat(avatars): the voice preview's engine follows the face (D301)`.
+- [x] **Step 5:** `npx vitest run src/lib/avatars src/lib/generations "src/app/api/clients/[id]/avatars"` — PASS; `npx tsc --noEmit -p .`.
+- [x] **Step 6: Commit** `feat(avatars): the voice preview's engine follows the face (D301)`.
 
 ---
 
@@ -135,7 +135,7 @@ export function presenterDefaultVoiceId(avatar: Pick<Avatar, "voice">): string |
 export function avatarAutoVoiceMissing(avatar: Pick<Avatar, "voice" | "voiceSample">): boolean;
 ```
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
 ```ts
 // voice.test.ts
 it("every face may use either mode", () => {
@@ -166,8 +166,8 @@ it("declares a custom voice with its origin", async () => { /* PUT { mode: "name
 it("keeps the auto voice when native is declared again", async () => { /* current native+autoVoice, PUT native → voice unchanged */ });
 it("deletes the auto voice when the declaration moves off it", async () => { /* current native+autoVoice, PUT named → after() calls deleteVoice("auto1") */ });
 ```
-- [ ] **Step 2:** Run the three test files — FAIL.
-- [ ] **Step 3: Implement.**
+- [x] **Step 2:** Run the three test files — FAIL.
+- [x] **Step 3: Implement.**
   - `schema.ts`: the type above.
   - `voice.ts`: `allowedVoiceModes` returns `["native", "named"]` for any person type (empty for `null`); `avatarVoiceLabel` native → `"Chosen for me"`; `pickerVoiceToAvatarVoice(picked, origin?)` sets `origin` when given.
   - `presenter.ts`:
@@ -189,8 +189,8 @@ export function avatarAutoVoiceMissing(avatar: Pick<Avatar, "voice" | "voiceSamp
   - Voice route: schema named variant gains `origin: z.enum(["library", "custom"]).optional()`. Native: `voice = current.voice?.mode === "native" ? current.voice : { mode: "native" }`. Named: `pickerVoiceToAvatarVoice(picked, choice.origin)`. After a successful write — and on `none` — if `current.voice?.mode === "native" && current.voice.autoVoice` and the new voice is not that same object, `after(() => deleteVoice(id).catch(log))` (import `deleteVoice` from `@/lib/elevenlabs/voice-catalog`). Remove the "A real person's avatar needs a named voice" branch's reason (it can no longer fire; keep `isVoiceAllowed` for the null person type).
   - `avatars.service.ts` `setVoice` choice type gains `origin?`.
   - `video-gen-focus-view.tsx`: `presenterVoiceId = presenterAvatar ? presenterDefaultVoiceId(presenterAvatar) : null`.
-- [ ] **Step 4:** Run `npx vitest run src/lib/avatars "src/app/api/clients/[id]/avatars"` — PASS; `tsc`.
-- [ ] **Step 5: Commit** `feat(avatars): any face may have the voice chosen for it; the auto voice is Edit voice's default (D301)`.
+- [x] **Step 4:** Run `npx vitest run src/lib/avatars "src/app/api/clients/[id]/avatars"` — PASS; `tsc`.
+- [x] **Step 5: Commit** `feat(avatars): any face may have the voice chosen for it; the auto voice is Edit voice's default (D301)`.
 
 ---
 
@@ -215,14 +215,14 @@ export function autoVoiceName(clientName: string, avatarName: string): string; /
 export async function keepAutoVoice(args: { clientId: string; clientName: string; avatarId: string; sample: AvatarVoiceSample }, deps?: AutoVoiceDeps): Promise<string | null>;
 ```
 
-- [ ] **Step 1: Failing tests** (`auto-voice.test.ts`, deps injected):
+- [x] **Step 1: Failing tests** (`auto-voice.test.ts`, deps injected):
   - clones the sample's bytes as one mp3 file named `autoVoiceName(...)`, records `{ mode: "native", autoVoice: { voiceId: "new1", sourceKey: sample.sourceKey } }`, deletes the previous auto voice `"old1"`, calls `invalidate("new1")`, returns `"new1"`;
   - does nothing (no clone) when the avatar's voice is no longer native;
   - when the clone throws: returns null, records nothing, deletes nothing;
   - when deleting the old voice throws: still records the new one and returns its id;
   - when the voice changed while cloning (re-read shows named): deletes the new clone and records nothing.
-- [ ] **Step 2:** Run — FAIL.
-- [ ] **Step 3: Implement** `auto-voice.ts` (`import "server-only"`):
+- [x] **Step 2:** Run — FAIL.
+- [x] **Step 3: Implement** `auto-voice.ts` (`import "server-only"`):
 ```ts
 export async function keepAutoVoice({ clientId, clientName, avatarId, sample }, deps = DEFAULT_DEPS) {
   const before = await deps.getAvatar(clientId, avatarId);
@@ -247,7 +247,7 @@ export async function keepAutoVoice({ clientId, clientName, avatarId, sample }, 
 }
 ```
   `DEFAULT_DEPS`: `fetch(url).then(r => { if (!r.ok) throw …; return r.arrayBuffer(); })`, `cloneVoice`/`deleteVoice` from `voice-catalog`, `getAvatar`/`updateAvatar` from `@/lib/db/avatars`, `invalidateAccountVoices`.
-- [ ] **Step 4:** In `completeAvatarVoicePreview`, move the sample write and add the auto voice **before** `succeedGeneration`, so the Studio, which reloads the avatar when the preview turns succeeded, sees both:
+- [x] **Step 4:** In `completeAvatarVoicePreview`, move the sample write and add the auto voice **before** `succeedGeneration`, so the Studio, which reloads the avatar when the preview turns succeeded, sees both:
 ```ts
 await settleGeneration(...);
 const sample = voicePreviewKeepsSample(mode) ? readVoiceSample(input.meta) : null;
@@ -261,8 +261,8 @@ if (sample && generation.avatar_id) {
 await succeedGeneration(...);
 ```
   complete.test: mock `@/lib/avatars/auto-voice`; the native case asserts `keepAutoVoice` was called with the sample and that it ran before `succeedGeneration` (`mock.invocationCallOrder`).
-- [ ] **Step 5:** `npx vitest run src/lib/avatars src/lib/generations` — PASS.
-- [ ] **Step 6: Commit** `feat(avatars): "chosen for me" is kept as an auto voice for every model (D301)`.
+- [x] **Step 5:** `npx vitest run src/lib/avatars src/lib/generations` — PASS.
+- [x] **Step 6: Commit** `feat(avatars): "chosen for me" is kept as an auto voice for every model (D301)`.
 
 ---
 
@@ -282,7 +282,7 @@ export function voiceChoiceOf(voice: AvatarVoice | null): VoiceChoice | null; //
 //   padding/description/noise rows and uses the Studio wording (spec §2).
 ```
 
-- [ ] **Step 1: Failing test** (`studio.test.ts`):
+- [x] **Step 1: Failing test** (`studio.test.ts`):
 ```ts
 it("opens the card the declaration came from", () => {
   expect(voiceChoiceOf({ mode: "native" })).toBe("auto");
@@ -291,8 +291,8 @@ it("opens the card the declaration came from", () => {
   expect(voiceChoiceOf(null)).toBeNull();
 });
 ```
-- [ ] **Step 2:** Run — FAIL. **Step 3:** add `voiceChoiceOf` to `studio.ts`.
-- [ ] **Step 4: Components.**
+- [x] **Step 2:** Run — FAIL. **Step 3:** add `voiceChoiceOf` to `studio.ts`.
+- [x] **Step 4: Components.**
   - `AvatarVoiceOptions({ name, selected, saving, onSelect })` — a `role="radiogroup"` of three `Button variant="outline"` cards (`role="radio"`, `aria-checked`), each with a dot, title, line and tag (spec §2 copy; `{name}` falls back to "this avatar"). The card being saved shows a `Loader2` instead of the dot. Three columns at `sm`, one below.
   - `AvatarVoiceAutoPanel({ name, saved, saving })` — Sparkles icon, "We'll pick a voice that suits {name}", the spec §2 line, and "Saving…" / "Saved".
   - Library panel: the existing `VideoGenChangeVoicePicker` block, moved as is; `onSelect` calls `chooseNamed(picked, "library")`.
@@ -300,8 +300,8 @@ it("opens the card the declaration came from", () => {
   - `VoiceCloneForm` `inline`: no outer padding, the name prefilled from `defaultName`, description and noise rows hidden (noise stays `true`), upload hint "mp3, wav or m4a · one speaker · 1–2 minutes works best, at least 30 seconds", consent label "I have this person's permission to use their voice.", button "Create voice" / "Creating the voice…", success toast "Voice created". The dialog use is unchanged.
   - `AvatarStudioVoiceStep`: `selected` = the open card (initial `voiceChoiceOf(declared)`), `pending` mapped to a card for "saving". Selecting "auto" calls `chooseNative()` at once; "library"/"custom" only open their panel. Below the panels, "Remove the voice" as today. Remove `MODE_COPY` and the real-person note.
   - `useAvatarVoice.chooseNamed(voice, origin)` passes `origin` to `declare`.
-- [ ] **Step 5:** `npx vitest run src/lib/avatars src/components/avatars src/hooks`; `tsc`; eslint on the touched files.
-- [ ] **Step 6: Commit** `feat(avatars): the Voice step offers three ways to choose a voice (D301)`.
+- [x] **Step 5:** `npx vitest run src/lib/avatars src/components/avatars src/hooks`; `tsc`; eslint on the touched files.
+- [x] **Step 6: Commit** `feat(avatars): the Voice step offers three ways to choose a voice (D301)`.
 
 ---
 
@@ -311,16 +311,37 @@ it("opens the card the declaration came from", () => {
 - Modify: `src/components/avatars/avatar-voice-preview.tsx`, `src/lib/avatars/studio.ts` (`avatarFaceLabel`, `stepStatusLine`), `src/components/avatars/avatar-studio-summary.tsx`
 - Test: `src/lib/avatars/__tests__/studio.test.ts`
 
-- [ ] **Step 1: Failing tests:** `avatarFaceLabel(generated())` → `"Generic"`; `stepStatusLine("look", …)` for a generated front → `"Generic"`; `stepStatusLine("voice", native)` → `"Chosen for me"`.
-- [ ] **Step 2:** Run — FAIL. **Step 3:** implement (drop `imageModelLabel` if unused).
-- [ ] **Step 4:** `AvatarVoicePreview`: remove the "Made with" box and `engineLine`; native help text "The voice you keep here is the one {name} uses in every video."; button labels — native "Make a voice" / "Make another"; when `avatarAutoVoiceMissing(avatar)` and not busy, an info line "{name}'s voice couldn't be kept for every video. Make the preview again to retry." The engine wait hint becomes "Usually a minute or two. You can keep working on other steps." for both modes.
-- [ ] **Step 5:** Tests, `tsc`, eslint. **Step 6: Commit** `feat(avatars): the Preview step and labels name no models (D301)`.
+- [x] **Step 1: Failing tests:** `avatarFaceLabel(generated())` → `"Generic"`; `stepStatusLine("look", …)` for a generated front → `"Generic"`; `stepStatusLine("voice", native)` → `"Chosen for me"`.
+- [x] **Step 2:** Run — FAIL. **Step 3:** implement (drop `imageModelLabel` if unused).
+- [x] **Step 4:** `AvatarVoicePreview`: remove the "Made with" box and `engineLine`; native help text "The voice you keep here is the one {name} uses in every video."; button labels — native "Make a voice" / "Make another"; when `avatarAutoVoiceMissing(avatar)` and not busy, an info line "{name}'s voice couldn't be kept for every video. Make the preview again to retry." The engine wait hint becomes "Usually a minute or two. You can keep working on other steps." for both modes.
+- [x] **Step 5:** Tests, `tsc`, eslint. **Step 6: Commit** `feat(avatars): the Preview step and labels name no models (D301)`.
 
 ---
 
 ### Task 6: Record it
 
-- [ ] As-built notes appended to this plan; spec amended where the build differs; commit `docs(avatars): voice choices as built (D301)`.
+- [x] As-built notes appended to this plan; spec amended where the build differs; commit `docs(avatars): voice choices as built (D301)`.
+
+## As built (2026-10-05)
+
+All six tasks done. Commits: `5034051e` (engine follows the face), `bda4e8b6` (declaration,
+Edit voice default), `0d1f04ce` (auto voice), `2b343cad` (Voice step), `c632ebf1` (Preview
+wording and labels).
+
+- **Engine.** `VOICE_PREVIEW_ENGINE` is keyed by engine (`omni` / `seedance`); the engine is
+  recorded on the generation (`inputs_snapshot.engine`) and read back with `voicePreviewRowEngine`,
+  which infers it for older rows. Task 1 also removed the Preview step's "Made with" box, since it
+  indexed the table by mode.
+- **Releasing the auto voice.** Besides a new preview replacing it, the voice route removes the auto
+  voice from the ElevenLabs account (after the response, best-effort) when the declaration moves to
+  a named voice or to none. Choosing "for me" again keeps it.
+- **The custom panel** shows the voice being saved as soon as it is created, so the form doesn't
+  flash back while the declaration saves.
+- **The clone form's `inline` mode** hides the description and the noise-removal tick (noise removal
+  stays on) and counts the prefilled name as untouched, so no error shows before the operator starts.
+- **Wording beyond the spec.** "Voice reference" reads "Voice kept" on the Preview step, the summary
+  and the stepper; native preview buttons read "Make a voice" / "Make another".
+- **Not verified in a browser.** Components were checked with `tsc` and eslint; vitest runs in node.
 
 ## Verify in the running app
 

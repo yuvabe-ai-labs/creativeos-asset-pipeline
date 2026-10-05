@@ -159,3 +159,16 @@ type AvatarVoice =
 
 Voice Design (a voice from a text description). Recording in the browser. Showing auto voices in the
 library. Billing ElevenLabs clones (client avatars spec §7.3).
+
+## 10. As built (2026-10-05)
+
+Built as designed, with these differences:
+
+- **The auto voice is also released** when the declaration moves off "Choose a voice for me" (to a
+  library or custom voice, or to none): the voice route deletes it from the ElevenLabs account after
+  responding, best-effort. Choosing "for me" again keeps it (§3.2 said only a new preview replaces it).
+- **"Voice reference" became "Voice kept"** wherever the Studio shows it (Preview step, summary,
+  stepper), and the native preview's buttons read "Make a voice" / "Make another" (§5).
+- **The inline clone form** has no description field and no noise-removal tick (removal stays on).
+- **The real-person refusal** ("A real person's avatar needs a named voice") is gone from the voice
+  route, since every face may now have its voice chosen for it.
