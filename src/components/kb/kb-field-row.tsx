@@ -14,14 +14,6 @@ import {
 import type { KBField } from "@/lib/kb/schema";
 import { COLOUR_FIELD_KEYS } from "@/lib/kb/constants";
 
-
-const CONFIDENCE_LABEL = { high: "High", medium: "Med", low: "Low" };
-const CONFIDENCE_CLASSES = {
-  high: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  low: "bg-muted text-muted-foreground",
-};
-
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (Array.isArray(value)) return value.join(", ");
@@ -37,8 +29,6 @@ type Props = {
   onApprove: () => void;
   onReject: () => void;
   onReanalyze: (comment: string) => void;
-  /** Show the High / Med / Low pill. Some modules hide it (MODULES_WITHOUT_CONFIDENCE). */
-  showConfidence?: boolean;
 };
 
 export function KBFieldRow({
@@ -50,7 +40,6 @@ export function KBFieldRow({
   onApprove,
   onReject,
   onReanalyze,
-  showConfidence = true,
 }: Props) {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
@@ -89,7 +78,8 @@ export function KBFieldRow({
   // Gutter: an editorial section label with a constant purple kicker rule —
   // mirrors the Section gutter in script-document.tsx. Review state (approved /
   // edited) is intentionally NOT shown per-field; the only at-a-glance signal is
-  // the per-module tick on the tab. Rejected keeps a line-through label.
+  // the per-module tick on the tab. Rejected keeps a line-through label. The extraction's
+  // confidence (high / medium / low) is kept on the field but not shown.
   return (
     <section className="grid gap-x-10 gap-y-2.5 sm:grid-cols-[160px_1fr]">
       <div className="self-start sm:sticky sm:top-2">
@@ -102,21 +92,9 @@ export function KBFieldRow({
         >
           {label}
         </span>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {showConfidence && (
-            <span
-              className={cn(
-                "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
-                CONFIDENCE_CLASSES[field.confidence],
-              )}
-            >
-              {CONFIDENCE_LABEL[field.confidence]}
-            </span>
-          )}
-          {field.evidence_type === "inferred" && (
-            <span className="text-[0.6rem] text-muted-foreground">inferred</span>
-          )}
-        </div>
+        {field.evidence_type === "inferred" && (
+          <span className="mt-1.5 block text-[0.6rem] text-muted-foreground">inferred</span>
+        )}
       </div>
 
       <div className={cn("min-w-0 leading-relaxed", isReanalyzing && "opacity-70")}>

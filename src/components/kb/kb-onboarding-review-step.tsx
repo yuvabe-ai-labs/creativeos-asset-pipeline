@@ -61,7 +61,6 @@ import {
   FIELD_LABELS,
   DOC_EXTENSIONS,
   IMG_EXTENSIONS,
-  MODULES_WITHOUT_CONFIDENCE,
 } from "@/lib/kb/constants";
 import {
   getModuleFields,
@@ -676,7 +675,6 @@ export function KBOnboardingReviewStep({
                   onApprove={() => handleApprove(selectedModule, fieldKey)}
                   onReject={() => handleReject(selectedModule, fieldKey)}
                   onReanalyze={(comment) => handleReanalyzeField(selectedModule, fieldKey, comment)}
-                  showConfidence={!MODULES_WITHOUT_CONFIDENCE.has(selectedModule)}
                 />
               ))}
             </div>

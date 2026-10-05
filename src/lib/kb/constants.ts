@@ -24,10 +24,6 @@ export const MODULE_LEADING_FIELDS: Partial<Record<ModuleKey, readonly string[]>
   visual_identity: ["colour_palette_primary", "colour_palette_secondary", "colour_palette_avoid"],
 };
 
-/** Modules whose fields hide the High / Med / Low confidence pill. The value is kept; it is
- *  only not shown. */
-export const MODULES_WITHOUT_CONFIDENCE: ReadonlySet<ModuleKey> = new Set(["visual_identity"]);
-
 export const MODULES: { key: ModuleKey; label: string }[] = [
   { key: "brand_voice",      label: "Brand Voice" },
   { key: "visual_identity",  label: "Visual Identity" },
