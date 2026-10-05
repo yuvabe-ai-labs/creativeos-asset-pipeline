@@ -37,7 +37,7 @@ export type StudioStep = {
 export const STUDIO_STEPS: readonly StudioStep[] = [
   {
     id: "name", title: "Name", heading: "Name", optional: false,
-    lede: "What this avatar is called. They say it in their preview, so it comes first.",
+    lede: "What this avatar is called.",
   },
   {
     id: "look", title: "Look", heading: "Front image", optional: false,
