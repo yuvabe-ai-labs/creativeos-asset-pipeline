@@ -77,6 +77,7 @@ import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 import { PresenterSwitch } from "./presenter-switch";
+import { useMentionUpstream } from "@/hooks/use-mention-upstream";
 
 type PromptFocusViewProps = {
   open: boolean;
@@ -105,6 +106,8 @@ export function PromptFocusView({
   onPatch,
   onSaveOutput,
 }: PromptFocusViewProps) {
+  // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
+  const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
   const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
   const [draft, setDraft] = useState(output ?? "");
@@ -669,7 +672,7 @@ export function PromptFocusView({
                           onPatch({ instruction: v });
                         }}
                         placeholder={instructionPlaceholder}
-                        upstream={upstream}
+                        upstream={mentionUpstream}
                         disabled={!editable}
                         className="min-h-20"
                       />

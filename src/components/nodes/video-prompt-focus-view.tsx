@@ -47,6 +47,7 @@ import { storedRefDialect, renderRefs, missingRefsMessage } from "@/lib/nodes/re
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import { useMentionUpstream } from "@/hooks/use-mention-upstream";
 
 // Only Omni and Seedance carry an inline reference handle in the model's own syntax (`<IMAGE_REF_N>`
 // / `@Image N`) — Veo and Kling stay positional prose (buildCompositionBlock in video-prompt.ts), so
@@ -87,6 +88,8 @@ export function VideoPromptFocusView({
   onPatch,
   onSaveOutput,
 }: VideoPromptFocusViewProps) {
+  // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
+  const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
@@ -544,7 +547,7 @@ export function VideoPromptFocusView({
                         onPatch({ instruction: v });
                       }}
                       placeholder={DEFAULT_MOTION_INSTRUCTION}
-                      upstream={upstream}
+                      upstream={mentionUpstream}
                       disabled={!editable}
                       className="min-h-16"
                     />
@@ -671,7 +674,7 @@ export function VideoPromptFocusView({
                         <MentionInstructionEditor
                           value={draft}
                           onChange={setDraft}
-                          upstream={upstream}
+                          upstream={mentionUpstream}
                           disabled={!editable}
                           dialect={omniRefs}
                           placeholder="Empty — click to edit"

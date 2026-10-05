@@ -62,6 +62,7 @@ import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
 import { renderVoiceover } from "@/lib/nodes/voiceover";
 import type { VoLine } from "@/lib/nodes/reel-script";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
+import { useMentionUpstream } from "@/hooks/use-mention-upstream";
 
 type MultishotPromptFocusViewProps = {
   open: boolean;
@@ -107,6 +108,8 @@ export function MultishotPromptFocusView({
   upstream,
   onPatch,
 }: MultishotPromptFocusViewProps) {
+  // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
+  const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   // The model the upstream Multishot node is currently SET to — what the next Generate will use.
@@ -750,7 +753,7 @@ export function MultishotPromptFocusView({
                             onPatch({ instruction: v });
                           }}
                           placeholder="e.g. @ the turnaround is the character — identity only, ignore its backdrop. Take the setting and light from @ the kitchen shot."
-                          upstream={upstream}
+                          upstream={mentionUpstream}
                           disabled={isReadOnly || generating || !!refining}
                           className="min-h-16"
                         />
@@ -1012,7 +1015,7 @@ export function MultishotPromptFocusView({
                           <MentionInstructionEditor
                             value={planDraft.look}
                             onChange={updateLook}
-                            upstream={upstream}
+                            upstream={mentionUpstream}
                             dialect={beatDialect}
                             disabled={isReadOnly || !!refining}
                           />
@@ -1031,7 +1034,7 @@ export function MultishotPromptFocusView({
                               from={beat.from}
                               to={beat.to}
                               text={beat.text}
-                              upstream={upstream}
+                              upstream={mentionUpstream}
 
                               dialect={beatDialect}
                               onChange={(v) => updateBeat(beat.cutId, v)}

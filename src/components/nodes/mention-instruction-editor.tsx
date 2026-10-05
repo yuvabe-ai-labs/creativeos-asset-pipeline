@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
-import { ImageIcon, Paperclip, Pencil } from "lucide-react";
+import { ImageIcon, Paperclip, Pencil, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { UpstreamNode } from "./connected-inputs-card";
@@ -64,6 +64,7 @@ function nodeTypeLabel(type: string): string {
   if (type === "image-gen") return "Image";
   if (type === "file") return "File";
   if (type === "draw") return "Sketch";
+  if (type === "avatar") return "Avatar";
   return type;
 }
 
@@ -71,6 +72,7 @@ function NodeIcon({ type }: { type: string }) {
   if (type === "image-gen") return <ImageIcon className="size-3 shrink-0" />;
   if (type === "file") return <Paperclip className="size-3 shrink-0" />;
   if (type === "draw") return <Pencil className="size-3 shrink-0" />;
+  if (type === "avatar") return <UserRound className="size-3 shrink-0" />;
   return null;
 }
 
@@ -303,7 +305,7 @@ export function MentionInstructionEditor({
   const eligible =
     mentionables ??
     upstream
-      .filter((u) => u.type === "image-gen" || u.type === "draw" || u.type === "file")
+      .filter((u) => u.type === "image-gen" || u.type === "draw" || u.type === "file" || u.type === "avatar")
       .map((u) => ({
         id: u.id,
         label: `${nodeTypeLabel(u.type)}: ${u.label}`,
