@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
 
 type ImageInputs = {
   startFrame: boolean;

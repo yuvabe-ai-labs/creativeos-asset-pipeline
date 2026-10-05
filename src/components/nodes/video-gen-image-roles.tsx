@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import type { UpstreamImage } from "@/lib/video-gen/api";
 import type { ImageInputCapabilities } from "@/lib/video-gen/types";
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
 
 const ROLES: { value: ImageRole; label: string }[] = [
   { value: "start_frame", label: "Start" },

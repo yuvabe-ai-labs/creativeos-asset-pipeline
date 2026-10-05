@@ -135,7 +135,7 @@ import { readVoiceMeta } from "@/lib/voice-change/meta";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
 
 type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
 
