@@ -134,8 +134,15 @@ POST /api/clients/:id/asset-imports { sources? }   → startAssetImports (src/li
   waits on the other. The upload step does not wait for imports either.
 - Writes go straight to Supabase and GCS from the task (the `archive-reference` pattern), no webhook.
 - A source with no target (no handle entered) is simply not triggered.
-- **Refresh** re-runs one source; dedupe by `source_ref` means it adds only what is new. (An imported
-  asset someone deleted can come back on refresh — accepted for v1.)
+- **Refresh is incremental for social sources.** Instagram and Facebook ask the actor only for
+  posts since the last successful import of the **same target** (`onlyPostsNewerThan: YYYY-MM-DD`,
+  one day of overlap, never past the 3-month window; a changed handle starts over), so Apify bills
+  only for new posts. A website has no post dates and is always crawled whole (`maxItems` cap).
+  Whatever is fetched is then deduped by `source_ref` before download. Because old posts are not
+  re-read, an asset someone deleted does not come back unless it is new.
+- **Every Refresh is confirmed** (per source, Refresh all, Try again) in a dialog that says exactly
+  what will be fetched: "checks instagram.com/x for posts since 3 Oct", "scans x.com again, up to
+  10 pages". Saving a handle imports without a second confirmation — saving is the explicit act.
 
 `ScrapedAsset` = `{ source, mediaType, url, thumbnailUrl?, sourceUrl?, postedAt?, ref, alt? }`.
 

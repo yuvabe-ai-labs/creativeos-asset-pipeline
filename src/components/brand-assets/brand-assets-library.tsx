@@ -22,6 +22,7 @@ import { BrandAssetsMasonry } from "./brand-assets-masonry";
 import { BrandAssetsLightbox } from "./brand-assets-lightbox";
 import { DeleteAssetDialog } from "./delete-asset-dialog";
 import { SourceTabHeader } from "./source-tab-header";
+import { RefreshConfirmDialog, type RefreshPlan } from "./refresh-confirm-dialog";
 
 type SourceTab = "all" | ImportSource;
 type Media = "all" | "image" | "video";
@@ -40,6 +41,7 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
   const [media, setMedia] = useState<Media>("all");
   const [openIndex, setOpenIndex] = useState(-1);
   const [pendingDelete, setPendingDelete] = useState<ClientBrandImageRow | null>(null);
+  const [refreshPlan, setRefreshPlan] = useState<RefreshPlan[] | null>(null);
 
   const status = useAssetImports(clientId);
   const filters = { source: tab === "all" ? null : tab, media: media === "all" ? null : media };
@@ -63,6 +65,20 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
     tab === "all" && media === "all" && anyLive && counts && pages.isSuccess && !pages.hasNextPage
       ? counts.total - items.length
       : 0;
+
+  function askRefreshAll() {
+    const plan = IMPORT_SOURCES.flatMap((s): RefreshPlan[] => {
+      const target = targets?.[s];
+      return target ? [{ source: s, target, lastSucceededAt: lastImport(s)?.lastSucceededAt ?? null }] : [];
+    });
+    if (plan.length === 0) toast.info("Connect a website, Instagram or Facebook first.");
+    else setRefreshPlan(plan);
+  }
+
+  function confirmRefreshAll() {
+    setRefreshPlan(null);
+    start.mutate(undefined, { onError: (e) => toast.error(e.message) });
+  }
 
   const loadMore = () => {
     if (pages.hasNextPage && !pages.isFetchingNextPage) void pages.fetchNextPage();
@@ -95,12 +111,7 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
           variant="outline"
           size="sm"
           disabled={anyLive || start.isPending}
-          onClick={() =>
-            start.mutate(undefined, {
-              onSuccess: (s) => s.length === 0 && toast.info("Connect a website, Instagram or Facebook first."),
-              onError: (e) => toast.error(e.message),
-            })
-          }
+          onClick={askRefreshAll}
         >
           <RefreshCwIcon className={anyLive ? "size-3.5 animate-spin" : "size-3.5"} strokeWidth={1.5} />
           {anyLive ? "Importing" : "Refresh all"}
@@ -195,6 +206,7 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
         </p>
       ) : null}
 
+      <RefreshConfirmDialog plan={refreshPlan} onConfirm={confirmRefreshAll} onCancel={() => setRefreshPlan(null)} />
       <DeleteAssetDialog asset={pendingDelete} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />
     </div>
   );

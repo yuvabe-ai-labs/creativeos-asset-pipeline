@@ -5,7 +5,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { failJob, getJob, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
+import { failJob, getJob, listRecentJobs, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
 import { uploadImportedBrandMedia } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
@@ -20,7 +20,7 @@ import { THUMBNAIL_SIZE_LIMIT } from "@/lib/market/constants";
 import { runImportActor } from "./apify";
 import { normalizeFacebook, normalizeInstagram, normalizeWebsite } from "./normalize";
 import type { AssetImportInput, AssetImportResult, NormalizeResult, ScrapedAsset } from "./types";
-import { importedFilename } from "./utils";
+import { importedFilename, refreshSince } from "./utils";
 
 const NORMALIZERS: Record<AssetImportInput["source"], (rows: never[]) => NormalizeResult> = {
   instagram: normalizeInstagram,
@@ -43,8 +43,11 @@ export async function runAssetImport(
     const token = process.env.APIFY_TOKEN;
     if (!token) throw new Error("APIFY_TOKEN is not set.");
 
-    await startJob(jobId, `Scraping ${label}…`);
-    const rows = await runImportActor(source, target, { token, fetchImpl });
+    // A social refresh asks only for posts since the last import of this same target, so Apify
+    // bills for what is new. A website has no post dates: it is always crawled whole.
+    const since = source === "website" ? null : refreshSince(await lastSuccessAt(clientId, jobId, job.input));
+    await startJob(jobId, since ? `Checking ${label} for posts since ${since}…` : `Scraping ${label}…`);
+    const rows = await runImportActor(source, target, { token, fetchImpl, since });
     const { assets, error } = NORMALIZERS[source](rows as never[]);
     if (error) {
       await failJob(jobId, error);
@@ -63,7 +66,7 @@ export async function runAssetImport(
       if (ok === "failed") failed++;
     });
 
-    const result = { assetCount: saved, found: assets.length, failed };
+    const result = { assetCount: saved, found: assets.length, failed, since };
     const summary = saved === 0 && assets.length > 0 ? "Already up to date" : `${saved} new`;
     await succeedJob(jobId, result, summary);
     return result;
@@ -71,6 +74,15 @@ export async function runAssetImport(
     await failJob(jobId, e instanceof Error ? e.message : String(e));
     return null;
   }
+}
+
+/** When this source last imported successfully from this same target — a changed handle starts over. */
+async function lastSuccessAt(clientId: string, jobId: string, input: AssetImportInput): Promise<string | null> {
+  const jobs = await listRecentJobs<AssetImportInput>(clientId, "asset-import", 30);
+  const last = jobs.find(
+    (j) => j.id !== jobId && j.status === "succeeded" && j.input?.source === input.source && j.input?.target === input.target,
+  );
+  return last?.created_at ?? null;
 }
 
 /** Downloads one asset (and a video's poster) into storage and records it. Never throws. */

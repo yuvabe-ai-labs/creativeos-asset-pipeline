@@ -30,6 +30,11 @@ describe("buildActorInput", () => {
     });
   });
 
+  it("narrows a social refresh to posts since a date", () => {
+    expect(buildActorInput("instagram", "u", "2026-10-02")).toMatchObject({ onlyPostsNewerThan: "2026-10-02" });
+    expect(buildActorInput("facebook", "u", "2026-10-02")).toMatchObject({ onlyPostsNewerThan: "2026-10-02" });
+  });
+
   it("asks the website actor for merged, deduped media without audio", () => {
     expect(buildActorInput("website", "https://chupps.com/")).toMatchObject({
       mergeResponsiveVariants: true,

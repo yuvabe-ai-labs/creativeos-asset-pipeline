@@ -22,7 +22,13 @@ export type NormalizeResult = { assets: ScrapedAsset[]; error?: string };
 
 /** An `asset-import` background job's input and result (D306). */
 export type AssetImportInput = { source: ImportSource; target: string };
-export type AssetImportResult = { assetCount: number; found: number; failed: number };
+export type AssetImportResult = {
+  assetCount: number;
+  found: number;
+  failed: number;
+  /** The date a social refresh fetched from; null for a full fetch (D302). */
+  since?: string | null;
+};
 
 /** One source's latest import, as the browser sees it. */
 export type AssetImport = {
@@ -35,4 +41,7 @@ export type AssetImport = {
   error: string | null;
   createdAt: string;
   finishedAt: string | null;
+  /** When this source last imported successfully from this same target — what a social refresh
+   *  builds on. Null when it never has. */
+  lastSucceededAt: string | null;
 };

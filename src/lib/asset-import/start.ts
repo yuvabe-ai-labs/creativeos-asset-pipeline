@@ -125,12 +125,16 @@ export async function listLatestAssetImports(clientId: string): Promise<AssetImp
   for (const job of jobs) {
     const source = job.input?.source;
     if (!source || latest.has(source)) continue;
-    latest.set(source, toAssetImport(job));
+    // Newest first, so the first success of the same target is the one a refresh builds on.
+    const success = jobs.find(
+      (j) => j.status === "succeeded" && j.input?.source === source && j.input?.target === job.input.target,
+    );
+    latest.set(source, toAssetImport(job, success?.created_at ?? null));
   }
   return IMPORT_SOURCES.flatMap((s) => (latest.has(s) ? [latest.get(s)!] : []));
 }
 
-function toAssetImport(job: ImportJob): AssetImport {
+function toAssetImport(job: ImportJob, lastSucceededAt: string | null): AssetImport {
   return {
     id: job.id,
     source: job.input.source,
@@ -141,5 +145,6 @@ function toAssetImport(job: ImportJob): AssetImport {
     error: job.error,
     createdAt: job.created_at,
     finishedAt: job.finished_at,
+    lastSucceededAt,
   };
 }

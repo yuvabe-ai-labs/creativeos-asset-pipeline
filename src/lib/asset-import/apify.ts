@@ -13,9 +13,13 @@ import {
 const API = "https://api.apify.com/v2";
 const TERMINAL = new Set(["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"]);
 
-/** The actor input for one source. Verified field by field in the 2026-10-05 benchmark. */
-export function buildActorInput(source: ImportSource, target: string): Record<string, unknown> {
-  const window = `${SOCIAL_WINDOW_MONTHS} months`;
+/**
+ * The actor input for one source. Verified field by field in the 2026-10-05 benchmark.
+ * `since` (YYYY-MM-DD) narrows a social refresh to posts after the last import, so Apify bills
+ * only for new posts; both actors take an absolute date there as well as a relative one.
+ */
+export function buildActorInput(source: ImportSource, target: string, since?: string | null): Record<string, unknown> {
+  const window = since ?? `${SOCIAL_WINDOW_MONTHS} months`;
   switch (source) {
     case "instagram":
       return {
@@ -52,7 +56,7 @@ type RunData = { id: string; status: string; defaultDatasetId: string };
 export async function runImportActor(
   source: ImportSource,
   target: string,
-  opts: { token: string; fetchImpl?: typeof fetch; deadlineMs?: number },
+  opts: { token: string; fetchImpl?: typeof fetch; deadlineMs?: number; since?: string | null },
 ): Promise<unknown[]> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const headers = { Authorization: `Bearer ${opts.token}`, "Content-Type": "application/json" };
@@ -63,7 +67,7 @@ export async function runImportActor(
   const startRes = await fetchImpl(`${API}/acts/${IMPORT_ACTORS[source]}/runs${maxItems}`, {
     method: "POST",
     headers,
-    body: JSON.stringify(buildActorInput(source, target)),
+    body: JSON.stringify(buildActorInput(source, target, opts.since)),
   });
   if (!startRes.ok) throw new Error(`Apify could not start the ${source} scrape (HTTP ${startRes.status}).`);
   let run = ((await startRes.json()) as { data: RunData }).data;

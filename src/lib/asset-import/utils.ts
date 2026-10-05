@@ -122,6 +122,23 @@ export function isWithinWindow(postedAt: string | undefined, now: Date = new Dat
   return Number.isNaN(t) || t >= windowStart(now).getTime();
 }
 
+/** A refresh re-reads this much before the last import, so a post published while that import
+ *  ran — or timestamped a little differently by the actor — is never missed. */
+const REFRESH_OVERLAP_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The date (YYYY-MM-DD) a social refresh fetches posts from: just before the last successful
+ * import of the same target, never earlier than the 3-month window. Null — fetch the whole
+ * window — when there is no earlier success to build on.
+ */
+export function refreshSince(lastSucceededAt: string | null | undefined, now: Date = new Date()): string | null {
+  if (!lastSucceededAt) return null;
+  const last = Date.parse(lastSucceededAt);
+  if (Number.isNaN(last)) return null;
+  const since = Math.max(last - REFRESH_OVERLAP_MS, windowStart(now).getTime());
+  return new Date(since).toISOString().slice(0, 10);
+}
+
 /** First occurrence of each ref wins. */
 export function dedupeByRef(assets: ScrapedAsset[]): ScrapedAsset[] {
   const seen = new Set<string>();

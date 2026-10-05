@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/jobs/db", () => ({
   getJob: vi.fn(),
+  listRecentJobs: vi.fn(async () => []),
   startJob: vi.fn(),
   setJobPhase: vi.fn(),
   succeedJob: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock("sharp", () => {
   return { default: vi.fn(() => chain) };
 });
 
-import { failJob, getJob, succeedJob } from "@/lib/jobs/db";
+import { failJob, getJob, listRecentJobs, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
 import { uploadImportedBrandMedia } from "@/lib/storage";
 import { runImportActor } from "./apify";
@@ -74,11 +75,36 @@ describe("runAssetImport", () => {
     vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
     vi.mocked(runImportActor).mockResolvedValue([post(1), post(2)]);
     const result = await runAssetImport("job-1", { fetchImpl: mediaFetch() });
-    expect(result).toEqual({ assetCount: 2, found: 2, failed: 0 });
+    expect(result).toEqual({ assetCount: 2, found: 2, failed: 0, since: null });
     const row = vi.mocked(insertImportedBrandImage).mock.calls[0][0];
     expect(row).toMatchObject({ clientId: "client-1", source: "instagram", mediaType: "image", fileExt: "jpg" });
     expect(row.sourceRef).toMatch(/^meta:/);
     expect(succeedJob).toHaveBeenCalledWith("job-1", result, "2 new");
+  });
+
+  it("narrows a refresh to posts since the last import of the same handle", async () => {
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+    const day = 24 * 60 * 60 * 1000;
+    const lastRun = new Date(Date.now() - 2 * day);
+    vi.mocked(listRecentJobs).mockResolvedValue([
+      // A later import of a DIFFERENT handle must not count.
+      { id: "old-other", status: "succeeded", created_at: new Date(Date.now() - day).toISOString(), input: { source: "instagram", target: "https://www.instagram.com/other/" } },
+      { id: "old", status: "succeeded", created_at: lastRun.toISOString(), input: { source: "instagram", target: "https://www.instagram.com/brand/" } },
+    ] as never);
+    vi.mocked(runImportActor).mockResolvedValue([]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    // A day of overlap before the last run.
+    expect(vi.mocked(runImportActor).mock.calls[0][2].since).toBe(new Date(lastRun.getTime() - day).toISOString().slice(0, 10));
+  });
+
+  it("crawls a website whole, whatever came before", async () => {
+    vi.mocked(getJob).mockResolvedValue(job("website") as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([
+      { id: "old", status: "succeeded", created_at: "2026-10-03T10:00:00Z", input: { source: "website", target: "https://www.instagram.com/brand/" } },
+    ] as never);
+    vi.mocked(runImportActor).mockResolvedValue([]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[0][2].since).toBeNull();
   });
 
   it("skips refs the client already has (D305)", async () => {
@@ -86,7 +112,7 @@ describe("runAssetImport", () => {
     vi.mocked(runImportActor).mockResolvedValue([post(1)]);
     vi.mocked(listBrandImageRefs).mockResolvedValue(new Set([`meta:100_111_122_n.jpg`]));
     const result = await runAssetImport("job-1", { fetchImpl: mediaFetch() });
-    expect(result).toEqual({ assetCount: 0, found: 1, failed: 0 });
+    expect(result).toEqual({ assetCount: 0, found: 1, failed: 0, since: null });
     expect(uploadImportedBrandMedia).not.toHaveBeenCalled();
     expect(succeedJob).toHaveBeenCalledWith("job-1", result, "Already up to date");
   });
@@ -115,7 +141,7 @@ describe("runAssetImport", () => {
     vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
     vi.mocked(runImportActor).mockResolvedValue([post(1)]);
     const result = await runAssetImport("job-1", { fetchImpl: mediaFetch("text/html") });
-    expect(result).toEqual({ assetCount: 0, found: 1, failed: 1 });
+    expect(result).toEqual({ assetCount: 0, found: 1, failed: 1, since: null });
     expect(failJob).not.toHaveBeenCalled();
   });
 

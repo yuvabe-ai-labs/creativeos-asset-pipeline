@@ -10,6 +10,7 @@ import {
   instagramProfileUrl,
   isWithinWindow,
   metaMediaRef,
+  refreshSince,
   renditionWidth,
   stripFacebookDisplaySize,
   websiteMediaRef,
@@ -127,6 +128,23 @@ describe("asset cursors", () => {
     expect(decodeAssetCursor(injected)).toBeNull();
     const badDate = Buffer.from(JSON.stringify(["yesterday", cursor.id])).toString("base64url");
     expect(decodeAssetCursor(badDate)).toBeNull();
+  });
+});
+
+describe("refreshSince", () => {
+  const now = new Date("2026-10-05T12:00:00Z");
+
+  it("fetches from a day before the last successful import", () => {
+    expect(refreshSince("2026-10-03T09:00:00Z", now)).toBe("2026-10-02");
+  });
+
+  it("never reaches back past the 3-month window", () => {
+    expect(refreshSince("2026-01-01T00:00:00Z", now)).toBe("2026-07-05");
+  });
+
+  it("fetches the whole window when there is nothing to build on", () => {
+    expect(refreshSince(null, now)).toBeNull();
+    expect(refreshSince("garbage", now)).toBeNull();
   });
 });
 
