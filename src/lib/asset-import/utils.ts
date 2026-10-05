@@ -139,6 +139,20 @@ export function refreshSince(lastSucceededAt: string | null | undefined, now: Da
   return new Date(since).toISOString().slice(0, 10);
 }
 
+/**
+ * Whether a finished import can be the base a refresh builds on. Only a success that actually
+ * worked counts: a run that found assets but saved none because every save failed (recorded as
+ * "succeeded" before that was treated as a failure) would otherwise make the next refresh skip
+ * everything it never saved.
+ */
+export function isRefreshBase(
+  status: string,
+  result: { assetCount?: number; failed?: number } | null | undefined,
+): boolean {
+  if (status !== "succeeded") return false;
+  return !(result && (result.assetCount ?? 0) === 0 && (result.failed ?? 0) > 0);
+}
+
 /** First occurrence of each ref wins. */
 export function dedupeByRef(assets: ScrapedAsset[]): ScrapedAsset[] {
   const seen = new Set<string>();

@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { failJob, getJob, listRecentJobs, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
-import { uploadImportedBrandMedia } from "@/lib/storage";
+import { removeObject, uploadImportedBrandMedia } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
 import {
   IMPORT_DOWNLOAD_CONCURRENCY,
@@ -20,7 +20,7 @@ import { THUMBNAIL_SIZE_LIMIT } from "@/lib/market/constants";
 import { runImportActor } from "./apify";
 import { normalizeFacebook, normalizeInstagram, normalizeWebsite } from "./normalize";
 import type { AssetImportInput, AssetImportResult, NormalizeResult, ScrapedAsset } from "./types";
-import { importedFilename, refreshSince } from "./utils";
+import { importedFilename, isRefreshBase, refreshSince } from "./utils";
 import { importCopy } from "./messages";
 
 const NORMALIZERS: Record<AssetImportInput["source"], (rows: never[]) => NormalizeResult> = {
@@ -66,13 +66,27 @@ export async function runAssetImport(
 
     let saved = 0;
     let failed = 0;
+    let firstFailure: string | null = null;
     await forEachLimited(fresh, IMPORT_DOWNLOAD_CONCURRENCY, async (asset) => {
-      const ok = await saveAsset(clientId, asset, fetchImpl);
-      if (ok === "saved") saved++;
-      if (ok === "failed") failed++;
+      const outcome = await saveAsset(clientId, asset, fetchImpl);
+      if (outcome.status === "saved") saved++;
+      if (outcome.status === "failed") {
+        failed++;
+        firstFailure ??= `${asset.ref}: ${outcome.reason}`;
+      }
     });
 
     const result = { assetCount: saved, found: assets.length, failed, since };
+    if (failed > 0) {
+      console.error("[asset-import] assets not saved", { jobId, source, failed, of: fresh.length, first: firstFailure });
+    }
+
+    // Every new asset failing is a broken run (a missing column, storage down), not a quiet
+    // "0 new": say so, and keep it from becoming the base the next refresh builds on.
+    if (fresh.length > 0 && saved === 0 && failed === fresh.length) {
+      await failJob(jobId, importCopy.couldNotSave(fresh.length));
+      return result;
+    }
     await succeedJob(jobId, result, importCopy.done(saved, assets.length));
     return result;
   } catch (e) {
@@ -85,30 +99,41 @@ export async function runAssetImport(
 
 /** When this source last imported successfully from this same target — a changed handle starts over. */
 async function lastSuccessAt(clientId: string, jobId: string, input: AssetImportInput): Promise<string | null> {
-  const jobs = await listRecentJobs<AssetImportInput>(clientId, "asset-import", 30);
+  const jobs = await listRecentJobs<AssetImportInput, AssetImportResult>(clientId, "asset-import", 30);
   const last = jobs.find(
-    (j) => j.id !== jobId && j.status === "succeeded" && j.input?.source === input.source && j.input?.target === input.target,
+    (j) =>
+      j.id !== jobId &&
+      j.input?.source === input.source &&
+      j.input?.target === input.target &&
+      isRefreshBase(j.status, j.result),
   );
   return last?.created_at ?? null;
 }
 
-/** Downloads one asset (and a video's poster) into storage and records it. Never throws. */
-async function saveAsset(
-  clientId: string,
-  asset: ScrapedAsset,
-  fetchImpl: typeof fetch,
-): Promise<"saved" | "duplicate" | "failed"> {
+type SaveOutcome = { status: "saved" | "duplicate" } | { status: "failed"; reason: string };
+
+/**
+ * Downloads one asset (and a video's poster) into storage and records it. Never throws. Files
+ * are uploaded before the row is written, so whenever no row lands (a duplicate, or a failed
+ * insert) they are removed again rather than left orphaned in the bucket.
+ */
+async function saveAsset(clientId: string, asset: ScrapedAsset, fetchImpl: typeof fetch): Promise<SaveOutcome> {
+  const uploaded: string[] = [];
+  const discard = () => Promise.all(uploaded.map((url) => removeObject(url).catch(() => {})));
   try {
     const limit = asset.mediaType === "video" ? IMPORT_VIDEO_SIZE_LIMIT : IMPORT_IMAGE_SIZE_LIMIT;
     const media = await download(asset.url, limit, fetchImpl);
-    if (!media) return "failed";
+    if (!media) return { status: "failed", reason: "download failed or too large" };
     // A page can label anything as an image; only real media is kept.
-    if (!/^(image|video)\//.test(media.contentType)) return "failed";
+    if (!/^(image|video)\//.test(media.contentType)) {
+      return { status: "failed", reason: `not media (${media.contentType})` };
+    }
 
     const id = randomUUID();
     const ext = extForContentType(media.contentType);
     const filename = importedFilename(asset, ext);
     const stored = await uploadImportedBrandMedia({ clientId, imageId: id, filename, body: media.body, contentType: media.contentType });
+    uploaded.push(stored.url);
 
     // The still that stands for the asset: the image itself, or a video's poster. It gives the
     // masonry its aspect ratio and the grid its small preview. Both are decoration — an asset
@@ -129,6 +154,7 @@ async function saveAsset(
         thumbnailUrl = (
           await uploadImportedBrandMedia({ clientId, imageId: id, filename: "preview.webp", body: preview, contentType: "image/webp" })
         ).url;
+        uploaded.push(thumbnailUrl);
       }
     }
 
@@ -148,9 +174,14 @@ async function saveAsset(
       width: size?.width ?? null,
       height: size?.height ?? null,
     });
-    return row ? "saved" : "duplicate";
-  } catch {
-    return "failed";
+    if (!row) {
+      await discard(); // another source saved the same cross-post a moment earlier
+      return { status: "duplicate" };
+    }
+    return { status: "saved" };
+  } catch (e) {
+    await discard();
+    return { status: "failed", reason: e instanceof Error ? e.message : String(e) };
   }
 }
 

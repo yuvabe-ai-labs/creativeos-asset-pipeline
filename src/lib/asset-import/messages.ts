@@ -40,6 +40,11 @@ export const importCopy = {
       : `We couldn't reach ${IMPORT_SOURCE_LABELS[source]} right now. Try again in a few minutes.`;
   },
 
+  /** Assets were found but none could be kept. The cause is in the server logs. */
+  couldNotSave(count: number): string {
+    return `Found ${count} new ${count === 1 ? "asset" : "assets"} but couldn't save them. Try again in a few minutes.`;
+  },
+
   /** The background run could not be queued. */
   couldNotStart: "The import couldn't start. Try again.",
 };

@@ -7,7 +7,7 @@ import { insertJob, listRecentJobs, setJobRunId, failJob, failStaleJobs } from "
 import { JobLockedError, type BackgroundJobRow } from "@/lib/jobs/types";
 import { IMPORT_SOURCES, IMPORT_SOURCE_LABELS, type ImportSource } from "./constants";
 import type { AssetImport, AssetImportInput, AssetImportResult } from "./types";
-import { facebookPageUrl, instagramProfileUrl, websiteUrl } from "./utils";
+import { facebookPageUrl, instagramProfileUrl, isRefreshBase, websiteUrl } from "./utils";
 import { importCopy } from "./messages";
 
 type ImportJob = BackgroundJobRow<AssetImportInput, AssetImportResult>;
@@ -130,7 +130,7 @@ export async function listLatestAssetImports(clientId: string): Promise<AssetImp
     if (!source || latest.has(source)) continue;
     // Newest first, so the first success of the same target is the one a refresh builds on.
     const success = jobs.find(
-      (j) => j.status === "succeeded" && j.input?.source === source && j.input?.target === job.input.target,
+      (j) => j.input?.source === source && j.input?.target === job.input.target && isRefreshBase(j.status, j.result),
     );
     latest.set(source, toAssetImport(job, success?.created_at ?? null));
   }

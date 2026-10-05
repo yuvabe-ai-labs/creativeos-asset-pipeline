@@ -7,6 +7,7 @@ import {
   importTargetEditValue,
   importTargetLabel,
   importedFilename,
+  isRefreshBase,
   instagramProfileUrl,
   isWithinWindow,
   metaMediaRef,
@@ -128,6 +129,19 @@ describe("asset cursors", () => {
     expect(decodeAssetCursor(injected)).toBeNull();
     const badDate = Buffer.from(JSON.stringify(["yesterday", cursor.id])).toString("base64url");
     expect(decodeAssetCursor(badDate)).toBeNull();
+  });
+});
+
+describe("isRefreshBase", () => {
+  it("counts a real success, including one with nothing new", () => {
+    expect(isRefreshBase("succeeded", { assetCount: 5, failed: 0 })).toBe(true);
+    expect(isRefreshBase("succeeded", { assetCount: 0, failed: 0 })).toBe(true);
+    expect(isRefreshBase("succeeded", { assetCount: 3, failed: 2 })).toBe(true);
+  });
+
+  it("does not count a failure, or a success that saved nothing because every save failed", () => {
+    expect(isRefreshBase("failed", null)).toBe(false);
+    expect(isRefreshBase("succeeded", { assetCount: 0, failed: 38 })).toBe(false);
   });
 });
 

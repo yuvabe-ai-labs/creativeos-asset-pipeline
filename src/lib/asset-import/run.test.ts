@@ -14,6 +14,7 @@ vi.mock("@/lib/db/kb", () => ({
   insertImportedBrandImage: vi.fn(),
 }));
 vi.mock("@/lib/storage", () => ({
+  removeObject: vi.fn(async () => undefined),
   uploadImportedBrandMedia: vi.fn(async (a: { imageId: string; filename: string }) => ({
     url: `https://gcs/${a.imageId}/${a.filename}`,
     path: "p",
@@ -35,7 +36,7 @@ vi.mock("sharp", () => {
 
 import { failJob, getJob, listRecentJobs, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
-import { uploadImportedBrandMedia } from "@/lib/storage";
+import { removeObject, uploadImportedBrandMedia } from "@/lib/storage";
 import { runImportActor } from "./apify";
 import { runAssetImport } from "./run";
 
@@ -137,12 +138,59 @@ describe("runAssetImport", () => {
     expect(vi.mocked(insertImportedBrandImage).mock.calls[0][0].thumbnailUrl).toBeNull();
   });
 
-  it("counts a download that is not media as failed, without failing the job", async () => {
+  it("keeps the run a success when only some assets fail", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+    vi.mocked(runImportActor).mockResolvedValue([post(1), post(2)]);
+    vi.mocked(insertImportedBrandImage)
+      .mockImplementationOnce(async (r) => ({ id: r.id }) as never)
+      .mockRejectedValueOnce(new Error("boom"));
+    const result = await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(result).toMatchObject({ assetCount: 1, failed: 1 });
+    expect(succeedJob).toHaveBeenCalled();
+    expect(failJob).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("fails the run when every new asset fails to save, and logs why", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+    vi.mocked(runImportActor).mockResolvedValue([post(1), post(2)]);
+    vi.mocked(insertImportedBrandImage).mockRejectedValue(new Error('column "width" does not exist'));
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(succeedJob).not.toHaveBeenCalled();
+    expect(failJob).toHaveBeenCalledWith("job-1", "Found 2 new assets but couldn't save them. Try again in a few minutes.");
+    expect(JSON.stringify(log.mock.calls)).toContain("width");
+    log.mockRestore();
+  });
+
+  it("removes the uploaded files of an asset whose row was not written", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
     vi.mocked(runImportActor).mockResolvedValue([post(1)]);
-    const result = await runAssetImport("job-1", { fetchImpl: mediaFetch("text/html") });
-    expect(result).toEqual({ assetCount: 0, found: 1, failed: 1, since: null });
-    expect(failJob).not.toHaveBeenCalled();
+    vi.mocked(insertImportedBrandImage).mockRejectedValue(new Error("insert failed"));
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    // The original and its preview were both uploaded, and both are removed.
+    expect(vi.mocked(removeObject).mock.calls.map((c) => String(c[0]))).toEqual(
+      vi.mocked(uploadImportedBrandMedia).mock.calls.map((c) => expect.stringContaining(c[0].filename)),
+    );
+    expect(removeObject).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not build a refresh on a run that saved nothing because every save failed", async () => {
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([
+      {
+        id: "broken",
+        status: "succeeded",
+        created_at: new Date(Date.now() - 3_600_000).toISOString(),
+        input: { source: "instagram", target: "https://www.instagram.com/brand/" },
+        result: { assetCount: 0, found: 38, failed: 38 },
+      },
+    ] as never);
+    vi.mocked(runImportActor).mockResolvedValue([]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[0][2].since).toBeNull();
   });
 
   it("fails the job with the source's reason when it yields nothing", async () => {
