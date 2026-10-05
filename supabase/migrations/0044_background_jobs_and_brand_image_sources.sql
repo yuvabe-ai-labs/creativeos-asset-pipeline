@@ -25,6 +25,16 @@ create unique index client_brand_images_source_ref_idx
   on client_brand_images (client_id, source_ref)
   where source_ref is not null;
 
+-- The Brand assets grid's order: newest post first; a website asset (no post date) by when it
+-- was imported. Stored so keyset pagination can seek on it with an index rather than sort the
+-- client's whole library on every page.
+alter table client_brand_images
+  add column sort_at timestamptz generated always as (coalesce(posted_at, created_at)) stored;
+
+create index client_brand_images_imported_page_idx
+  on client_brand_images (client_id, sort_at desc, id desc)
+  where source <> 'upload';
+
 -- ── background_jobs: the lifecycle of any long-running job (D306) ────────────
 -- Holds only what every job has — status, progress, input, result, error, run id, times. What a
 -- job PRODUCES belongs in its own domain table (imported assets → client_brand_images). `kind`

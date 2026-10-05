@@ -1,18 +1,20 @@
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { listBrandImages } from "@/lib/db/kb";
+import { countImportedBrandImages } from "@/lib/db/kb";
 import { resolveCallerContextOrNull } from "@/lib/dal";
 import { IMPORT_SOURCES, type ImportSource } from "@/lib/asset-import/constants";
 import { listLatestAssetImports, startAssetImports } from "@/lib/asset-import/start";
 
-// GET /api/clients/:id/asset-imports — each source's latest import and every imported asset (D302).
+// GET /api/clients/:id/asset-imports — each source's latest import and how many assets there are
+// (D302). Small on purpose: the browser polls it while an import runs. The assets themselves are
+// paged from ./assets.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId) =>
     withTryCatch("Could not load the imported assets.", async () => {
-      const [imports, assets] = await Promise.all([
+      const [imports, counts] = await Promise.all([
         listLatestAssetImports(clientId),
-        listBrandImages(clientId, "imported"),
+        countImportedBrandImages(clientId),
       ]);
-      return apiOk({ imports, assets });
+      return apiOk({ imports, counts });
     }),
   );
 }

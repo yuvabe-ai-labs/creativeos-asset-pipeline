@@ -32,6 +32,8 @@ export type ClientBrandImageRow = {
   source_url: string | null;
   posted_at: string | null;
   source_ref: string | null;
+  /** coalesce(posted_at, created_at) — the imported-assets page order (generated column). */
+  sort_at: string;
 };
 
 export type ClientKBDocumentRow = {

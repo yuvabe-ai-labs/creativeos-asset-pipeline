@@ -93,6 +93,10 @@ export default async function KBPage({
           initialImages={images}
           initialWebsiteUrl={client.website_url ?? null}
           docIdsAtExtraction={(activeKBVersion!.doc_ids_used as string[]) ?? []}
+          clientName={client.name}
+          clientLogoUrl={client.logo_url}
+          initialInstagram={brandDetails.instagram ?? null}
+          initialFacebook={brandDetails.facebook ?? null}
         />
       ) : (
         <>

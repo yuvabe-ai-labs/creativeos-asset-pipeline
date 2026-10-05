@@ -3,13 +3,33 @@ import type { AssetImport } from "@/lib/asset-import/types";
 import type { ClientBrandImageRow } from "@/lib/db/types";
 import { readJson } from "./read-json";
 
-export type AssetImportsPayload = { imports: AssetImport[]; assets: ClientBrandImageRow[] };
+export type ImportedAssetCounts = {
+  total: number;
+  bySource: Record<ImportSource, number>;
+  byMedia: Record<"image" | "video", number>;
+};
+
+/** What the polled status endpoint returns — small on purpose; no assets. */
+export type AssetImportStatus = { imports: AssetImport[]; counts: ImportedAssetCounts };
+
+export type ImportedAssetFilters = { source: ImportSource | null; media: "image" | "video" | null };
+export type ImportedAssetPage = { items: ClientBrandImageRow[]; nextCursor: string | null };
 
 class AssetImportsService {
-  /** Each source's latest import and every imported asset (D302). */
-  async list(clientId: string): Promise<AssetImportsPayload> {
+  /** Each source's latest import and the asset counts (D302). */
+  async status(clientId: string): Promise<AssetImportStatus> {
     const res = await fetch(`/api/clients/${clientId}/asset-imports`);
-    return readJson(res, "Could not load the imported assets.");
+    return readJson(res, "Could not load the import status.");
+  }
+
+  /** One page of imported assets, newest first. Pass the previous page's `nextCursor`. */
+  async listAssets(clientId: string, filters: ImportedAssetFilters, cursor: string | null): Promise<ImportedAssetPage> {
+    const q = new URLSearchParams();
+    if (cursor) q.set("cursor", cursor);
+    if (filters.source) q.set("source", filters.source);
+    if (filters.media) q.set("media", filters.media);
+    const res = await fetch(`/api/clients/${clientId}/asset-imports/assets?${q}`);
+    return readJson(res, "Could not load the brand assets.");
   }
 
   /** Queues the imports and returns at once — the scrapes run in the background. */

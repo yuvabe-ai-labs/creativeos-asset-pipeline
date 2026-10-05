@@ -686,7 +686,8 @@ Two parts:
 - **`client_brand_images` gains six columns** (D303): `source` (`upload | website | instagram |
   facebook`, default `upload`), `media_type` (`image | video`, default `image`), `thumbnail_url`,
   `source_url`, `posted_at`, `source_ref`, plus a partial unique index on
-  `(client_id, source_ref)`. Every existing row becomes `source = 'upload'`, `media_type = 'image'`
+  `(client_id, source_ref)`, and a stored generated column `sort_at` with the
+  `client_brand_images_imported_page_idx` index the Brand assets grid pages on. Every existing row becomes `source = 'upload'`, `media_type = 'image'`
   through the defaults — which is what they are.
 - **`background_jobs`** (D306): the generic lifecycle table for long-running jobs, first used by
   the brand asset import (D302). RLS enabled with zero policies (default-deny, as `0041`).
@@ -707,9 +708,10 @@ deployed with the rest of `trigger/`.
 -- expect 0 — every existing image is an upload
 select count(*) from client_brand_images where source <> 'upload';
 
--- expect 2 rows: client_brand_images_source_ref_idx, background_jobs_one_live_idx
+-- expect 3 rows
 select indexname from pg_indexes
-where indexname in ('client_brand_images_source_ref_idx', 'background_jobs_one_live_idx');
+where indexname in ('client_brand_images_source_ref_idx', 'client_brand_images_imported_page_idx',
+                    'background_jobs_one_live_idx');
 
 -- expect 1 row, rowsecurity = true; and 0 policies
 select relname, relrowsecurity from pg_class where relname = 'background_jobs';

@@ -19,6 +19,11 @@ vi.mock("@/lib/storage", () => ({
   })),
 }));
 vi.mock("./apify", () => ({ runImportActor: vi.fn() }));
+// sharp decodes real images; these tests only care that a preview is made and stored.
+vi.mock("sharp", () => {
+  const chain = { rotate: () => chain, resize: () => chain, webp: () => chain, toBuffer: async () => Buffer.from("webp") };
+  return { default: vi.fn(() => chain) };
+});
 
 import { failJob, getJob, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
@@ -79,13 +84,22 @@ describe("runAssetImport", () => {
     expect(succeedJob).toHaveBeenCalledWith("job-1", result, "Already up to date");
   });
 
-  it("stores a video's poster beside it", async () => {
+  it("stores a small WebP preview for an image, and for a video from its poster", async () => {
     vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
-    vi.mocked(runImportActor).mockResolvedValue([post(3, { videoUrl: `${CDN}reel.mp4` })]);
-    await runAssetImport("job-1", { fetchImpl: mediaFetch("video/mp4") });
-    const row = vi.mocked(insertImportedBrandImage).mock.calls[0][0];
-    expect(row.mediaType).toBe("video");
-    expect(row.thumbnailUrl).toContain("/poster.mp4");
+    vi.mocked(runImportActor).mockResolvedValue([post(1), post(3, { videoUrl: `${CDN}reel.mp4` })]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch("image/jpeg") });
+    const rows = vi.mocked(insertImportedBrandImage).mock.calls.map((c) => c[0]);
+    expect(rows.map((r) => r.mediaType).sort()).toEqual(["image", "video"]);
+    for (const r of rows) expect(r.thumbnailUrl).toMatch(/\/preview\.webp$/);
+    const previewUpload = vi.mocked(uploadImportedBrandMedia).mock.calls.find((c) => c[0].filename === "preview.webp");
+    expect(previewUpload?.[0].contentType).toBe("image/webp");
+  });
+
+  it("makes no preview for an SVG — it is shown as it is", async () => {
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+    vi.mocked(runImportActor).mockResolvedValue([post(1)]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch("image/svg+xml") });
+    expect(vi.mocked(insertImportedBrandImage).mock.calls[0][0].thumbnailUrl).toBeNull();
   });
 
   it("counts a download that is not media as failed, without failing the job", async () => {

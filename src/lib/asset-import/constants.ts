@@ -35,5 +35,13 @@ export const IMPORT_DOWNLOAD_CONCURRENCY = 4;
 export const IMPORT_IMAGE_SIZE_LIMIT = 25 * 1024 * 1024;
 export const IMPORT_VIDEO_SIZE_LIMIT = 200 * 1024 * 1024;
 
+/** Width of the WebP preview made for every imported image and video poster — what the grid
+ *  shows, so a page of tiles costs kilobytes rather than the originals' megabytes. */
+export const IMPORT_PREVIEW_PX = 480;
+
+/** Brand assets per page in the infinite grid (4 rows of 6). */
+export const IMPORTED_ASSETS_PAGE_SIZE = 24;
+export const IMPORTED_ASSETS_MAX_PAGE_SIZE = 60;
+
 /** How often the browser re-reads import status while one is running. */
 export const IMPORT_POLL_MS = 4000;

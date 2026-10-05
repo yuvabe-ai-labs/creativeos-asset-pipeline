@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  decodeAssetCursor,
+  encodeAssetCursor,
   dedupeByRef,
   facebookPageUrl,
   importedFilename,
@@ -66,6 +68,23 @@ describe("isWithinWindow", () => {
     expect(isWithinWindow("2026-07-06T00:00:00Z", now)).toBe(true);
     expect(isWithinWindow("2026-07-04T00:00:00Z", now)).toBe(false);
     expect(isWithinWindow(undefined, now)).toBe(true);
+  });
+});
+
+describe("asset cursors", () => {
+  const cursor = { sortAt: "2026-10-02T12:34:54+00:00", id: "6f1d2c1e-8a3b-4c5d-9e0f-1a2b3c4d5e6f" };
+
+  it("round-trips", () => {
+    expect(decodeAssetCursor(encodeAssetCursor(cursor))).toEqual(cursor);
+  });
+
+  it("rejects missing, garbage and tampered cursors", () => {
+    expect(decodeAssetCursor(null)).toBeNull();
+    expect(decodeAssetCursor("not-base64-json")).toBeNull();
+    const injected = Buffer.from(JSON.stringify(["2026-10-02", "x),id.gt.(0"])).toString("base64url");
+    expect(decodeAssetCursor(injected)).toBeNull();
+    const badDate = Buffer.from(JSON.stringify(["yesterday", cursor.id])).toString("base64url");
+    expect(decodeAssetCursor(badDate)).toBeNull();
   });
 });
 

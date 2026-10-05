@@ -14,14 +14,14 @@ vi.mock("@/lib/db/impersonation-audit", () => ({
 vi.mock("@/lib/db/clients", () => ({
   getClientById: vi.fn(async () => ({ id: "client-1", org_id: "org-1", slug: "acme", name: "Acme" })),
 }));
-vi.mock("@/lib/db/kb", () => ({ listBrandImages: vi.fn() }));
+vi.mock("@/lib/db/kb", () => ({ countImportedBrandImages: vi.fn() }));
 vi.mock("@/lib/asset-import/start", () => ({
   listLatestAssetImports: vi.fn(),
   startAssetImports: vi.fn(),
 }));
 
 import { getClientById } from "@/lib/db/clients";
-import { listBrandImages } from "@/lib/db/kb";
+import { countImportedBrandImages } from "@/lib/db/kb";
 import { listLatestAssetImports, startAssetImports } from "@/lib/asset-import/start";
 
 const params = Promise.resolve({ id: "client-1" });
@@ -33,14 +33,16 @@ describe("/api/clients/[id]/asset-imports", () => {
     vi.mocked(getClientById).mockResolvedValue({ id: "client-1", org_id: "org-1" } as never);
   });
 
-  it("GET returns each source's latest import and the imported assets only", async () => {
+  it("GET returns each source's latest import and the asset counts — never the assets", async () => {
+    const counts = { total: 3, bySource: { website: 1, instagram: 2, facebook: 0 }, byMedia: { image: 2, video: 1 } };
     vi.mocked(listLatestAssetImports).mockResolvedValue([IMPORT] as never);
-    vi.mocked(listBrandImages).mockResolvedValue([{ id: "a1" }] as never);
+    vi.mocked(countImportedBrandImages).mockResolvedValue(counts);
     const { GET } = await import("./route");
     const res = await GET(new Request(url), { params });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imports: [IMPORT], assets: [{ id: "a1" }] });
-    expect(listBrandImages).toHaveBeenCalledWith("client-1", "imported");
+    const body = await res.json();
+    expect(body).toMatchObject({ imports: [IMPORT], counts });
+    expect(body.assets).toBeUndefined();
   });
 
   it("POST starts the given sources and records who asked", async () => {

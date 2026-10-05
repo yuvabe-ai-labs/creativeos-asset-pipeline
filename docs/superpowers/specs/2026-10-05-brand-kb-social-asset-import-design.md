@@ -148,7 +148,22 @@ are dropped; at most 80 website assets. Size caps reuse the market archive limit
   prefix) and **Facebook** (`facebook.com/` prefix). Saved to the existing `brand_details.instagram`
   / `.facebook` (one owner), then the import starts alongside the KB build. The helper text says the
   import runs in the background.
-- **Source panel → Images tab:** a status row per source — spinner "Importing from Instagram…",
+- **Review page → "Brand assets" tab** (after the module tabs, behind a divider; spinner while
+  importing, else the asset count). Not a KB module: never counted as reviewed, never gates Mark
+  KB Ready. Holds a Sources card (website, Instagram/Facebook handles, per-source status with
+  Refresh/Retry, Import / Save & import) and the library grid with source and type filter chips.
+- **Paging, not loading everything:** the grid reads `GET …/asset-imports/assets?cursor&source&media`
+  — keyset pagination on a stored `sort_at = coalesce(posted_at, created_at)` (newest post first,
+  indexed), 24 per page, filters applied in the query — and loads the next page through an
+  `InfiniteScrollSentinel` (`useInfiniteQuery`). The polled `GET …/asset-imports` carries only
+  the import status and head-only counts for the chips; the pages themselves are never polled —
+  they refetch once when an import settles, and a "N new assets" pill offers mid-import arrivals.
+- **Previews:** every imported image (and video poster) gets a ≤480px WebP preview at import
+  (`sharp`), stored as `thumbnail_url`; the grid shows it with `loading="lazy"`, never the original.
+  SVG and GIF are shown as they are.
+- **Header:** the client's logo and name (`ClientIdentity`), editable in place, on both steps.
+- **Source panel → Images tab:** a summary (status per source, "View N brand assets" → the tab).
+  Before this change it was: a status row per source — spinner "Importing from Instagram…",
   "42 imported · Refresh", or the error with Retry — plus the thumbnails grouped by source with a
   small source label; videos show a play badge. Uploads keep their current section and behaviour.
 - Status reads through TanStack Query (`assetImportKeys`), polling with `refetchInterval` only while

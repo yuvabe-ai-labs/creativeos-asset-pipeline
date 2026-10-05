@@ -115,6 +115,31 @@ export function dedupeByRef(assets: ScrapedAsset[]): ScrapedAsset[] {
   });
 }
 
+// ── Page cursors ─────────────────────────────────────────────────────────────
+// Keyset pagination over (sort_at desc, id desc): the cursor is the last row's pair, opaque to
+// the browser. Unlike an offset it stays correct while an import inserts rows mid-scroll.
+
+export type AssetCursor = { sortAt: string; id: string };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function encodeAssetCursor(cursor: AssetCursor): string {
+  return Buffer.from(JSON.stringify([cursor.sortAt, cursor.id])).toString("base64url");
+}
+
+/** The cursor, or null when it is missing, tampered with or malformed. */
+export function decodeAssetCursor(value: string | null | undefined): AssetCursor | null {
+  if (!value) return null;
+  try {
+    const [sortAt, id] = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown[];
+    if (typeof sortAt !== "string" || Number.isNaN(Date.parse(sortAt))) return null;
+    if (typeof id !== "string" || !UUID_RE.test(id)) return null;
+    return { sortAt, id };
+  } catch {
+    return null;
+  }
+}
+
 // ── Stored names ─────────────────────────────────────────────────────────────
 
 /** A readable filename for an imported asset's row and storage path. */

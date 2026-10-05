@@ -9,6 +9,7 @@ import {
   CheckCircle2Icon,
   CheckIcon,
   ImageIcon,
+  ImagesIcon,
   FolderPenIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,9 @@ import {
 } from "@/components/ui/tooltip";
 import { getModuleStatus } from "@/components/kb/kb-module-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClientIdentity } from "@/components/clients/client-identity";
+import { isImportLive, useAssetImports } from "@/hooks/queries/asset-imports";
+import { KBBrandAssetsTab } from "./kb-brand-assets-tab";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
 import { KBSkeleton } from "@/components/kb/kb-skeleton";
@@ -60,6 +64,9 @@ import {
   findNextModuleNeedingReview,
 } from "@/lib/kb/utils";
 
+/** The Tabs value of the Brand assets tab — not a ModuleKey. */
+const ASSETS_TAB = "__brand_assets";
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 type Props = {
@@ -72,6 +79,10 @@ type Props = {
   initialImages?: ClientBrandImageRow[];
   initialWebsiteUrl?: string | null;
   docIdsAtExtraction?: string[];
+  clientName: string;
+  clientLogoUrl: string | null;
+  initialInstagram?: string | null;
+  initialFacebook?: string | null;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -86,6 +97,10 @@ export function KBOnboardingReviewStep({
   initialImages = [],
   initialWebsiteUrl = null,
   docIdsAtExtraction = [],
+  clientName,
+  clientLogoUrl,
+  initialInstagram = null,
+  initialFacebook = null,
 }: Props) {
   const router = useRouter();
 
@@ -97,6 +112,12 @@ export function KBOnboardingReviewStep({
   const [savedKB, setSavedKB] = useState<TraceableBrandKB>(initialKB);
   const [saving, setSaving] = useState(false);
   const [selectedModule, setSelectedModule] = useState<ModuleKey>("brand_voice");
+  // The Brand assets tab (D302) sits beside the modules but is not one: nothing in it is
+  // reviewed, so it is its own flag rather than a ModuleKey the review logic would have to skip.
+  const [showAssets, setShowAssets] = useState(false);
+  const { data: importStatus } = useAssetImports(clientId);
+  const importing = (importStatus?.imports ?? []).some(isImportLive);
+  const assetTotal = importStatus?.counts.total ?? 0;
   const [reanalyzingFields, setReanalyzingFields] = useState<Set<string>>(new Set());
   const [markingReady, setMarkingReady] = useState(false);
   const [reExtracting, setReExtracting] = useState(false);
@@ -449,11 +470,10 @@ export function KBOnboardingReviewStep({
 
       {/* Title + source-files drawer trigger */}
       <header className="mb-5 mt-2 flex shrink-0 items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">
-            Brand Knowledge Base
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
+        <div className="min-w-0">
+          <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
+          <ClientIdentity clientId={clientId} name={clientName} logoUrl={clientLogoUrl} size="md" />
+          <p className="mt-3 text-sm text-muted-foreground">
             {isEditMode
               ? "Your brand KB is live. Add or remove source documents and re-extract, or edit fields directly."
               : "Review the extracted brand knowledge and approve, edit, or reject each field."}
@@ -502,6 +522,10 @@ export function KBOnboardingReviewStep({
             onSaveChanges={() => setShowSaveDialog(true)}
             cancelingChanges={cancelingChanges}
             savingChanges={savingChanges}
+            onOpenAssets={() => {
+              setSourceDrawerOpen(false);
+              setShowAssets(true);
+            }}
           />
         </SheetContent>
       </Sheet>
@@ -531,8 +555,15 @@ export function KBOnboardingReviewStep({
           )}
         </div>
         <Tabs
-          value={selectedModule}
-          onValueChange={(v) => setSelectedModule(v as ModuleKey)}
+          value={showAssets ? ASSETS_TAB : selectedModule}
+          onValueChange={(v) => {
+            if (v === ASSETS_TAB) {
+              setShowAssets(true);
+            } else {
+              setShowAssets(false);
+              setSelectedModule(v as ModuleKey);
+            }
+          }}
         >
           <TabsList
             variant="line"
@@ -553,6 +584,19 @@ export function KBOnboardingReviewStep({
                 </TabsTrigger>
               );
             })}
+            <span aria-hidden className="mx-1 my-2 w-px shrink-0 self-stretch bg-border" />
+            <TabsTrigger
+              value={ASSETS_TAB}
+              className="h-auto flex-none gap-1.5 rounded-none px-2 py-2.5 after:bg-primary group-data-horizontal/tabs:after:bottom-0"
+            >
+              <ImagesIcon className="size-3.5" strokeWidth={1.5} />
+              Brand assets
+              {importing ? (
+                <span className="size-2.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent text-muted-foreground" />
+              ) : assetTotal > 0 ? (
+                <span className="rounded-full bg-muted px-1.5 text-[0.65rem] text-muted-foreground">{assetTotal}</span>
+              ) : null}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -560,10 +604,25 @@ export function KBOnboardingReviewStep({
       {/* Scrolling tab body — fills the viewport below the fixed header. Keyed by
          module so it remounts (resets scroll) and slides in on switch. */}
       <div
-        key={reExtracting ? "re-extracting" : selectedModule}
+        key={showAssets ? ASSETS_TAB : reExtracting ? "re-extracting" : selectedModule}
+        data-scroll-root
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
-        {reExtracting ? (
+        {showAssets ? (
+          <motion.div
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.6 }}
+            className="pt-5 pb-12"
+          >
+            <KBBrandAssetsTab
+              clientId={clientId}
+              websiteUrl={initialWebsiteUrl}
+              initialInstagram={initialInstagram}
+              initialFacebook={initialFacebook}
+            />
+          </motion.div>
+        ) : reExtracting ? (
           <div className="pt-5 pb-12">
             <KBSkeleton showTabs={false} />
           </div>
