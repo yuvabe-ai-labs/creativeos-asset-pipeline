@@ -1,0 +1,99 @@
+[
+ {
+  "pageUrl": "https://bluetokaicoffee.com/",
+  "mediaUrl": "https://ade.clmbtech.com/cde/eventTracking.htm?pixelId=16404&_w=1&_t=2",
+  "mediaType": "image",
+  "foundIn": "img",
+  "fileExtension": "htm",
+  "variantCount": 1,
+  "crawledAt": "2026-10-05T05:00:58.926Z",
+  "alt": null,
+  "title": null,
+  "width": 1,
+  "height": 1,
+  "loading": null
+ },
+ {
+  "pageUrl": "https://bluetokaicoffee.com/",
+  "mediaUrl": "https://bluetokaicoffee.com/cdn/shop/files/faveconnew_32x32.png?v=1708418918",
+  "mediaType": "icon",
+  "foundIn": "link-icon",
+  "fileExtension": "png",
+  "variantCount": 1,
+  "crawledAt": "2026-10-05T05:00:58.927Z"
+ },
+ {
+  "pageUrl": "https://chupps.com/",
+  "mediaUrl": "https://chupps.com/cdn/shop/files/Chupps_Logo.svg?v=1768827063&width=360",
+  "mediaType": "image",
+  "foundIn": "img-srcset",
+  "fileExtension": "svg",
+  "variantCount": 3,
+  "crawledAt": "2026-10-05T05:08:25.230Z",
+  "alt": "Chupps Footwear",
+  "width": 120,
+  "height": 32,
+  "loading": "eager"
+ },
+ {
+  "pageUrl": "https://bluetokaicoffee.com/",
+  "mediaUrl": "https://ade.clmbtech.com/cde/eventTracking.htm?pixelId=16404&_w=1&_t=2",
+  "mediaType": "image",
+  "foundIn": "img",
+  "fileExtension": "htm",
+  "variantCount": 1,
+  "crawledAt": "2026-10-05T05:00:58.926Z",
+  "alt": null,
+  "title": null,
+  "width": 1,
+  "height": 1,
+  "loading": null
+ },
+ {
+  "pageUrl": "https://chupps.com/",
+  "mediaUrl": "https://chupps.com/cdn/shop/files/Mobile_500x500_02.jpg?v=1780398208&width=500",
+  "mediaType": "image",
+  "foundIn": "img",
+  "fileExtension": "jpg",
+  "variantCount": 3,
+  "crawledAt": "2026-10-05T05:08:25.230Z",
+  "alt": null,
+  "title": null,
+  "width": 500,
+  "height": 500,
+  "loading": "lazy"
+ },
+ {
+  "pageUrl": "https://chupps.com/",
+  "mediaUrl": "https://chupps.com/cdn/shop/files/Recommended-by-athletes-200x726-02.jpg?v=1790578119&width=2000",
+  "mediaType": "image",
+  "foundIn": "img",
+  "fileExtension": "jpg",
+  "variantCount": 8,
+  "crawledAt": "2026-10-05T05:08:25.230Z",
+  "alt": "Slideshow Image 1",
+  "title": null,
+  "width": 2000,
+  "height": 726,
+  "loading": "eager"
+ },
+ {
+  "pageUrl": "https://bluetokaicoffee.com/",
+  "mediaUrl": "https://cdn.shopify.com/videos/c/o/v/e2b557a3730f49969da2ad109ec44e63.mp4",
+  "mediaType": "video",
+  "foundIn": "video",
+  "fileExtension": "mp4",
+  "variantCount": 1,
+  "crawledAt": "2026-10-05T05:00:58.927Z",
+  "poster": null
+ },
+ {
+  "pageUrl": "https://bluetokaicoffee.com/",
+  "mediaUrl": "http://bluetokaicoffee.com/cdn/shop/files/og-image_fb86e907-95f5-4bce-a80f-c940e284474d.jpg?v=1692794605",
+  "mediaType": "image",
+  "foundIn": "meta",
+  "fileExtension": "jpg",
+  "variantCount": 1,
+  "crawledAt": "2026-10-05T05:00:58.927Z"
+ }
+]

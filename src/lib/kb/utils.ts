@@ -1,6 +1,6 @@
 import type { TraceableBrandKB, KBField } from "./schema";
 import type { ModuleKey, FieldPath, StagedChanges } from "./types";
-import { MODULES } from "./constants";
+import { MODULES, MODULE_LEADING_FIELDS } from "./constants";
 
 // ── Nested object helpers ─────────────────────────────────────────────────────
 
@@ -45,6 +45,40 @@ export function setNestedField(
 // ── KB module helpers ─────────────────────────────────────────────────────────
 
 export function getModuleFields(
+  kb: TraceableBrandKB,
+  module: ModuleKey,
+): Record<string, KBField<unknown>> {
+  return withLeadingFields(moduleFieldsAsStored(kb, module), MODULE_LEADING_FIELDS[module]);
+}
+
+/** The module's fields with `leading` first (in that order), the rest as they were. A stored KB
+ *  keeps whatever key order it was extracted with, so display order is set here, not by the schema. */
+function withLeadingFields(
+  fields: Record<string, KBField<unknown>>,
+  leading: readonly string[] | undefined,
+): Record<string, KBField<unknown>> {
+  if (!fields || !leading) return fields;
+  const ordered: Record<string, KBField<unknown>> = {};
+  for (const key of leading) if (key in fields) ordered[key] = fields[key];
+  for (const [key, value] of Object.entries(fields)) if (!(key in ordered)) ordered[key] = value;
+  return ordered;
+}
+
+const HEX_IN_TEXT = /#([0-9a-f]{6}|[0-9a-f]{3})\b/i;
+
+/**
+ * One colour entry ("turmeric gold #c8a000", "#FFF", "navy") as its name and a normalised
+ * #RRGGBB hex — uppercase, 3-digit codes expanded. `hex` is null when the entry has none.
+ */
+export function parseColour(entry: string): { name: string; hex: string | null } {
+  const match = entry.match(HEX_IN_TEXT);
+  if (!match) return { name: entry.trim(), hex: null };
+  const digits = match[1].length === 3 ? [...match[1]].map((c) => c + c).join("") : match[1];
+  const name = entry.replace(match[0], "").replace(/\s{2,}/g, " ").replace(/[\s,:–-]+$/, "").trim();
+  return { name, hex: `#${digits.toUpperCase()}` };
+}
+
+function moduleFieldsAsStored(
   kb: TraceableBrandKB,
   module: ModuleKey,
 ): Record<string, KBField<unknown>> {

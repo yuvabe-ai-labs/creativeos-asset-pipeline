@@ -257,6 +257,24 @@ export async function withTryCatch(
   }
 }
 
+/**
+ * Like withTryCatch, but an unexpected error never reaches the browser: its message (a database
+ * error, a provider's wording) goes to the server log and the caller gets only `fallbackMessage`.
+ * For routes whose errors are shown to people as-is. Deliberate 4xx answers from the handler
+ * (apiError) still pass through unchanged.
+ */
+export async function withQuietErrors(
+  fallbackMessage: string,
+  handler: () => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  try {
+    return await handler();
+  } catch (e) {
+    console.error(`[api] ${fallbackMessage}`, e);
+    return apiError(fallbackMessage, 500);
+  }
+}
+
 // ── File helpers ──────────────────────────────────────────────────────────────
 
 export async function parseFormFile(

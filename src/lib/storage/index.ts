@@ -171,6 +171,21 @@ export async function uploadBrandImage(args: {
   return _upload(path, args.body, args.contentType);
 }
 
+/**
+ * An imported brand asset (D302, D304) — or its video's poster, under the same id. Takes bytes
+ * rather than signing: they come from a provider CDN fetched inside the asset-import task.
+ */
+export async function uploadImportedBrandMedia(args: {
+  clientId: string;
+  imageId: string;
+  filename: string;
+  body: Buffer;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForBrandImage({ clientId: args.clientId, imageId: args.imageId, filename: args.filename });
+  return _upload(path, args.body, args.contentType);
+}
+
 // Authorize a direct browser upload of a brand image. The imageId only
 // disambiguates the storage path (the DB row gets its own id on finalize).
 export async function signBrandImageUpload(args: {

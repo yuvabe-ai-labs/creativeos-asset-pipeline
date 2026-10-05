@@ -6285,3 +6285,100 @@ for no user-visible gain; they move as they are touched). AGENTS.md as a symlink
 
 **Originated →** operator request, 2026-10-01; `AGENTS.md` ("Data fetching").
 
+
+### D302 — Brand assets are imported from the website, Instagram and Facebook by one parallel Apify job per source *(recorded 2026-10-05)*
+
+**Decision.** The Brand KB setup collects the brand's Instagram and Facebook beside its website
+(stored in the existing `brand_details`), and imports recent brand images and videos from each. Every
+source is its own `asset-import` Trigger.dev run, started together by `batchTrigger`, tracked in a new
+`client_asset_imports` row; nothing waits on them — not the upload step, not the KB build. Limit:
+up to 50 posts from the last 3 months (whichever is hit first); images and videos; import on setup
+plus a manual per-source Refresh, no schedule. Actors, chosen by a live benchmark on Blue Tokai and
+Chupps: `apify/instagram-scraper` (already in use), `apify/facebook-posts-scraper`,
+`logiover/website-image-media-extractor`.
+
+**Why.** Product answers from Cyril (2026-10-03). Separate runs mean a slow or private source (Chupps'
+Facebook page is not public) never holds up or fails the others. The website actor merges every
+srcset/CDN rendition into one asset at its largest size — the property the alternatives lacked.
+
+**Rejected.** `apify/facebook-photos-scraper` (no dates, so no 3-month rule; no video).
+`apify/playwright-scraper` with our own page function (minutes per site, timed out on Shopify).
+`apify/cheerio-scraper` / `apify/web-scraper` (need full Apify-account permission).
+`crawlerbros/website-image-scraper` (one row per srcset size, no video).
+`hlymrk/html-web-media-scraper` (empty or timed out). A scheduled refresh (not asked for).
+One combined job for all sources (one failure or slow actor would gate the rest).
+
+**Originated →** `2026-10-05-brand-kb-social-asset-import-design.md` §1–§2, §4.
+
+### D303 — Imported assets live in `client_brand_images`, tagged by `source`, and are not analysed *(recorded 2026-10-05)*
+
+**Decision.** `client_brand_images` gains `source` (`upload | website | instagram | facebook`),
+`media_type` (`image | video`), `thumbnail_url`, `source_url`, `posted_at` and `source_ref` (a
+per-client unique dedupe key). Everything that feeds the KB vision analysis passes only
+`source = 'upload'` images. Imported bytes do not count toward the upload limit.
+
+**Why.** Operator decision: one Brand Images list the team already knows, filterable by source.
+Cyril asked for assets only, no AI insights, so the scraped corpus — up to a few hundred images and
+videos — stays out of the analysis; turning insights on later is one filter. **Refines D129**:
+the table is still the KB's vision corpus, but only for its `upload` rows.
+
+**Rejected.** A separate imported-assets table (a second list of the same kind of thing). Putting
+them in the Brand Kit (`client_brand_assets`, D129) — the kit is curated logos/backgrounds/products,
+not raw scrapes. Analysing imported images (deferred by product).
+
+**Originated →** `2026-10-05-brand-kb-social-asset-import-design.md` §3.
+
+### D304 — Imported media is re-hosted immediately; Facebook photos are fetched at original size *(recorded 2026-10-05)*
+
+**Decision.** The import task downloads every asset and stores it in GCS under the brand-images path;
+rows hold our URL, never the provider's. Facebook photo URLs have their `ctp` (display-size) query
+parameter removed before download. Album videos on Facebook (poster frame only) are skipped.
+
+**Why.** Meta CDN links are signed and expire within days (the same reason as D264). The posts actor
+returns photos as 590 px previews; without `ctp` the same signed URL serves the original (24 KB →
+635 KB in the benchmark) — verified, not documented.
+
+**Rejected.** Storing provider URLs (they die). Storing a Facebook album video's poster as an image
+(it would masquerade as a photo).
+
+**Originated →** `2026-10-05-brand-kb-social-asset-import-design.md` §2.
+
+### D305 — Instagram ↔ Facebook cross-posts are deduped by Meta CDN filename *(recorded 2026-10-05)*
+
+**Decision.** An Instagram or Facebook asset's `source_ref` is its Meta CDN filename
+(`<id>_<id>_<id>_n.jpg` / `.mp4`) — shared by both platforms for the same upload; website assets use
+their URL without query string. Insert skips any ref the client already has, so a cross-post is kept
+once and a Refresh adds only what is new.
+
+**Why.** Brands cross-post: on Blue Tokai 20 of 26 Facebook media were the same files as Instagram
+ones. Without this the library would hold most images twice.
+
+**Rejected.** Perceptual-hash dedupe (costly, needs the bytes first). Post-id dedupe (ids differ
+across platforms). Remembering deleted refs so Refresh never re-adds them (deferred — v1 accepts it).
+
+**Originated →** `2026-10-05-brand-kb-social-asset-import-design.md` §2, §4.
+
+### D306 — Long-running jobs share one `background_jobs` table; features keep their outputs *(recorded 2026-10-05)*
+
+**Decision.** A new `background_jobs` table holds the **lifecycle** of any long-running job:
+`kind`, `status` (`queued | running | succeeded | failed`), `phase_message`, `input` / `result`
+(jsonb), `error`, `trigger_run_id`, `created_by`, timestamps, and an optional `lock_key` with a
+partial unique index that allows one live job per key. `kind` has no check constraint — the
+`JobKind` union in `src/lib/jobs/types.ts` is the registry, and each feature types its own
+input/result. Helpers in `src/lib/jobs/db.ts` (`insertJob` → `JobLockedError` on a held lock,
+`startJob`, `setJobPhase`, `succeedJob`, `failJob`, `failStaleJobs`, `listRecentJobs`). What a job
+**produces** stays in the feature's own tables. The brand asset import (`asset-import`, D302) is
+the first kind. `client_kb_jobs` moves over when it is next substantially changed (the D300 rule),
+not now; `generations` stays separate — it is a credit ledger, not just a job.
+
+**Why.** Operator: no new table per long-running feature. Every such job needs the same status,
+progress, lock, stale-run sweep and polling, and one shape means one status UI and one place to
+watch background work.
+
+**Rejected.** `client_asset_imports` (the first draft — a per-feature table again). Folding
+outputs into the job row (they are domain data with their own reads). Migrating `client_kb_jobs`
+and `generations` now (risky sweep; generations carries billing semantics). A check constraint on
+`kind` (a migration per new feature for no safety the TS union lacks).
+
+**Refines** D302. **Originated →** operator request, 2026-10-05;
+`2026-10-05-brand-kb-social-asset-import-design.md` §3.
