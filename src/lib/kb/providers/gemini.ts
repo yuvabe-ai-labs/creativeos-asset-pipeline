@@ -102,7 +102,7 @@ export const geminiKBProvider: KBAnalysisProvider = {
   },
 
   async analyzeImages({ clientId, imageIds }) {
-    const allImages = await listBrandImages(clientId);
+    const allImages = await listBrandImages(clientId, "uploads");
     const images = allImages.filter((i) => imageIds.includes(i.id));
 
     if (images.length === 0) return defaultEmptyImageAnalysis();

@@ -1,5 +1,6 @@
 // TypeScript shapes for our Supabase rows. snake_case = the actual DB columns.
 // (Later we can auto-generate these with `supabase gen types`; hand-written is fine now.)
+import type { BrandImageSource } from "@/lib/asset-import/constants";
 
 export type ClientRow = {
   id: string;
@@ -24,6 +25,13 @@ export type ClientBrandImageRow = {
   storage_url: string;
   size_bytes: number | null;
   created_at: string;
+  /** Where it came from (D303). Only `upload` rows feed the KB analysis. */
+  source: BrandImageSource;
+  media_type: "image" | "video";
+  thumbnail_url: string | null;
+  source_url: string | null;
+  posted_at: string | null;
+  source_ref: string | null;
 };
 
 export type ClientKBDocumentRow = {

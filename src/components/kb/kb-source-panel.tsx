@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import type { StagedChanges } from "@/lib/kb/types";
 import { formatBytes } from "@/lib/kb/utils";
+import { ImportedAssetsSection } from "./imported-assets-section";
 
 type Props = {
   clientId: string;
@@ -269,6 +270,7 @@ export function KBSourcePanel({
               })}
             </div>
           )}
+          <ImportedAssetsSection clientId={clientId} />
         </TabsContent>
       </Tabs>
 

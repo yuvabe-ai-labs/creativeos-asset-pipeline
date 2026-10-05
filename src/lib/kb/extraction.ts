@@ -34,7 +34,7 @@ export async function runKBExtraction(input: {
   researchMarkdown: string | null;
 }): Promise<KBExtractionResult> {
   const allDocs = await listKBDocuments(input.clientId);
-  const allImages = await listBrandImages(input.clientId);
+  const allImages = await listBrandImages(input.clientId, "uploads");
   const docs = allDocs.filter((d) => input.docIds.includes(d.id));
   const images = allImages.filter((i) => input.imageIds.includes(i.id));
 

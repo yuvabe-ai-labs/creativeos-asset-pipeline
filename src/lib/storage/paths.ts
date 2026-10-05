@@ -248,6 +248,9 @@ const MEDIA_EXT_BY_TYPE: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+  // Brand asset import (D302): website logos are often SVG, Shopify serves AVIF.
+  "image/svg+xml": "svg",
+  "image/avif": "avif",
 };
 
 /** File extension for a response's content-type, tolerating `; charset=…` and casing. */
