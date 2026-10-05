@@ -17,12 +17,13 @@ import {
   orderImagesForPromptTokens,
   type UpstreamImageRef,
 } from "@/lib/video-gen/assign-image-roles";
-import { resolveVideoGenPrompt } from "@/lib/video-gen/resolve-prompt";
+import { citedIdsOfResolved, renderResolvedPrompt, resolveVideoGenPrompt } from "@/lib/video-gen/resolve-prompt";
 import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
 import { getPromptUpstream, presenterVoiceForSeedance } from "@/lib/avatars/presenter-server";
+import { selectReferences } from "@/lib/video-gen/select-references";
 import {
   missingRefsMessage,
   refEntriesOf,
@@ -30,7 +31,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 
-const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference"]);
+const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference", "off"]);
 
 const GenerateBodySchema = z.object({
   modelId: z.string().optional(),
@@ -88,7 +89,7 @@ export async function POST(
     if (resolved.missingRefs.length > 0) {
       return apiError(missingRefsMessage(resolved.missingRefs), 400);
     }
-    const { prompt } = resolved;
+    let { prompt } = resolved;
     const promptNode = resolved.promptNode;
 
     // D236 — the multishot lane generates on the model the PLAN was written for. A request naming
@@ -221,20 +222,50 @@ export async function POST(
       promptUpstream.map((u) => u.nodeId),
     );
 
-    // An attached image IS an input. Unassigned ones default here the same way the focus view
-    // defaults them, so the constraint state the client evaluated is the one the request uses —
-    // see assign-image-roles.ts for the divergence that made dropping them look like the fix.
-    const effectiveRoles = autoAssignImageRoles(orderedImages, imageRoles, {
-      supportsStartFrame: config.imageInputs.startFrame,
-      supportsReferences: config.imageInputs.maxReferenceImages > 0,
-    });
+    // An attached image IS an input. D308 — on a model that takes references, an unassigned image
+    // is placed by selectReferences below (by priority, within the cap), the same rule the focus
+    // view shows; the default fill still decides frames on a model that takes no references.
+    const maxRefs = config.imageInputs.maxReferenceImages;
+    const effectiveRoles = maxRefs > 0
+      ? imageRoles
+      : autoAssignImageRoles(orderedImages, imageRoles, {
+          supportsStartFrame: config.imageInputs.startFrame,
+          supportsReferences: false,
+        });
     const assigned = assignImageRoles(orderedImages, effectiveRoles);
-    const { startFrameUrl, referenceUrls } = assigned;
+    const { startFrameUrl } = assigned;
     let { endFrameUrl } = assigned;
 
-    // Cap reference images at the model's declared limit
-    const maxRefs = config.imageInputs.maxReferenceImages;
-    if (referenceUrls.length > maxRefs) referenceUrls.splice(maxRefs);
+    // D308 — exactly which references go, chosen in the open: the operator's references first,
+    // then the avatar's front, cited images, the avatar's sheet and the rest, within the model's
+    // cap. Never a silent cut: references selected beyond the cap are refused (D97).
+    const modelLabel = videoGenClientModelMap[modelId]?.label ?? modelId;
+    const singleTake = singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider);
+    const avatarFrontId = promptUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null;
+    const avatarSheet = promptUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null;
+    const selection = selectReferences({
+      images: orderedImages.map((img) => ({ id: img.nodeId })),
+      roles: effectiveRoles,
+      cap: maxRefs,
+      modelLabel,
+      citedIds: citedIdsOfResolved(resolved, singleTake),
+      avatarFrontId,
+      avatarSheetId: avatarSheet,
+      unusable: config.provider === "seedance" && avatarSheet
+        ? new Map([[avatarSheet, "Seedance can't use the profile sheet"]])
+        : undefined,
+    });
+    if (selection.overCap > 0) {
+      return apiError(
+        `${modelLabel} takes ${maxRefs} references; ${maxRefs + selection.overCap} are selected. Turn some off in Video Gen.`,
+        400,
+      );
+    }
+    const urlById = new Map(orderedImages.map((img) => [img.nodeId, img.url]));
+    const referenceUrls = selection.sent.map((id) => urlById.get(id)!);
+    // With nothing left out the prompt is numbered exactly as it was resolved; otherwise its tokens
+    // count only what is sent, and a cited image left out is written as its name.
+    if (selection.leftOut.length > 0) prompt = renderResolvedPrompt(resolved, selection.sent, singleTake);
     // If model doesn't support end frame, clear it
     if (!config.imageInputs.endFrame) endFrameUrl = undefined;
 

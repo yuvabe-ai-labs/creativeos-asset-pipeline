@@ -362,3 +362,48 @@ describe("POST video-generate — no voice at generate time (D284)", () => {
     expect(mocks.triggerTask.mock.calls[0][1]).not.toHaveProperty("voice");
   });
 });
+
+// D308 — the references a request sends are chosen by selectReferences, never cut silently.
+describe("POST video-generate — references within the cap (D308)", () => {
+  const file = (id: string, extra: Record<string, unknown> = {}): Row => ({
+    nodeId: id, type: "file", data: { fileKind: "image", fileUrl: `https://img.example/${id}.png`, ...extra },
+    activeOutput: null, versionId: null,
+  });
+  // Kling 3.0 Omni takes 5 references. Seven images: five files, the avatar's front and its sheet.
+  function graphWithImages(): Record<string, Row[]> {
+    return {
+      vg: [{ nodeId: "mp", type: "multishot-prompt", data: {}, activeOutput: { ...PLAN, targetModel: KLING_OMNI_MODEL_ID }, versionId: "v1" }],
+      mp: [
+        file("f1"), file("f2"), file("f3"), file("f4"), file("f5"),
+        file("av", { presenter: true }), file("av:sheet", { presenter: "sheet" }),
+        { nodeId: "ms", type: "multishot", data: { cuts: LEGAL_KLING_CUTS, targetModel: KLING_OMNI_MODEL_ID }, activeOutput: null, versionId: null },
+      ],
+    };
+  }
+  const sentUrls = () =>
+    (mocks.triggerTask.mock.calls[0][1] as unknown as { referenceUrls: string[] }).referenceUrls.map((u) => u.split("/").pop());
+
+  it("fills the slots by priority, so the avatar is never the one dropped", async () => {
+    mocks.graph = graphWithImages();
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: {} });
+    expect(res.status).toBe(202);
+    // Avatar front first, then its sheet, then the files in order — sent in prompt order.
+    expect(sentUrls()).toEqual(["f1.png", "f2.png", "f3.png", "av.png", "av:sheet.png"]);
+  });
+
+  it("refuses references selected beyond the cap instead of cutting them", async () => {
+    mocks.graph = graphWithImages();
+    const roles = Object.fromEntries(["f1", "f2", "f3", "f4", "f5", "av"].map((id) => [id, "reference"]));
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: roles });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Kling 3.0 Omni takes 5 references; 6 are selected. Turn some off in Video Gen.");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("never sends an image turned off", async () => {
+    mocks.graph = graphWithImages();
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: { av: "off" } });
+    expect(res.status).toBe(202);
+    expect(sentUrls()).not.toContain("av.png");
+  });
+});
