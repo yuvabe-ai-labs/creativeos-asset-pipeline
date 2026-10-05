@@ -21,6 +21,8 @@ import {
 import { AssetImportRefreshMenu } from "./asset-import-refresh-menu";
 import { BrandAssetsMasonry } from "./brand-assets-masonry";
 import { BrandAssetsLightbox } from "./brand-assets-lightbox";
+import { DeleteAssetDialog } from "./delete-asset-dialog";
+import type { ClientBrandImageRow } from "@/lib/db/types";
 
 /** Loading placeholder heights — a masonry-like rhythm rather than a uniform grid. */
 const SKELETON_HEIGHTS = [220, 300, 180, 260, 320, 200, 240, 280, 190, 310];
@@ -36,6 +38,7 @@ const SKELETON_HEIGHTS = [220, 300, 180, 260, 320, 200, 240, 280, 190, 310];
 export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
   const [filters, setFilters] = useState<ImportedAssetFilters>({ source: null, media: null });
   const [openIndex, setOpenIndex] = useState(-1);
+  const [pendingDelete, setPendingDelete] = useState<ClientBrandImageRow | null>(null);
   const status = useAssetImports(clientId);
   const pages = useImportedAssets(clientId, filters);
   const refreshAssets = useRefreshImportedAssets(clientId);
@@ -48,6 +51,20 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
   const live = imports.filter(isImportLive);
   const failed = imports.filter((i) => i.status === "failed");
   const items = pages.data?.pages.flatMap((p) => p.items) ?? [];
+  function confirmDelete(asset: ClientBrandImageRow) {
+    setPendingDelete(null);
+    // In the lightbox, stay where you were: the next asset slides into this place; deleting the
+    // last one steps back, and deleting the only one closes it.
+    if (openIndex >= 0) {
+      const remaining = items.length - 1;
+      setOpenIndex(remaining === 0 ? -1 : Math.min(openIndex, remaining - 1));
+    }
+    remove.mutate(asset.id, {
+      onSuccess: () => toast.success("Deleted"),
+      onError: (e) => toast.error(e.message),
+    });
+  }
+
   const loadMore = () => {
     if (pages.hasNextPage && !pages.isFetchingNextPage) void pages.fetchNextPage();
   };
@@ -162,7 +179,7 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
           <BrandAssetsMasonry
             assets={items}
             onOpen={setOpenIndex}
-            onRemove={(asset) => remove.mutate(asset.id, { onError: (e) => toast.error(e.message) })}
+            onRequestDelete={setPendingDelete}
           />
           <BrandAssetsLightbox
             assets={items}
@@ -171,7 +188,9 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
             onClose={() => setOpenIndex(-1)}
             hasMore={Boolean(pages.hasNextPage)}
             onNeedMore={loadMore}
+            onRequestDelete={setPendingDelete}
           />
+          <DeleteAssetDialog asset={pendingDelete} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />
           {pages.hasNextPage && (
             // Keyed by page count so each new page re-observes: a page too short to scroll would
             // otherwise leave the sentinel visible with no further intersection change.

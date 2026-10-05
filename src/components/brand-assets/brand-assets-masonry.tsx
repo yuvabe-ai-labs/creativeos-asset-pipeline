@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { MasonryPhotoAlbum } from "react-photo-album";
 import "react-photo-album/masonry.css";
-import { PlayIcon, XIcon } from "lucide-react";
+import { PlayIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useImageDimensions } from "@/hooks/use-image-dimensions";
 import type { ClientBrandImageRow } from "@/lib/db/types";
@@ -16,7 +16,8 @@ const VIDEO_FALLBACK = { width: 9, height: 16 };
 type Props = {
   assets: ClientBrandImageRow[];
   onOpen: (index: number) => void;
-  onRemove: (asset: ClientBrandImageRow) => void;
+  /** Asks to delete — the caller confirms first. */
+  onRequestDelete: (asset: ClientBrandImageRow) => void;
 };
 
 /**
@@ -24,7 +25,7 @@ type Props = {
  * true aspect ratio from the size recorded at import, so the layout never reflows as images
  * load; rows imported before sizes were recorded are measured in the browser instead.
  */
-export function BrandAssetsMasonry({ assets, onOpen, onRemove }: Props) {
+export function BrandAssetsMasonry({ assets, onOpen, onRequestDelete }: Props) {
   // Only what the import could not size — normally nothing.
   const unmeasured = useMemo(
     () => assets.filter((a) => !(a.width && a.height)).flatMap((a) => (stillOf(a) ? [stillOf(a)!] : [])),
@@ -59,7 +60,7 @@ export function BrandAssetsMasonry({ assets, onOpen, onRemove }: Props) {
             width={width}
             height={height}
             onOpen={onClick}
-            onRemove={() => onRemove((photo as AlbumPhoto).asset)}
+            onDelete={() => onRequestDelete((photo as AlbumPhoto).asset)}
           />
         ),
       }}
@@ -78,7 +79,7 @@ function Tile(props: {
   width: number;
   height: number;
   onOpen?: React.MouseEventHandler;
-  onRemove: () => void;
+  onDelete: () => void;
 }) {
   const { asset } = props.photo;
   const still = stillOf(asset);
@@ -117,12 +118,12 @@ function Tile(props: {
       <Button
         variant="ghost"
         size="icon-xs"
-        title="Remove"
-        aria-label={`Remove ${asset.filename}`}
-        onClick={props.onRemove}
+        title="Delete"
+        aria-label={`Delete ${asset.filename}`}
+        onClick={props.onDelete}
         className="absolute right-1.5 top-1.5 rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-black/70 hover:text-white dark:hover:bg-black/70"
       >
-        <XIcon strokeWidth={1.5} />
+        <Trash2Icon strokeWidth={1.5} />
       </Button>
     </div>
   );
