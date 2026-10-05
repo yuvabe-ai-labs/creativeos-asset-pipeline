@@ -39,7 +39,12 @@ vi.mock("@/lib/db/clients", () => ({
 // used in src/app/api/nodes/[id]/file/drive/route.test.ts. nodeOrgIdHolder is mutable so
 // individual tests can point the node at a different org (e.g. the impersonation target)
 // without redeclaring the whole mock.
-const { nodeOrgIdHolder } = vi.hoisted(() => ({ nodeOrgIdHolder: { orgId: "org-1" } }));
+const { nodeOrgIdHolder, nodeQueryGate } = vi.hoisted(() => ({
+  nodeOrgIdHolder: { orgId: "org-1" },
+  // When set, the node lookup stays pending until this promise settles — lets a test
+  // observe what withNode does WHILE that query is still in flight.
+  nodeQueryGate: { wait: null as Promise<void> | null },
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: (table: string) => {
@@ -47,7 +52,9 @@ vi.mock("@/lib/supabase/server", () => ({
         return {
           select: () => ({
             eq: () => ({
-              maybeSingle: async () => ({
+              maybeSingle: async () => {
+                if (nodeQueryGate.wait) await nodeQueryGate.wait;
+                return {
                 data: {
                   id: "node-1",
                   canvas_id: "canvas-1",
@@ -63,7 +70,8 @@ vi.mock("@/lib/supabase/server", () => ({
                   },
                 },
                 error: null,
-              }),
+                };
+              },
             }),
           }),
         };
@@ -73,7 +81,7 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
-import { resolveOrgId } from "@/lib/dal";
+import { resolveOrgId, resolveCallerContext } from "@/lib/dal";
 import { withClient, withNode } from "./route-helpers";
 
 const params = Promise.resolve({ id: "client-1" });
@@ -161,7 +169,28 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     nodeOrgIdHolder.orgId = "org-1";
+    nodeQueryGate.wait = null;
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("resolves the caller while the node lookup is still in flight, not after it", async () => {
+    let release!: () => void;
+    nodeQueryGate.wait = new Promise<void>((r) => (release = r));
+    const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
+    const pending = withNode(nodeReq("GET"), nodeParams, handler);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(resolveCallerContext).toHaveBeenCalled();
+    release();
+    expect((await pending).status).toBe(200);
+  });
+
+  it("resolves the caller exactly once per request", async () => {
+    // React's cache() does not dedupe inside route handlers, so going through
+    // resolveOrgId() as well would re-run the Auth-server check and membership read.
+    const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
+    await withNode(nodeReq("GET"), nodeParams, handler);
+    expect(resolveCallerContext).toHaveBeenCalledTimes(1);
+    expect(resolveOrgId).not.toHaveBeenCalled();
   });
 
   it("not impersonating: effectiveOrgId equals the caller's own org", async () => {

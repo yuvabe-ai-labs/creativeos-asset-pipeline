@@ -165,18 +165,31 @@ export async function withNode(
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("nodes")
-    .select("*, canvases!inner(client_id, clients!inner(org_id))")
-    .eq("id", nodeId)
-    .maybeSingle();
+  // The node lookup, the caller (an Auth-server session check plus a membership read) and
+  // the impersonation cookie don't depend on each other, so they run side by side — this
+  // wrapper fronts every node route, the focus views' reads included.
+  //
+  // The caller is resolved ONCE and the effective org derived from it here, rather than via
+  // resolveOrgId(): React's cache() does not dedupe inside route handlers, so calling both
+  // ran the Auth check and membership read twice per request, back to back.
+  const [{ data, error }, caller, impersonation] = await Promise.all([
+    supabase
+      .from("nodes")
+      .select("*, canvases!inner(client_id, clients!inner(org_id))")
+      .eq("id", nodeId)
+      .maybeSingle(),
+    resolveCallerContext(),
+    resolveImpersonationState(),
+  ]);
   if (error) throw error;
   if (!data) return options?.onNotFound?.() ?? apiError("Node not found.", 404);
+  // Same rule as resolveOrgId(): the impersonation target while a live session is active
+  // (D81), else the caller's own org.
+  const effectiveOrgId = impersonation.isImpersonating ? impersonation.targetOrgId : caller.orgId;
 
   const row = data as unknown as NodeWithOrgChain;
   const canvas = unwrapEmbed(row.canvases);
   const client = canvas ? unwrapEmbed(canvas.clients) : null;
-  const effectiveOrgId = await resolveOrgId();
   if (!canvas || !client || client.org_id !== effectiveOrgId) {
     return apiError("Node not found.", 404);
   }
@@ -184,7 +197,6 @@ export async function withNode(
   const blocked = await assertImpersonationWriteAllowed(req);
   if (blocked) return blocked;
 
-  const caller = await resolveCallerContext();
   const { canvases: _canvases, ...node } = row;
   return handler(nodeId, node as NodeRow, caller, canvas.client_id, effectiveOrgId);
 }
