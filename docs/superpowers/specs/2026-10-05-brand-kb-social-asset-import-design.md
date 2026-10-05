@@ -1,4 +1,4 @@
-# Brand KB — social & website asset import (D302–D305)
+# Brand KB — social & website asset import (D302–D306)
 
 **Date:** 2026-10-05 · **Branch:** `feat/brand-kb-social-import` · **Status:** approved, implementing
 
@@ -74,7 +74,7 @@ Rejected, all on the same two sites:
 **Cost per client import** ≈ IG $0.12 + FB $0.20 + website ≤ $0.48 ≈ **$0.80**, against the plan's
 $19/month credit. Recorded so the operator can decide on the plan before this sees volume.
 
-## 3. Data model (migration `0044_brand_image_sources.sql`)
+## 3. Data model (migration `0044_background_jobs_and_brand_image_sources.sql`)
 
 Imported assets go into the **existing** `client_brand_images` (operator decision), tagged by source:
 
@@ -91,15 +91,21 @@ client_brand_images
 Existing rows are untouched (`upload`, `image`). Imported rows do **not** count toward the upload
 size limit.
 
-`client_asset_imports` — one row per source per run:
+Each import run is a row in the **generic `background_jobs` table (D306)** — not a per-feature
+table — with `kind = 'asset-import'`, `input = { source, target }`,
+`result = { assetCount, found, failed }`, and `lock_key = asset-import:<clientId>:<source>`, whose
+partial unique index allows one live import per client and source:
 
 ```
-id, client_id, org_id, source (website|instagram|facebook), target (url/handle),
-status (queued|running|succeeded|failed), asset_count, error, trigger_run_id,
-created_at, finished_at
-unique (client_id, source) where status in (queued, running)   -- one live import per source
+background_jobs
+  id, org_id, client_id, kind, status (queued|running|succeeded|failed), phase_message,
+  input jsonb, result jsonb, error, lock_key, trigger_run_id, created_by,
+  created_at, started_at, finished_at, updated_at
+  unique (lock_key) where lock_key is not null and status in (queued, running)
 ```
 
+A job still live 45 minutes after it was created (past the task's 30-minute `maxDuration`) is
+failed by `failStaleJobs` on the next read or start, so a dead run never holds its lock.
 RLS default-deny, as 0041/0043.
 
 **Brand Images stays the KB's vision corpus (D129) — for uploads only.** Everything that feeds the
@@ -110,9 +116,10 @@ insights on later is one filter.
 ## 4. Pipeline
 
 ```
-startAssetImport(clientId, sources?)            server action
-  └ for each source with a configured target:  insert client_asset_imports (queued)
-  └ tasks.batchTrigger("asset-import", [...])    one run per source → parallel
+POST /api/clients/:id/asset-imports { sources? }   → startAssetImports (src/lib/asset-import/start.ts)
+  └ for each source with a saved target:   insertJob(kind "asset-import", lock per source)
+  └ tasks.trigger("asset-import", { jobId }) per source, all at once → parallel runs
+    (not batchTrigger: it returns no per-run ids to record on the job rows)
         asset-import task (trigger/asset-import.ts)
           1. mark running
           2. run the Apify actor: start run, poll until finished (no 300 s sync cap)
@@ -147,7 +154,21 @@ are dropped; at most 80 website assets. Size caps reuse the market archive limit
 - Status reads through TanStack Query (`assetImportKeys`), polling with `refetchInterval` only while
   an import is queued/running; when one finishes the page's image list is refreshed.
 
-## 6. Testing
+## 6. As built — live verification (2026-10-05)
+
+Real runner + normalizers + downloads, no DB/GCS writes:
+
+| Source | Result |
+|---|---|
+| chupps.com | 80 rows → 78 assets (SVG/JPEG/PNG), 78/78 downloaded, median 387 KB, 28 s |
+| instagram.com/chuppslife | 25 posts → 63 assets (46 images, 17 videos), 63/63 downloaded, 135 MB, 99 s |
+| facebook.com/thechuppslife | "This page isn't public, so its posts can't be imported." (5 s) |
+| facebook.com/bluetokaicoffee | 50 posts → 80 assets (53 images, 27 videos), 80/80, median 667 KB (full size), 119 s |
+
+Video refs key on the **poster** filename, not the video's: Instagram and Facebook serve different
+video files for the same reel but the same poster (5 of 6 Blue Tokai reels matched).
+
+## 7. Testing
 
 - Unit: each normalizer against trimmed real fixtures from the benchmark (IG carousel + reel +
   pinned-old post; FB reel + album with `ctp` URL + `not_available` row; website pixel/icon/variant

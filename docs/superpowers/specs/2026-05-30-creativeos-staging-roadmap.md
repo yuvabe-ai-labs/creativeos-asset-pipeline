@@ -6357,3 +6357,28 @@ ones. Without this the library would hold most images twice.
 across platforms). Remembering deleted refs so Refresh never re-adds them (deferred — v1 accepts it).
 
 **Originated →** `2026-10-05-brand-kb-social-asset-import-design.md` §2, §4.
+
+### D306 — Long-running jobs share one `background_jobs` table; features keep their outputs *(recorded 2026-10-05)*
+
+**Decision.** A new `background_jobs` table holds the **lifecycle** of any long-running job:
+`kind`, `status` (`queued | running | succeeded | failed`), `phase_message`, `input` / `result`
+(jsonb), `error`, `trigger_run_id`, `created_by`, timestamps, and an optional `lock_key` with a
+partial unique index that allows one live job per key. `kind` has no check constraint — the
+`JobKind` union in `src/lib/jobs/types.ts` is the registry, and each feature types its own
+input/result. Helpers in `src/lib/jobs/db.ts` (`insertJob` → `JobLockedError` on a held lock,
+`startJob`, `setJobPhase`, `succeedJob`, `failJob`, `failStaleJobs`, `listRecentJobs`). What a job
+**produces** stays in the feature's own tables. The brand asset import (`asset-import`, D302) is
+the first kind. `client_kb_jobs` moves over when it is next substantially changed (the D300 rule),
+not now; `generations` stays separate — it is a credit ledger, not just a job.
+
+**Why.** Operator: no new table per long-running feature. Every such job needs the same status,
+progress, lock, stale-run sweep and polling, and one shape means one status UI and one place to
+watch background work.
+
+**Rejected.** `client_asset_imports` (the first draft — a per-feature table again). Folding
+outputs into the job row (they are domain data with their own reads). Migrating `client_kb_jobs`
+and `generations` now (risky sweep; generations carries billing semantics). A check constraint on
+`kind` (a migration per new feature for no safety the TS union lacks).
+
+**Refines** D302. **Originated →** operator request, 2026-10-05;
+`2026-10-05-brand-kb-social-asset-import-design.md` §3.

@@ -675,3 +675,43 @@ select relname, relrowsecurity from pg_class where relname = 'client_voices';
 select conname from pg_constraint
 where conrelid = 'client_voices'::regclass and contype = 'u';
 ```
+
+## Migration 0044 — `background_jobs` + Brand Images sources (2026-10-05)
+
+`supabase/migrations/0044_background_jobs_and_brand_image_sources.sql`. Paste into the Supabase
+SQL editor → Run.
+
+Two parts:
+
+- **`client_brand_images` gains six columns** (D303): `source` (`upload | website | instagram |
+  facebook`, default `upload`), `media_type` (`image | video`, default `image`), `thumbnail_url`,
+  `source_url`, `posted_at`, `source_ref`, plus a partial unique index on
+  `(client_id, source_ref)`. Every existing row becomes `source = 'upload'`, `media_type = 'image'`
+  through the defaults — which is what they are.
+- **`background_jobs`** (D306): the generic lifecycle table for long-running jobs, first used by
+  the brand asset import (D302). RLS enabled with zero policies (default-deny, as `0041`).
+
+**Not safe to re-run:** `add column` / `create table` fail if they exist. That failure is harmless.
+
+**Ordering:** apply **before** deploying the app code. The KB page and KB builds read
+`client_brand_images.source`; until the column exists they fail with
+`column client_brand_images.source does not exist`.
+
+**Also required, same window:** `APIFY_TOKEN` must be set in the **Trigger.dev** production
+environment (the `asset-import` task calls Apify directly), and the `asset-import` task must be
+deployed with the rest of `trigger/`.
+
+**Verify after running:**
+
+```sql
+-- expect 0 — every existing image is an upload
+select count(*) from client_brand_images where source <> 'upload';
+
+-- expect 2 rows: client_brand_images_source_ref_idx, background_jobs_one_live_idx
+select indexname from pg_indexes
+where indexname in ('client_brand_images_source_ref_idx', 'background_jobs_one_live_idx');
+
+-- expect 1 row, rowsecurity = true; and 0 policies
+select relname, relrowsecurity from pg_class where relname = 'background_jobs';
+select policyname from pg_policies where tablename = 'background_jobs';
+```
