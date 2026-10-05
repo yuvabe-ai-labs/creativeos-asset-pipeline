@@ -127,13 +127,13 @@ export function isWithinWindow(postedAt: string | undefined, now: Date = new Dat
 const REFRESH_OVERLAP_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The date (YYYY-MM-DD) a social refresh fetches posts from: just before the last successful
- * import of the same target, never earlier than the 3-month window. Null — fetch the whole
- * window — when there is no earlier success to build on.
+ * The date (YYYY-MM-DD) a social refresh fetches posts from: a day before `from` (the newest
+ * post already kept — see refresh-plan.ts), never earlier than the 3-month window. Null, a fetch
+ * of the whole window, when there is nothing to start from.
  */
-export function refreshSince(lastSucceededAt: string | null | undefined, now: Date = new Date()): string | null {
-  if (!lastSucceededAt) return null;
-  const last = Date.parse(lastSucceededAt);
+export function refreshSince(from: string | null | undefined, now: Date = new Date()): string | null {
+  if (!from) return null;
+  const last = Date.parse(from);
   if (Number.isNaN(last)) return null;
   const since = Math.max(last - REFRESH_OVERLAP_MS, windowStart(now).getTime());
   return new Date(since).toISOString().slice(0, 10);

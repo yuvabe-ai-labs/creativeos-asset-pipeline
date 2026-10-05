@@ -69,7 +69,7 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
   function askRefreshAll() {
     const plan = IMPORT_SOURCES.flatMap((s): RefreshPlan[] => {
       const target = targets?.[s];
-      return target ? [{ source: s, target, lastSucceededAt: lastImport(s)?.lastSucceededAt ?? null }] : [];
+      return target ? [{ source: s, target, since: lastImport(s)?.nextRefreshSince ?? null }] : [];
     });
     if (plan.length === 0) toast.info("Connect a website, Instagram or Facebook first.");
     else setRefreshPlan(plan);

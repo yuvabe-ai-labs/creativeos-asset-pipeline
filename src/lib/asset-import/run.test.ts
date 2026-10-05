@@ -10,6 +10,7 @@ vi.mock("@/lib/jobs/db", () => ({
   failJob: vi.fn(),
 }));
 vi.mock("@/lib/db/kb", () => ({
+  latestImportedPostAt: vi.fn(async () => null),
   listBrandImageRefs: vi.fn(),
   insertImportedBrandImage: vi.fn(),
 }));
@@ -35,7 +36,7 @@ vi.mock("sharp", () => {
 });
 
 import { failJob, getJob, listRecentJobs, succeedJob } from "@/lib/jobs/db";
-import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
+import { insertImportedBrandImage, latestImportedPostAt, listBrandImageRefs } from "@/lib/db/kb";
 import { removeObject, uploadImportedBrandMedia } from "@/lib/storage";
 import { runImportActor } from "./apify";
 import { runAssetImport } from "./run";
@@ -70,6 +71,9 @@ describe("runAssetImport", () => {
     process.env.APIFY_TOKEN = "tok";
     vi.mocked(listBrandImageRefs).mockResolvedValue(new Set());
     vi.mocked(insertImportedBrandImage).mockImplementation(async (r) => ({ id: r.id }) as never);
+    // No history and nothing kept: a full fetch, unless a test says otherwise.
+    vi.mocked(listRecentJobs).mockResolvedValue([]);
+    vi.mocked(latestImportedPostAt).mockResolvedValue(null);
   });
 
   it("downloads, stores and records each new asset, then succeeds with the count", async () => {
@@ -83,19 +87,38 @@ describe("runAssetImport", () => {
     expect(succeedJob).toHaveBeenCalledWith("job-1", result, "2 new");
   });
 
-  it("narrows a refresh to posts since the last import of the same handle", async () => {
+  it("narrows a refresh to posts after the newest one already kept", async () => {
     vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
     const day = 24 * 60 * 60 * 1000;
-    const lastRun = new Date(Date.now() - 2 * day);
-    vi.mocked(listRecentJobs).mockResolvedValue([
-      // A later import of a DIFFERENT handle must not count.
-      { id: "old-other", status: "succeeded", created_at: new Date(Date.now() - day).toISOString(), input: { source: "instagram", target: "https://www.instagram.com/other/" } },
-      { id: "old", status: "succeeded", created_at: lastRun.toISOString(), input: { source: "instagram", target: "https://www.instagram.com/brand/" } },
-    ] as never);
+    const newestKept = new Date(Date.now() - 5 * day);
+    vi.mocked(latestImportedPostAt).mockResolvedValue(newestKept.toISOString());
     vi.mocked(runImportActor).mockResolvedValue([]);
     await runAssetImport("job-1", { fetchImpl: mediaFetch() });
-    // A day of overlap before the last run.
-    expect(vi.mocked(runImportActor).mock.calls[0][2].since).toBe(new Date(lastRun.getTime() - day).toISOString().slice(0, 10));
+    // A day of overlap before the newest kept post.
+    expect(vi.mocked(runImportActor).mock.calls[0][2].since).toBe(new Date(newestKept.getTime() - day).toISOString().slice(0, 10));
+  });
+
+  it("fetches the whole window when nothing from the source is kept yet", async () => {
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+    // A recent run "succeeded" with no new posts — but nothing was ever kept (Jackfruit365).
+    vi.mocked(listRecentJobs).mockResolvedValue([
+      { id: "old", status: "succeeded", created_at: new Date().toISOString(), input: { source: "instagram", target: "https://www.instagram.com/brand/" }, result: { assetCount: 0, found: 0, failed: 0 } },
+    ] as never);
+    vi.mocked(latestImportedPostAt).mockResolvedValue(null);
+    vi.mocked(runImportActor).mockResolvedValue([]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[0][2].since).toBeNull();
+  });
+
+  it("starts over when the handle changed since the last good run", async () => {
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([
+      { id: "old", status: "succeeded", created_at: new Date().toISOString(), input: { source: "instagram", target: "https://www.instagram.com/other/" }, result: { assetCount: 4, found: 4, failed: 0 } },
+    ] as never);
+    vi.mocked(latestImportedPostAt).mockResolvedValue(new Date().toISOString());
+    vi.mocked(runImportActor).mockResolvedValue([]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[0][2].since).toBeNull();
   });
 
   it("crawls a website whole, whatever came before", async () => {
@@ -177,22 +200,6 @@ describe("runAssetImport", () => {
     expect(removeObject).toHaveBeenCalledTimes(2);
   });
 
-  it("does not build a refresh on a run that saved nothing because every save failed", async () => {
-    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
-    vi.mocked(listRecentJobs).mockResolvedValue([
-      {
-        id: "broken",
-        status: "succeeded",
-        created_at: new Date(Date.now() - 3_600_000).toISOString(),
-        input: { source: "instagram", target: "https://www.instagram.com/brand/" },
-        result: { assetCount: 0, found: 38, failed: 38 },
-      },
-    ] as never);
-    vi.mocked(runImportActor).mockResolvedValue([]);
-    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
-    expect(vi.mocked(runImportActor).mock.calls[0][2].since).toBeNull();
-  });
-
   it("fails the job with the source's reason when it yields nothing", async () => {
     vi.mocked(getJob).mockResolvedValue(job("facebook") as never);
     vi.mocked(runImportActor).mockResolvedValue([{ error: "not_available" }]);
@@ -214,9 +221,7 @@ describe("runAssetImport", () => {
 
   it("treats a refresh with nothing new as done, not failed", async () => {
     vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
-    vi.mocked(listRecentJobs).mockResolvedValue([
-      { id: "old", status: "succeeded", created_at: new Date(Date.now() - 86_400_000).toISOString(), input: { source: "instagram", target: "https://www.instagram.com/brand/" } },
-    ] as never);
+    vi.mocked(latestImportedPostAt).mockResolvedValue(new Date(Date.now() - 86_400_000).toISOString());
     vi.mocked(runImportActor).mockResolvedValue([{ error: "no_items" }]);
     await runAssetImport("job-1", { fetchImpl: mediaFetch() });
     expect(failJob).not.toHaveBeenCalled();

@@ -47,7 +47,7 @@ export type AssetImport = {
   error: string | null;
   createdAt: string;
   finishedAt: string | null;
-  /** When this source last imported successfully from this same target — what a social refresh
-   *  builds on. Null when it never has. */
-  lastSucceededAt: string | null;
+  /** The date (YYYY-MM-DD) the next refresh of this source fetches posts from; null when it
+   *  fetches the whole window (a website, or nothing kept yet). */
+  nextRefreshSince: string | null;
 };

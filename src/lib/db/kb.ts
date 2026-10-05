@@ -153,6 +153,26 @@ export async function countImportedBrandImages(clientId: string): Promise<Import
   return { total, bySource: { website, instagram, facebook }, byMedia: { image, video } };
 }
 
+/** The newest post date among a client's assets from one source — what a social refresh
+ *  starts from. Null when it holds none with a date. */
+export async function latestImportedPostAt(
+  clientId: string,
+  source: Exclude<BrandImageSource, "upload">,
+): Promise<string | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_brand_images")
+    .select("posted_at")
+    .eq("client_id", clientId)
+    .eq("source", source)
+    .not("posted_at", "is", null)
+    .order("posted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { posted_at: string } | null)?.posted_at ?? null;
+}
+
 /** The dedupe keys a client already holds (D305). */
 export async function listBrandImageRefs(clientId: string): Promise<Set<string>> {
   const supabase = createServerSupabase();

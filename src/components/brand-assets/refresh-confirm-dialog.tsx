@@ -16,9 +16,10 @@ import {
   SOCIAL_WINDOW_MONTHS,
   type ImportSource,
 } from "@/lib/asset-import/constants";
-import { importTargetLabel, refreshSince } from "@/lib/asset-import/utils";
+import { importTargetLabel } from "@/lib/asset-import/utils";
 
-export type RefreshPlan = { source: ImportSource; target: string; lastSucceededAt: string | null };
+/** What a refresh will do for one source. `since` is the server's plan (null = full window). */
+export type RefreshPlan = { source: ImportSource; target: string; since: string | null };
 
 type Props = {
   /** The sources about to refresh, or null when closed. */
@@ -59,9 +60,8 @@ export function RefreshConfirmDialog({ plan, onConfirm, onCancel }: Props) {
 function describe(p: RefreshPlan): string {
   const where = importTargetLabel(p.target);
   if (p.source === "website") return `checks ${where} again for new images and videos.`;
-  const since = refreshSince(p.lastSucceededAt);
-  if (since) {
-    const date = new Date(`${since}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  if (p.since) {
+    const date = new Date(`${p.since}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
     return `looks for new posts on ${where} since ${date}.`;
   }
   return `brings in up to ${SOCIAL_POST_LIMIT} posts from the last ${SOCIAL_WINDOW_MONTHS} months on ${where}.`;

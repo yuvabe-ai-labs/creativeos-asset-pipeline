@@ -5,7 +5,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { failJob, getJob, listRecentJobs, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
+import { failJob, getJob, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
 import { removeObject, uploadImportedBrandMedia } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
@@ -20,7 +20,8 @@ import { THUMBNAIL_SIZE_LIMIT } from "@/lib/market/constants";
 import { runImportActor } from "./apify";
 import { normalizeFacebook, normalizeInstagram, normalizeWebsite } from "./normalize";
 import type { AssetImportInput, AssetImportResult, NormalizeResult, ScrapedAsset } from "./types";
-import { importedFilename, isRefreshBase, refreshSince } from "./utils";
+import { importedFilename } from "./utils";
+import { planRefreshSince } from "./refresh-plan";
 import { importCopy } from "./messages";
 
 const NORMALIZERS: Record<AssetImportInput["source"], (rows: never[]) => NormalizeResult> = {
@@ -45,7 +46,7 @@ export async function runAssetImport(
 
     // A social refresh asks only for posts since the last import of this same target, so Apify
     // bills for what is new. A website has no post dates: it is always crawled whole.
-    const since = source === "website" ? null : refreshSince(await lastSuccessAt(clientId, jobId, job.input));
+    const since = await planRefreshSince(clientId, source, target, { excludeJobId: jobId });
     await startJob(jobId, importCopy.collecting(source, since));
     const rows = await runImportActor(source, target, { token, fetchImpl, since });
     const { assets, error, errorCode } = NORMALIZERS[source](rows as never[]);
@@ -95,19 +96,6 @@ export async function runAssetImport(
     await failJob(jobId, importCopy.unavailable(source));
     return null;
   }
-}
-
-/** When this source last imported successfully from this same target — a changed handle starts over. */
-async function lastSuccessAt(clientId: string, jobId: string, input: AssetImportInput): Promise<string | null> {
-  const jobs = await listRecentJobs<AssetImportInput, AssetImportResult>(clientId, "asset-import", 30);
-  const last = jobs.find(
-    (j) =>
-      j.id !== jobId &&
-      j.input?.source === input.source &&
-      j.input?.target === input.target &&
-      isRefreshBase(j.status, j.result),
-  );
-  return last?.created_at ?? null;
 }
 
 type SaveOutcome = { status: "saved" | "duplicate" } | { status: "failed"; reason: string };

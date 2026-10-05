@@ -36,7 +36,7 @@ export function SourceTabHeader({ clientId, source, target, lastImport, count }:
 
   // Every refresh is confirmed first: it says what will be fetched, and each scrape is paid for.
   const refresh = () =>
-    target && setPlan([{ source, target, lastSucceededAt: lastImport?.lastSucceededAt ?? null }]);
+    target && setPlan([{ source, target, since: lastImport?.nextRefreshSince ?? null }]);
   const confirmRefresh = () => {
     setPlan(null);
     start.mutate([source], { onError: (e) => toast.error(e.message) });
