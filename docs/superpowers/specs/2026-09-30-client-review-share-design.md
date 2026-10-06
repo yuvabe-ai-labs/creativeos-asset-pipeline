@@ -76,9 +76,11 @@ canvas_review_comments (
 
 - **RLS** default-deny on both; all access through the service-role client in server code (D44).
   No anon policy (D86 stands).
-- **Video** at `clients/{c}/canvases/{cv}/nodes/{n}/client-review/cut-<ts>.mp4`, served by its
+- **Video** at `clients/{c}/canvases/{cv}/nodes/{n}/client-review/cut__<ts>.<ext>`, served by its
   public GCS URL (D46). The path builder goes in `src/lib/storage/paths.ts`.
-- **Limits** live in `src/lib/client-review/constants.ts`: name 60, body 2,000.
+- **Limits** live in `src/lib/client-review/constants.ts`: name 60, body 2,000, at most 500
+  comments per review (`MAX_COMMENTS_PER_REVIEW`; the token is the only credential, so this
+  bounds one link's write volume).
 - **Token stored plainly** so the node can always offer *Copy link* — the same capability-URL
   trade-off D46 accepts for GCS objects. Deleting the node kills the link.
 
@@ -99,7 +101,7 @@ canvas_review_comments (
 - `PATCH` checks `comment.review_id === review.id`, so one token cannot edit another review's
   comments. Only `body` is editable — never the timecode or the original author.
 
-- The page sends `X-Robots-Tag: noindex` and `Referrer-Policy: no-referrer`.
+- The page sets `robots: noindex, nofollow` and `referrer: no-referrer` via Next metadata (meta tags); Next's default `strict-origin-when-cross-origin` already keeps the token path out of Referer on cross-origin requests.
 - **"No internal ids" means response fields.** The public JSON never carries org, client, canvas or node ids as fields. The `videoUrl` is a public GCS URL whose path contains those UUIDs, like every other asset URL in the app (D46 capability URLs); they grant nothing without a session.
 - **No app chrome on `/r/*`.** `src/app/layout.tsx` renders the CreativeOS header (brand, help,
   review inbox, profile) on every route; the inbox and profile call session-only APIs, which would
@@ -198,6 +200,7 @@ canvas_review_comments (
 |---|---|
 | Unknown token / node deleted | Friendly page: *"This review link is no longer active — ask your contact for a new one."* (HTTP 200 — the page streams before the lookup; it is noindex) |
 | Post fails | The text stays in the composer with an inline error and **Post** re-enabled |
+| Review already holds 500 comments | `POST` answers 409 *"This review has reached its comment limit."*; the composer shows it inline and keeps the text |
 | Two people edit the same comment | Last write wins; *"edited by"* shows who changed it last |
 | Edit to empty text | **Save** disabled; deleting by emptying is not possible |
 | Empty name or comment | **Start review** / **Post** disabled until there is text |
