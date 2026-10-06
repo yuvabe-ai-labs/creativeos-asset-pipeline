@@ -15,6 +15,7 @@ import type { NodeClientReview } from "@/lib/client-review/wire";
 import { ClientReviewUpload } from "./client-review-upload";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
+import { useClientFeedback } from "@/components/canvas/client-feedback-drawer/client-feedback-context";
 
 // D309: terminal node (no handles) — the cut a client reviews by public link. Clicking the
 // card opens the client feedback drawer (right side, non-modal) for this node; there is no
@@ -25,8 +26,7 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
-  const feedbackNodeId = useCanvasStore((s) => s.feedbackNodeId);
-  const setFeedbackNodeId = useCanvasStore((s) => s.setFeedbackNodeId);
+  const { nodeId: feedbackNodeId, openFeedback } = useClientFeedback();
   const d = data as ClientReviewNodeData;
   const queryClient = useQueryClient();
   const { data: current, isPending: loading, isError, refetch } = useNodeClientReview(id);
@@ -36,12 +36,14 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   // drawer here, since this node has no focus view. Consume it so it doesn't re-fire.
   useEffect(() => {
     if (focusedNodeId !== id) return;
-    setFeedbackNodeId(id);
+    openFeedback(id, { fly: true });
     setFocusedNodeId(null);
-  }, [focusedNodeId, id, setFeedbackNodeId, setFocusedNodeId]);
+  }, [focusedNodeId, id, openFeedback, setFocusedNodeId]);
 
-  const handleUploaded = (next: NodeClientReview) =>
+  const handleUploaded = (next: NodeClientReview) => {
     queryClient.setQueryData(clientReviewKeys.node(id), next);
+    void queryClient.invalidateQueries({ queryKey: ["client-review", "canvas"] });
+  };
 
   const count = current?.comments.length ?? 0;
   const cut = current?.review ?? null;
@@ -50,14 +52,17 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   return (
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
       <div
-        onClick={() => setFeedbackNodeId(id)}
+        onClick={() => openFeedback(id)}
         className={cn(
-          "group w-56 cursor-pointer rounded-lg border border-border bg-card shadow-card",
+          // D310: the client accent — amber border + a pale amber header band — so client-facing
+          // work reads apart from generation nodes. Selection keeps the purple ring (brand focus).
+          "group w-56 cursor-pointer overflow-hidden rounded-lg border border-client/70 bg-card shadow-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-          showingFeedback && !selected && "ring-1 ring-primary/40",
+          showingFeedback && !selected && "ring-2 ring-client/60",
         )}
       >
+        <div className="border-b border-client/40 bg-client/15 [&_svg]:text-client-text">
         <NodeCardHeader
           icon={MessageSquareText}
           nodeId={id}
@@ -66,6 +71,7 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
           placeholder="Untitled cut"
           onCommitTitle={(t) => updateNodeData(id, { title: t })}
         />
+        </div>
         {cut && (
           <div className="overflow-hidden border-b border-border bg-black">
             <video
@@ -83,7 +89,7 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
               <span className="text-xs text-muted-foreground">
                 {count} {count === 1 ? "comment" : "comments"}
               </span>
-              <span className="text-xs text-primary">Feedback →</span>
+              <span className="text-xs font-medium text-client-text">Feedback →</span>
             </>
           ) : loading ? (
             <span className="text-xs text-muted-foreground">Loading…</span>

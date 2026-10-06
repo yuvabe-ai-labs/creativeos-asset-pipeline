@@ -1,5 +1,10 @@
 import { authFetch } from "@/lib/supabase/session-ready";
-import type { NodeClientReview, PublicReview, ReviewComment } from "@/lib/client-review/wire";
+import type {
+  CanvasClientFeedback,
+  NodeClientReview,
+  PublicReview,
+  ReviewComment,
+} from "@/lib/client-review/wire";
 import { isNotFound, readJson } from "./read-json";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -19,6 +24,12 @@ class ClientReviewService {
       if (isNotFound(e)) return EMPTY;
       throw e;
     }
+  }
+
+  /** Every Client review node on a canvas with its comment count (header chip). */
+  async getCanvasFeedback(canvasId: string): Promise<CanvasClientFeedback> {
+    const res = await authFetch(`/api/canvases/${canvasId}/client-feedback`, { cache: "no-store" });
+    return readJson<CanvasClientFeedback>(res, "Couldn't load client feedback.");
   }
 
   async getPublic(token: string): Promise<PublicReview> {

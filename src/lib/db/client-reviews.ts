@@ -1,6 +1,12 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { CanvasReviewRow, ReviewCommentRow } from "@/lib/client-review/wire";
+import {
+  toCanvasClientFeedback,
+  type CanvasClientFeedback,
+  type CanvasFeedbackRow,
+  type CanvasReviewRow,
+  type ReviewCommentRow,
+} from "@/lib/client-review/wire";
 
 export type ReviewByToken = CanvasReviewRow & { title: string };
 
@@ -135,4 +141,17 @@ export async function updateComment(input: {
     .maybeSingle();
   if (error) throw error;
   return (data as ReviewCommentRow | null) ?? null;
+}
+
+// Every Client review node on a canvas with its comment count, in one query (PostgREST
+// aggregate on the embedded comments). Feeds the header's "Client feedback" chip.
+export async function listCanvasClientFeedback(canvasId: string): Promise<CanvasClientFeedback> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvas_reviews")
+    .select("node_id, nodes!inner(data), canvas_review_comments(count)")
+    .eq("canvas_id", canvasId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return toCanvasClientFeedback((data ?? []) as unknown as CanvasFeedbackRow[]);
 }

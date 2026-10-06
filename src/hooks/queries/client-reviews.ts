@@ -12,7 +12,18 @@ import type { PublicReview, ReviewComment } from "@/lib/client-review/wire";
 export const clientReviewKeys = {
   node: (nodeId: string) => ["client-review", "node", nodeId] as const,
   public: (token: string) => ["client-review", "public", token] as const,
+  canvas: (canvasId: string) => ["client-review", "canvas", canvasId] as const,
 };
+
+/** Every Client review node on the canvas with its comment count — the header chip. The count
+ *  is the total (no seen-state); it refreshes when a node's feedback drawer comes up. */
+export function useCanvasClientFeedback(canvasId: string) {
+  return useQuery({
+    queryKey: clientReviewKeys.canvas(canvasId),
+    queryFn: () => clientReviewService.getCanvasFeedback(canvasId),
+    enabled: Boolean(canvasId),
+  });
+}
 
 /** The canvas node's cut and comments. The card and its focus view read this one query; an
  *  upload writes its finalize result straight into it. */

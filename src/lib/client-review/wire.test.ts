@@ -26,3 +26,28 @@ describe("toReviewComment", () => {
     expect(toReviewComment(row)).not.toHaveProperty("reviewId");
   });
 });
+
+import { toCanvasClientFeedback } from "./wire";
+
+describe("toCanvasClientFeedback", () => {
+  it("maps each review node to its title and comment count, and totals them", () => {
+    expect(
+      toCanvasClientFeedback([
+        { node_id: "n1", nodes: { data: { title: "Dosa film" } }, canvas_review_comments: [{ count: 3 }] },
+        { node_id: "n2", nodes: [{ data: { title: "" } }], canvas_review_comments: [{ count: 0 }] },
+      ]),
+    ).toEqual({
+      nodes: [
+        { nodeId: "n1", title: "Dosa film", count: 3 },
+        { nodeId: "n2", title: "", count: 0 },
+      ],
+      total: 3,
+    });
+  });
+
+  it("treats a missing title or count as empty", () => {
+    expect(
+      toCanvasClientFeedback([{ node_id: "n1", nodes: null, canvas_review_comments: null }]),
+    ).toEqual({ nodes: [{ nodeId: "n1", title: "", count: 0 }], total: 0 });
+  });
+});

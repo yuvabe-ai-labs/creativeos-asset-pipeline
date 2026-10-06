@@ -86,10 +86,6 @@ export type CanvasState = {
   // Programmatic focus-view open signal — set by the tray to open a node's focus view.
   focusedNodeId: string | null;
   setFocusedNodeId: (id: string | null) => void;
-  // D309: which Client review node's feedback the right-side drawer shows. Null = closed.
-  // The drawer is non-modal and stays open until closed; clicking another review node swaps it.
-  feedbackNodeId: string | null;
-  setFeedbackNodeId: (id: string | null) => void;
   // Which SECTION of the focus view to land on when it opens programmatically. Null means
   // "the view's own default". The review drawer and navbar inbox set "details", because
   // arriving from a review queue and landing on the generation settings makes the reviewer
@@ -770,8 +766,6 @@ export function createCanvasStore(
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),
 
-    feedbackNodeId: null,
-    setFeedbackNodeId: (id) => set({ feedbackNodeId: id }),
 
     focusSection: null,
     setFocusSection: (section) => set({ focusSection: section }),

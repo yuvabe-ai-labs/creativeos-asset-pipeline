@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useReactFlow } from "@xyflow/react";
 import { Copy, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,25 +16,34 @@ import { ClientReviewUpload } from "@/components/nodes/client-review-upload";
 import { clientReviewKeys, useNodeClientReview } from "@/hooks/queries/client-reviews";
 import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
 import type { NodeClientReview } from "@/lib/client-review/wire";
+import { useClientFeedback } from "./client-feedback-context";
 
 // D309 — the client feedback drawer. Right side, vertical: the cut on top, the client's
 // comments under it; clicking a comment's timecode scrubs the video there.
 //
 // NON-MODAL with no backdrop, like the gallery and review drawers, so a designer can read
 // feedback and keep working on the canvas at the same time. It stays open until closed;
-// clicking another Client review node swaps what it shows (store: feedbackNodeId).
+// clicking another Client review node swaps what it shows (ClientFeedbackProvider).
 export function ClientFeedbackDrawer() {
-  const nodeId = useCanvasStore((s) => s.feedbackNodeId);
-  const setFeedbackNodeId = useCanvasStore((s) => s.setFeedbackNodeId);
+  const { nodeId, fly, closeFeedback, consumeFly } = useClientFeedback();
+  const { setCenter, getNode } = useReactFlow();
   // The node can be deleted while its feedback is open — then there is nothing to show.
   const node = useCanvasStore((s) => (nodeId ? s.nodes.find((n) => n.id === nodeId) : undefined));
   const open = !!nodeId && !!node;
+
+  // Opened from the header chip: bring the node into view (same fly as the review drawer).
+  useEffect(() => {
+    if (!fly || !nodeId) return;
+    const n = getNode(nodeId);
+    if (n) setCenter(n.position.x + 112, n.position.y + 100, { zoom: 1, duration: 500 });
+    consumeFly();
+  }, [fly, nodeId, getNode, setCenter, consumeFly]);
 
   return (
     <Sheet
       open={open}
       onOpenChange={(v) => {
-        if (!v) setFeedbackNodeId(null);
+        if (!v) closeFeedback();
       }}
       modal={false}
     >
@@ -49,7 +59,7 @@ export function ClientFeedbackDrawer() {
             key={nodeId}
             nodeId={nodeId}
             title={(node.data as ClientReviewNodeData).title ?? ""}
-            onClose={() => setFeedbackNodeId(null)}
+            onClose={closeFeedback}
           />
         )}
       </SheetContent>
@@ -72,10 +82,12 @@ function FeedbackPanel({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { data, isPending: loading, isError, refetch } = useNodeClientReview(nodeId);
 
-  // Fresh comments whenever a node's feedback is brought up (spec §5).
+  // Fresh comments whenever a node's feedback is brought up (spec §5) — and the header
+  // chip's canvas total with them, so the two never disagree.
   useEffect(() => {
     void refetch();
-  }, [refetch]);
+    void queryClient.invalidateQueries({ queryKey: ["client-review", "canvas"] });
+  }, [refetch, queryClient]);
 
   const review = data?.review ?? null;
   const comments = data?.comments ?? [];
@@ -98,8 +110,10 @@ function FeedbackPanel({
     }
   }
 
-  const handleUploaded = (next: NodeClientReview) =>
+  const handleUploaded = (next: NodeClientReview) => {
     queryClient.setQueryData(clientReviewKeys.node(nodeId), next);
+    void queryClient.invalidateQueries({ queryKey: ["client-review", "canvas"] });
+  };
 
   return (
     <>

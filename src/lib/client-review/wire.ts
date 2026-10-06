@@ -56,3 +56,25 @@ export function toReviewComment(row: ReviewCommentRow): ReviewComment {
     updatedAt: row.updated_at,
   };
 }
+
+// Canvas-level summary for the header's "Client feedback" chip: every Client review node on
+// the canvas with its comment count. The count is the TOTAL (operator decision 2026-10-06),
+// not "unseen" — there is no seen-state.
+export type CanvasFeedbackNode = { nodeId: string; title: string; count: number };
+export type CanvasClientFeedback = { nodes: CanvasFeedbackNode[]; total: number };
+
+type TitleEmbed = { data: { title?: unknown } | null };
+export type CanvasFeedbackRow = {
+  node_id: string;
+  nodes: TitleEmbed | TitleEmbed[] | null;
+  canvas_review_comments: { count: number }[] | null;
+};
+
+export function toCanvasClientFeedback(rows: CanvasFeedbackRow[]): CanvasClientFeedback {
+  const nodes = rows.map((r) => {
+    const node = Array.isArray(r.nodes) ? r.nodes[0] : r.nodes;
+    const title = typeof node?.data?.title === "string" ? node.data.title : "";
+    return { nodeId: r.node_id, title, count: r.canvas_review_comments?.[0]?.count ?? 0 };
+  });
+  return { nodes, total: nodes.reduce((sum, n) => sum + n.count, 0) };
+}

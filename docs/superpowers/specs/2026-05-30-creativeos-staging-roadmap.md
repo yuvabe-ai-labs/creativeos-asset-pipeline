@@ -6475,3 +6475,24 @@ deleting comments; replacing the video inside a node.
 
 **Refines.** D44, D46, D86. **Originated →**
 `docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
+
+### D310 — The Client review node carries its own amber accent *(recorded 2026-10-06; exception to the single-brand-colour rule)*
+
+**Decision.** The Client review node is drawn with an amber identity — a `border-client/70` card
+border and a pale `bg-client/15` header band, icon and "Feedback →" in `text-client-text` — via
+two new tokens in `globals.css`: `--client` (brand yellow `#ffca2d`, for fills and borders) and
+`--client-text` (`--yellow-700`, 4.57:1, for text and icons). Selection keeps the purple ring;
+purple stays the focus/brand colour. The canvas header gains a "Client feedback" chip next to
+the consumption chip, its count in the same accent (total client comments on the canvas, no
+seen-state), opening the node's feedback drawer (one node) or a list that flies to each node.
+
+**Why.** Client-facing cuts are a different kind of object from generation nodes, and the
+operator wants them findable at a glance on a busy canvas. Tokens keep the exception in one
+place; yellow-700 for text keeps it readable.
+
+**Rejected.** A soft yellow radial glow only (within the existing rule, but too subtle to find
+the node); reusing `--warning` (it means "something is wrong"); an "unseen comments" count
+(needs a per-user seen-state table — deferred until the total proves insufficient).
+
+**Refines.** The design system's "purple is the single brand colour; yellow only as a soft glow".
+**Originated →** `docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
