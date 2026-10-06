@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { REVIEWER_NAME_MAX } from "@/lib/client-review/constants";
 
 export function NameGate({ title, onSubmit }: { title: string; onSubmit: (name: string) => void }) {
   const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const ready = name.trim().length > 0;
+
+  // The field is server-rendered and autofocused, so a client can type before React hydrates.
+  // Those keystrokes are in the DOM but not in state, which would leave Start review disabled.
+  // Adopt whatever is already in the box once React takes over.
+  useEffect(() => {
+    const typed = inputRef.current?.value ?? "";
+    if (typed) setName(typed);
+  }, []);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -24,6 +33,7 @@ export function NameGate({ title, onSubmit }: { title: string; onSubmit: (name: 
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">Your name</span>
         <Input
+          ref={inputRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={REVIEWER_NAME_MAX}
