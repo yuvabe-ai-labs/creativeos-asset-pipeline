@@ -19,3 +19,10 @@ export function enumOptions(model: ClientModelSpec, field: string): string[] {
   if (spec?.constraints.type === "select") return spec.constraints.options;
   return [];
 }
+
+/** A generated image's file extension, from its MIME type. Shared by every image-generating route. */
+export function mimeToExt(mimeType: string): string {
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/webp") return "webp";
+  return "png";
+}
