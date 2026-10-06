@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { useEditComment, usePostComment, usePublicReview } from "@/hooks/queries/client-reviews";
 import type { PublicReview } from "@/lib/client-review/wire";
@@ -12,12 +12,20 @@ import { CommentList } from "./comment-list";
 import { NameGate } from "./name-gate";
 import { ReviewVideo } from "./review-video";
 
+// True while the HTML is being produced on the server and while React hydrates it; false for
+// every render React does purely in the browser (Fast Refresh, an error-boundary retry).
+const noSubscribe = () => () => {};
+function useIsServerOrHydrating(): boolean {
+  return useSyncExternalStore(noSubscribe, () => false, () => true);
+}
+
 export function ClientReviewPage({ token, initial }: { token: string; initial: PublicReview }) {
   const { data: review } = usePublicReview(token, initial);
   const postComment = usePostComment(token);
   const editComment = useEditComment(token);
   const [name, setName] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const serverPass = useIsServerOrHydrating();
 
   // The pre-paint script may already have set data-reviewer="known". Reading the name
   // here moves React's own value from "unknown" to "known", so a later "change" (back to
@@ -52,7 +60,10 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
       suppressHydrationWarning
       className="group/review flex min-h-dvh flex-col"
     >
-      <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
+      {/* The pre-paint name check only has work to do in the server HTML, before first paint.
+          After hydration it is dropped, so React never CREATES a <script> in the browser —
+          React 19 flags that (such scripts never run). The attribute it set stays put. */}
+      {serverPass && <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />}
 
       <div className="group-data-[reviewer=known]/review:hidden">
         <NameGate title={review.title} onSubmit={(n) => setName(saveReviewerName(browserStore(), n))} />
