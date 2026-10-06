@@ -1,7 +1,7 @@
 import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers";
 import { sharePathFor } from "@/lib/client-review/paths";
 import { generateShareToken } from "@/lib/client-review/token";
-import { cutExtension } from "@/lib/client-review/validate";
+import { isCutPathFor } from "@/lib/client-review/validate";
 import { toReviewComment, type CanvasReviewRow, type NodeClientReview } from "@/lib/client-review/wire";
 import { createReview, getReviewByNodeId, listComments, ReviewExistsError } from "@/lib/db/client-reviews";
 import { publicUrlFor } from "@/lib/storage";
@@ -19,7 +19,10 @@ async function payload(review: CanvasReviewRow | null): Promise<NodeClientReview
 // GET /api/nodes/:id/client-review — the node's cut, share path and comments (team view).
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not load the review.", () =>
-    withNode(req, params, async (nodeId) => apiOk(await payload(await getReviewByNodeId(nodeId)))),
+    withNode(req, params, async (nodeId, node) => {
+      if (node.type !== "client-review") return apiError("Node not found.", 404);
+      return apiOk(await payload(await getReviewByNodeId(nodeId)));
+    }),
   );
 }
 
@@ -28,14 +31,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not save the cut.", () =>
     withNode(req, params, async (nodeId, node, caller, clientId) => {
-      const body = (await req.json().catch(() => null)) as { path?: string; filename?: string } | null;
-      if (!body?.path || !body.filename || !cutExtension(body.filename)) {
-        return apiError("path and a video filename are required.", 400);
+      if (node.type !== "client-review") return apiError("Node not found.", 404);
+      const body = (await req.json().catch(() => null)) as { path?: string } | null;
+      if (typeof body?.path !== "string" || !body.path) {
+        return apiError("path is required.", 400);
       }
       // A client could otherwise finalize with an arbitrary path and point the
       // public link at someone else's object.
       const prefix = clientReviewPrefix({ clientId, canvasId: node.canvas_id, nodeId });
-      if (!body.path.startsWith(prefix)) {
+      if (!isCutPathFor(prefix, body.path)) {
         return apiError("Upload path does not belong to this node.", 400);
       }
       try {

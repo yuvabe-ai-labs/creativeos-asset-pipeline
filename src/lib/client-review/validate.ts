@@ -57,3 +57,11 @@ export function cutExtension(filename: string): string | null {
   const ext = filename.slice(idx + 1).toLowerCase();
   return CUT_EXTENSIONS.has(ext) ? ext : null;
 }
+
+// The finalize path must be exactly what pathForClientReviewCut produces: the node's
+// prefix plus one `cut__<timestamp>.<ext>` segment. Anything looser (`..`, `%2e%2e`,
+// extra segments) could point the public link at another tenant's object.
+export function isCutPathFor(prefix: string, path: string): boolean {
+  if (!path.startsWith(prefix)) return false;
+  return /^cut__[A-Za-z0-9-]+\.(mp4|mov|webm)$/.test(path.slice(prefix.length));
+}

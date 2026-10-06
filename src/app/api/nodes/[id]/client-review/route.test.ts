@@ -71,12 +71,12 @@ describe("/api/nodes/[id]/client-review", () => {
 
   it("GET returns the video URL and share path once a cut exists", async () => {
     vi.mocked(getReviewByNodeId).mockResolvedValue({
-      id: "r1", video_path: `${PREFIX}cut.mp4`, share_token: "tok",
+      id: "r1", video_path: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, share_token: "tok",
     } as never);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/nodes/n1/client-review"), { params });
     const body = await res.json();
-    expect(body.review).toEqual({ videoUrl: `https://cdn/${PREFIX}cut.mp4`, sharePath: "/r/tok" });
+    expect(body.review).toEqual({ videoUrl: `https://cdn/${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, sharePath: "/r/tok" });
   });
 
   it("POST creates the review with a fresh token for a path inside the node", async () => {
@@ -85,10 +85,10 @@ describe("/api/nodes/[id]/client-review", () => {
       video_path: input.videoPath, share_token: input.shareToken, created_by: input.createdBy, created_at: "t",
     }));
     const { POST } = await import("./route");
-    const res = await POST(finalize({ path: `${PREFIX}cut.mp4`, filename: "cut.mp4" }), { params });
+    const res = await POST(finalize({ path: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, filename: "cut__2026-10-06T08-54-55-123Z.mp4" }), { params });
     expect(res.status).toBe(201);
     const input = vi.mocked(createReview).mock.calls[0][0];
-    expect(input).toMatchObject({ canvasId: "cv1", nodeId: "n1", videoPath: `${PREFIX}cut.mp4`, createdBy: "user-1" });
+    expect(input).toMatchObject({ canvasId: "cv1", nodeId: "n1", videoPath: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, createdBy: "user-1" });
     expect(input.shareToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect((await res.json()).review.sharePath).toBe(`/r/${input.shareToken}`);
   });
@@ -103,7 +103,40 @@ describe("/api/nodes/[id]/client-review", () => {
   it("POST 409s when the node already has a cut", async () => {
     vi.mocked(createReview).mockRejectedValue(new ReviewExistsError());
     const { POST } = await import("./route");
-    const res = await POST(finalize({ path: `${PREFIX}cut.mp4`, filename: "cut.mp4" }), { params });
+    const res = await POST(finalize({ path: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, filename: "cut__2026-10-06T08-54-55-123Z.mp4" }), { params });
     expect(res.status).toBe(409);
+  });
+
+  it("POST 400s a traversal path that starts with the node prefix", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(finalize({ path: `${PREFIX}../../../../../../clients/OTHER/x/generated.mp4`, filename: "x.mp4" }), { params });
+    expect(res.status).toBe(400);
+    expect(vi.mocked(createReview)).not.toHaveBeenCalled();
+  });
+
+  it("POST 404s when the node is not a client-review node", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/supabase/server", () => ({
+      createServerSupabase: () => ({
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: {
+                  id: "n1", canvas_id: "cv1", type: "draw", position: { x: 0, y: 0 },
+                  data: {}, active_version_id: null, created_at: "t", updated_at: "t",
+                  canvases: { client_id: "c1", clients: { org_id: "org-1" } },
+                },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      }),
+    }));
+    const { POST } = await import("./route");
+    const res = await POST(finalize({ path: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, filename: "cut.mp4" }), { params });
+    expect(res.status).toBe(404);
+    vi.doUnmock("@/lib/supabase/server");
   });
 });

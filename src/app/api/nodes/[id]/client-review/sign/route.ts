@@ -14,8 +14,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         contentType?: string;
         size?: number;
       } | null;
-      if (!body?.filename || typeof body.size !== "number") {
-        return apiError("filename and size are required.", 400);
+      if (node.type !== "client-review") return apiError("Node not found.", 404);
+      if (
+        !body?.filename ||
+        typeof body.size !== "number" ||
+        !Number.isFinite(body.size) ||
+        body.size <= 0
+      ) {
+        return apiError("filename and a positive size are required.", 400);
+      }
+      if (typeof body.contentType !== "string" || !body.contentType.startsWith("video/")) {
+        return apiError("Upload a video file.", 400);
       }
       const ext = cutExtension(body.filename);
       if (!ext) {
@@ -31,7 +40,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         canvasId: node.canvas_id,
         nodeId,
         ext,
-        contentType: body.contentType || `video/${ext === "mov" ? "quicktime" : ext}`,
+        contentType: body.contentType,
       });
       return apiOk(signed);
     }),

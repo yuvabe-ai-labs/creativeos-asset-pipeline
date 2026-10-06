@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseNewComment, parseCommentEdit, toTimecodeMs, cutExtension } from "./validate";
+import { parseNewComment, parseCommentEdit, toTimecodeMs, cutExtension, isCutPathFor } from "./validate";
 
 describe("toTimecodeMs", () => {
   it("rounds seconds to whole milliseconds", () => {
@@ -63,5 +63,23 @@ describe("cutExtension", () => {
   it("returns null for anything else", () => {
     expect(cutExtension("poster.png")).toBeNull();
     expect(cutExtension("noext")).toBeNull();
+  });
+});
+
+describe("isCutPathFor", () => {
+  const prefix = "clients/c1/canvases/cv1/nodes/n1/client-review/";
+  it("accepts the shape pathForClientReviewCut produces", () => {
+    expect(isCutPathFor(prefix, `${prefix}cut__2026-10-06T08-54-55-123Z.mp4`)).toBe(true);
+    expect(isCutPathFor(prefix, `${prefix}cut__2026-10-06T08-54-55-123Z.webm`)).toBe(true);
+  });
+  it("rejects traversal, encoded traversal and extra segments", () => {
+    expect(isCutPathFor(prefix, `${prefix}../../x/cut__a.mp4`)).toBe(false);
+    expect(isCutPathFor(prefix, `${prefix}%2e%2e/cut__a.mp4`)).toBe(false);
+    expect(isCutPathFor(prefix, `${prefix}sub/cut__a.mp4`)).toBe(false);
+  });
+  it("rejects non-video extensions and other prefixes", () => {
+    expect(isCutPathFor(prefix, `${prefix}cut__a.html`)).toBe(false);
+    expect(isCutPathFor(prefix, `${prefix}x.mp4`)).toBe(false);
+    expect(isCutPathFor(prefix, "clients/c1/canvases/cv1/nodes/OTHER/client-review/cut__a.mp4")).toBe(false);
   });
 });

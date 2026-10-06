@@ -87,4 +87,16 @@ describe("POST /api/nodes/[id]/client-review/sign", () => {
     const res = await POST(sign({ filename: "a.mp4", contentType: "video/mp4", size: 10 }), { params });
     expect(res.status).toBe(409);
   });
+
+  it("400s a non-positive size", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(sign({ filename: "a.mp4", contentType: "video/mp4", size: -1 }), { params });
+    expect(res.status).toBe(400);
+  });
+
+  it("400s a missing or non-video contentType", async () => {
+    const { POST } = await import("./route");
+    expect((await POST(sign({ filename: "a.mp4", size: 10 }), { params })).status).toBe(400);
+    expect((await POST(sign({ filename: "a.mp4", contentType: "text/html", size: 10 }), { params })).status).toBe(400);
+  });
 });
