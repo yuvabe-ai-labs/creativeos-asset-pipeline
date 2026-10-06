@@ -5,7 +5,7 @@ import { getReviewByNodeId } from "@/lib/db/client-reviews";
 import { signClientReviewUpload } from "@/lib/storage";
 
 // POST /api/nodes/:id/client-review/sign — authorize a direct browser → GCS upload of
-// the node's cut (D279). One cut per node: a node that already has one gets 409.
+// the node's cut (D307). One cut per node: a node that already has one gets 409.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not authorize upload.", () =>
     withNode(req, params, async (nodeId, node, _caller, clientId) => {

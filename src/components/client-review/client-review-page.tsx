@@ -21,7 +21,7 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
   // here moves React's own value from "unknown" to "known", so a later "change" (back to
   // "unknown") is a real DOM update — the attribute can't get stuck on "known".
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration sync from localStorage; useSyncExternalStore would drop a session-only name when storage is blocked (D279)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration sync from localStorage; useSyncExternalStore would drop a session-only name when storage is blocked (D307)
     setName(readReviewerName(browserStore()));
   }, []);
 

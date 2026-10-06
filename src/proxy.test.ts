@@ -8,7 +8,7 @@ import { config } from "./proxy";
 // The matcher is a regex source; a path the regex does NOT match skips the session check.
 const runsProxy = (path: string) => new RegExp(`^${config.matcher[0]}$`).test(path);
 
-describe("proxy matcher (D279)", () => {
+describe("proxy matcher (D307)", () => {
   it("skips the session check for the public review page and API", () => {
     expect(runsProxy("/r/abc")).toBe(false);
     expect(runsProxy("/api/r/abc")).toBe(false);

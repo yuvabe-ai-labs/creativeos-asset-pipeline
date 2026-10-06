@@ -3,7 +3,7 @@ import { parseNewComment } from "@/lib/client-review/validate";
 import { toReviewComment } from "@/lib/client-review/wire";
 import { insertComment } from "@/lib/db/client-reviews";
 
-// POST /api/r/:token/comments — public (D279). Add one comment at a paused frame.
+// POST /api/r/:token/comments — public (D307). Add one comment at a paused frame.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ token: string }> },

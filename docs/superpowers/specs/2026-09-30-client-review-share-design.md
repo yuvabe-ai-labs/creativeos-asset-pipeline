@@ -1,7 +1,7 @@
 # Client review share — design
 
 **Status:** implemented on feat/client-review-share · **Date:** 2026-10-01 · **Branch:** `feat/client-review-share`
-**ADR:** D279 (staging roadmap §7) · **Migration:** `0041_canvas_reviews.sql`
+**ADR:** D307 (staging roadmap §7) · **Migration:** `0047_canvas_reviews.sql`
 
 ## 1. Intent
 
@@ -48,7 +48,7 @@ Painting / frame annotation · deleting comments · replies · team comments · 
 request-changes verdict · live updates · revoking or regenerating links · link expiry · replacing
 the video inside a node · the moodboard gallery (step 2).
 
-## 2. Data model — migration `0041_canvas_reviews.sql`
+## 2. Data model — migration `0047_canvas_reviews.sql`
 
 ```sql
 canvas_reviews (
@@ -82,7 +82,7 @@ canvas_review_comments (
 - **Token stored plainly** so the node can always offer *Copy link* — the same capability-URL
   trade-off D46 accepts for GCS objects. Deleting the node kills the link.
 
-## 3. Public access boundary (D279)
+## 3. Public access boundary (D307)
 
 - `src/proxy.ts` matcher exempts `r/` and `api/r/`, next to `api/webhooks`. **The only
   unauthenticated surface in the app.**

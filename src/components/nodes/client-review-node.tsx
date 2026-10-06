@@ -16,7 +16,7 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
 import { useNodeClientReview } from "./use-node-client-review";
 
-// D279: terminal node (no handles) — the cut a client reviews by public link.
+// D307: terminal node (no handles) — the cut a client reviews by public link.
 export function ClientReviewNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();

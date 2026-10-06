@@ -242,7 +242,7 @@ export async function withMoodboard(
   return handler(moodboardId, caller);
 }
 
-// ── Share-token resolution (D279) ─────────────────────────────────────────────
+// ── Share-token resolution (D307) ─────────────────────────────────────────────
 
 // The ONE unauthenticated entry point in the app: /api/r/[token]/* (exempted in
 // src/proxy.ts). The token is the capability — no session, no org check, no
