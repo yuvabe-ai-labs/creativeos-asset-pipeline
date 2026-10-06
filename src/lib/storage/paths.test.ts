@@ -13,6 +13,8 @@ import {
   pathForMarketThumb,
   pathForMarketMedia,
   extForContentType,
+  pathForClientReviewCut,
+  clientReviewPrefix,
   pathForAvatarImage,
   pathForAvatarGenerated,
 } from "./paths";
@@ -235,5 +237,17 @@ describe("pathForAvatarGenerated", () => {
     expect(path.endsWith(".png")).toBe(true);
     expect(pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "jpg" }))
       .toContain("/generated/sheet/");
+  });
+});
+
+describe("pathForClientReviewCut", () => {
+  it("stores the cut under the node's client-review folder", () => {
+    const p = pathForClientReviewCut({ clientId: "c", canvasId: "cv", nodeId: "n", ext: "mp4" });
+    expect(p.startsWith("clients/c/canvases/cv/nodes/n/client-review/cut__")).toBe(true);
+    expect(p.endsWith(".mp4")).toBe(true);
+  });
+  it("prefix is what the finalize route checks against", () => {
+    const args = { clientId: "c", canvasId: "cv", nodeId: "n" };
+    expect(pathForClientReviewCut({ ...args, ext: "mov" }).startsWith(clientReviewPrefix(args))).toBe(true);
   });
 });

@@ -20,6 +20,7 @@ import {
   pathForAvatarVoicePreview,
   pathForAvatarVoiceSample,
   pathForAvatarNamedVoiceSample,
+  pathForClientReviewCut,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
 import type { AvatarImageSlot } from "@/lib/avatars/schema";
@@ -416,4 +417,17 @@ export async function uploadMarketMedia(args: {
     ext: extForContentType(args.contentType),
   });
   return _upload(path, args.body, args.contentType);
+}
+
+// Authorize a direct browser → GCS upload of a Client review cut (up to 500 MB,
+// far past Vercel's 4.5 MB body cap — the bytes never touch a function).
+export async function signClientReviewUpload(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  ext: string;
+  contentType: string;
+}): Promise<SignedUploadResult> {
+  const path = pathForClientReviewCut(args);
+  return _sign(path, args.contentType);
 }

@@ -213,6 +213,25 @@ export function pathForReviewAnnotation(args: {
   return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/review-annotations/${args.decisionId}/${args.seq}-mask.png`;
 }
 
+export function clientReviewPrefix(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+}): string {
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/client-review/`;
+}
+
+// D279: the uploaded cut a client reviews. One per node; a new cut is a new node.
+export function pathForClientReviewCut(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  ext: string;
+}): string {
+  const name = buildStoredName(undefined, { slug: "cut", ext: args.ext });
+  return `${clientReviewPrefix(args)}${name}`;
+}
+
 export function pathForMarketThumb(args: {
   clientId: string;
   itemId: string;
