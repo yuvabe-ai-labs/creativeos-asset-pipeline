@@ -3,7 +3,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { formatTimecode } from "@/components/review-annotations/annotation-list";
+import { formatCutTimecode } from "@/lib/client-review/utils";
 import { COMMENT_BODY_MAX } from "@/lib/client-review/constants";
 import { toTimecodeMs } from "@/lib/client-review/validate";
 
@@ -60,13 +60,13 @@ export function CommentComposer({
 
   return (
     <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3">
-      <p className="text-eyebrow text-muted-foreground">at {formatTimecode(stampMs)}</p>
+      <p className="text-eyebrow text-muted-foreground">at {formatCutTimecode(stampMs)}</p>
       <Textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onFocus={pauseForWriting}
         maxLength={COMMENT_BODY_MAX}
-        placeholder={`Comment at ${formatTimecode(stampMs)}`}
+        placeholder={`Comment at ${formatCutTimecode(stampMs)}`}
         className="min-h-16 text-base md:text-base"
       />
       {error && <p className="text-xs text-destructive">{error}</p>}

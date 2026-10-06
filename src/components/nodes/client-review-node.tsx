@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { type NodeProps } from "@xyflow/react";
 import { MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,12 +10,13 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
+import { clientReviewKeys, useNodeClientReview } from "@/hooks/queries/client-reviews";
 import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
+import type { NodeClientReview } from "@/lib/client-review/wire";
 import { ClientReviewFocusView } from "./client-review-focus-view";
 import { ClientReviewUpload } from "./client-review-upload";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
-import { useNodeClientReview } from "./use-node-client-review";
 
 // D307: terminal node (no handles) — the cut a client reviews by public link.
 export function ClientReviewNode({ id, data, selected }: NodeProps) {
@@ -25,7 +27,16 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const d = data as ClientReviewNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
-  const { data: current, loading, error, reload, replace } = useNodeClientReview(id);
+  const queryClient = useQueryClient();
+  const { data: current, isPending: loading, isError, refetch } = useNodeClientReview(id);
+  const error = isError ? "Couldn't load the review." : null;
+  // Stable (refetch is), so the focus view's refetch-on-open effect runs once per open.
+  const reload = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+  // The finalize result is the node's new truth — card and focus view both read this key.
+  const handleUploaded = (next: NodeClientReview) =>
+    queryClient.setQueryData(clientReviewKeys.node(id), next);
   const editable = useCanvasEditable();
 
   const focusViewOpen = focusOpen || focusedNodeId === id;
@@ -102,7 +113,7 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
                 </Button>
               </>
             ) : editable ? (
-              <ClientReviewUpload nodeId={id} onUploaded={replace} />
+              <ClientReviewUpload nodeId={id} onUploaded={handleUploaded} />
             ) : (
               <span className="text-xs text-muted-foreground">No cut uploaded yet.</span>
             )}
@@ -117,12 +128,12 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
         onOpenChange={handleFocusOpenChange}
         nodeId={id}
         title={d.title ?? ""}
-        data={current}
+        data={current ?? null}
         loading={loading}
         error={error}
         onTitle={(t) => updateNodeData(id, { title: t })}
         onReload={reload}
-        onUploaded={replace}
+        onUploaded={handleUploaded}
       />
     </>
   );

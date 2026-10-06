@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useEditComment, usePostComment, usePublicReview } from "@/hooks/queries/client-reviews";
 import type { PublicReview } from "@/lib/client-review/wire";
 import {
   PREPAINT_SCRIPT, browserStore, clearReviewerName, readReviewerName, saveReviewerName,
@@ -10,10 +11,11 @@ import { CommentComposer } from "./comment-composer";
 import { CommentList } from "./comment-list";
 import { NameGate } from "./name-gate";
 import { ReviewVideo } from "./review-video";
-import { editComment, fetchReview, postComment } from "./review-api";
 
 export function ClientReviewPage({ token, initial }: { token: string; initial: PublicReview }) {
-  const [review, setReview] = useState(initial);
+  const { data: review } = usePublicReview(token, initial);
+  const postComment = usePostComment(token);
+  const editComment = useEditComment(token);
   const [name, setName] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -25,10 +27,6 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
     setName(readReviewerName(browserStore()));
   }, []);
 
-  const refresh = useCallback(async () => {
-    setReview(await fetchReview(token));
-  }, [token]);
-
   function seek(ms: number) {
     const video = videoRef.current;
     if (!video) return;
@@ -36,19 +34,16 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
     video.pause();
   }
 
+  // Only the POST/PATCH itself can reject here: the mutation shows the returned comment at
+  // once and refetches best-effort, so a failed refresh never prompts a duplicate retry.
   async function handlePost(body: string, timecodeMs: number) {
     if (!name) throw new Error("Enter your name first.");
-    const c = await postComment(token, { authorName: name, body, timecodeMs });
-    // The POST succeeded: show it now, so a failed refresh can never prompt a duplicate retry.
-    setReview((r) => ({ ...r, comments: [...r.comments, c] }));
-    void refresh().catch(() => {});
+    await postComment.mutateAsync({ authorName: name, body, timecodeMs });
   }
 
   async function handleEdit(id: string, body: string) {
     if (!name) throw new Error("Enter your name first.");
-    const c = await editComment(token, id, { editorName: name, body });
-    setReview((r) => ({ ...r, comments: r.comments.map((x) => (x.id === c.id ? c : x)) }));
-    void refresh().catch(() => {});
+    await editComment.mutateAsync({ commentId: id, editorName: name, body });
   }
 
   return (

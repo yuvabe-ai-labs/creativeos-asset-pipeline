@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { formatTimecode } from "@/components/review-annotations/annotation-list";
+import { formatCutTimecode } from "@/lib/client-review/utils";
 import { COMMENT_BODY_MAX } from "@/lib/client-review/constants";
 import type { ReviewComment } from "@/lib/client-review/wire";
 
@@ -43,7 +43,7 @@ export function CommentItem({
           onClick={() => onSeek(comment.timecodeMs)}
           className="h-auto p-0 font-medium tabular-nums"
         >
-          {formatTimecode(comment.timecodeMs)}
+          {formatCutTimecode(comment.timecodeMs)}
         </Button>
         <span className="font-medium">{comment.authorName}</span>
         {onEdit && !editing && (
