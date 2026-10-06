@@ -67,7 +67,7 @@ export function CommentComposer({
         onFocus={pauseForWriting}
         maxLength={COMMENT_BODY_MAX}
         placeholder={`Comment at ${formatTimecode(stampMs)}`}
-        className="min-h-16 text-base"
+        className="min-h-16 text-base md:text-base"
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex justify-end">

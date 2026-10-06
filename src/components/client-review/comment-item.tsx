@@ -64,7 +64,7 @@ export function CommentItem({
             onChange={(e) => setDraft(e.target.value)}
             maxLength={COMMENT_BODY_MAX}
             autoFocus
-            className="min-h-20 text-base"
+            className="min-h-20 text-base md:text-base"
           />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">

@@ -21,7 +21,7 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
   // here moves React's own value from "unknown" to "known", so a later "change" (back to
   // "unknown") is a real DOM update — the attribute can't get stuck on "known".
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe read of localStorage (D279)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration sync from localStorage; useSyncExternalStore would drop a session-only name when storage is blocked (D279)
     setName(readReviewerName(browserStore()));
   }, []);
 
@@ -37,15 +37,18 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
   }
 
   async function handlePost(body: string, timecodeMs: number) {
-    if (!name) return;
-    await postComment(token, { authorName: name, body, timecodeMs });
-    await refresh();
+    if (!name) throw new Error("Enter your name first.");
+    const c = await postComment(token, { authorName: name, body, timecodeMs });
+    // The POST succeeded: show it now, so a failed refresh can never prompt a duplicate retry.
+    setReview((r) => ({ ...r, comments: [...r.comments, c] }));
+    void refresh().catch(() => {});
   }
 
   async function handleEdit(id: string, body: string) {
-    if (!name) return;
-    await editComment(token, id, { editorName: name, body });
-    await refresh();
+    if (!name) throw new Error("Enter your name first.");
+    const c = await editComment(token, id, { editorName: name, body });
+    setReview((r) => ({ ...r, comments: r.comments.map((x) => (x.id === c.id ? c : x)) }));
+    void refresh().catch(() => {});
   }
 
   return (
@@ -64,10 +67,10 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
         <header className="flex items-baseline justify-between gap-3 px-4 pt-4 pb-3 lg:px-0">
           <h1 className="font-display text-xl font-semibold tracking-tight lg:text-2xl">{review.title || "Your cut"}</h1>
           <p className="shrink-0 text-sm text-muted-foreground">
-            {name}{" · "}
+            {name && <>{name}{" · "}</>}
             <Button
               variant="link"
-              onClick={() => { clearReviewerName(browserStore()); setName(null); }}
+              onClick={() => { videoRef.current?.pause(); clearReviewerName(browserStore()); setName(null); }}
               className="h-auto p-0 text-sm"
             >
               change

@@ -29,7 +29,7 @@ export function NameGate({ title, onSubmit }: { title: string; onSubmit: (name: 
           maxLength={REVIEWER_NAME_MAX}
           autoComplete="name"
           autoFocus
-          className="h-11 text-base"
+          className="h-11 text-base md:text-base"
         />
       </label>
       <Button type="submit" size="lg" disabled={!ready} className="h-11">

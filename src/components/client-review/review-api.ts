@@ -19,7 +19,9 @@ export async function postComment(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  return (await json<{ comment: ReviewComment }>(res, "Could not post the comment.")).comment;
+  const body = await json<{ comment?: ReviewComment }>(res, "Could not post the comment.");
+  if (!body.comment) throw new Error("Could not post the comment.");
+  return body.comment;
 }
 
 export async function editComment(
@@ -32,5 +34,7 @@ export async function editComment(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  return (await json<{ comment: ReviewComment }>(res, "Could not save the edit.")).comment;
+  const body = await json<{ comment?: ReviewComment }>(res, "Could not save the edit.");
+  if (!body.comment) throw new Error("Could not save the edit.");
+  return body.comment;
 }
