@@ -6,6 +6,8 @@ import { resolveOrgId, resolveCallerContext, type CallerContext } from "@/lib/da
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
+import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
+import { isWellFormedToken } from "@/lib/client-review/token";
 
 // PostgREST may surface an embedded to-one relation as an object or a single-element
 // array, depending on schema-cache heuristics (same ambiguity handled in
@@ -238,6 +240,23 @@ export async function withMoodboard(
 
   const caller = await resolveCallerContext();
   return handler(moodboardId, caller);
+}
+
+// ── Share-token resolution (D279) ─────────────────────────────────────────────
+
+// The ONE unauthenticated entry point in the app: /api/r/[token]/* (exempted in
+// src/proxy.ts). The token is the capability — no session, no org check, no
+// impersonation gate (there is no operator here). Unknown → 404, like every other
+// resolver; a malformed token never reaches the database.
+export async function withShareToken(
+  params: Promise<{ token: string }>,
+  handler: (review: ReviewByToken) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { token } = await params;
+  if (!isWellFormedToken(token)) return apiError("Review not found.", 404);
+  const review = await getReviewByToken(token);
+  if (!review) return apiError("Review not found.", 404);
+  return handler(review);
 }
 
 // ── Webhook auth ──────────────────────────────────────────────────────────────
