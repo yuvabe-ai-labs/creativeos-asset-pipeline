@@ -1,6 +1,6 @@
 # Client review share — design
 
-**Status:** draft for review · **Date:** 2026-10-01 · **Branch:** `feat/client-review-share`
+**Status:** implemented on feat/client-review-share · **Date:** 2026-10-01 · **Branch:** `feat/client-review-share`
 **ADR:** D279 (staging roadmap §7) · **Migration:** `0041_canvas_reviews.sql`
 
 ## 1. Intent
@@ -100,6 +100,7 @@ canvas_review_comments (
   comments. Only `body` is editable — never the timecode or the original author.
 
 - The page sends `X-Robots-Tag: noindex` and `Referrer-Policy: no-referrer`.
+- **"No internal ids" means response fields.** The public JSON never carries org, client, canvas or node ids as fields. The `videoUrl` is a public GCS URL whose path contains those UUIDs, like every other asset URL in the app (D46 capability URLs); they grant nothing without a session.
 - **No app chrome on `/r/*`.** `src/app/layout.tsx` renders the CreativeOS header (brand, help,
   review inbox, profile) on every route; the inbox and profile call session-only APIs, which would
   401 for a client. The header moves into a small client component, `AppHeader`, that renders
@@ -195,7 +196,7 @@ canvas_review_comments (
 
 | Case | Behaviour |
 |---|---|
-| Unknown token / node deleted | Friendly page: *"This review link is no longer active — ask your contact for a new one."* (HTTP 404) |
+| Unknown token / node deleted | Friendly page: *"This review link is no longer active — ask your contact for a new one."* (HTTP 200 — the page streams before the lookup; it is noindex) |
 | Post fails | The text stays in the composer with an inline error and **Post** re-enabled |
 | Two people edit the same comment | Last write wins; *"edited by"* shows who changed it last |
 | Edit to empty text | **Save** disabled; deleting by emptying is not possible |
