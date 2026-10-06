@@ -67,13 +67,17 @@ export function compositeUpstreamItems(
     .map((n) => itemOf(n, avatars));
 }
 
-/** The wired inputs as `@` sees them: each avatar's fresh sheet follows its front as its own entry. */
+/** The wired inputs as `@` sees them: only those that carry an image (the server's roster sends
+ *  nothing else — a PDF or an ungenerated still offered here would come back as "no longer
+ *  connected"), and each avatar's fresh sheet after its front as its own entry. */
 export function compositeMentionUpstream(items: CompositeUpstreamItem[]): CompositeUpstreamItem[] {
-  return items.flatMap((i) =>
-    i.type === "avatar" && i.sheetUrl
-      ? [i, { id: avatarSheetId(i.id), type: "avatar", label: `${i.label} sheet`, fileUrl: i.sheetUrl, fileKind: "image" }]
-      : [i],
-  );
+  return items
+    .filter((i) => Boolean(i.fileUrl) && i.fileKind === "image")
+    .flatMap((i) =>
+      i.type === "avatar" && i.sheetUrl
+        ? [i, { id: avatarSheetId(i.id), type: "avatar", label: `${i.label} sheet`, fileUrl: i.sheetUrl, fileKind: "image" }]
+        : [i],
+    );
 }
 
 /** What `@` offers: every entry, labelled "Type: Name" as the Instruction stores it. */

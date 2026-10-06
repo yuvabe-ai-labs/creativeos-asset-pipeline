@@ -8,6 +8,17 @@ const node = (id: string, type: string, data: Record<string, unknown> = {}): Liv
 });
 
 describe("planCanvasLiveSync", () => {
+  // D309 — a composite's output is an image URL like image-gen's; a second viewer must see it.
+  it("swaps in another user's new composite", () => {
+    const patches = planCanvasLiveSync({
+      nodes: [node("c", "composite", { parsed: "old.png" })],
+      statuses: {},
+      outputs: { c: "new.png" },
+      openFocusViewIds: [],
+    });
+    expect(patches).toEqual([{ id: "c", patch: { parsed: "new.png" } }]);
+  });
+
   it("updates a stale badge (the D202 behaviour it already had)", () => {
     const patches = planCanvasLiveSync({
       nodes: [node("a", "image-gen", { approvalStatus: "pending" })],

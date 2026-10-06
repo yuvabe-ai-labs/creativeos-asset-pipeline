@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { UpstreamNode } from "./connected-inputs-card";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { mentionChipLookup } from "@/lib/nodes/mention-chip-lookup";
 
 // ── Segment model ─────────────────────────────────────────────────────────────
 
@@ -294,11 +295,7 @@ export function MentionInstructionEditor({
   // no entry and render as an orphan — the red "this points at nothing" treatment, on a mention
   // the operator just picked from the menu.
   useEffect(() => {
-    const map = new Map<string, UpstreamNode>(upstream.map((u) => [u.id, u]));
-    for (const m of mentionables ?? []) {
-      map.set(m.id, { id: m.id, label: m.label, type: m.type });
-    }
-    upstreamMapRef.current = map;
+    upstreamMapRef.current = mentionChipLookup(upstream, mentionables);
   }, [upstream, mentionables]);
 
   // What `@` offers. Defaults to the connected image-ish upstreams; `mentionables` replaces that

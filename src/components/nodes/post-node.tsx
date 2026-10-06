@@ -16,7 +16,7 @@ import { PostLayersPreview } from "./post-layers-preview";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
-import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { isGeneratedImageType, isImageSourceType } from "@/lib/nodes/image-node-types";
 
 export function PostNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -37,7 +37,7 @@ export function PostNode({ id, data, selected }: NodeProps) {
   const connectedImageNodes = useMemo(() => {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
     return nodes
-      .filter((n) => sourceIds.includes(n.id) && ["file", "draw", "image-gen"].includes(n.type ?? ""))
+      .filter((n) => sourceIds.includes(n.id) && isImageSourceType(n.type))
       .map((n) => {
         const d = n.data as Record<string, unknown>;
         return {

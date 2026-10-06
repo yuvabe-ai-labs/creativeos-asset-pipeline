@@ -41,6 +41,17 @@ describe("compositeUpstreamItems (D309)", () => {
 });
 
 describe("compositeMentionUpstream / compositeMentionables", () => {
+  it("offers only inputs that carry an image — the server roster sends nothing else", () => {
+    const nodes = [
+      ...NODES,
+      node("pdf", "file", { filename: "brief.pdf", fileKind: "document", fileUrl: "https://cdn/brief.pdf" }),
+      node("empty", "image-gen", { title: "Not yet" }),
+    ];
+    const items = compositeUpstreamItems("c", nodes, [edge("pdf"), edge("empty"), edge("f")], AVATARS);
+    expect(items.map((i) => i.id)).toEqual(["pdf", "empty", "f"]); // the rail still lists them
+    expect(compositeMentionUpstream(items).map((m) => m.id)).toEqual(["f"]);
+  });
+
   it("offers every wired input by @ — the avatar's front and sheet as D308 does, composites included", () => {
     const mention = compositeMentionUpstream(compositeUpstreamItems("c", NODES, EDGES, AVATARS));
     expect(mention.map((m) => m.id)).toEqual(["av", avatarSheetId("av"), "f", "g", "o", "d"]);
