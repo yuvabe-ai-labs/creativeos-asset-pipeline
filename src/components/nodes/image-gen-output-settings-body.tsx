@@ -38,6 +38,10 @@ type Props = {
   /** Pre-generation credit estimate — null while unavailable/still computing. */
   estimatedCredits: number | null;
   estimating: boolean;
+  /** D309 — the composite locks the model while an avatar is wired. */
+  modelLock?: { reason: string };
+  /** Why Generate is unavailable when `hasPrompt` is false. Image Gen's default is unchanged. */
+  missingInputReason?: string;
 };
 
 /**
@@ -61,6 +65,8 @@ export function ImageGenOutputSettingsBody({
   hasImage,
   estimatedCredits,
   estimating,
+  modelLock,
+  missingInputReason = "Connect a Prompt node to generate.",
 }: Props) {
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const refOverLimit = referenceCount > model.maxReferenceImages;
@@ -73,7 +79,7 @@ export function ImageGenOutputSettingsBody({
       : !editable
         ? "Another session is editing — this canvas is read-only."
         : !hasPrompt
-          ? "Connect a Prompt node to generate."
+          ? missingInputReason
           : !refValidation.ok
             ? refValidation.violations.length === 1
               ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
@@ -95,6 +101,7 @@ export function ImageGenOutputSettingsBody({
         onValuesChange={onValuesChange}
         onCommit={onCommit}
         onModelChange={onModelChange}
+        modelLock={modelLock}
       />
       {refOverLimit && (
         <div className="mt-3 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
