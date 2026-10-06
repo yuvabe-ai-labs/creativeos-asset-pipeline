@@ -4,6 +4,8 @@
 // to the returned GCS signed URL, (3) POST to a `finalize` endpoint to record the
 // object in the database. Do NOT import "server-only" — this runs in the browser.
 
+import { toUploadPercent } from "./progress";
+
 type SignResponse = { signedUrl: string; path: string; url: string };
 
 export type UploadViaSignedUrlOptions = {
@@ -18,6 +20,10 @@ export type UploadViaSignedUrlOptions = {
   // (e.g. some OSes don't set it for .jpg) and a route that only accepts specific types would
   // otherwise reject "application/octet-stream". Omit it to keep the previous behaviour.
   contentType?: string;
+  // Reports the byte transfer to GCS as a whole percent (0–100). When given, the PUT goes
+  // through XMLHttpRequest — fetch has no upload-progress events. Omit it and the PUT stays
+  // on fetch, exactly as before.
+  onProgress?: (percent: number) => void;
 };
 
 // Uploads `file` and returns the parsed JSON from the finalize endpoint (T is the
@@ -43,12 +49,16 @@ export async function uploadViaSignedUrl<T>(
   if (!signRes.ok) throw new Error(sign.error ?? "Could not authorize upload.");
 
   // 2. Send the bytes directly to GCS. Content-Type MUST match what was signed.
-  const putRes = await fetch(sign.signedUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: file,
-  });
-  if (!putRes.ok) throw new Error("Upload to storage failed.");
+  const putOk = opts.onProgress
+    ? await putWithProgress(sign.signedUrl, file, contentType, opts.onProgress)
+    : (
+        await fetch(sign.signedUrl, {
+          method: "PUT",
+          headers: { "Content-Type": contentType },
+          body: file,
+        })
+      ).ok;
+  if (!putOk) throw new Error("Upload to storage failed.");
 
   // 3. Record the stored object in the database.
   const finalizeRes = await fetch(opts.finalizeEndpoint, {
@@ -66,6 +76,32 @@ export async function uploadViaSignedUrl<T>(
     throw new Error(finalized.error ?? "Failed to finalize upload.");
   }
   return finalized;
+}
+
+// The same signed PUT as the fetch path, over XHR so `upload.onprogress` can report bytes
+// sent. Resolves true on a 2xx, false on any other status or a network error.
+function putWithProgress(
+  url: string,
+  file: File,
+  contentType: string,
+  onProgress: (percent: number) => void,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(toUploadPercent(e.loaded, e.total));
+    };
+    xhr.onload = () => {
+      const ok = xhr.status >= 200 && xhr.status < 300;
+      if (ok) onProgress(100);
+      resolve(ok);
+    };
+    xhr.onerror = () => resolve(false);
+    xhr.onabort = () => resolve(false);
+    xhr.send(file);
+  });
 }
 
 // Reads an image's pixel dimensions in the browser. Replaces the server-side

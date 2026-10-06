@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { CUT_CONTENT_TYPES, CUT_EXTENSIONS, CUT_MAX_BYTES } from "@/lib/client-review/constants";
@@ -24,6 +25,9 @@ export function ClientReviewUpload({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // Percent of bytes sent to GCS; null before the PUT starts. 100 = bytes done, the
+  // server is now recording the cut ("Finishing…").
+  const [percent, setPercent] = useState<number | null>(null);
   const flushAutosave = useFlushAutosave();
   const editable = useCanvasEditable();
 
@@ -36,6 +40,7 @@ export function ClientReviewUpload({
     const ext = cutExtension(file.name);
     const contentType = file.type || (ext ? CUT_CONTENT_TYPES[ext] : undefined);
     setUploading(true);
+    setPercent(null);
     try {
       // The node row must exist before /api/nodes/:id/* can find it (600ms autosave lag).
       await flushAutosave();
@@ -43,12 +48,14 @@ export function ClientReviewUpload({
         signEndpoint: `/api/nodes/${nodeId}/client-review/sign`,
         finalizeEndpoint: `/api/nodes/${nodeId}/client-review`,
         contentType,
+        onProgress: setPercent,
       });
       onUploaded(next);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed.");
     } finally {
       setUploading(false);
+      setPercent(null);
     }
   }
 
@@ -68,17 +75,25 @@ export function ClientReviewUpload({
       onDoubleClick={(e) => e.stopPropagation()}
       className="nodrag"
     >
-      <Button
-        variant="ghost"
-        disabled={uploading}
-        onClick={() => {
-          if (!uploading) inputRef.current?.click();
-        }}
-        className="w-full gap-1.5 border border-dashed border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
-      >
-        <Upload className="size-4" strokeWidth={1.5} />
-        {uploading ? "Uploading…" : "Upload edited cut"}
-      </Button>
+      {uploading ? (
+        // Determinate once bytes are moving; before the PUT starts (sign request) and after
+        // it ends (finalize) the label says which phase it is in.
+        <Progress value={percent ?? 0} className="gap-1.5 px-1 py-1.5">
+          <ProgressLabel className="text-xs font-medium text-primary">
+            {percent === null ? "Preparing…" : percent >= 100 ? "Finishing…" : "Uploading…"}
+          </ProgressLabel>
+          <ProgressValue className="text-xs" />
+        </Progress>
+      ) : (
+        <Button
+          variant="ghost"
+          onClick={() => inputRef.current?.click()}
+          className="w-full gap-1.5 border border-dashed border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
+        >
+          <Upload className="size-4" strokeWidth={1.5} />
+          Upload edited cut
+        </Button>
+      )}
       <Input
         ref={inputRef}
         type="file"
