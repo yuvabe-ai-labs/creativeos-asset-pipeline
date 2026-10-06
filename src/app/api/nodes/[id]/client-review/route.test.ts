@@ -19,7 +19,7 @@ vi.mock("@/lib/supabase/server", () => ({
           maybeSingle: async () => ({
             data: {
               id: "n1", canvas_id: "cv1", type: "client-review", position: { x: 0, y: 0 },
-              data: {}, active_version_id: null, created_at: "t", updated_at: "t",
+              data: { title: "Dosa film" }, active_version_id: null, created_at: "t", updated_at: "t",
               canvases: { client_id: "c1", clients: { org_id: "org-1" } },
             },
             error: null,
@@ -35,15 +35,23 @@ vi.mock("@/lib/storage", () => ({
 }));
 vi.mock("@/lib/db/client-reviews", async () => {
   class ReviewExistsError extends Error {}
+  class ShareCodeTakenError extends Error {}
   return {
     ReviewExistsError,
+    ShareCodeTakenError,
     getReviewByNodeId: vi.fn(),
     createReview: vi.fn(),
     listComments: vi.fn(async () => []),
   };
 });
 const params = Promise.resolve({ id: "n1" });
-import { getReviewByNodeId, createReview, listComments, ReviewExistsError } from "@/lib/db/client-reviews";
+import {
+  getReviewByNodeId,
+  createReview,
+  listComments,
+  ReviewExistsError,
+  ShareCodeTakenError,
+} from "@/lib/db/client-reviews";
 
 const PREFIX = "clients/c1/canvases/cv1/nodes/n1/client-review/";
 
@@ -71,12 +79,12 @@ describe("/api/nodes/[id]/client-review", () => {
 
   it("GET returns the video URL and share path once a cut exists", async () => {
     vi.mocked(getReviewByNodeId).mockResolvedValue({
-      id: "r1", video_path: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, share_token: "tok",
+      id: "r1", video_path: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, share_token: "b4b4",
     } as never);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/nodes/n1/client-review"), { params });
     const body = await res.json();
-    expect(body.review).toEqual({ videoUrl: `https://cdn/${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, sharePath: "/r/tok" });
+    expect(body.review).toEqual({ videoUrl: `https://cdn/${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, sharePath: "/r/dosa-film-b4b4" });
   });
 
   it("POST creates the review with a fresh token for a path inside the node", async () => {
@@ -89,8 +97,24 @@ describe("/api/nodes/[id]/client-review", () => {
     expect(res.status).toBe(201);
     const input = vi.mocked(createReview).mock.calls[0][0];
     expect(input).toMatchObject({ canvasId: "cv1", nodeId: "n1", videoPath: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, createdBy: "user-1" });
-    expect(input.shareToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect((await res.json()).review.sharePath).toBe(`/r/${input.shareToken}`);
+    // D311: the code is the node id's leading characters ("n1" here), the link carries the title.
+    expect(input.shareToken).toBe("n1");
+    expect((await res.json()).review.sharePath).toBe("/r/dosa-film-n1");
+  });
+
+  it("POST retries one character longer when the share code is taken", async () => {
+    vi.mocked(createReview)
+      .mockRejectedValueOnce(new ShareCodeTakenError())
+      .mockImplementation(async (input) => ({
+        id: "r1", canvas_id: input.canvasId, node_id: input.nodeId, org_id: "org-1",
+        video_path: input.videoPath, share_token: input.shareToken, created_by: input.createdBy, created_at: "t",
+      }));
+    const { POST } = await import("./route");
+    const res = await POST(finalize({ path: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4` }), { params });
+    expect(res.status).toBe(201);
+    // The route retried after the clash instead of failing; the code growing one character
+    // per retry is shareCodeFor's own contract (token.test.ts).
+    expect(vi.mocked(createReview)).toHaveBeenCalledTimes(2);
   });
 
   it("POST 400s a path outside this node", async () => {
@@ -124,7 +148,7 @@ describe("/api/nodes/[id]/client-review", () => {
               maybeSingle: async () => ({
                 data: {
                   id: "n1", canvas_id: "cv1", type: "draw", position: { x: 0, y: 0 },
-                  data: {}, active_version_id: null, created_at: "t", updated_at: "t",
+                  data: { title: "Dosa film" }, active_version_id: null, created_at: "t", updated_at: "t",
                   canvases: { client_id: "c1", clients: { org_id: "org-1" } },
                 },
                 error: null,

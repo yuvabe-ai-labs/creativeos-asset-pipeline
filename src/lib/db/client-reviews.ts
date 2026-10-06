@@ -16,6 +16,14 @@ export class ReviewExistsError extends Error {
   }
 }
 
+// D311: share codes are short, so two nodes can want the same one. The finalize route
+// catches this and retries one character longer.
+export class ShareCodeTakenError extends Error {
+  constructor() {
+    super("That share code is taken.");
+  }
+}
+
 const REVIEW_COLUMNS = "id, canvas_id, node_id, org_id, video_path, share_token, created_by, created_at";
 
 // The cut's title is the node's own title (spec §5) — read it from nodes.data.
@@ -67,7 +75,13 @@ export async function createReview(input: {
     .select(REVIEW_COLUMNS)
     .single();
   if (error) {
-    if (error.code === "23505") throw new ReviewExistsError(); // unique (node_id) — one cut per node
+    if (error.code === "23505") {
+      // Two unique constraints: share_token (a code clash — retry longer) and node_id
+      // (one cut per node). Postgres names the violated one in the message/details.
+      const which = `${error.message ?? ""} ${error.details ?? ""}`;
+      if (which.includes("share_token")) throw new ShareCodeTakenError();
+      throw new ReviewExistsError();
+    }
     throw error;
   }
   return data as CanvasReviewRow;

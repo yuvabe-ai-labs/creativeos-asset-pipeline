@@ -31,6 +31,13 @@ describe("withShareToken", () => {
     expect(res.status).toBe(404);
   });
 
+  it("looks a titled link up by its code alone (D311), in any case", async () => {
+    vi.mocked(getReviewByToken).mockResolvedValue(review);
+    const res = await withShareToken(Promise.resolve({ token: "Dosa-Film-B4B4" }), async () => apiOk({}));
+    expect(res.status).toBe(200);
+    expect(vi.mocked(getReviewByToken)).toHaveBeenCalledWith("b4b4");
+  });
+
   it("hands the review to the handler", async () => {
     vi.mocked(getReviewByToken).mockResolvedValue(review);
     const handler = vi.fn(async () => apiOk({ ok: true }));

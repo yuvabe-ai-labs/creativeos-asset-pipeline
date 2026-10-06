@@ -1,7 +1,7 @@
 # Client review share — design
 
 **Status:** implemented on feat/client-review-share · **Date:** 2026-10-01 · **Branch:** `feat/client-review-share`
-**ADR:** D309 (staging roadmap §7) · **Migration:** `0047_canvas_reviews.sql`
+**ADR:** D309, D310 (node accent + header chip), D311 (titled, guessable links) — staging roadmap §7 · **Migration:** `0047_canvas_reviews.sql`
 
 ## 1. Intent
 
@@ -231,3 +231,11 @@ canvas_review_comments (
 Sharing a gallery of moodboard concepts. Moodboards belong to a **client**, not a canvas
 (`moodboards.client_id`), so step 2 must decide whether a whole board or hand-picked items are
 shared.
+
+## 9. Amendments (2026-10-06)
+
+- **Links (D311):** `/r/<title-slug>-<code>` — the code is the node id's first 4 hex characters
+  (longer on collision); the title part is ignored on lookup, so renames never break a link.
+  Guessable by operator decision; password protection is planned.
+- **Node accent and header chip (D310):** the Client review node is amber (`--client` tokens);
+  a "Client feedback" chip next to the consumption chip shows the canvas's total client comments.

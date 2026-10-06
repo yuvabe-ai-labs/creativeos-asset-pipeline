@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getReviewByToken } from "@/lib/db/client-reviews";
-import { isWellFormedToken } from "@/lib/client-review/token";
+import { toCanonicalShareToken } from "@/lib/client-review/token";
 import { buildPublicReview } from "@/lib/client-review/load";
 import { ClientReviewPage } from "@/components/client-review/client-review-page";
 
@@ -17,7 +17,9 @@ export const metadata: Metadata = {
 
 export default async function Page({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const review = isWellFormedToken(token) ? await getReviewByToken(token) : null;
+  // D311: the title in the link is decoration; only the code at its end finds the review.
+  const code = toCanonicalShareToken(token);
+  const review = code ? await getReviewByToken(code) : null;
   if (!review) notFound();
   const initial = await buildPublicReview(review);
   return <ClientReviewPage token={token} initial={initial} />;

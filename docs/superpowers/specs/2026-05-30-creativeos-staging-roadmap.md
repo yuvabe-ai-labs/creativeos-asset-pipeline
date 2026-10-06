@@ -6496,3 +6496,24 @@ the node); reusing `--warning` (it means "something is wrong"); an "unseen comme
 
 **Refines.** The design system's "purple is the single brand colour; yellow only as a soft glow".
 **Originated →** `docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
+
+### D311 — Share links carry the cut's title and a short code; guessable by operator decision *(recorded 2026-10-06; supersedes D309's unguessable-token premise)*
+
+**Decision.** A client review link is `/r/<title-slug>-<code>`, e.g. `/r/dosa-brand-film-b4b4`.
+The code is the first 4 hex characters of the node id, one longer per collision (the unique
+`share_token` column decides; the finalize route retries on `ShareCodeTakenError`). The title
+slug is decoration: lookups parse only the trailing code (case-insensitive), so renaming a cut
+never breaks a link a client already holds, and Copy link always shows the current title.
+Links minted before D311 (43-character tokens) keep working unchanged.
+
+**Why.** The operator wants links clients can read and remember. They accepted that a 4-hex code
+is guessable — anyone who guesses one can read and edit that review's comments — and plan to
+add password protection later.
+
+**Rejected.** The `REV-xxxx` node handle as the link (operator: the link should carry the title,
+not the ref chip); a title-only link (titles repeat and change, which would collide or break
+shared links); keeping the 43-character token (unreadable).
+
+**Supersedes.** D309's "the token is an unguessable capability". **Follow-up.** Password
+protection for share links (operator, 2026-10-06). **Originated →**
+`docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
