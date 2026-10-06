@@ -13,6 +13,7 @@ import {
   ClipboardPaste,
   Images,
   LayoutTemplate,
+  MessageSquareText,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -44,6 +45,7 @@ const ICONS: Record<AddNodeType, LucideIcon> = {
   "multishot-prompt": Layers,
   "video-gen": Clapperboard,
   post: LayoutTemplate,
+  "client-review": MessageSquareText,
 };
 
 const MENU_W = 240;

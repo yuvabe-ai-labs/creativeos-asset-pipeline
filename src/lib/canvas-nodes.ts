@@ -249,6 +249,10 @@ export type PostNodeData = {
   thumbnail?: string;
 };
 
+// D279: an uploaded cut shared with the client by link. The video, token and comments
+// live in canvas_reviews / canvas_review_comments — only the title is node data.
+export type ClientReviewNodeData = { title?: string };
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
@@ -263,7 +267,8 @@ export type AppNode =
   | Node<ImageGenNodeData, "image-gen">
   | Node<VideoPromptNodeData, "video-prompt">
   | Node<VideoGenNodeData, "video-gen">
-  | Node<PostNodeData, "post">;
+  | Node<PostNodeData, "post">
+  | Node<ClientReviewNodeData, "client-review">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
@@ -290,6 +295,7 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   "multishot-prompt": ["video-gen"],
   "video-gen":        [],
   "post":             [],
+  "client-review":    [],
 } as const;
 
 // The single ordered connection check: may a `sourceType` node feed a `targetType` node?

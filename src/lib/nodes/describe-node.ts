@@ -47,6 +47,8 @@ export function describeNode(node: { type?: string; data: Record<string, unknown
       return "multishot prompt";
     case "video-gen":
       return "video generation";
+    case "client-review":
+      return "client review";
     default:
       return node.type ?? "node";
   }
@@ -70,6 +72,7 @@ const NODE_ABBREV: Record<string, string> = {
   "image-gen": "IMG",
   "video-prompt": "MPR",
   "video-gen": "VID",
+  "client-review": "REV",
 };
 
 export function nodeHandle(node: { id: string; type?: string }): string {

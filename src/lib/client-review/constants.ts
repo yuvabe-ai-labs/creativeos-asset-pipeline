@@ -3,5 +3,11 @@
 export const REVIEWER_NAME_MAX = 60;
 export const COMMENT_BODY_MAX = 2000;
 export const CUT_EXTENSIONS: ReadonlySet<string> = new Set(["mp4", "mov", "webm"]);
+// Some browsers report an empty File.type for .mov; the sign route rejects non-video/* types.
+export const CUT_CONTENT_TYPES: Readonly<Record<string, string>> = {
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
 export const CUT_MAX_BYTES = 524_288_000; // 500 MB — browser PUTs straight to GCS
 export const REVIEWER_NAME_KEY = "reviewer_name";
