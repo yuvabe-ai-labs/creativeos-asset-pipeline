@@ -32,6 +32,7 @@ import { ShotNode } from "@/components/nodes/shot-node";
 import { MultishotNode } from "@/components/nodes/multishot-node";
 import { MultishotPromptNode } from "@/components/nodes/multishot-prompt-node";
 import { ClientReviewNode } from "@/components/nodes/client-review-node";
+import { ClientFeedbackDrawer } from "@/components/canvas/client-feedback-drawer/client-feedback-drawer";
 import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
@@ -406,6 +407,10 @@ export function Canvas({
           because its rows fly the canvas to a node — the same navigation the generation
           tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
       <ReviewDrawer canvasId={canvasId} />
+
+      {/* D307: client feedback drawer — opened by clicking a Client review node. Non-modal
+          and right-side like the review drawer, so feedback and the canvas share the screen. */}
+      <ClientFeedbackDrawer />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
