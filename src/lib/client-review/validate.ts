@@ -1,4 +1,4 @@
-import { COMMENT_BODY_MAX, CUT_EXTENSIONS, REVIEWER_NAME_MAX } from "./constants";
+import { COMMENT_BODY_MAX, CUT_EXTENSIONS, REVIEWER_NAME_MAX, TIMECODE_MAX_MS } from "./constants";
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -32,7 +32,7 @@ export function parseNewComment(
   const body = text(o.body, "Comment", COMMENT_BODY_MAX);
   if (!body.ok) return body;
   const t = o.timecodeMs;
-  if (typeof t !== "number" || !Number.isInteger(t) || t < 0) {
+  if (typeof t !== "number" || !Number.isInteger(t) || t < 0 || t > TIMECODE_MAX_MS) {
     return { ok: false, error: "A timecode is required." };
   }
   return { ok: true, value: { authorName: name.value, body: body.value, timecodeMs: t } };
@@ -64,4 +64,9 @@ export function cutExtension(filename: string): string | null {
 export function isCutPathFor(prefix: string, path: string): boolean {
   if (!path.startsWith(prefix)) return false;
   return /^cut__[A-Za-z0-9-]+\.(mp4|mov|webm)$/.test(path.slice(prefix.length));
+}
+
+// Comment ids are uuids; anything else can't match a row, so answer 404 without a query.
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

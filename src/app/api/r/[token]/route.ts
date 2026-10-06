@@ -1,4 +1,4 @@
-import { apiOk, withShareToken, withTryCatch } from "@/lib/api/route-helpers";
+import { apiOk, withShareToken, withQuietErrors } from "@/lib/api/route-helpers";
 import { buildPublicReview } from "@/lib/client-review/load";
 
 // GET /api/r/:token — public (D307). Used to refresh the list after a post or edit;
@@ -7,7 +7,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
-  return withTryCatch("Could not load the review.", () =>
+  return withQuietErrors("Could not load the review.", () =>
     withShareToken(params, async (review) => apiOk(await buildPublicReview(review))),
   );
 }

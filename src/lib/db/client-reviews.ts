@@ -81,6 +81,17 @@ export async function listComments(reviewId: string): Promise<ReviewCommentRow[]
   return (data ?? []) as ReviewCommentRow[];
 }
 
+// Head-only count — no rows travel; used to enforce MAX_COMMENTS_PER_REVIEW.
+export async function countComments(reviewId: string): Promise<number> {
+  const supabase = createServerSupabase();
+  const { count, error } = await supabase
+    .from("canvas_review_comments")
+    .select("id", { count: "exact", head: true })
+    .eq("review_id", reviewId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function insertComment(input: {
   reviewId: string;
   authorName: string;

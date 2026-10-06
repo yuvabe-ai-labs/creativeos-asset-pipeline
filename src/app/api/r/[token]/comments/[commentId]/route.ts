@@ -1,5 +1,5 @@
-import { apiError, apiOk, withShareToken, withTryCatch } from "@/lib/api/route-helpers";
-import { parseCommentEdit } from "@/lib/client-review/validate";
+import { apiError, apiOk, withShareToken, withQuietErrors } from "@/lib/api/route-helpers";
+import { isUuid, parseCommentEdit } from "@/lib/client-review/validate";
 import { toReviewComment } from "@/lib/client-review/wire";
 import { updateComment } from "@/lib/db/client-reviews";
 
@@ -10,7 +10,8 @@ export async function PATCH(
   { params }: { params: Promise<{ token: string; commentId: string }> },
 ) {
   const { commentId } = await params;
-  return withTryCatch("Could not save the edit.", () =>
+  if (!isUuid(commentId)) return apiError("Comment not found.", 404);
+  return withQuietErrors("Could not save the edit.", () =>
     withShareToken(params, async (review) => {
       const parsed = parseCommentEdit(await req.json().catch(() => null));
       if (!parsed.ok) return apiError(parsed.error, 400);

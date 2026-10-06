@@ -53,4 +53,16 @@ describe("GET /api/r/[token]", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it("500s a database failure without leaking its message", async () => {
+    vi.mocked(getReviewByToken).mockResolvedValue(review);
+    vi.mocked(listComments).mockRejectedValue(new Error("pg secret detail"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest(`http://localhost/api/r/${TOKEN}`), {
+      params: Promise.resolve({ token: TOKEN }),
+    });
+    expect(res.status).toBe(500);
+    expect(await res.text()).not.toContain("pg secret detail");
+  });
 });

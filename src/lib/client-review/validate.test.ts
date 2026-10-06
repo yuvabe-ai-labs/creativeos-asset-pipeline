@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseNewComment, parseCommentEdit, toTimecodeMs, cutExtension, isCutPathFor } from "./validate";
+import { parseNewComment, parseCommentEdit, toTimecodeMs, cutExtension, isCutPathFor, isUuid } from "./validate";
 
 describe("toTimecodeMs", () => {
   it("rounds seconds to whole milliseconds", () => {
@@ -31,6 +31,13 @@ describe("parseNewComment", () => {
     expect(parseNewComment({ authorName: "P", body: "x" }).ok).toBe(false);
     expect(parseNewComment({ authorName: "P", body: "x", timecodeMs: -1 }).ok).toBe(false);
     expect(parseNewComment({ authorName: "P", body: "x", timecodeMs: 1.5 }).ok).toBe(false);
+  });
+  it("rejects a timecode past 24 hours", () => {
+    expect(parseNewComment({ authorName: "P", body: "x", timecodeMs: 86_400_000 }).ok).toBe(true);
+    expect(parseNewComment({ authorName: "P", body: "x", timecodeMs: 86_400_001 })).toEqual({
+      ok: false,
+      error: "A timecode is required.",
+    });
   });
   it("rejects non-object input", () => {
     expect(parseNewComment(null).ok).toBe(false);
@@ -81,5 +88,18 @@ describe("isCutPathFor", () => {
     expect(isCutPathFor(prefix, `${prefix}cut__a.html`)).toBe(false);
     expect(isCutPathFor(prefix, `${prefix}x.mp4`)).toBe(false);
     expect(isCutPathFor(prefix, "clients/c1/canvases/cv1/nodes/OTHER/client-review/cut__a.mp4")).toBe(false);
+  });
+});
+
+describe("isUuid", () => {
+  it("accepts a canonical uuid in either case", () => {
+    expect(isUuid("3f2b8c1e-9a4d-4e7f-b1c2-0d9e8f7a6b5c")).toBe(true);
+    expect(isUuid("3F2B8C1E-9A4D-4E7F-B1C2-0D9E8F7A6B5C")).toBe(true);
+  });
+  it("rejects anything else", () => {
+    expect(isUuid("c1")).toBe(false);
+    expect(isUuid("")).toBe(false);
+    expect(isUuid("3f2b8c1e-9a4d-4e7f-b1c2-0d9e8f7a6b5c-x")).toBe(false);
+    expect(isUuid("3f2b8c1e9a4d4e7fb1c20d9e8f7a6b5c")).toBe(false);
   });
 });
