@@ -2264,7 +2264,7 @@ Start the dev server (`npm run dev`) and, in a private window with no session:
 4. Throttle the network to "Slow 3G" in devtools, type a comment, double-click **Post** → exactly one new comment.
 5. Reload → straight to the video, no flash of the name screen.
 6. Click **change** → name screen; enter a different name → **Edit** the first comment → it shows "edited by <new name>".
-7. Open `/r/abc` → the "no longer active" page (HTTP 404 in the network tab).
+7. Open `/r/abc` → the "no longer active" page (HTTP 200 — the response streams before `notFound()`; the page is noindex. Ruling in the SDD ledger, Task 9).
 8. Repeat 1–5 at a phone viewport (devtools device mode, 390px): video sticky at the top, composer pinned at the bottom.
 Delete the seeded row afterwards.
 
