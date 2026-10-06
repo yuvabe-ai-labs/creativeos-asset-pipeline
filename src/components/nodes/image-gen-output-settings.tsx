@@ -28,7 +28,7 @@ type Props = {
   onValuesChange: (next: ParamFormValues) => void;
   onCommit: (values: ParamFormValues) => void;
   onModelChange: (id: string) => void;
-  /** D310 — the composite locks the model while an avatar is wired. Image Gen never passes it. */
+  /** D312 — the composite locks the model while an avatar is wired. Image Gen never passes it. */
   modelLock?: { reason: string };
 };
 
@@ -76,7 +76,7 @@ export function ImageGenOutputSettings({
       <div className="space-y-3">
         <FieldLabel icon={Cpu} label="Model" />
         {modelLock ? (
-          // D310 — a composite with an avatar must use the face model Seedance accepts. One
+          // D312 — a composite with an avatar must use the face model Seedance accepts. One
           // chip, nothing to choose, and the reason in plain words.
           <div className="space-y-2">
             <ParamChipGroup

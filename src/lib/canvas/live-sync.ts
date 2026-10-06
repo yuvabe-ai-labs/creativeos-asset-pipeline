@@ -10,7 +10,7 @@ export type LiveSyncPatch = {
 
 // Node types whose `parsed` is a rendered asset (an image or video URL) — safe to swap on the card
 // because nothing on the card edits it. A prompt node's `parsed` is text the operator edits.
-// D310 — every generated image type (image-gen, composite), plus video.
+// D312 — every generated image type (image-gen, composite), plus video.
 const MEDIA_NODE_TYPES = new Set([...GENERATED_IMAGE_TYPES, "video-gen"]);
 
 /**

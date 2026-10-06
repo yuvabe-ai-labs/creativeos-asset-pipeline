@@ -4,7 +4,7 @@ import type { Avatar } from "@/lib/avatars/schema";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { avatarSheetId } from "@/lib/video-gen/select-references";
 
-// D310 — the browser's view of what is wired into a composite: the focus view's rail (one row per
+// D312 — the browser's view of what is wired into a composite: the focus view's rail (one row per
 // wired node) and what `@` offers. Nothing is mandatory, but everything wired must be mentionable
 // — the editor's default menu offers only file/draw/generated images, so an avatar would be wired
 // but never offered. An avatar is offered as D308 offers it in a shot: its front under the node's

@@ -3,7 +3,7 @@ import { isGeneratedImageType, isImageSourceType } from "../image-node-types";
 import { resolveMentionTokens } from "../resolve-mention-tokens";
 import { selectImageUpstreams } from "../shot-compose";
 
-describe("isGeneratedImageType (D310)", () => {
+describe("isGeneratedImageType (D312)", () => {
   it("isImageSourceType: files, draws and every generated image feed an image consumer like Post", () => {
     for (const t of ["file", "draw", "image-gen", "composite"]) expect(isImageSourceType(t)).toBe(true);
     for (const t of ["text", "prompt", "avatar", "video-gen", undefined]) expect(isImageSourceType(t)).toBe(false);

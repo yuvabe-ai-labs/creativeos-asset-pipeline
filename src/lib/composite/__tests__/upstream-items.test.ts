@@ -22,7 +22,7 @@ const AVATARS = [
   { id: "a1", name: "Riya", front: { url: "https://cdn/front.png" }, sheet: { url: "https://cdn/sheet.png" }, sheetStale: false } as unknown as Avatar,
 ];
 
-describe("compositeUpstreamItems (D310)", () => {
+describe("compositeUpstreamItems (D312)", () => {
   it("lists every wired input with a name and its image", () => {
     const items = compositeUpstreamItems("c", NODES, EDGES, AVATARS);
     expect(items.map((i) => [i.type, i.label, i.fileUrl])).toEqual([

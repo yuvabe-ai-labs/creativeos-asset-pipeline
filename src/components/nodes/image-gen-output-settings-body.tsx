@@ -38,7 +38,7 @@ type Props = {
   /** Pre-generation credit estimate — null while unavailable/still computing. */
   estimatedCredits: number | null;
   estimating: boolean;
-  /** D310 — the composite locks the model while an avatar is wired. */
+  /** D312 — the composite locks the model while an avatar is wired. */
   modelLock?: { reason: string };
   /** Why Generate is unavailable when `hasPrompt` is false. Image Gen's default is unchanged. */
   missingInputReason?: string;

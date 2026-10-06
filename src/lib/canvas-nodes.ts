@@ -113,7 +113,7 @@ export type ImageGenNodeData = {
   baseReferenceNodeId?: string;       // D39: connected image node pinned as the edit base (else first-connected)
 };
 
-/** D310 — a shot's picture made in one step: wired references in, an instruction typed here,
+/** D312 — a shot's picture made in one step: wired references in, an instruction typed here,
  *  one image out. The instruction stores references as `@[Label](nodeId)` chips (D272). */
 export type CompositeNodeData = {
   title?: string;
@@ -292,7 +292,7 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   kb:                 ["script"],
   // D298 — an avatar presents a script, and nothing else. Its face and voice reach the shots
   // through that script (part 2, D299), not through edges of their own.
-  // D310 — and is placed into a composite: the wire says "this picture contains this person".
+  // D312 — and is placed into a composite: the wire says "this picture contains this person".
   avatar:             ["script", "composite"],
   script:             ["prompt"],
   shot:               ["prompt", "video-prompt"],
@@ -304,7 +304,7 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   text:               ["prompt", "video-prompt", "multishot-prompt"],
   prompt:             ["prompt", "image-gen"],
   "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
-  // D310 — a composite is a reference image: Image Gen's outputs, plus another composite (a
+  // D312 — a composite is a reference image: Image Gen's outputs, plus another composite (a
   // location sheet made first becomes the background of an avatar composite).
   composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
   "video-prompt":     ["video-gen"],

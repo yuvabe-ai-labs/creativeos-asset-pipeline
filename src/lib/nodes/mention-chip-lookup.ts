@@ -6,7 +6,7 @@ type Mentionable = { id: string; label: string; type: string; fileUrl?: string; 
  * The mention editor's chip lookup: every upstream, then every mentionable over it. A mentionable
  * relabels its entry but must not drop the image an upstream (or the mentionable itself) carries —
  * a chip reads `fileUrl`/`fileKind` for its thumbnail, and the composite's avatar chip shows its
- * front image (D310). A refine note's mentionables carry no image and are not upstream; they
+ * front image (D312). A refine note's mentionables carry no image and are not upstream; they
  * resolve exactly as before.
  */
 export function mentionChipLookup(

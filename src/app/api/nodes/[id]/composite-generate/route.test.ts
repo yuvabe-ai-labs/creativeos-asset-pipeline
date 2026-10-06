@@ -86,7 +86,7 @@ beforeEach(() => {
   generate.mockResolvedValue({ imageBase64: Buffer.from("png").toString("base64"), mimeType: "image/png", costUsd: 0.03 });
 });
 
-describe("POST composite-generate (D310)", () => {
+describe("POST composite-generate (D312)", () => {
   it("refuses with no instruction, before reserving", async () => {
     const res = await post({ instruction: "   " });
     expect(res.status).toBe(400);

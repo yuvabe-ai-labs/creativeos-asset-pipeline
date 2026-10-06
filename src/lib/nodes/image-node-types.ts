@@ -1,4 +1,4 @@
-// D310 — node types whose output IS an image: a URL in the active version (hydrated into
+// D312 — node types whose output IS an image: a URL in the active version (hydrated into
 // `data.parsed` in the browser, D19). Every reader asking "is this upstream a generated image?"
 // imports this instead of comparing against "image-gen", so a new image-producing node is one
 // entry here rather than twenty call sites — the composite was nearly ignored by all of them.

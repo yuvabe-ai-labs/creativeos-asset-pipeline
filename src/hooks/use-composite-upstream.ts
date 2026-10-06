@@ -6,7 +6,7 @@ import { useClientId } from "@/components/canvas/client-id-context";
 import { useAvatars } from "@/hooks/queries/avatars";
 import { compositeUpstreamItems, type CompositeUpstreamItem } from "@/lib/composite/upstream-items";
 
-/** D310 — the inputs wired into a composite, with avatars named and pictured. Raw store slices
+/** D312 — the inputs wired into a composite, with avatars named and pictured. Raw store slices
  *  are selected and the list derived in useMemo — building it inside the selector would return a
  *  fresh array every time and loop useSyncExternalStore. */
 export function useCompositeUpstream(nodeId: string): CompositeUpstreamItem[] {

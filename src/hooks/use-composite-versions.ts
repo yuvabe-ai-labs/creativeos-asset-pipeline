@@ -9,7 +9,7 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 
 type Patch = (patch: Record<string, unknown>) => void;
 
-/** D310 — a composite's versions, Generate and Restore. The same endpoints Image Gen uses for
+/** D312 — a composite's versions, Generate and Restore. The same endpoints Image Gen uses for
  *  versions and restore; generation goes to composite-generate with the instruction in the body
  *  (the canvas autosaves on a delay, so the stored copy can lag). */
 export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Patch) {

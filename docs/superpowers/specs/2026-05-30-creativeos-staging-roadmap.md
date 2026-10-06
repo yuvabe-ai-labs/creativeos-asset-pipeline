@@ -6518,7 +6518,7 @@ shared links); keeping the 43-character token (unreadable).
 protection for share links (operator, 2026-10-06). **Originated →**
 `docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
 
-### D310 — The Composite node: references in, an instruction typed on the node, one image out; an avatar wires straight into it *(recorded 2026-10-06; refines D298, D290, D308)*
+### D312 — The Composite node: references in, an instruction typed on the node, one image out; an avatar wires straight into it *(recorded 2026-10-06; refines D298, D290, D308)*
 
 **Decision.** A new **Composite** node (`type: "composite"`, mnemonic **C**) makes a shot's
 picture in one step: the avatar, background and product references in — all optional — an

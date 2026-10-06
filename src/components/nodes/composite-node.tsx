@@ -17,7 +17,7 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { CompositeFocusView } from "./composite-focus-view";
 
-// D310 — the Composite card: the current image and a way in. Generation runs in the focus view.
+// D312 — the Composite card: the current image and a way in. Generation runs in the focus view.
 export function CompositeNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const d = data as CompositeNodeData;
   const imageUrl = typeof d.parsed === "string" ? d.parsed : null;

@@ -6,7 +6,7 @@ const AVATAR: CompositeRef = { nodeId: "a", name: "Riya", role: "avatar", positi
 const SHEET: CompositeRef = { nodeId: "a:sheet", name: "Riya sheet", role: "avatar-sheet", position: 2, image: { url: "https://cdn/s.png" } };
 const SANDALS: CompositeRef = { nodeId: "f", name: "Sandals.png", role: "image", position: 3, image: { url: "https://cdn/x.png" } };
 
-describe("buildCompositePrompt (D310)", () => {
+describe("buildCompositePrompt (D312)", () => {
   const withAvatar = buildCompositePrompt({
     refs: [AVATAR, SHEET, SANDALS],
     instruction: "Riya (image 1) at her desk holding Sandals.png (image 3), in a bright office.",
