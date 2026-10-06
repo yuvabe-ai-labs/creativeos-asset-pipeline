@@ -1,4 +1,5 @@
 import type { UpstreamPreview } from "@/lib/nodes/resolve-inputs";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ export function isVisionAttachment(u: VisionAttachmentCandidate): boolean {
   }
   // An Image Gen still: its output IS the image. It only carries a fileUrl on the video path
   // (mapUpstreamForVideo); the image-Prompt path never sets it, so this cannot fire there.
-  if (u.type === "image-gen" && hasImageUrl) return true;
+  if (isGeneratedImageType(u.type) && hasImageUrl) return true;
   // The script's avatar in this shot, as the browser lists it (useMentionUpstream). The server
   // carries the same image as a file row (getPromptUpstream), so both count it in the same place.
   if (u.type === "avatar" && hasImageUrl) return true;

@@ -15,6 +15,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { videoGenClientModelMap, resolveVideoModelId } from "@/lib/video-gen/client-models";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 export async function GET(
   req: Request,
@@ -66,7 +67,7 @@ export async function GET(
             return d.fileKind === "image" && typeof d.fileUrl === "string";
           }
           if (
-            u.type === "image-gen" &&
+            isGeneratedImageType(u.type) &&
             (directIds.has(u.nodeId) || multishotPromptUpstreamIds.has(u.nodeId))
           ) {
             return typeof u.activeOutput === "string";
@@ -78,7 +79,7 @@ export async function GET(
           return {
             id: u.nodeId,
             type: u.type,
-            imageUrl: u.type === "image-gen"
+            imageUrl: isGeneratedImageType(u.type)
               ? (u.activeOutput as string)
               : (d.fileUrl as string),
             filename: typeof d.filename === "string" ? d.filename : undefined,

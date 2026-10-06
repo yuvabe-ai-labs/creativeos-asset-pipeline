@@ -16,6 +16,7 @@ import { PostLayersPreview } from "./post-layers-preview";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 export function PostNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -44,7 +45,7 @@ export function PostNode({ id, data, selected }: NodeProps) {
           url:
             n.type === "file" || n.type === "draw"
               ? (d.fileUrl as string | undefined)
-              : n.type === "image-gen"
+              : isGeneratedImageType(n.type)
                 ? (d.parsed as string | undefined)
                 : undefined,
         };
