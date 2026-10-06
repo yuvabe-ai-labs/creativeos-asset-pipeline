@@ -70,6 +70,7 @@ vi.mock("@/lib/db/credit-transactions", () => ({
 }));
 
 import { POST } from "./route";
+import { COMPOSITE_PROMPT_ID } from "@/prompts/composite-generate";
 
 const post = (body: unknown) =>
   POST(new Request("http://x", { method: "POST", body: JSON.stringify(body) }), {
@@ -160,7 +161,7 @@ describe("POST composite-generate (D312)", () => {
     expect(reserveCredits).toHaveBeenCalled();
     expect(settleGeneration).toHaveBeenCalled();
     const version = insertVersion.mock.calls[0][0] as { inputsUsed: Record<string, unknown> };
-    expect(version.inputsUsed).toMatchObject({ avatarIds: ["av-1"], promptId: "composite-generate-v1" });
+    expect(version.inputsUsed).toMatchObject({ avatarIds: ["av-1"], promptId: COMPOSITE_PROMPT_ID });
   });
 
   it("refunds when the provider fails, and records the failed attempt", async () => {

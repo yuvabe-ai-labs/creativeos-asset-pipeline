@@ -46,4 +46,47 @@ describe("buildCompositePrompt (D312)", () => {
       expect(plain.toLowerCase()).not.toContain(term);
     }
   });
+
+  // The 2026-10-06 kitchen composite: the avatar pasted in at portrait scale, studio-lit, sitting
+  // in front of the room rather than in it. These rules are how a person is put into a scene.
+  describe("placing a person into a scene", () => {
+    it("asks for believable scale, standing on real surfaces at the camera's eye level", () => {
+      expect(withAvatar).toMatch(/realistic scale for the space/);
+      expect(withAvatar).toMatch(/rest on real surfaces/);
+    });
+
+    it("lights the person with the scene's own light, with contact shadows", () => {
+      expect(withAvatar).toMatch(/lit by the scene's own light/);
+      expect(withAvatar).toMatch(/contact shadows/);
+    });
+
+    it("forbids the cut-out look", () => {
+      expect(withAvatar).toMatch(/no cut-out edges, halo or pasted-on look/);
+    });
+
+    it("puts the person in the space, never in the avatar portrait's crop or studio framing", () => {
+      expect(withAvatar).toMatch(/inside the space, not posed in front of it/);
+      expect(withAvatar).toMatch(/never the portrait's crop or studio framing/);
+    });
+
+    it("states the person-placement rules only when an avatar is wired", () => {
+      const noAvatar = buildCompositePrompt({ refs: [SANDALS], instruction: "On a desk." });
+      expect(noAvatar).not.toMatch(/inside the space, not posed in front of it/);
+    });
+  });
+
+  // The composite is the UGC clip's reference: when the operator names no camera, frame it so the
+  // video model can read the person and the room.
+  describe("default UGC framing", () => {
+    it("defaults to a clear, eye-level phone frame — the person facing camera, face and hands visible, room readable", () => {
+      expect(withAvatar).toMatch(/Unless the description sets the camera or framing/);
+      expect(withAvatar).toMatch(/eye-level phone video/);
+      expect(withAvatar).toMatch(/face and hands clearly visible/);
+    });
+
+    it("yields to the operator's camera words", () => {
+      expect(withAvatar).toMatch(/the description's camera and framing win/);
+    });
+  });
 });
+
