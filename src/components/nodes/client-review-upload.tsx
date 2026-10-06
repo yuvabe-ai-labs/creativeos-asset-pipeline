@@ -34,15 +34,15 @@ export function ClientReviewUpload({
     }
     // Some browsers report an empty type for .mov; the sign route needs a video/* type.
     const ext = cutExtension(file.name);
-    const typed =
-      file.type || !ext ? file : new File([file], file.name, { type: CUT_CONTENT_TYPES[ext] });
+    const contentType = file.type || (ext ? CUT_CONTENT_TYPES[ext] : undefined);
     setUploading(true);
     try {
       // The node row must exist before /api/nodes/:id/* can find it (600ms autosave lag).
       await flushAutosave();
-      const next = await uploadViaSignedUrl<NodeClientReview>(typed, {
+      const next = await uploadViaSignedUrl<NodeClientReview>(file, {
         signEndpoint: `/api/nodes/${nodeId}/client-review/sign`,
         finalizeEndpoint: `/api/nodes/${nodeId}/client-review`,
+        contentType,
       });
       onUploaded(next);
     } catch (e) {
