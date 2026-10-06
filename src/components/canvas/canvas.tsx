@@ -44,6 +44,7 @@ import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
+import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
@@ -142,6 +143,10 @@ export function Canvas({
   // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a senior's
   // decision made elsewhere lands here without a reload.
   useCanvasApprovalSync(canvasId);
+  // Every cost figure on the canvas reads one shared query; this is its one live refresh.
+  useCanvasCostLiveUpdates(canvasId, (nodeId) =>
+    storeApi.getState().nodes.some((n) => n.id === nodeId),
+  );
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
   useLayoutEffect(() => {

@@ -23,6 +23,35 @@ const nodes: AppNode[] = [
   { id: "b", type: "prompt", position: { x: 0, y: 0 }, data: { title: "" } },
 ] as AppNode[];
 
+describe("updateNodeData", () => {
+  it("leaves the nodes array untouched when every patched value is already set", () => {
+    // Autosave watches the nodes array by reference: a no-op patch that still replaced it
+    // queued a full-canvas save. Focus views re-patch values they just read back.
+    const store = createCanvasStore(
+      [{ id: "v", type: "video-gen", position: { x: 0, y: 0 }, data: { parsed: "u.mp4", approvalStatus: "pending" } }] as unknown as AppNode[],
+      [],
+    );
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("v", { parsed: "u.mp4", approvalStatus: "pending" });
+    expect(store.getState().nodes).toBe(before);
+  });
+
+  it("still applies a patch that changes a value", () => {
+    const store = createCanvasStore(nodes, []);
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("b", { title: "Hero shot" });
+    expect(store.getState().nodes).not.toBe(before);
+    expect(store.getState().nodes.find((n) => n.id === "b")?.data).toMatchObject({ title: "Hero shot" });
+  });
+
+  it("is a no-op for a node id that isn't on the canvas", () => {
+    const store = createCanvasStore(nodes, []);
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("missing", { title: "x" });
+    expect(store.getState().nodes).toBe(before);
+  });
+});
+
 describe("onConnect", () => {
   it("assigns a UUID id to the new edge (the DB edges.id column is uuid)", () => {
     const store = createCanvasStore(nodes, []);

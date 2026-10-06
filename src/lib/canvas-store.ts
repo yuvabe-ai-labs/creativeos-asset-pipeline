@@ -262,14 +262,23 @@ export function createCanvasStore(
           } as AppNode,
         ],
       }),
-    updateNodeData: (id, data) =>
+    updateNodeData: (id, data) => {
+      // A patch that changes nothing must not replace the nodes array: autosave watches it
+      // by reference, and focus views routinely re-patch values they just read back (the
+      // active version's output, its approval status), each of which queued a full-canvas
+      // save. Shallow on purpose — a fresh object for a nested value still counts as a change.
+      const target = get().nodes.find((n) => n.id === id);
+      if (!target) return;
+      const current = target.data as Record<string, unknown>;
+      if (Object.entries(data).every(([k, v]) => Object.is(current[k], v))) return;
       set({
         nodes: get().nodes.map((n) =>
           n.id === id
             ? ({ ...n, data: { ...n.data, ...data } } as AppNode)
             : n,
         ),
-      }),
+      });
+    },
     connectNodes: (sourceId, targetId) => {
       // D298 — the gallery's path keeps one presenter per script too, announced once, here.
       const replaced = replacedPresenterEdges(get().nodes, get().edges, sourceId, targetId);
