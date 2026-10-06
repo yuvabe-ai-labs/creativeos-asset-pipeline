@@ -1,3 +1,4 @@
+import { logClientReviewErrors } from "@/lib/client-review/log";
 import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers";
 import { sharePathFor } from "@/lib/client-review/paths";
 import { generateShareToken } from "@/lib/client-review/token";
@@ -19,10 +20,10 @@ async function payload(review: CanvasReviewRow | null): Promise<NodeClientReview
 // GET /api/nodes/:id/client-review — the node's cut, share path and comments (team view).
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not load the review.", () =>
-    withNode(req, params, async (nodeId, node) => {
+    logClientReviewErrors("read", req, () => withNode(req, params, async (nodeId, node) => {
       if (node.type !== "client-review") return apiError("Node not found.", 404);
       return apiOk(await payload(await getReviewByNodeId(nodeId)));
-    }),
+    })),
   );
 }
 
@@ -30,7 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // share token, so the link exists as soon as the video does.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not save the cut.", () =>
-    withNode(req, params, async (nodeId, node, caller, clientId) => {
+    logClientReviewErrors("finalize", req, () => withNode(req, params, async (nodeId, node, caller, clientId) => {
       if (node.type !== "client-review") return apiError("Node not found.", 404);
       const body = (await req.json().catch(() => null)) as { path?: string } | null;
       if (typeof body?.path !== "string" || !body.path) {
@@ -55,6 +56,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         if (e instanceof ReviewExistsError) return apiError(e.message, 409);
         throw e;
       }
-    }),
+    })),
   );
 }

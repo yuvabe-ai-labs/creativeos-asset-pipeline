@@ -1,3 +1,4 @@
+import { logClientReviewErrors } from "@/lib/client-review/log";
 import { apiError, apiOk, withNode, withTryCatch, validateFileSize } from "@/lib/api/route-helpers";
 import { CUT_EXTENSIONS, CUT_MAX_BYTES } from "@/lib/client-review/constants";
 import { cutExtension } from "@/lib/client-review/validate";
@@ -8,7 +9,7 @@ import { signClientReviewUpload } from "@/lib/storage";
 // the node's cut (D307). One cut per node: a node that already has one gets 409.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not authorize upload.", () =>
-    withNode(req, params, async (nodeId, node, _caller, clientId) => {
+    logClientReviewErrors("sign", req, () => withNode(req, params, async (nodeId, node, _caller, clientId) => {
       const body = (await req.json().catch(() => null)) as {
         filename?: string;
         contentType?: string;
@@ -43,6 +44,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         contentType: body.contentType,
       });
       return apiOk(signed);
-    }),
+    })),
   );
 }
