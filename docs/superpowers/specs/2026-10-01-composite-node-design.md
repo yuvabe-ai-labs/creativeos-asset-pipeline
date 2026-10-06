@@ -141,16 +141,12 @@ Provider registry, cost, credits, storage and versions are reused unchanged.
 ### 3.1 The avatar's images
 
 An avatar contributes its **front image**, and its **profile sheet** when there is one and it is
-not stale (`sheetStale`, D288/D295). Both are the same person, so they are labelled as one:
-*"Reference images 1–2 (Riya, the avatar): the same person — take only their face, hair, build
-and clothing, never the images' background, lighting or framing."*
-
-**This needs one change in shared code.** Today one upstream node yields one image, and a chip
-`@[Label](nodeId)` resolves to one `reference image N` (`refEntriesOf`, `resolveRefMentions` in
-`src/lib/nodes/ref-binding.ts`). An avatar node yields up to two. The roster must let one node id
-own a run of images so that `@Riya` resolves to *"reference images 1–2 (Riya)"*. The change is
-additive — every existing node still yields one image and resolves exactly as today — and is
-covered by `ref-binding.test.ts`.
+not stale (`sheetStale`, D288/D295) — **as D308 already does for a shot**: the loader replaces the
+avatar's row with `presenterUpstreamRows` (`src/lib/avatars/presenter.ts`), so the front travels
+under the Avatar node's id and the sheet under `avatarSheetId` (`"<id>:sheet"`), each its own entry
+and its own chip ("Riya", "Riya sheet"), identity only. One convention for an avatar's images
+across shots and composites; no change to shared `ref-binding.ts`. The roster is the composite's
+own module, `src/lib/composite/references.ts`.
 
 ## 4. The prompt
 
@@ -213,8 +209,8 @@ it as for Image Gen.
 
 Identical to Image Gen. The bytes are uploaded with `uploadImageGen`; the URL is the version's
 `output`; `node-output.ts` returns it downstream. `paramsUsed` carries `modelId`, the validated
-params, `tokensUsed`, dimensions, `fileSizeBytes` — plus the avatar's id when one was wired, so a
-version records whose face it used. Cost is `estimateImageGenerationCostUsd` / `computeImageCost`;
+params, `tokensUsed`, dimensions, `fileSizeBytes`; `inputsUsed` records `avatarIds`, the prompt id
+(`composite-generate-v1`), the instruction and the exact prompt sent. Cost is `estimateImageGenerationCostUsd` / `computeImageCost`;
 Seedream is priced per image (`SEEDREAM_IMAGE_PRICE_TABLE`), Nano Banana by tokens. No new tables.
 
 ## 7. Errors
@@ -239,7 +235,8 @@ nothing is reserved:
 | `canvas-node-options.test.ts` | `C` is unique and resolves to `composite` |
 | `node-output.test.ts` | `case "composite"` returns the active version's URL |
 | composite mentionables test | every wired input — file, draw, image-gen, composite, avatar — is offered by `@`; the avatar reads "Avatar: {name}" with its front as thumbnail |
-| `ref-binding.test.ts` | one node owning two images resolves to "reference images 1–2 (name)"; single-image nodes unchanged |
+| `composite/references.test.ts` | the avatar's front and fresh sheet are entries 1 and 2 under D308's ids; a stale sheet is skipped and later numbering holds; chips resolve to "Name (image N)" |
+| `image-node-types.test.ts` | a composite counts as a generated image for every downstream reader; a composite is never auto-promoted to start frame |
 | `composite-generate` prompt test | the rule block holds both preservation rules and the sheet rule; the person rule appears only with an avatar; it adds no lens, lighting or grade terms |
 | route test (mirrors `image-generate`'s) | refuses with no instruction, a dangling chip, an avatar with no front, or the wrong model under the lock; generates with zero references; sends the avatar's front + fresh sheet and skips a stale sheet; reserves then settles; refunds on provider failure |
 

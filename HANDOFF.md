@@ -33,8 +33,7 @@ Seedream model Seedance takes faces from. The route copies `image-generate`.
 
 ## State
 
-**Spec approved in conversation and written; nothing in `src/` is built.** Next: the operator
-reviews the written spec, then an implementation plan via `superpowers:writing-plans`.
+**Built** on this branch (plan: `docs/superpowers/plans/2026-10-06-composite-node.md`). Not merged.
 
 ## Watch out for
 
