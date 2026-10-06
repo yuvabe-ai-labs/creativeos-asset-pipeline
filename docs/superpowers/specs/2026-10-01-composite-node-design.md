@@ -85,12 +85,23 @@ prompt lane:
 
 - the connected references, the avatar among them, shown as one entry under its name;
 - the **Instruction** field — `MentionInstructionEditor`, the same component as Multishot's
-  Direction (`multishot-prompt-focus-view.tsx`), with a placeholder showing the shape: *"@Riya at
-  her desk holding @Sandals, in @Office sheet. A 2×2 sheet, four angles, warm window light."*;
+  Direction (`multishot-prompt-focus-view.tsx`), with a placeholder showing a background typed
+  rather than wired: *"@Riya at her desk holding @Sandals, in a bright open-plan office. A 2×2
+  sheet, four angles, warm window light."*;
 - the model picker (§5);
 - Generate, and the version strip.
 
 Every control is a shadcn primitive from `src/components/ui/*`.
+
+**Nothing is mandatory; everything wired is mentionable.** The operator may wire any mix of
+avatar, background and product — or none, and type the whole picture. Whatever *is* wired must be
+offered by `@`. The editor's default menu offers only `image-gen`, `draw` and `file` upstreams
+(`mention-instruction-editor.tsx`), so an Avatar or an upstream Composite would be wired but
+never offered. The focus view therefore passes the editor's existing `mentionables` prop, built
+from **every wired reference**: files and draws, Image Gen and Composite outputs, and the avatar
+as *"Avatar: {name}"* with its front image as the chip's thumbnail. The editor itself is not
+changed. A wired reference the operator never mentions is still sent, labelled, so an unchipped
+image is not silently dropped.
 
 ## 2. Connections
 
@@ -227,6 +238,7 @@ nothing is reserved:
 | `canvas-nodes.test.ts` | `canConnect` for every new edge, and that `avatar` still reaches nothing else |
 | `canvas-node-options.test.ts` | `C` is unique and resolves to `composite` |
 | `node-output.test.ts` | `case "composite"` returns the active version's URL |
+| composite mentionables test | every wired input — file, draw, image-gen, composite, avatar — is offered by `@`; the avatar reads "Avatar: {name}" with its front as thumbnail |
 | `ref-binding.test.ts` | one node owning two images resolves to "reference images 1–2 (name)"; single-image nodes unchanged |
 | `composite-generate` prompt test | the rule block holds both preservation rules and the sheet rule; the person rule appears only with an avatar; it adds no lens, lighting or grade terms |
 | route test (mirrors `image-generate`'s) | refuses with no instruction, a dangling chip, an avatar with no front, or the wrong model under the lock; generates with zero references; sends the avatar's front + fresh sheet and skips a stale sheet; reserves then settles; refunds on provider failure |
