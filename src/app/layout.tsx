@@ -3,12 +3,10 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/components/layout/query-provider";
-import { HeaderBrand } from "@/components/layout/header-brand";
-import { HeaderActions } from "@/components/layout/header-actions";
+import { AppHeader } from "@/components/layout/app-header";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { headerTopClass } from "@/lib/auth/impersonation-ui";
-import { cn } from "@/lib/utils";
 
 // Yuvabe brand fonts (ref/Yuvabe Studios Design System). Two families only.
 const clash = localFont({
@@ -58,15 +56,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <QueryProvider>
         <ImpersonationBanner />
-        <header
-          className={cn(
-            "sticky z-40 flex h-16 shrink-0 items-center justify-between border-b border-border/80 bg-background/80 px-6 backdrop-blur-md",
-            headerTopClass(isImpersonating),
-          )}
-        >
-          <HeaderBrand />
-          <HeaderActions />
-        </header>
+        <AppHeader className={headerTopClass(isImpersonating)} />
         {children}
         <Toaster />
         </QueryProvider>
