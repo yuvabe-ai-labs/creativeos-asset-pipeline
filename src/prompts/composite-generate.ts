@@ -1,6 +1,6 @@
 import type { CompositeRef } from "@/lib/composite/references";
 
-// D309 — what the image model receives for a Composite node: the roster of attached images, the
+// D310 — what the image model receives for a Composite node: the roster of attached images, the
 // operator's instruction (chips already resolved to "Name (image N)"), and a fixed rule block.
 //
 // The rules hold only what is always true. They add NO styling: camera, lens, lighting and colour

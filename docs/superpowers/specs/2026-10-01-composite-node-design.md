@@ -1,7 +1,7 @@
 # The Composite node — design
 
 **Date:** 2026-10-01 · **Rewritten:** 2026-10-06 (after the avatar work, D287–D299, landed on
-staging) · **Branch:** `worktree-composite-node` · **Spec C** of the UGC avatar work · **ADR:** D309
+staging) · **Branch:** `worktree-composite-node` · **Spec C** of the UGC avatar work · **ADR:** D310
 
 **Read first:** `2026-09-22-seedream-seedance-handoff.md` §0.2 (the design) and §0.3 (the specs),
 and D298/D299 in the ADR log (the Avatar node and how its face reaches a shot). This spec does not
@@ -106,7 +106,7 @@ image is not silently dropped.
 ## 2. Connections
 
 ```ts
-avatar:      ["script", "composite"],                    // D298 had ["script"] only — see D309
+avatar:      ["script", "composite"],                    // D298 had ["script"] only — see D310
 file:        [... , "composite"],
 draw:        [... , "composite"],
 "image-gen": [... , "composite"],
@@ -117,7 +117,7 @@ composite:   ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot",
 `composite → composite` is the operator's own flow: a location sheet made first, then used as the
 background of an avatar composite. `avatar → composite` is what D298 rejected for Image Gen and
 Video Gen ("a second path through every rule"); here it is the point — the wire says *this
-picture contains this person* (handoff §0.2). D309 records it.
+picture contains this person* (handoff §0.2). D310 records it.
 
 ## 3. Generation
 

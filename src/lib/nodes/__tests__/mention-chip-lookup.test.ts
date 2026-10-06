@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mentionChipLookup } from "../mention-chip-lookup";
 
 describe("mentionChipLookup", () => {
-  it("keeps a mentionable's image so its chip shows a thumbnail (D309)", () => {
+  it("keeps a mentionable's image so its chip shows a thumbnail (D310)", () => {
     const map = mentionChipLookup([], [
       { id: "av", label: "Avatar: Riya", type: "avatar", fileUrl: "https://cdn/front.png", fileKind: "image" },
     ]);

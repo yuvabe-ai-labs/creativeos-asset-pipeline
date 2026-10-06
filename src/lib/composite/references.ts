@@ -4,7 +4,7 @@ import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { mentionDialect } from "@/lib/nodes/prompt-token-dialect";
 import { refDisplayName } from "@/lib/nodes/ref-binding";
 
-// D309 — the composite's reference roster. The image model gets one flat list of URLs, so every
+// D310 — the composite's reference roster. The image model gets one flat list of URLs, so every
 // wired image is numbered by its position in that list and the instruction's chips resolve to
 // those numbers. An avatar arrives already expanded into D308's rows — its front under the Avatar
 // node's id, its fresh profile sheet under avatarSheetId — so each entry is exactly one image.

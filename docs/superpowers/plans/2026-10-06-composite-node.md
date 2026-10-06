@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js (App Router) route handlers, React 19 + React Flow (`@xyflow/react`), Zustand canvas store, TanStack Query, shadcn/Base UI primitives, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-10-01-composite-node-design.md` (rewritten 2026-10-06) · **ADR:** D309 in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7.
+**Spec:** `docs/superpowers/specs/2026-10-01-composite-node-design.md` (rewritten 2026-10-06) · **ADR:** D310 in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7.
 
 ## Global Constraints
 
@@ -87,7 +87,7 @@ import {
   resolveCompositeModelId,
 } from "../model";
 
-describe("composite model (D309)", () => {
+describe("composite model (D310)", () => {
   it("defaults to the model Seedance takes faces from", () => {
     expect(COMPOSITE_DEFAULT_MODEL_ID).toBe(SEEDANCE_FACE_MODEL_ID);
   });
@@ -105,10 +105,10 @@ describe("composite model (D309)", () => {
 });
 ```
 
-Append to `src/lib/canvas-nodes.test.ts`, and **replace** the existing `"D298 — an avatar connects to a script and to nothing else"` test (line ~144) with the D309 version below:
+Append to `src/lib/canvas-nodes.test.ts`, and **replace** the existing `"D298 — an avatar connects to a script and to nothing else"` test (line ~144) with the D310 version below:
 
 ```ts
-describe("D309 — composite connections", () => {
+describe("D310 — composite connections", () => {
   it("an avatar connects to a script and a composite, and nothing else", () => {
     expect(canConnect("avatar", "script")).toBe(true);
     expect(canConnect("avatar", "composite")).toBe(true);
@@ -141,7 +141,7 @@ describe("D309 — composite connections", () => {
 Append to `src/lib/nodes/node-output.test.ts` inside `describe("getNodeOutput", …)`:
 
 ```ts
-  it("returns a composite's active image URL, like image-gen (D309)", () => {
+  it("returns a composite's active image URL, like image-gen (D310)", () => {
     expect(
       getNodeOutput({ type: "composite", data: {}, activeOutput: " https://cdn/c.png " }),
     ).toBe("https://cdn/c.png");
@@ -161,7 +161,7 @@ Expected: FAIL — `Cannot find module '../model'`; `canConnect("avatar", "compo
 ```ts
 import { SEEDANCE_FACE_MODEL_ID } from "@/lib/avatars/constants";
 
-// D309 — which image model a composite is made with. A composite with an avatar in it is a new
+// D310 — which image model a composite is made with. A composite with an avatar in it is a new
 // picture of that avatar's face, and Seedance accepts a face only from SEEDANCE_FACE_MODEL_ID
 // (D290) — so while an avatar is wired the model is locked to it. Imported, never restated: if
 // the avatar's face model changes, the composite follows.
@@ -185,7 +185,7 @@ export function resolveCompositeModelId(requested: string | undefined, hasAvatar
 In `src/lib/canvas-nodes.ts`, after `ImageGenNodeData`:
 
 ```ts
-/** D309 — a shot's picture made in one step: wired references in, an instruction typed here,
+/** D310 — a shot's picture made in one step: wired references in, an instruction typed here,
  *  one image out. The instruction stores references as `@[Label](nodeId)` chips (D272). */
 export type CompositeNodeData = {
   title?: string;
@@ -200,13 +200,13 @@ export type CompositeNodeData = {
 Add `| Node<CompositeNodeData, "composite">` to `AppNode` after the `image-gen` member. In `VALID_CONNECTIONS`, change these rows (keep the others):
 
 ```ts
-  // D298 — an avatar presents a script. D309 — and is placed into a composite: the wire says
+  // D298 — an avatar presents a script. D310 — and is placed into a composite: the wire says
   // "this picture contains this person". Its face reaches shots through the script (D299).
   avatar:             ["script", "composite"],
   file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
   draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
   "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
-  // D309 — a composite is a reference image: Image Gen's outputs, plus another composite (a
+  // D310 — a composite is a reference image: Image Gen's outputs, plus another composite (a
   // location sheet made first becomes the background of an avatar composite).
   composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
 ```
@@ -245,7 +245,7 @@ Expected: PASS. Then `npx tsc --noEmit` — expected clean (no consumer switches
 
 ```bash
 git add src/lib/composite src/lib/canvas-nodes.ts src/lib/canvas-nodes.test.ts src/lib/canvas-store.ts src/lib/nodes/node-output.ts src/lib/nodes/node-output.test.ts src/lib/nodes/describe-node.ts
-git commit -m "feat(composite): register the composite node type and its connections (D309)"
+git commit -m "feat(composite): register the composite node type and its connections (D310)"
 ```
 
 ---
@@ -275,7 +275,7 @@ import { isGeneratedImageType } from "../image-node-types";
 import { resolveMentionTokens } from "../resolve-mention-tokens";
 import { selectImageUpstreams } from "../shot-compose";
 
-describe("isGeneratedImageType (D309)", () => {
+describe("isGeneratedImageType (D310)", () => {
   it("is true for image-gen and composite only", () => {
     expect(isGeneratedImageType("image-gen")).toBe(true);
     expect(isGeneratedImageType("composite")).toBe(true);
@@ -303,7 +303,7 @@ describe("isGeneratedImageType (D309)", () => {
 Append to `src/lib/nodes/__tests__/compose-message.test.ts` inside the existing `describe`:
 
 ```ts
-  it("treats a composite upstream WITH a fileUrl as a vision part (D309)", () => {
+  it("treats a composite upstream WITH a fileUrl as a vision part (D310)", () => {
     const up: UpstreamPreview[] = [
       { ...base, type: "composite", fileUrl: "https://x/c.png", fileKind: "image" },
     ];
@@ -317,7 +317,7 @@ Append to `src/lib/nodes/__tests__/compose-message.test.ts` inside the existing 
 For Review Focus 5, append to `src/lib/video-gen/__tests__/auto-assign-image-roles.test.ts` (it already imports `autoAssignImageRoles`):
 
 ```ts
-describe("D309 — a composite is a reference", () => {
+describe("D310 — a composite is a reference", () => {
   it("a composite defaults to reference, never start_frame, even on a no-reference model", () => {
     const roles = autoAssignImageRoles(
       [{ nodeId: "c1", url: "https://cdn/c.png", type: "composite" }],
@@ -339,7 +339,7 @@ Expected: FAIL — module not found; composite not treated as vision. (The assig
 `src/lib/nodes/image-node-types.ts`:
 
 ```ts
-// D309 — node types whose output IS an image: a URL in the active version (hydrated into
+// D310 — node types whose output IS an image: a URL in the active version (hydrated into
 // `data.parsed` in the browser, D19). Every reader asking "is this upstream a generated image?"
 // imports this instead of comparing against "image-gen", so a new image-producing node is one
 // entry here rather than twenty call sites — the composite was nearly ignored by all of them.
@@ -393,7 +393,7 @@ Expected: PASS (all — this is a behaviour-preserving change for `image-gen`). 
 
 ```bash
 git add src/lib/nodes src/lib/db/eval.ts src/lib/video-gen src/app/api/nodes src/components/nodes
-git commit -m "refactor(nodes): one predicate for 'a generated image'; composite counts (D309)"
+git commit -m "refactor(nodes): one predicate for 'a generated image'; composite counts (D310)"
 ```
 
 ---
@@ -454,7 +454,7 @@ const AVATAR_ROWS = presenterUpstreamRows("n-av", RIYA);
 const SANDALS = row("n-file", "file", { fileKind: "image", fileUrl: "https://cdn/sandals.png", filename: "Sandals.png", fileSizeBytes: 10 });
 const OFFICE = row("n-cmp", "composite", { title: "Office sheet" }, "https://cdn/office.png");
 
-describe("compositeRefs (D309)", () => {
+describe("compositeRefs (D310)", () => {
   it("numbers one image per entry, in upstream order; the avatar's front then its sheet", () => {
     const refs = compositeRefs([...AVATAR_ROWS, SANDALS, OFFICE]);
     expect(refs.map((r) => [r.nodeId, r.name, r.role, r.position])).toEqual([
@@ -547,7 +547,7 @@ import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { mentionDialect } from "@/lib/nodes/prompt-token-dialect";
 import { refDisplayName } from "@/lib/nodes/ref-binding";
 
-// D309 — the composite's reference roster. The image model gets one flat list of URLs, so every
+// D310 — the composite's reference roster. The image model gets one flat list of URLs, so every
 // wired image is numbered by its position in that list and the instruction's chips resolve to
 // those numbers. An avatar arrives already expanded into D308's rows — its front under the Avatar
 // node's id, its fresh profile sheet under avatarSheetId — so each entry is exactly one image.
@@ -668,7 +668,7 @@ Expected: PASS.
 
 ```bash
 git add src/lib/composite/references.ts src/lib/composite/__tests__/references.test.ts
-git commit -m "feat(composite): number the wired references, avatar front and sheet as D308 does (D309)"
+git commit -m "feat(composite): number the wired references, avatar front and sheet as D308 does (D310)"
 ```
 
 ---
@@ -696,7 +696,7 @@ const AVATAR: CompositeRef = { nodeId: "a", name: "Riya", role: "avatar", positi
 const SHEET: CompositeRef = { nodeId: "a:sheet", name: "Riya sheet", role: "avatar-sheet", position: 2, image: { url: "https://cdn/s.png" } };
 const SANDALS: CompositeRef = { nodeId: "f", name: "Sandals.png", role: "image", position: 3, image: { url: "https://cdn/x.png" } };
 
-describe("buildCompositePrompt (D309)", () => {
+describe("buildCompositePrompt (D310)", () => {
   const withAvatar = buildCompositePrompt({
     refs: [AVATAR, SHEET, SANDALS],
     instruction: "Riya (image 1) at her desk holding Sandals.png (image 3), in a bright office.",
@@ -751,7 +751,7 @@ Expected: FAIL — module not found.
 ```ts
 import type { CompositeRef } from "@/lib/composite/references";
 
-// D309 — what the image model receives for a Composite node: the roster of attached images, the
+// D310 — what the image model receives for a Composite node: the roster of attached images, the
 // operator's instruction (chips already resolved to "Name (image N)"), and a fixed rule block.
 //
 // The rules hold only what is always true. They add NO styling: camera, lens, lighting and colour
@@ -815,7 +815,7 @@ Expected: PASS. (If the no-styling test trips on a word inside a rule — e.g. "
 
 ```bash
 git add src/prompts/composite-generate.ts src/prompts/__tests__/composite-generate.test.ts
-git commit -m "feat(composite): the composite prompt — roster, instruction, preservation rules (D309)"
+git commit -m "feat(composite): the composite prompt — roster, instruction, preservation rules (D310)"
 ```
 
 ---
@@ -850,7 +850,7 @@ import { getAvatar } from "@/lib/db/avatars";
 import { presenterUpstreamRows } from "@/lib/avatars/presenter";
 import { compositeRefs, type CompositeRef } from "./references";
 
-// D309 — a composite's wired inputs, from the database. An Avatar node holds only an id (D298),
+// D310 — a composite's wired inputs, from the database. An Avatar node holds only an id (D298),
 // so its images are read live; archived avatars still resolve (D287 — what already uses an
 // avatar keeps working). Each avatar row is replaced, in place, by D308's rows — its front, then
 // its fresh profile sheet — so the composite numbers an avatar exactly as a shot does. An avatar
@@ -971,7 +971,7 @@ beforeEach(() => {
   generate.mockResolvedValue({ imageBase64: Buffer.from("png").toString("base64"), mimeType: "image/png", costUsd: 0.03 });
 });
 
-describe("POST composite-generate (D309)", () => {
+describe("POST composite-generate (D310)", () => {
   it("refuses with no instruction, before reserving", async () => {
     const res = await post({ instruction: "   " });
     expect(res.status).toBe(400);
@@ -1096,7 +1096,7 @@ import {
 import { compositeModelLock, resolveCompositeModelId } from "@/lib/composite/model";
 import { buildCompositePrompt, COMPOSITE_PROMPT_ID } from "@/prompts/composite-generate";
 
-// D309 — the Composite node's generation. image-generate/route.ts is the template, not the
+// D310 — the Composite node's generation. image-generate/route.ts is the template, not the
 // route: the pipeline (validate → generation → reserve → provider → upload → version → settle,
 // and record-fail-refund on error) is the same; the prompt comes from the node's own instruction
 // and the reference roster instead of a connected Prompt node. Every operator error is refused
@@ -1271,7 +1271,7 @@ Expected: PASS. Then `npx tsc --noEmit` (the `insertVersion` failure call passes
 
 ```bash
 git add src/lib/image-gen/utils.ts "src/app/api/nodes/[id]/image-generate/route.ts" src/lib/composite/load-inputs.ts "src/app/api/nodes/[id]/composite-generate"
-git commit -m "feat(composite): the generate route — instruction + roster, avatar model lock (D309)"
+git commit -m "feat(composite): the generate route — instruction + roster, avatar model lock (D310)"
 ```
 
 ---
@@ -1323,7 +1323,7 @@ const AVATARS = [
   { id: "a1", name: "Riya", front: { url: "https://cdn/front.png" }, sheet: { url: "https://cdn/sheet.png" }, sheetStale: false } as unknown as Avatar,
 ];
 
-describe("compositeUpstreamItems (D309)", () => {
+describe("compositeUpstreamItems (D310)", () => {
   it("lists every wired input with a name and its image", () => {
     const items = compositeUpstreamItems("c", NODES, EDGES, AVATARS);
     expect(items.map((i) => [i.type, i.label, i.fileUrl])).toEqual([
@@ -1381,7 +1381,7 @@ import type { Avatar } from "@/lib/avatars/schema";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { avatarSheetId } from "@/lib/video-gen/select-references";
 
-// D309 — the browser's view of what is wired into a composite: the focus view's rail (one row per
+// D310 — the browser's view of what is wired into a composite: the focus view's rail (one row per
 // wired node) and what `@` offers. Nothing is mandatory, but everything wired must be mentionable
 // — the editor's default menu offers only file/draw/generated images, so an avatar would be wired
 // but never offered. An avatar is offered as D308 offers it in a shot: its front under the node's
@@ -1470,7 +1470,7 @@ export function compositeMentionables(items: CompositeUpstreamItem[]) {
 In `src/lib/canvas-node-options.ts`: add `| "composite"` to `AddNodeType`, and after the `image-gen` option:
 
 ```ts
-  // D309 — "C": free, and the node's own initial. A composite is made by hand per shot.
+  // D310 — "C": free, and the node's own initial. A composite is made by hand per shot.
   { type: "composite", label: "Composite", mnemonic: "C" },
 ```
 
@@ -1485,7 +1485,7 @@ In `src/components/nodes/image-gen-output-settings.tsx`, add `modelLock?: { reas
 
 ```tsx
         {modelLock ? (
-          // D309 — a composite with an avatar must use the face model Seedance accepts. One
+          // D310 — a composite with an avatar must use the face model Seedance accepts. One
           // chip, nothing to choose, and the reason in plain words.
           <div className="space-y-2">
             <ParamChipGroup
@@ -1505,7 +1505,7 @@ In `src/components/nodes/image-gen-output-settings.tsx`, add `modelLock?: { reas
 In `src/components/nodes/image-gen-output-settings-body.tsx`: add to `Props`
 
 ```ts
-  /** D309 — the composite locks the model while an avatar is wired. */
+  /** D310 — the composite locks the model while an avatar is wired. */
   modelLock?: { reason: string };
   /** Why Generate is unavailable when `hasPrompt` is false. Image Gen's default is unchanged. */
   missingInputReason?: string;
@@ -1526,7 +1526,7 @@ import { useClientId } from "@/components/canvas/client-id-context";
 import { useAvatars } from "@/hooks/queries/avatars";
 import { compositeUpstreamItems, type CompositeUpstreamItem } from "@/lib/composite/upstream-items";
 
-/** D309 — the inputs wired into a composite, with avatars named and pictured. Raw store slices
+/** D310 — the inputs wired into a composite, with avatars named and pictured. Raw store slices
  *  are selected and the list derived in useMemo — building it inside the selector would return a
  *  fresh array every time and loop useSyncExternalStore. */
 export function useCompositeUpstream(nodeId: string): CompositeUpstreamItem[] {
@@ -1555,7 +1555,7 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 
 type Patch = (patch: Record<string, unknown>) => void;
 
-/** D309 — a composite's versions, Generate and Restore. The same endpoints Image Gen uses for
+/** D310 — a composite's versions, Generate and Restore. The same endpoints Image Gen uses for
  *  versions and restore; generation goes to composite-generate with the instruction in the body
  *  (the canvas autosaves on a delay, so the stored copy can lag). */
 export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Patch) {
@@ -1646,7 +1646,7 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
 import { Combine } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** D309 — the composite's current image, or what is about to fill it. */
+/** D310 — the composite's current image, or what is about to fill it. */
 export function CompositeOutputPane({ imageUrl, generating }: { imageUrl: string | null; generating: boolean }) {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-muted/40 p-6">
@@ -1717,7 +1717,7 @@ type Props = {
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
-// D309 — the Composite node's focus view: Image Gen's shell and headings, minus the prompt lane.
+// D310 — the Composite node's focus view: Image Gen's shell and headings, minus the prompt lane.
 // Rail: Composite (compose here), the wired inputs, History. Middle: the instruction and output
 // settings. Right: the image, always visible.
 export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl, instruction, modelId, params, onPatch }: Props) {
@@ -1878,7 +1878,7 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { CompositeFocusView } from "./composite-focus-view";
 
-// D309 — the Composite card: the current image and a way in. Generation runs in the focus view.
+// D310 — the Composite card: the current image and a way in. Generation runs in the focus view.
 export function CompositeNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const d = data as CompositeNodeData;
   const imageUrl = typeof d.parsed === "string" ? d.parsed : null;
@@ -1977,7 +1977,7 @@ Expected: all clean / PASS.
 
 ```bash
 git add src/lib/composite src/hooks/use-composite-upstream.ts src/hooks/use-composite-versions.ts src/components/nodes/composite-node.tsx src/components/nodes/composite-focus-view.tsx src/components/nodes/composite-output-pane.tsx src/components/nodes/image-gen-output-settings.tsx src/components/nodes/image-gen-output-settings-body.tsx src/lib/canvas-node-options.ts src/lib/canvas-node-options.test.ts src/components/canvas/quick-add-menu.tsx src/components/canvas/canvas.tsx
-git commit -m "feat(composite): the card, focus view and add-menu entry (D309)"
+git commit -m "feat(composite): the card, focus view and add-menu entry (D310)"
 ```
 
 ---

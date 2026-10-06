@@ -25,7 +25,7 @@ import {
 import { compositeModelLock, resolveCompositeModelId } from "@/lib/composite/model";
 import { buildCompositePrompt, COMPOSITE_PROMPT_ID } from "@/prompts/composite-generate";
 
-// D309 — the Composite node's generation. image-generate/route.ts is the template, not the
+// D310 — the Composite node's generation. image-generate/route.ts is the template, not the
 // route: the pipeline (validate → generation → reserve → provider → upload → version → settle,
 // and record-fail-refund on error) is the same; the prompt comes from the node's own instruction
 // and the reference roster instead of a connected Prompt node. Every operator error is refused

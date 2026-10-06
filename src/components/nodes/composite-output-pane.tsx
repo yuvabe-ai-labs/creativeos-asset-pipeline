@@ -3,7 +3,7 @@
 import { Combine } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** D309 — the composite's current image, or what is about to fill it. */
+/** D310 — the composite's current image, or what is about to fill it. */
 export function CompositeOutputPane({ imageUrl, generating }: { imageUrl: string | null; generating: boolean }) {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-muted/40 p-6">

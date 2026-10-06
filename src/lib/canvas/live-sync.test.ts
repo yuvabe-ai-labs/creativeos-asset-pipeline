@@ -8,7 +8,7 @@ const node = (id: string, type: string, data: Record<string, unknown> = {}): Liv
 });
 
 describe("planCanvasLiveSync", () => {
-  // D309 — a composite's output is an image URL like image-gen's; a second viewer must see it.
+  // D310 — a composite's output is an image URL like image-gen's; a second viewer must see it.
   it("swaps in another user's new composite", () => {
     const patches = planCanvasLiveSync({
       nodes: [node("c", "composite", { parsed: "old.png" })],

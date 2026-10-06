@@ -4,7 +4,7 @@ import { getAvatar } from "@/lib/db/avatars";
 import { presenterUpstreamRows } from "@/lib/avatars/presenter";
 import { compositeRefs, type CompositeRef } from "./references";
 
-// D309 — a composite's wired inputs, from the database. An Avatar node holds only an id (D298),
+// D310 — a composite's wired inputs, from the database. An Avatar node holds only an id (D298),
 // so its images are read live; archived avatars still resolve (D287 — what already uses an
 // avatar keeps working). Each avatar row is replaced, in place, by D308's rows — its front, then
 // its fresh profile sheet — so the composite numbers an avatar exactly as a shot does. An avatar

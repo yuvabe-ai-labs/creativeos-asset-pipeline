@@ -17,7 +17,7 @@ before anything else.
 
 1. **The design spec** — `docs/superpowers/specs/2026-10-01-composite-node-design.md`
    (rewritten 2026-10-06). This is the thing to build.
-2. **The ADR** — D309 in `2026-05-30-creativeos-staging-roadmap.md` §7, and the two it refines:
+2. **The ADR** — D310 in `2026-05-30-creativeos-staging-roadmap.md` §7, and the two it refines:
    D298 (the Avatar node) and D290 (which model Seedance takes faces from). D299 is the pattern the
    avatar input reuses.
 3. **The handoff** — `docs/superpowers/specs/2026-09-22-seedream-seedance-handoff.md` §0.2 — only
@@ -45,5 +45,5 @@ Seedream model Seedance takes faces from. The route copies `image-generate`.
 - **Preservation runs both ways**: the product unchanged *and* the person unaltered. A 2026-09-24
   probe had Seedance invent lettering on a shoe specified "no text, no logo".
 - **The model lock is enforced in the route**, not just the picker.
-- **ADR numbers.** D309 is this node's. The log moves fast — check `origin/staging` before adding
+- **ADR numbers.** D310 is this node's. The log moves fast — check `origin/staging` before adding
   any new number.

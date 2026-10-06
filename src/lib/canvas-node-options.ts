@@ -32,7 +32,7 @@ export const ADD_NODE_OPTIONS: readonly AddNodeOption[] = [
   { type: "prompt", label: "Prompt", mnemonic: "P" },
   { type: "draw", label: "Draw", mnemonic: "D" },
   { type: "image-gen", label: "Image Gen", mnemonic: "I" },
-  // D309 — "C": free, and the node's own initial. A composite is made by hand per shot.
+  // D310 — "C": free, and the node's own initial. A composite is made by hand per shot.
   { type: "composite", label: "Composite", mnemonic: "C" },
   // "M" for Motion Prompt, freeing "V" for Video Gen and "G" for the Gallery drawer,
   // which owns bare "g" through its own document listener (D137).

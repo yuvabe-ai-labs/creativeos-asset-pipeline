@@ -46,7 +46,7 @@ type Props = {
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
-// D309 — the Composite node's focus view: Image Gen's shell and headings, minus the prompt lane.
+// D310 — the Composite node's focus view: Image Gen's shell and headings, minus the prompt lane.
 // Rail: Composite (compose here), the wired inputs, History. Middle: the instruction and output
 // settings. Right: the image, always visible.
 export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl, instruction, modelId, params, onPatch }: Props) {

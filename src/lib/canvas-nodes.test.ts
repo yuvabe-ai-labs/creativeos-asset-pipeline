@@ -141,7 +141,7 @@ describe("flowToPersisted (image-gen edit fields)", () => {
 });
 
 describe("canConnect", () => {
-  it("D298/D309 — an avatar connects to a script and a composite, and nothing else", () => {
+  it("D298/D310 — an avatar connects to a script and a composite, and nothing else", () => {
     expect(canConnect("avatar", "script")).toBe(true);
     expect(canConnect("avatar", "composite")).toBe(true);
     expect(canConnect("avatar", "video-gen")).toBe(false);
@@ -150,7 +150,7 @@ describe("canConnect", () => {
     expect(canConnect("script", "avatar")).toBe(false);
   });
 
-  it("D309 — every image source feeds a composite", () => {
+  it("D310 — every image source feeds a composite", () => {
     for (const source of ["file", "draw", "image-gen", "composite", "avatar"]) {
       expect(canConnect(source, "composite")).toBe(true);
     }
@@ -159,7 +159,7 @@ describe("canConnect", () => {
     }
   });
 
-  it("D309 — a composite goes everywhere an Image Gen still goes", () => {
+  it("D310 — a composite goes everywhere an Image Gen still goes", () => {
     for (const target of ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post"]) {
       expect(canConnect("image-gen", target)).toBe(true);
       expect(canConnect("composite", target)).toBe(true);

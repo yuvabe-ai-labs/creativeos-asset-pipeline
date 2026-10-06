@@ -28,7 +28,7 @@ const AVATAR_ROWS = presenterUpstreamRows("n-av", RIYA);
 const SANDALS = row("n-file", "file", { fileKind: "image", fileUrl: "https://cdn/sandals.png", filename: "Sandals.png", fileSizeBytes: 10 });
 const OFFICE = row("n-cmp", "composite", { title: "Office sheet" }, "https://cdn/office.png");
 
-describe("compositeRefs (D309)", () => {
+describe("compositeRefs (D310)", () => {
   it("numbers one image per entry, in upstream order; the avatar's front then its sheet", () => {
     const refs = compositeRefs([...AVATAR_ROWS, SANDALS, OFFICE]);
     expect(refs.map((r) => [r.nodeId, r.name, r.role, r.position])).toEqual([

@@ -6,7 +6,7 @@ import {
   resolveCompositeModelId,
 } from "../model";
 
-describe("composite model (D309)", () => {
+describe("composite model (D310)", () => {
   it("defaults to the model Seedance takes faces from", () => {
     expect(COMPOSITE_DEFAULT_MODEL_ID).toBe(SEEDANCE_FACE_MODEL_ID);
   });

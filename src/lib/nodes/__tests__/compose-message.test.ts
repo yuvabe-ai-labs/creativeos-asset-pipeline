@@ -5,7 +5,7 @@ import type { UpstreamPreview } from "../resolve-inputs";
 const base = { nodeId: "n", versionId: null, label: "X", text: "" };
 
 describe("buildUserContent vision handling", () => {
-  it("treats a composite upstream WITH a fileUrl as a vision part (D309)", () => {
+  it("treats a composite upstream WITH a fileUrl as a vision part (D310)", () => {
     const up: UpstreamPreview[] = [
       { ...base, type: "composite", fileUrl: "https://x/c.png", fileKind: "image" },
     ];

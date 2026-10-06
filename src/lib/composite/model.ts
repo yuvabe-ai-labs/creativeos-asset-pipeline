@@ -1,6 +1,6 @@
 import { SEEDANCE_FACE_MODEL_ID } from "@/lib/avatars/constants";
 
-// D309 — which image model a composite is made with. A composite with an avatar in it is a new
+// D310 — which image model a composite is made with. A composite with an avatar in it is a new
 // picture of that avatar's face, and Seedance accepts a face only from SEEDANCE_FACE_MODEL_ID
 // (D290) — so while an avatar is wired the model is locked to it. Imported, never restated: if
 // the avatar's face model changes, the composite follows.

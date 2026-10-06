@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { getNodeOutput, renderShotForImage, renderShotContext, shotContextMode } from "./node-output";
 
 describe("getNodeOutput", () => {
-  it("returns a composite's active image URL, like image-gen (D309)", () => {
+  it("returns a composite's active image URL, like image-gen (D310)", () => {
     expect(
       getNodeOutput({ type: "composite", data: {}, activeOutput: " https://cdn/c.png " }),
     ).toBe("https://cdn/c.png");

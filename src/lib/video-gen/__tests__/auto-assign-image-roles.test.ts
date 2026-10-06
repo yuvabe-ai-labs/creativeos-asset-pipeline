@@ -145,7 +145,7 @@ describe("orderImagesForPromptTokens", () => {
   });
 });
 
-describe("D309 — a composite is a reference", () => {
+describe("D310 — a composite is a reference", () => {
   it("a composite defaults to reference, never start_frame, even on a no-reference model", () => {
     const roles = autoAssignImageRoles(
       [{ nodeId: "c1", url: "https://cdn/c.png", type: "composite" }],
