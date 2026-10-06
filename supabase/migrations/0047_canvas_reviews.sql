@@ -1,4 +1,4 @@
--- D307: public, token-scoped client review of an uploaded cut.
+-- D309: public, token-scoped client review of an uploaded cut.
 -- One review per Client review node; comments are add + edit (never delete).
 -- Server code reads and writes both tables with the service-role client (D44).
 -- No anon policy — the public page goes through /api/r/* (D86 stands).

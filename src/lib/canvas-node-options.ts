@@ -41,7 +41,7 @@ export const ADD_NODE_OPTIONS: readonly AddNodeOption[] = [
   { type: "multishot-prompt", label: "Multishot Prompt", mnemonic: "U" },
   { type: "video-gen", label: "Video Gen", mnemonic: "V" },
   { type: "post", label: "Post", mnemonic: "O" },
-  // "R" for Review. The cut a client comments on through a public link (D307).
+  // "R" for Review. The cut a client comments on through a public link (D309).
   { type: "client-review", label: "Client review", mnemonic: "R" },
 ];
 

@@ -249,7 +249,7 @@ export type PostNodeData = {
   thumbnail?: string;
 };
 
-// D307: an uploaded cut shared with the client by link. The video, token and comments
+// D309: an uploaded cut shared with the client by link. The video, token and comments
 // live in canvas_reviews / canvas_review_comments — only the title is node data.
 export type ClientReviewNodeData = { title?: string };
 

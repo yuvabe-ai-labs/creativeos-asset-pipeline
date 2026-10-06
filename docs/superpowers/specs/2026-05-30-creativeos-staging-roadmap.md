@@ -6453,7 +6453,7 @@ is likely refused as a real face).
 
 **Originated →** `2026-10-06-avatar-references-and-limits-design.md`.
 
-### D307 — Public token-scoped review links for canvas reviews *(recorded 2026-10-01)*
+### D309 — Public token-scoped review links for canvas reviews *(recorded 2026-10-01)*
 
 **Decision.** A Client review node holds one uploaded cut (`canvas_reviews`, one row per node) and
 a plain-stored 32-byte `share_token`. `/r/[token]` and `/api/r/[token]/*` are exempted in

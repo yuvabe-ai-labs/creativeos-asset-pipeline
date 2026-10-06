@@ -1,7 +1,7 @@
 import { apiOk, withShareToken, withQuietErrors } from "@/lib/api/route-helpers";
 import { buildPublicReview } from "@/lib/client-review/load";
 
-// GET /api/r/:token — public (D307). Used to refresh the list after a post or edit;
+// GET /api/r/:token — public (D309). Used to refresh the list after a post or edit;
 // the first load is server-rendered by src/app/r/[token]/page.tsx.
 export async function GET(
   _req: Request,

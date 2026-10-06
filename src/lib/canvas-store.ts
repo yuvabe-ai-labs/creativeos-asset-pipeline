@@ -86,7 +86,7 @@ export type CanvasState = {
   // Programmatic focus-view open signal — set by the tray to open a node's focus view.
   focusedNodeId: string | null;
   setFocusedNodeId: (id: string | null) => void;
-  // D307: which Client review node's feedback the right-side drawer shows. Null = closed.
+  // D309: which Client review node's feedback the right-side drawer shows. Null = closed.
   // The drawer is non-modal and stays open until closed; clicking another review node swaps it.
   feedbackNodeId: string | null;
   setFeedbackNodeId: (id: string | null) => void;

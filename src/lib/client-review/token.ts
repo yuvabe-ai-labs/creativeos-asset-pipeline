@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 
-// D307: the token IS the capability. 32 CSPRNG bytes → 43 base64url chars.
+// D309: the token IS the capability. 32 CSPRNG bytes → 43 base64url chars.
 export function generateShareToken(): string {
   return randomBytes(32).toString("base64url");
 }

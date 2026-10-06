@@ -5,7 +5,7 @@ import { clientReviewService } from "@/services/client-review.service";
 import { withAddedComment, withEditedComment } from "@/lib/client-review/utils";
 import type { PublicReview, ReviewComment } from "@/lib/client-review/wire";
 
-// D307 client review share, through TanStack Query (CLAUDE.md, "Data fetching"). The keys are
+// D309 client review share, through TanStack Query (CLAUDE.md, "Data fetching"). The keys are
 // built here and nowhere else. Both queries keep the app defaults (staleTime 30 s, no refetch on
 // window focus, no polling): the canvas node refreshes when its focus view opens or closes, and
 // the public page refreshes only after the reviewer's own post or edit.

@@ -16,7 +16,7 @@ import { ClientReviewUpload } from "./client-review-upload";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
 
-// D307: terminal node (no handles) — the cut a client reviews by public link. Clicking the
+// D309: terminal node (no handles) — the cut a client reviews by public link. Clicking the
 // card opens the client feedback drawer (right side, non-modal) for this node; there is no
 // full-screen focus view, so feedback and the canvas stay on screen together.
 export function ClientReviewNode({ id, data, selected }: NodeProps) {

@@ -408,7 +408,7 @@ export function Canvas({
           tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
       <ReviewDrawer canvasId={canvasId} />
 
-      {/* D307: client feedback drawer — opened by clicking a Client review node. Non-modal
+      {/* D309: client feedback drawer — opened by clicking a Client review node. Non-modal
           and right-side like the review drawer, so feedback and the canvas share the screen. */}
       <ClientFeedbackDrawer />
 

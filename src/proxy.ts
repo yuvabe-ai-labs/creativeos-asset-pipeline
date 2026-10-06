@@ -70,7 +70,7 @@ export async function proxy(request: NextRequest) {
 }
 
 // Run on everything EXCEPT: /login, webhooks (server-to-server, no session), the
-// public client review page + API (/r/*, /api/r/* — D307, token-scoped via
+// public client review page + API (/r/*, /api/r/* — D309, token-scoped via
 // withShareToken), Next internals, and static assets.
 //
 // mp4/webm are in the exclusion list for the Help chapter clips in public/help-videos.

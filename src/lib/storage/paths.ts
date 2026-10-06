@@ -221,7 +221,7 @@ export function clientReviewPrefix(args: {
   return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/client-review/`;
 }
 
-// D307: the uploaded cut a client reviews. One per node; a new cut is a new node.
+// D309: the uploaded cut a client reviews. One per node; a new cut is a new node.
 export function pathForClientReviewCut(args: {
   clientId: string;
   canvasId: string;

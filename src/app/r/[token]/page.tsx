@@ -5,7 +5,7 @@ import { isWellFormedToken } from "@/lib/client-review/token";
 import { buildPublicReview } from "@/lib/client-review/load";
 import { ClientReviewPage } from "@/components/client-review/client-review-page";
 
-// D307: the public client review page. Server-rendered with the review already loaded,
+// D309: the public client review page. Server-rendered with the review already loaded,
 // so the first paint has the video and comments — no client fetch on first load.
 export const dynamic = "force-dynamic";
 

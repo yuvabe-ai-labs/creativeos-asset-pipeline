@@ -5,7 +5,7 @@ import { isNotFound, readJson } from "./read-json";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const EMPTY: NodeClientReview = { review: null, comments: [] };
 
-// D307 client review share. Team reads go through the session (/api/nodes/:id/client-review);
+// D309 client review share. Team reads go through the session (/api/nodes/:id/client-review);
 // public reads and writes are scoped by the share token alone (/api/r/:token/...).
 class ClientReviewService {
   /** The node's cut and its comments. A 404 means the node row isn't saved yet (autosave lag)

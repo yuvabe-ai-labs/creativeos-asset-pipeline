@@ -6,7 +6,7 @@ import { isPublicReviewPath } from "@/lib/client-review/paths";
 import { HeaderBrand } from "./header-brand";
 import { HeaderActions } from "./header-actions";
 
-// The app chrome, minus the public client review page (D307): a client has no session,
+// The app chrome, minus the public client review page (D309): a client has no session,
 // so the inbox/profile would 401, and the page must read as the studio's deliverable.
 export function AppHeader({ className }: { className?: string }) {
   const pathname = usePathname();

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router (`src/proxy.ts`, async `params`), React 19, Supabase (Postgres, service-role), GCS (public URLs, V4 signed PUT), React Flow (`@xyflow/react`), Tailwind v4, shadcn on Base UI, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-09-30-client-review-share-design.md` (ADR D307 in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7)
+**Spec:** `docs/superpowers/specs/2026-09-30-client-review-share-design.md` (ADR D309 in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7)
 
 ## Global Constraints
 
@@ -261,7 +261,7 @@ Expected: FAIL — modules not found.
 
 `src/lib/client-review/constants.ts`:
 ```ts
-// D307 client review share. Limits are copied verbatim from the spec
+// D309 client review share. Limits are copied verbatim from the spec
 // (docs/superpowers/specs/2026-09-30-client-review-share-design.md).
 export const REVIEWER_NAME_MAX = 60;
 export const COMMENT_BODY_MAX = 2000;
@@ -338,7 +338,7 @@ export function cutExtension(filename: string): string | null {
 import "server-only";
 import { randomBytes } from "node:crypto";
 
-// D307: the token IS the capability. 32 CSPRNG bytes → 43 base64url chars.
+// D309: the token IS the capability. 32 CSPRNG bytes → 43 base64url chars.
 export function generateShareToken(): string {
   return randomBytes(32).toString("base64url");
 }
@@ -413,7 +413,7 @@ export function toReviewComment(row: ReviewCommentRow): ReviewComment {
 
 `src/lib/client-review/paths.ts`:
 ```ts
-// The one public route prefix (D307). Used by the proxy test and AppHeader.
+// The one public route prefix (D309). Used by the proxy test and AppHeader.
 export function isPublicReviewPath(pathname: string): boolean {
   return pathname === "/r" || pathname.startsWith("/r/");
 }
@@ -462,7 +462,7 @@ This task has no unit test: the module is a thin query layer, mocked by every ro
 
 `supabase/migrations/0047_canvas_reviews.sql`:
 ```sql
--- D307: public, token-scoped client review of an uploaded cut.
+-- D309: public, token-scoped client review of an uploaded cut.
 -- One review per Client review node; comments are add + edit (never delete).
 -- Server code reads and writes both tables with the service-role client (D44).
 -- No anon policy — the public page goes through /api/r/* (D86 stands).
@@ -661,7 +661,7 @@ Ask the operator to apply `0047_canvas_reviews.sql` to the staging Supabase proj
 
 ```bash
 git add supabase/migrations/0047_canvas_reviews.sql src/lib/db/client-reviews.ts
-git commit -m "feat(client-review): migration 0047 + DB module (D307)
+git commit -m "feat(client-review): migration 0047 + DB module (D309)
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ```
@@ -714,7 +714,7 @@ export function clientReviewPrefix(args: {
   return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/client-review/`;
 }
 
-// D307: the uploaded cut a client reviews. One per node; a new cut is a new node.
+// D309: the uploaded cut a client reviews. One per node; a new cut is a new node.
 export function pathForClientReviewCut(args: {
   clientId: string;
   canvasId: string;
@@ -832,7 +832,7 @@ import { isWellFormedToken } from "@/lib/client-review/token";
 ```
 and add this section after `withMoodboard`:
 ```ts
-// ── Share-token resolution (D307) ─────────────────────────────────────────────
+// ── Share-token resolution (D309) ─────────────────────────────────────────────
 
 // The ONE unauthenticated entry point in the app: /api/r/[token]/* (exempted in
 // src/proxy.ts). The token is the capability — no session, no org check, no
@@ -908,7 +908,7 @@ import { config } from "./proxy";
 // The matcher is a regex source; a path the regex does NOT match skips the session check.
 const runsProxy = (path: string) => new RegExp(`^${config.matcher[0]}$`).test(path);
 
-describe("proxy matcher (D307)", () => {
+describe("proxy matcher (D309)", () => {
   it("skips the session check for the public review page and API", () => {
     expect(runsProxy("/r/abc")).toBe(false);
     expect(runsProxy("/api/r/abc")).toBe(false);
@@ -937,7 +937,7 @@ Expected: FAIL on the first `it` (`/r/abc` currently runs the proxy).
 In `src/proxy.ts`, replace the `config` block's comment and matcher:
 ```ts
 // Run on everything EXCEPT: /login, webhooks (server-to-server, no session), the
-// public client review page + API (/r/*, /api/r/* — D307, token-scoped via
+// public client review page + API (/r/*, /api/r/* — D309, token-scoped via
 // withShareToken), Next internals, and static assets.
 //
 // mp4/webm are in the exclusion list for the Help chapter clips in public/help-videos.
@@ -960,7 +960,7 @@ import { isPublicReviewPath } from "@/lib/client-review/paths";
 import { HeaderBrand } from "./header-brand";
 import { HeaderActions } from "./header-actions";
 
-// The app chrome, minus the public client review page (D307): a client has no session,
+// The app chrome, minus the public client review page (D309): a client has no session,
 // so the inbox/profile would 401, and the page must read as the studio's deliverable.
 export function AppHeader({ className }: { className?: string }) {
   const pathname = usePathname();
@@ -1195,7 +1195,7 @@ Expected: FAIL — route modules not found.
 import { apiOk, withShareToken, withTryCatch } from "@/lib/api/route-helpers";
 import { buildPublicReview } from "@/lib/client-review/load";
 
-// GET /api/r/:token — public (D307). Used to refresh the list after a post or edit;
+// GET /api/r/:token — public (D309). Used to refresh the list after a post or edit;
 // the first load is server-rendered by src/app/r/[token]/page.tsx.
 export async function GET(
   _req: Request,
@@ -1214,7 +1214,7 @@ import { parseNewComment } from "@/lib/client-review/validate";
 import { toReviewComment } from "@/lib/client-review/wire";
 import { insertComment } from "@/lib/db/client-reviews";
 
-// POST /api/r/:token/comments — public (D307). Add one comment at a paused frame.
+// POST /api/r/:token/comments — public (D309). Add one comment at a paused frame.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ token: string }> },
@@ -1237,7 +1237,7 @@ import { parseCommentEdit } from "@/lib/client-review/validate";
 import { toReviewComment } from "@/lib/client-review/wire";
 import { updateComment } from "@/lib/db/client-reviews";
 
-// PATCH /api/r/:token/comments/:commentId — public (D307). Anyone with the link may
+// PATCH /api/r/:token/comments/:commentId — public (D309). Anyone with the link may
 // edit any comment's TEXT; the moment and original author are never editable.
 export async function PATCH(
   req: Request,
@@ -1477,7 +1477,7 @@ import { getReviewByNodeId } from "@/lib/db/client-reviews";
 import { signClientReviewUpload } from "@/lib/storage";
 
 // POST /api/nodes/:id/client-review/sign — authorize a direct browser → GCS upload of
-// the node's cut (D307). One cut per node: a node that already has one gets 409.
+// the node's cut (D309). One cut per node: a node that already has one gets 409.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not authorize upload.", () =>
     withNode(req, params, async (nodeId, node, _caller, clientId) => {
@@ -1780,7 +1780,7 @@ import { isWellFormedToken } from "@/lib/client-review/token";
 import { buildPublicReview } from "@/lib/client-review/load";
 import { ClientReviewPage } from "@/components/client-review/client-review-page";
 
-// D307: the public client review page. Server-rendered with the review already loaded,
+// D309: the public client review page. Server-rendered with the review already loaded,
 // so the first paint has the video and comments — no client fetch on first load.
 export const dynamic = "force-dynamic";
 
@@ -2248,7 +2248,7 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
 - [ ] **Step 5: Typecheck and lint**
 
 Run: `npx tsc --noEmit` then `npm run lint`
-Expected: no errors in the new files. (If ESLint flags the inline `<script>`, keep it and add a one-line disable with the reason "pre-paint name check, D307" — the inline script is the point.)
+Expected: no errors in the new files. (If ESLint flags the inline `<script>`, keep it and add a one-line disable with the reason "pre-paint name check, D309" — the inline script is the point.)
 
 - [ ] **Step 6: Manual run (requires the 0047 migration applied and Task 10 not yet needed)**
 
@@ -2304,13 +2304,13 @@ Expected: FAIL — `client-review` missing.
 
 `src/lib/canvas-node-options.ts`: add `| "client-review"` to `AddNodeType`, and append to `ADD_NODE_OPTIONS`:
 ```ts
-  // "R" for Review. The cut a client comments on through a public link (D307).
+  // "R" for Review. The cut a client comments on through a public link (D309).
   { type: "client-review", label: "Client review", mnemonic: "R" },
 ```
 
 `src/lib/canvas-nodes.ts`: after `DrawNodeData` add
 ```ts
-// D307: an uploaded cut shared with the client by link. The video, token and comments
+// D309: an uploaded cut shared with the client by link. The video, token and comments
 // live in canvas_reviews / canvas_review_comments — only the title is node data.
 export type ClientReviewNodeData = { title?: string };
 ```
@@ -2588,7 +2588,7 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
 import { useNodeClientReview } from "./use-node-client-review";
 
-// D307: terminal node (no handles) — the cut a client reviews by public link.
+// D309: terminal node (no handles) — the cut a client reviews by public link.
 export function ClientReviewNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
@@ -2721,11 +2721,11 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ### Task 11: Close out
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (D307 status), `docs/superpowers/specs/2026-09-30-client-review-share-design.md` (status line)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (D309 status), `docs/superpowers/specs/2026-09-30-client-review-share-design.md` (status line)
 
-- [ ] **Step 1: Mark D307 recorded**
+- [ ] **Step 1: Mark D309 recorded**
 
-In the roadmap, change the D307 heading suffix from `*(recorded 2026-10-01; draft, pending spec approval)*` to `*(recorded 2026-10-01)*`. In the spec, change `**Status:** draft for review` to `**Status:** implemented on feat/client-review-share`.
+In the roadmap, change the D309 heading suffix from `*(recorded 2026-10-01; draft, pending spec approval)*` to `*(recorded 2026-10-01)*`. In the spec, change `**Status:** draft for review` to `**Status:** implemented on feat/client-review-share`.
 
 - [ ] **Step 2: Final verification**
 
@@ -2736,7 +2736,7 @@ Expected: all green. Paste the summary lines into the hand-off message.
 
 ```bash
 git add docs/superpowers/specs
-git commit -m "docs(client-review): D307 recorded; spec implemented
+git commit -m "docs(client-review): D309 recorded; spec implemented
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ```

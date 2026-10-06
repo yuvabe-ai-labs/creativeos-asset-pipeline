@@ -1,4 +1,4 @@
-// The one public route prefix (D307). Used by the proxy test and AppHeader.
+// The one public route prefix (D309). Used by the proxy test and AppHeader.
 export function isPublicReviewPath(pathname: string): boolean {
   return pathname === "/r" || pathname.startsWith("/r/");
 }

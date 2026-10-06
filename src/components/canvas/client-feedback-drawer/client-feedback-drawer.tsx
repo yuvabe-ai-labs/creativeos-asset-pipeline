@@ -16,7 +16,7 @@ import { clientReviewKeys, useNodeClientReview } from "@/hooks/queries/client-re
 import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
 import type { NodeClientReview } from "@/lib/client-review/wire";
 
-// D307 — the client feedback drawer. Right side, vertical: the cut on top, the client's
+// D309 — the client feedback drawer. Right side, vertical: the cut on top, the client's
 // comments under it; clicking a comment's timecode scrubs the video there.
 //
 // NON-MODAL with no backdrop, like the gallery and review drawers, so a designer can read
