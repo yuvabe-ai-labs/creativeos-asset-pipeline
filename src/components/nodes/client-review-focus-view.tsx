@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ArrowLeft, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CommentList } from "@/components/client-review/comment-list";
@@ -17,6 +18,8 @@ export function ClientReviewFocusView({
   nodeId,
   title,
   data,
+  loading,
+  error,
   onTitle,
   onReload,
   onUploaded,
@@ -26,10 +29,13 @@ export function ClientReviewFocusView({
   nodeId: string;
   title: string;
   data: NodeClientReview | null;
+  loading: boolean;
+  error: string | null;
   onTitle: (title: string) => void;
   onReload: () => Promise<void>;
   onUploaded: (next: NodeClientReview) => void;
 }) {
+  const editable = useCanvasEditable();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Fresh comments every time the operator opens the review (spec §5).
@@ -50,8 +56,12 @@ export function ClientReviewFocusView({
   // window is read on click, never during render — canvas nodes are also server-rendered.
   async function copyLink() {
     if (!review) return;
-    await navigator.clipboard.writeText(`${window.location.origin}${review.sharePath}`);
-    toast.success("Link copied");
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${review.sharePath}`);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy — copy it from Open as client.");
+    }
   }
 
   return (
@@ -108,10 +118,25 @@ export function ClientReviewFocusView({
             </div>
           ) : (
             <div className="mx-auto flex h-full max-w-sm flex-col justify-center gap-3 px-6">
-              <p className="text-sm text-muted-foreground">
-                Upload the edited cut. You&apos;ll get a link to send the client.
-              </p>
-              <ClientReviewUpload nodeId={nodeId} onUploaded={onUploaded} />
+              {loading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : !data ? (
+                <>
+                  <p className="text-sm text-muted-foreground">{error ?? "Couldn't load."}</p>
+                  <Button variant="ghost" onClick={() => void onReload()}>
+                    Retry
+                  </Button>
+                </>
+              ) : !editable ? (
+                <p className="text-sm text-muted-foreground">No cut uploaded yet.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Upload the edited cut. You&apos;ll get a link to send the client.
+                  </p>
+                  <ClientReviewUpload nodeId={nodeId} onUploaded={onUploaded} />
+                </>
+              )}
             </div>
           )}
         </div>

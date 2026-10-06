@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
 import { ClientReviewFocusView } from "./client-review-focus-view";
@@ -24,20 +25,19 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const d = data as ClientReviewNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
-  const { data: review, reload } = useNodeClientReview(id);
-  const [override, setOverride] = useState<typeof review>(null);
-  const current = override ?? review;
+  const { data: current, loading, error, reload, replace } = useNodeClientReview(id);
+  const editable = useCanvasEditable();
 
   const focusViewOpen = focusOpen || focusedNodeId === id;
   const handleFocusOpenChange = (next: boolean) => {
     setFocusOpen(next);
     if (!next && focusedNodeId === id) setFocusedNodeId(null);
-    if (!next) void reload().then(() => setOverride(null)); // count refresh on close
+    if (!next) void reload(); // count refresh on close
   };
   useFocusViewRegistration(id, focusViewOpen);
 
   const count = current?.comments.length ?? 0;
-  const hasCut = !!current?.review;
+  const cut = current?.review ?? null;
 
   return (
     <>
@@ -61,10 +61,10 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
             placeholder="Untitled cut"
             onCommitTitle={(t) => updateNodeData(id, { title: t })}
           />
-          {hasCut && current?.review && (
+          {cut && (
             <div className="overflow-hidden border-b border-border bg-black">
               <video
-                src={`${current.review.videoUrl}#t=0.1`}
+                src={`${cut.videoUrl}#t=0.1`}
                 preload="metadata"
                 muted
                 playsInline
@@ -73,7 +73,7 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
             </div>
           )}
           <div className="flex items-center justify-between gap-2 px-3 py-3">
-            {hasCut ? (
+            {cut ? (
               <>
                 <span className="text-xs text-muted-foreground">
                   {count} {count === 1 ? "comment" : "comments"}
@@ -86,8 +86,25 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
                   Open ↗
                 </Button>
               </>
+            ) : loading ? (
+              <span className="text-xs text-muted-foreground">Loading…</span>
+            ) : !current ? (
+              <>
+                <span className="text-xs text-muted-foreground">
+                  {error ?? "Couldn't load."}
+                </span>
+                <Button
+                  variant="ghost"
+                  onClick={() => void reload()}
+                  className="nodrag -mx-1.5 h-auto rounded-md px-1.5 py-1 text-xs"
+                >
+                  Retry
+                </Button>
+              </>
+            ) : editable ? (
+              <ClientReviewUpload nodeId={id} onUploaded={replace} />
             ) : (
-              <ClientReviewUpload nodeId={id} onUploaded={setOverride} />
+              <span className="text-xs text-muted-foreground">No cut uploaded yet.</span>
             )}
           </div>
         </div>
@@ -101,9 +118,11 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
         nodeId={id}
         title={d.title ?? ""}
         data={current}
+        loading={loading}
+        error={error}
         onTitle={(t) => updateNodeData(id, { title: t })}
         onReload={reload}
-        onUploaded={setOverride}
+        onUploaded={replace}
       />
     </>
   );

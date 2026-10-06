@@ -62,11 +62,18 @@ export function ClientReviewUpload({
   if (!editable) return null;
 
   return (
-    <div onDragOver={(e) => e.preventDefault()} onDrop={handleDrop} className="nodrag">
+    <div
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+      onDoubleClick={(e) => e.stopPropagation()}
+      className="nodrag"
+    >
       <Button
         variant="ghost"
         disabled={uploading}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (!uploading) inputRef.current?.click();
+        }}
         className="w-full gap-1.5 border border-dashed border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
       >
         <Upload className="size-4" strokeWidth={1.5} />
