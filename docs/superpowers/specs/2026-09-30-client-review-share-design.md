@@ -185,14 +185,20 @@ canvas_review_comments (
 - **Upload:** browser → signed PUT URL (existing `_signPutUrl` flow) → GCS; then the server creates
   the `canvas_reviews` row with a fresh token.
 - **On the node:** poster, inline-editable title, and **"5 comments"**.
-- **Focus view** (copies the video-gen focus-view shell): the video on the right; the comment list
-  in the middle (read-only for the team; shows *"edited by"*), where tapping a timecode seeks the video; **Copy link** and
-  **Open as client** at the top.
+- **Feedback drawer, not a focus view** (operator decision, 2026-10-06): clicking the card opens a
+  **right-side, non-modal drawer** (`ClientFeedbackDrawer`, no backdrop — same shell as the gallery
+  and review drawers). Vertical: the video on top with **Copy link** / **Open as client**, the comment
+  list below (read-only for the team; shows *"edited by"*); clicking a comment's timecode scrubs the
+  video there. It **stays open until closed**, so designers read feedback while working on the
+  canvas; clicking another Client review node swaps it. Open state lives in the canvas store
+  (`feedbackNodeId`); the tray/copilot open-node signal opens it too.
+- **Upload progress:** the upload chip shows a determinate bar (Preparing… → Uploading… n% →
+  Finishing…); the PUT to GCS goes over XHR because fetch has no upload-progress events.
 - Team routes (session-gated, `withNode`): `GET /api/nodes/[id]/client-review` (review + comments),
   `POST /api/nodes/[id]/client-review` (create after upload), `POST .../client-review/sign`.
 - **Title lives in the node's own data** (`data.title`, autosaved like every node title); the
   public `GET` reads it from the node row. No title column, no title route.
-- The count refreshes when the canvas loads and when the focus view opens.
+- The count refreshes when the canvas loads and whenever a node's feedback drawer is brought up.
 
 ## 6. Failure cases
 
