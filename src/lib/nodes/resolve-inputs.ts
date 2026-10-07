@@ -9,6 +9,7 @@ import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { describeVoLineForWriter, multishotVoiceover } from "@/lib/nodes/voiceover";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -18,6 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
   shot: "Shot",
   draw: "Sketch",
   "image-gen": "Image",
+  composite: "Composite",
   "video-prompt": "Motion Prompt",
   multishot: "Multishot",
 };
@@ -117,7 +119,7 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
   const filed = typeof u.data.filename === "string" ? u.data.filename.trim() : "";
   const name = titled || filed || undefined;
 
-  if (u.type === "image-gen") {
+  if (isGeneratedImageType(u.type)) {
     // The still's URL is the active output (a string). Feed it as vision, never as text.
     const url = typeof u.activeOutput === "string" ? u.activeOutput : undefined;
     return { ...base, text: "", fileUrl: url, fileKind: "image", ...(name ? { name } : {}) };

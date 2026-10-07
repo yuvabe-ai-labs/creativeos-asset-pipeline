@@ -35,6 +35,7 @@ import { ClientReviewNode } from "@/components/nodes/client-review-node";
 import { ClientFeedbackDrawer } from "@/components/canvas/client-feedback-drawer/client-feedback-drawer";
 import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
+import { CompositeNode } from "@/components/nodes/composite-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { PostNode } from "@/components/nodes/post-node";
@@ -75,6 +76,7 @@ const nodeTypes: NodeTypes = {
   "multishot-prompt": MultishotPromptNode,
   draw: DrawNode,
   "image-gen": ImageGenNode,
+  composite: CompositeNode,
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
   post: PostNode,

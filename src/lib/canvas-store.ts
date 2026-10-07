@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
 import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
@@ -132,6 +133,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "" };
     case "image-gen":
       return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
+    case "composite":
+      return { title: "", modelId: COMPOSITE_DEFAULT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
     case "post":

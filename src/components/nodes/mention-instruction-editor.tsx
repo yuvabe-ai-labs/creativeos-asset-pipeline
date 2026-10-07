@@ -6,6 +6,8 @@ import { ImageIcon, Paperclip, Pencil, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { UpstreamNode } from "./connected-inputs-card";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { mentionChipLookup } from "@/lib/nodes/mention-chip-lookup";
 
 // ── Segment model ─────────────────────────────────────────────────────────────
 
@@ -62,6 +64,7 @@ export type MentionInstructionEditorProps = {
 
 function nodeTypeLabel(type: string): string {
   if (type === "image-gen") return "Image";
+  if (type === "composite") return "Composite";
   if (type === "file") return "File";
   if (type === "draw") return "Sketch";
   if (type === "avatar") return "Avatar";
@@ -69,7 +72,7 @@ function nodeTypeLabel(type: string): string {
 }
 
 function NodeIcon({ type }: { type: string }) {
-  if (type === "image-gen") return <ImageIcon className="size-3 shrink-0" />;
+  if (isGeneratedImageType(type)) return <ImageIcon className="size-3 shrink-0" />;
   if (type === "file") return <Paperclip className="size-3 shrink-0" />;
   if (type === "draw") return <Pencil className="size-3 shrink-0" />;
   if (type === "avatar") return <UserRound className="size-3 shrink-0" />;
@@ -205,7 +208,7 @@ function buildChip(
 
   // An Image Gen still carries no fileKind on this shape — its output IS the image — so it would
   // otherwise fall through to the generic icon and lose its thumbnail.
-  if (upstream?.fileUrl && (upstream.fileKind === "image" || upstream.type === "image-gen")) {
+  if (upstream?.fileUrl && (upstream.fileKind === "image" || isGeneratedImageType(upstream.type))) {
     const img = document.createElement("img");
     img.src = upstream.fileUrl;
     img.alt = "";
@@ -214,7 +217,7 @@ function buildChip(
   } else {
     const iconSpan = document.createElement("span");
     iconSpan.className = "size-3 flex items-center justify-center shrink-0";
-    if (typeKey === "image-gen" || segment.label.startsWith("Image:")) {
+    if (isGeneratedImageType(typeKey) || segment.label.startsWith("Image:")) {
       iconSpan.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`;
     } else if (typeKey === "file" || segment.label.startsWith("File:")) {
       iconSpan.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`;
@@ -292,11 +295,7 @@ export function MentionInstructionEditor({
   // no entry and render as an orphan — the red "this points at nothing" treatment, on a mention
   // the operator just picked from the menu.
   useEffect(() => {
-    const map = new Map<string, UpstreamNode>(upstream.map((u) => [u.id, u]));
-    for (const m of mentionables ?? []) {
-      map.set(m.id, { id: m.id, label: m.label, type: m.type });
-    }
-    upstreamMapRef.current = map;
+    upstreamMapRef.current = mentionChipLookup(upstream, mentionables);
   }, [upstream, mentionables]);
 
   // What `@` offers. Defaults to the connected image-ish upstreams; `mentionables` replaces that
@@ -305,7 +304,7 @@ export function MentionInstructionEditor({
   const eligible =
     mentionables ??
     upstream
-      .filter((u) => u.type === "image-gen" || u.type === "draw" || u.type === "file" || u.type === "avatar")
+      .filter((u) => isGeneratedImageType(u.type) || u.type === "draw" || u.type === "file" || u.type === "avatar")
       .map((u) => ({
         id: u.id,
         label: `${nodeTypeLabel(u.type)}: ${u.label}`,

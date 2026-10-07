@@ -22,10 +22,11 @@ import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { PresenterFace } from "./presenter-face";
 import { useShotPresenter } from "@/hooks/use-shot-presenter";
 import { withAvatarAsSpeaker } from "@/lib/avatars/presenter";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
-  file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image", multishot: "Multishot",
+  file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image", composite: "Composite", multishot: "Multishot",
 };
 
 // Multishot Prompt node (D231). Sibling of the Video Prompt node's compact launcher (same
@@ -88,13 +89,13 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
       const fileUrl =
         n.type === "file" || n.type === "draw"
           ? (nd.fileUrl as string | undefined)
-          : n.type === "image-gen"
+          : isGeneratedImageType(n.type)
             ? (typeof nd.parsed === "string" ? (nd.parsed as string) : undefined)
             : undefined;
       const fileKind =
         n.type === "file" || n.type === "draw"
           ? (nd.fileKind as string | undefined)
-          : n.type === "image-gen"
+          : isGeneratedImageType(n.type)
             ? "image"
             : undefined;
       const typeLabel = TYPE_LABEL[n.type ?? ""] ?? String(n.type);

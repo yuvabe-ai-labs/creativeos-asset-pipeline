@@ -35,6 +35,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 type Props = {
   nodeId: string;
@@ -92,7 +93,7 @@ export function ShotComposeSheet({ nodeId, open, onOpenChange }: Props) {
             ? (d.fileUrl as string | undefined)
             : n.type === "file"
               ? (d.fileKind === "image" ? (d.fileUrl as string | undefined) : undefined)
-              : n.type === "image-gen"
+              : isGeneratedImageType(n.type)
                 ? (d.parsed as string | undefined)
                 : undefined;
         if (!url) return null;

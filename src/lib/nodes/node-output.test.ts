@@ -2,6 +2,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { getNodeOutput, renderShotForImage, renderShotContext, shotContextMode } from "./node-output";
 
 describe("getNodeOutput", () => {
+  it("returns a composite's active image URL, like image-gen (D312)", () => {
+    expect(
+      getNodeOutput({ type: "composite", data: {}, activeOutput: " https://cdn/c.png " }),
+    ).toBe("https://cdn/c.png");
+    expect(getNodeOutput({ type: "composite", data: {}, activeOutput: null })).toBe("");
+  });
+
   it("returns a text node's data.text", () => {
     expect(getNodeOutput({ type: "text", data: { text: "  hello  " }, activeOutput: null })).toBe("hello");
   });

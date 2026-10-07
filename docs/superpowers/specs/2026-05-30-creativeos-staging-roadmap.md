@@ -6658,3 +6658,54 @@ and write is milliseconds). Carrying document-module reviews over a re-extract (
 dialog says those reviews start over, since documents changed).
 
 **Refines →** D312. **Originated →** `2026-10-07-kb-image-analysis-design.md` §5.
+### D312 — The Composite node: references in, an instruction typed on the node, one image out; an avatar wires straight into it *(recorded 2026-10-06; refines D298, D290, D308)*
+
+**Decision.** A new **Composite** node (`type: "composite"`, mnemonic **C**) makes a shot's
+picture in one step: the avatar, background and product references in — all optional — an
+**instruction typed on the node** with `@`-mentions saying what each reference is for (the
+`MentionInstructionEditor` of D281), and one image out. Single frame or multi-angle sheet is
+whatever the instruction asks for; there is no layout control. The instruction goes to the image
+model behind a **fixed rule block** — the person unaltered (only when an avatar is wired), the
+product unchanged with no invented branding, one photograph, transcribe never complete, every
+panel of a sheet the same place in the same light, and **no styling of its own**: camera, lighting
+and composition come only from the operator's words. **`avatar → composite`** is a new edge; the
+avatar enters as virtual File rows (D299's `presenterUpstreamRow` pattern) — its front image and,
+when fresh, its profile sheet — two entries, two chips, exactly as D308 sends them for a shot. While an avatar is wired the
+model is **locked to `SEEDANCE_FACE_MODEL_ID`**, enforced in the route as well as the picker.
+Outputs go everywhere Image Gen's do, plus `composite → composite` (a location sheet becomes the
+background of an avatar composite). The route copies `image-generate` and reuses its providers,
+cost, credits, storage and versions unchanged.
+
+**Why.** UGC needs the avatar placed in a setting with a product, and settings on their own from
+several angles; the operator wants one place to do it rather than a Prompt node and an Image Gen
+node with every asset wired to both. A composite is a new picture of the avatar's face, so it must
+be drawn by the model Seedance accepts faces from (D290) or it stops being usable on Seedance.
+The wire is the signal (handoff §0.2): only an edge can say *this picture contains this person*.
+
+**Amended (2026-10-07).** Three changes after the first real composite pasted the avatar into a
+kitchen at portrait scale, studio-lit, in front of the room. (1) **The model is no longer locked.**
+Seedream stays the default with an avatar wired; Nano Banana and the other image models are
+selectable, and the picker says where the result can go — Seedream "works with Seedance, Gemini
+Omni, Kling and Veo", anything else "works with Gemini Omni, Kling and Veo — not Seedance" (the
+avatar's own `imageModelWorksWith`). Operator decision: a clip bound for Omni need not pay
+Seedream's constraints. (2) **The rule block now places people into scenes** — realistic scale on
+real surfaces at the camera's eye level, the scene's own light with contact shadows, a pose inside
+the space and never the portrait's crop, no cut-out look — and, **unless the instruction names a
+camera, frames like a still from an eye-level phone video** with face, hands and room readable,
+because the composite is a UGC clip's reference and the video model must be able to read it. The
+"no styling of its own" rule narrows to no lens effects, lighting setups or colour treatment.
+(3) **Edit**: Image Gen's typed edit (chips, references, editable final prompt) on the composite's
+current version, through the composite route with its preservation rules; the generate pipeline
+moved to `lib/composite/run-generation` so both share one credit path.
+
+**Rejected.** Role slots or separate Camera / Lighting / Composition fields (one mention-enabled
+box covers it, as D281 found). An LLM pass over the instruction (the instruction already is the
+brief; a rewrite costs a call and loses wording — revisit only on poor output). A composite prompt
+that never styles (the 2026-09-30 decision, withdrawn: for a location, light and mood are the
+content). A layout picker (the instruction says it). Defaulting to Nano Banana with an avatar wired
+(a face Seedance may refuse). Requiring a reference (a background from text alone is valid).
+
+**Refines.** D298 — the avatar gains a second edge, deliberately, though D298 rejected direct
+avatar edges into Image Gen and Video Gen; D290 — the composite inherits the face's model;
+D308 — the avatar contributes front then sheet, and an over-cap request is refused, never sliced.
+**Originated →** `2026-10-01-composite-node-design.md` (rewritten 2026-10-06).

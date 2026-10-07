@@ -30,6 +30,7 @@ import {
   singleTakeTargetForProvider,
 } from "@/lib/nodes/ref-binding";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference", "off"]);
 
@@ -203,7 +204,7 @@ export async function POST(
         if (data.fileKind !== "image") continue;
         url = typeof data.fileUrl === "string" ? data.fileUrl : undefined;
       } else if (
-        node.type === "image-gen" &&
+        isGeneratedImageType(node.type) &&
         (directIds.has(node.nodeId) || multishotPromptUpstreamIds.has(node.nodeId))
       ) {
         url = typeof node.activeOutput === "string" ? node.activeOutput : undefined;
