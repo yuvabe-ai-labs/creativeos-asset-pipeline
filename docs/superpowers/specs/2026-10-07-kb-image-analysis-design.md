@@ -37,8 +37,8 @@ wide), angle (eye level · high · low · top down), framing (centred · rule of
 off centre), lighting (studio · natural daylight · warm indoor · dramatic · flat graphic), background
 (plain · textured · real scene · pattern · gradient), and for text on images font (sans · serif ·
 script · handwritten · display), placement (top · centre · bottom · corner · full frame) and
-treatment (plain · boxed · outlined · shadowed · on band). Lighting, background and font each keep a
-short note for the detail.
+treatment (plain · boxed · outlined · shadowed · on band). Lighting, background, font, composition
+and the overlay's position and treatment each keep a short note for the detail.
 
 Then: summary,
 subjects, product {visible, presentation}, setting, background, composition {shot_type, angle,

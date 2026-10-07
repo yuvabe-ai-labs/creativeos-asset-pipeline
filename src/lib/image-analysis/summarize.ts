@@ -61,7 +61,7 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
   lines.push("", `Cards${sampled} (source | format | purpose | summary | setting / background | composition | lighting | mood | people | overlay):`);
   for (const { source, card: c } of brand) {
     const overlay = c.text_overlay.present
-      ? `${[c.text_overlay.font_style, c.text_overlay.font_note].filter(Boolean).join(" ") || "text"} ${c.text_overlay.colours_hex.join("/")} ${vocabLabel(c.text_overlay.placement ?? "")} "${(c.text_overlay.text ?? "").slice(0, 60)}"`
+      ? `${[c.text_overlay.font_style, c.text_overlay.font_note].filter(Boolean).join(" ") || "text"} ${c.text_overlay.colours_hex.join("/")} ${c.text_overlay.note ?? vocabLabel(c.text_overlay.placement ?? "")} "${(c.text_overlay.text ?? "").slice(0, 60)}"`
       : "-";
     lines.push(
       [
@@ -70,7 +70,7 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
         IMAGE_PURPOSE_LABELS[c.purpose],
         c.summary,
         [c.setting, `${vocabLabel(c.background)}${c.background_note ? ` (${c.background_note})` : ""}`].filter(Boolean).join(" / "),
-        [c.composition.shot_type, c.composition.angle, c.composition.framing].map(vocabLabel).join(", "),
+        [c.composition.shot_type, c.composition.angle, c.composition.framing].map(vocabLabel).join(", ") + (c.composition.note ? ` (${c.composition.note})` : ""),
         `${vocabLabel(c.lighting)}: ${c.lighting_note}`,
         c.mood.join(", "),
         c.people.count ? `${c.people.count}: ${c.people.description ?? ""}` : "-",

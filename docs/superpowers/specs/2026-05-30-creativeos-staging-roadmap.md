@@ -6612,8 +6612,8 @@ cards). Round-robin across groups (distorts proportions).
 ### D317 — Counted card fields take fixed choices; free-text notes keep the detail *(recorded 2026-10-07)*
 
 **Decision.** Shot type, angle, framing, lighting, background, and the text overlay's font,
-placement and treatment each take one value from a fixed list (`CARD_VOCAB`). Lighting, background
-and font each keep a short free-text note. Code counts every one of them; the summary input carries
+placement and treatment each take one value from a fixed list (`CARD_VOCAB`). Lighting, background,
+font, composition and the overlay (exact position and treatment) each keep a short free-text note. Code counts every one of them; the summary input carries
 those exact shares, and the summary prompt builds composition, lighting, settings and text-overlay
 fields on them. Card version 3.
 

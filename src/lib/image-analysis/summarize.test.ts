@@ -12,14 +12,14 @@ const card = (over: Partial<ImageCard> = {}): ImageCard => ({
   setting: "studio",
   background: "plain",
   background_note: "cream backdrop",
-  composition: { shot_type: "close_up", angle: "eye_level", framing: "centred" },
+  composition: { shot_type: "close_up", angle: "eye_level", framing: "centred", note: "pack upright" },
   lighting: "studio",
   lighting_note: "soft and even",
   colours: [{ name: "forest green", hex: "#2F5D3A", share: 60 }],
   mood: ["wholesome"],
   style_tags: ["clean"],
   people: { count: 0, description: null },
-  text_overlay: { present: false, text: null, font_style: null, font_note: null, colours_hex: [], placement: null, treatment: null },
+  text_overlay: { present: false, text: null, font_style: null, font_note: null, colours_hex: [], placement: null, treatment: null, note: null },
   logo_visible: true,
   polish: "professional",
   ...over,
@@ -58,6 +58,7 @@ describe("buildSummaryInput", () => {
   it("gives each card its fixed values with the notes behind them", () => {
     expect(text).toContain("plain (cream backdrop)");
     expect(text).toContain("studio: soft and even");
+    expect(text).toContain("close up, eye level, centred (pack upright)");
   });
 
   it("says when the cards are a sample of a larger set", () => {

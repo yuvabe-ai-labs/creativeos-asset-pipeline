@@ -41,7 +41,9 @@ Rules:
   lighting_note: quality and direction, e.g. "soft from the left, gentle shadows".
   background_note: what it is, e.g. "cream linen", "home kitchen counter".
   font_note: weight, width and case, e.g. "bold condensed caps".
-  With no text overlay, font_style, font_note, placement and treatment are null.
+  composition.note: what the lists can't say, e.g. "pack tilted, cropped at the top".
+  text_overlay.note: exact position and treatment, e.g. "lower left, on a yellow rounded band".
+  With no text overlay, font_style, font_note, placement, treatment and note are null.
 - colours: up to 6 main colours of the whole image, largest area first, each with a plain name,
   a #RRGGBB hex and its rough share of the image (0 to 100).
 - text_overlay: only text placed ON the image (captions, titles, callouts). Text printed on the
