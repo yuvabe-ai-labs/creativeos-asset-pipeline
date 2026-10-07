@@ -5,6 +5,20 @@ import type { BrandImageSource } from "@/lib/asset-import/constants";
 import type { ImageCard } from "@/lib/image-analysis/card-schema";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 
+/** PostgREST returns at most 1,000 rows a request (Supabase's default max_rows). */
+const PAGE = 1000;
+
+/** Every row of a query, a page at a time. `page(from, to)` must order by a unique column. */
+async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...((data ?? []) as T[]));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
 export type ImageToRead = {
   id: string;
   source: BrandImageSource;
@@ -17,17 +31,27 @@ export type ImageToRead = {
 export async function listImagesNeedingCards(clientId: string, version: number): Promise<ImageToRead[]> {
   const supabase = createServerSupabase();
   const [images, cards] = await Promise.all([
-    supabase
-      .from("client_brand_images")
-      .select("id, source, storage_url, thumbnail_url, file_ext")
-      .eq("client_id", clientId)
-      .eq("media_type", "image"),
-    supabase.from("client_brand_image_cards").select("image_id").eq("client_id", clientId).gte("version", version),
+    readAll<ImageToRead>((from, to) =>
+      supabase
+        .from("client_brand_images")
+        .select("id, source, storage_url, thumbnail_url, file_ext")
+        .eq("client_id", clientId)
+        .eq("media_type", "image")
+        .order("id")
+        .range(from, to),
+    ),
+    readAll<{ image_id: string }>((from, to) =>
+      supabase
+        .from("client_brand_image_cards")
+        .select("image_id")
+        .eq("client_id", clientId)
+        .gte("version", version)
+        .order("image_id")
+        .range(from, to),
+    ),
   ]);
-  if (images.error) throw images.error;
-  if (cards.error) throw cards.error;
-  const done = new Set((cards.data ?? []).map((c: { image_id: string }) => c.image_id));
-  return ((images.data ?? []) as ImageToRead[]).filter((i) => !done.has(i.id));
+  const done = new Set(cards.map((c) => c.image_id));
+  return images.filter((i) => !done.has(i.id));
 }
 
 export async function upsertImageCard(input: {
@@ -61,15 +85,16 @@ export async function listImageCards(
   version: number,
 ): Promise<{ imageId: string; source: BrandImageSource; card: ImageCard }[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("client_brand_image_cards")
-    .select("image_id, card, client_brand_images!inner(source)")
-    .eq("client_id", clientId)
-    .gte("version", version);
-  if (error) throw error;
-  return ((data ?? []) as unknown as { image_id: string; card: ImageCard; client_brand_images: { source: BrandImageSource } }[]).map(
-    (r) => ({ imageId: r.image_id, source: r.client_brand_images.source, card: r.card }),
+  const rows = await readAll<{ image_id: string; card: ImageCard; client_brand_images: { source: BrandImageSource } }>((from, to) =>
+    supabase
+      .from("client_brand_image_cards")
+      .select("image_id, card, client_brand_images!inner(source)")
+      .eq("client_id", clientId)
+      .gte("version", version)
+      .order("image_id")
+      .range(from, to),
   );
+  return rows.map((r) => ({ imageId: r.image_id, source: r.client_brand_images.source, card: r.card }));
 }
 
 /** How many still images a client has, and how many have a current card. */

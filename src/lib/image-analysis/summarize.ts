@@ -8,9 +8,9 @@ import {
   IMAGE_FORMAT_LABELS,
   IMAGE_PURPOSE_LABELS,
   NON_BRAND_FORMATS,
-  SOURCE_WEIGHT,
   SUMMARY_MAX_CARDS,
 } from "./constants";
+import { selectCardsForSummary } from "./sample";
 
 /** What the model writes: every field except the three tallied in code. */
 export const ImageSummarySchema = z.object({
@@ -30,34 +30,6 @@ export type ImageSummary = z.infer<typeof ImageSummarySchema>;
 
 const SOURCE_LABEL = { upload: "upload", website: "website", instagram: "instagram", facebook: "facebook" } as const;
 
-/**
- * The cards the summary sees: all of them when they fit; otherwise a balanced sample — every upload
- * first (the team chose them), then taking each format and source in turn, so a brand with 900
- * Instagram posts and 60 website images is not summarised from Instagram alone. Uploads lead the
- * returned order either way.
- */
-export function selectCardsForSummary(entries: CardEntry[], cap: number): CardEntry[] {
-  const byWeight = [...entries].sort((a, b) => SOURCE_WEIGHT[b.source] - SOURCE_WEIGHT[a.source]);
-  if (byWeight.length <= cap) return byWeight;
-
-  const uploads = byWeight.filter((e) => e.source === "upload").slice(0, cap);
-  const groups = new Map<string, CardEntry[]>();
-  for (const e of byWeight) {
-    if (e.source === "upload") continue;
-    const key = `${e.card.format}|${e.source}`;
-    groups.set(key, [...(groups.get(key) ?? []), e]);
-  }
-  const picked = [...uploads];
-  const queues = [...groups.values()];
-  while (picked.length < cap && queues.some((q) => q.length)) {
-    for (const q of queues) {
-      const next = q.shift();
-      if (next && picked.length < cap) picked.push(next);
-    }
-  }
-  return picked;
-}
-
 /** The tallies and the cards, as compact text for the summary call. Uploads first. */
 export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): string {
   const lines: string[] = [];
@@ -72,12 +44,15 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
       `Overlay colours: ${o.colours.map((c) => c.hex).join(", ") || "none"}. Placements: ${o.placements.map((p) => `${p.value} ${p.count}`).join(", ") || "none"}. ` +
       `Treatments: ${o.treatments.map((t) => `${t.value} ${t.count}`).join(", ") || "none"}.`,
   );
-  lines.push("", "Cards (source | format | purpose | summary | setting / background | composition | lighting | mood | people | overlay):");
-
   const brand = selectCardsForSummary(
     entries.filter((e) => !NON_BRAND_FORMATS.has(e.card.format)),
     SUMMARY_MAX_CARDS,
   );
+  const sampled =
+    brand.length < stats.counted
+      ? ` ${brand.length} of ${stats.counted}, a sample that keeps the mix; the figures above count all ${stats.counted}`
+      : "";
+  lines.push("", `Cards${sampled} (source | format | purpose | summary | setting / background | composition | lighting | mood | people | overlay):`);
   for (const { source, card: c } of brand) {
     const overlay = c.text_overlay.present
       ? `${c.text_overlay.font_style ?? "text"} ${c.text_overlay.colours_hex.join("/")} ${c.text_overlay.placement ?? ""} "${(c.text_overlay.text ?? "").slice(0, 60)}"`

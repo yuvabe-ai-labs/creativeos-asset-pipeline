@@ -6589,3 +6589,22 @@ reasoning tokens, a few cents a run; there is one summary call per run, in the b
 1M-token window).
 
 **Refines →** D313. **Originated →** `2026-10-07-kb-image-analysis-design.md` §6.
+
+### D316 — The summary reads at most 1,000 cards; above that, a sample that keeps the mix *(recorded 2026-10-07)*
+
+**Decision.** `SUMMARY_MAX_CARDS` = 1,000 (~97k tokens, the size tested on 3.8 Flash). Above it,
+`sample.ts` picks the cards: uploads take up to a third of the places (more when little else
+exists); the rest are shared among format-and-source groups in proportion to size, each group
+getting at least 3; picks are spread evenly within a group. The input tells the model "N of M,
+a sample"; the counts in the tab always cover every card. Card reads page past PostgREST's
+1,000-row limit, so counts and "which images still need a card" are right at any size.
+
+**Why.** One call over a fixed, tested size gives the same quality at 1,000 or 10,000 images, and
+the patterns the summary describes show up just as clearly in a proportional sample. The earlier
+round-robin evened out groups, which misstated the mix to the model.
+
+**Rejected.** Several summary calls merged into one (map-reduce): more calls, and the merge step
+loses detail without seeing more patterns than a sample. No cap (quality untested past ~1,200
+cards). Round-robin across groups (distorts proportions).
+
+**Refines →** D312, D315. **Originated →** `2026-10-07-kb-image-analysis-design.md` §4.

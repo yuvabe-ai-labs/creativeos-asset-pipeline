@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aggregateCards, buildSummaryInput, selectCardsForSummary, toImageAnalysis, type ImageSummary } from "./summarize";
+import { aggregateCards, buildSummaryInput, toImageAnalysis, type ImageSummary } from "./summarize";
 import type { CardEntry } from "./aggregate";
 import type { ImageCard } from "./card-schema";
 
@@ -51,31 +51,16 @@ describe("buildSummaryInput", () => {
     expect(text).toContain("Purpose mix (why they were posted): Promote 100%.");
   });
 
+  it("says when the cards are a sample of a larger set", () => {
+    const big = Array.from({ length: 1200 }, () => ({ source: "instagram" as const, card: card() }));
+    const input = buildSummaryInput(aggregateCards(big), big);
+    expect(input).toContain("Cards 1000 of 1200, a sample that keeps the mix; the figures above count all 1200");
+    expect(text).not.toContain("a sample");
+  });
+
   it("lists uploads first and leaves third-party images out", () => {
     expect(text.indexOf("Hero packshot")).toBeLessThan(text.indexOf("Reel cover"));
     expect(text).not.toContain("Retailer badge");
-  });
-});
-
-describe("selectCardsForSummary", () => {
-  const many = (source: CardEntry["source"], format: ImageCard["format"], n: number): CardEntry[] =>
-    Array.from({ length: n }, () => ({ source, card: card({ format }) }));
-
-  it("sends every card when they fit, uploads first", () => {
-    const entries = [...many("instagram", "in_use", 3), ...many("upload", "product_shot", 2)];
-    const out = selectCardsForSummary(entries, 10);
-    expect(out).toHaveLength(5);
-    expect(out.slice(0, 2).every((e) => e.source === "upload")).toBe(true);
-  });
-
-  it("above the cap, keeps every upload and balances the rest across format and source", () => {
-    const entries = [...many("instagram", "in_use", 90), ...many("website", "product_shot", 10), ...many("upload", "people", 4)];
-    const out = selectCardsForSummary(entries, 24);
-    expect(out).toHaveLength(24);
-    expect(out.filter((e) => e.source === "upload")).toHaveLength(4);
-    // Round-robin: the 10 website product images are not crowded out by 90 Instagram posts.
-    expect(out.filter((e) => e.source === "website")).toHaveLength(10);
-    expect(out.filter((e) => e.source === "instagram")).toHaveLength(10);
   });
 });
 

@@ -73,11 +73,15 @@ export const IMAGE_CARD_CONCURRENCY = 6;
 export const IMAGE_CARD_MAX_PX = 1024;
 
 /**
- * Most cards described to the summary call. A card is ~97 tokens, so 1,500 is ~146k tokens
- * (about $0.04 on Flash-Lite) — every image for nearly any brand. Above it a balanced sample is
- * sent; the tallies always count every image.
+ * Most cards described to the summary call (D316). A card is ~97 tokens, so 1,000 is ~97k: the size
+ * tested on 3.8 Flash, where it still wrote specific fields. Above it a sample that keeps the mix is
+ * sent (sample.ts); the counts always cover every card.
  */
-export const SUMMARY_MAX_CARDS = 1500;
+export const SUMMARY_MAX_CARDS = 1000;
+/** Above the cap, uploads take up to this share of the places. */
+export const SUMMARY_UPLOAD_SHARE = 1 / 3;
+/** Above the cap, every format-and-source group sends at least this many cards. */
+export const SUMMARY_MIN_PER_GROUP = 3;
 
 /** How many dominant colours the tab lists. */
 export const DOMINANT_COLOUR_COUNT = 6;

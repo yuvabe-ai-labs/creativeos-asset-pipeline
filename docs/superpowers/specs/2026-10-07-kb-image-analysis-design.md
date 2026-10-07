@@ -1,4 +1,4 @@
-# Brand KB — Image Analysis from every brand image (D312–D315)
+# Brand KB — Image Analysis from every brand image (D312–D316)
 
 **Date:** 2026-10-07 · **Branch:** `feat/kb-image-analysis` · **Design page:** [Image Analysis Design](https://claude.ai/artifact/9bWUQdF1eZP4YxCDL1CrDB)
 
@@ -45,6 +45,9 @@ text_overlay {present, text, font_style, colours_hex, placement, treatment}, log
   and purpose mixes are plain counts.
 - **Colours** cluster when near-identical (RGB distance < 28) or same-named and close (< 96): two
   "yellow"s merge, cream and white stay apart.
+- **Large brands (D316):** the summary reads at most 1,000 cards. Above that, `sample.ts` keeps the
+  mix: uploads up to a third of the places, the rest by format and source in proportion, at least 3
+  per group, spread evenly. The counts always cover every card; card reads page past 1,000 rows.
 - Every written field returns to **needs review**; confidence follows how many images back it
   (≥20 high, ≥6 medium).
 
