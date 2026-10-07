@@ -5,7 +5,7 @@
  * Every kind of job there is. This union is the registry — the table deliberately has no check
  * constraint on `kind`, so adding one here is all a new long-running feature needs.
  */
-export type JobKind = "asset-import";
+export type JobKind = "asset-import" | "image-analysis";
 
 export const JOB_STATUSES = ["queued", "running", "succeeded", "failed"] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];

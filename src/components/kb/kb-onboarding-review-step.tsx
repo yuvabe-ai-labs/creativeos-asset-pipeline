@@ -41,6 +41,8 @@ import { getModuleStatus } from "@/components/kb/kb-module-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientIdentity } from "@/components/clients/client-identity";
 import { isImportLive, useAssetImports } from "@/hooks/queries/asset-imports";
+import { useImageAnalysisStatus } from "@/hooks/queries/image-analysis";
+import { KBImageAnalysisStatus } from "@/components/kb/kb-image-analysis-status";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
 import { KBSkeleton } from "@/components/kb/kb-skeleton";
@@ -137,6 +139,23 @@ export function KBOnboardingReviewStep({
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [savingChanges, setSavingChanges] = useState(false);
   const [cancelingChanges, setCancelingChanges] = useState(false);
+
+  // Image Analysis is written by a background run (D312). When the stored section changes, take
+  // it into both the draft and the saved baseline, so it shows without a reload and a later Save
+  // cannot put the old one back. Other unsaved edits are left as they are.
+  const { data: imageAnalysisState } = useImageAnalysisStatus(clientId);
+  const storedImageAnalysis = imageAnalysisState?.versionId === versionId ? imageAnalysisState.imageAnalysis : null;
+  const storedKey = storedImageAnalysis ? JSON.stringify(storedImageAnalysis) : null;
+  const [appliedImageAnalysis, setAppliedImageAnalysis] = useState<string | null>(null);
+  // Adjusting state while rendering, on a change of the stored section (react.dev, "You might not
+  // need an effect"): the poll returns the same section every time, so this runs once per change.
+  if (storedImageAnalysis && storedKey !== appliedImageAnalysis) {
+    setAppliedImageAnalysis(storedKey);
+    if (JSON.stringify(savedKB.image_analysis) !== storedKey) {
+      setSavedKB((prev) => ({ ...prev, image_analysis: storedImageAnalysis }));
+      setKB((prev) => ({ ...prev, image_analysis: storedImageAnalysis }));
+    }
+  }
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -640,15 +659,18 @@ export function KBOnboardingReviewStep({
             )}
           </div>
 
+          {selectedModule === "image_analysis" && <KBImageAnalysisStatus clientId={clientId} />}
+
           {allImageAnalysisNull ? (
             <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-10 text-center">
               <ImageIcon className="size-8 text-muted-foreground/40" />
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  No images were uploaded
+                  No image analysis yet
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Upload images in the Source Documents &amp; Images drawer.
+                  It fills in from the brand&apos;s uploaded images and the ones brought in from its
+                  website and social accounts.
                 </p>
               </div>
               {hasNeedsReview && (

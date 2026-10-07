@@ -9,11 +9,6 @@ export type KBAnalysisProvider = {
     researchMarkdown: string | null;
   }): Promise<KBExtractionResult>;
 
-  analyzeImages(input: {
-    clientId: string;
-    imageIds: string[];
-  }): Promise<TraceableBrandKB["image_analysis"]>;
-
   researchWebsite(url: string): Promise<string>;
 };
 

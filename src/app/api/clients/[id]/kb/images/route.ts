@@ -15,6 +15,7 @@ import {
   isApiError,
 } from "@/lib/api/route-helpers";
 import { uploadBrandImage } from "@/lib/storage";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 
 // POST /api/clients/:id/kb/images — upload one brand image
 export async function POST(
@@ -60,6 +61,7 @@ export async function POST(
       storageUrl: publicUrl,
       sizeBytes: file.size,
     });
+    await startImageAnalysisQuietly(clientId);
 
     return apiOk({ image });
   });

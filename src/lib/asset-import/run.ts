@@ -23,6 +23,8 @@ import type { AssetImportInput, AssetImportResult, NormalizeResult, ScrapedAsset
 import { importedFilename } from "./utils";
 import { planRefreshSince } from "./refresh-plan";
 import { importCopy } from "./messages";
+import { forEachLimited } from "@/lib/for-each-limited";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 
 const NORMALIZERS: Record<AssetImportInput["source"], (rows: never[]) => NormalizeResult> = {
   instagram: normalizeInstagram,
@@ -89,6 +91,7 @@ export async function runAssetImport(
       return result;
     }
     await succeedJob(jobId, result, importCopy.done(saved, assets.length));
+    if (saved > 0) await startImageAnalysisQuietly(clientId);
     return result;
   } catch (e) {
     // The cause (provider, HTTP status, configuration) belongs in the server logs, not on screen.
@@ -215,11 +218,3 @@ async function download(
   return { body, contentType };
 }
 
-/** Runs `fn` over `items`, at most `limit` at a time. */
-async function forEachLimited<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) await fn(items[next++]);
-  });
-  await Promise.all(workers);
-}

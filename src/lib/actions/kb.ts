@@ -155,10 +155,7 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
     const client = await getClientById(clientId);
     if (!client) throw new Error("Client not found.");
 
-    const [docs, images] = await Promise.all([
-      listKBDocuments(clientId),
-      listBrandImages(clientId, "uploads"),
-    ]);
+    const docs = await listKBDocuments(clientId);
 
     if (!client.website_url && docs.length === 0) {
       throw new Error("Add a website URL or upload at least one document.");
@@ -185,7 +182,6 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
       clientId,
       websiteUrl: client.website_url,
       docIds: docs.map((d) => d.id),
-      imageIds: images.map((i) => i.id),
     });
 
     await setKBJobTriggerRunId(job.id, run.id);

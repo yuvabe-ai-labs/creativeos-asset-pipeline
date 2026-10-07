@@ -1,16 +1,14 @@
 import "server-only";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { createGemini } from "@/lib/gemini/server";
-import { listKBDocuments, listBrandImages } from "@/lib/db/kb";
+import { listKBDocuments } from "@/lib/db/kb";
 import {
   TraceableBrandKBSchema,
-  ImageAnalysisSchema,
   defaultEmptyImageAnalysis,
   type TraceableBrandKB,
 } from "@/lib/kb/schema";
 import { computeFillRate } from "@/lib/kb/fill-rate";
 import { geminiKbExtractPrompt } from "@/prompts/gemini-kb-extract";
-import { geminiKbImageAnalyzePrompt } from "@/prompts/gemini-kb-image-analyze";
 import { geminiWebsiteResearchPrompt } from "@/prompts/gemini-website-research";
 import type { KBAnalysisProvider } from "./interface";
 
@@ -20,13 +18,6 @@ const MIME_BY_EXT: Record<string, string> = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-};
-
-const IMG_MIME_BY_EXT: Record<string, string> = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
 };
 
 
@@ -99,42 +90,6 @@ export const geminiKBProvider: KBAnalysisProvider = {
       modelUsed: geminiKbExtractPrompt.model,
       fillRate: computeFillRate(kbOutput),
     };
-  },
-
-  async analyzeImages({ clientId, imageIds }) {
-    const allImages = await listBrandImages(clientId, "uploads");
-    const images = allImages.filter((i) => imageIds.includes(i.id));
-
-    if (images.length === 0) return defaultEmptyImageAnalysis();
-
-    const parts: unknown[] = [];
-    for (const img of images) {
-      const ext = img.filename.split(".").pop()?.toLowerCase() ?? "jpg";
-      const mimeType = IMG_MIME_BY_EXT[ext] ?? "image/jpeg";
-      const { data } = await fetchAsBase64(img.storage_url);
-      parts.push({ inlineData: { mimeType, data } });
-    }
-    parts.push({
-      text: "Analyze all provided brand images and extract visual identity signals for the image_analysis section.",
-    });
-
-    const ai = createGemini();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const response = await (ai.models as any).generateContent({
-      model: geminiKbImageAnalyzePrompt.model,
-      contents: [{ role: "user", parts }],
-      config: {
-        systemInstruction: geminiKbImageAnalyzePrompt.system,
-        responseMimeType: "application/json",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        responseSchema: zodToJsonSchema(ImageAnalysisSchema as any),
-        temperature: 0.3,
-      },
-    });
-
-    const raw = response.text ?? "";
-    if (!raw) return defaultEmptyImageAnalysis();
-    return JSON.parse(raw) as TraceableBrandKB["image_analysis"];
   },
 
   async researchWebsite(url) {

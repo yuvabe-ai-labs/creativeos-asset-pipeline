@@ -1,0 +1,105 @@
+import { describe, it, expect } from "vitest";
+import { aggregateCards, clusterColours, colourLines, contentMixLines, type CardEntry } from "./aggregate";
+import type { ImageCard } from "./card-schema";
+
+const card = (over: Partial<ImageCard> = {}): ImageCard => ({
+  category: "product",
+  summary: "A pack of flour",
+  subjects: ["flour pack"],
+  product: { visible: true, presentation: "packshot" },
+  setting: "studio",
+  background: "plain cream",
+  composition: { shot_type: "close-up", angle: "eye level", framing: "centred" },
+  lighting: "soft studio",
+  colours: [{ name: "forest green", hex: "#2F5D3A", share: 60 }],
+  mood: ["wholesome"],
+  style_tags: ["clean"],
+  people: { count: 0, description: null },
+  text_overlay: { present: false, text: null, font_style: null, colours_hex: [], placement: null, treatment: null },
+  logo_visible: true,
+  polish: "professional",
+  ...over,
+});
+
+describe("clusterColours", () => {
+  it("merges near-identical colours, keeping the heaviest member's hex and name", () => {
+    const out = clusterColours(
+      [
+        { name: "Green", hex: "#2F5D3A", weight: 3 },
+        { name: "dark green", hex: "#305C3B", weight: 1 },
+        { name: "cream", hex: "#f4eedc", weight: 2 },
+      ],
+      6,
+    );
+    expect(out).toEqual([
+      { name: "green", hex: "#2F5D3A", weight: 4 },
+      { name: "cream", hex: "#F4EEDC", weight: 2 },
+    ]);
+  });
+
+  it("merges two shades the model named alike, but keeps differently named near colours apart", () => {
+    const out = clusterColours(
+      [
+        { name: "yellow", hex: "#F5E135", weight: 2 },
+        { name: "Yellow", hex: "#FED800", weight: 1 },
+        { name: "white", hex: "#FFFFFF", weight: 2 },
+        { name: "cream", hex: "#F4EEDC", weight: 1 },
+      ],
+      6,
+    );
+    expect(out.map((c) => c.name)).toEqual(["yellow", "white", "cream"]);
+    expect(out[0]).toMatchObject({ hex: "#F5E135", weight: 3 });
+  });
+
+  it("drops values that are not hex codes", () => {
+    expect(clusterColours([{ name: "x", hex: "green", weight: 1 }], 6)).toEqual([]);
+  });
+});
+
+describe("aggregateCards", () => {
+  const entries: CardEntry[] = [
+    { source: "upload", card: card() },
+    { source: "instagram", card: card({ category: "lifestyle", colours: [{ name: "cream", hex: "#F4EEDC", share: 80 }] }) },
+    { source: "instagram", card: card({ category: "lifestyle", colours: [{ name: "cream", hex: "#F4EEDC", share: 80 }] }) },
+    {
+      source: "website",
+      card: card({
+        category: "text_graphic",
+        text_overlay: { present: true, text: "Eat well", font_style: "Bold sans", colours_hex: ["#ffffff"], placement: "lower left", treatment: "plain" },
+      }),
+    },
+    // A retailer badge from the website: kept as a card, left out of every tally.
+    { source: "website", card: card({ category: "third_party_or_ui", colours: [{ name: "yellow", hex: "#FFE500", share: 100 }] }) },
+  ];
+  const stats = aggregateCards(entries);
+
+  it("counts only the brand's own images, by source", () => {
+    expect(stats.counted).toBe(4);
+    expect(stats.excluded).toBe(1);
+    expect(stats.bySource).toEqual({ upload: 1, website: 1, instagram: 2, facebook: 0 });
+  });
+
+  it("reports the content mix as plain shares", () => {
+    expect(contentMixLines(stats)).toEqual(["Lifestyle 50%", "Product 25%", "Text & graphic 25%"]);
+  });
+
+  it("weights colours by share and source, ignoring third-party images", () => {
+    // Uploaded green: 0.6 × 3 = 1.8 (+ website text graphic 0.6) vs cream: 0.8 + 0.8 = 1.6.
+    expect(colourLines(stats)).toEqual(["forest green #2F5D3A", "cream #F4EEDC"]);
+    expect(stats.colours.some((c) => c.hex === "#FFE500")).toBe(false);
+  });
+
+  it("tallies text overlays", () => {
+    expect(stats.overlays).toMatchObject({
+      count: 1,
+      pct: 25,
+      fontStyles: [{ value: "bold sans", count: 1 }],
+      placements: [{ value: "lower left", count: 1 }],
+    });
+    expect(stats.overlays.colours[0].hex).toBe("#FFFFFF");
+  });
+
+  it("handles no images", () => {
+    expect(aggregateCards([])).toMatchObject({ counted: 0, contentMix: [], colours: [] });
+  });
+});

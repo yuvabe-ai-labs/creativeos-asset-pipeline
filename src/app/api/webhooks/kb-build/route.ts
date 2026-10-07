@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/kb-jobs";
 import { insertKBDocument, insertKBVersion, setActiveKBVersion } from "@/lib/db/kb";
 import { getClientById, setKBStatus } from "@/lib/db/clients";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { uploadKBDocument } from "@/lib/storage";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { KB_JOB_NON_TERMINAL_STATUSES } from "@/lib/kb/constants";
@@ -122,6 +123,9 @@ export async function POST(req: Request) {
 
     // 3. Mark the job succeeded.
     await markKBJobSucceeded({ jobId: body.jobId, versionId: version.id });
+
+    // 4. The build leaves Image Analysis empty; this run fills it from every brand image (D312).
+    await startImageAnalysisQuietly(job.client_id);
 
     return apiOk({ ok: true, versionId: version.id });
   } catch (e) {
