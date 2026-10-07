@@ -7,7 +7,7 @@ import { failJob, failStaleJobs, insertJob, listRecentJobs, setJobRunId } from "
 import { JobLockedError } from "@/lib/jobs/types";
 import { IMAGE_CARD_VERSION } from "./constants";
 import { imageAnalysisCopy } from "./messages";
-import type { ImageAnalysisResult, ImageAnalysisStatus } from "./types";
+import type { ImageAnalysisInput, ImageAnalysisResult, ImageAnalysisStatus } from "./types";
 import { describeError } from "@/lib/describe-error";
 
 /** Past the task's 30-minute maxDuration with margin: a job still live by then is dead. */
@@ -17,9 +17,14 @@ const lockKey = (clientId: string) => `image-analysis:${clientId}`;
 
 /**
  * Queues an analysis of the client's images. Returns at once. When one is already running it is
- * left to finish: it reads in rounds, so images added meanwhile are picked up by it.
+ * left to finish: it checks for added and deleted images before it ends, so it covers them.
+ * `force` rewrites the section even when no image changed (the tab's Refresh).
  */
-export async function startImageAnalysis(clientId: string, userId: string | null = null): Promise<void> {
+export async function startImageAnalysis(
+  clientId: string,
+  userId: string | null = null,
+  input: ImageAnalysisInput = {},
+): Promise<void> {
   const client = await getClientById(clientId);
   if (!client) return;
   await failStaleJobs(clientId, "image-analysis", STALE_AFTER_MS);
@@ -30,7 +35,7 @@ export async function startImageAnalysis(clientId: string, userId: string | null
       orgId: client.org_id,
       clientId,
       kind: "image-analysis",
-      input: {},
+      input,
       lockKey: lockKey(clientId),
       phaseMessage: imageAnalysisCopy.starting,
       createdBy: userId,

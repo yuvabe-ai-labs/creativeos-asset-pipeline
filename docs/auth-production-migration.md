@@ -813,3 +813,24 @@ code writes `format` and `purpose`, so every card save fails until it lands.
 select column_name from information_schema.columns
 where table_name = 'client_brand_image_cards' and column_name in ('category', 'format', 'purpose');
 ```
+
+## Migration 0050 — KB writes that keep Image Analysis (2026-10-07)
+
+`supabase/migrations/0050_kb_safe_writes.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0048.**
+
+Adds two functions (D318): `save_kb_output_keep_image_analysis(p_version_id, p_output)` (the review
+screen's Save: every section but Image Analysis) and `set_kb_field(p_version_id, p_path, p_value)`
+(one field, for field re-analysis). Neither touches existing data.
+
+**Safe to re-run:** both use `create or replace`.
+
+**Ordering:** apply **before** deploying the app code: until it lands, saving the KB review screen
+and re-analysing a single field fail.
+
+**Verify after running:**
+
+```sql
+-- expect 2 rows
+select proname from pg_proc where proname in ('save_kb_output_keep_image_analysis', 'set_kb_field');
+```

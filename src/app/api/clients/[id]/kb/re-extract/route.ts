@@ -26,15 +26,16 @@ type DocExtractionResult = z.infer<typeof DocExtractionSchema>;
 
 // POST /api/clients/:id/kb/re-extract
 // Re-runs AI extraction with the client's existing documents. Creates a new KB version, sets it
-// active, and resets kb_status to 'in_review'. Image Analysis is carried over from the current
-// version and then rewritten by an image-analysis run, which reads every brand image (D312).
+// active, and resets kb_status to 'in_review'. Image Analysis is not built from documents: it is
+// carried over from the current version, reviews included, and kept current by image-analysis runs
+// (D312, D318). A run is started in case images changed; it leaves an up-to-date section alone.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   return withClient(req, params, async (clientId) => {
     return withTryCatch("Re-extraction failed", async () => {
-      const [docs, current] = await Promise.all([listKBDocuments(clientId), getActiveKBVersion(clientId)]);
+      const docs = await listKBDocuments(clientId);
 
       if (docs.length === 0) {
         return apiError("No documents found. Upload at least one document first.", 400);
@@ -69,6 +70,8 @@ export async function POST(
       const docKB = docResponse.output_parsed as DocExtractionResult | null;
       if (!docKB) return apiError("Model returned no parsed output.", 500);
 
+      // Read after the extraction, which takes a while: a run may have rewritten the section since.
+      const current = await getActiveKBVersion(clientId);
       const previous = (current?.output as TraceableBrandKB | undefined)?.image_analysis;
       const mergedKB: TraceableBrandKB = {
         ...docKB,

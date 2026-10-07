@@ -107,3 +107,6 @@ export const DOMINANT_COLOUR_COUNT = 6;
 
 /** Image count at which a summarised field is reported as high / medium confidence. */
 export const CONFIDENCE_AT = { high: 20, medium: 6 } as const;
+
+/** Image Analysis fields counted in code, not written by the model (D312, D314). */
+export const TALLIED_FIELDS: ReadonlySet<string> = new Set(["content_mix", "purpose_mix", "dominant_colors"]);

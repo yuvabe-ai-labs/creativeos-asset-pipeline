@@ -6626,3 +6626,35 @@ Batched summaries merged at the end (D316). Clustering for now (per-brand groups
 several thousand images).
 
 **Refines →** D312, D316. **Originated →** `2026-10-07-kb-image-analysis-design.md` §3.
+
+### D318 — Image Analysis survives re-analysis: reviews kept, no stale writes, no needless rewrites *(recorded 2026-10-07)*
+
+**Decision.** Image Analysis is maintained by image-analysis runs, apart from document extraction:
+- **Reviews carry over.** One rule (`mergeImageAnalysis`) wherever two copies meet: an edited field
+  keeps the team's words; an approved or rejected field keeps its decision while the value is the
+  same (counted fields keep it as their numbers move); anything new returns to needs review. A run
+  applies it when writing, Save applies it, and the review screen applies it to its draft.
+- **No write undoes another.** Save writes every section but Image Analysis in one statement
+  (`save_kb_output_keep_image_analysis`) and merges the team's Image Analysis reviews over the
+  stored section; single-field re-analysis and patches write one field (`set_kb_field`). The
+  whole-output writer is gone. A run writes to the version active when it writes, not when it
+  started; re-extract reads the section to carry over after its extraction, not before.
+- **Every change to the image set triggers a run, and only changes cost a summary.** Deletes now
+  start a run (KB source panel, upload step, Brand assets). A run records the key of the card set
+  its section was built from and skips the summary when nothing changed (the tab's Analyse /
+  Refresh forces one). Before finishing it checks for images added or deleted meanwhile and builds
+  again, up to 3 times.
+- A KB rebuild (the build webhook) carries the current section over, as re-extract does.
+- The image delete route now checks the image belongs to the client.
+
+**Why.** Before this, a re-extract or any image change reset every Image Analysis review to needs
+review; a Save, a field re-analysis or a slow re-extract could put back an older section; images
+added or deleted during a run's summary were missed; and deletes left the section describing
+images that no longer existed.
+
+**Rejected.** Keeping approvals regardless of a changed value (the team would vouch for words it
+never read). Merging in SQL (the rule is easier to test in code; the remaining window between read
+and write is milliseconds). Carrying document-module reviews over a re-extract (unchanged: the
+dialog says those reviews start over, since documents changed).
+
+**Refines →** D312. **Originated →** `2026-10-07-kb-image-analysis-design.md` §5.

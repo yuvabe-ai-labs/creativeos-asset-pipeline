@@ -42,6 +42,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientIdentity } from "@/components/clients/client-identity";
 import { isImportLive, useAssetImports } from "@/hooks/queries/asset-imports";
 import { useImageAnalysisStatus } from "@/hooks/queries/image-analysis";
+import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
 import { KBImageAnalysisStatus } from "@/components/kb/kb-image-analysis-status";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
@@ -141,8 +142,9 @@ export function KBOnboardingReviewStep({
   const [cancelingChanges, setCancelingChanges] = useState(false);
 
   // Image Analysis is written by a background run (D312). When the stored section changes, take
-  // it into both the draft and the saved baseline, so it shows without a reload and a later Save
-  // cannot put the old one back. Other unsaved edits are left as they are.
+  // it into the saved baseline, and into the draft over any unsaved reviews (D318), so it shows
+  // without a reload. Other unsaved edits are left as they are. Saving never puts back an older
+  // section either: the save action keeps the stored one (see saveKBOutputAction).
   const { data: imageAnalysisState } = useImageAnalysisStatus(clientId);
   const storedImageAnalysis = imageAnalysisState?.versionId === versionId ? imageAnalysisState.imageAnalysis : null;
   const storedKey = storedImageAnalysis ? JSON.stringify(storedImageAnalysis) : null;
@@ -153,7 +155,7 @@ export function KBOnboardingReviewStep({
     setAppliedImageAnalysis(storedKey);
     if (JSON.stringify(savedKB.image_analysis) !== storedKey) {
       setSavedKB((prev) => ({ ...prev, image_analysis: storedImageAnalysis }));
-      setKB((prev) => ({ ...prev, image_analysis: storedImageAnalysis }));
+      setKB((prev) => ({ ...prev, image_analysis: mergeImageAnalysis(prev.image_analysis, storedImageAnalysis) }));
     }
   }
 
@@ -467,8 +469,9 @@ export function KBOnboardingReviewStep({
           <DialogHeader>
             <DialogTitle>Save & Re-analyze KB?</DialogTitle>
             <DialogDescription>
-              {buildChangeSummary(staged)}. The AI will reprocess all sources and rebuild
-              the knowledge base. Any existing review progress will be reset.
+              {buildChangeSummary(staged)}. The documents are read again and the knowledge
+              base is rebuilt from them, so review progress on those sections starts over.
+              Image Analysis keeps your reviews and updates from the images.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

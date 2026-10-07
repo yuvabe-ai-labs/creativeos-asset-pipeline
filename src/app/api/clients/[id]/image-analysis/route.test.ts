@@ -47,7 +47,7 @@ describe("/api/clients/[id]/image-analysis", () => {
     const { POST } = await import("./route");
     const res = await POST(new Request(url, { method: "POST" }), { params });
     expect(res.status).toBe(200);
-    expect(startImageAnalysis).toHaveBeenCalledWith("client-1", "user-1");
+    expect(startImageAnalysis).toHaveBeenCalledWith("client-1", "user-1", { force: true });
   });
 
   it("is a 404 for another org's client", async () => {

@@ -97,6 +97,21 @@ export async function listImageCards(
   return rows.map((r) => ({ imageId: r.image_id, source: r.client_brand_images.source, card: r.card }));
 }
 
+/** The image ids of a client's current cards: what a section is built from. */
+export async function listCardImageIds(clientId: string, version: number): Promise<string[]> {
+  const supabase = createServerSupabase();
+  const rows = await readAll<{ image_id: string }>((from, to) =>
+    supabase
+      .from("client_brand_image_cards")
+      .select("image_id")
+      .eq("client_id", clientId)
+      .gte("version", version)
+      .order("image_id")
+      .range(from, to),
+  );
+  return rows.map((r) => r.image_id);
+}
+
 /** How many still images a client has, and how many have a current card. */
 export async function countImageCoverage(clientId: string, version: number): Promise<{ images: number; carded: number }> {
   const supabase = createServerSupabase();

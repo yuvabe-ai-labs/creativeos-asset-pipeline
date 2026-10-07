@@ -22,13 +22,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   );
 }
 
-// POST /api/clients/:id/image-analysis — read any images without a card and rewrite the section.
-// Returns at once; the run is in the background.
+// POST /api/clients/:id/image-analysis — read any images without a card and rewrite the section,
+// even if no image changed (the tab's Analyse / Refresh). Returns at once; the run is in the background.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId) =>
     withQuietErrors("Couldn't start the image analysis. Try again.", async () => {
       const caller = await resolveCallerContextOrNull();
-      await startImageAnalysis(clientId, caller?.userId ?? null);
+      await startImageAnalysis(clientId, caller?.userId ?? null, { force: true });
       return apiOk(await statusWithSection(clientId));
     }),
   );

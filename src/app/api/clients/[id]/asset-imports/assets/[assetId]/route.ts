@@ -1,5 +1,6 @@
 import { apiError, apiOk, withClient, withQuietErrors } from "@/lib/api/route-helpers";
 import { deleteImportedBrandImage } from "@/lib/db/kb";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 
 // DELETE /api/clients/:id/asset-imports/assets/:assetId — remove one imported asset (D302).
 export async function DELETE(
@@ -13,6 +14,8 @@ export async function DELETE(
       // that a foreign resource exists.
       const removed = await deleteImportedBrandImage(clientId, assetId);
       if (!removed) return apiError("That asset no longer exists.", 404);
+      // The analysis no longer matches the images: rebuild it without this one.
+      await startImageAnalysisQuietly(clientId);
       return apiOk({ ok: true as const });
     }),
   );

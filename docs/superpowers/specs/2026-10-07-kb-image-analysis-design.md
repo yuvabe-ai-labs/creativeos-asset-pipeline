@@ -1,4 +1,4 @@
-# Brand KB — Image Analysis from every brand image (D312–D317)
+# Brand KB — Image Analysis from every brand image (D312–D318)
 
 **Date:** 2026-10-07 · **Branch:** `feat/kb-image-analysis` · **Design page:** [Image Analysis Design](https://claude.ai/artifact/9bWUQdF1eZP4YxCDL1CrDB)
 
@@ -64,15 +64,24 @@ text_overlay {present, text, font_style, colours_hex, placement, treatment}, log
 - A background job (`background_jobs`, kind `image-analysis`, D306; Trigger task `image-analysis`),
   one live per client. It reads images without a current card six at a time, in rounds (images added
   mid-run are picked up), then rewrites the section on the **active** KB version.
-- **Started by:** an upload (both upload routes), an import that saved assets, a KB build landing
-  (the webhook), a re-extract, and the tab's own Analyse / Refresh button (Refresh confirms).
-- **The KB build no longer analyses images.** It writes an empty section; the run started when the
-  build lands fills it. Re-extract carries the current section over and starts a run.
-- **Safe writes.** The section is replaced by the `set_kb_image_analysis` database function
-  (`jsonb_set`), never by read-modify-write, so it cannot clash with the review screen's Save. The
-  review screen polls the status (4 s while running, 30 s otherwise) and takes a new section into
-  both its draft and its saved baseline, keeping other unsaved edits.
-- Deleting an image removes its card (cascade); the tab is rewritten on the next run.
+- **Started by:** an upload (both upload routes), an import that saved assets, deleting an image
+  (KB source panel, upload step, Brand assets), a KB build landing (the webhook), a re-extract, and
+  the tab's own Analyse / Refresh button (Refresh confirms, and forces a new summary).
+- **Only changes cost a summary (D318).** A run records the key of the card set its section was
+  built from; an automatic run with the same set and a filled section writes nothing ("Up to date").
+  Before finishing, a run checks for images added or deleted meanwhile and builds again (up to 3).
+- **The KB build no longer analyses images.** It writes an empty section (a rebuild carries the
+  current one over); the run started when the build lands fills it. Re-extract carries the current
+  section over, read after its extraction, and starts a run.
+- **Reviews carry over (D318).** `mergeImageAnalysis`: edited fields keep the team's words;
+  approved or rejected fields keep the decision while the value is unchanged (counted fields keep
+  it as numbers move); anything new goes back to needs review. Applied when a run writes, when the
+  review screen saves, and when the screen takes a finished run into its draft.
+- **Safe writes (D318).** No write replaces the whole output from an older copy. A run writes the
+  section with `set_kb_image_analysis` to the version active at that moment. Save writes the other
+  sections with `save_kb_output_keep_image_analysis` and merges Image Analysis reviews over the
+  stored section. Field re-analysis and patches write one field with `set_kb_field`.
+- Deleting an image removes its card (cascade) and starts a run.
 
 ## 6. Model and cost
 
