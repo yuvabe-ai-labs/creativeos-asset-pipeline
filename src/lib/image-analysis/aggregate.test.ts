@@ -9,14 +9,16 @@ const card = (over: Partial<ImageCard> = {}): ImageCard => ({
   subjects: ["flour pack"],
   product: { visible: true, presentation: "packshot" },
   setting: "studio",
-  background: "plain cream",
-  composition: { shot_type: "close-up", angle: "eye level", framing: "centred" },
-  lighting: "soft studio",
+  background: "plain",
+  background_note: "cream backdrop",
+  composition: { shot_type: "close_up", angle: "eye_level", framing: "centred" },
+  lighting: "studio",
+  lighting_note: "soft and even",
   colours: [{ name: "forest green", hex: "#2F5D3A", share: 60 }],
   mood: ["wholesome"],
   style_tags: ["clean"],
   people: { count: 0, description: null },
-  text_overlay: { present: false, text: null, font_style: null, colours_hex: [], placement: null, treatment: null },
+  text_overlay: { present: false, text: null, font_style: null, font_note: null, colours_hex: [], placement: null, treatment: null },
   logo_visible: true,
   polish: "professional",
   ...over,
@@ -67,7 +69,8 @@ describe("aggregateCards", () => {
       card: card({
         format: "text_graphic",
         purpose: "educate",
-        text_overlay: { present: true, text: "Eat well", font_style: "Bold sans", colours_hex: ["#ffffff"], placement: "lower left", treatment: "plain" },
+        text_overlay: { present: true, text: "Eat well", font_style: "sans", font_note: "bold caps", colours_hex: ["#ffffff"], placement: "bottom", treatment: "plain" },
+        lighting: "flat_graphic",
       }),
     },
     // A retailer badge from the website: kept as a card, left out of every tally.
@@ -96,10 +99,18 @@ describe("aggregateCards", () => {
     expect(stats.overlays).toMatchObject({
       count: 1,
       pct: 25,
-      fontStyles: [{ value: "bold sans", count: 1 }],
-      placements: [{ value: "lower left", count: 1 }],
+      fontStyles: [{ key: "sans", label: "sans", count: 1, pct: 100 }],
+      placements: [{ key: "bottom", label: "bottom", count: 1, pct: 100 }],
     });
     expect(stats.overlays.colours[0].hex).toBe("#FFFFFF");
+  });
+
+  it("counts the look over the brand's images, with readable labels", () => {
+    expect(stats.look.lighting).toEqual([
+      { key: "studio", label: "studio", count: 3, pct: 75 },
+      { key: "flat_graphic", label: "flat graphic", count: 1, pct: 25 },
+    ]);
+    expect(stats.look.shot_type).toEqual([{ key: "close_up", label: "close up", count: 4, pct: 100 }]);
   });
 
   it("handles no images", () => {

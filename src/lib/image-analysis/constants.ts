@@ -10,7 +10,7 @@ export const IMAGE_CARD_MODEL = "gemini-3.5-flash-lite";
 export const IMAGE_SUMMARY_MODEL = "gemini-3.8-flash";
 
 /** Bump when the card prompt or schema changes: cards made by an older version are re-made. */
-export const IMAGE_CARD_VERSION = 2;
+export const IMAGE_CARD_VERSION = 3;
 
 // Two fixed axes, the same for every brand (D314). FORMAT is what the image looks like, from the
 // standard product-photography vocabulary; PURPOSE is why it was posted, from the standard content
@@ -57,6 +57,25 @@ export const IMAGE_PURPOSE_LABELS: Record<ImagePurpose, string> = {
   entertain: "Entertain",
   connect: "Connect",
 };
+
+/**
+ * Fixed choices for the card fields that are counted (D317). Free text split one look across many
+ * spellings ("bold sans", "bold sans-serif"), so its counts came out small and scattered. The nuance
+ * lives in each card's notes and summary, which the summary call reads.
+ */
+export const CARD_VOCAB = {
+  shot_type: ["macro", "close_up", "medium", "wide"],
+  angle: ["eye_level", "high", "low", "top_down"],
+  framing: ["centred", "rule_of_thirds", "symmetrical", "off_centre"],
+  lighting: ["studio", "natural_daylight", "warm_indoor", "dramatic", "flat_graphic"],
+  background: ["plain", "textured", "real_scene", "pattern", "gradient"],
+  font_style: ["sans", "serif", "script", "handwritten", "display"],
+  placement: ["top", "centre", "bottom", "corner", "full_frame"],
+  treatment: ["plain", "boxed", "outlined", "shadowed", "on_band"],
+} as const;
+
+/** A vocabulary value as people read it: "rule_of_thirds" → "rule of thirds". */
+export const vocabLabel = (value: string) => value.replace(/_/g, " ");
 
 /** How much one image counts when combining. Uploads were chosen by the team. */
 export const SOURCE_WEIGHT: Record<BrandImageSource, number> = {

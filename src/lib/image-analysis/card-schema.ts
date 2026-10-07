@@ -1,7 +1,7 @@
 // One image, read once and kept (D312). Shared by the reader (Gemini's response schema), the store
 // and the combining step.
 import { z } from "zod";
-import { IMAGE_FORMATS, IMAGE_PURPOSES } from "./constants";
+import { CARD_VOCAB, IMAGE_FORMATS, IMAGE_PURPOSES } from "./constants";
 
 const HEX = /^#?[0-9a-fA-F]{6}$/;
 
@@ -15,13 +15,15 @@ export const ImageCardSchema = z.object({
     presentation: z.string().nullable().describe("How it is shown: packshot, in hand, in use, flat lay; null if not visible"),
   }),
   setting: z.string().nullable().describe("Where it is: studio, kitchen, outdoors, plain background…"),
-  background: z.string().nullable().describe("What is behind the subject"),
+  background: z.enum(CARD_VOCAB.background).describe("What kind of background is behind the subject"),
+  background_note: z.string().nullable().describe("What the background actually is, in a few words"),
   composition: z.object({
-    shot_type: z.string().describe("close-up, medium, wide, flat lay, overhead…"),
-    angle: z.string().describe("eye level, top-down, low, high…"),
-    framing: z.string().describe("centred, rule of thirds, symmetrical, off-centre…"),
+    shot_type: z.enum(CARD_VOCAB.shot_type),
+    angle: z.enum(CARD_VOCAB.angle),
+    framing: z.enum(CARD_VOCAB.framing),
   }),
-  lighting: z.string().describe("Light quality and direction"),
+  lighting: z.enum(CARD_VOCAB.lighting).describe("The kind of light"),
+  lighting_note: z.string().describe("Light quality and direction, in a few words"),
   colours: z
     .array(
       z.object({
@@ -40,10 +42,11 @@ export const ImageCardSchema = z.object({
   text_overlay: z.object({
     present: z.boolean().describe("Whether text is placed on the image"),
     text: z.string().nullable().describe("The text, as written"),
-    font_style: z.string().nullable().describe("bold sans, serif, script, handwritten…"),
+    font_style: z.enum(CARD_VOCAB.font_style).nullable().describe("The main font's family; null if no text"),
+    font_note: z.string().nullable().describe("Weight, width and case, e.g. 'bold condensed caps'; null if no text"),
     colours_hex: z.array(z.string()).describe("Text colours as #RRGGBB"),
-    placement: z.string().nullable().describe("top, centre, lower left…"),
-    treatment: z.string().nullable().describe("plain, boxed, outlined, shadowed, on a band…"),
+    placement: z.enum(CARD_VOCAB.placement).nullable().describe("Where the main text sits; null if no text"),
+    treatment: z.enum(CARD_VOCAB.treatment).nullable().describe("How the text is set off; null if no text"),
   }),
   logo_visible: z.boolean().describe("Whether the brand's logo appears"),
   polish: z.enum(["professional", "casual", "customer_made"]).describe("How produced it looks"),

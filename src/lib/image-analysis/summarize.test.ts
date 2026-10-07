@@ -10,14 +10,16 @@ const card = (over: Partial<ImageCard> = {}): ImageCard => ({
   subjects: ["flour pack"],
   product: { visible: true, presentation: "packshot" },
   setting: "studio",
-  background: "plain cream",
-  composition: { shot_type: "close-up", angle: "eye level", framing: "centred" },
-  lighting: "soft studio",
+  background: "plain",
+  background_note: "cream backdrop",
+  composition: { shot_type: "close_up", angle: "eye_level", framing: "centred" },
+  lighting: "studio",
+  lighting_note: "soft and even",
   colours: [{ name: "forest green", hex: "#2F5D3A", share: 60 }],
   mood: ["wholesome"],
   style_tags: ["clean"],
   people: { count: 0, description: null },
-  text_overlay: { present: false, text: null, font_style: null, colours_hex: [], placement: null, treatment: null },
+  text_overlay: { present: false, text: null, font_style: null, font_note: null, colours_hex: [], placement: null, treatment: null },
   logo_visible: true,
   polish: "professional",
   ...over,
@@ -49,6 +51,13 @@ describe("buildSummaryInput", () => {
     expect(text).toContain("Brand images counted: 2 (uploads 1, website 0, instagram 1, facebook 0); 1 third-party");
     expect(text).toContain("Format mix (what the images look like): Product shot 100%.");
     expect(text).toContain("Purpose mix (why they were posted): Promote 100%.");
+    expect(text).toContain("Shot type: close up 100%. Angle: eye level 100%. Framing: centred 100%.");
+    expect(text).toContain("Lighting: studio 100%. Background: plain 100%.");
+  });
+
+  it("gives each card its fixed values with the notes behind them", () => {
+    expect(text).toContain("plain (cream backdrop)");
+    expect(text).toContain("studio: soft and even");
   });
 
   it("says when the cards are a sample of a larger set", () => {

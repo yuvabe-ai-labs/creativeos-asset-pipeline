@@ -2,13 +2,14 @@
 // final KB fields) are exported for tests; summarizeImages makes the one model call.
 import { z } from "zod";
 import type { KBField, TraceableBrandKB } from "@/lib/kb/schema";
-import { aggregateCards, colourLines, formatMixLines, purposeMixLines, type CardEntry, type ImageStats } from "./aggregate";
+import { aggregateCards, colourLines, formatMixLines, mixLine, purposeMixLines, type CardEntry, type ImageStats } from "./aggregate";
 import {
   CONFIDENCE_AT,
   IMAGE_FORMAT_LABELS,
   IMAGE_PURPOSE_LABELS,
   NON_BRAND_FORMATS,
   SUMMARY_MAX_CARDS,
+  vocabLabel,
 } from "./constants";
 import { selectCardsForSummary } from "./sample";
 
@@ -37,12 +38,17 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
   lines.push(`Format mix (what the images look like): ${formatMixLines(stats).join(", ") || "none"}.`);
   lines.push(`Purpose mix (why they were posted): ${purposeMixLines(stats).join(", ") || "none"}.`);
   lines.push(`Dominant colours (weighted): ${colourLines(stats).join(", ") || "none"}.`);
+  const l = stats.look;
+  lines.push(
+    `Shot type: ${mixLine(l.shot_type) || "none"}. Angle: ${mixLine(l.angle) || "none"}. Framing: ${mixLine(l.framing) || "none"}.`,
+    `Lighting: ${mixLine(l.lighting) || "none"}. Background: ${mixLine(l.background) || "none"}.`,
+  );
   lines.push(`Images with people: ${stats.withPeoplePct}%. Product visible: ${stats.productVisiblePct}%. Polish: ${stats.polish.map((p) => `${p.value} ${p.count}`).join(", ")}.`);
   const o = stats.overlays;
   lines.push(
-    `Text overlays on ${o.count} images (${o.pct}%). Font styles: ${o.fontStyles.map((f) => `${f.value} ${f.count}`).join(", ") || "none"}. ` +
-      `Overlay colours: ${o.colours.map((c) => c.hex).join(", ") || "none"}. Placements: ${o.placements.map((p) => `${p.value} ${p.count}`).join(", ") || "none"}. ` +
-      `Treatments: ${o.treatments.map((t) => `${t.value} ${t.count}`).join(", ") || "none"}.`,
+    `Text overlays on ${o.count} images (${o.pct}%); of those, font: ${mixLine(o.fontStyles) || "none"}. ` +
+      `Overlay colours: ${o.colours.map((c) => c.hex).join(", ") || "none"}. Placement: ${mixLine(o.placements) || "none"}. ` +
+      `Treatment: ${mixLine(o.treatments) || "none"}.`,
   );
   const brand = selectCardsForSummary(
     entries.filter((e) => !NON_BRAND_FORMATS.has(e.card.format)),
@@ -55,7 +61,7 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
   lines.push("", `Cards${sampled} (source | format | purpose | summary | setting / background | composition | lighting | mood | people | overlay):`);
   for (const { source, card: c } of brand) {
     const overlay = c.text_overlay.present
-      ? `${c.text_overlay.font_style ?? "text"} ${c.text_overlay.colours_hex.join("/")} ${c.text_overlay.placement ?? ""} "${(c.text_overlay.text ?? "").slice(0, 60)}"`
+      ? `${[c.text_overlay.font_style, c.text_overlay.font_note].filter(Boolean).join(" ") || "text"} ${c.text_overlay.colours_hex.join("/")} ${vocabLabel(c.text_overlay.placement ?? "")} "${(c.text_overlay.text ?? "").slice(0, 60)}"`
       : "-";
     lines.push(
       [
@@ -63,9 +69,9 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
         IMAGE_FORMAT_LABELS[c.format],
         IMAGE_PURPOSE_LABELS[c.purpose],
         c.summary,
-        [c.setting, c.background].filter(Boolean).join(" / ") || "-",
-        `${c.composition.shot_type}, ${c.composition.angle}, ${c.composition.framing}`,
-        c.lighting,
+        [c.setting, `${vocabLabel(c.background)}${c.background_note ? ` (${c.background_note})` : ""}`].filter(Boolean).join(" / "),
+        [c.composition.shot_type, c.composition.angle, c.composition.framing].map(vocabLabel).join(", "),
+        `${vocabLabel(c.lighting)}: ${c.lighting_note}`,
         c.mood.join(", "),
         c.people.count ? `${c.people.count}: ${c.people.description ?? ""}` : "-",
         overlay,

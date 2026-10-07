@@ -1,4 +1,4 @@
-# Brand KB — Image Analysis from every brand image (D312–D316)
+# Brand KB — Image Analysis from every brand image (D312–D317)
 
 **Date:** 2026-10-07 · **Branch:** `feat/kb-image-analysis` · **Design page:** [Image Analysis Design](https://claude.ai/artifact/9bWUQdF1eZP4YxCDL1CrDB)
 
@@ -31,6 +31,14 @@ style (Vanchi's overlay and outro colours), recurring motifs. Shown in that orde
 - **format**, what it looks like: product_shot · flat_lay · in_use · detail · people · text_graphic ·
   behind_the_scenes · logo_brand_mark · **third_party_or_ui** · other.
 - **purpose**, why it was posted: educate · promote · inspire · entertain · connect.
+
+Counted fields take fixed choices too (D317, `CARD_VOCAB`): shot type (macro · close up · medium ·
+wide), angle (eye level · high · low · top down), framing (centred · rule of thirds · symmetrical ·
+off centre), lighting (studio · natural daylight · warm indoor · dramatic · flat graphic), background
+(plain · textured · real scene · pattern · gradient), and for text on images font (sans · serif ·
+script · handwritten · display), placement (top · centre · bottom · corner · full frame) and
+treatment (plain · boxed · outlined · shadowed · on band). Lighting, background and font each keep a
+short note for the detail.
 
 Then: summary,
 subjects, product {visible, presentation}, setting, background, composition {shot_type, angle,

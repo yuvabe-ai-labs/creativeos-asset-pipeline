@@ -3,6 +3,7 @@
 import type { BrandImageSource } from "@/lib/asset-import/constants";
 import { normaliseHex, type ImageCard } from "./card-schema";
 import {
+  CARD_VOCAB,
   DOMINANT_COLOUR_COUNT,
   IMAGE_FORMATS,
   IMAGE_FORMAT_LABELS,
@@ -10,6 +11,7 @@ import {
   IMAGE_PURPOSE_LABELS,
   NON_BRAND_FORMATS,
   SOURCE_WEIGHT,
+  vocabLabel,
 } from "./constants";
 
 export type CardEntry = { source: BrandImageSource; card: ImageCard };
@@ -17,6 +19,10 @@ export type CardEntry = { source: BrandImageSource; card: ImageCard };
 export type ColourTally = { name: string; hex: string; weight: number };
 
 export type MixRow = { key: string; label: string; count: number; pct: number };
+
+/** The counted parts of how the images look (D317). */
+export const LOOK_FIELDS = ["shot_type", "angle", "framing", "lighting", "background"] as const;
+export type LookField = (typeof LOOK_FIELDS)[number];
 
 export type ImageStats = {
   /** Brand images counted (third-party and interface images excluded). */
@@ -27,14 +33,17 @@ export type ImageStats = {
   formatMix: MixRow[];
   /** Share of each purpose (why they were posted). */
   purposeMix: MixRow[];
+  /** Share of each shot type, angle, framing, lighting and background, over the counted images. */
+  look: Record<LookField, MixRow[]>;
   colours: ColourTally[];
+  /** Text on images. Font, placement and treatment shares are of the images with text. */
   overlays: {
     count: number;
     pct: number;
-    fontStyles: { value: string; count: number }[];
+    fontStyles: MixRow[];
     colours: ColourTally[];
-    placements: { value: string; count: number }[];
-    treatments: { value: string; count: number }[];
+    placements: MixRow[];
+    treatments: MixRow[];
   };
   withPeoplePct: number;
   productVisiblePct: number;
@@ -91,6 +100,25 @@ function frequencies(values: (string | null | undefined)[], limit = 5): { value:
 
 const pct = (n: number, of: number) => (of === 0 ? 0 : Math.round((n / of) * 100));
 
+/** How many of `entries` take each value of a fixed list, as shares of `entries`, most common first. */
+function mixOf(
+  entries: CardEntry[],
+  keys: readonly string[],
+  of: (e: CardEntry) => string | null | undefined,
+  labels?: Record<string, string>,
+): MixRow[] {
+  return keys
+    .map((key) => {
+      const count = entries.filter((e) => of(e) === key).length;
+      return { key, label: labels?.[key] ?? vocabLabel(key), count, pct: pct(count, entries.length) };
+    })
+    .filter((m) => m.count > 0)
+    .sort((a, b) => b.count - a.count);
+}
+
+/** A mix as one line: "studio 62%, natural daylight 25%". */
+export const mixLine = (rows: MixRow[]) => rows.map((m) => `${m.label} ${m.pct}%`).join(", ");
+
 export function aggregateCards(entries: CardEntry[]): ImageStats {
   const brand = entries.filter((e) => !NON_BRAND_FORMATS.has(e.card.format));
   const counted = brand.length;
@@ -99,16 +127,15 @@ export function aggregateCards(entries: CardEntry[]): ImageStats {
   for (const e of brand) bySource[e.source]++;
 
   // The mixes are plain counts: they describe what the brand posts, so no source is weighted up.
-  const mix = (keys: readonly string[], labels: Record<string, string>, of: (e: CardEntry) => string | undefined): MixRow[] =>
-    keys
-      .map((key) => {
-        const count = brand.filter((e) => of(e) === key).length;
-        return { key, label: labels[key], count, pct: pct(count, counted) };
-      })
-      .filter((m) => m.count > 0)
-      .sort((a, b) => b.count - a.count);
-  const formatMix = mix(IMAGE_FORMATS.filter((f) => !NON_BRAND_FORMATS.has(f)), IMAGE_FORMAT_LABELS, (e) => e.card.format);
-  const purposeMix = mix(IMAGE_PURPOSES, IMAGE_PURPOSE_LABELS, (e) => e.card.purpose);
+  const formatMix = mixOf(brand, IMAGE_FORMATS.filter((f) => !NON_BRAND_FORMATS.has(f)), (e) => e.card.format, IMAGE_FORMAT_LABELS);
+  const purposeMix = mixOf(brand, IMAGE_PURPOSES, (e) => e.card.purpose, IMAGE_PURPOSE_LABELS);
+  const look: Record<LookField, MixRow[]> = {
+    shot_type: mixOf(brand, CARD_VOCAB.shot_type, (e) => e.card.composition.shot_type),
+    angle: mixOf(brand, CARD_VOCAB.angle, (e) => e.card.composition.angle),
+    framing: mixOf(brand, CARD_VOCAB.framing, (e) => e.card.composition.framing),
+    lighting: mixOf(brand, CARD_VOCAB.lighting, (e) => e.card.lighting),
+    background: mixOf(brand, CARD_VOCAB.background, (e) => e.card.background),
+  };
 
   const colours = clusterColours(
     brand.flatMap((e) =>
@@ -121,15 +148,15 @@ export function aggregateCards(entries: CardEntry[]): ImageStats {
   const overlays = {
     count: withText.length,
     pct: pct(withText.length, counted),
-    fontStyles: frequencies(withText.map((e) => e.card.text_overlay.font_style)),
+    fontStyles: mixOf(withText, CARD_VOCAB.font_style, (e) => e.card.text_overlay.font_style),
     colours: clusterColours(
       withText.flatMap((e) =>
         e.card.text_overlay.colours_hex.map((hex) => ({ name: "", hex, weight: SOURCE_WEIGHT[e.source] })),
       ),
       4,
     ),
-    placements: frequencies(withText.map((e) => e.card.text_overlay.placement)),
-    treatments: frequencies(withText.map((e) => e.card.text_overlay.treatment)),
+    placements: mixOf(withText, CARD_VOCAB.placement, (e) => e.card.text_overlay.placement),
+    treatments: mixOf(withText, CARD_VOCAB.treatment, (e) => e.card.text_overlay.treatment),
   };
 
   return {
@@ -138,6 +165,7 @@ export function aggregateCards(entries: CardEntry[]): ImageStats {
     bySource,
     formatMix,
     purposeMix,
+    look,
     colours,
     overlays,
     withPeoplePct: pct(brand.filter((e) => e.card.people.count > 0).length, counted),

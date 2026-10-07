@@ -6608,3 +6608,21 @@ loses detail without seeing more patterns than a sample. No cap (quality unteste
 cards). Round-robin across groups (distorts proportions).
 
 **Refines →** D312, D315. **Originated →** `2026-10-07-kb-image-analysis-design.md` §4.
+
+### D317 — Counted card fields take fixed choices; free-text notes keep the detail *(recorded 2026-10-07)*
+
+**Decision.** Shot type, angle, framing, lighting, background, and the text overlay's font,
+placement and treatment each take one value from a fixed list (`CARD_VOCAB`). Lighting, background
+and font each keep a short free-text note. Code counts every one of them; the summary input carries
+those exact shares, and the summary prompt builds composition, lighting, settings and text-overlay
+fields on them. Card version 3.
+
+**Why.** Free text split one look across many spellings ("bold sans", "bold sans-serif"), so counts
+came out small and scattered and the summary was handed weak numbers. Dash Hudson, Brandwatch and
+Anthropic's Clio all count fixed tags per item and leave description to a model reading examples.
+
+**Rejected.** Letting the model do the counting (numbers change between runs and can be invented).
+Batched summaries merged at the end (D316). Clustering for now (per-brand groups; revisit only past
+several thousand images).
+
+**Refines →** D312, D316. **Originated →** `2026-10-07-kb-image-analysis-design.md` §3.

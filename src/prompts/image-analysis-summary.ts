@@ -11,6 +11,9 @@ Rules:
 - Describe patterns across the set, not single images. Lead with what is most common.
 - Uploads were chosen by the brand's team: when sources disagree, uploads win.
 - Use the tallies for any number you state. Never invent counts or colours.
+- The tallies for shot type, angle, framing, lighting, background and text are exact: build
+  composition_style, lighting_character, settings_backgrounds and text_overlay_style on them, and
+  use the cards' notes for the detail behind each.
 - Be concrete and visual: name materials, colours (with #RRGGBB when known), framings, wardrobe.
 - Each text value is one or two plain sentences. List values are short phrases.
 - If the images say nothing about a field (for example no people appear), say so plainly.
@@ -31,7 +34,7 @@ Fields:
 
 export const imageAnalysisSummaryPrompt = {
   id: "image-analysis-summary",
-  version: "1.0.0",
+  version: "1.1.0",
   model: IMAGE_SUMMARY_MODEL,
   system: SYSTEM_PROMPT,
 } as const;
