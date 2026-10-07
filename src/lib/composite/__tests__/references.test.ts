@@ -9,6 +9,7 @@ import {
   resolveCompositeMentions,
   danglingMentions,
   danglingMentionMessage,
+  mentionIds,
 } from "../references";
 
 const img = (url: string): AvatarImage => ({
@@ -103,3 +104,11 @@ describe("danglingMentions", () => {
     );
   });
 });
+
+describe("mentionIds (D312 edit)", () => {
+  it("lists each mentioned node id once, in first-seen order", () => {
+    expect(mentionIds("add @[File: A](a) next to @[Avatar: Riya](r), then @[File: A](a) again")).toEqual(["a", "r"]);
+    expect(mentionIds("no chips")).toEqual([]);
+  });
+});
+

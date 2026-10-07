@@ -48,9 +48,11 @@ vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({ width: 1152
 
 // Every mock takes `...a: unknown[]` so `mock.calls[0][0]` is typed and tsc stays clean.
 const insertVersion = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({ id: "v1" }));
+const getVersionById = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => null);
 vi.mock("@/lib/db/versions", () => ({
   insertVersion: (...a: unknown[]) => insertVersion(...a),
   setActiveVersion: vi.fn(async () => undefined),
+  getVersionById: (...a: unknown[]) => getVersionById(...a),
 }));
 const insertGeneration = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({ id: "g1" }));
 const failGeneration = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => undefined);
@@ -177,4 +179,44 @@ describe("POST composite-generate (D312)", () => {
     expect(failGeneration).toHaveBeenCalled();
     expect(insertVersion).toHaveBeenCalledWith(expect.objectContaining({ error: "provider down" }));
   });
+
+  describe("edit (D312)", () => {
+    beforeEach(() => {
+      getVersionById.mockResolvedValue({ id: "v-base", node_id: "node-1", output: "https://cdn/base.png" });
+    });
+
+    it("edits the current picture: base first, then the ticked references, with the edit template", async () => {
+      const res = await post({ instruction: "the cup", modelId: SEEDANCE_FACE_MODEL_ID, edit: { baseVersionId: "v-base", intent: "remove", extraIds: ["n-file"] } });
+      expect(res.status).toBe(200);
+      expect(sent().referenceUrls).toEqual(["https://cdn/base.png", "https://cdn/sandals.png"]);
+      expect(sent().prompt).toMatch(/^Using the provided image, remove the cup\./);
+      const version = insertVersion.mock.calls[0][0] as { inputsUsed: Record<string, unknown> };
+      expect(version.inputsUsed).toMatchObject({ mode: "edit", baseVersionId: "v-base", intent: "remove" });
+    });
+
+    it("a mentioned reference joins the edit even when not ticked", async () => {
+      await post({ instruction: "@[File: Sandals.png](n-file) in his hand", edit: { baseVersionId: "v-base", intent: "add" } });
+      expect(sent().referenceUrls).toEqual(["https://cdn/base.png", "https://cdn/sandals.png"]);
+      expect(sent().prompt).toContain("Sandals.png (image 2) in his hand");
+    });
+
+    it("keeps the person when an avatar is wired", async () => {
+      await post({ instruction: "the background warmer", edit: { baseVersionId: "v-base", intent: "modify" } });
+      expect(sent().prompt).toMatch(/^Using the provided image, change only the background warmer/);
+      expect(sent().prompt).toMatch(/same face/);
+    });
+
+    it("sends the operator's hand-edited prompt as is", async () => {
+      await post({ instruction: "x", edit: { baseVersionId: "v-base", prompt: "MY EXACT PROMPT" } });
+      expect(sent().prompt).toBe("MY EXACT PROMPT");
+    });
+
+    it("refuses a base that is not one of this node's versions, before reserving", async () => {
+      getVersionById.mockResolvedValue({ id: "v-x", node_id: "other-node", output: "https://cdn/x.png" });
+      const res = await post({ instruction: "x", edit: { baseVersionId: "v-x" } });
+      expect(res.status).toBe(400);
+      expect(insertGeneration).not.toHaveBeenCalled();
+    });
+  });
 });
+

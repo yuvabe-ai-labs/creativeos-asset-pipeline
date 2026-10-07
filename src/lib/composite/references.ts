@@ -94,6 +94,15 @@ export function resolveCompositeMentions(instruction: string, refs: CompositeRef
     .join("");
 }
 
+/** The node ids the instruction's chips point at, each once, in first-seen order. */
+export function mentionIds(instruction: string): string[] {
+  const ids: string[] = [];
+  for (const s of MENTION.parse(instruction)) {
+    if (s.kind === "mention" && !ids.includes(s.id)) ids.push(s.id);
+  }
+  return ids;
+}
+
 /** Names of the chips whose node is no longer in the roster, each once, in first-seen order. */
 export function danglingMentions(instruction: string, refs: CompositeRef[]): string[] {
   const wired = new Set(refs.map((r) => r.nodeId));

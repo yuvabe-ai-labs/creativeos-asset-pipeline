@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { CompositeRef } from "@/lib/composite/references";
-import { buildCompositePrompt } from "../composite-generate";
+import { buildCompositePrompt, buildCompositeEditPrompt } from "../composite-generate";
 
 const AVATAR: CompositeRef = { nodeId: "a", name: "Riya", role: "avatar", position: 1, image: { url: "https://cdn/f.png" } };
 const SHEET: CompositeRef = { nodeId: "a:sheet", name: "Riya sheet", role: "avatar-sheet", position: 2, image: { url: "https://cdn/s.png" } };
@@ -87,6 +87,31 @@ describe("buildCompositePrompt (D312)", () => {
     it("yields to the operator's camera words", () => {
       expect(withAvatar).toMatch(/the description's camera and framing win/);
     });
+  });
+});
+
+// D312 — Edit: Image Gen's edit templates, on the composite's current picture, with the composite's
+// preservation rules so an edit cannot drift the face or the product.
+describe("buildCompositeEditPrompt", () => {
+  const EXTRA: CompositeRef = { nodeId: "f", name: "Sandals.png", role: "image", position: 2, image: { url: "https://cdn/x.png" } };
+
+  it("uses the intent's template on the provided picture", () => {
+    const p = buildCompositeEditPrompt({ instruction: "the cup on the counter", intent: "remove", extras: [], hasAvatar: false });
+    expect(p).toMatch(/^Using the provided image, remove the cup on the counter\./);
+  });
+
+  it("names image 1 as the picture being edited and lists the extras by position", () => {
+    const p = buildCompositeEditPrompt({ instruction: "Sandals.png (image 2) in her hand", intent: "add", extras: [EXTRA], hasAvatar: false });
+    expect(p).toContain("Image 1 is the picture being edited.");
+    expect(p).toContain("Image 2: Sandals.png.");
+  });
+
+  it("keeps the person only when an avatar is wired; always keeps the product", () => {
+    const withPerson = buildCompositeEditPrompt({ instruction: "x", intent: "modify", extras: [], hasAvatar: true });
+    const without = buildCompositeEditPrompt({ instruction: "x", intent: "modify", extras: [], hasAvatar: false });
+    expect(withPerson).toMatch(/same face/);
+    expect(without).not.toMatch(/same face/);
+    expect(without).toMatch(/Add no text, logo, label or branding/);
   });
 });
 
