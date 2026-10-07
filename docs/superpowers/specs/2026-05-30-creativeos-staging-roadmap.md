@@ -6517,3 +6517,41 @@ shared links); keeping the 43-character token (unreadable).
 **Supersedes.** D309's "the token is an unguessable capability". **Follow-up.** Password
 protection for share links (operator, 2026-10-06). **Originated →**
 `docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
+
+### D312 — Image Analysis is written from per-image cards of every brand image, not by the KB build *(recorded 2026-10-07)*
+
+**Decision.** Every brand still image — uploads and images imported from the website, Instagram and
+Facebook — is read once into a stored card (`client_brand_image_cards`). The Brand KB's Image Analysis
+section is written from the cards: content mix and dominant colours tallied in code, the other eleven
+fields written by the model from the tallies and cards. Six fields are added (content mix, product
+presentation, settings & backgrounds, people & casting, text overlay style, recurring motifs).
+Third-party and interface images (retailer badges, app icons) are carded but left out; uploads weigh
+3×. A background `image-analysis` job (D306) runs after uploads, imports and KB builds, and from the
+tab; it rewrites the section on the active KB version through `set_kb_image_analysis` (one
+`jsonb_set`), and every field returns to needs review. The KB build no longer analyses images.
+
+**Why.** The lead asked for image analysis that includes imported and uploaded assets. Reading each
+image once makes refreshes cheap, lets the numbers be real counts, and gives later work (category
+filters, video cards) a per-asset foundation. A single atomic write keeps the run from clashing with
+the review screen's whole-output Save.
+
+**Rejected.** One call over every image (re-reads all on each refresh; averages away detail; nothing
+per image). A representative sample (can miss things; still re-reads). Keeping image analysis inside
+the KB build (uploads only, and the build would wait on hundreds of images).
+
+**Refines** D303 (imported images are now analysed — for the Image Analysis tab only; they still do
+not feed document extraction). **Originated →** `2026-10-07-kb-image-analysis-design.md`.
+
+### D313 — Image cards and the Image Analysis summary use Gemini 3.5 Flash-Lite *(recorded 2026-10-07)*
+
+**Decision.** `gemini-3.5-flash-lite` (constants `IMAGE_CARD_MODEL`, `IMAGE_SUMMARY_MODEL`) at medium
+media resolution, structured output via Zod 4's `z.toJSONSchema` as `responseJsonSchema`.
+
+**Why.** Newest Flash-Lite with no announced shutdown. Measured on J365: 546 tokens an image,
+~1.5 s, no reasoning tokens — about $0.0016 a card, ~$0.30 for a brand's first ~190 images.
+
+**Rejected.** `gemini-2.5-flash-lite` (cheapest, but Google now limits 2.5 to existing users).
+`gemini-3.1-flash-lite` (shuts down 7 May 2027). `gemini-3.8-flash` (same answers in a test, but
+~8 s and ~650 reasoning tokens an image).
+
+**Originated →** `2026-10-07-kb-image-analysis-design.md` §6.

@@ -762,3 +762,33 @@ failed and the job still succeeds with 0 new).
 select column_name from information_schema.columns
 where table_name = 'client_brand_images' and column_name in ('width', 'height');
 ```
+
+## Migration 0048 — `client_brand_image_cards` + `set_kb_image_analysis` (2026-10-07)
+
+`supabase/migrations/0048_brand_image_cards.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0044.**
+
+Creates `client_brand_image_cards` (one card per brand image, cascades with the image and the client)
+and the function `set_kb_image_analysis(p_version_id, p_value)`, which replaces only the
+`image_analysis` section of a KB version's output (D312). RLS enabled with zero policies
+(default-deny, as `0041`).
+
+**Not safe to re-run:** `create table` fails if it exists (harmless); the function uses
+`create or replace`.
+
+**Ordering:** apply **before** deploying the app code and the `image-analysis` Trigger task. Until it
+lands, image analysis runs fail ("The image analysis didn't finish") and the tab shows no result.
+
+**Also required, same window:** `GOOGLE_GENAI_API_KEY` must be set in the **Trigger.dev** environment
+(the `image-analysis` task calls Gemini), and the task must be deployed with the rest of `trigger/`.
+
+**Verify after running:**
+
+```sql
+-- expect 1 row, rowsecurity = true; and 0 policies
+select relname, relrowsecurity from pg_class where relname = 'client_brand_image_cards';
+select policyname from pg_policies where tablename = 'client_brand_image_cards';
+
+-- expect 1 row
+select proname from pg_proc where proname = 'set_kb_image_analysis';
+```
