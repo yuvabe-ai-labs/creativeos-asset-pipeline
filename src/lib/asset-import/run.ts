@@ -25,6 +25,7 @@ import { planRefreshSince } from "./refresh-plan";
 import { importCopy } from "./messages";
 import { forEachLimited } from "@/lib/for-each-limited";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
+import { describeError } from "@/lib/describe-error";
 
 const NORMALIZERS: Record<AssetImportInput["source"], (rows: never[]) => NormalizeResult> = {
   instagram: normalizeInstagram,
@@ -95,7 +96,7 @@ export async function runAssetImport(
     return result;
   } catch (e) {
     // The cause (provider, HTTP status, configuration) belongs in the server logs, not on screen.
-    console.error("[asset-import] failed", { jobId, source, error: e instanceof Error ? e.message : String(e) });
+    console.error("[asset-import] failed", { jobId, source, error: describeError(e) });
     await failJob(jobId, importCopy.unavailable(source));
     return null;
   }
@@ -172,7 +173,7 @@ async function saveAsset(clientId: string, asset: ScrapedAsset, fetchImpl: typeo
     return { status: "saved" };
   } catch (e) {
     await discard();
-    return { status: "failed", reason: e instanceof Error ? e.message : String(e) };
+    return { status: "failed", reason: describeError(e) };
   }
 }
 

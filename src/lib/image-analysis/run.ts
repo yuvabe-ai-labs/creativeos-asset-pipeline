@@ -15,6 +15,7 @@ import { generateStructured } from "./gemini";
 import { aggregateCards, buildSummaryInput, ImageSummarySchema, toImageAnalysis } from "./summarize";
 import { imageAnalysisCopy } from "./messages";
 import type { ImageAnalysisResult } from "./types";
+import { describeError } from "@/lib/describe-error";
 
 /** Rounds of "read what has no card yet" — images added mid-run are picked up by the next round. */
 const MAX_ROUNDS = 4;
@@ -43,7 +44,7 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
           readThisRound++;
         } catch (e) {
           failed++;
-          firstFailure ??= `${image.id}: ${e instanceof Error ? e.message : String(e)}`;
+          firstFailure ??= `${image.id}: ${describeError(e)}`;
         }
       });
       // Nothing could be read this round: stop rather than retry the same failures.
@@ -73,7 +74,7 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
     await succeedJob(jobId, result, imageAnalysisCopy.done(stats.counted));
     return result;
   } catch (e) {
-    console.error("[image-analysis] failed", { jobId, error: e instanceof Error ? e.message : String(e) });
+    console.error("[image-analysis] failed", { jobId, error: describeError(e) });
     await failJob(jobId, imageAnalysisCopy.failed);
     return null;
   }

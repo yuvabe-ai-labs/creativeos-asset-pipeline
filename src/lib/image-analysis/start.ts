@@ -8,6 +8,7 @@ import { JobLockedError } from "@/lib/jobs/types";
 import { IMAGE_CARD_VERSION } from "./constants";
 import { imageAnalysisCopy } from "./messages";
 import type { ImageAnalysisResult, ImageAnalysisStatus } from "./types";
+import { describeError } from "@/lib/describe-error";
 
 /** Past the task's 30-minute maxDuration with margin: a job still live by then is dead. */
 const STALE_AFTER_MS = 45 * 60_000;
@@ -43,7 +44,7 @@ export async function startImageAnalysis(clientId: string, userId: string | null
     const run = await tasks.trigger("image-analysis", { jobId });
     await setJobRunId(jobId, run.id);
   } catch (e) {
-    console.error("[image-analysis] could not queue", { jobId, error: e instanceof Error ? e.message : String(e) });
+    console.error("[image-analysis] could not queue", { jobId, error: describeError(e) });
     await failJob(jobId, imageAnalysisCopy.couldNotStart); // releases the lock
   }
 }
@@ -56,7 +57,7 @@ export async function startImageAnalysisQuietly(clientId: string, userId: string
   try {
     await startImageAnalysis(clientId, userId);
   } catch (e) {
-    console.error("[image-analysis] start failed", { clientId, error: e instanceof Error ? e.message : String(e) });
+    console.error("[image-analysis] start failed", { clientId, error: describeError(e) });
   }
 }
 

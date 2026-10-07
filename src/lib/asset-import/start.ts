@@ -10,6 +10,7 @@ import type { AssetImport, AssetImportInput, AssetImportResult } from "./types";
 import { facebookPageUrl, instagramProfileUrl, websiteUrl } from "./utils";
 import { planRefreshSince } from "./refresh-plan";
 import { importCopy } from "./messages";
+import { describeError } from "@/lib/describe-error";
 
 type ImportJob = BackgroundJobRow<AssetImportInput, AssetImportResult>;
 
@@ -112,7 +113,7 @@ export async function startAssetImports(args: {
       } catch (e) {
         // Release the lock, or this source could never be imported again. The cause goes to the
         // logs; people get a plain sentence.
-        console.error("[asset-import] could not queue", { jobId: job.id, source, error: e instanceof Error ? e.message : String(e) });
+        console.error("[asset-import] could not queue", { jobId: job.id, source, error: describeError(e) });
         await failJob(job.id, importCopy.couldNotStart);
       }
       return job;
