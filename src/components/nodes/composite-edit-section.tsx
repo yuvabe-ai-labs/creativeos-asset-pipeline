@@ -1,100 +1,70 @@
 "use client";
 
-import { useState } from "react";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
-import { compositeEditPreview } from "@/lib/composite/edit-preview";
 import type { CompositeUpstreamItem } from "@/lib/composite/upstream-items";
 import { ImageGenEditReferences } from "./image-gen-edit-references";
 import { ImageGenEditPanel } from "./image-gen-edit-panel";
 
-export type CompositeEditRequest = {
-  instruction: string;
-  intent: EditIntent;
-  extraIds: string[];
-  /** Only when the operator hand-edited the final prompt; otherwise the server builds it. */
-  prompt?: string;
-};
-
 type Props = {
   imageUrl: string;
   items: CompositeUpstreamItem[];
-  hasAvatar: boolean;
-  canEdit: boolean;
-  editing: boolean;
-  /** The model takes a mask: the operator may paint the region on the image. */
   paintMode: boolean;
-  /** A region is painted right now. */
-  masked: boolean;
-  estimatedCredits: (extraCount: number) => number | null;
-  onEdit: (request: CompositeEditRequest) => void;
+  editing: boolean;
+  canEdit: boolean;
+  instruction: string;
+  onInstructionChange: (v: string) => void;
+  intent: EditIntent;
+  onPickChip: (intent: EditIntent, starter: string) => void;
+  selectedIds: string[];
+  onToggleRef: (id: string) => void;
+  finalPrompt: string;
+  onFinalPromptChange: (v: string) => void;
 };
 
 const BASE_ID = "__composite_base__";
 
-// D312 — Edit on the Composite node: Image Gen's chips, references and final-prompt panel, on the
-// composite's current picture. Typed for Seedream and Nano Banana; with a model that takes a mask
-// (GPT Image) the region can also be painted on the image, as in Image Gen.
-export function CompositeEditSection({ imageUrl, items, hasAvatar, canEdit, editing, paintMode, masked, estimatedCredits, onEdit }: Props) {
-  const [instruction, setInstruction] = useState("");
-  const [intent, setIntent] = useState<EditIntent>("freeform");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  // null = follow the template; a string = the operator's hand-edited final prompt.
-  const [promptOverride, setPromptOverride] = useState<string | null>(null);
-
-  const preview = compositeEditPreview({ items, selectedIds, instruction, intent, hasAvatar, masked });
-  const finalPrompt = promptOverride ?? preview;
+// D312 — Edit on the Composite node: Image Gen's chips, references and final-prompt panel, in the
+// instruction's place. Its action is the focus view's one button, below Output settings, so the
+// page keeps the same order in both modes. Typed for Seedream and Nano Banana; with GPT Image the
+// region can also be painted on the image, as in Image Gen.
+export function CompositeEditSection(props: Props) {
   const references = [
-    { id: BASE_ID, label: "Current picture", url: imageUrl, isBase: true },
-    ...items.filter((i) => i.fileUrl).map((i) => ({ id: i.id, label: i.label, url: i.fileUrl as string, isBase: false })),
+    { id: BASE_ID, label: "Current picture", url: props.imageUrl, isBase: true },
+    ...props.items
+      .filter((i) => i.fileUrl)
+      .map((i) => ({ id: i.id, label: i.label, url: i.fileUrl as string, isBase: false })),
   ];
-
   return (
     <div className="flex flex-col gap-4">
-      {paintMode && (
+      {props.paintMode && (
         <p className="text-xs text-muted-foreground">
           Paint over the area to change on the image — only that region is edited. Leave it unpainted to edit the whole picture.
         </p>
       )}
       <ImageGenEditReferences
         items={references}
-        selectedIds={selectedIds}
-        onToggle={(id) => {
-          setSelectedIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-          setPromptOverride(null);
-        }}
+        selectedIds={props.selectedIds}
+        onToggle={props.onToggleRef}
         onSetBase={() => {}}
         canSetBase={false}
       />
       <ImageGenEditPanel
-        intent={intent}
-        instruction={instruction}
-        upstream={items}
-        finalPrompt={finalPrompt}
-        editing={editing}
-        canEdit={canEdit}
-        referenceWarning={(intent === "replace" || intent === "add") && selectedIds.length === 0}
+        intent={props.intent}
+        instruction={props.instruction}
+        upstream={props.items}
+        finalPrompt={props.finalPrompt}
+        editing={props.editing}
+        canEdit={props.canEdit}
+        referenceWarning={(props.intent === "replace" || props.intent === "add") && props.selectedIds.length === 0}
         suggestGemini={false}
-        onPickChip={(next, starter) => {
-          setIntent(next);
-          setInstruction(starter);
-          setPromptOverride(null);
-        }}
-        onInstructionChange={(v) => {
-          setInstruction(v);
-          setPromptOverride(null);
-        }}
+        onPickChip={props.onPickChip}
+        onInstructionChange={props.onInstructionChange}
         onInstructionBlur={() => {}}
-        onFinalPromptChange={setPromptOverride}
-        onEdit={() =>
-          onEdit({
-            instruction,
-            intent,
-            extraIds: selectedIds,
-            ...(promptOverride !== null ? { prompt: promptOverride } : {}),
-          })
-        }
-        estimatedCredits={estimatedCredits(selectedIds.length)}
+        onFinalPromptChange={props.onFinalPromptChange}
+        onEdit={() => {}}
+        estimatedCredits={null}
         estimating={false}
+        showAction={false}
       />
     </div>
   );

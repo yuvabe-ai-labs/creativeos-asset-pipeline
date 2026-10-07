@@ -8,6 +8,7 @@ import {
   resolveCompositeModelId,
   clampCompositeParams,
   compositePickerModelId,
+  COMPOSITE_MODEL_HINTS,
 } from "../model";
 
 describe("composite model (D312)", () => {
@@ -54,6 +55,11 @@ describe("composite model (D312)", () => {
     expect(clampCompositeParams({ aspect_ratio: "1:1", image_size: "2K" })).toEqual({ aspect_ratio: "9:16", image_size: "2K" });
     expect(clampCompositeParams({ aspect_ratio: "16:9" })).toEqual({ aspect_ratio: "16:9" });
     expect(clampCompositeParams({})).toEqual({ aspect_ratio: "9:16" });
+  });
+
+  it("Seedream's chip carries a hint: generic UGC, goes into Seedance; the others carry none", () => {
+    expect(COMPOSITE_MODEL_HINTS[SEEDANCE_FACE_MODEL_ID]).toBe("Use this for generic UGC — its composite can go into Seedance.");
+    expect(Object.keys(COMPOSITE_MODEL_HINTS)).toEqual([SEEDANCE_FACE_MODEL_ID]);
   });
 });
 

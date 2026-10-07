@@ -14,6 +14,7 @@ import { validateReferenceImages } from "@/lib/image-gen/validate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
   COMPOSITE_ASPECT_RATIOS,
+  COMPOSITE_MODEL_HINTS,
   COMPOSITE_MODEL_IDS,
   clampCompositeParams,
   compositeModelNote,
@@ -80,23 +81,16 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   const refValidation = validateReferenceImages(referenceUrls.map((url) => ({ url })), model);
   const canEditPicture = Boolean(imageUrl && activeVersionId);
   const editing = editMode && canEditPicture;
-  const { annotationRef, hasMaskRegion, setHasMaskRegion, paintMode, runEdit } = useCompositeEdit({
-    model,
-    values,
-    activeVersionId,
-    generate,
-  });
+  const edit = useCompositeEdit({ model, values, activeVersionId, items: mentionUpstream, hasAvatar, generate });
   // An edit sends the current picture plus the references it uses.
-  const editCredits = (extraCount: number) => {
-    const usd = estimateImageGenerationCostUsd({
-      modelId: model.id,
-      quality: values.quality as string | undefined,
-      aspectRatio: values.aspect_ratio as string | undefined,
-      imageSize: values.image_size as string | undefined,
-      referenceUrls: Array.from({ length: 1 + extraCount }, (_, i) => `ref-${i}`),
-    });
-    return usd === null ? null : usdToFinalCredits(usd);
-  };
+  const editUsd = estimateImageGenerationCostUsd({
+    modelId: model.id,
+    quality: values.quality as string | undefined,
+    aspectRatio: values.aspect_ratio as string | undefined,
+    imageSize: values.image_size as string | undefined,
+    referenceUrls: Array.from({ length: 1 + edit.selectedIds.length }, (_, i) => `ref-${i}`),
+  });
+  const actionUsd = editing ? editUsd : costUsd;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -130,13 +124,17 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                     <CompositeEditSection
                       imageUrl={imageUrl}
                       items={mentionUpstream}
-                      hasAvatar={hasAvatar}
-                      canEdit={editable}
+                      paintMode={edit.paintMode}
                       editing={generating}
-                      estimatedCredits={editCredits}
-                      paintMode={paintMode}
-                      masked={paintMode && hasMaskRegion}
-                      onEdit={(req) => void runEdit(req)}
+                      canEdit={editable}
+                      instruction={edit.instruction}
+                      onInstructionChange={edit.setInstruction}
+                      intent={edit.intent}
+                      onPickChip={edit.pickChip}
+                      selectedIds={edit.selectedIds}
+                      onToggleRef={edit.toggleRef}
+                      finalPrompt={edit.finalPrompt}
+                      onFinalPromptChange={edit.setPromptOverride}
                     />
                   ) : (
                   <div className="flex flex-col gap-2">
@@ -162,17 +160,22 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       onModelChange={(id) => onPatch({ modelId: id })}
                       modelNote={modelNote ?? undefined}
                       modelIds={COMPOSITE_MODEL_IDS}
+                      modelHints={COMPOSITE_MODEL_HINTS}
                       optionFilter={{ aspect_ratio: COMPOSITE_ASPECT_RATIOS }}
-                      missingInputReason="Say what to make first."
+                      inlineParams
+                      actionLabel={editing ? { idle: "Edit image", busy: "Editing…" } : undefined}
+                      missingInputReason={editing ? "Describe the edit first." : "Say what to make first."}
                       referenceCount={referenceUrls.length}
                       refValidation={refValidation}
-                      showGenerate={!editing}
-                      onGenerate={() => void generate({ instruction: draft, modelId: model.id, params: values })}
+                      showGenerate
+                      onGenerate={() =>
+                        void (editing ? edit.runEdit() : generate({ instruction: draft, modelId: model.id, params: values }))
+                      }
                       generating={generating}
                       editing={false}
-                      hasPrompt={draft.trim().length > 0}
+                      hasPrompt={editing ? edit.canRun : draft.trim().length > 0}
                       hasImage={Boolean(imageUrl)}
-                      estimatedCredits={costUsd === null ? null : usdToFinalCredits(costUsd)}
+                      estimatedCredits={actionUsd === null ? null : usdToFinalCredits(actionUsd)}
                       estimating={false}
                     />
                   </LeftSection>
@@ -195,10 +198,10 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
               generating={generating}
               canEdit={canEditPicture}
               editMode={editMode}
-              painting={editing && paintMode}
-              paintRef={annotationRef}
+              painting={editing && edit.paintMode}
+              paintRef={edit.annotationRef}
               paintKey={`${imageUrl}:${model.id}`}
-              onMarksChange={setHasMaskRegion}
+              onMarksChange={edit.setHasMaskRegion}
               onEditModeChange={(next) => {
                 setEditMode(next);
                 setSelected("compose"); // the mode's controls live in the middle column

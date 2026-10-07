@@ -17,6 +17,11 @@ export const COMPOSITE_MODEL_IDS: readonly string[] = [
   SEEDANCE_FACE_MODEL_ID,
 ];
 
+/** The (i) on a model chip, on hover. Seedream's composites are the ones Seedance accepts (D290). */
+export const COMPOSITE_MODEL_HINTS: Readonly<Record<string, string>> = {
+  [SEEDANCE_FACE_MODEL_ID]: "Use this for generic UGC — its composite can go into Seedance.",
+};
+
 /** A composite is a UGC reference: vertical or wide, nothing else. */
 export const COMPOSITE_ASPECT_RATIOS: readonly string[] = ["16:9", "9:16"];
 

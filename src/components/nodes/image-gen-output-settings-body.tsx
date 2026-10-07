@@ -42,7 +42,12 @@ type Props = {
   modelNote?: string;
   /** D312 — the composite's short model list and narrowed param options. */
   modelIds?: readonly string[];
+  modelHints?: Readonly<Record<string, string>>;
   optionFilter?: Record<string, readonly string[]>;
+  /** D312 — the button's own words (the Composite's Edit runs from here). Absent = Generate. */
+  actionLabel?: { idle: string; busy: string };
+  /** D312 — aspect ratio and resolution side by side. */
+  inlineParams?: boolean;
   /** Why Generate is unavailable when `hasPrompt` is false. Image Gen's default is unchanged. */
   missingInputReason?: string;
 };
@@ -70,7 +75,10 @@ export function ImageGenOutputSettingsBody({
   estimating,
   modelNote,
   modelIds,
+  modelHints,
   optionFilter,
+  actionLabel,
+  inlineParams,
   missingInputReason = "Connect a Prompt node to generate.",
 }: Props) {
   const editable = useCanvasEditable(); // D33: false when this session is read-only
@@ -108,7 +116,9 @@ export function ImageGenOutputSettingsBody({
         onModelChange={onModelChange}
         modelNote={modelNote}
         modelIds={modelIds}
+        modelHints={modelHints}
         optionFilter={optionFilter}
+        inlineParams={inlineParams}
       />
       {refOverLimit && (
         <div className="mt-3 flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[0.7rem] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
@@ -137,7 +147,11 @@ export function ImageGenOutputSettingsBody({
                 ) : (
                   <Sparkles className="size-4" strokeWidth={1.5} />
                 )}
-                {generating
+                {actionLabel
+                  ? generating
+                    ? actionLabel.busy
+                    : actionLabel.idle
+                  : generating
                   ? "Generating…"
                   : editing
                   ? "Editing…"

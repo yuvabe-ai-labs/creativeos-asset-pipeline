@@ -34,8 +34,12 @@ type Props = {
   /** D312 — a short, flat list of model ids (one row, no provider headings) instead of every
    *  model grouped by provider. Image Gen never passes it. */
   modelIds?: readonly string[];
+  /** D312 — an (i) note on given model chips, by model id. */
+  modelHints?: Readonly<Record<string, string>>;
   /** D312 — narrows a select param's options, e.g. { aspect_ratio: ["16:9", "9:16"] }. */
   optionFilter?: Record<string, readonly string[]>;
+  /** D312 — primary params side by side on one line instead of stacked. */
+  inlineParams?: boolean;
 };
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
@@ -63,7 +67,9 @@ export function ImageGenOutputSettings({
   onModelChange,
   modelNote,
   modelIds,
+  modelHints,
   optionFilter,
+  inlineParams,
 }: Props) {
   function patch(updates: ParamFormValues) {
     const next = { ...values, ...updates };
@@ -87,7 +93,7 @@ export function ImageGenOutputSettings({
           <ParamChipGroup
             options={modelIds.flatMap((id) => {
               const m = imageGenClientModelMap[id];
-              return m ? [{ value: m.id, label: m.label }] : [];
+              return m ? [{ value: m.id, label: m.label, hint: modelHints?.[m.id] }] : [];
             })}
             value={model.id}
             onValueChange={onModelChange}
@@ -113,7 +119,13 @@ export function ImageGenOutputSettings({
 
       {/* Primary params — each rendered as a chip group, stacked vertically so
           Quality/Resolution always sits below Aspect Ratio. */}
-      <div className="flex flex-col gap-4 [&>*+*]:border-t [&>*+*]:border-border [&>*+*]:pt-4">
+      <div
+        className={
+          inlineParams
+            ? "flex flex-wrap items-start gap-x-8 gap-y-4"
+            : "flex flex-col gap-4 [&>*+*]:border-t [&>*+*]:border-border [&>*+*]:pt-4"
+        }
+      >
         {primaryParams.map((param: ParamSpec) =>
           param.constraints.type === "select" ? (
             <div key={param.name} className="space-y-3">
