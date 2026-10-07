@@ -2,17 +2,15 @@ import "server-only";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { createOpenAI } from "@/lib/openai/server";
-import { listKBDocuments, listBrandImages } from "@/lib/db/kb";
+import { listKBDocuments } from "@/lib/db/kb";
 import {
   TraceableBrandKBSchema,
-  ImageAnalysisSchema,
   defaultEmptyImageAnalysis,
   type TraceableBrandKB,
 } from "@/lib/kb/schema";
 import { computeFillRate } from "@/lib/kb/fill-rate";
 import { KB_DOC_PER_FILE_LIMIT_BYTES } from "@/lib/kb/constants";
 import { kbExtractPrompt } from "@/prompts/kb-extract";
-import { kbImageAnalyzePrompt } from "@/prompts/kb-image-analyze";
 import { websiteResearchPrompt } from "@/prompts/website-research";
 import type { KBAnalysisProvider } from "./interface";
 
@@ -79,35 +77,6 @@ export const openaiKBProvider: KBAnalysisProvider = {
       fillRate: computeFillRate(kbOutput),
       skipped,
     };
-  },
-
-  async analyzeImages({ clientId, imageIds }) {
-    const allImages = await listBrandImages(clientId, "uploads");
-    const images = allImages.filter((i) => imageIds.includes(i.id));
-
-    if (images.length === 0) return defaultEmptyImageAnalysis();
-
-    const imageUserContent: unknown[] = images.map((img) => ({
-      type: "input_image",
-      image_url: img.storage_url,
-    }));
-    imageUserContent.push({
-      type: "input_text",
-      text: "Analyze all provided brand images and extract visual identity signals for the image_analysis section.",
-    });
-
-    const openai = createOpenAI();
-    const imageResponse = await openai.responses.parse({
-      model: kbImageAnalyzePrompt.model,
-      input: [
-        { role: "system", content: kbImageAnalyzePrompt.system },
-        { role: "user", content: imageUserContent as never },
-      ],
-      text: { format: zodTextFormat(ImageAnalysisSchema, "image_analysis") },
-      temperature: 0.3,
-    });
-
-    return imageResponse.output_parsed ?? defaultEmptyImageAnalysis();
   },
 
   async researchWebsite(url) {

@@ -6518,6 +6518,146 @@ shared links); keeping the 43-character token (unreadable).
 protection for share links (operator, 2026-10-06). **Originated →**
 `docs/superpowers/specs/2026-09-30-client-review-share-design.md`.
 
+### D312 — Image Analysis is written from per-image cards of every brand image, not by the KB build *(recorded 2026-10-07)*
+
+**Decision.** Every brand still image — uploads and images imported from the website, Instagram and
+Facebook — is read once into a stored card (`client_brand_image_cards`). The Brand KB's Image Analysis
+section is written from the cards: content mix and dominant colours tallied in code, the other eleven
+fields written by the model from the tallies and cards. Six fields are added (content mix, product
+presentation, settings & backgrounds, people & casting, text overlay style, recurring motifs).
+Third-party and interface images (retailer badges, app icons) are carded but left out; uploads weigh
+3×. A background `image-analysis` job (D306) runs after uploads, imports and KB builds, and from the
+tab; it rewrites the section on the active KB version through `set_kb_image_analysis` (one
+`jsonb_set`), and every field returns to needs review. The KB build no longer analyses images.
+
+**Why.** The lead asked for image analysis that includes imported and uploaded assets. Reading each
+image once makes refreshes cheap, lets the numbers be real counts, and gives later work (category
+filters, video cards) a per-asset foundation. A single atomic write keeps the run from clashing with
+the review screen's whole-output Save.
+
+**Rejected.** One call over every image (re-reads all on each refresh; averages away detail; nothing
+per image). A representative sample (can miss things; still re-reads). Keeping image analysis inside
+the KB build (uploads only, and the build would wait on hundreds of images).
+
+**Refines** D303 (imported images are now analysed — for the Image Analysis tab only; they still do
+not feed document extraction). **Originated →** `2026-10-07-kb-image-analysis-design.md`.
+
+### D313 — Image cards and the Image Analysis summary use Gemini 3.5 Flash-Lite *(recorded 2026-10-07)*
+
+**Decision.** `gemini-3.5-flash-lite` (constants `IMAGE_CARD_MODEL`, `IMAGE_SUMMARY_MODEL`) at medium
+media resolution, structured output via Zod 4's `z.toJSONSchema` as `responseJsonSchema`.
+
+**Why.** Newest Flash-Lite with no announced shutdown. Measured on J365: 546 tokens an image,
+~1.5 s, no reasoning tokens — about $0.0016 a card, ~$0.30 for a brand's first ~190 images.
+
+**Rejected.** `gemini-2.5-flash-lite` (cheapest, but Google now limits 2.5 to existing users).
+`gemini-3.1-flash-lite` (shuts down 7 May 2027). `gemini-3.8-flash` (same answers in a test, but
+~8 s and ~650 reasoning tokens an image).
+
+**Originated →** `2026-10-07-kb-image-analysis-design.md` §6.
+
+### D314 — Image cards sort on two fixed axes: format and purpose *(recorded 2026-10-07)*
+
+**Decision.** Each card carries a **format** (what the image looks like: product shot · flat lay ·
+in use · detail · people · text & graphic · behind the scenes · logo & brand mark · third-party or
+interface · other) and a **purpose** (why it was posted: educate · promote · inspire · entertain ·
+connect). Both lists are fixed and the same for every brand. The KB gets `content_mix` (Format Mix)
+and a new `purpose_mix`, both tallied in code. Card version 2; migration 0049 renames
+`category` → `format` and adds `purpose`.
+
+**Why.** The single list mixed two questions (a "tip" graphic was text_graphic, but its point was to
+educate). The industry splits them the same way: product-photography types for the look, content
+pillars (educate / entertain / inspire / promote, plus connect) for the intent. Fixed lists keep
+brands comparable and tallies exact.
+
+**Rejected.** Per-brand themes found by the model (not comparable across brands, unstable between
+runs; the team chose not to do them). Keeping one mixed list (answers neither question cleanly).
+
+**Refines →** D312. **Originated →** `2026-10-07-kb-image-analysis-design.md` §3.
+
+### D315 — The Image Analysis summary uses Gemini 3.8 Flash *(recorded 2026-10-07)*
+
+**Decision.** `IMAGE_SUMMARY_MODEL` = `gemini-3.8-flash`. Cards stay on `gemini-3.5-flash-lite` (D313).
+
+**Why.** The summary reads every card in one call, which can be 1,000+ cards. Tested on 1,200 cards
+(105k input tokens): both models answered, but 3.8 Flash wrote specific, evidence-backed fields
+(using the counts, naming more motifs) where Flash-Lite stayed generic. It takes ~23 s and ~1.6k
+reasoning tokens, a few cents a run; there is one summary call per run, in the background.
+
+**Rejected.** Keeping Flash-Lite for the summary (generic at scale). `gemini-3.1-pro-preview`
+(preview only). Splitting the summary into several calls (not needed: 1,200 cards is ~10% of the
+1M-token window).
+
+**Refines →** D313. **Originated →** `2026-10-07-kb-image-analysis-design.md` §6.
+
+### D316 — The summary reads at most 1,000 cards; above that, a sample that keeps the mix *(recorded 2026-10-07)*
+
+**Decision.** `SUMMARY_MAX_CARDS` = 1,000 (~97k tokens, the size tested on 3.8 Flash). Above it,
+`sample.ts` picks the cards: uploads take up to a third of the places (more when little else
+exists); the rest are shared among format-and-source groups in proportion to size, each group
+getting at least 3; picks are spread evenly within a group. The input tells the model "N of M,
+a sample"; the counts in the tab always cover every card. Card reads page past PostgREST's
+1,000-row limit, so counts and "which images still need a card" are right at any size.
+
+**Why.** One call over a fixed, tested size gives the same quality at 1,000 or 10,000 images, and
+the patterns the summary describes show up just as clearly in a proportional sample. The earlier
+round-robin evened out groups, which misstated the mix to the model.
+
+**Rejected.** Several summary calls merged into one (map-reduce): more calls, and the merge step
+loses detail without seeing more patterns than a sample. No cap (quality untested past ~1,200
+cards). Round-robin across groups (distorts proportions).
+
+**Refines →** D312, D315. **Originated →** `2026-10-07-kb-image-analysis-design.md` §4.
+
+### D317 — Counted card fields take fixed choices; free-text notes keep the detail *(recorded 2026-10-07)*
+
+**Decision.** Shot type, angle, framing, lighting, background, and the text overlay's font,
+placement and treatment each take one value from a fixed list (`CARD_VOCAB`). Lighting, background,
+font, composition and the overlay (exact position and treatment) each keep a short free-text note. Code counts every one of them; the summary input carries
+those exact shares, and the summary prompt builds composition, lighting, settings and text-overlay
+fields on them. Card version 3.
+
+**Why.** Free text split one look across many spellings ("bold sans", "bold sans-serif"), so counts
+came out small and scattered and the summary was handed weak numbers. Dash Hudson, Brandwatch and
+Anthropic's Clio all count fixed tags per item and leave description to a model reading examples.
+
+**Rejected.** Letting the model do the counting (numbers change between runs and can be invented).
+Batched summaries merged at the end (D316). Clustering for now (per-brand groups; revisit only past
+several thousand images).
+
+**Refines →** D312, D316. **Originated →** `2026-10-07-kb-image-analysis-design.md` §3.
+
+### D318 — Image Analysis survives re-analysis: reviews kept, no stale writes, no needless rewrites *(recorded 2026-10-07)*
+
+**Decision.** Image Analysis is maintained by image-analysis runs, apart from document extraction:
+- **Reviews carry over.** One rule (`mergeImageAnalysis`) wherever two copies meet: an edited field
+  keeps the team's words; an approved or rejected field keeps its decision while the value is the
+  same (counted fields keep it as their numbers move); anything new returns to needs review. A run
+  applies it when writing, Save applies it, and the review screen applies it to its draft.
+- **No write undoes another.** Save writes every section but Image Analysis in one statement
+  (`save_kb_output_keep_image_analysis`) and merges the team's Image Analysis reviews over the
+  stored section; single-field re-analysis and patches write one field (`set_kb_field`). The
+  whole-output writer is gone. A run writes to the version active when it writes, not when it
+  started; re-extract reads the section to carry over after its extraction, not before.
+- **Every change to the image set triggers a run, and only changes cost a summary.** Deletes now
+  start a run (KB source panel, upload step, Brand assets). A run records the key of the card set
+  its section was built from and skips the summary when nothing changed (the tab's Analyse /
+  Refresh forces one). Before finishing it checks for images added or deleted meanwhile and builds
+  again, up to 3 times.
+- A KB rebuild (the build webhook) carries the current section over, as re-extract does.
+- The image delete route now checks the image belongs to the client.
+
+**Why.** Before this, a re-extract or any image change reset every Image Analysis review to needs
+review; a Save, a field re-analysis or a slow re-extract could put back an older section; images
+added or deleted during a run's summary were missed; and deletes left the section describing
+images that no longer existed.
+
+**Rejected.** Keeping approvals regardless of a changed value (the team would vouch for words it
+never read). Merging in SQL (the rule is easier to test in code; the remaining window between read
+and write is milliseconds). Carrying document-module reviews over a re-extract (unchanged: the
+dialog says those reviews start over, since documents changed).
+
+**Refines →** D312. **Originated →** `2026-10-07-kb-image-analysis-design.md` §5.
 ### D312 — The Composite node: references in, an instruction typed on the node, one image out; an avatar wires straight into it *(recorded 2026-10-06; refines D298, D290, D308)*
 
 **Decision.** A new **Composite** node (`type: "composite"`, mnemonic **C**) makes a shot's

@@ -1,5 +1,4 @@
 import "server-only";
-import type { TraceableBrandKB } from "@/lib/kb/schema";
 import type { KBExtractionResult } from "@/lib/kb/extraction";
 
 export type KBAnalysisProvider = {
@@ -8,11 +7,6 @@ export type KBAnalysisProvider = {
     docIds: string[];
     researchMarkdown: string | null;
   }): Promise<KBExtractionResult>;
-
-  analyzeImages(input: {
-    clientId: string;
-    imageIds: string[];
-  }): Promise<TraceableBrandKB["image_analysis"]>;
 
   researchWebsite(url: string): Promise<string>;
 };
