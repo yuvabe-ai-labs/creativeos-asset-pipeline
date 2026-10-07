@@ -1,4 +1,4 @@
-# Brand KB — Image Analysis from every brand image (D312–D314)
+# Brand KB — Image Analysis from every brand image (D312–D315)
 
 **Date:** 2026-10-07 · **Branch:** `feat/kb-image-analysis` · **Design page:** [Image Analysis Design](https://claude.ai/artifact/9bWUQdF1eZP4YxCDL1CrDB)
 
@@ -65,9 +65,13 @@ text_overlay {present, text, font_style, colours_hex, placement, treatment}, log
 
 ## 6. Model and cost
 
-`gemini-3.5-flash-lite` for cards and summary (D313). Measured on J365: 546 image tokens at medium
-resolution, ~1.5 s per image, no reasoning tokens; 16 cards in 4.4 s concurrently, summary 2.5 s.
-About $0.0016 per card, ~$0.30 for a brand's first ~190 images, ~$0.01 per summary.
+`gemini-3.5-flash-lite` for cards (D313). Measured on J365: 546 image tokens at medium resolution,
+~1.5 s per image, no reasoning tokens; 16 cards in 4.4 s concurrently. About $0.0016 per card,
+~$0.30 for a brand's first ~190 images.
+
+`gemini-3.8-flash` for the summary (D315): one call over every card. On 1,200 cards (105k tokens)
+it took ~23 s with ~1.6k reasoning tokens, a few cents, and wrote far more specific fields than
+Flash-Lite on the same input.
 
 ## 7. Testing
 

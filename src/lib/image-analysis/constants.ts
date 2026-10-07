@@ -2,10 +2,12 @@
 // docs/superpowers/specs/2026-10-07-kb-image-analysis-design.md.
 import type { BrandImageSource } from "@/lib/asset-import/constants";
 
-/** Reads each image into a card, and writes the Image Analysis tab from the cards. Gemini's newest
- *  Flash-Lite: no announced shutdown, ~546 tokens an image, no reasoning tokens (D313). */
+/** Reads each image into a card. Gemini's newest Flash-Lite: no announced shutdown, ~546 tokens an
+ *  image, no reasoning tokens (D313). */
 export const IMAGE_CARD_MODEL = "gemini-3.5-flash-lite";
-export const IMAGE_SUMMARY_MODEL = "gemini-3.5-flash-lite";
+/** Writes the Image Analysis tab from all the cards in one call, which can be 1,000+ cards: the
+ *  larger Flash reasons over them. One call a run, so its speed and price barely matter (D315). */
+export const IMAGE_SUMMARY_MODEL = "gemini-3.8-flash";
 
 /** Bump when the card prompt or schema changes: cards made by an older version are re-made. */
 export const IMAGE_CARD_VERSION = 2;

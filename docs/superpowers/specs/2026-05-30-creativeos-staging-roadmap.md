@@ -6574,3 +6574,18 @@ brands comparable and tallies exact.
 runs; the team chose not to do them). Keeping one mixed list (answers neither question cleanly).
 
 **Refines →** D312. **Originated →** `2026-10-07-kb-image-analysis-design.md` §3.
+
+### D315 — The Image Analysis summary uses Gemini 3.8 Flash *(recorded 2026-10-07)*
+
+**Decision.** `IMAGE_SUMMARY_MODEL` = `gemini-3.8-flash`. Cards stay on `gemini-3.5-flash-lite` (D313).
+
+**Why.** The summary reads every card in one call, which can be 1,000+ cards. Tested on 1,200 cards
+(105k input tokens): both models answered, but 3.8 Flash wrote specific, evidence-backed fields
+(using the counts, naming more motifs) where Flash-Lite stayed generic. It takes ~23 s and ~1.6k
+reasoning tokens, a few cents a run; there is one summary call per run, in the background.
+
+**Rejected.** Keeping Flash-Lite for the summary (generic at scale). `gemini-3.1-pro-preview`
+(preview only). Splitting the summary into several calls (not needed: 1,200 cards is ~10% of the
+1M-token window).
+
+**Refines →** D313. **Originated →** `2026-10-07-kb-image-analysis-design.md` §6.
