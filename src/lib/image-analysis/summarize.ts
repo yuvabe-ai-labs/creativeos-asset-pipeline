@@ -2,10 +2,17 @@
 // final KB fields) are exported for tests; summarizeImages makes the one model call.
 import { z } from "zod";
 import type { KBField, TraceableBrandKB } from "@/lib/kb/schema";
-import { aggregateCards, colourLines, contentMixLines, type CardEntry, type ImageStats } from "./aggregate";
-import { CONFIDENCE_AT, IMAGE_CATEGORY_LABELS, NON_BRAND_CATEGORIES, SOURCE_WEIGHT, SUMMARY_MAX_CARDS } from "./constants";
+import { aggregateCards, colourLines, formatMixLines, purposeMixLines, type CardEntry, type ImageStats } from "./aggregate";
+import {
+  CONFIDENCE_AT,
+  IMAGE_FORMAT_LABELS,
+  IMAGE_PURPOSE_LABELS,
+  NON_BRAND_FORMATS,
+  SOURCE_WEIGHT,
+  SUMMARY_MAX_CARDS,
+} from "./constants";
 
-/** What the model writes: every field except the two tallied in code. */
+/** What the model writes: every field except the three tallied in code. */
 export const ImageSummarySchema = z.object({
   aesthetic: z.string(),
   visual_mood: z.string(),
@@ -23,11 +30,40 @@ export type ImageSummary = z.infer<typeof ImageSummarySchema>;
 
 const SOURCE_LABEL = { upload: "upload", website: "website", instagram: "instagram", facebook: "facebook" } as const;
 
-/** The tallies and the cards, as compact text for the summary call. Heaviest cards first. */
+/**
+ * The cards the summary sees: all of them when they fit; otherwise a balanced sample — every upload
+ * first (the team chose them), then taking each format and source in turn, so a brand with 900
+ * Instagram posts and 60 website images is not summarised from Instagram alone. Uploads lead the
+ * returned order either way.
+ */
+export function selectCardsForSummary(entries: CardEntry[], cap: number): CardEntry[] {
+  const byWeight = [...entries].sort((a, b) => SOURCE_WEIGHT[b.source] - SOURCE_WEIGHT[a.source]);
+  if (byWeight.length <= cap) return byWeight;
+
+  const uploads = byWeight.filter((e) => e.source === "upload").slice(0, cap);
+  const groups = new Map<string, CardEntry[]>();
+  for (const e of byWeight) {
+    if (e.source === "upload") continue;
+    const key = `${e.card.format}|${e.source}`;
+    groups.set(key, [...(groups.get(key) ?? []), e]);
+  }
+  const picked = [...uploads];
+  const queues = [...groups.values()];
+  while (picked.length < cap && queues.some((q) => q.length)) {
+    for (const q of queues) {
+      const next = q.shift();
+      if (next && picked.length < cap) picked.push(next);
+    }
+  }
+  return picked;
+}
+
+/** The tallies and the cards, as compact text for the summary call. Uploads first. */
 export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): string {
   const lines: string[] = [];
   lines.push(`Brand images counted: ${stats.counted} (uploads ${stats.bySource.upload}, website ${stats.bySource.website}, instagram ${stats.bySource.instagram}, facebook ${stats.bySource.facebook}); ${stats.excluded} third-party or interface images left out.`);
-  lines.push(`Content mix: ${contentMixLines(stats).join(", ") || "none"}.`);
+  lines.push(`Format mix (what the images look like): ${formatMixLines(stats).join(", ") || "none"}.`);
+  lines.push(`Purpose mix (why they were posted): ${purposeMixLines(stats).join(", ") || "none"}.`);
   lines.push(`Dominant colours (weighted): ${colourLines(stats).join(", ") || "none"}.`);
   lines.push(`Images with people: ${stats.withPeoplePct}%. Product visible: ${stats.productVisiblePct}%. Polish: ${stats.polish.map((p) => `${p.value} ${p.count}`).join(", ")}.`);
   const o = stats.overlays;
@@ -36,12 +72,12 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
       `Overlay colours: ${o.colours.map((c) => c.hex).join(", ") || "none"}. Placements: ${o.placements.map((p) => `${p.value} ${p.count}`).join(", ") || "none"}. ` +
       `Treatments: ${o.treatments.map((t) => `${t.value} ${t.count}`).join(", ") || "none"}.`,
   );
-  lines.push("", "Cards (source | category | summary | setting / background | composition | lighting | mood | people | overlay):");
+  lines.push("", "Cards (source | format | purpose | summary | setting / background | composition | lighting | mood | people | overlay):");
 
-  const brand = entries
-    .filter((e) => !NON_BRAND_CATEGORIES.has(e.card.category))
-    .sort((a, b) => SOURCE_WEIGHT[b.source] - SOURCE_WEIGHT[a.source])
-    .slice(0, SUMMARY_MAX_CARDS);
+  const brand = selectCardsForSummary(
+    entries.filter((e) => !NON_BRAND_FORMATS.has(e.card.format)),
+    SUMMARY_MAX_CARDS,
+  );
   for (const { source, card: c } of brand) {
     const overlay = c.text_overlay.present
       ? `${c.text_overlay.font_style ?? "text"} ${c.text_overlay.colours_hex.join("/")} ${c.text_overlay.placement ?? ""} "${(c.text_overlay.text ?? "").slice(0, 60)}"`
@@ -49,7 +85,8 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
     lines.push(
       [
         SOURCE_LABEL[source],
-        IMAGE_CATEGORY_LABELS[c.category],
+        IMAGE_FORMAT_LABELS[c.format],
+        IMAGE_PURPOSE_LABELS[c.purpose],
         c.summary,
         [c.setting, c.background].filter(Boolean).join(" / ") || "-",
         `${c.composition.shot_type}, ${c.composition.angle}, ${c.composition.framing}`,
@@ -66,7 +103,7 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
 const confidenceFor = (n: number): KBField<unknown>["confidence"] =>
   n >= CONFIDENCE_AT.high ? "high" : n >= CONFIDENCE_AT.medium ? "medium" : "low";
 
-/** Assembles the 13 KB fields: tallied ones as explicit evidence, written ones as inferred.
+/** Assembles the 14 KB fields: tallied ones as explicit evidence, written ones as inferred.
  *  Every field goes back to "needs review" so the team sees what changed. */
 export function toImageAnalysis(stats: ImageStats, summary: ImageSummary | null): TraceableBrandKB["image_analysis"] {
   const confidence = confidenceFor(stats.counted);
@@ -82,10 +119,12 @@ export function toImageAnalysis(stats: ImageStats, summary: ImageSummary | null)
     evidence_type: "inferred",
     status: "needs_review",
   });
-  const mix = contentMixLines(stats);
+  const formats = formatMixLines(stats);
+  const purposes = purposeMixLines(stats);
   const colours = colourLines(stats);
   return {
-    content_mix: tallied(mix.length ? mix : null),
+    content_mix: tallied(formats.length ? formats : null),
+    purpose_mix: tallied(purposes.length ? purposes : null),
     dominant_colors: tallied(colours.length ? colours : null),
     aesthetic: written(summary?.aesthetic),
     visual_mood: written(summary?.visual_mood),

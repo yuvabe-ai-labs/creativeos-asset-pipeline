@@ -792,3 +792,24 @@ select policyname from pg_policies where tablename = 'client_brand_image_cards';
 -- expect 1 row
 select proname from pg_proc where proname = 'set_kb_image_analysis';
 ```
+
+## Migration 0049 — image cards on two axes, format + purpose (2026-10-07)
+
+`supabase/migrations/0049_brand_image_cards_two_axis.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0048.**
+
+Renames `client_brand_image_cards.category` → `format`, adds `purpose`, and indexes both by client
+(D314).
+
+**Not safe to re-run:** the rename fails once applied (harmless).
+
+**Ordering:** apply **before** deploying the app code and the `image-analysis` Trigger task: the new
+code writes `format` and `purpose`, so every card save fails until it lands.
+
+**Verify after running:**
+
+```sql
+-- expect 2 rows: format, purpose (and no category)
+select column_name from information_schema.columns
+where table_name = 'client_brand_image_cards' and column_name in ('category', 'format', 'purpose');
+```

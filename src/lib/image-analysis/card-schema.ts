@@ -1,12 +1,13 @@
 // One image, read once and kept (D312). Shared by the reader (Gemini's response schema), the store
 // and the combining step.
 import { z } from "zod";
-import { IMAGE_CATEGORIES } from "./constants";
+import { IMAGE_FORMATS, IMAGE_PURPOSES } from "./constants";
 
 const HEX = /^#?[0-9a-fA-F]{6}$/;
 
 export const ImageCardSchema = z.object({
-  category: z.enum(IMAGE_CATEGORIES).describe("What kind of image this is"),
+  format: z.enum(IMAGE_FORMATS).describe("What the image looks like"),
+  purpose: z.enum(IMAGE_PURPOSES).describe("Why the brand posted it"),
   summary: z.string().describe("One sentence: what the image is"),
   subjects: z.array(z.string()).describe("The main things shown"),
   product: z.object({

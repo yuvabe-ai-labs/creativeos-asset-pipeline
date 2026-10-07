@@ -6555,3 +6555,22 @@ media resolution, structured output via Zod 4's `z.toJSONSchema` as `responseJso
 ~8 s and ~650 reasoning tokens an image).
 
 **Originated →** `2026-10-07-kb-image-analysis-design.md` §6.
+
+### D314 — Image cards sort on two fixed axes: format and purpose *(recorded 2026-10-07)*
+
+**Decision.** Each card carries a **format** (what the image looks like: product shot · flat lay ·
+in use · detail · people · text & graphic · behind the scenes · logo & brand mark · third-party or
+interface · other) and a **purpose** (why it was posted: educate · promote · inspire · entertain ·
+connect). Both lists are fixed and the same for every brand. The KB gets `content_mix` (Format Mix)
+and a new `purpose_mix`, both tallied in code. Card version 2; migration 0049 renames
+`category` → `format` and adds `purpose`.
+
+**Why.** The single list mixed two questions (a "tip" graphic was text_graphic, but its point was to
+educate). The industry splits them the same way: product-photography types for the look, content
+pillars (educate / entertain / inspire / promote, plus connect) for the intent. Fixed lists keep
+brands comparable and tallies exact.
+
+**Rejected.** Per-brand themes found by the model (not comparable across brands, unstable between
+runs; the team chose not to do them). Keeping one mixed list (answers neither question cleanly).
+
+**Refines →** D312. **Originated →** `2026-10-07-kb-image-analysis-design.md` §3.

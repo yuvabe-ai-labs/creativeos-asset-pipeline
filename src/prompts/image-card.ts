@@ -8,17 +8,25 @@ its website, or a post from its Instagram or Facebook. Describe exactly what you
 
 Rules:
 - Describe only what is visible. Never invent details.
-- category: pick the single best fit.
-    product            the brand's product is the subject (packshots, close-ups)
-    lifestyle          the product or brand in a real setting or in use
+- format: WHAT the image looks like. Pick the single best fit.
+    product_shot       the product on its own, usually a plain or studio background (packshot)
+    flat_lay           items arranged on a surface and shot from directly above
+    in_use             the product or brand in a real setting or being used (lifestyle)
+    detail             a close-up of texture, ingredient, material or a small part (macro)
     people             a person is the subject (portrait, model, founder, creator)
-    text_graphic       mostly text or a designed graphic (offer, quote, tip, infographic, announcement)
-    customer_content   made by or featuring customers (testimonial, review, user photo)
+    text_graphic       mostly text or a designed graphic (offer, quote, tip, infographic, greeting card)
     behind_the_scenes  production, team, kitchen, factory, making-of
     logo_brand_mark    the brand's logo or mark on its own
     third_party_or_ui  NOT the brand's own imagery: retailer or marketplace badges, app-store or
                        payment icons, social icons, certification seals, website interface pieces
     other              none of the above
+- purpose: WHY the brand posted it. Pick the single best fit, from the message, not the look.
+    educate    teaches something: tips, facts, how-tos, recipes, explainers, nutrition or science
+    promote    sells: offers, launches, product features, prices, calls to buy
+    inspire    aspiration: results, transformations, testimonials, lifestyle ideals
+    entertain  humour, trends, memes, light moments
+    connect    relationship: greetings, festivals, team, community, events, thank-yous
+  For a third_party_or_ui image use promote.
 - colours: up to 6 main colours of the whole image, largest area first, each with a plain name,
   a #RRGGBB hex and its rough share of the image (0 to 100).
 - text_overlay: only text placed ON the image (captions, titles, callouts). Text printed on the

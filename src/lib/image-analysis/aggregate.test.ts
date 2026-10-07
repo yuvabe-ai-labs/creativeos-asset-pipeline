@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { aggregateCards, clusterColours, colourLines, contentMixLines, type CardEntry } from "./aggregate";
+import { aggregateCards, clusterColours, colourLines, formatMixLines, purposeMixLines, type CardEntry } from "./aggregate";
 import type { ImageCard } from "./card-schema";
 
 const card = (over: Partial<ImageCard> = {}): ImageCard => ({
-  category: "product",
+  format: "product_shot",
+  purpose: "promote",
   summary: "A pack of flour",
   subjects: ["flour pack"],
   product: { visible: true, presentation: "packshot" },
@@ -59,17 +60,18 @@ describe("clusterColours", () => {
 describe("aggregateCards", () => {
   const entries: CardEntry[] = [
     { source: "upload", card: card() },
-    { source: "instagram", card: card({ category: "lifestyle", colours: [{ name: "cream", hex: "#F4EEDC", share: 80 }] }) },
-    { source: "instagram", card: card({ category: "lifestyle", colours: [{ name: "cream", hex: "#F4EEDC", share: 80 }] }) },
+    { source: "instagram", card: card({ format: "in_use", purpose: "inspire", colours: [{ name: "cream", hex: "#F4EEDC", share: 80 }] }) },
+    { source: "instagram", card: card({ format: "in_use", purpose: "inspire", colours: [{ name: "cream", hex: "#F4EEDC", share: 80 }] }) },
     {
       source: "website",
       card: card({
-        category: "text_graphic",
+        format: "text_graphic",
+        purpose: "educate",
         text_overlay: { present: true, text: "Eat well", font_style: "Bold sans", colours_hex: ["#ffffff"], placement: "lower left", treatment: "plain" },
       }),
     },
     // A retailer badge from the website: kept as a card, left out of every tally.
-    { source: "website", card: card({ category: "third_party_or_ui", colours: [{ name: "yellow", hex: "#FFE500", share: 100 }] }) },
+    { source: "website", card: card({ format: "third_party_or_ui", colours: [{ name: "yellow", hex: "#FFE500", share: 100 }] }) },
   ];
   const stats = aggregateCards(entries);
 
@@ -79,8 +81,9 @@ describe("aggregateCards", () => {
     expect(stats.bySource).toEqual({ upload: 1, website: 1, instagram: 2, facebook: 0 });
   });
 
-  it("reports the content mix as plain shares", () => {
-    expect(contentMixLines(stats)).toEqual(["Lifestyle 50%", "Product 25%", "Text & graphic 25%"]);
+  it("reports the format and purpose mixes as plain shares", () => {
+    expect(formatMixLines(stats)).toEqual(["In use 50%", "Product shot 25%", "Text & graphic 25%"]);
+    expect(purposeMixLines(stats)).toEqual(["Inspire 50%", "Educate 25%", "Promote 25%"]);
   });
 
   it("weights colours by share and source, ignoring third-party images", () => {
@@ -100,6 +103,6 @@ describe("aggregateCards", () => {
   });
 
   it("handles no images", () => {
-    expect(aggregateCards([])).toMatchObject({ counted: 0, contentMix: [], colours: [] });
+    expect(aggregateCards([])).toMatchObject({ counted: 0, formatMix: [], purposeMix: [], colours: [] });
   });
 });

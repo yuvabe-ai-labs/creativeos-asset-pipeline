@@ -168,10 +168,14 @@ export const TraceableComplianceSchema = z.object({
 // ── Image Analysis (from brand image uploads) ─────────────────────────────────
 
 // Written from per-image cards of every brand image — uploads and imported (D312), not by the
-// KB build. content_mix and dominant_colors are tallied from the cards; the rest is summarised.
+// KB build. content_mix (formats), purpose_mix and dominant_colors are tallied from the cards; the
+// rest is summarised. Formats and purposes are two fixed axes, the same for every brand (D314).
 export const ImageAnalysisSchema = z.object({
   content_mix: kbField(z.array(z.string())).describe(
-    "Share of each kind of image, e.g. 'Product 38%', 'Lifestyle 24%'",
+    "Share of each visual format, e.g. 'Product shot 38%', 'In use 24%'",
+  ),
+  purpose_mix: kbField(z.array(z.string())).describe(
+    "Share of each purpose, e.g. 'Educate 45%', 'Promote 25%'",
   ),
   dominant_colors: kbField(z.array(z.string())).describe(
     "Most used colours across the images, each as '<name> #RRGGBB'",
@@ -237,6 +241,7 @@ export function emptyKBField<T>(value: T | null = null): KBField<T> {
 export function defaultEmptyImageAnalysis(): TraceableBrandKB["image_analysis"] {
   return {
     content_mix: emptyKBField<string[]>(null),
+    purpose_mix: emptyKBField<string[]>(null),
     dominant_colors: emptyKBField<string[]>(null),
     visual_mood: emptyKBField<string>(null),
     aesthetic: emptyKBField<string>(null),

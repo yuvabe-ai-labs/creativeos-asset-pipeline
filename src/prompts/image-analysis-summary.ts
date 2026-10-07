@@ -1,5 +1,5 @@
-// Writes the Brand KB's Image Analysis section from the image cards (D312). content_mix and
-// dominant_colors are tallied in code and never asked of the model.
+// Writes the Brand KB's Image Analysis section from the image cards (D312). content_mix (formats),
+// purpose_mix and dominant_colors are tallied in code and never asked of the model.
 import { IMAGE_SUMMARY_MODEL } from "@/lib/image-analysis/constants";
 
 const SYSTEM_PROMPT = `You are a brand visual analyst for CreativeOS, an AI creative production tool.

@@ -4,23 +4,29 @@ import type { BrandImageSource } from "@/lib/asset-import/constants";
 import { normaliseHex, type ImageCard } from "./card-schema";
 import {
   DOMINANT_COLOUR_COUNT,
-  IMAGE_CATEGORIES,
-  IMAGE_CATEGORY_LABELS,
-  NON_BRAND_CATEGORIES,
+  IMAGE_FORMATS,
+  IMAGE_FORMAT_LABELS,
+  IMAGE_PURPOSES,
+  IMAGE_PURPOSE_LABELS,
+  NON_BRAND_FORMATS,
   SOURCE_WEIGHT,
-  type ImageCategory,
 } from "./constants";
 
 export type CardEntry = { source: BrandImageSource; card: ImageCard };
 
 export type ColourTally = { name: string; hex: string; weight: number };
 
+export type MixRow = { key: string; label: string; count: number; pct: number };
+
 export type ImageStats = {
   /** Brand images counted (third-party and interface images excluded). */
   counted: number;
   excluded: number;
   bySource: Record<BrandImageSource, number>;
-  contentMix: { category: ImageCategory; label: string; count: number; pct: number }[];
+  /** Share of each visual format (what the images look like). */
+  formatMix: MixRow[];
+  /** Share of each purpose (why they were posted). */
+  purposeMix: MixRow[];
   colours: ColourTally[];
   overlays: {
     count: number;
@@ -86,20 +92,23 @@ function frequencies(values: (string | null | undefined)[], limit = 5): { value:
 const pct = (n: number, of: number) => (of === 0 ? 0 : Math.round((n / of) * 100));
 
 export function aggregateCards(entries: CardEntry[]): ImageStats {
-  const brand = entries.filter((e) => !NON_BRAND_CATEGORIES.has(e.card.category));
+  const brand = entries.filter((e) => !NON_BRAND_FORMATS.has(e.card.format));
   const counted = brand.length;
 
   const bySource: Record<BrandImageSource, number> = { upload: 0, website: 0, instagram: 0, facebook: 0 };
   for (const e of brand) bySource[e.source]++;
 
-  // The mix is a plain count: it describes what the brand posts, so no source is weighted up.
-  const contentMix = IMAGE_CATEGORIES.filter((c) => !NON_BRAND_CATEGORIES.has(c))
-    .map((category) => {
-      const count = brand.filter((e) => e.card.category === category).length;
-      return { category, label: IMAGE_CATEGORY_LABELS[category], count, pct: pct(count, counted) };
-    })
-    .filter((m) => m.count > 0)
-    .sort((a, b) => b.count - a.count);
+  // The mixes are plain counts: they describe what the brand posts, so no source is weighted up.
+  const mix = (keys: readonly string[], labels: Record<string, string>, of: (e: CardEntry) => string | undefined): MixRow[] =>
+    keys
+      .map((key) => {
+        const count = brand.filter((e) => of(e) === key).length;
+        return { key, label: labels[key], count, pct: pct(count, counted) };
+      })
+      .filter((m) => m.count > 0)
+      .sort((a, b) => b.count - a.count);
+  const formatMix = mix(IMAGE_FORMATS.filter((f) => !NON_BRAND_FORMATS.has(f)), IMAGE_FORMAT_LABELS, (e) => e.card.format);
+  const purposeMix = mix(IMAGE_PURPOSES, IMAGE_PURPOSE_LABELS, (e) => e.card.purpose);
 
   const colours = clusterColours(
     brand.flatMap((e) =>
@@ -127,7 +136,8 @@ export function aggregateCards(entries: CardEntry[]): ImageStats {
     counted,
     excluded: entries.length - counted,
     bySource,
-    contentMix,
+    formatMix,
+    purposeMix,
     colours,
     overlays,
     withPeoplePct: pct(brand.filter((e) => e.card.people.count > 0).length, counted),
@@ -136,8 +146,11 @@ export function aggregateCards(entries: CardEntry[]): ImageStats {
   };
 }
 
-/** The content mix as the tab shows it: "Product 38%". */
-export const contentMixLines = (stats: ImageStats) => stats.contentMix.map((m) => `${m.label} ${m.pct}%`);
+/** The format mix as the tab shows it: "Product shot 38%". */
+export const formatMixLines = (stats: ImageStats) => stats.formatMix.map((m) => `${m.label} ${m.pct}%`);
+
+/** The purpose mix as the tab shows it: "Educate 45%". */
+export const purposeMixLines = (stats: ImageStats) => stats.purposeMix.map((m) => `${m.label} ${m.pct}%`);
 
 /** The dominant colours as the tab shows them: "forest green #2F5D3A". */
 export const colourLines = (stats: ImageStats) => stats.colours.map((c) => `${c.name} ${c.hex}`.trim());

@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { aggregateCards, buildSummaryInput, toImageAnalysis, type ImageSummary } from "./summarize";
+import { aggregateCards, buildSummaryInput, selectCardsForSummary, toImageAnalysis, type ImageSummary } from "./summarize";
 import type { CardEntry } from "./aggregate";
 import type { ImageCard } from "./card-schema";
 
 const card = (over: Partial<ImageCard> = {}): ImageCard => ({
-  category: "product",
+  format: "product_shot",
+  purpose: "promote",
   summary: "Flour pack on cream",
   subjects: ["flour pack"],
   product: { visible: true, presentation: "packshot" },
@@ -40,13 +41,14 @@ describe("buildSummaryInput", () => {
   const entries: CardEntry[] = [
     { source: "instagram", card: card({ summary: "Reel cover" }) },
     { source: "upload", card: card({ summary: "Hero packshot" }) },
-    { source: "website", card: card({ category: "third_party_or_ui", summary: "Retailer badge" }) },
+    { source: "website", card: card({ format: "third_party_or_ui", summary: "Retailer badge" }) },
   ];
   const text = buildSummaryInput(aggregateCards(entries), entries);
 
   it("states the exact tallies", () => {
     expect(text).toContain("Brand images counted: 2 (uploads 1, website 0, instagram 1, facebook 0); 1 third-party");
-    expect(text).toContain("Content mix: Product 100%.");
+    expect(text).toContain("Format mix (what the images look like): Product shot 100%.");
+    expect(text).toContain("Purpose mix (why they were posted): Promote 100%.");
   });
 
   it("lists uploads first and leaves third-party images out", () => {
@@ -55,16 +57,39 @@ describe("buildSummaryInput", () => {
   });
 });
 
+describe("selectCardsForSummary", () => {
+  const many = (source: CardEntry["source"], format: ImageCard["format"], n: number): CardEntry[] =>
+    Array.from({ length: n }, () => ({ source, card: card({ format }) }));
+
+  it("sends every card when they fit, uploads first", () => {
+    const entries = [...many("instagram", "in_use", 3), ...many("upload", "product_shot", 2)];
+    const out = selectCardsForSummary(entries, 10);
+    expect(out).toHaveLength(5);
+    expect(out.slice(0, 2).every((e) => e.source === "upload")).toBe(true);
+  });
+
+  it("above the cap, keeps every upload and balances the rest across format and source", () => {
+    const entries = [...many("instagram", "in_use", 90), ...many("website", "product_shot", 10), ...many("upload", "people", 4)];
+    const out = selectCardsForSummary(entries, 24);
+    expect(out).toHaveLength(24);
+    expect(out.filter((e) => e.source === "upload")).toHaveLength(4);
+    // Round-robin: the 10 website product images are not crowded out by 90 Instagram posts.
+    expect(out.filter((e) => e.source === "website")).toHaveLength(10);
+    expect(out.filter((e) => e.source === "instagram")).toHaveLength(10);
+  });
+});
+
 describe("toImageAnalysis", () => {
   const many = Array.from({ length: 25 }, () => ({ source: "instagram" as const, card: card() }));
 
   it("fills tallied fields from counts and the rest from the summary, all for review", () => {
     const ia = toImageAnalysis(aggregateCards(many), SUMMARY);
-    expect(ia.content_mix).toEqual({ value: ["Product 100%"], confidence: "high", evidence_type: "explicit", status: "needs_review" });
+    expect(ia.content_mix).toEqual({ value: ["Product shot 100%"], confidence: "high", evidence_type: "explicit", status: "needs_review" });
+    expect(ia.purpose_mix.value).toEqual(["Promote 100%"]);
     expect(ia.dominant_colors.value).toEqual(["forest green #2F5D3A"]);
     expect(ia.aesthetic).toEqual({ value: "Clean and natural", confidence: "high", evidence_type: "inferred", status: "needs_review" });
     expect(ia.recurring_motifs.value).toEqual(["steel bowls"]);
-    expect(Object.keys(ia)).toHaveLength(13);
+    expect(Object.keys(ia)).toHaveLength(14);
   });
 
   it("lowers confidence when few images back it", () => {

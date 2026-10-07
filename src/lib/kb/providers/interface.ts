@@ -1,5 +1,4 @@
 import "server-only";
-import type { TraceableBrandKB } from "@/lib/kb/schema";
 import type { KBExtractionResult } from "@/lib/kb/extraction";
 
 export type KBAnalysisProvider = {

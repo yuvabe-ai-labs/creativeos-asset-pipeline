@@ -25,6 +25,7 @@ export const MODULE_LEADING_FIELDS: Partial<Record<ModuleKey, readonly string[]>
   // The tallied fields first, then the look, then how people and text appear (D312).
   image_analysis: [
     "content_mix",
+    "purpose_mix",
     "dominant_colors",
     "aesthetic",
     "visual_mood",
@@ -73,7 +74,8 @@ export const FIELD_LABELS: Record<string, string> = {
   lighting_character: "Lighting Character",
   brand_consistency_notes: "Consistency Notes",
   subjects: "Subjects",
-  content_mix: "Content Mix",
+  content_mix: "Format Mix",
+  purpose_mix: "Purpose Mix",
   product_presentation: "Product Presentation",
   settings_backgrounds: "Settings & Backgrounds",
   people_casting: "People & Casting",

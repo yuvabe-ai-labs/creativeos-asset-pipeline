@@ -27,7 +27,8 @@ import { runImageAnalysis } from "./run";
 import type { ImageCard } from "./card-schema";
 
 const CARD = {
-  category: "product",
+  format: "product_shot",
+  purpose: "promote",
   summary: "Pack",
   subjects: [],
   product: { visible: true, presentation: "packshot" },
