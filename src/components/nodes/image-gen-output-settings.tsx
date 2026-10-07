@@ -28,8 +28,8 @@ type Props = {
   onValuesChange: (next: ParamFormValues) => void;
   onCommit: (values: ParamFormValues) => void;
   onModelChange: (id: string) => void;
-  /** D312 — the composite locks the model while an avatar is wired. Image Gen never passes it. */
-  modelLock?: { reason: string };
+  /** D312 — a line under the model picker. Image Gen never passes it. */
+  modelNote?: string;
 };
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
@@ -55,7 +55,7 @@ export function ImageGenOutputSettings({
   onValuesChange,
   onCommit,
   onModelChange,
-  modelLock,
+  modelNote,
 }: Props) {
   function patch(updates: ParamFormValues) {
     const next = { ...values, ...updates };
@@ -75,33 +75,21 @@ export function ImageGenOutputSettings({
           spacing carry the nesting on their own. */}
       <div className="space-y-3">
         <FieldLabel icon={Cpu} label="Model" />
-        {modelLock ? (
-          // D312 — a composite with an avatar must use the face model Seedance accepts. One
-          // chip, nothing to choose, and the reason in plain words.
-          <div className="space-y-2">
-            <ParamChipGroup
-              options={[{ value: model.id, label: model.label }]}
-              value={model.id}
-              onValueChange={() => {}}
-            />
-            <p className="text-xs text-muted-foreground">{modelLock.reason}</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {imageGenClientModelGroups.map((group) => (
-              <div key={group.provider} className="space-y-2">
-                <span className="text-[0.65rem] font-medium tracking-wide text-foreground/70 uppercase">
-                  {group.label}
-                </span>
-                <ParamChipGroup
-                  options={group.models.map((m) => ({ value: m.id, label: m.label }))}
-                  value={model.id}
-                  onValueChange={onModelChange}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="space-y-4">
+          {imageGenClientModelGroups.map((group) => (
+            <div key={group.provider} className="space-y-2">
+              <span className="text-[0.65rem] font-medium tracking-wide text-foreground/70 uppercase">
+                {group.label}
+              </span>
+              <ParamChipGroup
+                options={group.models.map((m) => ({ value: m.id, label: m.label }))}
+                value={model.id}
+                onValueChange={onModelChange}
+              />
+            </div>
+          ))}
+        </div>
+        {modelNote && <p className="text-xs text-muted-foreground">{modelNote}</p>}
       </div>
 
       {/* Primary params — each rendered as a chip group, stacked vertically so

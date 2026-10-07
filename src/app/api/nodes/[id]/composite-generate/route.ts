@@ -22,7 +22,7 @@ import {
   danglingMentions,
   danglingMentionMessage,
 } from "@/lib/composite/references";
-import { compositeModelLock, resolveCompositeModelId } from "@/lib/composite/model";
+import { resolveCompositeModelId } from "@/lib/composite/model";
 import { buildCompositePrompt, COMPOSITE_PROMPT_ID } from "@/prompts/composite-generate";
 
 // D312 — the Composite node's generation. image-generate/route.ts is the template, not the
@@ -51,13 +51,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const dangling = danglingMentions(rawInstruction, refs);
     if (dangling.length) return apiError(danglingMentionMessage(dangling), 400);
 
-    const hasAvatar = refs.some((r) => r.role === "avatar");
-    const requested = typeof body?.modelId === "string" ? body.modelId : undefined;
-    const lock = compositeModelLock(hasAvatar);
-    if (lock && requested && requested !== lock) {
-      return apiError("A composite with an avatar is made with Seedream, so Seedance and Gemini Omni accept it.", 400);
-    }
-    const modelId = resolveCompositeModelId(requested, hasAvatar);
+    // D312 — the operator's model, Seedream by default. A non-Seedream composite of an avatar
+    // works with Gemini Omni, Kling and Veo but not Seedance; the picker says so.
+    const modelId = resolveCompositeModelId(typeof body?.modelId === "string" ? body.modelId : undefined);
     const config = imageGenRegistry[modelId];
     if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
 

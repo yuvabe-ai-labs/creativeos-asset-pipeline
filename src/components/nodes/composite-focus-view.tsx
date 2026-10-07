@@ -14,8 +14,7 @@ import { validateReferenceImages } from "@/lib/image-gen/validate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
   COMPOSITE_DEFAULT_MODEL_ID,
-  COMPOSITE_MODEL_LOCK_REASON,
-  compositeModelLock,
+  compositeModelNote,
   resolveCompositeModelId,
 } from "@/lib/composite/model";
 import { compositeMentionUpstream, compositeMentionables } from "@/lib/composite/upstream-items";
@@ -54,11 +53,11 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   const upstream = useCompositeUpstream(nodeId);
   const mentionUpstream = useMemo(() => compositeMentionUpstream(upstream), [upstream]);
   const hasAvatar = upstream.some((u) => u.type === "avatar");
-  const lock = compositeModelLock(hasAvatar);
   // A stored id the client map no longer lists (a retired model) falls back to the default.
   const model =
-    imageGenClientModelMap[resolveCompositeModelId(modelId, hasAvatar)] ??
+    imageGenClientModelMap[resolveCompositeModelId(modelId)] ??
     imageGenClientModelMap[COMPOSITE_DEFAULT_MODEL_ID];
+  const modelNote = compositeModelNote(model.id, hasAvatar);
   const [draft, setDraft] = useState(instruction);
   const [selected, setSelected] = useState<"compose" | "history">("compose");
   const values = useMemo(
@@ -140,7 +139,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       onValuesChange={(next) => onPatch({ params: next })}
                       onCommit={(next) => onPatch({ params: next })}
                       onModelChange={(id) => onPatch({ modelId: id })}
-                      modelLock={lock ? { reason: COMPOSITE_MODEL_LOCK_REASON } : undefined}
+                      modelNote={modelNote ?? undefined}
                       missingInputReason="Say what to make first."
                       referenceCount={referenceUrls.length}
                       refValidation={refValidation}

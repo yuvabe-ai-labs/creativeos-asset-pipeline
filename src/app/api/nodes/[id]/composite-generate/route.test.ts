@@ -121,10 +121,15 @@ describe("POST composite-generate (D312)", () => {
     expect(insertGeneration).not.toHaveBeenCalled();
   });
 
-  it("refuses a model other than the lock while an avatar is wired", async () => {
+  it("allows Nano Banana with an avatar wired — the operator chooses (D312)", async () => {
     const res = await post({ instruction: "x", modelId: "gemini:gemini-3-pro-image" });
-    expect(res.status).toBe(400);
-    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ modelUsed: "gemini:gemini-3-pro-image" }));
+  });
+
+  it("defaults to Seedream when the request names no model", async () => {
+    await post({ instruction: "x" });
+    expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ modelUsed: SEEDANCE_FACE_MODEL_ID }));
   });
 
   it("allows any model when no avatar is wired", async () => {
