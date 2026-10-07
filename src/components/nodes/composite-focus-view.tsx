@@ -13,9 +13,11 @@ import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { validateReferenceImages } from "@/lib/image-gen/validate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
-  COMPOSITE_DEFAULT_MODEL_ID,
+  COMPOSITE_ASPECT_RATIOS,
+  COMPOSITE_MODEL_IDS,
+  clampCompositeParams,
   compositeModelNote,
-  resolveCompositeModelId,
+  compositePickerModelId,
 } from "@/lib/composite/model";
 import { compositeMentionUpstream, compositeMentionables } from "@/lib/composite/upstream-items";
 import { useCompositeUpstream } from "@/hooks/use-composite-upstream";
@@ -53,16 +55,14 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   const mentionUpstream = useMemo(() => compositeMentionUpstream(upstream), [upstream]);
   const hasAvatar = upstream.some((u) => u.type === "avatar");
   // A stored id the client map no longer lists (a retired model) falls back to the default.
-  const model =
-    imageGenClientModelMap[resolveCompositeModelId(modelId)] ??
-    imageGenClientModelMap[COMPOSITE_DEFAULT_MODEL_ID];
+  const model = imageGenClientModelMap[compositePickerModelId(modelId)];
   const modelNote = compositeModelNote(model.id, hasAvatar);
   const [draft, setDraft] = useState(instruction);
   const [selected, setSelected] = useState<"compose" | "history">("compose");
   // D312 — Edit acts on the current picture, so it exists only once there is one.
   const [editMode, setEditMode] = useState(false);
   const values = useMemo(
-    () => smartMergeParams({ ...defaultsForModel(model), ...(params ?? {}) }, model),
+    () => clampCompositeParams(smartMergeParams({ ...defaultsForModel(model), ...(params ?? {}) }, model)),
     [model, params],
   );
   const { versions, activeVersionId, loading, generating, restoring, lastError, generate, restore } =
@@ -161,6 +161,8 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       onCommit={(next) => onPatch({ params: next })}
                       onModelChange={(id) => onPatch({ modelId: id })}
                       modelNote={modelNote ?? undefined}
+                      modelIds={COMPOSITE_MODEL_IDS}
+                      optionFilter={{ aspect_ratio: COMPOSITE_ASPECT_RATIOS }}
                       missingInputReason="Say what to make first."
                       referenceCount={referenceUrls.length}
                       refValidation={refValidation}
