@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Combine, History, Settings2, Type } from "lucide-react";
+import { ArrowLeft, Settings2, Type } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,18 +20,18 @@ import {
 import { compositeMentionUpstream, compositeMentionables } from "@/lib/composite/upstream-items";
 import { useCompositeUpstream } from "@/hooks/use-composite-upstream";
 import { useCompositeVersions } from "@/hooks/use-composite-versions";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { CompositeEditSection } from "./composite-edit-section";
+import { CompositeFocusRail } from "./composite-focus-rail";
 import { EditableField } from "./editable-field";
 import { GenerationErrorBadge } from "./generation-error-badge";
-import { NodeIcon } from "./connected-inputs-card";
-import { AddConnection } from "./add-connection";
 import { LeftSection } from "./focus-left-section";
-import { RailItem } from "./focus-rail-item";
 import { FieldLabel } from "./field-label";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
 import { ImageGenVersionHistory } from "./image-gen-version-history";
 import { CompositeOutputPane } from "./composite-output-pane";
-import { useRailDisconnect } from "./use-rail-disconnect";
 
 type Props = {
   open: boolean;
@@ -60,13 +60,14 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   const modelNote = compositeModelNote(model.id, hasAvatar);
   const [draft, setDraft] = useState(instruction);
   const [selected, setSelected] = useState<"compose" | "history">("compose");
+  // D312 — Edit acts on the current picture, so it exists only once there is one.
+  const [editMode, setEditMode] = useState(false);
   const values = useMemo(
     () => smartMergeParams({ ...defaultsForModel(model), ...(params ?? {}) }, model),
     [model, params],
   );
   const { versions, activeVersionId, loading, generating, restoring, lastError, generate, restore } =
     useCompositeVersions(nodeId, open, onPatch);
-  const { removeFor } = useRailDisconnect(nodeId, () => {});
 
   // The same images the server will send: an avatar's front and fresh sheet are two.
   const referenceUrls = mentionUpstream.flatMap((u) => (u.fileUrl ? [u.fileUrl] : []));
@@ -78,6 +79,19 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
     referenceUrls,
   });
   const refValidation = validateReferenceImages(referenceUrls.map((url) => ({ url })), model);
+  const canEditPicture = Boolean(imageUrl && activeVersionId);
+  const editing = editMode && canEditPicture;
+  // An edit sends the current picture plus the references it uses.
+  const editCredits = (extraCount: number) => {
+    const usd = estimateImageGenerationCostUsd({
+      modelId: model.id,
+      quality: values.quality as string | undefined,
+      aspectRatio: values.aspect_ratio as string | undefined,
+      imageSize: values.image_size as string | undefined,
+      referenceUrls: Array.from({ length: 1 + extraCount }, (_, i) => `ref-${i}`),
+    });
+    return usd === null ? null : usdToFinalCredits(usd);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -95,30 +109,42 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
         </div>
 
         <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
-          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
-            <RailItem icon={<Combine className="size-4 text-primary" strokeWidth={1.5} />} label="Composite" active={selected === "compose"} onClick={() => setSelected("compose")} />
-            <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
-              <span className="text-eyebrow">Connected · {upstream.length}</span>
-              <AddConnection targetId={nodeId} targetType="composite" connectedIds={upstream.map((u) => u.id)} />
-            </div>
-            {upstream.length === 0 ? (
-              <p className="px-2.5 text-xs text-muted-foreground">Nothing wired — describe the whole picture.</p>
-            ) : (
-              upstream.map((u) => {
-                const remove = editable ? removeFor(u.id, u.label) : null;
-                return (
-                  <RailItem key={u.id} icon={<NodeIcon type={u.type} />} label={u.label} active={false} onClick={() => setSelected("compose")} onRemove={remove?.onClick} removeLabel={remove?.label} removeKind={remove?.kind} />
-                );
-              })
-            )}
-            <div className="mx-2.5 my-2 h-px bg-border" />
-            <RailItem icon={<History className="size-4 text-primary" strokeWidth={1.5} />} label="History" active={selected === "history"} onClick={() => setSelected("history")} badge={versions.length ? <span className="text-xs text-muted-foreground">{versions.length}</span> : undefined} />
-          </nav>
+          <CompositeFocusRail
+            nodeId={nodeId}
+            upstream={upstream}
+            selected={selected}
+            onSelect={setSelected}
+            versionCount={versions.length}
+          />
 
           <div className="flex min-h-0 flex-1">
             <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {selected === "compose" ? (
                 <div className="flex flex-col gap-6 px-6 py-5">
+                  {canEditPicture && (
+                    <Label htmlFor={`composite-edit-mode-${nodeId}`} className="flex w-fit cursor-pointer items-center gap-2.5 text-sm font-medium text-foreground">
+                      Edit this picture
+                      <Switch id={`composite-edit-mode-${nodeId}`} checked={editMode} onCheckedChange={setEditMode} />
+                    </Label>
+                  )}
+                  {editing && imageUrl && activeVersionId ? (
+                    <CompositeEditSection
+                      imageUrl={imageUrl}
+                      items={mentionUpstream}
+                      hasAvatar={hasAvatar}
+                      canEdit={editable}
+                      editing={generating}
+                      estimatedCredits={editCredits}
+                      onEdit={(req) =>
+                        void generate({
+                          instruction: req.instruction,
+                          modelId: model.id,
+                          params: values,
+                          edit: { baseVersionId: activeVersionId, intent: req.intent, extraIds: req.extraIds, prompt: req.prompt },
+                        })
+                      }
+                    />
+                  ) : (
                   <div className="flex flex-col gap-2">
                     <FieldLabel icon={Type} label="Instruction" />
                     <MentionInstructionEditor
@@ -132,6 +158,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                     />
                     <p className="text-[0.65rem] text-muted-foreground">Type @ to use a connected input. Nothing has to be connected — a background can be words alone.</p>
                   </div>
+                  )}
                   <LeftSection icon={Settings2} label="Output settings">
                     <ImageGenOutputSettingsBody
                       model={model}
@@ -143,7 +170,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       missingInputReason="Say what to make first."
                       referenceCount={referenceUrls.length}
                       refValidation={refValidation}
-                      showGenerate
+                      showGenerate={!editing}
                       onGenerate={() => void generate({ instruction: draft, modelId: model.id, params: values })}
                       generating={generating}
                       editing={false}

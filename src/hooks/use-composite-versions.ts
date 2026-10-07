@@ -37,7 +37,13 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
   }, [open, fetchVersions]);
   useNodeVersionUpdates(nodeId, open, () => void fetchVersions());
 
-  async function generate(body: { instruction: string; modelId: string; params: Record<string, unknown> }) {
+  async function generate(body: {
+    instruction: string;
+    modelId: string;
+    params: Record<string, unknown>;
+    /** D312 — Edit: the version to edit and what to change. Absent = a fresh composite. */
+    edit?: { baseVersionId: string; intent: string; extraIds: string[]; prompt?: string };
+  }) {
     if (generating) return; // a run in flight never starts another — next to the request it guards
     setGenerating(true);
     setLastError(null);
