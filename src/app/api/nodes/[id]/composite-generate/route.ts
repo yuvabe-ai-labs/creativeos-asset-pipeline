@@ -15,14 +15,22 @@ import { resolveCompositeModelId } from "@/lib/composite/model";
 import { referenceProblem, runCompositeGeneration } from "@/lib/composite/run-generation";
 import {
   buildCompositePrompt,
-  buildCompositeEditPrompt,
+  buildCompositeEditBrief,
+  withCompositeEditRules,
   COMPOSITE_PROMPT_ID,
   COMPOSITE_EDIT_PROMPT_ID,
 } from "@/prompts/composite-generate";
 
 const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "modify", "freeform"];
 
-type EditBody = { baseVersionId?: unknown; intent?: unknown; prompt?: unknown; extraIds?: unknown };
+type EditBody = {
+  baseVersionId?: unknown;
+  intent?: unknown;
+  prompt?: unknown;
+  extraIds?: unknown;
+  maskBase64?: unknown;
+  maskMime?: unknown;
+};
 
 // D312 — the Composite node's generation. image-generate/route.ts is the template, not the
 // route: the pipeline lives in runCompositeGeneration; the prompt comes from the node's own
@@ -67,6 +75,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // preservation rules, so an edit cannot drift the face or invent branding.
     if (body?.edit) {
       const edit = body.edit;
+      // A painted region (GPT Image): only a model that takes a mask may receive one.
+      const mask =
+        typeof edit.maskBase64 === "string" && edit.maskBase64
+          ? { base64: edit.maskBase64, mime: typeof edit.maskMime === "string" ? edit.maskMime : "image/png" }
+          : undefined;
+      if (mask && !config.supportsMask) {
+        return apiError(`${config.label} can't edit a painted region — type the change instead, or pick GPT Image.`, 400);
+      }
       const base = typeof edit.baseVersionId === "string" ? await getVersionById(edit.baseVersionId) : null;
       if (!base || base.node_id !== nodeId || typeof base.output !== "string") {
         return apiError("No picture to edit — generate one first.", 400);
@@ -84,22 +100,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       const intent = EDIT_INTENTS.find((i) => i === edit.intent) ?? "freeform";
       const handEdited = typeof edit.prompt === "string" ? edit.prompt.trim() : "";
-      const prompt =
+      // The operator sees and may edit the brief; the rules are always appended here, out of sight.
+      const brief =
         handEdited ||
-        buildCompositeEditPrompt({
+        buildCompositeEditBrief({
           instruction: resolveCompositeMentions(rawInstruction, extras),
           intent,
           extras,
-          hasAvatar: refs.some((r) => r.role === "avatar"),
+          masked: Boolean(mask),
         });
+      const prompt = withCompositeEditRules(brief, refs.some((r) => r.role === "avatar"));
       const referenceUrls = images.map((i) => i.url);
       return runCompositeGeneration({
         ...run,
         prompt,
         referenceUrls,
+        mask,
         inputsUsed: {
           promptId: COMPOSITE_EDIT_PROMPT_ID,
           mode: "edit",
+          masked: Boolean(mask),
           baseVersionId: base.id,
           baseImageUrl: base.output,
           intent,

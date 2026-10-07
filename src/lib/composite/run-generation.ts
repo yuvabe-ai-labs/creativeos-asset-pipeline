@@ -57,10 +57,12 @@ export type CompositeRun = {
   prompt: string;
   referenceUrls: string[];
   inputsUsed: Record<string, unknown>;
+  /** A painted edit region (models with supportsMask). The base image stays clean. */
+  mask?: { base64: string; mime: string };
 };
 
 export async function runCompositeGeneration(run: CompositeRun) {
-  const { nodeId, clientId, orgId, caller, modelId, config, params, prompt, referenceUrls, inputsUsed } = run;
+  const { nodeId, clientId, orgId, caller, modelId, config, params, prompt, referenceUrls, inputsUsed, mask } = run;
   const generation = await insertGeneration({
     nodeId,
     orgId,
@@ -85,7 +87,12 @@ export async function runCompositeGeneration(run: CompositeRun) {
     const reservation = await reserveCredits(orgId, generation.id, usdToFinalCredits(costUsd));
     if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
 
-    const result = await config.generate({ prompt, referenceUrls, params });
+    const result = await config.generate({
+      prompt,
+      referenceUrls,
+      params,
+      ...(mask ? { maskBase64: mask.base64, maskMime: mask.mime } : {}),
+    });
 
     const buffer = Buffer.from(result.imageBase64, "base64");
     const { url: imageUrl } = await uploadImageGen({

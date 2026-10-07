@@ -20,10 +20,21 @@ describe("compositeEditPreview (D312)", () => {
     expect(p).toContain("Image 2: Sandals.png.");
     expect(p).toContain("Image 3: Hero.");
     expect(p).toContain("Sandals.png (image 2) in his hand");
-    expect(p).toMatch(/same face/);
+  });
+
+  it("shows no rules — they are added by the server, out of sight (D312)", () => {
+    const p = compositeEditPreview({ items: ITEMS, selectedIds: [], instruction: "the mug", intent: "remove", hasAvatar: true });
+    expect(p).not.toContain("Rules:");
+    expect(p).not.toMatch(/same face/);
   });
 
   it("is empty until there is something to change", () => {
     expect(compositeEditPreview({ items: ITEMS, selectedIds: [], instruction: "  ", intent: "freeform", hasAvatar: false })).toBe("");
   });
+
+  it("adds the painted-region clause when a region is painted", () => {
+    const p = compositeEditPreview({ items: ITEMS, selectedIds: [], instruction: "the mug", intent: "remove", hasAvatar: false, masked: true });
+    expect(p).toContain("only within the selected (masked) region");
+  });
 });
+

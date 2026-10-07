@@ -81,23 +81,42 @@ export function buildCompositePrompt(args: { refs: CompositeRef[]; instruction: 
 }
 
 /**
- * D312 — Edit: Image Gen's per-intent template on the composite's current picture (image 1),
- * the ticked or mentioned references after it, and the composite's preservation rules so an edit
- * cannot drift the face or invent branding. `instruction` is already resolved to "Name (image N)".
+ * D312 — Edit, the part the operator sees and may edit: Image Gen's per-intent template on the
+ * composite's current picture (image 1), then the ticked or mentioned references by position.
+ * `instruction` is already resolved to "Name (image N)". No rules — those are appended on the
+ * server (withCompositeEditRules), so hand-editing this text can never drop them.
  */
-export function buildCompositeEditPrompt(args: {
+export function buildCompositeEditBrief(args: {
   instruction: string;
   intent: EditIntent;
   extras: CompositeRef[];
-  hasAvatar: boolean;
+  /** A painted region travels with the request (models that take a mask): confine the change. */
+  masked?: boolean;
 }): string {
   const template = buildEditPrompt({
     instruction: args.instruction,
     intent: args.intent,
     hasExtraReference: args.extras.length > 0,
+    masked: args.masked,
   });
   const roster = ["Image 1 is the picture being edited.", ...args.extras.map((r) => `Image ${r.position}: ${r.name}.`)];
-  const rules = [...(args.hasAvatar ? [PERSON_RULE] : []), PRODUCT_RULE, SEAMLESS_RULE];
-  return [template, "", ...roster, "", "Rules:", ...rules.map((r) => `- ${r}`)].join("\n");
+  return [template, "", ...roster].join("\n");
 }
 
+/** The composite's preservation rules after an edit brief, so an edit cannot drift the face or
+ *  invent branding. Never shown to the operator. */
+export function withCompositeEditRules(brief: string, hasAvatar: boolean): string {
+  const rules = [...(hasAvatar ? [PERSON_RULE] : []), PRODUCT_RULE, SEAMLESS_RULE];
+  return [brief.trim(), "", "Rules:", ...rules.map((r) => `- ${r}`)].join("\n");
+}
+
+/** The whole edit prompt the image model receives: the brief, then the rules. */
+export function buildCompositeEditPrompt(args: {
+  instruction: string;
+  intent: EditIntent;
+  extras: CompositeRef[];
+  hasAvatar: boolean;
+  masked?: boolean;
+}): string {
+  return withCompositeEditRules(buildCompositeEditBrief(args), args.hasAvatar);
+}

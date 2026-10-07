@@ -1,5 +1,5 @@
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
-import { buildCompositeEditPrompt } from "@/prompts/composite-generate";
+import { buildCompositeEditBrief } from "@/prompts/composite-generate";
 import { mentionIds, resolveCompositeMentions, type CompositeRef } from "./references";
 import type { CompositeUpstreamItem } from "./upstream-items";
 
@@ -13,6 +13,8 @@ export function compositeEditPreview(args: {
   instruction: string;
   intent: EditIntent;
   hasAvatar: boolean;
+  /** A region is painted on the base (models that take a mask). */
+  masked?: boolean;
 }): string {
   if (!args.instruction.trim()) return "";
   const wanted = new Set([...args.selectedIds, ...mentionIds(args.instruction)]);
@@ -25,10 +27,12 @@ export function compositeEditPreview(args: {
       image: { url: i.fileUrl as string },
       position: n + 2,
     }));
-  return buildCompositeEditPrompt({
+  // The brief only: the rules are appended on the server, out of sight (and kept even when the
+  // operator hand-edits this text).
+  return buildCompositeEditBrief({
     instruction: resolveCompositeMentions(args.instruction, extras),
     intent: args.intent,
     extras,
-    hasAvatar: args.hasAvatar,
+    masked: args.masked,
   });
 }

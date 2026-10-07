@@ -42,9 +42,16 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
     modelId: string;
     params: Record<string, unknown>;
     /** D312 — Edit: the version to edit and what to change. Absent = a fresh composite. */
-    edit?: { baseVersionId: string; intent: string; extraIds: string[]; prompt?: string };
-  }) {
-    if (generating) return; // a run in flight never starts another — next to the request it guards
+    edit?: {
+      baseVersionId: string;
+      intent: string;
+      extraIds: string[];
+      prompt?: string;
+      maskBase64?: string;
+      maskMime?: string;
+    };
+  }): Promise<boolean> {
+    if (generating) return false; // a run in flight never starts another — next to the request it guards
     setGenerating(true);
     setLastError(null);
     try {
@@ -61,10 +68,12 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
       setActiveVersionId(json.versionId ?? null);
       void revalidateCanvasGenerations();
       toast.success("Composite generated");
+      return true;
     } catch (e) {
       const message = e instanceof Error ? e.message : "Generation failed";
       setLastError(message);
       toast.error(message, { duration: 6000 });
+      return false;
     } finally {
       setGenerating(false);
       await fetchVersions();

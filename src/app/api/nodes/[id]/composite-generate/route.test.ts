@@ -38,6 +38,7 @@ vi.mock("@/lib/image-gen/registry", () => ({
     "seedream:seedream-5-0-lite": model("Seedream 5.0 Lite", 14),
     "gemini:gemini-3-pro-image": model("Nano Banana Pro", 14),
     "tiny:two": model("Tiny", 2),
+    "openai:gpt-image-2": { ...model("GPT Image 2", 16), supportsMask: true },
   },
 }));
 
@@ -206,9 +207,11 @@ describe("POST composite-generate (D312)", () => {
       expect(sent().prompt).toMatch(/same face/);
     });
 
-    it("sends the operator's hand-edited prompt as is", async () => {
+    it("sends the operator's hand-edited prompt, with the rules still appended after it", async () => {
       await post({ instruction: "x", edit: { baseVersionId: "v-base", prompt: "MY EXACT PROMPT" } });
-      expect(sent().prompt).toBe("MY EXACT PROMPT");
+      expect(sent().prompt.startsWith("MY EXACT PROMPT")).toBe(true);
+      expect(sent().prompt).toMatch(/Rules:/);
+      expect(sent().prompt).toMatch(/same face/);
     });
 
     it("refuses a base that is not one of this node's versions, before reserving", async () => {
@@ -217,6 +220,30 @@ describe("POST composite-generate (D312)", () => {
       expect(res.status).toBe(400);
       expect(insertGeneration).not.toHaveBeenCalled();
     });
+
+    it("sends a painted region to a model that takes a mask, and says so in the prompt", async () => {
+      const res = await post({
+        instruction: "the mug",
+        modelId: "openai:gpt-image-2",
+        edit: { baseVersionId: "v-base", intent: "remove", maskBase64: "AAAA", maskMime: "image/png" },
+      });
+      expect(res.status).toBe(200);
+      const call = generate.mock.calls[0][0] as { maskBase64?: string; maskMime?: string; prompt: string };
+      expect(call.maskBase64).toBe("AAAA");
+      expect(call.maskMime).toBe("image/png");
+      expect(call.prompt).toMatch(/selected \(masked\) region/);
+      const version = insertVersion.mock.calls[0][0] as { inputsUsed: Record<string, unknown> };
+      expect(version.inputsUsed).toMatchObject({ masked: true });
+    });
+
+    it("refuses a painted region on a model that cannot take one, before reserving", async () => {
+      const res = await post({
+        instruction: "the mug",
+        modelId: SEEDANCE_FACE_MODEL_ID,
+        edit: { baseVersionId: "v-base", intent: "remove", maskBase64: "AAAA" },
+      });
+      expect(res.status).toBe(400);
+      expect(insertGeneration).not.toHaveBeenCalled();
+    });
   });
 });
-

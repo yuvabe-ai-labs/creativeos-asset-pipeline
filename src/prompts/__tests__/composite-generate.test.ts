@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { CompositeRef } from "@/lib/composite/references";
-import { buildCompositePrompt, buildCompositeEditPrompt } from "../composite-generate";
+import { buildCompositePrompt, buildCompositeEditPrompt, buildCompositeEditBrief, withCompositeEditRules } from "../composite-generate";
 
 const AVATAR: CompositeRef = { nodeId: "a", name: "Riya", role: "avatar", position: 1, image: { url: "https://cdn/f.png" } };
 const SHEET: CompositeRef = { nodeId: "a:sheet", name: "Riya sheet", role: "avatar-sheet", position: 2, image: { url: "https://cdn/s.png" } };
@@ -112,6 +112,23 @@ describe("buildCompositeEditPrompt", () => {
     expect(withPerson).toMatch(/same face/);
     expect(without).not.toMatch(/same face/);
     expect(without).toMatch(/Add no text, logo, label or branding/);
+  });
+
+  it("confines a painted edit to the selected region", () => {
+    const p = buildCompositeEditPrompt({ instruction: "the mug", intent: "remove", extras: [], hasAvatar: false, masked: true });
+    expect(p).toMatch(/only within the selected \(masked\) region/);
+    const unmasked = buildCompositeEditPrompt({ instruction: "the mug", intent: "remove", extras: [], hasAvatar: false });
+    expect(unmasked).not.toMatch(/masked/);
+  });
+
+  it("the brief the operator sees has no rules; the rules are appended after it", () => {
+    const brief = buildCompositeEditBrief({ instruction: "the mug", intent: "remove", extras: [] });
+    expect(brief).not.toContain("Rules:");
+    const full = withCompositeEditRules(brief, true);
+    expect(full.startsWith(brief)).toBe(true);
+    expect(full).toMatch(/Rules:/);
+    expect(full).toMatch(/same face/);
+    expect(withCompositeEditRules(brief, false)).not.toMatch(/same face/);
   });
 });
 

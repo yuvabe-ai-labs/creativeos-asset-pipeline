@@ -21,6 +21,7 @@ import { compositeMentionUpstream, compositeMentionables } from "@/lib/composite
 import { useCompositeUpstream } from "@/hooks/use-composite-upstream";
 import { useCompositeVersions } from "@/hooks/use-composite-versions";
 import { CompositeEditSection } from "./composite-edit-section";
+import { useCompositeEdit } from "@/hooks/use-composite-edit";
 import { CompositeFocusRail } from "./composite-focus-rail";
 import { EditableField } from "./editable-field";
 import { GenerationErrorBadge } from "./generation-error-badge";
@@ -79,6 +80,12 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   const refValidation = validateReferenceImages(referenceUrls.map((url) => ({ url })), model);
   const canEditPicture = Boolean(imageUrl && activeVersionId);
   const editing = editMode && canEditPicture;
+  const { annotationRef, hasMaskRegion, setHasMaskRegion, paintMode, runEdit } = useCompositeEdit({
+    model,
+    values,
+    activeVersionId,
+    generate,
+  });
   // An edit sends the current picture plus the references it uses.
   const editCredits = (extraCount: number) => {
     const usd = estimateImageGenerationCostUsd({
@@ -127,14 +134,9 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       canEdit={editable}
                       editing={generating}
                       estimatedCredits={editCredits}
-                      onEdit={(req) =>
-                        void generate({
-                          instruction: req.instruction,
-                          modelId: model.id,
-                          params: values,
-                          edit: { baseVersionId: activeVersionId, intent: req.intent, extraIds: req.extraIds, prompt: req.prompt },
-                        })
-                      }
+                      paintMode={paintMode}
+                      masked={paintMode && hasMaskRegion}
+                      onEdit={(req) => void runEdit(req)}
                     />
                   ) : (
                   <div className="flex flex-col gap-2">
@@ -191,6 +193,10 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
               generating={generating}
               canEdit={canEditPicture}
               editMode={editMode}
+              painting={editing && paintMode}
+              paintRef={annotationRef}
+              paintKey={`${imageUrl}:${model.id}`}
+              onMarksChange={setHasMaskRegion}
               onEditModeChange={(next) => {
                 setEditMode(next);
                 setSelected("compose"); // the mode's controls live in the middle column

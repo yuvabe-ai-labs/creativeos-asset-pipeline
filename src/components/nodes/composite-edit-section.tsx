@@ -21,6 +21,10 @@ type Props = {
   hasAvatar: boolean;
   canEdit: boolean;
   editing: boolean;
+  /** The model takes a mask: the operator may paint the region on the image. */
+  paintMode: boolean;
+  /** A region is painted right now. */
+  masked: boolean;
   estimatedCredits: (extraCount: number) => number | null;
   onEdit: (request: CompositeEditRequest) => void;
 };
@@ -28,15 +32,16 @@ type Props = {
 const BASE_ID = "__composite_base__";
 
 // D312 — Edit on the Composite node: Image Gen's chips, references and final-prompt panel, on the
-// composite's current picture. Typed edits only — Seedream and Nano Banana take no mask.
-export function CompositeEditSection({ imageUrl, items, hasAvatar, canEdit, editing, estimatedCredits, onEdit }: Props) {
+// composite's current picture. Typed for Seedream and Nano Banana; with a model that takes a mask
+// (GPT Image) the region can also be painted on the image, as in Image Gen.
+export function CompositeEditSection({ imageUrl, items, hasAvatar, canEdit, editing, paintMode, masked, estimatedCredits, onEdit }: Props) {
   const [instruction, setInstruction] = useState("");
   const [intent, setIntent] = useState<EditIntent>("freeform");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   // null = follow the template; a string = the operator's hand-edited final prompt.
   const [promptOverride, setPromptOverride] = useState<string | null>(null);
 
-  const preview = compositeEditPreview({ items, selectedIds, instruction, intent, hasAvatar });
+  const preview = compositeEditPreview({ items, selectedIds, instruction, intent, hasAvatar, masked });
   const finalPrompt = promptOverride ?? preview;
   const references = [
     { id: BASE_ID, label: "Current picture", url: imageUrl, isBase: true },
@@ -45,6 +50,11 @@ export function CompositeEditSection({ imageUrl, items, hasAvatar, canEdit, edit
 
   return (
     <div className="flex flex-col gap-4">
+      {paintMode && (
+        <p className="text-xs text-muted-foreground">
+          Paint over the area to change on the image — only that region is edited. Leave it unpainted to edit the whole picture.
+        </p>
+      )}
       <ImageGenEditReferences
         items={references}
         selectedIds={selectedIds}

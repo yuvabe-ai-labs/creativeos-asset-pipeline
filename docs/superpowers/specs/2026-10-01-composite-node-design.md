@@ -208,17 +208,20 @@ a clip bound for Gemini Omni need not pay Seedream's constraints.
 
 ### 5.1 Edit
 
-A switch, *Edit this picture*, appears once the composite has a version. It swaps the instruction
-for Image Gen's edit panel — the Remove / Replace product / Add product / Modify chips, a mention
-instruction, the references to tick and the editable final prompt. Typed edits only (Seedream and
-Nano Banana take no mask).
+An **Edit** switch sits over the image (where Image Gen keeps it) once the composite has a
+version. It swaps the instruction for Image Gen's edit panel — the Remove / Replace product / Add
+product / Modify chips, a mention instruction, the references to tick and the editable final
+prompt. With a model that takes a mask (GPT Image) the image becomes Image Gen's paint canvas: the
+painted region travels as a mask and only it changes; Seedream and Nano Banana edit by typing.
 
 - **Base** — the composite's current version, sent as image 1; the route refuses a version that
   is not this node's.
 - **References** — the ticked inputs plus any the instruction mentions, numbered from image 2.
-- **Prompt** — Image Gen's per-intent template plus the composite's preservation rules (the
-  person when an avatar is wired, the product, no cut-out look). The panel previews it with the
-  route's own builder and sends it only when hand-edited, so the server's numbering always wins.
+- **Prompt** — the operator sees and may edit only the brief: Image Gen's per-intent template and
+  the image list. The route always appends the composite's preservation rules (the person when an
+  avatar is wired, the product, no cut-out look) out of sight, even after a hand edit. The brief is
+  sent only when hand-edited, so the server's numbering otherwise wins.
+- **Mask** — refused before reserving if the selected model cannot take one.
 - Through `composite-generate` (`edit` in the body), sharing `runCompositeGeneration`.
 
 ## 6. Output, versions, cost
