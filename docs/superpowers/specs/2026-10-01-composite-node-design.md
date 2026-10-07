@@ -49,7 +49,9 @@ instruction asks for.
 | Single image or sheet is decided **by the instruction**; no layout control | 2026-10-06 |
 | All references are optional — a background from text alone is a valid composite | 2026-10-06 |
 | The **Avatar node is a direct input** (`avatar → composite`) | 2026-10-06 |
-| With an avatar wired, the model is **locked to the Seedance face model** | 2026-10-06 |
+| ~~With an avatar wired, the model is locked to the Seedance face model~~ — **withdrawn**: Seedream by default, other models selectable, the picker says where each can go (§5) | 2026-10-07 |
+| The prompt places people into scenes and, unless the instruction names a camera, frames for a UGC clip's reference (§4) | 2026-10-07 |
+| Edit, as Image Gen's typed edit, on the composite's current version (§5.1) | 2026-10-07 |
 | Fixed preamble; **no LLM pass** over the instruction | 2026-10-06 |
 
 ## 1. The node
@@ -59,7 +61,7 @@ export type CompositeNodeData = {
   title?: string;
   /** The operator's instruction, typed here, stored with `@[Label](nodeId)` chips (D272). */
   instruction?: string;
-  /** Seedream by default; locked to SEEDANCE_FACE_MODEL_ID while an avatar is wired (§5). */
+  /** Seedream by default; the operator may choose another (§5). */
   modelId?: string;
   params?: Record<string, unknown>;
   /** D19: the active version's output (an image URL) — display only, never persisted. */
@@ -133,8 +135,7 @@ A composite route differs in three places:
 2. **An avatar input becomes virtual File rows** — the D299 pattern (`presenterUpstreamRow`,
    `src/lib/avatars/presenter.ts`), reached by a real edge instead of the walk from a shot to its
    script. The avatar is read live by id (D298); archived avatars still resolve (D287).
-3. **The model is enforced server-side** when an avatar is wired (§5) — the picker's lock is a
-   convenience, not the guard.
+3. **Edit** (§5.1) takes the composite's current version as image 1.
 
 Provider registry, cost, credits, storage and versions are reused unchanged.
 
@@ -173,8 +174,15 @@ What the image model receives, in order:
 - **No styling of its own** — no lens, lighting recipe, film stock or grade unless the
   instruction asks for one.
 
-**Camera, lighting and composition come only from the operator's words.** The rule block never
-adds them and never forbids them.
+**Placing a person into a scene** (only with an avatar wired, added 2026-10-07 after the first
+real composite pasted the avatar in at portrait scale): realistic scale on real surfaces at the
+camera's eye level; the scene's own light with contact shadows; a pose inside the space, never the
+portrait's crop or studio framing; no cut-out edges, halo or pasted-on look.
+
+**Default framing.** The composite is a UGC clip's reference, so unless the instruction sets the
+camera or framing it is framed like a still from an eye-level phone video: the person facing the
+camera, face and hands clearly visible, the room readable around them. The instruction's camera
+and framing always win. The rule block adds no lens effects, lighting setups or colour treatment.
 
 **No LLM pass.** The instruction already is the brief; a rewrite risks losing the operator's
 wording, costs a text call, and makes the result less predictable. Revisit only if real output
@@ -186,24 +194,32 @@ usually what the operator wants named — the writer is told so in the Direction
 
 ## 5. The model
 
-| Wired | Model |
+**Seedream 5.0 Lite by default** (`COMPOSITE_DEFAULT_MODEL_ID` = `SEEDANCE_FACE_MODEL_ID`), every
+image model selectable. With an avatar wired, the picker says where the composite's face can go,
+from the avatar's own `imageModelWorksWith` (never a restated list):
+
+| Model | Note under the picker |
 |---|---|
-| an avatar | **`SEEDANCE_FACE_MODEL_ID`** (`src/lib/avatars/constants.ts`), locked. The picker shows it with one line: *"Made with Seedream so Seedance and Gemini Omni accept it."* |
-| no avatar | the picker is free; the default is the same Seedream model |
+| Seedream | *Works with Seedance, Gemini Omni, Kling and Veo.* |
+| any other (Nano Banana, GPT Image) | *Works with Gemini Omni, Kling and Veo — not Seedance.* |
 
-**Why locked.** A composite is a new picture of the avatar's face, and Seedance accepts a face
-only from that model (D290; `AVATAR_WORKS_WITH.seedream` covers Seedance, Gemini Omni, Kling and
-Veo). A composite drawn by another model would be a face Seedance may refuse. The constant is
-imported, never restated, so a change to the avatar's face model moves the composite with it.
+No avatar, no note. The first build locked the model with an avatar wired; withdrawn 2026-10-07 —
+a clip bound for Gemini Omni need not pay Seedream's constraints.
 
-**Real-person avatars** (an uploaded front, D289) run on Gemini Omni and Kling only
-(`AVATAR_WORKS_WITH.real`). The lock costs them nothing and keeps one route.
+### 5.1 Edit
 
-**Server-side.** The route rejects a request whose `modelId` differs from the lock while an avatar
-is wired — a stale client or a copilot call must not slip a different model through.
+A switch, *Edit this picture*, appears once the composite has a version. It swaps the instruction
+for Image Gen's edit panel — the Remove / Replace product / Add product / Modify chips, a mention
+instruction, the references to tick and the editable final prompt. Typed edits only (Seedream and
+Nano Banana take no mask).
 
-Seedream Lite takes up to 14 references (`client-models.ts`) — `validateReferenceImages` enforces
-it as for Image Gen.
+- **Base** — the composite's current version, sent as image 1; the route refuses a version that
+  is not this node's.
+- **References** — the ticked inputs plus any the instruction mentions, numbered from image 2.
+- **Prompt** — Image Gen's per-intent template plus the composite's preservation rules (the
+  person when an avatar is wired, the product, no cut-out look). The panel previews it with the
+  route's own builder and sends it only when hand-edited, so the server's numbering always wins.
+- Through `composite-generate` (`edit` in the body), sharing `runCompositeGeneration`.
 
 ## 6. Output, versions, cost
 
@@ -223,7 +239,6 @@ nothing is reserved:
 | No instruction | say what to make |
 | A chip names a reference that is no longer connected | name it — `ref-binding`'s missing handling |
 | An avatar with no front image | the avatar isn't ready; finish it in the Studio |
-| A model other than the lock while an avatar is wired | §5 |
 
 **No references is not an error** — a background sheet from text alone is a valid composite.
 
@@ -238,7 +253,7 @@ nothing is reserved:
 | `composite/references.test.ts` | the avatar's front and fresh sheet are entries 1 and 2 under D308's ids; a stale sheet is skipped and later numbering holds; chips resolve to "Name (image N)" |
 | `image-node-types.test.ts` | a composite counts as a generated image for every downstream reader; a composite is never auto-promoted to start frame |
 | `composite-generate` prompt test | the rule block holds both preservation rules and the sheet rule; the person rule appears only with an avatar; it adds no lens, lighting or grade terms |
-| route test (mirrors `image-generate`'s) | refuses with no instruction, a dangling chip, an avatar with no front, or the wrong model under the lock; generates with zero references; sends the avatar's front + fresh sheet and skips a stale sheet; reserves then settles; refunds on provider failure |
+| route test (mirrors `image-generate`'s) | refuses with no instruction, a dangling chip or an avatar with no front; allows any model with an avatar wired; edits base-first with ticked and mentioned references, refuses another node's version; generates with zero references; sends the avatar's front + fresh sheet and skips a stale sheet; reserves then settles; refunds on provider failure |
 
 ## 9. Interactions to know about
 

@@ -28,8 +28,8 @@ before anything else.
 One node makes a UGC shot's picture: the avatar, a background (image or just text) and a product
 in — all optional — and an instruction typed on the node with `@`-mentions saying what each is
 for, plus any camera, lighting or composition. One image out: a frame or a multi-angle sheet, as
-the instruction asks. The avatar wires straight in, and while it does the model is locked to the
-Seedream model Seedance takes faces from. The route copies `image-generate`.
+the instruction asks. The avatar wires straight in; Seedream is the default model, the others
+selectable with a note on where each can go. Edit works on the current version.
 
 ## State
 
@@ -40,10 +40,9 @@ Seedream model Seedance takes faces from. The route copies `image-generate`.
 - **Controls are shadcn primitives only** (`src/components/ui/*`, Base UI — `render`, not
   `asChild`). The instruction field is the existing `MentionInstructionEditor`. See `CLAUDE.md`.
 - **Do not change the Image Gen node** or D299's presenter path.
-- **The one shared-code change** is in `src/lib/nodes/ref-binding.ts`: one node (the avatar) may
-  own two images under one chip. It must be additive — every other node resolves exactly as today.
+- **Avatar images follow D308**: front under the Avatar node's id, fresh sheet under
+  `avatarSheetId` — two entries, two chips. No change to shared `ref-binding.ts`.
 - **Preservation runs both ways**: the product unchanged *and* the person unaltered. A 2026-09-24
   probe had Seedance invent lettering on a shoe specified "no text, no logo".
-- **The model lock is enforced in the route**, not just the picker.
 - **ADR numbers.** D312 is this node's. The log moves fast — check `origin/staging` before adding
   any new number.

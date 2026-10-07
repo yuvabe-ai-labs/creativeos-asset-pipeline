@@ -6530,7 +6530,7 @@ product unchanged with no invented branding, one photograph, transcribe never co
 panel of a sheet the same place in the same light, and **no styling of its own**: camera, lighting
 and composition come only from the operator's words. **`avatar → composite`** is a new edge; the
 avatar enters as virtual File rows (D299's `presenterUpstreamRow` pattern) — its front image and,
-when fresh, its profile sheet, labelled as one person under one chip. While an avatar is wired the
+when fresh, its profile sheet — two entries, two chips, exactly as D308 sends them for a shot. While an avatar is wired the
 model is **locked to `SEEDANCE_FACE_MODEL_ID`**, enforced in the route as well as the picker.
 Outputs go everywhere Image Gen's do, plus `composite → composite` (a location sheet becomes the
 background of an avatar composite). The route copies `image-generate` and reuses its providers,
@@ -6541,6 +6541,22 @@ several angles; the operator wants one place to do it rather than a Prompt node 
 node with every asset wired to both. A composite is a new picture of the avatar's face, so it must
 be drawn by the model Seedance accepts faces from (D290) or it stops being usable on Seedance.
 The wire is the signal (handoff §0.2): only an edge can say *this picture contains this person*.
+
+**Amended (2026-10-07).** Three changes after the first real composite pasted the avatar into a
+kitchen at portrait scale, studio-lit, in front of the room. (1) **The model is no longer locked.**
+Seedream stays the default with an avatar wired; Nano Banana and the other image models are
+selectable, and the picker says where the result can go — Seedream "works with Seedance, Gemini
+Omni, Kling and Veo", anything else "works with Gemini Omni, Kling and Veo — not Seedance" (the
+avatar's own `imageModelWorksWith`). Operator decision: a clip bound for Omni need not pay
+Seedream's constraints. (2) **The rule block now places people into scenes** — realistic scale on
+real surfaces at the camera's eye level, the scene's own light with contact shadows, a pose inside
+the space and never the portrait's crop, no cut-out look — and, **unless the instruction names a
+camera, frames like a still from an eye-level phone video** with face, hands and room readable,
+because the composite is a UGC clip's reference and the video model must be able to read it. The
+"no styling of its own" rule narrows to no lens effects, lighting setups or colour treatment.
+(3) **Edit**: Image Gen's typed edit (chips, references, editable final prompt) on the composite's
+current version, through the composite route with its preservation rules; the generate pipeline
+moved to `lib/composite/run-generation` so both share one credit path.
 
 **Rejected.** Role slots or separate Camera / Lighting / Composition fields (one mention-enabled
 box covers it, as D281 found). An LLM pass over the instruction (the instruction already is the
