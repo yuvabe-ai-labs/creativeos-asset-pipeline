@@ -20,8 +20,6 @@ import {
 import { compositeMentionUpstream, compositeMentionables } from "@/lib/composite/upstream-items";
 import { useCompositeUpstream } from "@/hooks/use-composite-upstream";
 import { useCompositeVersions } from "@/hooks/use-composite-versions";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { CompositeEditSection } from "./composite-edit-section";
 import { CompositeFocusRail } from "./composite-focus-rail";
 import { EditableField } from "./editable-field";
@@ -121,12 +119,6 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
             <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {selected === "compose" ? (
                 <div className="flex flex-col gap-6 px-6 py-5">
-                  {canEditPicture && (
-                    <Label htmlFor={`composite-edit-mode-${nodeId}`} className="flex w-fit cursor-pointer items-center gap-2.5 text-sm font-medium text-foreground">
-                      Edit this picture
-                      <Switch id={`composite-edit-mode-${nodeId}`} checked={editMode} onCheckedChange={setEditMode} />
-                    </Label>
-                  )}
                   {editing && imageUrl && activeVersionId ? (
                     <CompositeEditSection
                       imageUrl={imageUrl}
@@ -193,7 +185,17 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                 </div>
               )}
             </div>
-            <CompositeOutputPane imageUrl={imageUrl} generating={generating} />
+            <CompositeOutputPane
+              nodeId={nodeId}
+              imageUrl={imageUrl}
+              generating={generating}
+              canEdit={canEditPicture}
+              editMode={editMode}
+              onEditModeChange={(next) => {
+                setEditMode(next);
+                setSelected("compose"); // the mode's controls live in the middle column
+              }}
+            />
           </div>
         </div>
       </SheetContent>
