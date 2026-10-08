@@ -3,9 +3,9 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
-import { listSentence } from "@/lib/avatars/generation";
-import type { PanelView } from "@/lib/scripts/visualise/state";
+import { waitingMessage, type PanelView } from "@/lib/scripts/visualise/state";
 import { PanelFrame } from "./panel-frame";
 
 type Props = {
@@ -24,33 +24,52 @@ type Props = {
 
 const STALE_COPY = { shot: "The shot changed", avatar: "An avatar changed" } as const;
 
-// Spec §6.4 — one shot's panel in the Storyboard grid (the Visualise board), captioned with its
-// shot and time, with Generate or Regenerate and its cost. An out-of-date panel stays visible with
-// its badge and is never redrawn on its own.
+/** A hint on hover. A disabled button gets no pointer events, so the trigger is a span around it. */
+function Hint({ text, children, className }: { text: string | null; children: ReactNode; className?: string }) {
+  if (!text) return <>{children}</>;
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger render={<span className={className} />}>{children}</TooltipTrigger>
+        <TooltipContent side="top">{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+// Spec §6.4 — one shot's panel in the Storyboard grid (the Visualise board). Every tile has the
+// same three rows whatever its state, so the grid lines up (testing): the frame, the caption, one
+// button. Out of date and Failed sit on the frame as badges; why, and who an avatar is waited
+// for, are tooltips. An out-of-date panel stays visible and is never redrawn on its own.
 export function PanelTile({ label, time, view, aspect, credits, onDraw, onOpen, marker }: Props) {
   const busy = view.status === "generating";
   const action = busy ? "Drawing…" : view.pick ? "Regenerate" : view.failure ? "Generate again" : "Generate";
+  const badge = view.status === "out_of_date"
+    ? { text: "Out of date", hint: view.staleBecause.map((r) => STALE_COPY[r]).join(" · "), tone: "border-primary/30 bg-background text-primary" }
+    : view.failure
+      ? { text: "Failed", hint: `${view.failure} Nothing was charged.`, tone: "border-destructive/30 bg-background text-destructive-text" }
+      : null;
+
   return (
     <figure className="relative m-0 flex min-w-0 flex-col gap-2">
-      <PanelFrame view={view} aspect={aspect} label={label} onOpen={onOpen} />
+      <div className="relative">
+        <PanelFrame view={view} aspect={aspect} label={label} onOpen={onOpen} />
+        {badge && (
+          <Hint text={badge.hint} className="absolute left-2 top-2">
+            <Badge variant="outline" className={badge.tone}>{badge.text}</Badge>
+          </Hint>
+        )}
+      </div>
       <figcaption className="flex justify-between text-xs text-muted-foreground">
         <span className="font-medium text-foreground">{label}</span>
         <span className="tabular-nums">{time}</span>
       </figcaption>
-      {view.status === "out_of_date" && (
-        <div className="flex flex-col gap-0.5">
-          <Badge variant="outline" className="self-start border-primary/30 bg-primary/5 text-primary">Out of date</Badge>
-          <span className="text-xs text-muted-foreground">{view.staleBecause.map((r) => STALE_COPY[r]).join(" · ")}</span>
-        </div>
-      )}
-      {!view.canGenerate && (
-        <span className="text-xs text-muted-foreground">Waiting for {listSentence(view.waitingFor)}&apos;s avatar</span>
-      )}
-      {view.failure && <span className="text-xs text-destructive-text">{view.failure} Nothing was charged.</span>}
-      <Button size="sm" className="w-full" variant={view.pick ? "outline" : "default"} disabled={!view.canGenerate || busy || credits === null} onClick={onDraw}>
-        {action}
-        <AvatarCreditCost credits={credits} />
-      </Button>
+      <Hint text={view.canGenerate ? null : waitingMessage(view.waitingFor)} className="block w-full">
+        <Button size="sm" className="w-full" variant={view.pick ? "outline" : "default"} disabled={!view.canGenerate || busy || credits === null} onClick={onDraw}>
+          {action}
+          <AvatarCreditCost credits={credits} />
+        </Button>
+      </Hint>
       {marker}
     </figure>
   );
