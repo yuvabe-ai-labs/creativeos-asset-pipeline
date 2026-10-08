@@ -7,11 +7,17 @@ vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() 
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/scripts", () => ({ listScripts: vi.fn(), getScript: vi.fn() }));
+vi.mock("@/lib/db/script-generate", () => ({ createGenerateScript: vi.fn() }));
+vi.mock("@/lib/scripts/copilot/context", () => ({ loadCopilotContext: vi.fn() }));
 
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { listScripts } from "@/lib/db/scripts";
+import { createGenerateScript } from "@/lib/db/script-generate";
+import { loadCopilotContext } from "@/lib/scripts/copilot/context";
+import { EMPTY_BRIEF, EMPTY_NOTES } from "@/lib/scripts/copilot/schema";
+import { allowClient, generateScript, jsonRequest, SCRIPT_ID } from "@/lib/scripts/copilot/__tests__/route-mocks";
 
 const params = Promise.resolve({ id: "c1" });
 const get = (qs = "") => new NextRequest(`http://localhost/api/clients/c1/scripts${qs}`);
@@ -53,5 +59,24 @@ describe("GET /api/clients/[id]/scripts", () => {
     const res = await GET(get(), { params });
     expect(res.status).toBe(404);
     expect(listScripts).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/clients/[id]/scripts (New script)", () => {
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    await allowClient();
+  });
+
+  it("creates an empty script at Generate with the copilot's opening, and returns its id", async () => {
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [] });
+    vi.mocked(createGenerateScript).mockResolvedValue(generateScript());
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest("http://localhost/api/clients/c1/scripts", "POST") as never, { params: Promise.resolve({ id: "c1" }) });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ scriptId: SCRIPT_ID });
+    const input = vi.mocked(createGenerateScript).mock.calls[0][0];
+    expect(input).toMatchObject({ clientId: "c1", userId: "user-1", brief: EMPTY_BRIEF, notes: EMPTY_NOTES });
+    expect(input.opening).toMatch(/What format is this reel?/);
   });
 });
