@@ -28,7 +28,7 @@ const review = {
   stage: "in_review" as const, clientName: "Jackfruit365", orgName: "Yuvabe Studios",
 };
 const latest = { ...content({ scope: "avatars", visuals: { avatars: { meenakshi: avatarSnapshot() }, panels: {} } }), id: "v2", number: 2, sharedAt: "t" };
-const good = { authorName: "Priya", body: "Can she wear blue?", part: { kind: "view", castId: "meenakshi", view: "front" }, versionNumber: 2 };
+const good = { authorName: "Priya", body: "Can she wear blue?", part: { kind: "cast", castId: "meenakshi" }, versionNumber: 2 };
 
 describe("POST /api/r/s/[token]/comments", () => {
   beforeEach(() => {
@@ -45,7 +45,7 @@ describe("POST /api/r/s/[token]/comments", () => {
     const res = await POST(post(good), { params });
     expect(res.status).toBe(201);
     expect(insertScriptComment).toHaveBeenCalledWith({
-      reviewId: "r1", versionId: "v2", part: { kind: "view", castId: "meenakshi", view: "front" }, parentId: null,
+      reviewId: "r1", versionId: "v2", part: { kind: "cast", castId: "meenakshi" }, parentId: null,
       authorKind: "client", authorName: "Priya", authorUserId: null, body: "Can she wear blue?",
     });
   });
@@ -58,11 +58,12 @@ describe("POST /api/r/s/[token]/comments", () => {
     expect(insertScriptComment).not.toHaveBeenCalled();
   });
 
+  // A view is refused even though this version shows its image: the avatar takes comments whole (D359).
   it("refuses a part the version does not show (Review Focus 3)", async () => {
     const { POST } = await import("./route");
     for (const part of [
       { kind: "shot", shotId: "s99" },
-      { kind: "view", castId: "meenakshi", view: "left" },
+      { kind: "view", castId: "meenakshi", view: "front" },
       { kind: "panel", shotId: "s01" },
     ]) {
       const res = await POST(post({ ...good, part }), { params });

@@ -7,21 +7,31 @@ import { ReviewStoryboard } from "../review-storyboard";
 import { renderInSurface, testSurface } from "./surface";
 
 const meenakshi = reelDoc().cast[0];
-const view = (v: "front" | "left"): Part => ({ kind: "view", castId: "meenakshi", view: v });
+const CAST: Part = { kind: "cast", castId: "meenakshi" };
 
 describe("ReviewCastCard", () => {
-  it("shows the four-view sheet on a share with avatars, with a comment action only on views that have an image (Review Focus 2)", () => {
+  it("shows the four-view sheet on a share with avatars, with one comment box for the whole avatar and none per view (D359)", () => {
     const html = renderInSurface(
-      testSurface({ commentable: [{ kind: "cast", castId: "meenakshi" }, view("front")] }),
+      testSurface({ commentable: [CAST] }),
       <ReviewCastCard member={meenakshi} avatar={avatarSnapshot({ front: "https://cdn/f.png" })} showAvatar />,
     );
     expect(html).toContain("Meenakshi: four views");
-    expect(html).toContain('aria-label="Comment on Meenakshi · Front view"');
-    expect(html).not.toContain("Left view");
+    expect(html).not.toMatch(/aria-label="Comment on [^"]*view"/);
+    expect(html.match(/<textarea/g)).toHaveLength(1);
+    expect(html).toContain('placeholder="Comment on Meenakshi&#x27;s avatar"');
     expect(html).toContain('aria-label="Comment on Meenakshi"');
     expect(html).toContain('id="cast-meenakshi"');
     // Card draws its outline with a ring (no border width), so the commented edge must be a ring.
     expect(html).toContain("has-[[data-part-commented]]:ring-client/40");
+  });
+
+  it("has no comment box where the client cannot comment: the team's view, or after approval", () => {
+    const html = renderInSurface(
+      testSurface({ mode: "team" }),
+      <ReviewCastCard member={meenakshi} avatar={avatarSnapshot({ front: "https://cdn/f.png" })} showAvatar />,
+    );
+    expect(html).toContain("Meenakshi: four views");
+    expect(html).not.toContain("<textarea");
   });
 
   it("shows the person without a sheet on a script-only share", () => {

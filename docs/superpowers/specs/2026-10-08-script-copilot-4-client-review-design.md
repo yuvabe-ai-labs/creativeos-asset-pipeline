@@ -138,8 +138,8 @@ it straight at that part's thread, so the client never scrolls the length of the
 
 - the **context card**;
 - each **shot**;
-- each **cast member's avatar**, and **each of its four views** (Front, Left, Right, Back), as the
-  board shows;
+- each **cast member's avatar**, as a whole: one comment box on their card, beside the four views
+  and the voice. A single view takes no comment of its own (*revised 9 Oct 2026, D359*);
 - each **storyboard panel**, once spec 3 has made it and the share includes it.
 
 A comment belongs to one part. There are no pins on spots inside an image and no painting.
@@ -165,8 +165,8 @@ last text; on a split, the first half keeps the shot's identity and its comments
 In the **Visualise view** (spec 3), the same view they revise in (*revised 8 Oct 2026, review
 board*):
 
-- each commented part carries the same marker the client sees: on a shot's row, on a cast member,
-  on each of their four views, and on each storyboard panel; the marker opens that part's thread
+- each commented part carries the same marker the client sees: on a shot's row, on a cast member
+  (their avatar included, D359), and on each storyboard panel; the marker opens that part's thread
   in the Comments column, so a note on shot 4 is one click from shot 4;
 - the same **Comments** and **Activity** column the client sees, with **Reply** and **Resolve**,
   side by side on a wide screen and opened from a **Comments** button on a narrower one;
@@ -256,7 +256,7 @@ Spec 4 is done when, for Jackfruit365's seeded Reel 01:
 2. A script-only share gives the team one link; a client with no account opens it on a phone and
    sees the context card, the cast and all 14 shots, read-only, with no Approve.
 3. The client comments on the context card and on a shot of the script-only share, and, once a
-   share includes avatars (version 2), on a cast member's avatar and on one of its views. Each comment shows as a marker on that part in the team's Visualise view, with its thread in the Comments column; the team replies and
+   share includes avatars (version 2), on a cast member's avatar from the box on their card. Each comment shows as a marker on that part in the team's Visualise view, with its thread in the Comments column; the team replies and
    resolves one.
 4. The team edits a shot **without sharing**; the client's link does not change. The team shares
    again with avatars and panels; the **same link** shows version 2, the activity names what
@@ -303,7 +303,7 @@ In one line each:
 | 4.9 | An in-app count of comments and approvals on the card and the script; no email |
 | 4.10 | Team replies and resolves; comments edited, never deleted |
 | 4.11 | Comments on a removed shot stay, under "On a removed shot"; a split's first half keeps them |
-| 4.12 | No spot pins; a comment is on a whole part, including each avatar view |
+| 4.12 | No spot pins; a comment is on a whole part. (9 Oct, D359) An avatar is one part: one box on the card, no comment on a single view |
 | 4.13 | Approve with open threads, after a confirm that names them |
 | 4.14 | (8 Oct, review board) The client's page is the Visualise board, read-only, with a Comments column; panels sit in the Storyboard, not beside each shot |
 | 4.15 | (8 Oct, review board) Threads live only in the Comments column; a part shows its marker and comment action, which open its thread there |
