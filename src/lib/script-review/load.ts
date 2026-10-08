@@ -1,7 +1,8 @@
 // src/lib/script-review/load.ts
 import "server-only";
 import { getLatestVersion, getScriptReviewForScript, listScriptComments, listScriptEvents, listVersions } from "@/lib/db/script-reviews";
-import { assemblePublic, type PublicScriptReview, type ReviewState } from "./assemble";
+import type { Script } from "@/lib/scripts/schema";
+import { assemblePublic, assembleTeam, type PublicScriptReview, type ReviewState, type TeamScriptReview } from "./assemble";
 import type { ScriptReviewByToken, ScriptVersion } from "./wire";
 
 /** Everything a payload needs. A script with no review row yet still has its stage-move events. */
@@ -27,4 +28,13 @@ export async function buildPublicScriptReview(review: ScriptReviewByToken): Prom
 export async function loadApprovedVersion(scriptId: string): Promise<ScriptVersion | null> {
   const review = await getScriptReviewForScript(scriptId);
   return review ? getLatestVersion(review.id) : null;
+}
+
+/** The team's review of a script, built on the server for the script page's first render (as the
+ *  client page is), so the board draws its Comments column at once instead of reflowing when the
+ *  review query lands. The same payload as GET …/scripts/:scriptId/review. */
+export async function loadTeamReview(script: Pick<Script, "id" | "stage" | "doc">): Promise<TeamScriptReview> {
+  const review = await getScriptReviewForScript(script.id);
+  const state = await loadReviewState(review?.id ?? null, script.id);
+  return assembleTeam(state, { stage: script.stage, shareToken: review?.share_token ?? null, liveDoc: script.doc });
 }

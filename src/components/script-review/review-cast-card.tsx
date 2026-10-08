@@ -15,7 +15,7 @@ import { VoiceSampleButton } from "./voice-sample-button";
  *  making control taken out. The four-view sheet and the voice show on a share with avatars. */
 export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMember; avatar?: AvatarSnapshot; showAvatar: boolean }) {
   return (
-    <Card id={castAnchor(member.id)} className="flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:border-client/40">
+    <Card id={castAnchor(member.id)} className="flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40">
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">

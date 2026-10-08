@@ -8,6 +8,7 @@ import { threadCount } from "@/lib/script-review/column";
 import { buildThreads, placeThreads } from "@/lib/script-review/threads";
 import type { Part } from "@/lib/script-review/types";
 import { formatShortDay } from "@/lib/script-review/utils";
+import type { TeamScriptReview } from "@/lib/script-review/assemble";
 import type { ScriptVersion } from "@/lib/script-review/wire";
 import type { Script } from "@/lib/scripts/schema";
 import { FrozenBoard } from "../frozen-board";
@@ -20,8 +21,14 @@ const NOTHING: ReadonlyMap<string, Part> = new Map();
 /** Spec 4 §6 (review board, 4.17): after approval the team sees what the client approved — the
  *  approved version, read-only, as the client's page draws it — with the column (the team still
  *  replies and resolves) and Reopen to Visualise. The record of the sign-off, not the live script. */
-export function ApprovedReviewBoard({ clientId, script, version }: { clientId: string; script: Script; version: ScriptVersion }) {
-  const { data: review } = useTeamScriptReview(clientId, script.id);
+export function ApprovedReviewBoard({ clientId, script, version, initialReview }: {
+  clientId: string;
+  script: Script;
+  version: ScriptVersion;
+  /** Built on the server, so the threads are there on the first render. */
+  initialReview: TeamScriptReview;
+}) {
+  const { data: review } = useTeamScriptReview(clientId, script.id, initialReview);
   const reply = useReplyToThread(clientId, script.id);
   const resolve = useResolveThread(clientId, script.id);
   const column = useReviewColumn();

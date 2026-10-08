@@ -20,6 +20,8 @@ describe("ReviewCastCard", () => {
     expect(html).not.toContain("Left view");
     expect(html).toContain('aria-label="Comment on Meenakshi"');
     expect(html).toContain('id="cast-meenakshi"');
+    // Card draws its outline with a ring (no border width), so the commented edge must be a ring.
+    expect(html).toContain("has-[[data-part-commented]]:ring-client/40");
   });
 
   it("shows the person without a sheet on a script-only share", () => {

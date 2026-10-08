@@ -8,6 +8,7 @@ import { useReplyToThread, useResolveThread, useTeamScriptReview } from "@/hooks
 import { useReviewColumn } from "@/hooks/use-review-column";
 import { threadCount } from "@/lib/script-review/column";
 import { buildThreads, placeThreads } from "@/lib/script-review/threads";
+import type { TeamScriptReview } from "@/lib/script-review/assemble";
 import type { Part } from "@/lib/script-review/types";
 import { PartMarker } from "../part-marker";
 import { ReviewColumn } from "../review-column";
@@ -19,9 +20,14 @@ const NOTHING: ReadonlyMap<string, Part> = new Map();
 /** Spec 4 §6 (review board): the team's Visualise view with the review on it — the actions on the
  *  readiness line, a marker on every commented part, and the Comments column with Reply and
  *  Resolve once something has been shared (merge point MP4). */
-export function TeamReviewBoard({ clientId, initial }: { clientId: string; initial: BoardData }) {
+export function TeamReviewBoard({ clientId, initial, initialReview }: {
+  clientId: string;
+  initial: BoardData;
+  /** Built on the server, so the column is there on the first render (no reflow). */
+  initialReview: TeamScriptReview;
+}) {
   const { script } = initial;
-  const { data: review } = useTeamScriptReview(clientId, script.id);
+  const { data: review } = useTeamScriptReview(clientId, script.id, initialReview);
   const reply = useReplyToThread(clientId, script.id);
   const resolve = useResolveThread(clientId, script.id);
   const column = useReviewColumn();

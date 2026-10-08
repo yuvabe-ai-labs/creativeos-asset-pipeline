@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import type { Part } from "@/lib/script-review/types";
 import { comment } from "@/lib/script-review/__tests__/fixtures";
 import { CommentsColumn } from "../comments-column";
+import { REVIEW_SHEET_CLASS } from "../review-column";
 import { renderInSurface, testSurface } from "./surface";
 
 const S4: Part = { kind: "shot", shotId: "s04" };
@@ -40,5 +41,12 @@ describe("CommentsColumn (review board)", () => {
       <CommentsColumn />,
     );
     expect(html).toContain("No longer in the script");
+  });
+});
+
+describe("the Comments sheet (final review)", () => {
+  it("is full width on a phone, overriding the sheet's own right-side width (attribute selectors win)", () => {
+    expect(REVIEW_SHEET_CLASS).toContain("data-[side=right]:w-full");
+    expect(REVIEW_SHEET_CLASS).toContain("data-[side=right]:sm:max-w-md");
   });
 });

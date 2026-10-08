@@ -6,7 +6,7 @@ import { scriptReviewService } from "@/services/script-review.service";
 import { scriptKeys } from "@/hooks/queries/scripts";
 import { visualiseKeys } from "@/hooks/queries/visualise";
 import { upsertComment } from "@/lib/script-review/utils";
-import type { PublicScriptReview } from "@/lib/script-review/assemble";
+import type { PublicScriptReview, TeamScriptReview } from "@/lib/script-review/assemble";
 import type { ShareScope, TeamStageMove } from "@/lib/script-review/constants";
 import type { Part, ScriptComment } from "@/lib/script-review/types";
 
@@ -18,11 +18,13 @@ export const scriptReviewKeys = {
   public: (token: string) => ["script-review", "public", token] as const,
 };
 
-export function useTeamScriptReview(clientId: string, scriptId: string) {
+/** `initial` is what the script page built on the server, so the first render is complete. */
+export function useTeamScriptReview(clientId: string, scriptId: string, initial?: TeamScriptReview) {
   return useQuery({
     queryKey: scriptReviewKeys.team(clientId, scriptId),
     queryFn: () => scriptReviewService.getTeam(clientId, scriptId),
     enabled: Boolean(clientId && scriptId),
+    initialData: initial,
   });
 }
 

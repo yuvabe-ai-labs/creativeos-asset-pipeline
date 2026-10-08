@@ -6,7 +6,7 @@ import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
 import { ScriptView } from "@/components/scripts/script-view";
 import { ApprovedReviewBoard } from "@/components/script-review/team/approved-review-board";
-import { loadApprovedVersion } from "@/lib/script-review/load";
+import { loadApprovedVersion, loadTeamReview } from "@/lib/script-review/load";
 import { reelLabel } from "@/lib/scripts/utils";
 import { cn } from "@/lib/utils";
 import { TeamReviewBoard } from "@/components/script-review/team/team-review-board";
@@ -31,6 +31,8 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   // script with a review shows the approved version (spec 4, 4.17); other stages the read-only view.
   const board = isVisualiseStage(script.stage) ? await loadVisualiseBoard(client.id, script) : null;
   const approved = script.stage === "approved" ? await loadApprovedVersion(script.id) : null;
+  // Seeds the team's review query, so the board draws its Comments column at once (no reflow).
+  const review = board || approved ? await loadTeamReview(script) : null;
   // Faces for the read-only cast: only this client's live avatars, so another client's id shows no face.
   const avatarFaces = board || approved
     ? {}
@@ -51,9 +53,9 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
         </BreadcrumbList>
       </Breadcrumb>
       {board ? (
-        <TeamReviewBoard clientId={client.id} initial={{ script, board }} />
+        <TeamReviewBoard clientId={client.id} initial={{ script, board }} initialReview={review!} />
       ) : approved ? (
-        <ApprovedReviewBoard clientId={client.id} script={script} version={approved} />
+        <ApprovedReviewBoard clientId={client.id} script={script} version={approved} initialReview={review!} />
       ) : (
         <ScriptView script={script} avatarFaces={avatarFaces} />
       )}

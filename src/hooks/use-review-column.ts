@@ -6,8 +6,9 @@ import type { ColumnFocus } from "@/lib/script-review/column";
 import type { Part } from "@/lib/script-review/types";
 import { useMediaQuery } from "./use-media-query";
 
-/** Tailwind's `xl`: from here the Comments column sits beside the board; below, it opens in a sheet. */
-export const REVIEW_COLUMN_QUERY = "(min-width: 1280px)";
+/** Tailwind's `xl` (80rem): from here the Comments column sits beside the board; below, it opens in a
+ *  sheet. In rem, as Tailwind writes it, so this check and the CSS agree at any default font size. */
+export const REVIEW_COLUMN_QUERY = "(min-width: 80rem)";
 
 export type ReviewColumnState = {
   focus: ColumnFocus | null;
