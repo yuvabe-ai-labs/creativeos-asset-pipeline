@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { CastMember, Shot } from "@/lib/scripts/schema";
@@ -9,7 +9,15 @@ import { SHOT_GRID, ScriptShotRow } from "./script-shot-row";
 
 const COLUMNS = ["Time", "Visual", "VO", "On-screen text", "On screen"];
 
-export function ScriptShotList({ shots, cast }: { shots: Shot[]; cast: CastMember[] }) {
+export function ScriptShotList({
+  shots,
+  cast,
+  renderAfter,
+}: {
+  shots: Shot[];
+  cast: CastMember[];
+  renderAfter?: (shot: Shot) => ReactNode;
+}) {
   const [grouped, setGrouped] = useState(true);
   const switchId = useId();
   const timed = timeShots(shots);
@@ -34,11 +42,11 @@ export function ScriptShotList({ shots, cast }: { shots: Shot[]; cast: CastMembe
                 <span className="text-eyebrow">{g.beat || "No beat"}</span>
                 <span className="text-xs tabular-nums text-muted-foreground">{formatRange(g.start, g.end)}</span>
               </div>
-              <ul>{g.shots.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} />)}</ul>
+              <ul>{g.shots.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} after={renderAfter?.(t.shot)} />)}</ul>
             </div>
           ))
         ) : (
-          <ul>{timed.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} />)}</ul>
+          <ul>{timed.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} after={renderAfter?.(t.shot)} />)}</ul>
         )}
       </div>
     </section>

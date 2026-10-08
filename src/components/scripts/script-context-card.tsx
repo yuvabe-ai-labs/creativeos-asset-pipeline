@@ -2,6 +2,7 @@ import type { ScriptDoc } from "@/lib/scripts/schema";
 import type { ScriptStage } from "@/lib/scripts/constants";
 import { headerLine, reelLabel, shotSummary } from "@/lib/scripts/utils";
 import { ScriptStageBadge } from "./script-stage-badge";
+import { SCRIPT_CONTEXT_ANCHOR } from "@/lib/scripts/anchors";
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -18,7 +19,7 @@ export function ScriptContextCard({ doc, stage }: { doc: ScriptDoc; stage: Scrip
     .filter(Boolean)
     .join(" · ");
   return (
-    <section aria-label="Context" className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-card">
+    <section id={SCRIPT_CONTEXT_ANCHOR} aria-label="Context" className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-card">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">{reelLabel(header.reelNumber)}</span>
