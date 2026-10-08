@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { avatarsService } from "@/services/avatars.service";
@@ -56,12 +56,18 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar }: {
     onStep: setStep,
   }), [clientId, member.id, linkCast]);
 
+  // One run at a time. `step` (and so `busy`) only lands on the next render, and every Make avatar
+  // creates a draft and bills a face: a second click before then must do nothing.
+  const running = useRef(false);
   const run = useCallback(async (work: () => Promise<unknown>, fallback: string) => {
+    if (running.current) return;
+    running.current = true;
     try {
       await work();
     } catch (e) {
       toast.error(errorMessage(e, fallback));
     } finally {
+      running.current = false;
       setStep(null);
       await refresh();
     }

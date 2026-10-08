@@ -80,9 +80,12 @@ export async function makeGeneratedAvatar(
   d: MakerDeps,
   input: { member: CastMember; avatar: Avatar | null; instructions: string; fresh: boolean },
 ): Promise<Avatar> {
-  let avatar = reusableFor("ai", input.avatar) ?? (await d.createAndLink(avatarFieldsFor(input.member)));
-  if (input.fresh || !avatar.front) {
-    d.onStep("face");
+  const reusable = reusableFor("ai", input.avatar);
+  const needsFace = input.fresh || !reusable?.front;
+  // Busy from the click: creating and linking a draft takes two round trips before the face.
+  if (needsFace) d.onStep("face");
+  let avatar = reusable ?? (await d.createAndLink(avatarFieldsFor(input.member)));
+  if (needsFace) {
     const { generationId } = await d.generateFront(avatar.id, avatarDescriptionFor(input.member, input.instructions));
     avatar = await d.pickFront(avatar.id, generationId);
   }

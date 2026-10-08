@@ -111,3 +111,14 @@ describe("finishAvatar asks only for the missing views (review finding 1)", () =
     expect(d.generateViews).toHaveBeenCalledWith("new", ["front", "left", "right", "back"]);
   });
 });
+
+describe("Make avatar shows its first step at once (testing: no loading, repeat clicks)", () => {
+  it("says 'face' before it creates and links the draft, so the slot is busy from the click", async () => {
+    const order: string[] = [];
+    const d = deps(order);
+    vi.mocked(d.onStep).mockImplementation((step) => { order.push(`step:${step}`); });
+    await makeGeneratedAvatar(d, { member: meenakshi, avatar: null, instructions: "", fresh: false });
+    expect(order[0]).toBe("step:face");
+    expect(order[1]).toBe("create:Meenakshi");
+  });
+});
