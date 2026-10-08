@@ -11,17 +11,20 @@ import { panelInputs, panelReferenceCap } from "@/lib/scripts/visualise/panel-in
 import { panelAspect } from "@/lib/scripts/visualise/panel-prompt";
 import { promptForDraw, waitingMessage } from "@/lib/scripts/visualise/state";
 import { runPanelGeneration } from "@/lib/scripts/visualise/run-panel";
+import { isPanelModel } from "@/lib/scripts/visualise/constants";
 
 // One Nano Banana 2 image with up to 14 references.
 export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string; scriptId: string; shotId: string }> };
 
-const DrawSchema = z.discriminatedUnion("kind", [
+const KindSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("draw") }),
   z.object({ kind: z.literal("edited"), prompt: z.string() }),
   z.object({ kind: z.literal("reset") }),
 ]);
+// The model chosen under Advanced, if any: only the ones offered for panels.
+const DrawSchema = KindSchema.and(z.object({ modelId: z.string().refine(isPanelModel).optional() }));
 
 // POST /api/clients/:id/scripts/:scriptId/panels/:shotId — D341–D345: draw one shot's panel.
 // The take is stored "running" with what it is drawn from (prompt, shot fingerprint, faces)
@@ -45,7 +48,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const board = await loadVisualiseBoard(clientId, script);
       const inputs = panelInputs({
         doc: script.doc, shot, avatars: new Map(board.avatars.map((a) => [a.id, a])),
-        kits: board.kits, cap: panelReferenceCap(),
+        kits: board.kits, cap: panelReferenceCap(body.data.modelId),
       });
       if (inputs.waitingFor.length > 0) return apiError(waitingMessage(inputs.waitingFor), 409);
 
@@ -63,7 +66,7 @@ export async function POST(req: Request, { params }: Ctx) {
         const { generation } = await runPanelGeneration({
           clientId, scriptId: script.id, shotId: shot.id, orgId: client.org_id,
           userId: caller.userId, userEmail: caller.email ?? null,
-          aspect: panelAspect(script.doc), prompt: chosen.prompt,
+          aspect: panelAspect(script.doc), prompt: chosen.prompt, modelId: body.data.modelId,
           referenceUrls: inputs.references.map((r) => r.url),
         });
         const meta = (generation.meta ?? {}) as { width?: number | null; height?: number | null };

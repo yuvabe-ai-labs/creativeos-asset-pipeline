@@ -5,6 +5,9 @@ import {
   avatarDescriptionFor, castSlotLine, finishAvatar, makeGeneratedAvatar, nextMakerStep, reusableFor, type MakerDeps,
 } from "../maker";
 import { reel01Doc } from "./fixtures";
+import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
+import { estimateMakeCredits } from "../maker";
+import { VISUALISE_AVATAR_MODEL_ID } from "../constants";
 
 const meenakshi = reel01Doc().cast[0];
 const draft = (over: Partial<Avatar> = {}) =>
@@ -120,5 +123,18 @@ describe("Make avatar shows its first step at once (testing: no loading, repeat 
     await makeGeneratedAvatar(d, { member: meenakshi, avatar: null, instructions: "", fresh: false });
     expect(order[0]).toBe("step:face");
     expect(order[1]).toBe("create:Meenakshi");
+  });
+});
+
+describe("estimateMakeCredits for the chosen model", () => {
+  it("is one face plus four views, on that model", () => {
+    const gpt = "openai:gpt-image-2";
+    const face = estimateAvatarImageCredits({ modelId: gpt, aspect: "3:4", referenceCount: 0 })!;
+    const views = estimateSheetCredits(gpt, 4)!;
+    expect(estimateMakeCredits(gpt)).toBe(face + views);
+  });
+
+  it("makes Visualise avatars with GPT Image 2 by default", () => {
+    expect(VISUALISE_AVATAR_MODEL_ID).toBe("openai:gpt-image-2");
   });
 });

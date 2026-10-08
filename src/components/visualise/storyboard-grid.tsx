@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 
 // Spec §6.1 — the Storyboard, as on the Visualise board: every shot's panel in order, scene only.
-export function StoryboardGrid({ action, children }: {
+export function StoryboardGrid({ action, settings, children }: {
   /** Beside the heading: Generate all, so it sits with the panels it draws. */
   action?: ReactNode;
+  /** Under the heading: Advanced (the panel model). */
+  settings?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -15,6 +17,7 @@ export function StoryboardGrid({ action, children }: {
         </div>
         {action}
       </div>
+      {settings}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">{children}</div>
     </section>
   );

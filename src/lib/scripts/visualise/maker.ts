@@ -1,5 +1,5 @@
 import {
-  AVATAR_DEFAULT_FRONT_MODEL_ID, AVATAR_DEFAULT_SHEET_MODEL_ID, AVATAR_DESCRIPTION_MAX,
+  AVATAR_DESCRIPTION_MAX,
   AVATAR_FRONT_ASPECT, AVATAR_NAME_MAX, AVATAR_STORY_MAX,
 } from "@/lib/avatars/constants";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
@@ -7,6 +7,7 @@ import { hasFourViews, missingViews, needsLikenessConsent } from "@/lib/avatars/
 import type { Avatar, AvatarViewId } from "@/lib/avatars/schema";
 import { formatDate } from "@/lib/kb/utils";
 import type { CastMember } from "@/lib/scripts/schema";
+import { VISUALISE_AVATAR_MODEL_ID } from "./constants";
 
 // D338 — the inline avatar maker's sequence, as plain functions over injected calls (the same
 // shape as add-to-canvas.ts), so every path is tested without React. useCastAvatarMaker supplies
@@ -102,8 +103,8 @@ export function castSlotLine(avatar: Avatar | null): string {
 }
 
 /** What Make avatar costs: one face, then four views. */
-export function estimateMakeCredits(): number | null {
-  const face = estimateAvatarImageCredits({ modelId: AVATAR_DEFAULT_FRONT_MODEL_ID, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
-  const views = estimateSheetCredits(AVATAR_DEFAULT_SHEET_MODEL_ID, 4);
+export function estimateMakeCredits(modelId: string = VISUALISE_AVATAR_MODEL_ID): number | null {
+  const face = estimateAvatarImageCredits({ modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
+  const views = estimateSheetCredits(modelId, 4);
   return face === null || views === null ? null : face + views;
 }

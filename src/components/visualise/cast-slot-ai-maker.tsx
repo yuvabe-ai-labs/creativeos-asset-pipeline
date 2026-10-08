@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
-import { AVATAR_DEFAULT_SHEET_MODEL_ID } from "@/lib/avatars/constants";
 import { estimateSheetCredits } from "@/lib/avatars/generation";
 import { missingViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
@@ -13,9 +12,11 @@ import { estimateMakeCredits, nextMakerStep } from "@/lib/scripts/visualise/make
 
 // Spec §5.2 — AI-generated: made from the person's description, with avatar instructions and
 // Regenerate avatar. A generated face that belongs to the library changes in every script.
-export function CastSlotAiMaker({ avatar, busy, onMake }: {
+export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
   /** The linked avatar when its face is generated (or it has none yet); otherwise null. */
   avatar: Avatar | null;
+  /** The image model chosen under Advanced, for the cost. */
+  modelId: string;
   busy: boolean;
   onMake: (instructions: string, fresh: boolean) => void;
 }) {
@@ -41,18 +42,18 @@ export function CastSlotAiMaker({ avatar, busy, onMake }: {
       <div className="flex flex-wrap items-center gap-2">
         {!hasFace ? (
           <Button disabled={busy} onClick={() => onMake(instructions, false)}>
-            Make avatar <AvatarCreditCost credits={estimateMakeCredits()} />
+            Make avatar <AvatarCreditCost credits={estimateMakeCredits(modelId)} />
           </Button>
         ) : (
           <>
             {next === "views" && (
               <Button disabled={busy} onClick={() => onMake("", false)}>
-                Make the four views <AvatarCreditCost credits={estimateSheetCredits(AVATAR_DEFAULT_SHEET_MODEL_ID, viewCount)} />
+                Make the four views <AvatarCreditCost credits={estimateSheetCredits(modelId, viewCount)} />
               </Button>
             )}
             {next === "save" && <Button disabled={busy} onClick={() => onMake("", false)}>Save to Avatars</Button>}
             <Button variant="outline" disabled={busy} onClick={() => onMake(instructions, true)}>
-              Regenerate avatar <AvatarCreditCost credits={estimateMakeCredits()} />
+              Regenerate avatar <AvatarCreditCost credits={estimateMakeCredits(modelId)} />
             </Button>
           </>
         )}

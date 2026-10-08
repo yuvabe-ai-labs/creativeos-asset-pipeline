@@ -109,6 +109,13 @@ describe("POST …/panels/:shotId", () => {
     expect(vi.mocked(insertPanelTake).mock.calls[1][0]).toMatchObject({ prompt: "Closer on her hands.", promptEdited: true });
   });
 
+  it("draws with the model the operator chose, and refuses one not offered for panels", async () => {
+    const { POST } = await import("./route");
+    expect((await POST(post({ kind: "draw", modelId: "gemini:gemini-3.1-flash-image" }), ctx("s06"))).status).toBe(200);
+    expect(vi.mocked(runPanelGeneration).mock.calls[0][0].modelId).toBe("gemini:gemini-3.1-flash-image");
+    expect((await POST(post({ kind: "draw", modelId: "seedream:seedream-5-0-lite" }), ctx("s06"))).status).toBe(400);
+  });
+
   it("is a 400 for an empty edited prompt or an unknown body", async () => {
     const { POST } = await import("./route");
     expect((await POST(post({ kind: "edited", prompt: "  " }), ctx("s06"))).status).toBe(400);

@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
 import { AvatarImageDropzone } from "@/components/avatars/avatar-image-dropzone";
 import { AvatarLikenessConsent } from "@/components/avatars/avatar-likeness-consent";
-import { AVATAR_DEFAULT_SHEET_MODEL_ID } from "@/lib/avatars/constants";
 import { estimateSheetCredits } from "@/lib/avatars/generation";
 import { missingViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
@@ -12,9 +11,11 @@ import { nextMakerStep } from "@/lib/scripts/visualise/maker";
 
 // Spec §5.2 — Specific person: an uploaded photo of a real person, the Avatars feature's likeness
 // consent (required, unchanged), then the four views made from the photo.
-export function CastSlotPhotoMaker({ name, castId, avatar, uploading, confirming, busy, onUpload, onConfirm, onFinish }: {
+export function CastSlotPhotoMaker({ name, castId, modelId, avatar, uploading, confirming, busy, onUpload, onConfirm, onFinish }: {
   name: string;
   castId: string;
+  /** The image model chosen under Advanced, for the cost of the views. */
+  modelId: string;
   /** The linked avatar when its face is an upload (or it has none yet); otherwise null. */
   avatar: Avatar | null;
   uploading: boolean;
@@ -48,7 +49,7 @@ export function CastSlotPhotoMaker({ name, castId, avatar, uploading, confirming
         {next && (
           <Button className="self-start" disabled={busy} onClick={onFinish}>
             {next === "save" ? "Save to Avatars" : "Make the four views"}
-            {next === "views" && <AvatarCreditCost credits={estimateSheetCredits(AVATAR_DEFAULT_SHEET_MODEL_ID, missingViews(avatar!).length)} />}
+            {next === "views" && <AvatarCreditCost credits={estimateSheetCredits(modelId, missingViews(avatar!).length)} />}
           </Button>
         )}
       </div>

@@ -15,14 +15,22 @@ beforeEach(() => {
 });
 
 describe("runPanelGeneration", () => {
-  it("draws with Nano Banana 2 for the script, and stores the panel under its shot", async () => {
+  it("draws with the chosen model, GPT Image 2 by default", async () => {
+    await runPanelGeneration({
+      clientId: "c1", scriptId: "s1", shotId: "s06", orgId: "org-1", userId: "u1", userEmail: null,
+      aspect: "9:16", prompt: "A panel.", referenceUrls: [], modelId: "gemini:gemini-3.1-flash-image",
+    });
+    expect(vi.mocked(runBilledImageGeneration).mock.calls[0][0].modelId).toBe("gemini:gemini-3.1-flash-image");
+  });
+
+  it("draws with the default model for the script, and stores the panel under its shot", async () => {
     await runPanelGeneration({
       clientId: "c1", scriptId: "s1", shotId: "s06", orgId: "org-1", userId: "u1", userEmail: null,
       aspect: "9:16", prompt: "A panel.", referenceUrls: ["a", "b"],
     });
     const call = vi.mocked(runBilledImageGeneration).mock.calls[0][0];
     expect(call).toMatchObject({
-      owner: { scriptId: "s1" }, modelId: "gemini:gemini-3.1-flash-image", aspect: "9:16",
+      owner: { scriptId: "s1" }, modelId: "openai:gpt-image-2", aspect: "9:16",
       inputsSnapshot: { slot: "panel", shotId: "s06", prompt: "A panel.", referenceUrls: ["a", "b", "house-style:v1"] },
     });
     // The house style image goes last, inline; the generation row records only its id.

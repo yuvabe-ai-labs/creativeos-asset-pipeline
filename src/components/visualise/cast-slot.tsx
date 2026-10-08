@@ -16,6 +16,10 @@ import { CastLibraryPicker } from "./cast-library-picker";
 import { CastSlotAiMaker } from "./cast-slot-ai-maker";
 import { CastSlotPhotoMaker } from "./cast-slot-photo-maker";
 import { CastSlotVoice } from "./cast-slot-voice";
+import { Label } from "@/components/ui/label";
+import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
+import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
+import { VISUALISE_AVATAR_MODEL_ID } from "@/lib/scripts/visualise/constants";
 
 type Mode = "ai" | "photo";
 
@@ -36,7 +40,8 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
   /** Spec 4 merge point: comment markers per view, given the view id. */
   marker?: (view: (typeof AVATAR_VIEWS)[number]) => ReactNode;
 }) {
-  const maker = useCastAvatarMaker({ clientId, scriptId, member, avatar });
+  const [modelId, setModelId] = useState(VISUALISE_AVATAR_MODEL_ID);
+  const maker = useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId });
   const [mode, setMode] = useState<Mode>(avatar?.front?.source.kind === "upload" ? "photo" : "ai");
   const generating = maker.step === "views" ? (avatar ? missingViews(avatar) : [...AVATAR_VIEWS])
     : maker.step === "face" ? [...AVATAR_VIEWS] : [];
@@ -63,11 +68,12 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
         <AvatarSheetViews columns={2} name={member.name} views={avatar?.sheetViews ?? null} generating={generating} stale={avatar?.sheetStale ?? false} marker={marker} />
         <div className="flex min-w-0 flex-col gap-3">
           {mode === "ai" ? (
-            <CastSlotAiMaker avatar={reusableFor("ai", avatar)} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />
+            <CastSlotAiMaker avatar={reusableFor("ai", avatar)} modelId={modelId} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />
           ) : (
             <CastSlotPhotoMaker
               name={member.name}
               castId={member.id}
+              modelId={modelId}
               avatar={reusableFor("photo", avatar)}
               uploading={maker.step === "upload"}
               confirming={maker.step === "consent"}
@@ -77,6 +83,10 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
               onFinish={() => void maker.finish()}
             />
           )}
+          <AvatarAdvancedSettings className="pt-0">
+            <Label htmlFor={`avatar-model-${member.id}`} className="text-xs text-muted-foreground">Image model for the face and views</Label>
+            <AvatarModelSelect id={`avatar-model-${member.id}`} value={modelId} onChange={setModelId} />
+          </AvatarAdvancedSettings>
 
           <div className="flex flex-col gap-3 border-t border-border pt-3">
             <CastSlotVoice clientId={clientId} castId={member.id} avatar={avatar && !avatar.archivedAt ? avatar : null} onChanged={() => void maker.refresh()} />

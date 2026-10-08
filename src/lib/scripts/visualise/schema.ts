@@ -28,7 +28,10 @@ export type PanelTake = {
 
 /** D344 — how a draw chooses its prompt: as the panel last was ("draw"), as the operator wrote
  *  it ("edited"), or rebuilt from the script ("reset"). */
-export type DrawBody = { kind: "draw" } | { kind: "edited"; prompt: string } | { kind: "reset" };
+export type DrawBody = ({ kind: "draw" } | { kind: "edited"; prompt: string } | { kind: "reset" }) & {
+  /** The panel model chosen under Advanced; the default when absent. */
+  modelId?: string;
+};
 
 /** Everything the Visualise view needs beside the script. */
 export type VisualiseBoard = {

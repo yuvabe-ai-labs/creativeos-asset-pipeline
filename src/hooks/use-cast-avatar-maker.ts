@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { avatarsService } from "@/services/avatars.service";
 import { useLinkCast, visualiseKeys } from "@/hooks/queries/visualise";
 import { avatarKeys } from "@/hooks/queries/avatars";
-import { AVATAR_DEFAULT_FRONT_MODEL_ID, AVATAR_DEFAULT_SHEET_MODEL_ID, AVATAR_STYLES } from "@/lib/avatars/constants";
+import { AVATAR_STYLES } from "@/lib/avatars/constants";
 import { errorMessage, validateAvatarImageFile } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { CastMember } from "@/lib/scripts/schema";
@@ -18,11 +18,13 @@ export type SlotStep = MakerStep | "upload" | "consent" | "link";
 
 // D338 — one cast slot's avatar maker. Every call goes through the Avatar Studio's own routes,
 // so what Visualise makes is the same client Avatar the Studio makes (spec §5.1).
-export function useCastAvatarMaker({ clientId, scriptId, member, avatar }: {
+export function useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId }: {
   clientId: string;
   scriptId: string;
   member: CastMember;
   avatar: Avatar | null;
+  /** The image model chosen under Advanced, for the face and the views. */
+  modelId: string;
 }) {
   const queryClient = useQueryClient();
   const linkCast = useLinkCast(clientId, scriptId);
@@ -42,19 +44,19 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar }: {
     generateFront: async (avatarId, description) => {
       const { candidate } = await avatarsService.generateFront(clientId, avatarId, {
         description, attributes: {}, styleId: AVATAR_STYLES[0].id,
-        modelId: AVATAR_DEFAULT_FRONT_MODEL_ID, batchId: crypto.randomUUID(),
+        modelId, batchId: crypto.randomUUID(),
       });
       return { generationId: candidate.generationId };
     },
     pickFront: (avatarId, generationId) => avatarsService.pickFront(clientId, avatarId, generationId),
     generateViews: async (avatarId, views) => {
-      const { avatar: updated, failed } = await avatarsService.generateSheet(clientId, avatarId, AVATAR_DEFAULT_SHEET_MODEL_ID, views);
+      const { avatar: updated, failed } = await avatarsService.generateSheet(clientId, avatarId, modelId, views);
       for (const f of failed) toast.error(`The ${f.label} view failed: ${f.error}`);
       return updated;
     },
     markReady: (avatarId) => avatarsService.update(clientId, avatarId, { status: "ready" }),
     onStep: setStep,
-  }), [clientId, member.id, linkCast]);
+  }), [clientId, member.id, linkCast, modelId]);
 
   // One run at a time. `step` (and so `busy`) only lands on the next render, and every Make avatar
   // creates a draft and bills a face: a second click before then must do nothing.

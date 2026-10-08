@@ -9,6 +9,10 @@ import { usePanelDraws } from "@/hooks/use-panel-draws";
 import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { errorMessage } from "@/lib/avatars/utils";
 import { formatRange, timeShots } from "@/lib/scripts/timeline";
+import { Label } from "@/components/ui/label";
+import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
+import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
+import { PANEL_MODEL_ID, PANEL_MODEL_IDS } from "@/lib/scripts/visualise/constants";
 import { CastSlots } from "./cast-slots";
 import { GenerateAllDialog } from "./generate-all-dialog";
 import { PanelDialog } from "./panel-dialog";
@@ -24,8 +28,9 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
   const router = useRouter();
   const query = useVisualiseBoard(clientId, initial.script.id, initial);
   const { script, board } = query.data;
-  const draws = usePanelDraws(clientId, script.id);
-  const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt);
+  const [panelModelId, setPanelModelId] = useState(PANEL_MODEL_ID);
+  const draws = usePanelDraws(clientId, script.id, panelModelId);
+  const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const reopen = useReopenScript(clientId, script.id);
   const pick = usePickTake(clientId, script.id);
   const [openShot, setOpenShot] = useState<string | null>(null);
@@ -74,6 +79,12 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
         <section aria-label="Visuals" className="flex min-w-0 flex-col gap-6 rounded-2xl bg-muted/40 p-4">
           <CastSlots clientId={clientId} scriptId={script.id} doc={script.doc} avatars={model.avatars} />
           <StoryboardGrid
+            settings={
+              <AvatarAdvancedSettings className="max-w-sm">
+                <Label htmlFor="panel-model" className="text-xs text-muted-foreground">Image model for panels</Label>
+                <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={PANEL_MODEL_IDS} />
+              </AvatarAdvancedSettings>
+            }
             action={
               <GenerateAllDialog
                 variant="outline"

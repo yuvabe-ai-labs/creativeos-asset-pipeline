@@ -16,6 +16,8 @@ export async function runPanelGeneration(args: {
   aspect: string;
   prompt: string;
   referenceUrls: string[];
+  /** Chosen under Advanced; GPT Image 2 when absent. */
+  modelId?: string;
 }) {
   return runBilledImageGeneration({
     owner: { scriptId: args.scriptId },
@@ -23,7 +25,7 @@ export async function runPanelGeneration(args: {
     clientId: args.clientId,
     userId: args.userId,
     userEmail: args.userEmail,
-    modelId: PANEL_MODEL_ID,
+    modelId: args.modelId ?? PANEL_MODEL_ID,
     aspect: args.aspect,
     prompt: args.prompt,
     // The house style image last, matching the prompt's "Reference image N shows the drawing style".

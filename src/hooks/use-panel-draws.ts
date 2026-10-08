@@ -16,7 +16,8 @@ type DrawResult = { ok: true } | { ok: false; message: string; capped: boolean }
 // D345 — drawing panels from the browser: one shot, or Generate all as a bounded queue that
 // stops starting new draws at the credit cap. `drawing` lets a panel show its placeholder the
 // moment the click lands, before the server's running take is read back.
-export function usePanelDraws(clientId: string, scriptId: string) {
+/** `modelId` is the panel model chosen under Advanced; every draw sends it. */
+export function usePanelDraws(clientId: string, scriptId: string, modelId: string) {
   const queryClient = useQueryClient();
   const [drawing, setDrawing] = useState<ReadonlySet<string>>(() => new Set());
   const [drawingAll, setDrawingAll] = useState(false);
@@ -29,7 +30,7 @@ export function usePanelDraws(clientId: string, scriptId: string) {
   const drawQuietly = useCallback(async (shotId: string, body: DrawBody): Promise<DrawResult> => {
     setDrawing((prev) => new Set(prev).add(shotId));
     try {
-      await visualiseService.draw(clientId, scriptId, shotId, body);
+      await visualiseService.draw(clientId, scriptId, shotId, { ...body, modelId });
       return { ok: true };
     } catch (e) {
       return { ok: false, message: errorMessage(e, "Could not draw the panel"), capped: e instanceof ApiError && e.status === 402 };
@@ -41,7 +42,7 @@ export function usePanelDraws(clientId: string, scriptId: string) {
       });
       void refresh();
     }
-  }, [clientId, scriptId, refresh]);
+  }, [clientId, scriptId, modelId, refresh]);
 
   const draw = useCallback(async (shotId: string, body: DrawBody = { kind: "draw" }) => {
     const result = await drawQuietly(shotId, body);

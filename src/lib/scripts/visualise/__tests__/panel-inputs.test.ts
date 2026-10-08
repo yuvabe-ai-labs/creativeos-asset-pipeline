@@ -5,7 +5,7 @@ import { blankAreas, panelAspect } from "../panel-prompt";
 import { castReadyForPanels, estimatePanelCredits, panelInputs, panelReferenceCap } from "../panel-inputs";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
-import { PANEL_MODEL_ID } from "../constants";
+import { isPanelModel, PANEL_MODEL_ID, PANEL_MODEL_IDS } from "../constants";
 import {
   avatarMap, HUSBAND_AVATAR, linkedDoc, MEENAKSHI_AVATAR, readyAvatar, reel01Doc,
 } from "./fixtures";
@@ -138,5 +138,20 @@ describe("panelInputs on Reel 01 (D341)", () => {
 
   it("prices a panel like any Nano Banana 2 image, by its reference count", () => {
     expect(estimatePanelCredits(8, "9:16")).toBeGreaterThan(0);
+  });
+});
+
+describe("the panel model (testing, 8 Oct: ChatGPT by default, changeable under Advanced)", () => {
+  it("draws with GPT Image 2 unless another is chosen, from OpenAI or Gemini only", () => {
+    expect(PANEL_MODEL_ID).toBe("openai:gpt-image-2");
+    expect(PANEL_MODEL_IDS).toContain("gemini:gemini-3.1-flash-image");
+    expect(PANEL_MODEL_IDS.some((id) => id.startsWith("seedream:"))).toBe(false);
+    expect(isPanelModel("seedream:seedream-5-0-lite")).toBe(false);
+  });
+
+  it("sizes the reference cap and the price to the chosen model", () => {
+    const nb2 = "gemini:gemini-3.1-flash-image";
+    expect(panelReferenceCap(nb2)).toBe(imageGenClientModelMap[nb2]!.maxReferenceImages! - 1);
+    expect(estimatePanelCredits(8, "9:16", nb2)).toBe(estimateAvatarImageCredits({ modelId: nb2, aspect: "9:16", referenceCount: 9 }));
   });
 });
