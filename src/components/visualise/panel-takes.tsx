@@ -25,14 +25,21 @@ export function PanelTakes({ takes, pickId, disabled, onPick }: {
               variant="outline"
               aria-pressed={picked}
               aria-label={`Take ${i + 1}${picked ? ", picked" : ""}`}
-              disabled={disabled || picked}
-              onClick={() => onPick(take.id)}
-              className={cn("relative h-auto w-14 p-0", picked && "ring-2 ring-primary ring-offset-1")}
+              // Not disabled when picked: disabled dims it, and the pick is the one that matters.
+              disabled={disabled}
+              onClick={() => { if (!picked) onPick(take.id); }}
+              className={cn("relative h-auto w-16 overflow-hidden p-0", picked && "ring-2 ring-primary ring-offset-1")}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={take.url ?? ""} alt="" className="aspect-[9/16] w-full rounded-md object-cover" />
-              <span className="absolute bottom-0.5 left-1 text-[0.65rem] font-medium text-background drop-shadow">{i + 1}</span>
-              {picked && <Check className="absolute right-0.5 top-0.5 size-3.5 text-primary" strokeWidth={1.5} />}
+              <span className="relative block aspect-[9/16] w-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={take.url ?? ""} alt="" className="absolute inset-0 size-full object-cover" />
+              </span>
+              <span className="absolute bottom-1 left-1 rounded bg-background/90 px-1 text-[0.65rem] font-medium leading-4 text-foreground">{i + 1}</span>
+              {picked && (
+                <span className="absolute right-1 top-1 rounded-full bg-background/90 p-0.5">
+                  <Check className="size-3 text-primary" strokeWidth={1.5} />
+                </span>
+              )}
             </Button>
           );
         })}

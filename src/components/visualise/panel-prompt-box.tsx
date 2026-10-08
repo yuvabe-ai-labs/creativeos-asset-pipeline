@@ -43,7 +43,7 @@ export function PanelPromptBox({ prompt, builtPrompt, credits, busy, onRegenerat
       {open && (
         <div className="flex flex-col gap-2">
           <Label htmlFor={id} className="text-xs text-muted-foreground">The exact prompt sent to draw this frame</Label>
-          <Textarea id={id} value={draft} maxLength={PANEL_PROMPT_MAX} rows={10} onChange={(e) => setDraft(e.target.value)} className="font-sans text-xs" />
+          <Textarea id={id} value={draft} maxLength={PANEL_PROMPT_MAX} rows={10} onChange={(e) => setDraft(e.target.value)} className="max-h-72 overflow-y-auto font-sans text-xs" />
           <p className="text-xs text-muted-foreground">
             For how the frame is drawn. A change to what happens belongs in the shot, through Reopen.
           </p>
