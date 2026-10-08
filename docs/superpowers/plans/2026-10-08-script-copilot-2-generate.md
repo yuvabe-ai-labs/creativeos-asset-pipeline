@@ -27,7 +27,7 @@
 - **Data fetching in the browser** goes through `src/services/script-generate.service.ts` and hooks in `src/hooks/queries/script-generate.ts`; keys only from `scriptKeys` in `src/hooks/queries/scripts.ts`. No `fetch` in components.
 - **Reuse, don't redefine:** `isUuid` (`@/lib/avatars/utils`), `printScript` (`@/lib/scripts/print`), `timeShots` / `groupByBeat` / `totalSeconds` (`@/lib/scripts/timeline`), `reelLabel` / `shotSummary` (`@/lib/scripts/utils`), `buildParseContext` / `KB_PARSE_SLICES` (`@/lib/kb/parse-context`), `buildSignalBrief` (`@/lib/market/signal-brief`), `listSignalsWithItems` (`@/lib/db/signals`), `getActiveKBVersion` (`@/lib/db/kb`), `listAvatars` / `getAvatar` (`@/lib/db/avatars`), `resolveCallerContext` (`@/lib/dal`), `createOpenAI` / `createGemini`.
 - **Shared files are extended additively, never restructured:** `src/lib/scripts/schema.ts` is not touched; `script-view.tsx` and its children only gain an optional context (see Merge points).
-- **Migration number `0052`**, **ADRs `D327`–`D336`** (booked in the handoff). Re-check both against `origin/staging` before committing the migration (Task 1) and the ADRs (Task 14).
+- **Migration number `0052`**, **ADRs `D328`–`D337`** (booked in the handoff). Re-check both against `origin/staging` before committing the migration (Task 1) and the ADRs (Task 14).
 - **One component per file, named exports, split at about 200 lines** (`docs/component-structure.md`); hooks live in `src/hooks/`, not in `src/components/`.
 - **Commits:** `git add` named files only; never `git stash`; never push or merge.
 
@@ -55,7 +55,7 @@
 | `src/hooks/queries/scripts.ts` | Adds `scriptKeys.generate`. | — |
 | Stage writes | `markScriptFinal` (generate → visualise, version-guarded). | Spec 3's `reopenScript`, spec 4's `script_review_move`. Consolidate at merge if wanted; behaviour is independent. |
 | Brand KB reader | `renderKbText` (Task 4) is the house-rules reader spec 3's plan says replaces its `loadKbText` at merge. | Spec 3 Task 7. |
-| Roadmap §7 ADR log | Appends D327–D336. | D337–D346 and D347–D356 also append; reorder by number at merge. |
+| Roadmap §7 ADR log | Appends D328–D337. | D338–D347 and D348–D357 also append; reorder by number at merge. |
 
 ## File map
 
@@ -102,7 +102,7 @@
 | `src/components/scripts/generate/*.tsx` | Workspace, chat, cards, composer, notes, Mark final bar, inline prompt, cast link |
 | `src/app/clients/[id]/scripts/[scriptId]/page.tsx` | `generate` branch |
 | `src/components/scripts/scripts-library.tsx`, `script-unwritten-card.tsx`, `src/app/clients/[id]/scripts/page.tsx` | New script and unwritten scripts |
-| `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` | D327–D336 |
+| `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` | D328–D337 |
 
 ---
 ### Task 1: Migration 0052 and the Generate data layer
@@ -185,7 +185,7 @@ alter table client_script_messages enable row level security;
 // Script copilot spec 2 (Generate).
 
 /** The model that writes and edits scripts (spec 2 §11). Chosen by the probe in Task 5 and recorded
- *  as D335; until then the Script node parse's model, which this repo already calls. */
+ *  as D336; until then the Script node parse's model, which this repo already calls. */
 export const SCRIPT_WRITER_MODEL = "gpt-5.4-mini";
 
 /** The probe's candidates: "two or three candidate models" (spec 2 §11). Each is already called
@@ -904,7 +904,7 @@ Ask the user to run `supabase/migrations/0052_script_generate.sql` in the stagin
 
 ```bash
 git add supabase/migrations/0052_script_generate.sql src/lib/scripts/copilot/constants.ts src/lib/scripts/copilot/output.ts src/lib/scripts/copilot/schema.ts src/lib/scripts/copilot/rows.ts src/lib/scripts/copilot/change.ts src/lib/scripts/copilot/__tests__/rows.test.ts src/lib/scripts/copilot/__tests__/change.test.ts src/lib/scripts/rows.ts src/lib/db/script-generate.ts src/lib/db/script-generate.test.ts
-git commit -m "feat(scripts): Generate data layer and migration 0052 (D328, D329)
+git commit -m "feat(scripts): Generate data layer and migration 0052 (D329, D330)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1267,7 +1267,7 @@ describe("fillToFinal", () => {
 Run: `npx vitest run src/lib/scripts/copilot/__tests__/fill-to-final.test.ts`
 Expected: FAIL, `Cannot find module '../fill-to-final'`.
 
-If, once the module exists, a seeded fixture fails the first two tests, print `fillToFinal(...)` for it and stop to report it. Do not edit the fixtures: they were checked by hand against the outlines (D326).
+If, once the module exists, a seeded fixture fails the first two tests, print `fillToFinal(...)` for it and stop to report it. Do not edit the fixtures: they were checked by hand against the outlines (D327).
 
 - [ ] **Step 4: Write the check**
 
@@ -1380,7 +1380,7 @@ Expected: PASS, no type errors.
 
 ```bash
 git add src/lib/scripts/copilot/fields.ts src/lib/scripts/copilot/fill-to-final.ts src/lib/scripts/copilot/__tests__/fields.test.ts src/lib/scripts/copilot/__tests__/fill-to-final.test.ts src/lib/db/script-generate.ts
-git commit -m "feat(scripts): field paths and the fill-to-final check (D332)
+git commit -m "feat(scripts): field paths and the fill-to-final check (D333)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1509,7 +1509,7 @@ import { scriptDocSchema, type CastMember, type ScriptDoc, type Shot } from "../
 import type { DraftOutput, ShotFields } from "./output";
 
 // Spec 2 §7 — the model's first draft becomes a valid spec 1 script. The model never writes ids
-// (D330); a slightly-off draft is repaired here rather than rejected (Review Focus 3).
+// (D331); a slightly-off draft is repaired here rather than rejected (Review Focus 3).
 
 const cut = (s: string, n: number) => s.trim().slice(0, n).trim();
 const beatKey = (beat: string) => beat.trim().toUpperCase();
@@ -1538,7 +1538,7 @@ export function newShotId(taken: Set<string>): string {
   return id;
 }
 
-/** The carry rule (D326): a later shot in a beat that repeats the beat's VO line or card leaves it
+/** The carry rule (D327): a later shot in a beat that repeats the beat's VO line or card leaves it
  *  empty, so the parse does not map the line twice. */
 export function carryShot(shots: Shot[], index: number): Shot {
   const shot = shots[index];
@@ -1763,9 +1763,9 @@ import type { ScriptNotes } from "./schema";
 import { parseFieldPath, writeField } from "./fields";
 import { carryShot, castIdFor, toShot } from "./draft";
 
-// Spec 2 §9 — a copilot edit is a list of typed operations applied here, all or nothing (D331).
+// Spec 2 §9 — a copilot edit is a list of typed operations applied here, all or nothing (D332).
 // Anything an operation does not name is carried over untouched, so "only the targeted part
-// changes" holds by construction. Shot ids follow the rules spec 3 keys panels by (D330).
+// changes" holds by construction. Shot ids follow the rules spec 3 keys panels by (D331).
 
 export type OpsGen = { newShotId: (taken: Set<string>) => string; avatarIds: ReadonlySet<string> };
 export type OpsResult =
@@ -1950,7 +1950,7 @@ Expected: no errors.
 
 ```bash
 git add src/lib/scripts/copilot/draft.ts src/lib/scripts/copilot/ops.ts src/lib/scripts/copilot/__tests__/draft.test.ts src/lib/scripts/copilot/__tests__/ops.test.ts
-git commit -m "feat(scripts): draft normaliser and typed edit operations with stable shot ids (D330, D331)
+git commit -m "feat(scripts): draft normaliser and typed edit operations with stable shot ids (D331, D332)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -2055,7 +2055,7 @@ import { groupByBeat, timeShots } from "../timeline";
 import { reelLabel } from "../utils";
 import type { CopilotAvatar } from "./schema";
 
-// Spec 2 §4 — what the copilot knows without asking, as text for the system message (D333).
+// Spec 2 §4 — what the copilot knows without asking, as text for the system message (D334).
 
 /** The brand KB, every slice, plus its free-text consistency notes read whole: for the demo the
  *  client's house spec is pasted there (spec 2 §4.1, answer 2c.1). Spec 3's plan replaces its own
@@ -2070,7 +2070,7 @@ export function renderKbText(kb: TraceableBrandKB | null): string {
 export type LibraryFormat = { format: string; beats: string[]; reels: string[] };
 
 /** The formats seen in the client's scripts (spec 2 §4.3), each with the beat sequence of its first
- *  script. Formats are the client's own words (D325). */
+ *  script. Formats are the client's own words (D326). */
 export function libraryFormats(scripts: Script[]): LibraryFormat[] {
   const byFormat = new Map<string, LibraryFormat>();
   for (const s of scripts) {
@@ -2127,7 +2127,7 @@ Read `src/prompts/script-parse.ts` first for the house style of prompt records. 
 // src/prompts/script-copilot.ts
 // Script copilot spec 2 (Generate) — the rules every call follows, and one instruction per step.
 // Spec: docs/superpowers/specs/2026-10-08-script-copilot-2-generate-design.md §5–§9.
-// The model is not named here: it is SCRIPT_WRITER_MODEL, chosen by the probe (D335).
+// The model is not named here: it is SCRIPT_WRITER_MODEL, chosen by the probe (D336).
 
 const rules = `You are the script copilot for a creative agency's content team. You help write one short vertical reel script for one client, in that client's own layout.
 
@@ -2279,7 +2279,7 @@ import { scriptCopilotPrompt } from "@/prompts/script-copilot";
 import type { ScriptDoc } from "../schema";
 import type { Angle, Brief, ConfirmationCard, OpenItem, ScriptNotes } from "./schema";
 
-// Builds each copilot call's two messages (D333, D334). System: the rules, the task, the client's
+// Builds each copilot call's two messages (D334, D335). System: the rules, the task, the client's
 // standing context. User: what changes per turn. Market signals go in the user message only.
 
 export type CopilotBase = { clientName: string; kbText: string; library: string; avatars: string };
@@ -2440,7 +2440,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { createOpenAI } from "@/lib/openai/server";
 import { createGemini } from "@/lib/gemini/server";
 
-// One structured call over either provider already in the repo (D335): no new SDK. The model id
+// One structured call over either provider already in the repo (D336): no new SDK. The model id
 // picks the provider. The result is validated against the same zod schema either way.
 
 export type StructuredCall = <S extends z.ZodType>(args: { name: string; system: string; user: string; schema: S }) => Promise<z.infer<S>>;
@@ -2520,7 +2520,7 @@ Expected: PASS, no type errors.
 
 ```bash
 git add src/lib/scripts/copilot/prompt-context.ts src/prompts/script-copilot.ts src/lib/scripts/copilot/messages.ts src/lib/scripts/copilot/model.ts src/lib/scripts/copilot/context.ts src/lib/scripts/copilot/__tests__/prompt-context.test.ts src/lib/scripts/copilot/__tests__/messages.test.ts src/lib/scripts/copilot/__tests__/model.test.ts
-git commit -m "feat(scripts): copilot prompts, KB and library context, one structured model call (D333, D334)
+git commit -m "feat(scripts): copilot prompts, KB and library context, one structured model call (D334, D335)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -2878,7 +2878,7 @@ Then run the best-looking model twice more for the parse round trip on repeated 
 
 - [ ] **Step 5: Stop and let the user choose**
 
-Show the user `REPORT.md` (its text) and the paths of the printed Reel 04 drafts, and ask them to read the Reel 04 drafts against the outline's Reel 04 (persona, Kerala kit, locked lines verbatim, disclaimers, nothing from the never-list) and pick the model. Include each model's draft and edit times. **Do not pick for them.** Record their pick and a one-line reason for D335 (Task 14).
+Show the user `REPORT.md` (its text) and the paths of the printed Reel 04 drafts, and ask them to read the Reel 04 drafts against the outline's Reel 04 (persona, Kerala kit, locked lines verbatim, disclaimers, nothing from the never-list) and pick the model. Include each model's draft and edit times. **Do not pick for them.** Record their pick and a one-line reason for D336 (Task 14).
 
 - [ ] **Step 6: Set the model and commit**
 
@@ -2889,7 +2889,7 @@ Expected: PASS.
 
 ```bash
 git add src/lib/scripts/copilot/probe-score.ts src/lib/scripts/copilot/__tests__/probe-score.test.ts scripts/probe-script-writer.itest.ts src/lib/scripts/copilot/constants.ts
-git commit -m "feat(scripts): writing-model probe on Reel 04; SCRIPT_WRITER_MODEL chosen (D335)
+git commit -m "feat(scripts): writing-model probe on Reel 04; SCRIPT_WRITER_MODEL chosen (D336)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -2917,7 +2917,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `cardToNotes(card: ConfirmationCard): ScriptNotes`
   - `openItemsLine(items: OpenItem[]): string`
 
-The order is the code's, not the model's (D327): "Fixed order, skipping anything already given. 'Reel 04, Kerala Piravi, UGC, Saraswathi' goes straight to the angles. Nothing is asked twice." Founder-led skips the lead question ("Lead, UGC only (Founder-led is James)"). The questions themselves are fixed text, so they never drift and never ask for anything in §4.
+The order is the code's, not the model's (D328): "Fixed order, skipping anything already given. 'Reel 04, Kerala Piravi, UGC, Saraswathi' goes straight to the angles. Nothing is asked twice." Founder-led skips the lead question ("Lead, UGC only (Founder-led is James)"). The questions themselves are fixed text, so they never drift and never ask for anything in §4.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3105,7 +3105,7 @@ import type { Angle, Brief, ConfirmationCard, CopilotAvatar, OpenItem, Piece, Sc
 
 // Spec 2 §5 / interaction model §3.0 — the four pieces, asked in a fixed order, skipping anything
 // already given; any or all can be skipped and the copilot proposes them. The code decides the next
-// step; the model only reads the person's answer and fills what the step needs (D327).
+// step; the model only reads the person's answer and fills what the step needs (D328).
 
 export function isFounderLed(format: string): boolean {
   return /founder/i.test(format);
@@ -3265,7 +3265,7 @@ Expected: no errors.
 
 ```bash
 git add src/lib/scripts/copilot/brief.ts src/lib/scripts/copilot/__tests__/brief.test.ts
-git commit -m "feat(scripts): the copilot's brief: four pieces in a fixed order, any skippable (D327)
+git commit -m "feat(scripts): the copilot's brief: four pieces in a fixed order, any skippable (D328)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -3572,7 +3572,7 @@ import {
 } from "./brief";
 
 // Spec 2 §5–§9 — one copilot turn. Model calls first (async), then a pure change that
-// changeGenerateScript runs against the script as it is now and compare-and-sets (D331, D336).
+// changeGenerateScript runs against the script as it is now and compare-and-sets (D332, D337).
 
 export type Reply = { content: string; card: MessageCard | null };
 export type TurnDeps = {
@@ -3757,7 +3757,7 @@ Expected: PASS, no type errors.
 
 ```bash
 git add src/lib/scripts/copilot/turn.ts src/lib/scripts/copilot/__tests__/turn.test.ts
-git commit -m "feat(scripts): one copilot turn, before-and-after proposals and inline edits (D331)
+git commit -m "feat(scripts): one copilot turn, before-and-after proposals and inline edits (D332)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -4573,7 +4573,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
 // POST /api/clients/:id/scripts/:scriptId/mark-final — Generate → Visualise, spec 2's only stage
 // change (§10). "Available only when the fill-to-final list (§8) is empty", checked here against the
-// stored script, on the version checked, whatever the browser showed (D332).
+// stored script, on the version checked, whatever the browser showed (D333).
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
   return withClient(req, params, async (clientId) =>
@@ -4602,7 +4602,7 @@ Expected: PASS, no type errors.
 
 ```bash
 git add "src/app/api/clients/[id]/scripts/[scriptId]/fields" "src/app/api/clients/[id]/scripts/[scriptId]/inline-edit" "src/app/api/clients/[id]/scripts/[scriptId]/proposals" "src/app/api/clients/[id]/scripts/[scriptId]/cast" "src/app/api/clients/[id]/scripts/[scriptId]/mark-final"
-git commit -m "feat(scripts): typing, inline edit, before-and-after, cast link and Mark final routes (D332)
+git commit -m "feat(scripts): typing, inline edit, before-and-after, cast link and Mark final routes (D333)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -5991,10 +5991,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 14: ADRs D327–D336, and the success checks in the app
+### Task 14: ADRs D328–D337, and the success checks in the app
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (append D327–D336 to §7)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (append D328–D337 to §7)
 
 **Interfaces:**
 - Consumes: the whole branch; the user's model pick and reason from Task 5.
@@ -6003,14 +6003,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Check the numbers are still free**
 
 Run: `git fetch origin && git show origin/staging:docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md | grep -o "^### D3[2-3][0-9]" | sort -u | tail -5`
-Expected: nothing at or above D327 on `origin/staging` other than what specs 3 and 4 booked (D337–D356). If any of D327–D336 is taken, stop and ask the user; do not renumber on your own.
+Expected: nothing at or above D328 on `origin/staging` other than what specs 3 and 4 booked (D338–D357). If any of D328–D337 is taken, stop and ask the user; do not renumber on your own.
 
 - [ ] **Step 2: Append the ADRs**
 
-Append to the end of §7 (after D326), in the log's format. Fill D335's model, date and reason from the user's pick in Task 5.
+Append to the end of §7 (after D327), in the log's format. Fill D336's model, date and reason from the user's pick in Task 5.
 
 ```markdown
-### D327 — The copilot's order is code; the model reads answers and fills each step *(recorded 2026-10-08)*
+### D328 — The copilot's order is code; the model reads answers and fills each step *(recorded 2026-10-08)*
 
 **Decision.** Generate's conversation is a state machine over the four pieces (format, occasion or theme with its date, lead for UGC only, narrative): code picks the next step (ask the next missing piece in fixed text, propose three angles, show the confirmation card, write), and each step is one structured model call whose output code validates. Skipped pieces are proposed; skipping all four still reaches angles, a picked angle and the card.
 
@@ -6020,7 +6020,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Originated →** spec 2 §5; interaction model §3.0; answers 2.4, 2b.8.
 
-### D328 — The conversation, the brief and the reel's notes are kept with the script *(recorded 2026-10-08)*
+### D329 — The conversation, the brief and the reel's notes are kept with the script *(recorded 2026-10-08)*
 
 **Decision.** `client_script_messages` holds the conversation; `client_scripts.brief` the copilot's working brief; `client_scripts.notes` the reel's notes (the confirmed brief as text plus the items to confirm). Each model call gets the current brief or script and notes plus only the copilot's last message, never the transcript.
 
@@ -6030,7 +6030,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Originated →** spec 2 §3, §4.2; answers 2.1, 2.3, 2b.7.
 
-### D329 — A new script is a row at Generate with no document until its first draft *(recorded 2026-10-08)*
+### D330 — A new script is a row at Generate with no document until its first draft *(recorded 2026-10-08)*
 
 **Decision.** `client_scripts.doc` is nullable, with a check that it is set at every stage after Generate. Spec 1's readers skip a script with no document; the library lists it as "New script · Not written yet".
 
@@ -6040,7 +6040,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Originated →** spec 2 §3; migration 0052.
 
-### D330 — Code assigns every id; an edited shot keeps its id; a split's first half keeps the original *(recorded 2026-10-08)*
+### D331 — Code assigns every id; an edited shot keeps its id; a split's first half keeps the original *(recorded 2026-10-08)*
 
 **Decision.** The first draft numbers shots `s01`, `s02`, …; cast ids come from names. After that an edited shot keeps its id, a split's first half keeps the original id, and a split's second half and every new shot get a fresh random id never used in the script. The model never writes an id.
 
@@ -6050,7 +6050,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Originated →** handoff §2a (from spec 3's plan); spec 4 Q11.
 
-### D331 — AI edits are typed operations applied by code, all or nothing *(recorded 2026-10-08)*
+### D332 — AI edits are typed operations applied by code, all or nothing *(recorded 2026-10-08)*
 
 **Decision.** A chat edit returns a list of operations (set a field, rewrite, insert, remove, split or move a shot, cast changes, confirm an item), applied by a pure function to the script as it is when the turn finishes; one failing operation applies none. An edit touching more than one shot is a before-and-after to accept or reject; otherwise it applies at once. An inline edit returns only the replacement for the selected text, spliced in by code, with the field's old text as its undo.
 
@@ -6060,7 +6060,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Originated →** spec 2 §9; answer 2.6; success item 6.
 
-### D332 — Fill to final is a plain check; Mark final re-checks it on the server *(recorded 2026-10-08)*
+### D333 — Fill to final is a plain check; Mark final re-checks it on the server *(recorded 2026-10-08)*
 
 **Decision.** The open items are computed from the script and its notes: each header field of the outlines' header line (not the theme, which the header line lacks), Purpose, Setting and camera, disclaimers, at least one watch-out, every person described, every shot's beat and visual, every beat's first shot with a VO line and a card, any square-bracket placeholder, and every unconfirmed item. Mark final moves Generate → Visualise only when the list is empty, on the version it checked.
 
@@ -6070,7 +6070,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Originated →** spec 2 §8, §10; answer 2.7.
 
-### D333 — The house rules are the KB read whole; formats come from the client's scripts *(recorded 2026-10-08)*
+### D334 — The house rules are the KB read whole; formats come from the client's scripts *(recorded 2026-10-08)*
 
 **Decision.** The copilot's system message holds every KB slice plus the KB's free-text consistency notes read whole (where the house spec is pasted for the demo), the formats seen in the client's scripts with their beats, up to two example scripts of the same format printed in the team's layout, and the client's saved avatars.
 
@@ -6080,7 +6080,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Refines →** spec 3's KB reader (replaced at merge). **Originated →** spec 2 §4; answers 2b.4, 2c.1, 2c.2.
 
-### D334 — Market Research reads every signal on every angle proposal, as data *(recorded 2026-10-08)*
+### D335 — Market Research reads every signal on every angle proposal, as data *(recorded 2026-10-08)*
 
 **Decision.** Whenever angles are proposed, code loads all the client's market signals and gives them to the model in the user message under a heading that calls them data, for where and when only. Each angle names the signals it used; the card shows them, keeping only real signal ids.
 
@@ -6090,7 +6090,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Refines →** D255. **Originated →** spec 2 §6; answer 2.5.
 
-### D335 — The writing model is <MODEL>, chosen by the Reel 04 probe *(recorded <DATE>)*
+### D336 — The writing model is <MODEL>, chosen by the Reel 04 probe *(recorded <DATE>)*
 
 **Decision.** Every copilot call (reading answers, angles, card, draft, chat and inline edits) uses <MODEL>, chosen by the user from a probe that wrote Reel 04 and a Founder-led reel with gpt-5.4-mini, gemini-3.1-pro-preview and gemini-3.8-flash and scored shape, structure, review placeholder, locked lines, never-list, edit isolation and the parse round trip. Calls go through one structured-output function over the OpenAI and Gemini SDKs already in the repo.
 
@@ -6100,7 +6100,7 @@ Append to the end of §7 (after D326), in the log's format. Fill D335's model, d
 
 **Originated →** spec 2 §11; answer 2.11.
 
-### D336 — Turns are request and response, writes compare-and-set, and copilot calls are not charged *(recorded 2026-10-08)*
+### D337 — Turns are request and response, writes compare-and-set, and copilot calls are not charged *(recorded 2026-10-08)*
 
 **Decision.** A turn is one request that returns the whole workspace state (no streaming; the chat shows a working line). Every write to the script, brief or notes is a compare-and-set on `doc_version`; on a conflict the change is re-applied to the newer script. Copilot text calls reserve no credits.
 
@@ -6115,7 +6115,7 @@ Commit:
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "docs(adr): D327-D336 for script copilot spec 2, Generate
+git commit -m "docs(adr): D328-D337 for script copilot spec 2, Generate
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```

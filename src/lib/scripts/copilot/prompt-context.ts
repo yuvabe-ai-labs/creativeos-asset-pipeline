@@ -6,7 +6,7 @@ import { groupByBeat, timeShots } from "../timeline";
 import { reelLabel } from "../utils";
 import type { CopilotAvatar } from "./schema";
 
-// Spec 2 §4 — what the copilot knows without asking, as text for the system message (D333).
+// Spec 2 §4 — what the copilot knows without asking, as text for the system message (D334).
 
 /** The brand KB, every slice, plus its free-text consistency notes read whole: for the demo the
  *  client's house spec is pasted there (spec 2 §4.1, answer 2c.1). Spec 3's plan replaces its own
@@ -28,7 +28,7 @@ export type LibraryFormat = { format: string; beats: string[]; reels: string[] }
 const finished = (scripts: Script[]) => scripts.filter((s) => s.stage !== "generate");
 
 /** The formats seen in the client's scripts (spec 2 §4.3), each with the beat sequence of its first
- *  script. Formats are the client's own words (D325). */
+ *  script. Formats are the client's own words (D326). */
 export function libraryFormats(scripts: Script[]): LibraryFormat[] {
   const byFormat = new Map<string, LibraryFormat>();
   for (const s of finished(scripts)) {

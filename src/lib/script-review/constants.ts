@@ -1,5 +1,5 @@
 // src/lib/script-review/constants.ts
-// Script copilot spec 4 — client review of a script (D347–D356). Limits shared with the video
+// Script copilot spec 4 — client review of a script (D348–D357). Limits shared with the video
 // review links (D309) are imported from @/lib/client-review/constants where used, never redeclared.
 import { AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarViewId } from "@/lib/avatars/schema";
@@ -33,7 +33,7 @@ export function scopeIncludes(scope: ShareScope, what: "avatars" | "panels"): bo
 /** Spec 4 §8: Approve appears only on a full share. */
 export const FULL_SHARE: ShareScope = "panels";
 
-/** Spec 3 owns the four views (D339); spec 4 comments on each. Spec 3's list, under spec 4's names. */
+/** Spec 3 owns the four views (D340); spec 4 comments on each. Spec 3's list, under spec 4's names. */
 export { AVATAR_VIEWS };
 export type AvatarView = AvatarViewId;
 export const AVATAR_VIEW_LABEL: Record<AvatarView, string> = AVATAR_VIEW_LABELS;

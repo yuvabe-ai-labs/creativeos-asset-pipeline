@@ -16,7 +16,7 @@ import {
   type ScriptTokenRow, type ScriptVersion, type ScriptVersionRow,
 } from "@/lib/script-review/wire";
 
-// Script copilot spec 4 (D350). Team routes reach these through a script they already loaded with
+// Script copilot spec 4 (D351). Team routes reach these through a script they already loaded with
 // getScript(clientId, scriptId) — that is the client check; the public routes start from the share
 // token. Every comment write also filters on review_id, so one link never touches another's rows.
 

@@ -150,7 +150,7 @@ export function useAvatarStudio({
     }
   }, [clientId, replaceAvatar]);
 
-  // D339 — only the front is uploaded; sheets are four generated views.
+  // D340 — only the front is uploaded; sheets are four generated views.
   const uploadImage = useCallback(async (slot: "front", file: File) => {
     // Two quick drops must not both start: they'd
     // create two drafts, or race to clear each other's placeholder.

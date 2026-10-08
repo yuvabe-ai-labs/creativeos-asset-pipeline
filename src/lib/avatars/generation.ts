@@ -27,7 +27,7 @@ export function buildAvatarFrontPrompt(input: {
     .join(" ");
 }
 
-/** D339 — one view of the sheet, made from the front image. "Character reference sheet" is
+/** D340 — one view of the sheet, made from the front image. "Character reference sheet" is
  *  said because a figure on a plain backdrop has been read as a location before (D281); the
  *  front is waist-up, so the whole body is asked for outright, or models copy its crop. */
 export function buildAvatarViewPrompt(view: AvatarViewId): string {

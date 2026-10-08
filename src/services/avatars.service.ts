@@ -72,7 +72,7 @@ class AvatarsService {
   async uploadImage(
     clientId: string,
     avatarId: string,
-    // D339 — sheets are no longer uploaded; only the front is.
+    // D340 — sheets are no longer uploaded; only the front is.
     slot: "front",
     file: File,
   ): Promise<Avatar> {
@@ -120,7 +120,7 @@ class AvatarsService {
     return (await readJson<{ avatar: Avatar }>(res, "Could not set the front image.")).avatar;
   }
 
-  /** D339 — makes the sheet's views (all four, or only `views` when the sheet is current).
+  /** D340 — makes the sheet's views (all four, or only `views` when the sheet is current).
    *  `failed` names any view that did not come back; the others are kept. */
   async generateSheet(
     clientId: string,

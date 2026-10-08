@@ -8,7 +8,7 @@ import {
 import { isPartInVersion } from "@/lib/script-review/parts";
 import { parseNewScriptComment } from "@/lib/script-review/validate";
 
-// POST /api/r/s/:token/comments — public (D355). One comment on one whole part of the version on
+// POST /api/r/s/:token/comments — public (D356). One comment on one whole part of the version on
 // the client's screen (spec 4 §5). The checks run in the app, not under the script lock: a comment
 // that lands in the same instant as an approval is the one race left open, and it changes no stage.
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {

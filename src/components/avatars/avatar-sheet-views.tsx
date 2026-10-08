@@ -23,7 +23,7 @@ type Props = {
   columns?: 2 | 4;
 };
 
-// D339 — the sheet's four views as four tiles, Front, Left, Right, Back. Shared by the Avatar
+// D340 — the sheet's four views as four tiles, Front, Left, Right, Back. Shared by the Avatar
 // Studio's sheet step and Visualise's cast slot, so there is one way a sheet looks.
 export function AvatarSheetViews({ name, views, generating, stale = false, marker, columns = 4 }: Props) {
   const [zoomed, setZoomed] = useState<AvatarViewId | null>(null);

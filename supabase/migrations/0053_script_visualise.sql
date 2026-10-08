@@ -1,14 +1,14 @@
 -- Script copilot spec 3 (Visualise). See
--- docs/superpowers/specs/2026-10-08-script-copilot-3-visualise-design.md and ADRs D337–D346.
+-- docs/superpowers/specs/2026-10-08-script-copilot-3-visualise-design.md and ADRs D338–D347.
 -- Additive: one column on client_avatars, one owner column on generations, two new tables.
 -- Nothing existing is rewritten.
 
--- D339 — an avatar's sheet is four views, each its own 3:4 image made from the front:
+-- D340 — an avatar's sheet is four views, each its own 3:4 image made from the front:
 -- { front, left, right, back }, each an AvatarImage JSON or null (not made yet, or failed).
 -- Null for an avatar whose sheet is the older single three-view image, or that has none.
 alter table client_avatars add column if not exists sheet_views jsonb;
 
--- D337 — a storyboard panel's generation belongs to its script: a third kind of owner beside
+-- D338 — a storyboard panel's generation belongs to its script: a third kind of owner beside
 -- the canvas node and the avatar (0042). Cascade, as the other two owners do.
 alter table generations
   add column if not exists script_id uuid references client_scripts(id) on delete cascade;
@@ -19,7 +19,7 @@ alter table generations
   add constraint generations_owner_check
   check (node_id is not null or avatar_id is not null or script_id is not null);
 
--- D337, D343 — every drawing of a shot's storyboard panel, kept as a take. Keyed by script and
+-- D338, D344 — every drawing of a shot's storyboard panel, kept as a take. Keyed by script and
 -- shot id; the script document itself is never touched.
 create table script_panel_takes (
   id            uuid primary key default gen_random_uuid(),
@@ -32,10 +32,10 @@ create table script_panel_takes (
   url           text,
   width         integer,
   height        integer,
-  -- D344 — the exact prompt sent, and whether a person wrote it rather than the script.
+  -- D345 — the exact prompt sent, and whether a person wrote it rather than the script.
   prompt        text not null,
   prompt_edited boolean not null default false,
-  -- D343 — what the panel was drawn from: a fingerprint of the shot's text, and for each cast
+  -- D344 — what the panel was drawn from: a fingerprint of the shot's text, and for each cast
   -- member on screen { avatarId, faceKey }. A mismatch with today's values means out of date.
   shot_key      text not null,
   faces         jsonb not null default '{}'::jsonb,
@@ -48,7 +48,7 @@ create table script_panel_takes (
 create index script_panel_takes_script_idx
   on script_panel_takes (script_id, shot_id, created_at desc);
 
--- D343 — the take the client sees: one per shot.
+-- D344 — the take the client sees: one per shot.
 create table script_panel_picks (
   script_id uuid not null references client_scripts(id) on delete cascade,
   shot_id   text not null,

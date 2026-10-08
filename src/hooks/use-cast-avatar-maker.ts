@@ -16,7 +16,7 @@ import {
 
 export type SlotStep = MakerStep | "upload" | "consent" | "link";
 
-// D338 — one cast slot's avatar maker. Every call goes through the Avatar Studio's own routes,
+// D339 — one cast slot's avatar maker. Every call goes through the Avatar Studio's own routes,
 // so what Visualise makes is the same client Avatar the Studio makes (spec §5.1).
 export function useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId }: {
   clientId: string;

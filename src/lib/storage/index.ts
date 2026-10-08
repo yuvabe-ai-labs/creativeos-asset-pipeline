@@ -273,7 +273,7 @@ export async function uploadAvatarGenerated(args: {
   avatarId: string;
   slot: AvatarImageSlot;
   ext: string;
-  /** D339 — the stored name's stem ("view-left", "strip"), so parallel uploads never share one. */
+  /** D340 — the stored name's stem ("view-left", "strip"), so parallel uploads never share one. */
   name?: string;
   body: Buffer | ArrayBuffer | Uint8Array;
   contentType: string;
@@ -436,7 +436,7 @@ export async function signClientReviewUpload(args: {
   return _sign(path, args.contentType);
 }
 
-// D337 — one storyboard panel's bytes, stored as the provider returned them.
+// D338 — one storyboard panel's bytes, stored as the provider returned them.
 export async function uploadScriptPanel(args: {
   clientId: string;
   scriptId: string;

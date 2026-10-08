@@ -11,7 +11,7 @@ describe("fingerprint", () => {
   });
 });
 
-describe("shotKey (D343)", () => {
+describe("shotKey (D344)", () => {
   const doc = reel01Doc();
   const s06 = doc.shots.find((s) => s.id === "s06")!;
 
@@ -35,7 +35,7 @@ describe("shotKey (D343)", () => {
   });
 });
 
-describe("faceKey (D343)", () => {
+describe("faceKey (D344)", () => {
   it("changes when the front or any view changes, and only then", () => {
     const a = readyAvatar(MEENAKSHI_AVATAR, "meenakshi");
     const renamed = { ...a, name: "Renamed", voice: null };

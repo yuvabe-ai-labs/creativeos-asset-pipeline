@@ -6,7 +6,7 @@ export type PersonType = "generic" | "specific";
 export type AvatarStatus = "draft" | "ready";
 export type AvatarImageSlot = "front" | "sheet";
 
-// D339 — the sheet is four views for every avatar (supersedes D288's single three-view image).
+// D340 — the sheet is four views for every avatar (supersedes D288's single three-view image).
 export type AvatarViewId = "front" | "left" | "right" | "back";
 /** Each view is its own 3:4 image made from the front image. Null while a view has not been
  *  made yet, or its generation failed. */
@@ -101,8 +101,8 @@ export type Avatar = {
   likenessConsentAt: string | null;
   front: AvatarImage | null;
   sheet: AvatarImage | null;
-  /** D339 — the four views. Null for an avatar whose sheet is the older three-view image or an
-   *  upload from before D339 (both kept until the views are generated), or that has none. When
+  /** D340 — the four views. Null for an avatar whose sheet is the older three-view image or an
+   *  upload from before D340 (both kept until the views are generated), or that has none. When
    *  all four exist, `sheet` holds them composed side by side, so everything that sends the sheet
    *  (D308) is unchanged. */
   sheetViews: AvatarSheetViews | null;

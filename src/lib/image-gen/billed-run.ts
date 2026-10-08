@@ -10,7 +10,7 @@ import {
 import type { GenerationRow } from "@/lib/db/types";
 import { avatarImageParams, estimateAvatarImageCostUsd } from "@/lib/avatars/generation";
 
-/** D291, D337 — who a generation belongs to: an avatar (Studio images) or a script (panels). */
+/** D291, D338 — who a generation belongs to: an avatar (Studio images) or a script (panels). */
 export type GenerationOwner = { avatarId: string } | { scriptId: string };
 
 export type BilledImageArgs = {
@@ -31,7 +31,7 @@ export type BilledImageArgs = {
 // D291 — one image, billed through the same ledger as every canvas generation: reserve the
 // estimate, run the provider, store its bytes untouched, then settle the real cost — or fail
 // the generation and refund on any error. Fail-closed: no estimate, no generation. Shared by
-// the Avatar Studio and Visualise's panels, so both bill exactly the same way (D345).
+// the Avatar Studio and Visualise's panels, so both bill exactly the same way (D346).
 export async function runBilledImageGeneration(
   args: BilledImageArgs,
 ): Promise<{ generation: GenerationRow; creditsCharged: number }> {

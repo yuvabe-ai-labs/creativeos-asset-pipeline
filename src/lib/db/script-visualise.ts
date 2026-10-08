@@ -13,7 +13,7 @@ import { isVisualiseStage, withCastAvatar } from "@/lib/scripts/visualise/cast";
 
 type StoredHeader = { header?: { reelNumber?: number | null; title?: string } };
 
-/** D346 — the live scripts whose cast uses this avatar, as "Reel 01 · Golu starts today". */
+/** D347 — the live scripts whose cast uses this avatar, as "Reel 01 · Golu starts today". */
 export async function listScriptsUsingAvatar(clientId: string, avatarId: string): Promise<string[]> {
   if (!isUuid(avatarId)) return [];
   const supabase = createServerSupabase();
@@ -32,7 +32,7 @@ export async function listScriptsUsingAvatar(clientId: string, avatarId: string)
 
 type Failure = { ok: false; error: string; status: number };
 
-/** D337 — set or clear one cast member's avatar. Optimistic on `updated_at`: if the script was
+/** D338 — set or clear one cast member's avatar. Optimistic on `updated_at`: if the script was
  *  written between the read and the write, the write matches nothing and is tried once more on
  *  the fresh row, so a concurrent change is never overwritten. */
 export async function setCastAvatar(
@@ -70,7 +70,7 @@ export async function setCastAvatar(
   return { ok: false, error: "The script changed at the same time. Try again.", status: 409 };
 }
 
-/** D346 — Reopen: Visualise → Generate, the only stage move spec 3 makes. Conditioned on the
+/** D347 — Reopen: Visualise → Generate, the only stage move spec 3 makes. Conditioned on the
  *  stage, so a script someone already moved is not moved twice. Null when it was not at Visualise. */
 export async function reopenScript(clientId: string, scriptId: string): Promise<Script | null> {
   if (!isUuid(scriptId)) return null;

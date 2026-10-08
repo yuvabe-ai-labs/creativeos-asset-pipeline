@@ -2,7 +2,7 @@ import type { ScriptDoc } from "../schema";
 import { castIdFor, clampLength } from "./draft";
 import { shotFieldsSchema, type ShotFields } from "./output";
 
-// Streaming the first draft (D336, refined): the model's JSON arrives a few characters at a time.
+// Streaming the first draft (D337, refined): the model's JSON arrives a few characters at a time.
 // These turn an unfinished prefix into what can be shown so far: the header, the cast, and every
 // shot that has finished arriving. Display only: the saved script still goes through toScriptDoc.
 

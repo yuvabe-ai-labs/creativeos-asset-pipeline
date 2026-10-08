@@ -73,7 +73,7 @@ export function frontChangePatch(current: Avatar, image: AvatarImage): AvatarPat
   };
 }
 
-/** D339 — a current four-view sheet: every view made, from the front image the avatar has now. */
+/** D340 — a current four-view sheet: every view made, from the front image the avatar has now. */
 export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">): boolean {
   const views = avatar.sheetViews;
   return !avatar.sheetStale && views !== null && AVATAR_VIEWS.every((v) => views[v] !== null);
@@ -82,7 +82,7 @@ export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">):
 export type SheetKind = "none" | "three-view" | "uploaded" | "four-view";
 
 /** Which kind of sheet an avatar has. A generated single image is the older three-view sheet
- *  (D288); an uploaded one predates D339, which ended sheet uploads. Both are kept until the
+ *  (D288); an uploaded one predates D340, which ended sheet uploads. Both are kept until the
  *  four views are generated. */
 export function sheetKind(avatar: Pick<Avatar, "sheet" | "sheetViews">): SheetKind {
   if (avatar.sheetViews) return "four-view";
@@ -97,7 +97,7 @@ export function missingViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">):
   return AVATAR_VIEWS.filter((v) => views[v] === null);
 }
 
-/** D339 — the views a sheet request makes. Only the ones asked for when the sheet is current;
+/** D340 — the views a sheet request makes. Only the ones asked for when the sheet is current;
  *  all four when there are none or they show an older front, so views of two faces never mix. */
 export function viewsToMake(
   current: Pick<Avatar, "sheetViews" | "sheetStale">,

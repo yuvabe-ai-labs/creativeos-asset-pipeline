@@ -2,7 +2,7 @@ import { Loader2 } from "lucide-react";
 import { ScriptView } from "@/components/scripts/script-view";
 import { previewDoc, type PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 
-/** The first draft as it streams in (D336, refined): the same script view, read-only, filling shot
+/** The first draft as it streams in (D337, refined): the same script view, read-only, filling shot
  *  by shot. Replaced by the saved, editable script when the copilot finishes. */
 export function DraftPreview({ draft }: { draft: PartialDraft }) {
   const doc = previewDoc(draft);

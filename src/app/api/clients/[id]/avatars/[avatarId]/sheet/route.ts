@@ -31,7 +31,7 @@ const failureMessage = (reason: unknown) =>
     : reason instanceof Error ? reason.message
     : "Image generation failed";
 
-// POST …/sheet — D339: make the sheet's views FROM the front image, one image per view, and
+// POST …/sheet — D340: make the sheet's views FROM the front image, one image per view, and
 // compose them into the `sheet` strip once all four exist. `views` remakes only those views,
 // and only when the sheet is current (viewsToMake). Each view is billed on its own: a view that
 // fails is refunded by runAvatarGeneration, the others are kept, and `failed` names the gaps.
@@ -104,7 +104,7 @@ export async function POST(
         }
       }
 
-      // Conditioned on the front the views were made from (as before D339).
+      // Conditioned on the front the views were made from (as before D340).
       const avatar = await updateAvatar(
         clientId, avatarId, withStatus(latest, { ...patch, sheet }), { ifFrontUrl: frontUrl },
       );

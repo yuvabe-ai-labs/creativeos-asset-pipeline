@@ -13,8 +13,27 @@ import { buildEditPrompt, type EditIntent } from "@/lib/image-gen/edit-prompt";
 // specified "no text, no logo", so a prompt silent on it puts hallucinated branding on the
 // client's product.
 
-export const COMPOSITE_PROMPT_ID = "composite-generate-v2";
+// v3 (D320): a wired Script / Shot / Multishot node adds a "Shot context" block.
+// v4: the context serves the description — a background asked for gets the shot's place, no person.
+export const COMPOSITE_PROMPT_ID = "composite-generate-v4";
 export const COMPOSITE_EDIT_PROMPT_ID = "composite-edit-v1";
+
+// D320 — how the image model reads a wired script or shot. The DESCRIPTION decides what the
+// picture is; the shot only fills in what the description asks for. v3 said "take who is in frame"
+// unconditionally, and "a background for @Shot 1" came back with the shot's presenter standing in
+// it. A still is one frozen frame, so motion becomes a moment; and the script's words must never
+// be lettered into the picture, which an image model does readily when it sees quoted copy.
+const CONTEXT_HEADER = [
+  "Shot context: the moment of the video this picture is made for. The description below decides WHAT the picture is; use this only to fill in what the description asks for.",
+  "- If the description asks for a background, location, setting, set or empty scene, take only the place from the shot: the space, its surfaces, furniture, props, colours and light. Put NO person, hands or body in it, even though the shot has one, and leave clear room where the subject will stand.",
+  "- If the description asks for a person, product or the full moment, take who is in frame, what they hold and do, and the framing from the shot.",
+  "- It is a single frozen frame: show a moment, not motion.",
+  "- Never write any of its words (dialogue, voiceover, captions, on-screen text) into the picture.",
+].join("\n");
+
+function contextSection(context: string[] | undefined): string[] {
+  return context && context.length ? [CONTEXT_HEADER, ...context, ""] : [];
+}
 
 const PERSON_RULE =
   "The person from the avatar images stays exactly who they are: the same face, features, skin tone, hair and build. Vary only their pose, angle, expression and framing. Keep their clothing unless the description changes it.";
@@ -61,7 +80,12 @@ function rosterLine(ref: CompositeRef): string {
   return `- ${where}: ${ref.name}.`;
 }
 
-export function buildCompositePrompt(args: { refs: CompositeRef[]; instruction: string }): string {
+export function buildCompositePrompt(args: {
+  refs: CompositeRef[];
+  instruction: string;
+  /** D320 — compositeContextLines(); omitted or empty when no script or shot is wired. */
+  context?: string[];
+}): string {
   const hasAvatar = args.refs.some((r) => r.role === "avatar");
   const roster = args.refs.length
     ? ["Reference images, in the order attached:", ...args.refs.map(rosterLine)]
@@ -72,6 +96,7 @@ export function buildCompositePrompt(args: { refs: CompositeRef[]; instruction: 
   return [
     ...roster,
     "",
+    ...contextSection(args.context),
     "Make this picture:",
     args.instruction.trim(),
     "",

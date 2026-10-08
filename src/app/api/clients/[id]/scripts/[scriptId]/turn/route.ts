@@ -16,7 +16,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
 // POST /api/clients/:id/scripts/:scriptId/turn { text } — one chat message to the copilot (spec 2
 // §5–§9). The person's message is saved first so it is never lost; the replies are saved after.
-// The answer is newline-delimited JSON (D336, refined): `{type:"draft"}` previews while a first
+// The answer is newline-delimited JSON (D337, refined): `{type:"draft"}` previews while a first
 // draft streams in, then one `{type:"state"}` line with the whole workspace (or `{type:"error"}`).
 // Bad input is refused up front as an ordinary JSON error, before anything streams.
 export async function POST(req: Request, { params }: Ctx) {

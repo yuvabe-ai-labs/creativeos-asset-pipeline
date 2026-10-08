@@ -27,7 +27,7 @@
 - **API routes:** `withClient` for every route under `src/app/api/clients/[id]/`; `apiOk` / `apiError` only; `withTryCatch` for multi-step handlers; every query filters on `client_id` as well as the row id.
 - **Browser data:** a service in `src/services/` plus a TanStack Query hook file in `src/hooks/queries/` that alone builds its keys (D300).
 - **Reuse, don't redefine:** `isUuid`, `errorMessage`, `validateAvatarImageFile` from `@/lib/avatars/utils`; `estimateAvatarImageCredits`, `listSentence` from `@/lib/avatars/generation`; `reelLabel` from `@/lib/scripts/utils`; `formatDate` from `@/lib/kb/utils`; `AvatarCreditCost`, `AvatarImageDropzone`, `AvatarLikenessConsent` from `src/components/avatars/`.
-- **Numbers:** migration **`0053`** (spec 2 takes 0052; the merge renumbers if needed). ADRs **D337–D346**.
+- **Numbers:** migration **`0053`** (spec 2 takes 0052; the merge renumbers if needed). ADRs **D338–D347**.
 - **One component per file, named exports, split at about 200 lines** (`docs/component-structure.md`).
 - **Git:** work and commit only in this worktree (`.claude/worktrees/sc-visualise`, branch `worktree-sc-visualise`). Never `git stash`. Every commit message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
@@ -55,7 +55,7 @@ Specs 2 and 4 are built at the same time from the same base. Spec 3 only *adds* 
 | Avatars feature | Four views (Tasks 1–3), archive refusal (Task 4). Exports `AVATAR_VIEWS` / `AvatarViewId`. | Spec 2 links only saved (ready) avatars. Spec 4's per-view comments key on `AvatarViewId` (`"front" \| "left" \| "right" \| "back"`). |
 | What spec 4 freezes | `listPanelPicks(scriptId)` and `listPanelTakes(scriptId)` (Task 10) give the picked take per shot. | Spec 4's frozen version records the picked take ids. |
 | `generations_owner_check` | Migration 0053 adds `script_id` to the owner check. | If another migration rewrites the check, merge the clauses. |
-| Roadmap §7 ADR log | Appends D337–D346 at the end. | Spec 2 (D327–D336) and spec 4 also append; reorder by number at merge. |
+| Roadmap §7 ADR log | Appends D338–D347 at the end. | Spec 2 (D328–D337) and spec 4 also append; reorder by number at merge. |
 
 ---
 
@@ -113,7 +113,7 @@ Specs 2 and 4 are built at the same time from the same base. Spec 3 only *adds* 
 | `src/components/scripts/script-view.tsx`, `script-shot-list.tsx`, `script-shot-row.tsx` | Optional slots (additive) |
 | `src/app/clients/[id]/scripts/[scriptId]/page.tsx` | Visualise branch |
 | `src/components/visualise/*.tsx` | The Visualise view, readiness line, dialogs, panels, cast slots |
-| `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` | D337–D346 |
+| `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` | D338–D347 |
 
 ---
 
@@ -133,16 +133,16 @@ Create `supabase/migrations/0053_script_visualise.sql`:
 
 ```sql
 -- Script copilot spec 3 (Visualise). See
--- docs/superpowers/specs/2026-10-08-script-copilot-3-visualise-design.md and ADRs D337–D346.
+-- docs/superpowers/specs/2026-10-08-script-copilot-3-visualise-design.md and ADRs D338–D347.
 -- Additive: one column on client_avatars, one owner column on generations, two new tables.
 -- Nothing existing is rewritten.
 
--- D339 — an avatar's sheet is four views, each its own 3:4 image made from the front:
+-- D340 — an avatar's sheet is four views, each its own 3:4 image made from the front:
 -- { front, left, right, back }, each an AvatarImage JSON or null (not made yet, or failed).
 -- Null for an avatar whose sheet is the older single three-view image, or that has none.
 alter table client_avatars add column if not exists sheet_views jsonb;
 
--- D337 — a storyboard panel's generation belongs to its script: a third kind of owner beside
+-- D338 — a storyboard panel's generation belongs to its script: a third kind of owner beside
 -- the canvas node and the avatar (0042). Cascade, as the other two owners do.
 alter table generations
   add column if not exists script_id uuid references client_scripts(id) on delete cascade;
@@ -153,7 +153,7 @@ alter table generations
   add constraint generations_owner_check
   check (node_id is not null or avatar_id is not null or script_id is not null);
 
--- D337, D343 — every drawing of a shot's storyboard panel, kept as a take. Keyed by script and
+-- D338, D344 — every drawing of a shot's storyboard panel, kept as a take. Keyed by script and
 -- shot id; the script document itself is never touched.
 create table script_panel_takes (
   id            uuid primary key default gen_random_uuid(),
@@ -166,10 +166,10 @@ create table script_panel_takes (
   url           text,
   width         integer,
   height        integer,
-  -- D344 — the exact prompt sent, and whether a person wrote it rather than the script.
+  -- D345 — the exact prompt sent, and whether a person wrote it rather than the script.
   prompt        text not null,
   prompt_edited boolean not null default false,
-  -- D343 — what the panel was drawn from: a fingerprint of the shot's text, and for each cast
+  -- D344 — what the panel was drawn from: a fingerprint of the shot's text, and for each cast
   -- member on screen { avatarId, faceKey }. A mismatch with today's values means out of date.
   shot_key      text not null,
   faces         jsonb not null default '{}'::jsonb,
@@ -182,7 +182,7 @@ create table script_panel_takes (
 create index script_panel_takes_script_idx
   on script_panel_takes (script_id, shot_id, created_at desc);
 
--- D343 — the take the client sees: one per shot.
+-- D344 — the take the client sees: one per shot.
 create table script_panel_picks (
   script_id uuid not null references client_scripts(id) on delete cascade,
   shot_id   text not null,
@@ -206,7 +206,7 @@ In `src/lib/avatars/__tests__/fixtures.ts`, add `sheetViews: null` to `makeAvata
 ```ts
 import type { Avatar, AvatarImage, AvatarImageSource, AvatarSheetViews } from "../schema";
 
-/** A full four-view sheet (D339), each view a distinct generated image. */
+/** A full four-view sheet (D340), each view a distinct generated image. */
 export function makeViews(prefix = "v"): AvatarSheetViews {
   const view = (v: string): AvatarImage => {
     const source: AvatarImageSource = {
@@ -224,7 +224,7 @@ export function makeViews(prefix = "v"): AvatarSheetViews {
 In `src/lib/avatars/__tests__/rows.test.ts`, add `sheet_views: null,` to the `row` literal after `sheet_stale: false,`, and add:
 
 ```ts
-describe("sheet views (D339)", () => {
+describe("sheet views (D340)", () => {
   it("maps sheet_views both ways", () => {
     const views = makeViews();
     expect(rowToAvatar({ ...row, sheet_views: views }).sheetViews).toEqual(views);
@@ -246,7 +246,7 @@ In `src/lib/db/avatars.test.ts`, add `sheet_views: null,` to `ROW` after `sheet_
 In `src/lib/avatars/__tests__/utils.test.ts`, add these three blocks (import `hasFourViews`, `missingViews`, `sheetKind` from `../utils`, and `makeViews` from `./fixtures`). Leave the `sheetChangePatch` block alone; Task 3 deletes it along with the sheet upload:
 
 ```ts
-describe("hasFourViews (D339)", () => {
+describe("hasFourViews (D340)", () => {
   it("needs every view, made from the front the avatar has now", () => {
     expect(hasFourViews(makeAvatar({ sheetViews: makeViews() }))).toBe(true);
     expect(hasFourViews(makeAvatar({ sheetViews: { ...makeViews(), left: null } }))).toBe(false);
@@ -255,7 +255,7 @@ describe("hasFourViews (D339)", () => {
   });
 });
 
-describe("sheetKind (D339)", () => {
+describe("sheetKind (D340)", () => {
   it("tells the four views from an older three-view sheet and an older upload", () => {
     expect(sheetKind(makeAvatar({ sheetViews: makeViews() }))).toBe("four-view");
     expect(sheetKind(makeAvatar({ sheet: makeImage(GENERATED), sheetViews: null }))).toBe("three-view");
@@ -264,7 +264,7 @@ describe("sheetKind (D339)", () => {
   });
 });
 
-describe("missingViews (D339)", () => {
+describe("missingViews (D340)", () => {
   it("lists only the gaps in a current sheet", () => {
     expect(missingViews(makeAvatar({ sheetViews: { ...makeViews(), back: null } }))).toEqual(["back"]);
     expect(missingViews(makeAvatar({ sheetViews: makeViews() }))).toEqual([]);
@@ -288,7 +288,7 @@ Expected: FAIL — `hasFourViews` / `makeViews` not exported, `sheetViews` missi
 In `src/lib/avatars/schema.ts`, after `export type AvatarImageSlot = "front" | "sheet";` add:
 
 ```ts
-// D339 — the sheet is four views for every avatar (supersedes D288's single three-view image).
+// D340 — the sheet is four views for every avatar (supersedes D288's single three-view image).
 export type AvatarViewId = "front" | "left" | "right" | "back";
 /** Each view is its own 3:4 image made from the front image. Null while a view has not been
  *  made yet, or its generation failed. */
@@ -298,8 +298,8 @@ export type AvatarSheetViews = Record<AvatarViewId, AvatarImage | null>;
 and in `Avatar`, after `sheet: AvatarImage | null;`:
 
 ```ts
-  /** D339 — the four views. Null for an avatar whose sheet is the older three-view image or an
-   *  upload from before D339 (both kept until the views are generated), or that has none. When all four exist, `sheet`
+  /** D340 — the four views. Null for an avatar whose sheet is the older three-view image or an
+   *  upload from before D340 (both kept until the views are generated), or that has none. When all four exist, `sheet`
    *  holds them composed side by side, so everything that sends the sheet (D308) is unchanged. */
   sheetViews: AvatarSheetViews | null;
 ```
@@ -307,7 +307,7 @@ and in `Avatar`, after `sheet: AvatarImage | null;`:
 In `src/lib/avatars/constants.ts`, change the first import to `import type { AvatarViewId, PersonType } from "./schema";` and add after `AVATAR_SHEET_ASPECT`:
 
 ```ts
-// D339 — the four views, in the order they are shown, sent as references and commented on
+// D340 — the four views, in the order they are shown, sent as references and commented on
 // (spec 4). Each is a 3:4 portrait-shaped image, head to toe.
 export const AVATAR_VIEWS = ["front", "left", "right", "back"] as const satisfies readonly AvatarViewId[];
 export const AVATAR_VIEW_LABELS: Record<AvatarViewId, string> = {
@@ -328,7 +328,7 @@ In `src/lib/avatars/utils.ts`:
 - add the helpers below `sheetChangePatch` (leave it as it is; Task 3 deletes it with the sheet upload):
 
 ```ts
-/** D339 — a current four-view sheet: every view made, from the front image the avatar has now. */
+/** D340 — a current four-view sheet: every view made, from the front image the avatar has now. */
 export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">): boolean {
   const views = avatar.sheetViews;
   return !avatar.sheetStale && views !== null && AVATAR_VIEWS.every((v) => views[v] !== null);
@@ -337,7 +337,7 @@ export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">):
 export type SheetKind = "none" | "three-view" | "uploaded" | "four-view";
 
 /** Which kind of sheet an avatar has. A generated single image is the older three-view sheet
- *  (D288); an uploaded one predates D339, which ended sheet uploads. Both are kept until the
+ *  (D288); an uploaded one predates D340, which ended sheet uploads. Both are kept until the
  *  four views are generated. */
 export function sheetKind(avatar: Pick<Avatar, "sheet" | "sheetViews">): SheetKind {
   if (avatar.sheetViews) return "four-view";
@@ -369,7 +369,7 @@ Ask the user to run `supabase/migrations/0053_script_visualise.sql` in the stagi
 
 ```bash
 git add supabase/migrations/0053_script_visualise.sql src/lib/avatars src/lib/db/avatars.test.ts
-git commit -m "feat(avatars): four-view sheet shape and migration 0053 (D339)
+git commit -m "feat(avatars): four-view sheet shape and migration 0053 (D340)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -394,7 +394,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 In `src/lib/avatars/__tests__/generation.test.ts`, replace the whole `describe("buildAvatarSheetPrompt", …)` block (and its import) with:
 
 ```ts
-describe("buildAvatarViewPrompt (D339)", () => {
+describe("buildAvatarViewPrompt (D340)", () => {
   it("states which edge of the frame each profile faces, so the two never face the same way", () => {
     expect(buildAvatarViewPrompt("left")).toContain("nose points to the LEFT edge");
     expect(buildAvatarViewPrompt("right")).toContain("nose points to the RIGHT edge");
@@ -428,7 +428,7 @@ describe("estimateSheetCredits", () => {
 Append to `src/lib/avatars/__tests__/utils.test.ts` (import `viewsToMake`, `sheetViewsPatch`):
 
 ```ts
-describe("viewsToMake (D339)", () => {
+describe("viewsToMake (D340)", () => {
   it("makes only the views asked for when the sheet is current", () => {
     expect(viewsToMake(makeAvatar({ sheetViews: makeViews() }), ["left"])).toEqual(["left"]);
   });
@@ -441,7 +441,7 @@ describe("viewsToMake (D339)", () => {
   });
 });
 
-describe("sheetViewsPatch (D339)", () => {
+describe("sheetViewsPatch (D340)", () => {
   it("lays new views over a current sheet and reports the full set", () => {
     const fresh = makeViews("new");
     const { patch, complete } = sheetViewsPatch(makeAvatar({ sheetViews: makeViews() }), { left: fresh.left! });
@@ -508,7 +508,7 @@ Expected: FAIL — missing exports.
 In `src/lib/avatars/constants.ts`, after `AVATAR_VIEW_ASPECT` add:
 
 ```ts
-// D339 — the dry run (parent spec §11.1): asked for a left and a right profile together, the
+// D340 — the dry run (parent spec §11.1): asked for a left and a right profile together, the
 // model returned two views facing the same way. Naming the edge of the frame the nose points
 // to fixed it, so every view states its direction.
 export const AVATAR_VIEW_DIRECTIONS: Record<AvatarViewId, string> = {
@@ -522,7 +522,7 @@ export const AVATAR_VIEW_DIRECTIONS: Record<AvatarViewId, string> = {
 In `src/lib/avatars/generation.ts`, delete `buildAvatarSheetPrompt` and add (importing `AVATAR_VIEW_ASPECT`, `AVATAR_VIEW_DIRECTIONS` from `./constants` and `AvatarViewId` from `./schema`):
 
 ```ts
-/** D339 — one view of the sheet, made from the front image. "Character reference sheet" is
+/** D340 — one view of the sheet, made from the front image. "Character reference sheet" is
  *  said because a figure on a plain backdrop has been read as a location before (D281); the
  *  front is waist-up, so the whole body is asked for outright, or models copy its crop. */
 export function buildAvatarViewPrompt(view: AvatarViewId): string {
@@ -549,7 +549,7 @@ export function estimateSheetCredits(modelId: string, count: number): number | n
 Create `src/lib/avatars/sheet-layout.ts`:
 
 ```ts
-// D339 — where each view sits in the composed sheet strip. Pure, so it is tested without sharp.
+// D340 — where each view sits in the composed sheet strip. Pure, so it is tested without sharp.
 
 export type StripLayout = { widths: number[]; lefts: number[]; width: number; height: number };
 
@@ -571,7 +571,7 @@ export function stripLayout(sizes: { width: number; height: number }[], height: 
 In `src/lib/avatars/utils.ts` add (import `AvatarSheetViews` from `./schema`):
 
 ```ts
-/** D339 — the views a sheet request makes. Only the ones asked for when the sheet is current;
+/** D340 — the views a sheet request makes. Only the ones asked for when the sheet is current;
  *  all four when there are none or they show an older front, so views of two faces never mix. */
 export function viewsToMake(
   current: Pick<Avatar, "sheetViews" | "sheetStale">,
@@ -609,7 +609,7 @@ export function pathForAvatarGenerated(args: {
   avatarId: string;
   slot: AvatarImageSlot;
   ext: string;
-  /** D339 — "view-left", "strip": four views upload at once, so each gets its own name. */
+  /** D340 — "view-left", "strip": four views upload at once, so each gets its own name. */
   name?: string;
 }): string {
   const name = buildStoredName(undefined, { slug: args.name ?? "output", ext: args.ext });
@@ -653,7 +653,7 @@ const GAP = 24;
 const BACKGROUND = { r: 238, g: 238, b: 238, alpha: 1 };
 
 /**
- * D339 — the four views side by side as one image, stored as the avatar's `sheet`. Everything
+ * D340 — the four views side by side as one image, stored as the avatar's `sheet`. Everything
  * that already sends the sheet as one reference (D308: video, Composite, mentions) keeps
  * working, now with four views in it. The views themselves stay untouched; this strip is a
  * derived image, so its source says `untouched: false`.
@@ -782,7 +782,7 @@ beforeEach(() => {
   vi.mocked(sumAvatarCredits).mockResolvedValue(40);
 });
 
-describe("POST sheet — four views (D339)", () => {
+describe("POST sheet — four views (D340)", () => {
   it("makes all four views from the front, each 3:4 with its direction stated, and composes the strip", async () => {
     const front = makeAvatar().front!;
     const { POST } = await import("./route");
@@ -949,7 +949,7 @@ const failureMessage = (reason: unknown) =>
     : reason instanceof Error ? reason.message
     : "Image generation failed";
 
-// POST …/sheet — D339: make the sheet's views FROM the front image, one image per view, and
+// POST …/sheet — D340: make the sheet's views FROM the front image, one image per view, and
 // compose them into the `sheet` strip once all four exist. `views` remakes only those views,
 // and only when the sheet is current (viewsToMake). Each view is billed on its own: a view that
 // fails is refunded by runAvatarGeneration, the others are kept, and `failed` names the gaps.
@@ -1022,7 +1022,7 @@ export async function POST(
         }
       }
 
-      // Conditioned on the front the views were made from (as before D339).
+      // Conditioned on the front the views were made from (as before D340).
       const avatar = await updateAvatar(
         clientId, avatarId, withStatus(latest, { ...patch, sheet }), { ifFrontUrl: frontUrl },
       );
@@ -1052,7 +1052,7 @@ Expected: PASS. `generate.test.ts` still passes (the snapshot only gains `view` 
 
 ```bash
 git add src/lib/avatars src/lib/storage "src/app/api/clients/[id]/avatars/[avatarId]/sheet"
-git commit -m "feat(avatars): the sheet is four views, composed into the strip video sends (D339)
+git commit -m "feat(avatars): the sheet is four views, composed into the strip video sends (D340)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1107,7 +1107,7 @@ Expected: FAIL — "Added" returned for each.
 - Add, importing `hasFourViews`, `sheetKind` from `./utils`:
 
 ```ts
-/** D339 — the sheet's state in one word, for the stepper and the summary card. */
+/** D340 — the sheet's state in one word, for the stepper and the summary card. */
 export function sheetStatusLabel(
   avatar: Pick<Avatar, "sheet" | "sheetViews" | "sheetStale"> | null,
   optional: string,
@@ -1118,7 +1118,7 @@ export function sheetStatusLabel(
   if (avatar.sheetStale) return "Out of date";
   if (kind === "four-view") return hasFourViews(avatar) ? "Four views" : "Missing a view";
   if (kind === "three-view") return "Three views";
-  return "Older sheet"; // an upload from before D339 ended sheet uploads
+  return "Older sheet"; // an upload from before D340 ended sheet uploads
 }
 ```
 
@@ -1142,7 +1142,7 @@ Expected: PASS.
 In `src/services/avatars.service.ts`, replace `generateSheet` (import `AvatarViewId`):
 
 ```ts
-  /** D339 — makes the sheet's views (all four, or only `views` when the sheet is current).
+  /** D340 — makes the sheet's views (all four, or only `views` when the sheet is current).
    *  `failed` names any view that did not come back; the others are kept. */
   async generateSheet(
     clientId: string,
@@ -1217,7 +1217,7 @@ type Props = {
   marker?: (view: AvatarViewId) => ReactNode;
 };
 
-// D339 — the sheet's four views as four tiles, Front, Left, Right, Back. Shared by the Avatar
+// D340 — the sheet's four views as four tiles, Front, Left, Right, Back. Shared by the Avatar
 // Studio's sheet step and Visualise's cast slot, so there is one way a sheet looks.
 export function AvatarSheetViews({ name, views, generating, stale = false, marker }: Props) {
   const [zoomed, setZoomed] = useState<AvatarViewId | null>(null);
@@ -1281,7 +1281,7 @@ import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarAdvancedSettings } from "./avatar-advanced-settings";
 import { AvatarModelSelect } from "./avatar-model-select";
 
-// D339 — makes the four views from the front image: all four, or only the missing ones when the
+// D340 — makes the four views from the front image: all four, or only the missing ones when the
 // sheet is current. The model defaults to Nano Banana 2 and sits under Advanced; the choice lives
 // in useAvatarGeneration so it survives leaving the step.
 export function AvatarSheetGenerate({
@@ -1335,8 +1335,8 @@ type Props = {
 
 const NOTICE = "rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-sm";
 
-// The Profile sheet step (D288, optional since D295, four views since D339): made from the front
-// image, view by view. Sheets are no longer uploaded (D339). An avatar that still has an older
+// The Profile sheet step (D288, optional since D295, four views since D340): made from the front
+// image, view by view. Sheets are no longer uploaded (D340). An avatar that still has an older
 // single-image sheet, three-view or uploaded, can open it until its four views replace it.
 export function AvatarStudioSheetStep({ studio: s, generation: g }: Props) {
   const [showOlder, setShowOlder] = useState(false);
@@ -1392,7 +1392,7 @@ export function AvatarStudioSheetStep({ studio: s, generation: g }: Props) {
 Every sheet is four generated views, so nothing may upload one any more. In `src/app/api/clients/[id]/avatars/[avatarId]/images/route.test.ts`, replace the `"a new sheet is current"` test with:
 
 ```ts
-  it("refuses a sheet upload: sheets are four generated views (D339)", async () => {
+  it("refuses a sheet upload: sheets are four generated views (D340)", async () => {
     const { POST } = await import("./route");
     const res = await POST(req("images", { ...body, slot: "sheet", path: "clients/c1/avatars/a1/sheet/s.png" }), { params });
     expect(res.status).toBe(400);
@@ -1403,7 +1403,7 @@ Every sheet is four generated views, so nothing may upload one any more. In `src
 and add to the `"POST images/sign"` block:
 
 ```ts
-  it("will not sign a sheet upload (D339)", async () => {
+  it("will not sign a sheet upload (D340)", async () => {
     const { POST } = await import("./sign/route");
     const res = await POST(
       req("images/sign", { filename: "s.png", contentType: "image/png", size: 100, slot: "sheet" }),
@@ -1451,7 +1451,7 @@ Run the app (`npm run dev`), open an avatar in the Avatar Studio, go to Profile 
 
 ```bash
 git add src/components/avatars src/components/nodes/avatar-focus-view.tsx src/hooks/use-avatar-generation.ts src/hooks/use-avatar-studio.ts src/services/avatars.service.ts src/lib/avatars "src/app/api/clients/[id]/avatars/[avatarId]/images"
-git commit -m "feat(avatars): the Studio's sheet step shows and makes four views; sheets are no longer uploaded (D339)
+git commit -m "feat(avatars): the Studio's sheet step shows and makes four views; sheets are no longer uploaded (D340)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1485,7 +1485,7 @@ describe("isVisualiseStage", () => {
   });
 });
 
-describe("archiveRefusal (D346)", () => {
+describe("archiveRefusal (D347)", () => {
   it("says nothing for an avatar no script uses", () => {
     expect(archiveRefusal([])).toBeNull();
   });
@@ -1513,7 +1513,7 @@ vi.mock("@/lib/db/script-visualise", () => ({ listScriptsUsingAvatar: vi.fn() })
 import it (`import { listScriptsUsingAvatar } from "@/lib/db/script-visualise";`), add `vi.mocked(listScriptsUsingAvatar).mockResolvedValue([]);` to `beforeEach`, and add:
 
 ```ts
-  it("DELETE refuses while a script uses the avatar, and archives nothing (D346)", async () => {
+  it("DELETE refuses while a script uses the avatar, and archives nothing (D347)", async () => {
     vi.mocked(listScriptsUsingAvatar).mockResolvedValue(["Reel 01 · Golu starts today"]);
     const { DELETE } = await import("./route");
     const res = await DELETE(new NextRequest(url, { method: "DELETE" }), { params });
@@ -1545,7 +1545,7 @@ import type { ScriptStage } from "@/lib/scripts/constants";
 
 // Spec 3 — the rules for what Visualise may change, in one place.
 
-/** D346 — cast links, panels and picks change while the script is at Visualise, and while it
+/** D347 — cast links, panels and picks change while the script is at Visualise, and while it
  *  is In review (spec 4: editing stays allowed; each share is a frozen copy). */
 export const VISUALISE_STAGES = ["visualise", "in_review"] as const satisfies readonly ScriptStage[];
 
@@ -1553,7 +1553,7 @@ export function isVisualiseStage(stage: ScriptStage): boolean {
   return (VISUALISE_STAGES as readonly ScriptStage[]).includes(stage);
 }
 
-/** D346 — why an avatar cannot be archived, or null when no live script uses it. */
+/** D347 — why an avatar cannot be archived, or null when no live script uses it. */
 export function archiveRefusal(usedIn: string[]): string | null {
   if (usedIn.length === 0) return null;
   if (usedIn.length === 1) {
@@ -1577,7 +1577,7 @@ import { reelLabel } from "@/lib/scripts/utils";
 
 type StoredHeader = { header?: { reelNumber?: number | null; title?: string } };
 
-/** D346 — the live scripts whose cast uses this avatar, as "Reel 01 · Golu starts today". */
+/** D347 — the live scripts whose cast uses this avatar, as "Reel 01 · Golu starts today". */
 export async function listScriptsUsingAvatar(clientId: string, avatarId: string): Promise<string[]> {
   if (!isUuid(avatarId)) return [];
   const supabase = createServerSupabase();
@@ -1599,7 +1599,7 @@ In `src/app/api/clients/[id]/avatars/[avatarId]/route.ts`, import `listScriptsUs
 
 ```ts
 // DELETE /api/clients/:id/avatars/:avatarId — archives (D287), unless a live script's cast uses
-// the avatar (D346): archiving would leave that script's people without a face.
+// the avatar (D347): archiving would leave that script's people without a face.
 export async function DELETE(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
   return withClient(req, params, async (clientId) =>
@@ -1625,7 +1625,7 @@ Expected: PASS.
 
 ```bash
 git add src/lib/scripts/visualise src/lib/db/script-visualise.ts "src/app/api/clients/[id]/avatars/[avatarId]/route.ts" "src/app/api/clients/[id]/avatars/[avatarId]/route.test.ts"
-git commit -m "feat(avatars): an avatar a script uses cannot be archived (D346)
+git commit -m "feat(avatars): an avatar a script uses cannot be archived (D347)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1650,7 +1650,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 Create `src/lib/scripts/visualise/schema.ts` (Task 9 adds to it):
 
 ```ts
-// Spec 3 — Visualise's own records, kept beside the script (D337). Pure types.
+// Spec 3 — Visualise's own records, kept beside the script (D338). Pure types.
 
 /** For each cast member on screen when a panel was drawn: whose avatar, and its face then. */
 export type PanelFaces = Record<string, { avatarId: string; faceKey: string }>;
@@ -1663,11 +1663,11 @@ export type PanelTake = {
   url: string | null;
   width: number | null;
   height: number | null;
-  /** D344 — the exact prompt sent. */
+  /** D345 — the exact prompt sent. */
   prompt: string;
   /** A person wrote this prompt in the prompt box, rather than the script building it. */
   promptEdited: boolean;
-  /** D343 — what the panel was drawn from; a mismatch with today's means Out of date. */
+  /** D344 — what the panel was drawn from; a mismatch with today's means Out of date. */
   shotKey: string;
   faces: PanelFaces;
   error: string | null;
@@ -1793,7 +1793,7 @@ export type CastLinkResult =
   | { ok: true; doc: Record<string, unknown> }
   | { ok: false; error: string; status: 404 | 409 | 422 };
 
-/** D337 — the one write Visualise makes into a script: a cast member's avatar link, applied to
+/** D338 — the one write Visualise makes into a script: a cast member's avatar link, applied to
  *  the document AS STORED, so any key this code does not know (spec 2's, spec 4's) survives.
  *  Two people in one script never share an avatar: each needs their own face. */
 export function withCastAvatar(rawDoc: unknown, castId: string, avatarId: string | null): CastLinkResult {
@@ -1830,7 +1830,7 @@ Append to `src/lib/db/script-visualise.ts` (imports: `rowToScript`, `type Script
 ```ts
 type Failure = { ok: false; error: string; status: number };
 
-/** D337 — set or clear one cast member's avatar. Optimistic on `updated_at`: if the script was
+/** D338 — set or clear one cast member's avatar. Optimistic on `updated_at`: if the script was
  *  written between the read and the write, the write matches nothing and is tried once more on
  *  the fresh row, so a concurrent change is never overwritten. */
 export async function setCastAvatar(
@@ -1868,7 +1868,7 @@ export async function setCastAvatar(
   return { ok: false, error: "The script changed at the same time. Try again.", status: 409 };
 }
 
-/** D346 — Reopen: Visualise → Generate, the only stage move spec 3 makes. Conditioned on the
+/** D347 — Reopen: Visualise → Generate, the only stage move spec 3 makes. Conditioned on the
  *  stage, so a script someone already moved is not moved twice. Null when it was not at Visualise. */
 export async function reopenScript(clientId: string, scriptId: string): Promise<Script | null> {
   if (!isUuid(scriptId)) return null;
@@ -2039,7 +2039,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string; castId: string }> }
 
 const Body = z.object({ avatarId: z.uuid().nullable() });
 
-// PUT /api/clients/:id/scripts/:scriptId/cast/:castId — D337: the one write Visualise makes into
+// PUT /api/clients/:id/scripts/:scriptId/cast/:castId — D338: the one write Visualise makes into
 // a script, a cast member's avatar link. The avatar must be this client's and not archived;
 // drafts are allowed, because the inline maker links its draft as soon as it exists.
 export async function PUT(req: Request, { params }: Ctx) {
@@ -2072,9 +2072,9 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
 const ONLY_VISUALISE = "Only a script in Visualise can be reopened.";
 
-// POST /api/clients/:id/scripts/:scriptId/reopen — D346: Visualise → Generate, so the script's
+// POST /api/clients/:id/scripts/:scriptId/reopen — D347: Visualise → Generate, so the script's
 // text can change (spec 2 owns editing). Avatars, panels and takes are kept; the panels of
-// shots that change are marked out of date when the script comes back (D343).
+// shots that change are marked out of date when the script comes back (D344).
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
   return withClient(req, params, async (clientId) =>
@@ -2099,7 +2099,7 @@ Expected: PASS (spec 1's script route tests still pass).
 
 ```bash
 git add src/lib/scripts/visualise src/lib/db/script-visualise.ts "src/app/api/clients/[id]/scripts/[scriptId]/cast" "src/app/api/clients/[id]/scripts/[scriptId]/reopen"
-git commit -m "feat(scripts): link a cast member to an avatar, and Reopen (D337, D346)
+git commit -m "feat(scripts): link a cast member to an avatar, and Reopen (D338, D347)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -2188,7 +2188,7 @@ describe("runBilledImageGeneration", () => {
 In `src/lib/db/generations.test.ts`, inside `describe("insertGeneration")` add:
 
 ```ts
-  it("writes a script-owned row for a storyboard panel (D337)", async () => {
+  it("writes a script-owned row for a storyboard panel (D338)", async () => {
     await insertGeneration({ scriptId: "s1", orgId: "org-1", type: "image" });
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ node_id: null, avatar_id: null, script_id: "s1" }));
   });
@@ -2254,11 +2254,11 @@ Expected: FAIL — missing modules and exports.
 In `src/lib/db/types.ts`, in `GenerationRow` after `avatar_id`, add:
 
 ```ts
-  // D337 — set for a storyboard panel (migration 0053). Optional so older literals still type.
+  // D338 — set for a storyboard panel (migration 0053). Optional so older literals still type.
   script_id?: string | null;
 ```
 
-In `src/lib/db/generations.ts`, `insertGeneration`: add `scriptId?: string;` to the input (comment: "or a script, for a storyboard panel (D337)"), change the guard to
+In `src/lib/db/generations.ts`, `insertGeneration`: add `scriptId?: string;` to the input (comment: "or a script, for a storyboard panel (D338)"), change the guard to
 
 ```ts
   if (!input.nodeId && !input.avatarId && !input.scriptId) {
@@ -2285,7 +2285,7 @@ import {
 import type { GenerationRow } from "@/lib/db/types";
 import { avatarImageParams, estimateAvatarImageCostUsd } from "@/lib/avatars/generation";
 
-/** D291, D337 — who a generation belongs to: an avatar (Studio images) or a script (panels). */
+/** D291, D338 — who a generation belongs to: an avatar (Studio images) or a script (panels). */
 export type GenerationOwner = { avatarId: string } | { scriptId: string };
 
 export type BilledImageArgs = {
@@ -2306,7 +2306,7 @@ export type BilledImageArgs = {
 // D291 — one image, billed through the same ledger as every canvas generation: reserve the
 // estimate, run the provider, store its bytes untouched, then settle the real cost — or fail
 // the generation and refund on any error. Fail-closed: no estimate, no generation. Shared by
-// the Avatar Studio and Visualise's panels, so both bill exactly the same way (D345).
+// the Avatar Studio and Visualise's panels, so both bill exactly the same way (D346).
 export async function runBilledImageGeneration(
   args: BilledImageArgs,
 ): Promise<{ generation: GenerationRow; creditsCharged: number }> {
@@ -2438,7 +2438,7 @@ export async function runAvatarGeneration(
 In `src/lib/storage/paths.ts`:
 
 ```ts
-/** D337 — a storyboard panel take, under its script, one folder per shot. A shot id is the
+/** D338 — a storyboard panel take, under its script, one folder per shot. A shot id is the
  *  script's own text, so it is slugged before it becomes a folder. */
 export function pathForScriptPanel(args: { clientId: string; scriptId: string; shotId: string; ext: string }): string {
   const shot = sanitizeSlug(args.shotId).replace(/^[.-]+/, "") || "shot";
@@ -2450,7 +2450,7 @@ export function pathForScriptPanel(args: { clientId: string; scriptId: string; s
 In `src/lib/storage/index.ts`, import `pathForScriptPanel` and add:
 
 ```ts
-// D337 — one storyboard panel's bytes, stored as the provider returned them.
+// D338 — one storyboard panel's bytes, stored as the provider returned them.
 export async function uploadScriptPanel(args: {
   clientId: string;
   scriptId: string;
@@ -2471,7 +2471,7 @@ Create `src/lib/scripts/visualise/constants.ts`:
 ```ts
 import { AVATAR_DEFAULT_SHEET_MODEL_ID } from "@/lib/avatars/constants";
 
-// D345 — every panel is drawn by Nano Banana 2, the Studio's default sheet model and the one
+// D346 — every panel is drawn by Nano Banana 2, the Studio's default sheet model and the one
 // the dry run used (parent spec §11.1). No picker: one model, named once.
 export const PANEL_MODEL_ID = AVATAR_DEFAULT_SHEET_MODEL_ID;
 
@@ -2479,7 +2479,7 @@ export const PANEL_MODEL_ID = AVATAR_DEFAULT_SHEET_MODEL_ID;
 export const PANEL_ASPECTS = ["9:16", "16:9", "1:1", "4:3", "3:4"] as const;
 export const PANEL_DEFAULT_ASPECT = "9:16";
 
-/** D344 — the longest prompt the prompt box accepts. */
+/** D345 — the longest prompt the prompt box accepts. */
 export const PANEL_PROMPT_MAX = 8000;
 
 /** Longer than a draw can run (the route's maxDuration is 300 s). A take still "running" past
@@ -2487,7 +2487,7 @@ export const PANEL_PROMPT_MAX = 8000;
 export const PANEL_RUNNING_TIMEOUT_MS = 10 * 60 * 1000;
 export const PANEL_TIMED_OUT = "The panel did not finish. Generate it again.";
 
-/** D345 — Generate all draws this many panels at once from the browser. */
+/** D346 — Generate all draws this many panels at once from the browser. */
 export const GENERATE_ALL_CONCURRENCY = 3;
 ```
 
@@ -2500,7 +2500,7 @@ import { uploadScriptPanel } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
 import { PANEL_MODEL_ID } from "./constants";
 
-// D337, D345 — one storyboard panel, owned by its script and billed like any image.
+// D338, D346 — one storyboard panel, owned by its script and billed like any image.
 export async function runPanelGeneration(args: {
   clientId: string;
   scriptId: string;
@@ -2541,7 +2541,7 @@ Expected: PASS, with `src/lib/avatars/__tests__/generate.test.ts` untouched and 
 
 ```bash
 git add src/lib/image-gen src/lib/avatars/generate.ts src/lib/db/generations.ts src/lib/db/generations.test.ts src/lib/db/types.ts src/lib/storage src/lib/scripts/visualise
-git commit -m "refactor(image-gen): one billed image run, owned by an avatar or a script (D337)
+git commit -m "refactor(image-gen): one billed image run, owned by an avatar or a script (D338)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -2586,7 +2586,7 @@ const MARKDOWN = `Some rule about dress.
 // The same table pasted from the .docx, which arrives tab-separated.
 const TABBED = "Regional kits\nRegion\tAt the table\tKitchen and home\tWardrobe\nTamil Nadu\tRice\tIron tawa, kolam\tCotton saree\n\nNext section";
 
-describe("parseRegionalKits (D342)", () => {
+describe("parseRegionalKits (D343)", () => {
   it("reads the kits table and nothing after it", () => {
     const kits = parseRegionalKits(MARKDOWN);
     expect(kits.map((k) => k.region)).toEqual(["Kerala", "Tamil Nadu", "Gujarat"]);
@@ -2616,7 +2616,7 @@ describe("collectStrings", () => {
   });
 });
 
-describe("pickKit (D342)", () => {
+describe("pickKit (D343)", () => {
   const kits = parseRegionalKits(MARKDOWN);
 
   it("picks Tamil Nadu for Reel 01 from 'Chennai' and 'Tamil', which the script says, not the state", () => {
@@ -2653,7 +2653,7 @@ Create `src/lib/scripts/visualise/kits.ts`:
 ```ts
 import type { ScriptDoc, Shot } from "@/lib/scripts/schema";
 
-// D342 — the regional kit a panel is drawn with. The dry run's "South Indian kitchen" came out
+// D343 — the regional kit a panel is drawn with. The dry run's "South Indian kitchen" came out
 // European until the kit was named (parent spec §11.1). The house rules live in the brand KB as
 // pasted text for the demo (spec 2 §4.1), so the kits are read from that text until the KB has
 // fields for them; matching is by the place and language names a script actually uses.
@@ -2754,7 +2754,7 @@ import "server-only";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { collectStrings } from "./kits";
 
-/** D342 — the active brand KB's text, so the kits table is found wherever the house rules were
+/** D343 — the active brand KB's text, so the kits table is found wherever the house rules were
  *  pasted (spec 2 §4.1). Merge point: when spec 2 adds its house-rules reader, use that here. */
 export async function loadKbText(clientId: string): Promise<string> {
   const version = await getActiveKBVersion(clientId);
@@ -2771,7 +2771,7 @@ Expected: PASS.
 
 ```bash
 git add src/lib/scripts/visualise
-git commit -m "feat(scripts): read the regional kits from the brand KB and pick one per shot (D342)
+git commit -m "feat(scripts): read the regional kits from the brand KB and pick one per shot (D343)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -2806,7 +2806,7 @@ describe("fingerprint", () => {
   });
 });
 
-describe("shotKey (D343)", () => {
+describe("shotKey (D344)", () => {
   const doc = reel01Doc();
   const s06 = doc.shots.find((s) => s.id === "s06")!;
 
@@ -2830,7 +2830,7 @@ describe("shotKey (D343)", () => {
   });
 });
 
-describe("faceKey (D343)", () => {
+describe("faceKey (D344)", () => {
   it("changes when the front or any view changes, and only then", () => {
     const a = readyAvatar(MEENAKSHI_AVATAR, "meenakshi");
     expect(faceKey({ ...a, name: "Renamed", voice: null })).toBe(faceKey(a));
@@ -2861,7 +2861,7 @@ const avatars = avatarMap(readyAvatar(MEENAKSHI_AVATAR, "meenakshi"), readyAvata
 const inputs = (id: string, cap = panelReferenceCap(), map = avatars, d = doc) =>
   panelInputs({ doc: d, shot: d.shots.find((s) => s.id === id)!, avatars: map, kits: KITS, cap });
 
-describe("castReadyForPanels (D340)", () => {
+describe("castReadyForPanels (D341)", () => {
   it("needs a saved, live avatar with a current four-view sheet", () => {
     expect(castReadyForPanels(readyAvatar(MEENAKSHI_AVATAR, "m"))).toBe(true);
     expect(castReadyForPanels(readyAvatar(MEENAKSHI_AVATAR, "m", { status: "draft" }))).toBe(false);
@@ -2872,7 +2872,7 @@ describe("castReadyForPanels (D340)", () => {
   });
 });
 
-describe("panelInputs on Reel 01 (D341)", () => {
+describe("panelInputs on Reel 01 (D342)", () => {
   it("sends both people's four views for a two-person shot, fronts first, and numbers them in the prompt", () => {
     const s06 = inputs("s06");
     expect(s06.references.map((r) => `${r.castId}:${r.view}`)).toEqual([
@@ -2965,7 +2965,7 @@ import { AVATAR_VIEWS } from "@/lib/avatars/constants";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { ScriptDoc, Shot } from "@/lib/scripts/schema";
 
-// D343 — what a panel was drawn from, as short fingerprints stored on each take. Today's values
+// D344 — what a panel was drawn from, as short fingerprints stored on each take. Today's values
 // differing from a take's means the take is out of date. Run identically in the browser and on
 // the server.
 
@@ -3011,7 +3011,7 @@ import type { ScriptDoc, Shot } from "@/lib/scripts/schema";
 import { PANEL_ASPECTS, PANEL_DEFAULT_ASPECT } from "./constants";
 import type { RegionalKit } from "./kits";
 
-// D341 — the panel prompt, built from the shot, the setting, the regional kit and each on-screen
+// D342 — the panel prompt, built from the shot, the setting, the regional kit and each on-screen
 // person in words AND their four views. Every clause answers a finding of the dry run (parent
 // spec §11.1) or a house rule (no generated text, brands or labelled packs).
 
@@ -3116,10 +3116,10 @@ import { pickKit, type RegionalKit } from "./kits";
 import { buildPanelPrompt, type PanelPerson, type PanelReference } from "./panel-prompt";
 import type { PanelFaces } from "./schema";
 
-// D340, D341 — everything one panel is drawn from, in one pure function. The browser runs it to
+// D341, D342 — everything one panel is drawn from, in one pure function. The browser runs it to
 // show state, prompt and cost; the draw route runs the same function to draw.
 
-/** D340 — a cast member can be drawn once their avatar is saved, live and has its four views. */
+/** D341 — a cast member can be drawn once their avatar is saved, live and has its four views. */
 export function castReadyForPanels(avatar: Avatar | null | undefined): avatar is Avatar {
   return Boolean(avatar && !avatar.archivedAt && avatar.status === "ready" && hasFourViews(avatar));
 }
@@ -3186,7 +3186,7 @@ export function panelInputs(input: {
   };
 }
 
-/** D345 — a panel bills like any image: the same estimate the draw reserves. */
+/** D346 — a panel bills like any image: the same estimate the draw reserves. */
 export function estimatePanelCredits(referenceCount: number, aspect: string): number | null {
   return estimateAvatarImageCredits({ modelId: PANEL_MODEL_ID, aspect, referenceCount });
 }
@@ -3201,7 +3201,7 @@ Expected: PASS. If the "never carries … Golu starts today." case fails, the sh
 
 ```bash
 git add src/lib/scripts/visualise
-git commit -m "feat(scripts): what a storyboard panel is drawn from, and its prompt (D341)
+git commit -m "feat(scripts): what a storyboard panel is drawn from, and its prompt (D342)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -3261,7 +3261,7 @@ import { runQueue } from "../queue";
 
 const tick = () => new Promise((r) => setTimeout(r, 1));
 
-describe("runQueue (D345)", () => {
+describe("runQueue (D346)", () => {
   it("runs every item, never more than the limit at once, in order", async () => {
     let running = 0;
     let peak = 0;
@@ -3388,7 +3388,7 @@ describe("panelView (spec §6.4)", () => {
   });
 });
 
-describe("out of date (D343, spec §3.6)", () => {
+describe("out of date (D344, spec §3.6)", () => {
   it("refining Meenakshi's avatar marks exactly her nine panels, and Generate all redraws only those", () => {
     const doc = linkedDoc();
     const before = avatarMap(meenakshi, husband);
@@ -3444,7 +3444,7 @@ describe("out of date (D343, spec §3.6)", () => {
   });
 });
 
-describe("promptForDraw (D344)", () => {
+describe("promptForDraw (D345)", () => {
   const i = { prompt: "built", shotKey: "k" };
 
   it("uses the edited prompt, or resets to the built one", () => {
@@ -3496,7 +3496,7 @@ Append to `src/lib/scripts/visualise/schema.ts`:
 import type { Avatar } from "@/lib/avatars/schema";
 import type { RegionalKit } from "./kits";
 
-/** D344 — how a draw chooses its prompt: as the panel last was ("draw"), as the operator wrote
+/** D345 — how a draw chooses its prompt: as the panel last was ("draw"), as the operator wrote
  *  it ("edited"), or rebuilt from the script ("reset"). */
 export type DrawBody = { kind: "draw" } | { kind: "edited"; prompt: string } | { kind: "reset" };
 
@@ -3570,7 +3570,7 @@ Create `src/lib/scripts/visualise/queue.ts`:
 
 ```ts
 /**
- * D345 — Generate all's queue: runs `work` over `items` in order, at most `limit` at a time.
+ * D346 — Generate all's queue: runs `work` over `items` in order, at most `limit` at a time.
  * Once `stop()` says so (the credit cap was hit) nothing new starts; items already running
  * finish. A failing item does not stop the others: `work` reports its own errors.
  */
@@ -3625,7 +3625,7 @@ export type PanelView = {
   canGenerate: boolean;
 };
 
-/** D343 — why a take no longer matches the script and the avatars as they are now. */
+/** D344 — why a take no longer matches the script and the avatars as they are now. */
 export function staleReasons(take: PanelTake, inputs: Pick<PanelInputs, "shotKey" | "faces">): StaleReason[] {
   const reasons: StaleReason[] = [];
   if (take.shotKey !== inputs.shotKey) reasons.push("shot");
@@ -3676,7 +3676,7 @@ export function panelView(input: {
   return { status, pick, takes, failure, staleBecause, waitingFor: input.inputs.waitingFor, canGenerate };
 }
 
-/** D344 — the prompt a draw sends. A plain redraw keeps a hand-edited prompt while the shot is
+/** D345 — the prompt a draw sends. A plain redraw keeps a hand-edited prompt while the shot is
  *  unchanged; once the shot's text changed it starts fresh from the new text (spec §8.1), and the
  *  edited prompt stays with its take. */
 export function promptForDraw(
@@ -3768,7 +3768,7 @@ Expected: PASS.
 
 ```bash
 git add src/lib/scripts/visualise
-git commit -m "feat(scripts): panel state, takes, out of date, readiness and Generate all (D343-D345)
+git commit -m "feat(scripts): panel state, takes, out of date, readiness and Generate all (D344-D346)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -3799,7 +3799,7 @@ import { isUuid } from "@/lib/avatars/utils";
 import { rowToPanelTake, type PanelTakeRow } from "@/lib/scripts/visualise/rows";
 import type { PanelFaces, PanelTake } from "@/lib/scripts/visualise/schema";
 
-// D337, D343 — storyboard panel takes and picks, keyed by script and shot. Callers have already
+// D338, D344 — storyboard panel takes and picks, keyed by script and shot. Callers have already
 // loaded the script under its client (getScript filters on client_id), so these key on the
 // script id. Spec 4 reads listPanelPicks + listPanelTakes to freeze what the client sees.
 
@@ -4100,7 +4100,7 @@ beforeEach(() => {
 });
 
 describe("PUT …/panels/:shotId/pick", () => {
-  it("makes an earlier take the one the client sees (D343)", async () => {
+  it("makes an earlier take the one the client sees (D344)", async () => {
     const { PUT } = await import("./route");
     const res = await PUT(put({ takeId: TAKE }), ctx);
     expect(res.status).toBe(200);
@@ -4231,7 +4231,7 @@ const DrawSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("reset") }),
 ]);
 
-// POST /api/clients/:id/scripts/:scriptId/panels/:shotId — D341–D345: draw one shot's panel.
+// POST /api/clients/:id/scripts/:scriptId/panels/:shotId — D342–D346: draw one shot's panel.
 // The take is stored "running" with what it is drawn from (prompt, shot fingerprint, faces)
 // BEFORE the model is called, so an avatar refined mid-draw shows the result out of date at
 // once. A drawn take becomes the pick; the operator can pick an earlier one back.
@@ -4306,7 +4306,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string; shotId: string }> }
 
 const Body = z.object({ takeId: z.uuid() });
 
-// PUT /api/clients/:id/scripts/:scriptId/panels/:shotId/pick — D343: choose which drawn take of
+// PUT /api/clients/:id/scripts/:scriptId/panels/:shotId/pick — D344: choose which drawn take of
 // this shot is current. The client only ever sees the pick.
 export async function PUT(req: Request, { params }: Ctx) {
   const { scriptId, shotId } = await params;
@@ -4349,7 +4349,7 @@ Expected: a `take` with a `url` that opens as a 9:16 marker sketch of a kitchen,
 
 ```bash
 git add src/lib/db/script-panels.ts src/lib/scripts/visualise "src/app/api/clients/[id]/scripts/[scriptId]/visualise" "src/app/api/clients/[id]/scripts/[scriptId]/panels"
-git commit -m "feat(scripts): draw a storyboard panel, keep its takes, pick one (D341-D345)
+git commit -m "feat(scripts): draw a storyboard panel, keep its takes, pick one (D342-D346)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -4504,7 +4504,7 @@ import { visualiseKeys } from "@/hooks/queries/visualise";
 
 type DrawResult = { ok: true } | { ok: false; message: string; capped: boolean };
 
-// D345 — drawing panels from the browser: one shot, or Generate all as a bounded queue that
+// D346 — drawing panels from the browser: one shot, or Generate all as a bounded queue that
 // stops starting new draws at the credit cap. `drawing` lets a panel show its placeholder the
 // moment the click lands, before the server's running take is read back.
 export function usePanelDraws(clientId: string, scriptId: string) {
@@ -4709,7 +4709,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { generateAllLabel, type GenerateAllPlan } from "@/lib/scripts/visualise/state";
 
-// D345 — Generate all shows its total first ("Redraw 9 panels · about N credits"), then runs.
+// D346 — Generate all shows its total first ("Redraw 9 panels · about N credits"), then runs.
 export function GenerateAllDialog({ plan, busy, onConfirm }: { plan: GenerateAllPlan; busy: boolean; onConfirm: () => void }) {
   const [open, setOpen] = useState(false);
   const none = plan.shotIds.length === 0;
@@ -4754,7 +4754,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// D346 — Reopen sends the script back to Generate, where its text is edited (spec 2).
+// D347 — Reopen sends the script back to Generate, where its text is edited (spec 2).
 export function ReopenDialog({ busy, onConfirm }: { busy: boolean; onConfirm: () => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -5126,7 +5126,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PanelTake } from "@/lib/scripts/visualise/schema";
 
-// D343 — every drawn take, oldest first; the picked one is what the client sees.
+// D344 — every drawn take, oldest first; the picked one is what the client sees.
 export function PanelTakes({ takes, pickId, disabled, onPick }: {
   takes: PanelTake[];
   pickId: string | null;
@@ -5187,7 +5187,7 @@ type Props = {
   onReset: () => void;
 };
 
-// D344 — hidden by default. For how the frame is drawn ("closer on her hands"); a change to what
+// D345 — hidden by default. For how the frame is drawn ("closer on her hands"); a change to what
 // happens belongs in the shot's visual line, through Reopen.
 export function PanelPromptBox({ prompt, builtPrompt, credits, busy, onRegenerate, onReset }: Props) {
   const [open, setOpen] = useState(false);
@@ -5364,7 +5364,7 @@ In the app, on Reel 01 at Visualise, compare with the Visualise board: the Visua
 
 ```bash
 git add src/components/visualise
-git commit -m "feat(scripts): the storyboard grid and per-shot panel status, with takes and the prompt box (D343, D344)
+git commit -m "feat(scripts): the storyboard grid and per-shot panel status, with takes and the prompt box (D344, D345)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -5413,7 +5413,7 @@ function deps(calls: string[]): MakerDeps {
   };
 }
 
-describe("makeGeneratedAvatar (D338)", () => {
+describe("makeGeneratedAvatar (D339)", () => {
   it("makes and links a new avatar, then the face, the four views, and saves it to Avatars", async () => {
     const calls: string[] = [];
     const avatar = await makeGeneratedAvatar(deps(calls), { member: meenakshi, avatar: null, instructions: "", fresh: false });
@@ -5510,7 +5510,7 @@ import type { Avatar } from "@/lib/avatars/schema";
 import { formatDate } from "@/lib/kb/utils";
 import type { CastMember } from "@/lib/scripts/schema";
 
-// D338 — the inline avatar maker's sequence, as plain functions over injected calls (the same
+// D339 — the inline avatar maker's sequence, as plain functions over injected calls (the same
 // shape as add-to-canvas.ts), so every path is tested without React. useCastAvatarMaker supplies
 // the calls. It makes a client Avatar like the Studio does, through the Studio's own routes.
 
@@ -5656,7 +5656,7 @@ import {
 
 export type SlotStep = MakerStep | "upload" | "consent" | "link";
 
-// D338 — one cast slot's avatar maker. Every call goes through the Avatar Studio's own routes,
+// D339 — one cast slot's avatar maker. Every call goes through the Avatar Studio's own routes,
 // so what Visualise makes is the same client Avatar the Studio makes (spec §5.1).
 export function useCastAvatarMaker({ clientId, scriptId, member, avatar }: {
   clientId: string;
@@ -6136,7 +6136,7 @@ In the app, Reel 01 at Visualise, compared with the Visualise board on the mocku
 
 ```bash
 git add src/lib/scripts/visualise src/hooks src/components/visualise
-git commit -m "feat(scripts): an avatar for every person in the cast, made inline in Visualise (D338, D340)
+git commit -m "feat(scripts): an avatar for every person in the cast, made inline in Visualise (D339, D341)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -6152,14 +6152,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Check the ADR numbers are still free**
 
 Run: `grep -n "^### D33[7-9]\|^### D34[0-6]" docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`
-Expected: nothing. If any are taken, take the next free run and change every `D337`–`D346` in this plan's committed code comments to match.
+Expected: nothing. If any are taken, take the next free run and change every `D338`–`D347` in this plan's committed code comments to match.
 
 - [ ] **Step 2: Append the ADRs**
 
 Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`:
 
 ```markdown
-### D337 — Visualise keeps its own records beside the script; the script holds only the cast's avatar links *(recorded 2026-10-08)*
+### D338 — Visualise keeps its own records beside the script; the script holds only the cast's avatar links *(recorded 2026-10-08)*
 
 **Decision.** Storyboard panels live in `script_panel_takes` (every drawing) and `script_panel_picks` (one picked take per shot), keyed by script and shot id. A panel's generation is owned by its script (`generations.script_id`, a third owner beside node and avatar). The only write Visualise makes into `client_scripts.doc` is a cast member's `avatarId`, applied to the document as stored so keys this code does not know survive.
 
@@ -6169,7 +6169,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** `2026-10-08-script-copilot-3-visualise-design.md` §9.
 
-### D338 — The inline avatar maker makes one face, then its four views, and saves it to Avatars *(recorded 2026-10-08)*
+### D339 — The inline avatar maker makes one face, then its four views, and saves it to Avatars *(recorded 2026-10-08)*
 
 **Decision.** Each cast slot is a full avatar maker using the Studio's own routes: AI-generated makes one front from the person's description plus the avatar instructions (Seedream, the Studio's default face model), then the four views, then marks the avatar ready; Specific person uploads a photo, takes the existing likeness consent, then the four views. Regenerate avatar always makes a new face; a failed step resumes without one. A face keeps its kind: switching between AI-generated and Specific makes a new avatar rather than overwriting the linked one.
 
@@ -6179,7 +6179,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** spec 3 §5.2, §14 (3.1).
 
-### D339 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
+### D340 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
 
 **Decision.** The sheet is four separate 3:4 images made from the front image (`client_avatars.sheet_views`), each prompt stating which edge of the frame the person faces. Once all four exist they are also composed side by side into `sheet`, so everything that sends the sheet (D308) is unchanged. A view that fails is refunded and named; the others are kept and the missing one can be made alone. Sheets are no longer uploaded: the Studio's sheet upload is removed and the image routes take only the front. Avatars made before keep their three-view or uploaded `sheet` until their four views are generated. A Specific person's face photo is still an upload.
 
@@ -6189,7 +6189,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** spec 3 §5.4, §14 (3.3).
 
-### D340 — A person on screen can be drawn once their avatar is saved with its four views *(recorded 2026-10-08)*
+### D341 — A person on screen can be drawn once their avatar is saved with its four views *(recorded 2026-10-08)*
 
 **Decision.** A shot's panel can be drawn when every cast member on screen links to a live, saved avatar with a current four-view sheet; B-roll can be drawn at any time. The readiness line counts such cast members and the shots whose picked take is current.
 
@@ -6199,7 +6199,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** spec 3 §5.3, §7.
 
-### D341 — What a panel is drawn from *(recorded 2026-10-08)*
+### D342 — What a panel is drawn from *(recorded 2026-10-08)*
 
 **Decision.** One prompt, built by a pure function shared by browser and server: the marker-and-wash style; the shot's visual; the setting and camera; the regional kit; each on-screen person in words with their four views as references (every person's Front first, other views dropped first over the model's cap, references numbered in the prompt); card and pack areas drawn blank; never any text, brand or labelled pack. The shot's VO and on-screen text are never in the prompt.
 
@@ -6209,7 +6209,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** spec 3 §6.1–§6.3; parent §11.1.
 
-### D342 — Regional kits are read from the brand KB's text and matched per shot *(recorded 2026-10-08)*
+### D343 — Regional kits are read from the brand KB's text and matched per shot *(recorded 2026-10-08)*
 
 **Decision.** Until the KB has fields for them, the kits are parsed from the "Regional kits" table wherever the house rules were pasted into the active KB, and matched to each shot by region, place and language names (the shot and its people first, then the whole script). With no table, panels are drawn without a kit and the readiness line says so.
 
@@ -6219,7 +6219,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** spec 3 §6.2; spec 2 §4.1.
 
-### D343 — Panels keep takes; out of date is decided by fingerprints and never redraws on its own *(recorded 2026-10-08)*
+### D344 — Panels keep takes; out of date is decided by fingerprints and never redraws on its own *(recorded 2026-10-08)*
 
 **Decision.** Every draw is a take, recorded before the model call with a fingerprint of the shot's drawn text and each on-screen person's avatar and face. A new take becomes the pick; the operator can pick an earlier one; the client sees only the pick. A pick whose fingerprints differ from today's is Out of date and stays visible until redrawn. Reopen's effects follow from stable shot ids: an edited shot and a split's first half go out of date, a split's second half and a new shot start empty, a removed shot's takes are not shown.
 
@@ -6229,7 +6229,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** spec 3 §6.4, §6.6, §8.1.
 
-### D344 — The prompt box shows the exact prompt; an edit carries until the shot changes *(recorded 2026-10-08)*
+### D345 — The prompt box shows the exact prompt; an edit carries until the shot changes *(recorded 2026-10-08)*
 
 **Decision.** Each panel has a hidden prompt box showing the prompt its picked take was drawn with. Edit and regenerate sends it as written; reset regenerates from the prompt built from the script. A plain redraw keeps a hand-edited prompt while the shot's text is unchanged and starts fresh once it changed.
 
@@ -6239,7 +6239,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** spec 3 §6.7, §8.1.
 
-### D345 — Nano Banana 2 draws every panel; Generate all shows its total and runs three at a time *(recorded 2026-10-08)*
+### D346 — Nano Banana 2 draws every panel; Generate all shows its total and runs three at a time *(recorded 2026-10-08)*
 
 **Decision.** Panels use `gemini:gemini-3.1-flash-image`, no picker, billed through the same reserve-and-settle run as the Avatar Studio (`runBilledImageGeneration`). Generate all draws every shot without a current panel that can be drawn, after a dialog naming the count and total; the browser runs the per-shot draw three at a time and stops starting new ones at the credit cap.
 
@@ -6249,7 +6249,7 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 **Originated →** spec 3 §6.1, §6.5.
 
-### D346 — Reopen is Visualise's only stage move; an avatar a script uses cannot be archived *(recorded 2026-10-08)*
+### D347 — Reopen is Visualise's only stage move; an avatar a script uses cannot be archived *(recorded 2026-10-08)*
 
 **Decision.** Reopen moves a script from Visualise to Generate, conditioned on its stage; avatars and panels are kept. Visualise work is allowed at Visualise and In review. The Avatars library's archive (and Discard draft) refuses while any live script's cast uses the avatar, naming the scripts.
 
@@ -6260,17 +6260,17 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 **Originated →** spec 3 §8.1, §8.2.
 ```
 
-Then edit D288's heading to add `; **sheet SUPERSEDED by D339** (four views)` inside its italic parenthesis.
+Then edit D288's heading to add `; **sheet SUPERSEDED by D340** (four views)` inside its italic parenthesis.
 
 - [ ] **Step 3: Point the spec at its ADRs**
 
-In the spec's header, change `ADRs: D337–D346 (booked; moved up one on 8 Oct, D319 was taken).` to `ADRs: D337–D346 (recorded 8 Oct with the plan).`
+In the spec's header, change `ADRs: D338–D347 (booked; moved up one on 8 Oct, D319 was taken).` to `ADRs: D338–D347 (recorded 8 Oct with the plan).`
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md docs/superpowers/specs/2026-10-08-script-copilot-3-visualise-design.md
-git commit -m "docs(adr): D337-D346 for script copilot spec 3, Visualise
+git commit -m "docs(adr): D338-D347 for script copilot spec 3, Visualise
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```

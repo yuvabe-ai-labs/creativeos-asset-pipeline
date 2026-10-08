@@ -4,7 +4,7 @@ import { isUuid } from "@/lib/avatars/utils";
 import { rowToPanelTake, type PanelTakeRow } from "@/lib/scripts/visualise/rows";
 import type { PanelFaces, PanelTake } from "@/lib/scripts/visualise/schema";
 
-// D337, D343 — storyboard panel takes and picks, keyed by script and shot. Callers have already
+// D338, D344 — storyboard panel takes and picks, keyed by script and shot. Callers have already
 // loaded the script under its client (getScript filters on client_id), so these key on the
 // script id. Spec 4 reads listPanelPicks + listPanelTakes to freeze what the client sees.
 

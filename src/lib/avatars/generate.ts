@@ -12,7 +12,7 @@ export type AvatarGenerationArgs = {
   userId: string;
   userEmail: string | null;
   slot: AvatarImageSlot;
-  /** D339 — which of the sheet's four views this image is. */
+  /** D340 — which of the sheet's four views this image is. */
   view?: AvatarViewId;
   modelId: string;
   aspect: string;

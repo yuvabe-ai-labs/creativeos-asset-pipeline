@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe("PUT …/panels/:shotId/pick", () => {
-  it("makes an earlier take the one the client sees (D343)", async () => {
+  it("makes an earlier take the one the client sees (D344)", async () => {
     const { PUT } = await import("./route");
     const res = await PUT(put({ takeId: TAKE }), ctx);
     expect(res.status).toBe(200);

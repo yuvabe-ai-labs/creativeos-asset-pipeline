@@ -1,6 +1,6 @@
 // Script copilot spec 2 (Generate) — the rules every call follows, and one instruction per step.
 // Spec: docs/superpowers/specs/2026-10-08-script-copilot-2-generate-design.md §5–§9.
-// The model is not named here: it is SCRIPT_WRITER_MODEL, chosen by the probe (D335).
+// The model is not named here: it is SCRIPT_WRITER_MODEL, chosen by the probe (D336).
 
 const rules = `You are the script copilot for a creative agency's content team. You help write one short vertical reel script for one client, in that client's own layout.
 

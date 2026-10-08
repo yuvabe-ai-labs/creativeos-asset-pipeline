@@ -21,7 +21,7 @@ import { ReviewSurfaceProvider, type ReviewSurface } from "./review-surface-cont
 import { ScopeNote } from "./scope-note";
 import { ScriptReviewHeader } from "./script-review-header";
 
-// D355, D357: the client's page. Mobile-first like D309's: the name is asked once (the same stored
+// D356, D358: the client's page. Mobile-first like D309's: the name is asked once (the same stored
 // name as the video review), then the shared version, read-only, as the Visualise board, with every
 // part's thread one tap away in the Comments column.
 export function ScriptReviewPage({ token, initial }: { token: string; initial: PublicScriptReview }) {

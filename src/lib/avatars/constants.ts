@@ -53,7 +53,7 @@ export const READINESS_GAP_LABELS = {
 export const AVATAR_FRONT_ASPECT = "3:4";
 export const AVATAR_SHEET_ASPECT = "16:9";
 
-// D339 — the four views, in the order they are shown, sent as references and commented on
+// D340 — the four views, in the order they are shown, sent as references and commented on
 // (spec 4). Each is a 3:4 portrait-shaped image, head to toe.
 export const AVATAR_VIEWS = ["front", "left", "right", "back"] as const satisfies readonly AvatarViewId[];
 export const AVATAR_VIEW_LABELS: Record<AvatarViewId, string> = {
@@ -61,7 +61,7 @@ export const AVATAR_VIEW_LABELS: Record<AvatarViewId, string> = {
 };
 export const AVATAR_VIEW_ASPECT = "3:4";
 
-// D339 — the dry run (parent spec §11.1): asked for a left and a right profile together, the
+// D340 — the dry run (parent spec §11.1): asked for a left and a right profile together, the
 // model returned two views facing the same way. Naming the edge of the frame the nose points
 // to fixed it, so every view states its direction.
 export const AVATAR_VIEW_DIRECTIONS: Record<AvatarViewId, string> = {

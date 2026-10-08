@@ -5,7 +5,7 @@ import { extForContentType } from "@/lib/storage/paths";
 import { PANEL_MODEL_ID } from "./constants";
 import { HOUSE_STYLE_REF } from "./house-style";
 
-// D337, D345 — one storyboard panel, owned by its script and billed like any image.
+// D338, D346 — one storyboard panel, owned by its script and billed like any image.
 export async function runPanelGeneration(args: {
   clientId: string;
   scriptId: string;

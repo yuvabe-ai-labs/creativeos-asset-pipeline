@@ -21,7 +21,7 @@ const MARKDOWN = `Some rule about dress.
 // The same table pasted from the .docx, which arrives tab-separated.
 const TABBED = "Regional kits\nRegion\tAt the table\tKitchen and home\tWardrobe\nTamil Nadu\tRice\tIron tawa, kolam\tCotton saree\n\nNext section";
 
-describe("parseRegionalKits (D342)", () => {
+describe("parseRegionalKits (D343)", () => {
   it("reads the kits table and nothing after it", () => {
     const kits = parseRegionalKits(MARKDOWN);
     expect(kits.map((k) => k.region)).toEqual(["Kerala", "Tamil Nadu", "Gujarat"]);
@@ -51,7 +51,7 @@ describe("collectStrings", () => {
   });
 });
 
-describe("pickKit (D342)", () => {
+describe("pickKit (D343)", () => {
   const kits = parseRegionalKits(MARKDOWN);
 
   it("picks Tamil Nadu for Reel 01 from 'Chennai' and 'Tamil', which the script says, not the state", () => {

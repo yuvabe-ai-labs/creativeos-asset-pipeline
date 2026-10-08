@@ -19,7 +19,7 @@ type Props = {
   onReset: () => void;
 };
 
-// D344 — hidden by default. For how the frame is drawn ("closer on her hands"); a change to what
+// D345 — hidden by default. For how the frame is drawn ("closer on her hands"); a change to what
 // happens belongs in the shot's visual line, through Reopen.
 export function PanelPromptBox({ prompt, builtPrompt, credits, busy, onRegenerate, onReset }: Props) {
   const [open, setOpen] = useState(false);

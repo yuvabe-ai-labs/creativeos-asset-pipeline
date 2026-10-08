@@ -4,7 +4,7 @@ import { isVoicePreviewStale } from "./voice-preview";
 import { avatarVoiceLabel } from "./voice";
 import type { Avatar, AvatarVoice, VoicePreview } from "./schema";
 
-/** D339 — the sheet's state in one word, for the stepper and the summary card. */
+/** D340 — the sheet's state in one word, for the stepper and the summary card. */
 export function sheetStatusLabel(
   avatar: Pick<Avatar, "sheet" | "sheetViews" | "sheetStale"> | null,
   optional: string,
@@ -15,7 +15,7 @@ export function sheetStatusLabel(
   if (avatar.sheetStale) return "Out of date";
   if (kind === "four-view") return hasFourViews(avatar) ? "Four views" : "Missing a view";
   if (kind === "three-view") return "Three views";
-  return "Older sheet"; // an upload from before D339 ended sheet uploads
+  return "Older sheet"; // an upload from before D340 ended sheet uploads
 }
 
 /** D301 — the Voice step's three cards. */

@@ -6,7 +6,7 @@ for the review board (§4, §6, §13 4.14–4.17)**
 Branch: `worktree-script-copilot`. Parent spec: [2026-10-07-script-copilot-design.md](2026-10-07-script-copilot-design.md).
 Spec 1: [2026-10-08-script-copilot-1-library-and-script-design.md](2026-10-08-script-copilot-1-library-and-script-design.md) ·
 Spec 3: [2026-10-08-script-copilot-3-visualise-design.md](2026-10-08-script-copilot-3-visualise-design.md).
-ADRs: D347–D356 (booked; moved up one on 8 Oct, D319 was taken).
+ADRs: D348–D357 (booked; moved up one on 8 Oct, D319 was taken).
 Explainer, with every decision that crosses specs: https://claude.ai/artifact/RLbXdnfrXHf6dYTbm7uN4k#decisions ·
 Screen mockups (the client review board is the fourth stage): https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM
 

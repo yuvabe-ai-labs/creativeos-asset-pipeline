@@ -81,7 +81,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 // DELETE /api/clients/:id/avatars/:avatarId — archives (D287), unless a live script's cast uses
-// the avatar (D346): archiving would leave that script's people without a face.
+// the avatar (D347): archiving would leave that script's people without a face.
 export async function DELETE(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
   return withClient(req, params, async (clientId) =>

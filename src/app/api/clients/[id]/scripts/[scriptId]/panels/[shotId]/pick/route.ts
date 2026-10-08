@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string; shotId: string }> }
 
 const Body = z.object({ takeId: z.uuid() });
 
-// PUT /api/clients/:id/scripts/:scriptId/panels/:shotId/pick — D343: choose which drawn take of
+// PUT /api/clients/:id/scripts/:scriptId/panels/:shotId/pick — D344: choose which drawn take of
 // this shot is current. The client only ever sees the pick.
 export async function PUT(req: Request, { params }: Ctx) {
   const { scriptId, shotId } = await params;

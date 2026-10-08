@@ -2,7 +2,7 @@ import { scriptDocSchema, type CastMember, type ScriptDoc, type Shot } from "../
 import type { DraftOutput, ShotFields } from "./output";
 
 // Spec 2 §7 — the model's first draft becomes a valid spec 1 script. The model never writes ids
-// (D330); a slightly-off draft is repaired here rather than rejected (Review Focus 3).
+// (D331); a slightly-off draft is repaired here rather than rejected (Review Focus 3).
 
 const cut = (s: string, n: number) => s.trim().slice(0, n).trim();
 const beatKey = (beat: string) => beat.trim().toUpperCase();
@@ -31,7 +31,7 @@ export function newShotId(taken: Set<string>): string {
   return id;
 }
 
-/** The carry rule (D326): a later shot in a beat that repeats the beat's VO line or card leaves it
+/** The carry rule (D327): a later shot in a beat that repeats the beat's VO line or card leaves it
  *  empty, so the parse does not map the line twice. */
 export function carryShot(shots: Shot[], index: number): Shot {
   const shot = shots[index];

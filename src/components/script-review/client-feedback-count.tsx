@@ -1,7 +1,7 @@
 // src/components/script-review/client-feedback-count.tsx
 import { MessageSquareText } from "lucide-react";
 
-/** Spec 4 §6 and D356: the total of client comments and approvals, in D310's amber, no seen-state. */
+/** Spec 4 §6 and D357: the total of client comments and approvals, in D310's amber, no seen-state. */
 export function ClientFeedbackCount({ count }: { count: number }) {
   if (count <= 0) return null;
   return (

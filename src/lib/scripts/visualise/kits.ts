@@ -1,6 +1,6 @@
 import type { ScriptDoc, Shot } from "@/lib/scripts/schema";
 
-// D342 — the regional kit a panel is drawn with. The dry run's "South Indian kitchen" came out
+// D343 — the regional kit a panel is drawn with. The dry run's "South Indian kitchen" came out
 // European until the kit was named (parent spec §11.1). The house rules live in the brand KB as
 // pasted text for the demo (spec 2 §4.1), so the kits are read from that text until the KB has
 // fields for them; matching is by the place and language names a script actually uses.

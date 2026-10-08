@@ -2,7 +2,7 @@
 
 **8 October 2026 · product spec (the *what*) · spec 1 of 4 · no AI in this spec**
 Branch: `worktree-script-copilot`. Parent spec: [2026-10-07-script-copilot-design.md](2026-10-07-script-copilot-design.md).
-ADRs: D320–D326.
+ADRs: D321–D327.
 Explainer, with every decision that crosses specs: https://claude.ai/artifact/RLbXdnfrXHf6dYTbm7uN4k#decisions ·
 Screen mockups: https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM
 

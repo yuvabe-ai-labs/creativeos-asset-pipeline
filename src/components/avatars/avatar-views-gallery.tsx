@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarViewImages, AvatarViewId } from "@/lib/avatars/schema";
 
-// D339 — the four views side by side, large, so the person can be checked from every side at
+// D340 — the four views side by side, large, so the person can be checked from every side at
 // once. Opened from any view tile; the one clicked is ringed.
 export function AvatarViewsGallery({ name, views, focus, onClose }: {
   name: string;

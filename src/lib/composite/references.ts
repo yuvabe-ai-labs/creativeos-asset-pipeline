@@ -103,9 +103,14 @@ export function mentionIds(instruction: string): string[] {
   return ids;
 }
 
-/** Names of the chips whose node is no longer in the roster, each once, in first-seen order. */
-export function danglingMentions(instruction: string, refs: CompositeRef[]): string[] {
-  const wired = new Set(refs.map((r) => r.nodeId));
+/** Names of the chips whose node is no longer in the roster, each once, in first-seen order.
+ *  `alsoWired` — D320's context ids (a wired script or shot), which carry no image. */
+export function danglingMentions(
+  instruction: string,
+  refs: CompositeRef[],
+  alsoWired: ReadonlySet<string> = new Set(),
+): string[] {
+  const wired = new Set([...refs.map((r) => r.nodeId), ...alsoWired]);
   const names: string[] = [];
   for (const s of MENTION.parse(instruction)) {
     if (s.kind !== "mention" || wired.has(s.id)) continue;

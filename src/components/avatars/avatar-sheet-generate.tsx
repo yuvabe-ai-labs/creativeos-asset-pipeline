@@ -7,7 +7,7 @@ import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarAdvancedSettings } from "./avatar-advanced-settings";
 import { AvatarModelSelect } from "./avatar-model-select";
 
-// D339 — makes the four views from the front image: all four, or only the missing ones when the
+// D340 — makes the four views from the front image: all four, or only the missing ones when the
 // sheet is current. The model defaults to Nano Banana 2 and sits under Advanced; the choice lives
 // in useAvatarGeneration so it survives leaving the step.
 export function AvatarSheetGenerate({

@@ -9,7 +9,7 @@ import type { ScriptComment } from "@/lib/script-review/types";
 import { useReviewSurface } from "./review-surface-context";
 import { PartComposer } from "./part-composer";
 
-/** One comment or reply. From the link, only client comments are editable; never deleted (D352). */
+/** One comment or reply. From the link, only client comments are editable; never deleted (D353). */
 export function ThreadComment({ comment }: { comment: ScriptComment }) {
   const { mode, onEdit } = useReviewSurface();
   const [editing, setEditing] = useState(false);

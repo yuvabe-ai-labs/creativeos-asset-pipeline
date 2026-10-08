@@ -5,7 +5,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { createOpenAI } from "@/lib/openai/server";
 import { createGemini } from "@/lib/gemini/server";
 
-// One structured call over either provider already in the repo (D335): no new SDK. The model id
+// One structured call over either provider already in the repo (D336): no new SDK. The model id
 // picks the provider. The result is validated against the same zod schema either way.
 
 export type StructuredCall = <S extends z.ZodType>(args: { name: string; system: string; user: string; schema: S }) => Promise<z.infer<S>>;
@@ -44,7 +44,7 @@ export type StreamingCall = <S extends z.ZodType>(
 ) => Promise<z.infer<S>>;
 
 /** As structuredCaller, but reports the answer's text as it arrives (Gemini streams it), so the first
- *  draft can be shown while it is written (D336, refined). The whole answer is validated at the end.
+ *  draft can be shown while it is written (D337, refined). The whole answer is validated at the end.
  *  An OpenAI model answers in one piece: its text is reported once. */
 export function streamingCaller(model: string): StreamingCall {
   return async (args, onText) => {

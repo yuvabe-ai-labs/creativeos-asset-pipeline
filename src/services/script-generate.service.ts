@@ -24,7 +24,7 @@ class ScriptGenerateService {
     return (await readJson<{ state: GenerateState }>(res, "Could not load the script.")).state;
   }
 
-  /** One chat message. The answer streams as newline-delimited JSON (D336, refined): draft previews
+  /** One chat message. The answer streams as newline-delimited JSON (D337, refined): draft previews
    *  go to `onDraft` as they arrive; the final line is the whole workspace state. */
   async turn(clientId: string, scriptId: string, text: string, onDraft?: (draft: PartialDraft) => void): Promise<GenerateState> {
     const res = await send(`${scriptUrl(clientId, scriptId)}/turn`, "POST", { text });

@@ -26,9 +26,16 @@ class ScriptReviewService {
     return (await readJson<{ review: TeamScriptReview }>(res, "Could not load the review.")).review;
   }
 
-  async moveStage(clientId: string, scriptId: string, move: TeamStageMove): Promise<ScriptStage> {
-    const res = await send(`${this.base(clientId, scriptId)}/stage`, "POST", { move });
-    return (await readJson<{ stage: ScriptStage }>(res, "Could not move the script.")).stage;
+  /** A team stage move. Moving into In review also shares (D349, refined): it takes the scope and
+   *  answers with the version it froze and the link's token. */
+  async moveStage(
+    clientId: string,
+    scriptId: string,
+    move: TeamStageMove,
+    scope?: ShareScope,
+  ): Promise<{ stage: ScriptStage; version?: { number: number; scope: ShareScope; sharedAt: string }; shareToken?: string }> {
+    const res = await send(`${this.base(clientId, scriptId)}/stage`, "POST", scope ? { move, scope } : { move });
+    return readJson(res, "Could not move the script.");
   }
 
   async share(

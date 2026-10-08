@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PanelTake } from "@/lib/scripts/visualise/schema";
 
-// D343 — every drawn take, oldest first; the picked one is what the client sees.
+// D344 — every drawn take, oldest first; the picked one is what the client sees.
 export function PanelTakes({ takes, pickId, disabled, onPick }: {
   takes: PanelTake[];
   pickId: string | null;

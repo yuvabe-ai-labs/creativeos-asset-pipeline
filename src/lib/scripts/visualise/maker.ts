@@ -9,7 +9,7 @@ import { formatDate } from "@/lib/kb/utils";
 import type { CastMember } from "@/lib/scripts/schema";
 import { VISUALISE_AVATAR_MODEL_ID } from "./constants";
 
-// D338 — the inline avatar maker's sequence, as plain functions over injected calls (the same
+// D339 — the inline avatar maker's sequence, as plain functions over injected calls (the same
 // shape as add-to-canvas.ts), so every path is tested without React. useCastAvatarMaker supplies
 // the calls. It makes a client Avatar like the Studio does, through the Studio's own routes.
 
@@ -63,7 +63,7 @@ export async function finishAvatar(d: MakerDeps, avatar: Avatar): Promise<Avatar
   if (!hasFourViews(current)) {
     d.onStep("views");
     // Only the gaps: a retry after one failed view costs one view, as the button says, and keeps
-    // the three good ones (review of D339).
+    // the three good ones (review of D340).
     current = await d.generateViews(current.id, missingViews(current));
     if (!hasFourViews(current)) throw new Error("A view is still missing. Make the four views again.");
   }

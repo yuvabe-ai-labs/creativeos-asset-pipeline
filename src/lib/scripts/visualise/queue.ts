@@ -1,5 +1,5 @@
 /**
- * D345 — Generate all's queue: runs `work` over `items` in order, at most `limit` at a time.
+ * D346 — Generate all's queue: runs `work` over `items` in order, at most `limit` at a time.
  * Once `stop()` says so (the credit cap was hit) nothing new starts; items already running
  * finish. A failing item does not stop the others: `work` reports its own errors.
  */

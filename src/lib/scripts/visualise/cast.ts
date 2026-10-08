@@ -3,7 +3,7 @@ import { scriptDocSchema } from "@/lib/scripts/schema";
 
 // Spec 3 — the rules for what Visualise may change, in one place.
 
-/** D346 — cast links, panels and picks change while the script is at Visualise, and while it
+/** D347 — cast links, panels and picks change while the script is at Visualise, and while it
  *  is In review (spec 4: editing stays allowed; each share is a frozen copy). */
 export const VISUALISE_STAGES = ["visualise", "in_review"] as const satisfies readonly ScriptStage[];
 
@@ -11,7 +11,7 @@ export function isVisualiseStage(stage: ScriptStage): boolean {
   return (VISUALISE_STAGES as readonly ScriptStage[]).includes(stage);
 }
 
-/** D346 — why an avatar cannot be archived, or null when no live script uses it. */
+/** D347 — why an avatar cannot be archived, or null when no live script uses it. */
 export function archiveRefusal(usedIn: string[]): string | null {
   if (usedIn.length === 0) return null;
   if (usedIn.length === 1) {
@@ -24,7 +24,7 @@ export type CastLinkResult =
   | { ok: true; doc: Record<string, unknown> }
   | { ok: false; error: string; status: 404 | 409 | 422 };
 
-/** D337 — the one write Visualise makes into a script: a cast member's avatar link, applied to
+/** D338 — the one write Visualise makes into a script: a cast member's avatar link, applied to
  *  the document AS STORED, so any key this code does not know (spec 2's, spec 4's) survives.
  *  Two people in one script never share an avatar: each needs their own face. */
 export function withCastAvatar(rawDoc: unknown, castId: string, avatarId: string | null): CastLinkResult {

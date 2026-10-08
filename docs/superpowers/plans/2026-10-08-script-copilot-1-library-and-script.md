@@ -2307,7 +2307,7 @@ Append, in the log's existing format (Decision / Why / Rejected / Refines / Orig
 
 **Originated →** `2026-10-08-script-copilot-1-library-and-script-design.md` §0.
 
-### D320 — A script has a cast of client Avatars, exactly one of them the lead *(recorded 2026-10-08)*
+### D321 — A script has a cast of client Avatars, exactly one of them the lead *(recorded 2026-10-08)*
 
 **Decision.** A script holds one or more people; each shot names who is on screen, or nobody. Each person points to a client Avatar, made once and reused across scripts. Exactly one is the lead.
 
@@ -2317,7 +2317,7 @@ Append, in the log's existing format (Decision / Why / Rejected / Refines / Orig
 
 **Refines →** D287–D297 (client Avatars). **Originated →** spec 1 §2.3.
 
-### D321 — Only the lead's avatar crosses onto the canvas *(recorded 2026-10-08)*
+### D322 — Only the lead's avatar crosses onto the canvas *(recorded 2026-10-08)*
 
 **Decision.** When a script reaches a canvas, the lead's avatar is attached to the Script node. Supporting cast stay in the shot descriptions as words.
 
@@ -2327,7 +2327,7 @@ Append, in the log's existing format (Decision / Why / Rejected / Refines / Orig
 
 **Refines →** D298. **Originated →** spec 1 §5.5.
 
-### D322 — Approved scripts reach a canvas from a Scripts tab in the gallery, as a copy *(recorded 2026-10-08)*
+### D323 — Approved scripts reach a canvas from a Scripts tab in the gallery, as a copy *(recorded 2026-10-08)*
 
 **Decision.** The canvas gallery has a Scripts tab listing the client's approved scripts. Dragging one makes a Script node holding a copy of the printed script; it can be dragged in more than once; re-approving a script never changes nodes already on a canvas.
 
@@ -2337,7 +2337,7 @@ Append, in the log's existing format (Decision / Why / Rejected / Refines / Orig
 
 **Originated →** spec 1 §5.1, §5.4.
 
-### D323 — The handoff prints the team's outline layout, one row per shot; the parse is unchanged *(recorded 2026-10-08)*
+### D324 — The handoff prints the team's outline layout, one row per shot; the parse is unchanged *(recorded 2026-10-08)*
 
 **Decision.** An approved script is printed as the Jackfruit365 outlines are written (header line, Purpose, Character, Setting and camera, a Beat · Visual · VO · On-screen text table, disclaimers) with one table row per shot, and parsed by the existing Script node parse with no prompt change.
 
@@ -2347,7 +2347,7 @@ Append, in the log's existing format (Decision / Why / Rejected / Refines / Orig
 
 **Refines →** D19, D267, D286. **Originated →** spec 1 §5.3.
 
-### D324 — The script's shape follows the team's outlines; formats are the client's words *(recorded 2026-10-08)*
+### D325 — The script's shape follows the team's outlines; formats are the client's words *(recorded 2026-10-08)*
 
 **Decision.** Header fields from the outlines' header line; the context card is Purpose, Setting and camera, disclaimers and watch-outs; beat labels are free text; setting changes and transitions are written into the visual. Formats and names are inferred from the client's scripts, not a product list. "Avatar" means the asset only; the founder format is "Founder-led".
 
@@ -2357,7 +2357,7 @@ Append, in the log's existing format (Decision / Why / Rejected / Refines / Orig
 
 **Originated →** spec 1 §2.
 
-### D325 — A seeded Reel 01, loaded by a developer *(recorded 2026-10-08)*
+### D326 — A seeded Reel 01, loaded by a developer *(recorded 2026-10-08)*
 
 **Decision.** Spec 1 ships Reel 01 split into 14 shots as a fixture (`src/lib/scripts/fixtures/reel-01.json`), seeded with `scripts/seed-script.mjs`. There is no product button for it.
 
@@ -2370,13 +2370,13 @@ Append, in the log's existing format (Decision / Why / Rejected / Refines / Orig
 
 - [ ] **Step 3: Point the spec at its ADRs**
 
-In the spec's header, replace "ADR numbers are assigned when the plan is written." with "ADRs: D319–D325."
+In the spec's header, replace "ADR numbers are assigned when the plan is written." with "ADRs: D319–D326."
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md docs/superpowers/specs/2026-10-08-script-copilot-1-library-and-script-design.md
-git commit -m "docs(adr): D319–D325 for script copilot spec 1"
+git commit -m "docs(adr): D319–D326 for script copilot spec 1"
 ```
 
 ---

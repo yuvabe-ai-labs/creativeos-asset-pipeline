@@ -263,7 +263,7 @@ export async function withShareToken(
   return handler(review);
 }
 
-// D355: the second named token resolver, for /api/r/s/[token]/* (script reviews). Same rules as
+// D356: the second named token resolver, for /api/r/s/[token]/* (script reviews). Same rules as
 // withShareToken — under the same proxy exemption, no session, no org check, no impersonation
 // gate — and the same link parsing (D311): only the code at the end finds the review.
 export async function withScriptShareToken(

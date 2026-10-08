@@ -12,7 +12,7 @@ const FinalizeSchema = z.object({
   path: z.string().min(1),
   filename: z.string().min(1),
   size: z.number().nonnegative(),
-  // D339 — sheets are four generated views; only the front is uploaded.
+  // D340 — sheets are four generated views; only the front is uploaded.
   slot: z.enum(["front"]),
   imageWidth: z.number().positive().optional(),
   imageHeight: z.number().positive().optional(),

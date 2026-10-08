@@ -36,7 +36,7 @@ export async function insertGeneration(input: {
   // Exactly one owner: a canvas node, or an avatar (Avatar Studio images, D291).
   nodeId?: string;
   avatarId?: string;
-  // or a script, for a storyboard panel (D337)
+  // or a script, for a storyboard panel (D338)
   scriptId?: string;
   orgId: string;
   clientId?: string;

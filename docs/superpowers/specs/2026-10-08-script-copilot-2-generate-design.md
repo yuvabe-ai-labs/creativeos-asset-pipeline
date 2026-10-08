@@ -5,7 +5,7 @@ answers in [the questions file](2026-10-08-script-copilot-open-questions.md)**
 Branch: `worktree-script-copilot`. Parent spec: [2026-10-07-script-copilot-design.md](2026-10-07-script-copilot-design.md) (§5).
 Builds on: [spec 1](2026-10-08-script-copilot-1-library-and-script-design.md) (approved), whose §2 is the script shape this spec writes into and whose §8 lists what this spec must honour.
 Companions: [the interaction model](2026-10-08-script-copilot-2-interaction-model.md) (what the copilot asks, and in what order) and [formats, slots and tools](2026-10-08-script-copilot-2-formats-slots-tools.md) (what it fills, and what it needs to fill it), both derived from all 28 Jackfruit365 outlines.
-ADRs: D327–D336 (booked; moved up one on 8 Oct, D319 was taken).
+ADRs: D328–D337 (booked; moved up one on 8 Oct, D319 was taken).
 Explainer, with every decision that crosses specs: https://claude.ai/artifact/RLbXdnfrXHf6dYTbm7uN4k#decisions ·
 Screen mockups: https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM
 
