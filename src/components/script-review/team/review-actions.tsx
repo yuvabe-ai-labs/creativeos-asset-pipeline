@@ -19,7 +19,8 @@ import { ShareDialog } from "./share-dialog";
 /** Spec 4 §6 (review board): the review's actions on the board's top line — the feedback count and
  *  latest version, Share / Share again (In review), Copy link, the team's stage moves, and below
  *  `xl` the Comments button once something has been shared. A move reloads the page: the stage
- *  decides which board it shows. */
+ *  decides which board it shows. Move to In review is the share dialog (D349, refined): one element
+ *  for both stages, so the dialog and its new link survive the move flipping it to Share again. */
 export function ReviewActions({ clientId, script, review, commentCount }: {
   clientId: string;
   script: Script;
@@ -34,7 +35,7 @@ export function ReviewActions({ clientId, script, review, commentCount }: {
 
   async function run(m: TeamStageMove) {
     try {
-      await move.mutateAsync(m);
+      await move.mutateAsync({ move: m });
       router.refresh();
     } catch (e) {
       toast.error(errorMessage(e, "Could not move the script."));
@@ -49,10 +50,12 @@ export function ReviewActions({ clientId, script, review, commentCount }: {
           Version {latest.number} · shared {formatShortDay(latest.sharedAt)}
         </span>
       )}
-      {stage === "in_review" && <ShareDialog clientId={clientId} script={script} latest={latest} />}
+      {(stage === "in_review" || stage === "visualise") && (
+        <ShareDialog clientId={clientId} script={script} latest={latest} moving={stage === "visualise"} />
+      )}
       {path && <CopyLinkButton path={path} />}
-      {teamMovesFrom(stage).map((m) => (
-        <Button key={m} variant={m === "to_review" ? "default" : "outline"} size="sm" disabled={move.isPending} onClick={() => void run(m)}>
+      {teamMovesFrom(stage).filter((m) => m !== "to_review").map((m) => (
+        <Button key={m} variant="outline" size="sm" disabled={move.isPending} onClick={() => void run(m)}>
           {TEAM_STAGE_MOVES[m].label}
         </Button>
       ))}

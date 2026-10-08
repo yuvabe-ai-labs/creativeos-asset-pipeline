@@ -29,6 +29,21 @@ describe("scriptReviewService", () => {
       .rejects.toThrow("A newer version was shared. Reload to see it.");
   });
 
+  it("moves into In review with the share scope, and returns the shared version and link token", async () => {
+    const version = { number: 2, scope: "panels", sharedAt: "t" };
+    vi.mocked(fetch).mockResolvedValue(json({ stage: "in_review", version, shareToken: "tok" }));
+    expect(await scriptReviewService.moveStage("c1", "s1", "to_review", "panels")).toEqual({ stage: "in_review", version, shareToken: "tok" });
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe("/api/clients/c1/scripts/s1/review/stage");
+    expect((init as RequestInit).body).toBe(JSON.stringify({ move: "to_review", scope: "panels" }));
+  });
+
+  it("moves back without a scope", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ stage: "visualise" }));
+    expect(await scriptReviewService.moveStage("c1", "s1", "back_to_visualise")).toEqual({ stage: "visualise" });
+    expect((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body).toBe(JSON.stringify({ move: "back_to_visualise" }));
+  });
+
   it("throws when a post answers ok without a comment", async () => {
     vi.mocked(fetch).mockResolvedValue(json({}, 201));
     await expect(scriptReviewService.reply("c1", "s1", "x", "hi")).rejects.toThrow();

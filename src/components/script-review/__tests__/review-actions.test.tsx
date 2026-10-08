@@ -30,6 +30,12 @@ describe("ReviewActions (review board)", () => {
     expect(html).not.toContain("Comments");
   });
 
+  it("Move to In review opens the share dialog, since moving into In review also shares (D349, refined)", () => {
+    const html = render(script("visualise"), review({ stage: "visualise", latest: null, shareToken: null, feedbackCount: 0 }));
+    const trigger = html.match(/<button[^>]*>(?:(?!<\/button>).)*Move to In review(?:(?!<\/button>).)*<\/button>/s)?.[0];
+    expect(trigger).toMatch(/aria-haspopup="dialog"/);
+  });
+
   it("In review: the count, the version, Share again, Copy link and Move back", () => {
     const html = render(script("in_review"), review({}));
     expect(html).toContain("Client feedback 3");

@@ -31,7 +31,7 @@ export function useTeamScriptReview(clientId: string, scriptId: string, initial?
 export function useMoveScriptStage(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (move: TeamStageMove) => scriptReviewService.moveStage(clientId, scriptId, move),
+    mutationFn: ({ move, scope }: { move: TeamStageMove; scope?: ShareScope }) => scriptReviewService.moveStage(clientId, scriptId, move, scope),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: scriptReviewKeys.team(clientId, scriptId) });
       // The library's stage filter and the gallery's Scripts tab (approved scripts) read these.

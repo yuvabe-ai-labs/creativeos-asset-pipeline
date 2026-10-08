@@ -7057,6 +7057,10 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Rejected.** Any client comment moving the script back. A client "Request changes" action. Sharing moving the stage by itself (the parent spec's first answer).
 
+**Refined (9 Oct 2026): moving into In review also shares.** Move to In review is now the share dialog. The team picks the scope there, and confirming moves the script and freezes the next version in one step. The stage route takes `{ move, scope }` for that move and shares through the same `shareNow` as the Share route. The link stays the same and shows the version just sent. Moving back and Share again are unchanged. If the move goes through but the share fails, the error says so and the dialog stays open as Share again.
+*Why:* Reel 01 was shared as version 1, moved back, had an avatar changed, then moved to In review again without a share. Its client link kept showing version 1, so the client reviewed a stale script while the team believed it was "in review". A script in In review should never show the client less than what the team moved in.
+*Rejected:* the link always showing the live script (that would end D348's frozen version per share), and a warning on the move ("nothing shared since your edits") with sharing still a separate step.
+
 **Originated →** spec 4 §3; question 4.3.
 
 ### D350 — Three share scopes; Approve only on a full share *(recorded 2026-10-08)*
