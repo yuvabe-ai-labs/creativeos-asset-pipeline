@@ -7,6 +7,9 @@ import { GALLERY_DRAG_MIME } from "@/components/canvas/gallery-drawer/gallery-dr
 import type { GalleryImage } from "@/components/canvas/gallery-drawer/types";
 import { AVATAR_DRAG_MIME, parseAvatarDragPayload } from "@/lib/avatars/canvas";
 import { useAddAvatarNode } from "./use-add-avatar-node";
+import { SCRIPT_DRAG_MIME } from "@/lib/scripts/constants";
+import { parseScriptDragPayload } from "@/lib/scripts/canvas";
+import { useAddScriptNode } from "./use-add-script-node";
 
 export interface GalleryPaneDropHandlers {
   onDragOver: (e: React.DragEvent) => void;
@@ -24,17 +27,25 @@ export interface GalleryPaneDropHandlers {
 export function useGalleryPaneDrop(): GalleryPaneDropHandlers {
   const { handleAdd } = useGalleryCommit();
   const addAvatarNode = useAddAvatarNode();
+  const addScriptNode = useAddScriptNode();
   const reactFlow = useReactFlow();
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     const types = e.dataTransfer.types;
-    if (!types.includes(GALLERY_DRAG_MIME) && !types.includes(AVATAR_DRAG_MIME)) return;
+    if (!types.includes(GALLERY_DRAG_MIME) && !types.includes(AVATAR_DRAG_MIME) && !types.includes(SCRIPT_DRAG_MIME)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
+      // Spec 1 §5.2 — an approved script from the gallery's Scripts tab: a parsed Script node.
+      const script = parseScriptDragPayload(e.dataTransfer.getData(SCRIPT_DRAG_MIME));
+      if (script) {
+        e.preventDefault();
+        void addScriptNode(script.scriptId, reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+        return;
+      }
       // D298 — an avatar from the gallery's Avatars tab: a node where it was dropped.
       const avatar = parseAvatarDragPayload(e.dataTransfer.getData(AVATAR_DRAG_MIME));
       if (avatar) {
@@ -55,7 +66,7 @@ export function useGalleryPaneDrop(): GalleryPaneDropHandlers {
         console.warn("[gallery] pane drop payload malformed:", err);
       }
     },
-    [handleAdd, addAvatarNode, reactFlow],
+    [handleAdd, addAvatarNode, addScriptNode, reactFlow],
   );
 
   return { onDragOver, onDrop };
