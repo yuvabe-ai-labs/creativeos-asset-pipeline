@@ -3,7 +3,7 @@ import { runQueue } from "../queue";
 
 const tick = () => new Promise((r) => setTimeout(r, 1));
 
-describe("runQueue (D345)", () => {
+describe("runQueue (D346)", () => {
   it("runs every item, never more than the limit at once, in order", async () => {
     let running = 0;
     let peak = 0;

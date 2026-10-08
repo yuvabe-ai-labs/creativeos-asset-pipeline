@@ -22,12 +22,12 @@
 - **Controls are shadcn primitives only**; icon-only buttons carry an `aria-label` that names the part ("Comment on S4"). "Add" actions keep the dashed primary border.
 - **Design system:** colours via CSS variables; the client-feedback amber is `bg-client/15 text-client-text` (D310); Lucide `strokeWidth={1.5}`; easing `cubic-bezier(0.22,1,0.36,1)`.
 - **Words:** "avatar", never "presenter"; spec 4's reopen is "Reopen to Visualise", distinct from spec 3's "Reopen".
-- **ADR:** D357 (next free; D327–D336 are booked by spec 2).
+- **ADR:** D358 (next free; D328–D337 are booked by spec 2).
 
 ## Review Focus
 
 1. **A client on a phone presses a part's comment action** → the Comments sheet opens at that part with the composer open in place; posting adds the thread there and the composer closes. Test: Task 4 (composer in the focused group); the open-the-sheet path is checked in Task 11.
-2. **A share with avatars where an avatar has only a front image (made before D339)** → the client sees the Front view and three empty tiles, and only Front takes comments. Tests: Task 1 (`avatarViewUrls` falls back to `front`), Task 5 (a marker only on views with an image).
+2. **A share with avatars where an avatar has only a front image (made before D340)** → the client sees the Front view and three empty tiles, and only Front takes comments. Tests: Task 1 (`avatarViewUrls` falls back to `front`), Task 5 (a marker only on views with an image).
 3. **A shot whose picked take failed or has no image** → nothing is frozen for it; the client's tile reads "No panel" with no comment action. Tests: Task 1, Task 5.
 4. **The team's Visualise page before anything is shared** → spec 3's two panes, unchanged: no empty column and no Comments button. Tests: Task 7 (frame without a column), Task 8 (no Comments button without a version).
 5. **An approved script that never went through review (seeded)** → spec 1's read-only view, no error. Test: Task 9 (`loadApprovedVersion` is null without a review).
@@ -110,7 +110,7 @@ describe("avatarViewUrls (MP2)", () => {
     expect(avatarViewUrls(avatar)).toEqual({ front: "f", left: "l", right: null, back: "b" });
   });
 
-  it("falls back to the front image for an avatar made before D339 (Review Focus 2)", () => {
+  it("falls back to the front image for an avatar made before D340 (Review Focus 2)", () => {
     const avatar = makeAvatar({ sheetViews: null, front: image("front-only") });
     expect(avatarViewUrls(avatar)).toEqual({ front: "front-only", left: null, right: null, back: null });
   });
@@ -168,7 +168,7 @@ export async function getPickedPanels(scriptId: string): Promise<Record<string, 
   return panels;
 }
 
-/** MP2 — an avatar's four views (D339). An avatar from before D339 has only its front image, which
+/** MP2 — an avatar's four views (D340). An avatar from before D340 has only its front image, which
  *  then stands as the Front view. */
 export function avatarViewUrls(avatar: Avatar): Record<AvatarView, string | null> {
   const views = avatar.sheetViews;
@@ -192,7 +192,7 @@ import type { AvatarViewId } from "@/lib/avatars/schema";
 and replace the block from `/** Spec 3 §5.4 and spec 4 §5: every avatar has four views, and each takes comments. */` through the end of `isAvatarView` with:
 
 ```ts
-/** Spec 3 owns the four views (D339); spec 4 comments on each. Spec 3's list, under spec 4's names. */
+/** Spec 3 owns the four views (D340); spec 4 comments on each. Spec 3's list, under spec 4's names. */
 export { AVATAR_VIEWS };
 export type AvatarView = AvatarViewId;
 export const AVATAR_VIEW_LABEL: Record<AvatarView, string> = AVATAR_VIEW_LABELS;
@@ -1935,12 +1935,12 @@ git commit -m "feat(script-review): an approved script's page shows the approved
 
 ---
 
-### Task 10: Remove the old layer; record D357
+### Task 10: Remove the old layer; record D358
 
 **Files:**
 - Delete: `src/components/script-review/team/script-review-workspace.tsx`, `src/components/script-review/team/stage-actions.tsx`, `src/components/script-review/cast-review-slot.tsx`, `src/components/script-review/shot-review-slot.tsx`, `src/components/script-review/avatar-views.tsx`, `src/components/script-review/part-comments.tsx`, `src/components/script-review/__tests__/part-comments.test.tsx`
 - Modify: `src/components/scripts/__tests__/script-view.test.tsx` (keep the "context slot sits inside the card" test)
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (D357)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (D358)
 - Modify: `docs/superpowers/plans/2026-10-08-script-copilot-4-client-review.md` (merge table: MP1, MP2, MP4 resolved)
 
 - [ ] **Step 1: Move the one test worth keeping**
@@ -1965,12 +1965,12 @@ Run: `git rm src/components/script-review/team/script-review-workspace.tsx src/c
 Then: `grep -rnE "script-review-workspace|stage-actions|cast-review-slot|shot-review-slot|/avatar-views\"|part-comments" src`
 Expected: no matches.
 
-- [ ] **Step 3: Record D357**
+- [ ] **Step 3: Record D358**
 
 Append to `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`:
 
 ```markdown
-### D357 — Client review is the Visualise board, read-only, with a Comments column *(recorded 2026-10-08)*
+### D358 — Client review is the Visualise board, read-only, with a Comments column *(recorded 2026-10-08)*
 
 **Decision.** The client's review page draws the shared version in the Visualise board's frame (spec 3 §4) — the script in its compact form, the cast cards (four-view sheet and voice on a share with avatars) and, on a full share, the Storyboard — with every making control removed and a Comments column at the right. Threads live only in that column: each part (context, shot, person, view, panel) shows an amber count and a comment action that open its thread there; below `xl` the column opens over the page from a Comments button, straight at the part. The team's Visualise view carries the same markers and column, with spec 4's actions on its readiness line; after approval the team's page shows the approved version, read-only, the same way.
 
@@ -1978,7 +1978,7 @@ Append to `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`:
 
 **Rejected.** Spec 1's table with the panel beside each shot (the first build). Threads inline under each part. A third layout of the reel for review.
 
-**Refines →** D351, D355, D356. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §4, §6; decisions 4.14–4.17.
+**Refines →** D352, D356, D357. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §4, §6; decisions 4.14–4.17.
 ```
 
 - [ ] **Step 4: Close the merge points**
@@ -1994,7 +1994,7 @@ Expected: all pass (the Kling / upstream-images timeout flakes may appear when v
 
 ```bash
 git add -A src/components/script-review src/components/scripts/__tests__/script-view.test.tsx docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md docs/superpowers/plans/2026-10-08-script-copilot-4-client-review.md
-git commit -m "refactor(script-review): drop the first build's inline layer; D357 records the review board"
+git commit -m "refactor(script-review): drop the first build's inline layer; D358 records the review board"
 ```
 
 ---
@@ -2017,7 +2017,7 @@ git commit -m "refactor(script-review): drop the first build's inline layer; D35
 
 ## Self-review (done while writing)
 
-- **Spec coverage.** 4.14 (client page = Visualise board): Tasks 5, 6. 4.15 (threads in the column; markers): Tasks 3, 4, 6, 8. 4.16 (sheet below `xl`, straight at the part): Tasks 2, 4. 4.17 (approved version): Task 9. §6 team actions on the top line: Tasks 7, 8. Frozen four views and panels (§3 step 3, now real): Task 1. D357: Task 10.
+- **Spec coverage.** 4.14 (client page = Visualise board): Tasks 5, 6. 4.15 (threads in the column; markers): Tasks 3, 4, 6, 8. 4.16 (sheet below `xl`, straight at the part): Tasks 2, 4. 4.17 (approved version): Task 9. §6 team actions on the top line: Tasks 7, 8. Frozen four views and panels (§3 step 3, now real): Task 1. D358: Task 10.
 - **Placeholders.** None; every code step has its code.
 - **Type consistency.** `ReviewColumnState` (Task 2) is spread into `ReviewSurface` (Task 3) by every builder (Tasks 3, 6, 8, 9). `PartMarker` (Task 3) is the only marker; `VisualiseReview` (Task 7) is filled by `TeamReviewBoard` (Task 8). `getPickedPanels(scriptId)` (Task 1) is called by `collectVisuals` only.
 - **Review Focus.** Each line has its test in its owning task (Tasks 1, 4, 5, 7, 8, 9) or an in-app step (Task 11 Step 4).

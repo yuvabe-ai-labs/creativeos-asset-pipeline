@@ -6,7 +6,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
 // POST /api/clients/:id/scripts/:scriptId/mark-final — Generate → Visualise, spec 2's only stage
 // change (§10). "Available only when the fill-to-final list (§8) is empty", checked here against the
-// stored script, on the version checked, whatever the browser showed (D332).
+// stored script, on the version checked, whatever the browser showed (D333).
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
   return withClient(req, params, async (clientId) =>

@@ -11,7 +11,7 @@ describe("isVisualiseStage", () => {
   });
 });
 
-describe("archiveRefusal (D346)", () => {
+describe("archiveRefusal (D347)", () => {
   it("says nothing for an avatar no script uses", () => {
     expect(archiveRefusal([])).toBeNull();
   });

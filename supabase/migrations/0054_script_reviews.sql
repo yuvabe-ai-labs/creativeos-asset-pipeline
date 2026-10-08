@@ -1,5 +1,5 @@
 -- supabase/migrations/0054_script_reviews.sql
--- Script copilot spec 4 (D347–D356): client review of a script. One link per script, a frozen
+-- Script copilot spec 4 (D348–D357): client review of a script. One link per script, a frozen
 -- version per share, comments per part, and an append-only activity log. Kept apart from the
 -- script document: nothing here alters client_scripts.doc. The only writes to client_scripts are
 -- stage / approved_at / updated_at, inside the three functions below.

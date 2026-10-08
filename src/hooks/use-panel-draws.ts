@@ -13,7 +13,7 @@ import { visualiseKeys } from "@/hooks/queries/visualise";
 
 type DrawResult = { ok: true } | { ok: false; message: string; capped: boolean };
 
-// D345 — drawing panels from the browser: one shot, or Generate all as a bounded queue that
+// D346 — drawing panels from the browser: one shot, or Generate all as a bounded queue that
 // stops starting new draws at the credit cap. `drawing` lets a panel show its placeholder the
 // moment the click lands, before the server's running take is read back.
 /** `modelId` is the panel model chosen under Advanced; every draw sends it. */

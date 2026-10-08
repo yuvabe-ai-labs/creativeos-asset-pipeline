@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 
 describe("POST images/sign", () => {
-  it("will not sign a sheet upload (D339)", async () => {
+  it("will not sign a sheet upload (D340)", async () => {
     const { POST } = await import("./sign/route");
     const res = await POST(
       req("images/sign", { filename: "s.png", contentType: "image/png", size: 100, slot: "sheet" }),
@@ -154,7 +154,7 @@ describe("POST images (finalize)", () => {
     expect(removeObject).not.toHaveBeenCalled();
   });
 
-  it("refuses a sheet upload: sheets are four generated views (D339)", async () => {
+  it("refuses a sheet upload: sheets are four generated views (D340)", async () => {
     const { POST } = await import("./route");
     const res = await POST(req("images", { ...body, slot: "sheet", path: "clients/c1/avatars/a1/sheet/s.png" }), { params });
     expect(res.status).toBe(400);

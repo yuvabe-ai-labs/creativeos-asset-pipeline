@@ -5910,7 +5910,7 @@ elements on it. That followed from not having read the handoff design; phase 2 f
 design instead.
 **Originated →** `docs/superpowers/specs/2026-09-29-client-avatars-design.md` §2–5.
 
-### D288 — An avatar is a front image plus a three-view profile sheet generated from it *(recorded 2026-09-30; amended the same day; **sheet SUPERSEDED by D339** (four views))*
+### D288 — An avatar is a front image plus a three-view profile sheet generated from it *(recorded 2026-09-30; amended the same day; **sheet SUPERSEDED by D340** (four views))*
 
 **Decision.** `ready` requires a name, a front image and a current profile sheet. The sheet is one
 16:9 image showing three views of the person — front, side profile, back — generated from the
@@ -6766,7 +6766,7 @@ avatar edges into Image Gen and Video Gen; D290 — the composite inherits the f
 D308 — the avatar contributes front then sheet, and an over-cap request is refused, never sliced.
 **Originated →** `2026-10-01-composite-node-design.md` (rewritten 2026-10-06).
 
-### D320 — Script copilot: four specs; Produce folds into spec 1 *(recorded 2026-10-08)*
+### D321 — Script copilot: four specs; Produce folds into spec 1 *(recorded 2026-10-08)*
 
 **Decision.** In-platform script writing ships as four specs: 1 library, script and handoff; 2 Generate (the copilot); 3 Visualise; 4 Client review. Produce is part of spec 1.
 
@@ -6776,7 +6776,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** `2026-10-08-script-copilot-1-library-and-script-design.md` §0.
 
-### D321 — A script has a cast of client Avatars, exactly one of them the lead *(recorded 2026-10-08)*
+### D322 — A script has a cast of client Avatars, exactly one of them the lead *(recorded 2026-10-08)*
 
 **Decision.** A script holds one or more people; each shot names who is on screen, or nobody. Each person points to a client Avatar, made once and reused across scripts. Exactly one is the lead.
 
@@ -6786,7 +6786,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D287–D297 (client Avatars). **Originated →** spec 1 §2.3.
 
-### D322 — Only the lead's avatar crosses onto the canvas *(recorded 2026-10-08)*
+### D323 — Only the lead's avatar crosses onto the canvas *(recorded 2026-10-08)*
 
 **Decision.** When a script reaches a canvas, the lead's avatar is attached to the Script node. Supporting cast stay in the shot descriptions as words.
 
@@ -6796,7 +6796,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D298. **Originated →** spec 1 §5.5.
 
-### D323 — Approved scripts reach a canvas from a Scripts tab in the gallery, as a copy *(recorded 2026-10-08)*
+### D324 — Approved scripts reach a canvas from a Scripts tab in the gallery, as a copy *(recorded 2026-10-08)*
 
 **Decision.** The canvas gallery has a Scripts tab listing the client's approved scripts. Dragging one makes a Script node holding a copy of the printed script; it can be dragged in more than once; re-approving a script never changes nodes already on a canvas.
 
@@ -6806,7 +6806,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 1 §5.1, §5.4.
 
-### D324 — The handoff prints the team's outline layout, one row per shot; the parse is unchanged *(recorded 2026-10-08)*
+### D325 — The handoff prints the team's outline layout, one row per shot; the parse is unchanged *(recorded 2026-10-08)*
 
 **Decision.** An approved script is printed as the Jackfruit365 outlines are written (header line, Purpose, Character, Setting and camera, a Beat · Visual · VO · On-screen text table, disclaimers) with one table row per shot, and parsed by the existing Script node parse with no prompt change.
 
@@ -6816,7 +6816,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D19, D267, D286. **Originated →** spec 1 §5.3.
 
-### D325 — The script's shape follows the team's outlines; formats are the client's words *(recorded 2026-10-08)*
+### D326 — The script's shape follows the team's outlines; formats are the client's words *(recorded 2026-10-08)*
 
 **Decision.** Header fields from the outlines' header line, including production ("AI-generated"); the context card is Purpose, Setting and camera, disclaimers and watch-outs; beat labels are free text; setting changes and transitions are written into the visual. Formats and names are inferred from the client's scripts, not a product list. "Avatar" means the asset only; the founder format is "Founder-led".
 
@@ -6826,7 +6826,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 1 §2.
 
-### D326 — Three seeded scripts, one per format, loaded by a developer *(recorded 2026-10-08)*
+### D327 — Three seeded scripts, one per format, loaded by a developer *(recorded 2026-10-08)*
 
 **Decision.** Spec 1 ships three hand-split scripts as fixtures, one per format structure: Reel 01 (UGC, 14 shots), Reel 06 (Founder-led, 11 shots) and Reel 08 (UGC, review first, 9 shots), in `src/lib/scripts/fixtures/`, seeded with `scripts/seed-script.mjs`. There is no product button for them. Shots follow the carry rule: a beat's VO line and card sit on its first shot and carry across its split shots.
 
@@ -6836,7 +6836,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 1 §6.
 
-### D327 — The copilot's order is code; the model reads answers and fills each step *(recorded 2026-10-08)*
+### D328 — The copilot's order is code; the model reads answers and fills each step *(recorded 2026-10-08)*
 
 **Decision.** Generate's conversation is a state machine over the four pieces (format, occasion or theme with its date, lead for UGC only, narrative): code picks the next step (ask the next missing piece in fixed text, propose three angles, show the confirmation card, write), and each step is one structured model call whose output code validates. Skipped pieces are proposed; skipping all four still reaches angles, a picked angle and the card.
 
@@ -6846,7 +6846,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 2 §5; interaction model §3.0; answers 2.4, 2b.8.
 
-### D328 — The conversation, the brief and the reel's notes are kept with the script *(recorded 2026-10-08)*
+### D329 — The conversation, the brief and the reel's notes are kept with the script *(recorded 2026-10-08)*
 
 **Decision.** `client_script_messages` holds the conversation; `client_scripts.brief` the copilot's working brief; `client_scripts.notes` the reel's notes (the confirmed brief as text plus the items to confirm). Each model call gets the current brief or script and notes plus only the copilot's last message, never the transcript.
 
@@ -6856,7 +6856,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 2 §3, §4.2; answers 2.1, 2.3, 2b.7.
 
-### D329 — A new script is a row at Generate with no document until its first draft *(recorded 2026-10-08)*
+### D330 — A new script is a row at Generate with no document until its first draft *(recorded 2026-10-08)*
 
 **Decision.** `client_scripts.doc` is nullable, with a check that it is set at every stage after Generate (migration 0052). Spec 1's readers skip a script with no document; the library lists it as "New script · Not written yet".
 
@@ -6866,7 +6866,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 2 §3.
 
-### D330 — Code assigns every id; an edited shot keeps its id; a split's first half keeps the original *(recorded 2026-10-08)*
+### D331 — Code assigns every id; an edited shot keeps its id; a split's first half keeps the original *(recorded 2026-10-08)*
 
 **Decision.** The first draft numbers shots `s01`, `s02`, …; cast ids come from names. After that an edited shot keeps its id, a split's first half keeps the original id, and a split's second half and every new shot get a fresh random id never used in the script. The model never writes an id.
 
@@ -6876,7 +6876,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** script copilot handoff §2a (from spec 3's plan); spec 4 Q11.
 
-### D331 — AI edits are typed operations applied by code, all or nothing *(recorded 2026-10-08)*
+### D332 — AI edits are typed operations applied by code, all or nothing *(recorded 2026-10-08)*
 
 **Decision.** A chat edit returns a list of operations (set a field; rewrite, insert, remove, split or move a shot; cast changes; confirm an item), applied by a pure function to the script as it is when the turn finishes; one failing operation applies none. An edit touching more than one shot is a before-and-after to accept or reject; otherwise it applies at once. An inline edit returns only the replacement for the selected text, spliced in by code, with the field's old text as its undo.
 
@@ -6886,7 +6886,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 2 §9; answer 2.6; success item 6.
 
-### D332 — Fill to final is a plain check; Mark final re-checks it on the server *(recorded 2026-10-08)*
+### D333 — Fill to final is a plain check; Mark final re-checks it on the server *(recorded 2026-10-08)*
 
 **Decision.** The open items are computed from the script and its notes: each field of the outlines' header line (not the theme, which the header line lacks), Purpose, Setting and camera, disclaimers, at least one watch-out, every person described, every shot's beat and visual, every beat's first shot with a VO line and a card, any square-bracket placeholder, and every unconfirmed item. Mark final moves Generate → Visualise only when the list is empty, on the version it checked.
 
@@ -6896,7 +6896,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 2 §8, §10; answer 2.7.
 
-### D333 — The house rules are the KB read whole; formats come from the client's scripts *(recorded 2026-10-08)*
+### D334 — The house rules are the KB read whole; formats come from the client's scripts *(recorded 2026-10-08)*
 
 **Decision.** The copilot's system message holds every KB slice plus the KB's free-text consistency notes read whole (where the house spec is pasted for the demo), the formats seen in the client's scripts with their beats, up to two example scripts of the same format printed in the team's layout, and the client's saved avatars.
 
@@ -6906,7 +6906,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** spec 3's KB reader (replaced at merge). **Originated →** spec 2 §4; answers 2b.4, 2c.1, 2c.2.
 
-### D334 — Market Research reads every signal on every angle proposal, as data *(recorded 2026-10-08)*
+### D335 — Market Research reads every signal on every angle proposal, as data *(recorded 2026-10-08)*
 
 **Decision.** Whenever angles are proposed, code loads all the client's market signals and gives them to the model in the user message under a heading that calls them data, for where and when only. Each angle names the signals it used; the card shows them, keeping only real signal ids.
 
@@ -6916,7 +6916,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D255. **Originated →** spec 2 §6; answer 2.5.
 
-### D335 — The writing model is gemini-3.1-pro-preview, chosen by the Reel 04 probe *(recorded 2026-10-08)*
+### D336 — The writing model is gemini-3.1-pro-preview, chosen by the Reel 04 probe *(recorded 2026-10-08)*
 
 **Decision.** Every copilot call (reading answers, angles, card, draft, chat and inline edits) uses gemini-3.1-pro-preview, chosen by the user from a probe that wrote Reel 04 and a Founder-led reel (with no Founder-led example) with gpt-5.4-mini, gemini-3.1-pro-preview and gemini-3.8-flash, scored on shape, structure, review placeholder, locked lines, never-list, edit isolation and the parse round trip. Calls go through one structured-output function over the OpenAI and Gemini SDKs already in the repo.
 
@@ -6928,7 +6928,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refined (8 Oct 2026, user's call after timing turns).** The short steps that write no script text (reading the person's message, proposing angles, the confirmation card) run on gpt-5.4-mini (`SCRIPT_QUICK_MODEL`): 2.7 s, 5.8 s and 3.4 s against 10.6 s, 19.5 s and 17.7 s on gemini-3.1-pro-preview. The draft, chat edits and inline edits stay on gemini-3.1-pro-preview, where the probe showed the house rules hold.
 
-### D336 — Turns are request and response, writes compare-and-set, and copilot calls are not charged *(recorded 2026-10-08)*
+### D337 — Turns are request and response, writes compare-and-set, and copilot calls are not charged *(recorded 2026-10-08)*
 
 **Decision.** A turn is one request that returns the whole workspace state (no streaming; the chat shows a working line). Every write to the script, brief or notes is a compare-and-set on `doc_version`; on a conflict the change is re-applied to the newer script. Copilot text calls reserve no credits.
 
@@ -6940,7 +6940,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refined (9 Oct 2026, user's call).** The first draft now streams: the turn route answers as newline-delimited JSON, sending draft previews (header, cast, each finished shot) while Gemini writes, then the whole state. The right pane draws the previews read-only, then the saved script replaces them. Everything else stays request and response.
 
-### D337 — Visualise keeps its own records beside the script; the script holds only the cast's avatar links *(recorded 2026-10-08)*
+### D338 — Visualise keeps its own records beside the script; the script holds only the cast's avatar links *(recorded 2026-10-08)*
 
 **Decision.** Storyboard panels live in `script_panel_takes` (every drawing) and `script_panel_picks` (one picked take per shot), keyed by script and shot id. A panel's generation is owned by its script (`generations.script_id`, a third owner beside node and avatar). The only write Visualise makes into `client_scripts.doc` is a cast member's `avatarId`, applied to the document as stored so keys this code does not know survive.
 
@@ -6950,7 +6950,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** `2026-10-08-script-copilot-3-visualise-design.md` §9.
 
-### D338 — The inline avatar maker makes one face, then its four views, and saves it to Avatars *(recorded 2026-10-08)*
+### D339 — The inline avatar maker makes one face, then its four views, and saves it to Avatars *(recorded 2026-10-08)*
 
 **Decision.** Each cast slot is a full avatar maker using the Studio's own routes: AI-generated makes one front from the person's description plus the avatar instructions (Seedream, the Studio's default face model), then the four views, then marks the avatar ready; Specific person uploads a photo, takes the existing likeness consent, then the four views. Regenerate avatar always makes a new face; a failed step resumes without one. A face keeps its kind: switching between AI-generated and Specific makes a new avatar rather than overwriting the linked one.
 
@@ -6960,7 +6960,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §5.2, §14 (3.1).
 
-### D339 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
+### D340 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
 
 **Decision.** The sheet is four separate 3:4 images made from the front image (`client_avatars.sheet_views`), each prompt stating which edge of the frame the person faces. Once all four exist they are also composed side by side into `sheet`, so everything that sends the sheet (D308) is unchanged. A view that fails is refunded and named; the others are kept and the missing one can be made alone. Sheets are no longer uploaded: the Studio's sheet upload is removed and the image routes take only the front. Avatars made before keep their three-view or uploaded `sheet` until their four views are generated. A Specific person's face photo is still an upload.
 
@@ -6970,7 +6970,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §5.4, §14 (3.3).
 
-### D340 — A person on screen can be drawn once their avatar is saved with its four views *(recorded 2026-10-08)*
+### D341 — A person on screen can be drawn once their avatar is saved with its four views *(recorded 2026-10-08)*
 
 **Decision.** A shot's panel can be drawn when every cast member on screen links to a live, saved avatar with a current four-view sheet; B-roll can be drawn at any time. The readiness line counts such cast members and the shots whose picked take is current.
 
@@ -6980,7 +6980,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §5.3, §7.
 
-### D341 — What a panel is drawn from *(recorded 2026-10-08)*
+### D342 — What a panel is drawn from *(recorded 2026-10-08)*
 
 **Decision.** One prompt, built by a pure function shared by browser and server: the marker-and-wash style; the shot's visual; the setting and camera; the regional kit; each on-screen person in words with their four views as references (every person's Front first, other views dropped first over the model's cap, references numbered in the prompt); card and pack areas drawn blank; never any text, brand or labelled pack. The shot's VO and on-screen text are never in the prompt.
 
@@ -6990,7 +6990,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §6.1–§6.3; parent §11.1.
 
-### D342 — Regional kits are read from the brand KB's text and matched per shot *(recorded 2026-10-08)*
+### D343 — Regional kits are read from the brand KB's text and matched per shot *(recorded 2026-10-08)*
 
 **Decision.** Until the KB has fields for them, the kits are parsed from the "Regional kits" table wherever the house rules were pasted into the active KB, and matched to each shot by region, place and language names (the shot and its people first, then the whole script). With no table, panels are drawn without a kit and the readiness line says so.
 
@@ -7000,7 +7000,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §6.2; spec 2 §4.1.
 
-### D343 — Panels keep takes; out of date is decided by fingerprints and never redraws on its own *(recorded 2026-10-08)*
+### D344 — Panels keep takes; out of date is decided by fingerprints and never redraws on its own *(recorded 2026-10-08)*
 
 **Decision.** Every draw is a take, recorded before the model call with a fingerprint of the shot's drawn text and each on-screen person's avatar and face. A new take becomes the pick; the operator can pick an earlier one; the client sees only the pick. A pick whose fingerprints differ from today's is Out of date and stays visible until redrawn. Reopen's effects follow from stable shot ids: an edited shot and a split's first half go out of date, a split's second half and a new shot start empty, a removed shot's takes are not shown.
 
@@ -7010,7 +7010,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §6.4, §6.6, §8.1.
 
-### D344 — The prompt box shows the exact prompt; an edit carries until the shot changes *(recorded 2026-10-08)*
+### D345 — The prompt box shows the exact prompt; an edit carries until the shot changes *(recorded 2026-10-08)*
 
 **Decision.** Each panel has a hidden prompt box showing the prompt its picked take was drawn with. Edit and regenerate sends it as written; reset regenerates from the prompt built from the script. A plain redraw keeps a hand-edited prompt while the shot's text is unchanged and starts fresh once it changed.
 
@@ -7020,7 +7020,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §6.7, §8.1.
 
-### D345 — Nano Banana 2 draws every panel; Generate all shows its total and runs three at a time *(recorded 2026-10-08)*
+### D346 — Nano Banana 2 draws every panel; Generate all shows its total and runs three at a time *(recorded 2026-10-08)*
 
 **Decision.** Panels use `gemini:gemini-3.1-flash-image`, no picker, billed through the same reserve-and-settle run as the Avatar Studio (`runBilledImageGeneration`). Generate all draws every shot without a current panel that can be drawn, after a dialog naming the count and total; the browser runs the per-shot draw three at a time and stops starting new ones at the credit cap.
 
@@ -7030,7 +7030,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §6.1, §6.5.
 
-### D346 — Reopen is Visualise's only stage move; an avatar a script uses cannot be archived *(recorded 2026-10-08)*
+### D347 — Reopen is Visualise's only stage move; an avatar a script uses cannot be archived *(recorded 2026-10-08)*
 
 **Decision.** Reopen moves a script from Visualise to Generate, conditioned on its stage; avatars and panels are kept. Visualise work is allowed at Visualise and In review. The Avatars library's archive (and Discard draft) refuses while any live script's cast uses the avatar, naming the scripts.
 
@@ -7039,7 +7039,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Clearing or keeping a link to an archived avatar (Q12 a, b).
 
 **Originated →** spec 3 §8.1, §8.2.
-### D347 — Client review of a script: one link, a frozen version per share *(recorded 2026-10-08)*
+### D348 — Client review of a script: one link, a frozen version per share *(recorded 2026-10-08)*
 
 **Decision.** Each share of a script records a version — the script text, plus the avatar images and the picked panel take per shot when the share includes them — on one link per script that never changes. The link shows the latest version, frozen; the team keeps editing between shares. The client cannot open an earlier version; the activity names what changed, each change linking to its part.
 
@@ -7049,7 +7049,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D309. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §3, §7; questions 4.1, 4.2.
 
-### D348 — The team moves a script into and out of In review by hand *(recorded 2026-10-08)*
+### D349 — The team moves a script into and out of In review by hand *(recorded 2026-10-08)*
 
 **Decision.** Visualise → In review, In review → Visualise, and (after an approval) Approved → Visualise ("Reopen to Visualise") are team actions. Share appears only In review. Client comments never change the stage; editing stays allowed In review. Every move is a compare-and-set on the stage with its activity line, in one transaction (`script_review_move`).
 
@@ -7059,7 +7059,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §3; question 4.3.
 
-### D349 — Three share scopes; Approve only on a full share *(recorded 2026-10-08)*
+### D350 — Three share scopes; Approve only on a full share *(recorded 2026-10-08)*
 
 **Decision.** A share is the script only, the script and avatars, or the script, avatars and panels, and only from In review, so always after Mark final. Approve appears only on the full share; a partial share tells the client what it holds and what comes next. Panels reach spec 4 through one interface from spec 3 (the picked take per shot id); a full share carries whatever panels exist.
 
@@ -7069,7 +7069,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §3, §8; question 4.4.
 
-### D350 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
+### D351 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
 
 **Decision.** Four tables (`script_reviews`, `script_review_versions`, `script_review_comments`, `script_review_events`; migration 0054) hold the review. Spec 4 never writes `client_scripts.doc`; it changes only `stage` / `approved_at`, inside three plpgsql functions that lock the script row so a share, an approval and a stage move never interleave. The activity is derived from append-only rows.
 
@@ -7079,7 +7079,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §9.
 
-### D351 — Comments are on whole parts and belong to their version *(recorded 2026-10-08)*
+### D352 — Comments are on whole parts and belong to their version *(recorded 2026-10-08)*
 
 **Decision.** A comment is on the context card, a shot, a cast member's avatar, one of its views (Front, Left, Right, Back), or a panel, and only on parts the version on screen shows. No pins, no painting. A comment keeps the version it was made on; when a later version drops its shot, it is shown under "On a removed shot" with the shot's last text. A split's first half keeps the shot's id, and so its comments.
 
@@ -7089,7 +7089,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D244, D309. **Originated →** spec 4 §5; questions 4.11, 4.12.
 
-### D352 — The team replies and resolves; comments are edited, never deleted *(recorded 2026-10-08)*
+### D353 — The team replies and resolves; comments are edited, never deleted *(recorded 2026-10-08)*
 
 **Decision.** The team replies under a client's comment and marks the thread Resolved (and can reopen it); the client sees both. Anyone with the link edits any client comment's text, shown as "edited by"; team replies are not editable from the link. Nothing is deleted.
 
@@ -7101,7 +7101,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §5; question 4.10.
 
-### D353 — Approval: anyone with the link, under a typed name, of the version on screen *(recorded 2026-10-08)*
+### D354 — Approval: anyone with the link, under a typed name, of the version on screen *(recorded 2026-10-08)*
 
 **Decision.** Approve reel records the typed name and the time and moves the script to Approved, the only way a script reaches the canvas gallery's Scripts tab. The request carries the version number on the client's screen; if a newer version was shared, it is refused. With open threads, a confirm names them first. A second tap answers success and records nothing more.
 
@@ -7113,7 +7113,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §8; questions 4.5, 4.13.
 
-### D354 — No withdrawal; reopen and share again; the approved link is a record *(recorded 2026-10-08)*
+### D355 — No withdrawal; reopen and share again; the approved link is a record *(recorded 2026-10-08)*
 
 **Decision.** The client cannot withdraw an approval. The team reopens an approved script to Visualise and shares again on the same link for a new approval (Approved › Reopened › Approved). While the version on screen is approved, the link is a read-only record for the client: no client comments or edits. The team can still reply and resolve (user, 8 Oct).
 
@@ -7123,7 +7123,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §8; questions 4.6, 4.7.
 
-### D355 — Script links reuse the video review link: /r/s/<title>-<code>, no password yet *(recorded 2026-10-08)*
+### D356 — Script links reuse the video review link: /r/s/<title>-<code>, no password yet *(recorded 2026-10-08)*
 
 **Decision.** A script's link is `/r/s/<title-slug>-<code>`, the code D311's (the first 4 hex characters of the script id, longer on a clash), under the public prefixes `src/proxy.ts` already exempts. Every public script route goes through `withScriptShareToken` in `route-helpers.ts`, the second named token resolver beside `withShareToken`. The client's typed name is the same stored entry as on a video review. No password or accounts yet; the password comes with the video links' (one scheme for both).
 
@@ -7135,7 +7135,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D309, D311. **Originated →** spec 4 §4, §10; question 4.8.
 
-### D356 — An in-app count of client comments and approvals *(recorded 2026-10-08)*
+### D357 — An in-app count of client comments and approvals *(recorded 2026-10-08)*
 
 **Decision.** The library card and the script's review panel show "Client feedback n": client comments plus approvals, a total with no seen-state, in D310's amber. No email or push. On both review pages each commented part carries the same amber: a count chip beside it and a faint amber edge on its card, so a client scanning fourteen shots sees where the notes are; an avatar view's comment action is an icon button under the image (user, 8 Oct, from the design canvas).
 
@@ -7145,7 +7145,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D310. **Originated →** spec 4 §6; question 4.9.
 
-### D357 — Client review is the Visualise board, read-only, with a Comments column *(recorded 2026-10-08)*
+### D358 — Client review is the Visualise board, read-only, with a Comments column *(recorded 2026-10-08)*
 
 **Decision.** The client's review page draws the shared version in the Visualise board's frame (spec 3 §4) — the script in its compact form, the cast cards (four-view sheet and voice on a share with avatars) and, on a full share, the Storyboard — with every making control removed and a Comments column at the right. Threads live only in that column: each part (context, shot, person, view, panel) shows an amber count and a comment action that open its thread there; below `xl` the column opens over the page from a Comments button, straight at the part. The team's Visualise view carries the same markers and column, with spec 4's actions on its readiness line; after approval the team's page shows the approved version, read-only, the same way.
 
@@ -7153,4 +7153,4 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Rejected.** Spec 1's table with the panel beside each shot (the first build). Threads inline under each part. A third layout of the reel for review.
 
-**Refines →** D351, D355, D356. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §4, §6; decisions 4.14–4.17.
+**Refines →** D352, D356, D357. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §4, §6; decisions 4.14–4.17.

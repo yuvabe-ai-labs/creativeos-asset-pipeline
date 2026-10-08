@@ -37,7 +37,7 @@ describe("avatarViewUrls (MP2)", () => {
     expect(avatarViewUrls(avatar)).toEqual({ front: "f", left: "l", right: null, back: "b" });
   });
 
-  it("falls back to the front image for an avatar made before D339 (Review Focus 2)", () => {
+  it("falls back to the front image for an avatar made before D340 (Review Focus 2)", () => {
     const avatar = makeAvatar({ sheetViews: null, front: image("front-only") });
     expect(avatarViewUrls(avatar)).toEqual({ front: "front-only", left: null, right: null, back: null });
   });

@@ -1,4 +1,4 @@
-// D339 — where each view sits in the composed sheet strip. Pure, so it is tested without sharp.
+// D340 — where each view sits in the composed sheet strip. Pure, so it is tested without sharp.
 
 export type StripLayout = { widths: number[]; lefts: number[]; width: number; height: number };
 

@@ -17,8 +17,8 @@ type Props = {
 
 const NOTICE = "rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-sm";
 
-// The Profile sheet step (D288, optional since D295, four views since D339): made from the front
-// image, view by view. Sheets are no longer uploaded (D339). An avatar that still has an older
+// The Profile sheet step (D288, optional since D295, four views since D340): made from the front
+// image, view by view. Sheets are no longer uploaded (D340). An avatar that still has an older
 // single-image sheet, three-view or uploaded, can open it until its four views replace it.
 export function AvatarStudioSheetStep({ studio: s, generation: g }: Props) {
   const [showOlder, setShowOlder] = useState(false);

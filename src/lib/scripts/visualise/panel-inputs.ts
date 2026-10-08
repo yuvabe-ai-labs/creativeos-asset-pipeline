@@ -10,10 +10,10 @@ import { pickKit, type RegionalKit } from "./kits";
 import { buildPanelPrompt, type PanelPerson, type PanelReference } from "./panel-prompt";
 import type { PanelFaces } from "./schema";
 
-// D340, D341 — everything one panel is drawn from, in one pure function. The browser runs it to
+// D341, D342 — everything one panel is drawn from, in one pure function. The browser runs it to
 // show state, prompt and cost; the draw route runs the same function to draw.
 
-/** D340 — a cast member can be drawn once their avatar is saved, live and has its four views. */
+/** D341 — a cast member can be drawn once their avatar is saved, live and has its four views. */
 export function castReadyForPanels(avatar: Avatar | null | undefined): avatar is Avatar {
   return Boolean(avatar && !avatar.archivedAt && avatar.status === "ready" && hasFourViews(avatar));
 }
@@ -81,7 +81,7 @@ export function panelInputs(input: {
   };
 }
 
-/** D345 — a panel bills like any image: the same estimate the draw reserves. `referenceCount`
+/** D346 — a panel bills like any image: the same estimate the draw reserves. `referenceCount`
  *  is the people's views; the house style image the draw adds is counted here too. */
 export function estimatePanelCredits(referenceCount: number, aspect: string, modelId: string = PANEL_MODEL_ID): number | null {
   return estimateAvatarImageCredits({ modelId, aspect, referenceCount: referenceCount + 1 });

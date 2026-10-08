@@ -4,7 +4,7 @@ import type { Angle, Brief, ConfirmationCard, CopilotAvatar, OpenItem, Piece, Sc
 
 // Spec 2 §5 / interaction model §3.0 — the four pieces, asked in a fixed order, skipping anything
 // already given; any or all can be skipped and the copilot proposes them. The code decides the next
-// step; the model only reads the person's answer and fills what the step needs (D327).
+// step; the model only reads the person's answer and fills what the step needs (D328).
 
 export function isFounderLed(format: string): boolean {
   return /founder/i.test(format);

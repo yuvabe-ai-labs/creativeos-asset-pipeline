@@ -86,7 +86,7 @@ describe("panelView (spec §6.4)", () => {
   });
 });
 
-describe("out of date (D343, spec §3.6)", () => {
+describe("out of date (D344, spec §3.6)", () => {
   it("refining Meenakshi's avatar marks exactly her nine panels, and Generate all redraws only those", () => {
     const doc = linkedDoc();
     const before = avatarMap(meenakshi, husband);
@@ -142,7 +142,7 @@ describe("out of date (D343, spec §3.6)", () => {
   });
 });
 
-describe("promptForDraw (D344)", () => {
+describe("promptForDraw (D345)", () => {
   const i = { prompt: "built", shotKey: "k" };
 
   it("uses the edited prompt, or resets to the built one", () => {

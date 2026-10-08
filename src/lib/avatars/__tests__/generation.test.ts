@@ -33,7 +33,7 @@ describe("buildAvatarFrontPrompt", () => {
   });
 });
 
-describe("buildAvatarViewPrompt (D339)", () => {
+describe("buildAvatarViewPrompt (D340)", () => {
   it("states which edge of the frame each profile faces, so the two never face the same way", () => {
     expect(buildAvatarViewPrompt("left")).toContain("nose points to the LEFT edge");
     expect(buildAvatarViewPrompt("right")).toContain("nose points to the RIGHT edge");

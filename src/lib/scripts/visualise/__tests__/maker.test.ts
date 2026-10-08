@@ -25,7 +25,7 @@ function deps(calls: string[]): MakerDeps {
   };
 }
 
-describe("makeGeneratedAvatar (D338)", () => {
+describe("makeGeneratedAvatar (D339)", () => {
   it("makes and links a new avatar, then the face, the four views, and saves it to Avatars", async () => {
     const calls: string[] = [];
     const avatar = await makeGeneratedAvatar(deps(calls), { member: meenakshi, avatar: null, instructions: "", fresh: false });

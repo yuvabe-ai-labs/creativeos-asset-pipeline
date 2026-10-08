@@ -11,7 +11,7 @@ const GAP = 24;
 const BACKGROUND = { r: 238, g: 238, b: 238, alpha: 1 };
 
 /**
- * D339 — the four views side by side as one image, stored as the avatar's `sheet`. Everything
+ * D340 — the four views side by side as one image, stored as the avatar's `sheet`. Everything
  * that already sends the sheet as one reference (D308: video, Composite, mentions) keeps
  * working, now with four views in it. The views themselves stay untouched; this strip is a
  * derived image, so its source says `untouched: false`.

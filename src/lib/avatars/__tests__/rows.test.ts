@@ -87,7 +87,7 @@ describe("generationToCandidate", () => {
   });
 });
 
-describe("sheet views (D339)", () => {
+describe("sheet views (D340)", () => {
   it("maps sheet_views both ways", () => {
     const views = makeViews();
     expect(rowToAvatar({ ...row, sheet_views: views }).sheetViews).toEqual(views);

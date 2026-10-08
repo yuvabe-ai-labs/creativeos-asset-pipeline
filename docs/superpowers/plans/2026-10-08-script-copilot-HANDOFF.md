@@ -31,9 +31,9 @@ of `.env` / `.env.local`.
 
 | Worktree folder | Branch | Spec | Plan file (in that worktree) | Migration | ADRs |
 |---|---|---|---|---|---|
-| `.claude/worktrees/sc-generate` | `worktree-sc-generate` | 2 · Generate | `docs/superpowers/plans/2026-10-08-script-copilot-2-generate.md` | `0052` | D327–D336 |
-| `.claude/worktrees/sc-visualise` | `worktree-sc-visualise` | 3 · Visualise | `docs/superpowers/plans/2026-10-08-script-copilot-3-visualise.md` | `0053` | D337–D346 |
-| `.claude/worktrees/sc-review` | `worktree-sc-review` | 4 · Client review | `docs/superpowers/plans/2026-10-08-script-copilot-4-client-review.md` | `0054` | D347–D356 |
+| `.claude/worktrees/sc-generate` | `worktree-sc-generate` | 2 · Generate | `docs/superpowers/plans/2026-10-08-script-copilot-2-generate.md` | `0052` | D328–D337 |
+| `.claude/worktrees/sc-visualise` | `worktree-sc-visualise` | 3 · Visualise | `docs/superpowers/plans/2026-10-08-script-copilot-3-visualise.md` | `0053` | D338–D347 |
+| `.claude/worktrees/sc-review` | `worktree-sc-review` | 4 · Client review | `docs/superpowers/plans/2026-10-08-script-copilot-4-client-review.md` | `0054` | D348–D357 |
 
 **Were the plans finished?** Background agents in the old session were writing them. In each
 worktree run `git log --oneline -3`: a commit adding the plan file means it is done. If there is
@@ -116,7 +116,7 @@ first. This worktree is .claude/worktrees/sc-generate, branch worktree-sc-genera
 (Generate, the copilot).
 1. If docs/superpowers/plans/2026-10-08-script-copilot-2-generate.md is not committed here, write
    it with superpowers:writing-plans from docs/superpowers/specs/2026-10-08-script-copilot-2-generate-design.md
-   and its two companions, following the handoff §3 (migration 0052, ADRs D327–D336; the writing
+   and its two companions, following the handoff §3 (migration 0052, ADRs D328–D337; the writing
    model is chosen by a probe on Reel 04 as an early task).
 2. Summarise the plan for me and wait for my review.
 3. After I approve, execute it with superpowers:subagent-driven-development, then the

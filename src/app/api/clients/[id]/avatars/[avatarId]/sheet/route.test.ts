@@ -58,7 +58,7 @@ beforeEach(() => {
   vi.mocked(sumAvatarCredits).mockResolvedValue(40);
 });
 
-describe("POST sheet — four views (D339)", () => {
+describe("POST sheet — four views (D340)", () => {
   it("makes all four views from the front, each 3:4 with its direction stated, and composes the strip", async () => {
     const front = makeAvatar().front!;
     const { POST } = await import("./route");

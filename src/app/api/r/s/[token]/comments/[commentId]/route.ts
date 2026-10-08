@@ -5,7 +5,7 @@ import { isUuid } from "@/lib/avatars/utils";
 import { parseCommentEdit } from "@/lib/client-review/validate";
 import { APPROVED_RECORD_ERROR } from "@/lib/script-review/constants";
 
-// PATCH /api/r/s/:token/comments/:commentId — public (D355). Anyone with the link edits any client
+// PATCH /api/r/s/:token/comments/:commentId — public (D356). Anyone with the link edits any client
 // comment's TEXT (D309's rule, spec 4 §5); the part, the version and the author never change, and
 // a team reply is not editable from the link.
 export async function PATCH(

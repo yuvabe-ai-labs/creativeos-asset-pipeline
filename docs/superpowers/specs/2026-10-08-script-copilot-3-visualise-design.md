@@ -4,7 +4,7 @@
 to the answers in [the questions file](2026-10-08-script-copilot-open-questions.md)**
 Branch: `worktree-script-copilot`. Parent spec: [2026-10-07-script-copilot-design.md](2026-10-07-script-copilot-design.md).
 Builds on: [spec 1](2026-10-08-script-copilot-1-library-and-script-design.md) (the script, the cast, the script view) and [spec 2](2026-10-08-script-copilot-2-generate-design.md) (a script arrives complete and client-ready).
-ADRs: D337–D346 (recorded 8 Oct with the plan).
+ADRs: D338–D347 (recorded 8 Oct with the plan).
 Explainer, with every decision that crosses specs: https://claude.ai/artifact/RLbXdnfrXHf6dYTbm7uN4k#decisions ·
 Screen mockups: https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM — the Visualise board
 (`#artboard-c1426575309f`) is the reference for the page's layout (§4, decided 8 Oct) and the cast

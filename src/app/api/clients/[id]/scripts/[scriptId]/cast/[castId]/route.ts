@@ -11,7 +11,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string; castId: string }> }
 
 const Body = z.object({ avatarId: z.uuid().nullable() });
 
-// PUT /api/clients/:id/scripts/:scriptId/cast/:castId — D337: the one write Visualise makes into
+// PUT /api/clients/:id/scripts/:scriptId/cast/:castId — D338: the one write Visualise makes into
 // a script, a cast member's avatar link. The avatar must be this client's and not archived;
 // drafts are allowed, because the inline maker links its draft as soon as it exists.
 export async function PUT(req: Request, { params }: Ctx) {
@@ -35,7 +35,7 @@ export async function PUT(req: Request, { params }: Ctx) {
 // PATCH /api/clients/:id/scripts/:scriptId/cast/:castId { avatarId } — spec 2 (Generate): "The person
 // can always change the link: swap to another Avatar, or unlink to words only so spec 3 makes a new
 // one" (spec 2 §4.4). Only at Generate, only a saved (ready) avatar of this client; the description is
-// left as written. Visualise's own link is PUT above (D337).
+// left as written. Visualise's own link is PUT above (D338).
 export async function PATCH(req: Request, { params }: Ctx) {
   const { scriptId, castId } = await params;
   return withClient(req, params, async (clientId) =>

@@ -2,7 +2,7 @@
 import { apiError, apiOk, withQuietErrors, withScriptShareToken } from "@/lib/api/route-helpers";
 import { buildPublicScriptReview } from "@/lib/script-review/load";
 
-// GET /api/r/s/:token — public (D355). Refreshes the page after the client's own post, edit or
+// GET /api/r/s/:token — public (D356). Refreshes the page after the client's own post, edit or
 // approval; the first load is server-rendered by src/app/r/s/[token]/page.tsx.
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   return withQuietErrors("Could not load the review.", () =>

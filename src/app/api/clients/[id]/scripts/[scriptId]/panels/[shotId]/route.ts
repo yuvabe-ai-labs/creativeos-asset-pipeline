@@ -26,7 +26,7 @@ const KindSchema = z.discriminatedUnion("kind", [
 // The model chosen under Advanced, if any: only the ones offered for panels.
 const DrawSchema = KindSchema.and(z.object({ modelId: z.string().refine(isPanelModel).optional() }));
 
-// POST /api/clients/:id/scripts/:scriptId/panels/:shotId — D341–D345: draw one shot's panel.
+// POST /api/clients/:id/scripts/:scriptId/panels/:shotId — D342–D346: draw one shot's panel.
 // The take is stored "running" with what it is drawn from (prompt, shot fingerprint, faces)
 // BEFORE the model is called, so an avatar refined mid-draw shows the result out of date at
 // once. A drawn take becomes the pick; the operator can pick an earlier one back.

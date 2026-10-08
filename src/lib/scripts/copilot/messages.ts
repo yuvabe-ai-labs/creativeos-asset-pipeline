@@ -2,7 +2,7 @@ import { scriptCopilotPrompt } from "@/prompts/script-copilot";
 import type { ScriptDoc } from "../schema";
 import type { Angle, Brief, ConfirmationCard, OpenItem, ScriptNotes } from "./schema";
 
-// Builds each copilot call's two messages (D333, D334). System: the rules, the task, the client's
+// Builds each copilot call's two messages (D334, D335). System: the rules, the task, the client's
 // standing context. User: what changes per turn. Market signals go in the user message only.
 
 export type CopilotBase = { clientName: string; kbText: string; library: string; avatars: string };

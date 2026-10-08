@@ -19,7 +19,7 @@ const avatars = avatarMap(readyAvatar(MEENAKSHI_AVATAR, "meenakshi"), readyAvata
 const inputs = (id: string, cap = panelReferenceCap(), map = avatars, d = doc) =>
   panelInputs({ doc: d, shot: d.shots.find((s) => s.id === id)!, avatars: map, kits: KITS, cap });
 
-describe("castReadyForPanels (D340)", () => {
+describe("castReadyForPanels (D341)", () => {
   it("needs a saved, live avatar with a current four-view sheet", () => {
     expect(castReadyForPanels(readyAvatar(MEENAKSHI_AVATAR, "m"))).toBe(true);
     expect(castReadyForPanels(readyAvatar(MEENAKSHI_AVATAR, "m", { status: "draft" }))).toBe(false);
@@ -30,7 +30,7 @@ describe("castReadyForPanels (D340)", () => {
   });
 });
 
-describe("panelInputs on Reel 01 (D341)", () => {
+describe("panelInputs on Reel 01 (D342)", () => {
   it("sends both people's four views for a two-person shot, fronts first, and numbers them in the prompt", () => {
     const s06 = inputs("s06");
     expect(s06.references.map((r) => `${r.castId}:${r.view}`)).toEqual([

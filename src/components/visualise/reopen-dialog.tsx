@@ -8,7 +8,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// D346 — Reopen sends the script back to Generate, where its text is edited (spec 2).
+// D347 — Reopen sends the script back to Generate, where its text is edited (spec 2).
 export function ReopenDialog({ busy, onConfirm }: { busy: boolean; onConfirm: () => void }) {
   const [open, setOpen] = useState(false);
   return (

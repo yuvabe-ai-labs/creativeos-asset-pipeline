@@ -1,7 +1,7 @@
 import type { Avatar } from "@/lib/avatars/schema";
 import type { RegionalKit } from "./kits";
 
-// Spec 3 — Visualise's own records, kept beside the script (D337). Pure types.
+// Spec 3 — Visualise's own records, kept beside the script (D338). Pure types.
 
 /** For each cast member on screen when a panel was drawn: whose avatar, and its face then. */
 export type PanelFaces = Record<string, { avatarId: string; faceKey: string }>;
@@ -14,11 +14,11 @@ export type PanelTake = {
   url: string | null;
   width: number | null;
   height: number | null;
-  /** D344 — the exact prompt sent. */
+  /** D345 — the exact prompt sent. */
   prompt: string;
   /** A person wrote this prompt in the prompt box, rather than the script building it. */
   promptEdited: boolean;
-  /** D343 — what the panel was drawn from; a mismatch with today's means Out of date. */
+  /** D344 — what the panel was drawn from; a mismatch with today's means Out of date. */
   shotKey: string;
   faces: PanelFaces;
   error: string | null;
@@ -26,7 +26,7 @@ export type PanelTake = {
   updatedAt: string;
 };
 
-/** D344 — how a draw chooses its prompt: as the panel last was ("draw"), as the operator wrote
+/** D345 — how a draw chooses its prompt: as the panel last was ("draw"), as the operator wrote
  *  it ("edited"), or rebuilt from the script ("reset"). */
 export type DrawBody = ({ kind: "draw" } | { kind: "edited"; prompt: string } | { kind: "reset" }) & {
   /** The panel model chosen under Advanced; the default when absent. */

@@ -227,7 +227,7 @@ describe("isUuid", () => {
   });
 });
 
-describe("hasFourViews (D339)", () => {
+describe("hasFourViews (D340)", () => {
   it("needs every view, made from the front the avatar has now", () => {
     expect(hasFourViews(makeAvatar({ sheetViews: makeViews() }))).toBe(true);
     expect(hasFourViews(makeAvatar({ sheetViews: { ...makeViews(), left: null } }))).toBe(false);
@@ -236,7 +236,7 @@ describe("hasFourViews (D339)", () => {
   });
 });
 
-describe("sheetKind (D339)", () => {
+describe("sheetKind (D340)", () => {
   it("tells the four views from an older three-view sheet and an older upload", () => {
     expect(sheetKind(makeAvatar({ sheetViews: makeViews() }))).toBe("four-view");
     expect(sheetKind(makeAvatar({ sheet: makeImage(GENERATED), sheetViews: null }))).toBe("three-view");
@@ -245,7 +245,7 @@ describe("sheetKind (D339)", () => {
   });
 });
 
-describe("missingViews (D339)", () => {
+describe("missingViews (D340)", () => {
   it("lists only the gaps in a current sheet", () => {
     expect(missingViews(makeAvatar({ sheetViews: { ...makeViews(), back: null } }))).toEqual(["back"]);
     expect(missingViews(makeAvatar({ sheetViews: makeViews() }))).toEqual([]);
@@ -258,7 +258,7 @@ describe("missingViews (D339)", () => {
   });
 });
 
-describe("viewsToMake (D339)", () => {
+describe("viewsToMake (D340)", () => {
   it("makes only the views asked for when the sheet is current", () => {
     expect(viewsToMake(makeAvatar({ sheetViews: makeViews() }), ["left"])).toEqual(["left"]);
   });
@@ -271,7 +271,7 @@ describe("viewsToMake (D339)", () => {
   });
 });
 
-describe("sheetViewsPatch (D339)", () => {
+describe("sheetViewsPatch (D340)", () => {
   it("lays new views over a current sheet and reports the full set", () => {
     const fresh = makeViews("new");
     const { patch, complete } = sheetViewsPatch(makeAvatar({ sheetViews: makeViews() }), { left: fresh.left! });

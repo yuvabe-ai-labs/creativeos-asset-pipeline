@@ -24,7 +24,7 @@ export type PanelView = {
   canGenerate: boolean;
 };
 
-/** D343 — why a take no longer matches the script and the avatars as they are now. */
+/** D344 — why a take no longer matches the script and the avatars as they are now. */
 export function staleReasons(take: PanelTake, inputs: Pick<PanelInputs, "shotKey" | "faces">): StaleReason[] {
   const reasons: StaleReason[] = [];
   if (take.shotKey !== inputs.shotKey) reasons.push("shot");
@@ -75,7 +75,7 @@ export function panelView(input: {
   return { status, pick, takes, failure, staleBecause, waitingFor: input.inputs.waitingFor, canGenerate };
 }
 
-/** D344 — the prompt a draw sends. A plain redraw keeps a hand-edited prompt while the shot is
+/** D345 — the prompt a draw sends. A plain redraw keeps a hand-edited prompt while the shot is
  *  unchanged; once the shot's text changed it starts fresh from the new text (spec §8.1), and the
  *  edited prompt stays with its take. */
 export function promptForDraw(
@@ -102,7 +102,7 @@ export function hasLiveDraw(takes: Pick<PanelTake, "status" | "createdAt">[], no
   return takes.some((t) => t.status === "running" && now - Date.parse(t.createdAt) <= PANEL_RUNNING_TIMEOUT_MS);
 }
 
-/** D344, spec §8.1 — what the prompt box starts from: the picked take's exact prompt while the
+/** D345, spec §8.1 — what the prompt box starts from: the picked take's exact prompt while the
  *  shot is unchanged; once the shot changed, the fresh prompt built from the new text (a
  *  hand-edited prompt stays with its old take), so a panel never redraws the old story. */
 export function promptBoxStart(pick: Pick<PanelTake, "prompt" | "shotKey"> | null, inputs: Pick<PanelInputs, "prompt" | "shotKey">): string {

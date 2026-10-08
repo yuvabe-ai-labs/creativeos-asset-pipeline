@@ -18,7 +18,7 @@ import {
 } from "./brief";
 
 // Spec 2 §5–§9 — one copilot turn. Model calls first (async), then a pure change that
-// changeGenerateScript runs against the script as it is now and compare-and-sets (D331, D336).
+// changeGenerateScript runs against the script as it is now and compare-and-sets (D332, D337).
 
 export type Reply = { content: string; card: MessageCard | null };
 export type TurnDeps = {
@@ -27,7 +27,7 @@ export type TurnDeps = {
   /** A faster model (SCRIPT_QUICK_MODEL) for reading the message, the angles and the card; the
    *  writer when absent. */
   quick?: StructuredCall;
-  /** Streams the first draft (D336, refined); with it, `onDraft` sees each new part as it arrives. */
+  /** Streams the first draft (D337, refined); with it, `onDraft` sees each new part as it arrives. */
   stream?: StreamingCall;
   onDraft?: (draft: PartialDraft) => void;
   loadSignals: () => Promise<{ brief: string; signals: { id: string; name: string }[] }>;

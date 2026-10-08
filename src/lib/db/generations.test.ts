@@ -22,7 +22,7 @@ describe("insertGeneration", () => {
     expect(insert.mock.calls[0][0]).not.toHaveProperty("script_id");
   });
 
-  it("writes a script-owned row for a storyboard panel (D337)", async () => {
+  it("writes a script-owned row for a storyboard panel (D338)", async () => {
     await insertGeneration({ scriptId: "s1", orgId: "org-1", type: "image" });
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ node_id: null, avatar_id: null, script_id: "s1" }));
   });

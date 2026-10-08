@@ -161,7 +161,7 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
     expect((await DELETE(new NextRequest(url, { method: "DELETE" }), { params })).status).toBe(404);
   });
 
-  it("DELETE refuses while a script uses the avatar, and archives nothing (D346)", async () => {
+  it("DELETE refuses while a script uses the avatar, and archives nothing (D347)", async () => {
     vi.mocked(listScriptsUsingAvatar).mockResolvedValue(["Reel 01 · Golu starts today"]);
     const { DELETE } = await import("./route");
     const res = await DELETE(new NextRequest(url, { method: "DELETE" }), { params });

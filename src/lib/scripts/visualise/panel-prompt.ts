@@ -4,7 +4,7 @@ import type { ScriptDoc, Shot } from "@/lib/scripts/schema";
 import { PANEL_ASPECTS, PANEL_DEFAULT_ASPECT } from "./constants";
 import type { RegionalKit } from "./kits";
 
-// D341 — the panel prompt, built from the shot, the setting, the regional kit and each on-screen
+// D342 — the panel prompt, built from the shot, the setting, the regional kit and each on-screen
 // person in words AND their four views. Every clause answers a finding of the dry run (parent
 // spec §11.1) or a house rule (no generated text, brands or labelled packs).
 

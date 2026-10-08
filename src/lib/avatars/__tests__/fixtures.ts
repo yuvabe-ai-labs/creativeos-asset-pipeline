@@ -26,7 +26,7 @@ export function makeAvatar(overrides: Partial<Avatar> = {}): Avatar {
   };
 }
 
-/** A full four-view sheet (D339), each view a distinct generated image. */
+/** A full four-view sheet (D340), each view a distinct generated image. */
 export function makeViews(prefix = "v"): AvatarSheetViews {
   const view = (v: string): AvatarImage => {
     const source: AvatarImageSource = {

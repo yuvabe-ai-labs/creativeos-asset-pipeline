@@ -21,7 +21,7 @@ export async function getPickedPanels(scriptId: string): Promise<Record<string, 
   return panels;
 }
 
-/** MP2 — an avatar's four views (D339). An avatar from before D339 has only its front image, which
+/** MP2 — an avatar's four views (D340). An avatar from before D340 has only its front image, which
  *  then stands as the Front view. */
 export function avatarViewUrls(avatar: Avatar): Record<AvatarView, string | null> {
   const views = avatar.sheetViews;

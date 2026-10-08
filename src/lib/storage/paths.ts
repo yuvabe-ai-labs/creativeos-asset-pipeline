@@ -189,7 +189,7 @@ export function pathForAvatarGenerated(args: {
   avatarId: string;
   slot: AvatarImageSlot;
   ext: string;
-  /** D339 — "view-left", "strip": four views upload at once, so each gets its own name. */
+  /** D340 — "view-left", "strip": four views upload at once, so each gets its own name. */
   name?: string;
 }): string {
   const name = buildStoredName(undefined, { slug: args.name ?? "output", ext: args.ext });
@@ -279,7 +279,7 @@ export function extForContentType(contentType: string): string {
   return MEDIA_EXT_BY_TYPE[contentType.split(";")[0].trim().toLowerCase()] ?? "bin";
 }
 
-/** D337 — a storyboard panel take, under its script, one folder per shot. A shot id is the
+/** D338 — a storyboard panel take, under its script, one folder per shot. A shot id is the
  *  script's own text, so it is slugged before it becomes a folder. */
 export function pathForScriptPanel(args: { clientId: string; scriptId: string; shotId: string; ext: string }): string {
   const shot = sanitizeSlug(args.shotId).replace(/^[.-]+/, "") || "shot";

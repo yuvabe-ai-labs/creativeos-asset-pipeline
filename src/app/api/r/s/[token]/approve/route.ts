@@ -4,7 +4,7 @@ import { approveVersion } from "@/lib/db/script-reviews";
 import { STALE_VERSION_ERROR } from "@/lib/script-review/constants";
 import { parseApproval } from "@/lib/script-review/validate";
 
-// POST /api/r/s/:token/approve — public (D353). Approves the version number the client's screen
+// POST /api/r/s/:token/approve — public (D354). Approves the version number the client's screen
 // shows, under their typed name; script_review_approve checks and writes under the script lock.
 // Approval moves the script to Approved, which is what puts it in the canvas gallery's Scripts tab.
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {

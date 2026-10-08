@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { generateAllLabel, type GenerateAllPlan } from "@/lib/scripts/visualise/state";
 
-// D345 — Generate all shows its total first ("Redraw 9 panels · about N credits"), then runs.
+// D346 — Generate all shows its total first ("Redraw 9 panels · about N credits"), then runs.
 export function GenerateAllDialog({ plan, busy, onConfirm, variant = "default" }: {
   plan: GenerateAllPlan;
   busy: boolean;

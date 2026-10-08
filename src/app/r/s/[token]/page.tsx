@@ -6,7 +6,7 @@ import { getScriptReviewByToken } from "@/lib/db/script-reviews";
 import { buildPublicScriptReview } from "@/lib/script-review/load";
 import { ScriptReviewPage } from "@/components/script-review/script-review-page";
 
-// D355: the client's page for a script. Server-rendered with the version already loaded, so the
+// D356: the client's page for a script. Server-rendered with the version already loaded, so the
 // first paint has the reel and its comments. No app chrome: AppHeader hides on /r/*.
 export const dynamic = "force-dynamic";
 

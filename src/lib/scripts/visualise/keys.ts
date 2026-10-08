@@ -2,7 +2,7 @@ import { AVATAR_VIEWS } from "@/lib/avatars/constants";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { ScriptDoc, Shot } from "@/lib/scripts/schema";
 
-// D343 — what a panel was drawn from, as short fingerprints stored on each take. Today's values
+// D344 — what a panel was drawn from, as short fingerprints stored on each take. Today's values
 // differing from a take's means the take is out of date. Run identically in the browser and on
 // the server.
 

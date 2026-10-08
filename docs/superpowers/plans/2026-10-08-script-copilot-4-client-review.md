@@ -21,7 +21,7 @@
 - **Panels come only through `src/lib/script-review/bridge.ts`** (merge point MP1, "panels for a script: picked take URL per shot id"), stubbed to return none until spec 3 merges. A full share carries whatever panels exist (spec 4 §0).
 - **Shared files are extended additively, never restructured:** `src/lib/scripts/schema.ts` is not touched; `script-view.tsx` and its children only gain optional props and anchor ids. Every such edit is a named merge point (see "Merge points" below).
 - **Migration number:** `0054` (specs 2 and 3 take `0052` and `0053`; the merge renumbers if needed).
-- **ADR numbers:** `D347`–`D356` (booked in the spec).
+- **ADR numbers:** `D348`–`D357` (booked in the spec).
 - **Wording:** "avatar" means the asset only. Never "presenter" in user-facing text. The reopen action here is labelled **"Reopen to Visualise"** so it never reads as spec 3's "Reopen" (Visualise → Generate).
 - **Controls are shadcn primitives from `src/components/ui/*` only** (Base UI, `render` prop, not `asChild`). Never a raw `<button>`, `<input>`, `<textarea>`, `<select>`, `<audio controls>`, checkbox or radio. Anything inside a field (the Copy button beside the link) uses `InputGroup` / `InputGroupInput` / `InputGroupAddon` / `InputGroupButton`.
 - **Design system:** colours only through the CSS variables in `globals.css`; Clash Display (`font-display`) headings, Gilroy body; purple `primary` sparingly; resting cards `shadow-card`; `.text-eyebrow` labels; Lucide at `strokeWidth={1.5}`; easing `cubic-bezier(0.22,1,0.36,1)` only. "Add" actions ("Comment", "Add a comment") are dashed-border primary chips (`border-dashed border-primary/40 hover:bg-primary/5`). The client-feedback count uses D310's amber tokens (`bg-client/15`, `text-client-text`).
@@ -49,7 +49,7 @@
 | MP4 | `src/app/clients/[id]/scripts/[scriptId]/page.tsx` | Spec 4 wraps the view in `ScriptReviewWorkspace`. Spec 3 turns the page into the Visualise view. At merge the workspace wraps spec 3's view; view threads move from the cast slot's labelled list (`CastReviewSlot`, team mode) to beside each of spec 3's four views; panel threads move beside spec 3's panel. **Resolved 8 Oct in spec 4b (review board), after spec 3 merged into this branch.** |
 | MP5 | Stage writes | Spec 2's Mark final and spec 3's Reopen (Visualise → Generate) write `client_scripts.stage` their own way; spec 4's moves go through `script_review_move`. Keep spec 4's label "Reopen to Visualise" distinct from spec 3's "Reopen". |
 | MP6 | `src/components/scripts/scripts-library.tsx`, `script-card.tsx` | Spec 2 adds "New script"; spec 4 adds the feedback count. Both additive. |
-| MP7 | Migration `0054`, ADRs `D347`–`D356` | Renumber the migration if `0054` is taken at merge; the ADR numbers are booked. |
+| MP7 | Migration `0054`, ADRs `D348`–`D357` | Renumber the migration if `0054` is taken at merge; the ADR numbers are booked. |
 | MP8 | `src/lib/scripts/schema.ts` vs `script_review_versions.doc` | Every shared version is re-read through the live `scriptDocSchema`. A schema change (spec 2 merges last) must keep stored docs parseable: new fields optional or defaulted, no tightened limits, or migrate the stored versions. An unreadable latest version now fails loudly (`getLatestVersion` throws) instead of silently blocking every share. |
 
 ## Decided by the user on 8 Oct (were flagged gaps)
@@ -98,7 +98,7 @@ Items 1, 3, 4 and 5 were kept as built (user, 8 Oct).
 | `src/components/script-review/*.tsx` | Shared review surface (both pages) and the client page |
 | `src/components/script-review/team/*.tsx` | The team's workspace, stage actions, share dialog |
 | `src/hooks/use-is-server-or-hydrating.ts` | Extracted from D309's page (second user) |
-| `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` | ADRs D347–D356 |
+| `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` | ADRs D348–D357 |
 
 ---
 
@@ -127,7 +127,7 @@ Read `AGENTS.md`, `CLAUDE.md`, `docs/component-structure.md`, `docs/api-routes.m
 
 ```ts
 // src/lib/script-review/constants.ts
-// Script copilot spec 4 — client review of a script (D347–D356). Limits shared with the video
+// Script copilot spec 4 — client review of a script (D348–D357). Limits shared with the video
 // review links (D309) are imported from @/lib/client-review/constants where used, never redeclared.
 import type { ScriptStage } from "@/lib/scripts/constants";
 
@@ -1421,7 +1421,7 @@ Expected: the newest is `0051_client_scripts.sql`; `0052` and `0053` are booked 
 
 ```sql
 -- supabase/migrations/0054_script_reviews.sql
--- Script copilot spec 4 (D347–D356): client review of a script. One link per script, a frozen
+-- Script copilot spec 4 (D348–D357): client review of a script. One link per script, a frozen
 -- version per share, comments per part, and an append-only activity log. Kept apart from the
 -- script document: nothing here alters client_scripts.doc. The only writes to client_scripts are
 -- stage / approved_at / updated_at, inside the three functions below.
@@ -1926,7 +1926,7 @@ import {
   type ScriptTokenRow, type ScriptVersion, type ScriptVersionRow,
 } from "@/lib/script-review/wire";
 
-// Script copilot spec 4 (D350). Team routes reach these through a script they already loaded with
+// Script copilot spec 4 (D351). Team routes reach these through a script they already loaded with
 // getScript(clientId, scriptId) — that is the client check; the public routes start from the share
 // token. Every comment write also filters on review_id, so one link never touches another's rows.
 
@@ -2492,7 +2492,7 @@ export async function collectVisuals(clientId: string, script: Script, scope: Sh
 // src/lib/script-review/paths.ts
 import { linkSlug } from "@/lib/client-review/paths";
 
-/** The client's link for a script (D355): D311's titled shape, `/r/s/<title-slug>-<code>`, under the
+/** The client's link for a script (D356): D311's titled shape, `/r/s/<title-slug>-<code>`, under the
  *  public prefix D309 opened, one segment deeper so it never meets a video review's link. Only the
  *  code finds the review; the title is for the client to read. */
 export function scriptSharePathFor(code: string, title: string): string {
@@ -3603,7 +3603,7 @@ import type { ScriptReviewByToken } from "@/lib/script-review/wire";
 and directly after `withShareToken`:
 
 ```ts
-// D355: the second named token resolver, for /api/r/s/[token]/* (script reviews). Same rules as
+// D356: the second named token resolver, for /api/r/s/[token]/* (script reviews). Same rules as
 // withShareToken — under the same proxy exemption, no session, no org check, no impersonation
 // gate — and the same link parsing (D311): only the code at the end finds the review.
 export async function withScriptShareToken(
@@ -3626,7 +3626,7 @@ export async function withScriptShareToken(
 import { apiError, apiOk, withQuietErrors, withScriptShareToken } from "@/lib/api/route-helpers";
 import { buildPublicScriptReview } from "@/lib/script-review/load";
 
-// GET /api/r/s/:token — public (D355). Refreshes the page after the client's own post, edit or
+// GET /api/r/s/:token — public (D356). Refreshes the page after the client's own post, edit or
 // approval; the first load is server-rendered by src/app/r/s/[token]/page.tsx.
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   return withQuietErrors("Could not load the review.", () =>
@@ -3849,7 +3849,7 @@ import {
 import { isPartInVersion } from "@/lib/script-review/parts";
 import { parseNewScriptComment } from "@/lib/script-review/validate";
 
-// POST /api/r/s/:token/comments — public (D355). One comment on one whole part of the version on
+// POST /api/r/s/:token/comments — public (D356). One comment on one whole part of the version on
 // the client's screen (spec 4 §5). The checks run in the app, not under the script lock: a comment
 // that lands in the same instant as an approval is the one race left open, and it changes no stage.
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -3887,7 +3887,7 @@ import { isUuid } from "@/lib/avatars/utils";
 import { parseCommentEdit } from "@/lib/client-review/validate";
 import { APPROVED_RECORD_ERROR } from "@/lib/script-review/constants";
 
-// PATCH /api/r/s/:token/comments/:commentId — public (D355). Anyone with the link edits any client
+// PATCH /api/r/s/:token/comments/:commentId — public (D356). Anyone with the link edits any client
 // comment's TEXT (D309's rule, spec 4 §5); the part, the version and the author never change, and
 // a team reply is not editable from the link.
 export async function PATCH(
@@ -4025,7 +4025,7 @@ import { approveVersion } from "@/lib/db/script-reviews";
 import { STALE_VERSION_ERROR } from "@/lib/script-review/constants";
 import { parseApproval } from "@/lib/script-review/validate";
 
-// POST /api/r/s/:token/approve — public (D353). Approves the version number the client's screen
+// POST /api/r/s/:token/approve — public (D354). Approves the version number the client's screen
 // shows, under their typed name; script_review_approve checks and writes under the script lock.
 // Approval moves the script to Approved, which is what puts it in the canvas gallery's Scripts tab.
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -4833,7 +4833,7 @@ import type { ScriptComment } from "@/lib/script-review/types";
 import { useReviewSurface } from "./review-surface-context";
 import { PartComposer } from "./part-composer";
 
-/** One comment or reply. From the link, only client comments are editable; never deleted (D352). */
+/** One comment or reply. From the link, only client comments are editable; never deleted (D353). */
 export function ThreadComment({ comment }: { comment: ScriptComment }) {
   const { mode, onEdit } = useReviewSurface();
   const [editing, setEditing] = useState(false);
@@ -5511,7 +5511,7 @@ import { ScopeNote } from "./scope-note";
 import { ScriptReviewHeader } from "./script-review-header";
 import { ShotReviewSlot } from "./shot-review-slot";
 
-// D355: the client's page. Mobile-first like D309's: the name is asked once (the same stored name as
+// D356: the client's page. Mobile-first like D309's: the name is asked once (the same stored name as
 // the video review), then the shared version, read-only, with comments beside every part.
 export function ScriptReviewPage({ token, initial }: { token: string; initial: PublicScriptReview }) {
   const { data: review } = usePublicScriptReview(token, initial);
@@ -5631,7 +5631,7 @@ import { getScriptReviewByToken } from "@/lib/db/script-reviews";
 import { buildPublicScriptReview } from "@/lib/script-review/load";
 import { ScriptReviewPage } from "@/components/script-review/script-review-page";
 
-// D355: the client's page for a script. Server-rendered with the version already loaded, so the
+// D356: the client's page for a script. Server-rendered with the version already loaded, so the
 // first paint has the reel and its comments. No app chrome: AppHeader hides on /r/*.
 export const dynamic = "force-dynamic";
 
@@ -5708,7 +5708,7 @@ git commit -m "feat(script-review): the client's page — the frozen reel, comme
 // src/components/script-review/client-feedback-count.tsx
 import { MessageSquareText } from "lucide-react";
 
-/** Spec 4 §6 and D356: the total of client comments and approvals, in D310's amber, no seen-state. */
+/** Spec 4 §6 and D357: the total of client comments and approvals, in D310's amber, no seen-state. */
 export function ClientFeedbackCount({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
@@ -6191,7 +6191,7 @@ git commit -m "feat(script-review): client-feedback count on the library card"
 
 ---
 
-### Task 18: ADR entries D347–D356
+### Task 18: ADR entries D348–D357
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, appended after the last entry)
@@ -6199,14 +6199,14 @@ git commit -m "feat(script-review): client-feedback count on the library card"
 - [ ] **Step 1: Confirm the numbers are still booked for this spec**
 
 Run: `grep -o '^### D3[45][0-9]' docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` and the same against `git show origin/staging:docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`.
-Expected: no D347–D356 headings yet (spec 4's header books them). If any is taken, stop and ask; do not renumber on your own.
+Expected: no D348–D357 headings yet (spec 4's header books them). If any is taken, stop and ask; do not renumber on your own.
 
 - [ ] **Step 2: Append the entries**
 
 Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 ```markdown
-### D347 — Client review of a script: one link, a frozen version per share *(recorded 2026-10-08)*
+### D348 — Client review of a script: one link, a frozen version per share *(recorded 2026-10-08)*
 
 **Decision.** Each share of a script records a version — the script text, plus the avatar images and the picked panel take per shot when the share includes them — on one link per script that never changes. The link shows the latest version, frozen; the team keeps editing between shares. The client cannot open an earlier version; the activity names what changed, each change linking to its part.
 
@@ -6216,7 +6216,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Refines →** D309. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §3, §7; questions 4.1, 4.2.
 
-### D348 — The team moves a script into and out of In review by hand *(recorded 2026-10-08)*
+### D349 — The team moves a script into and out of In review by hand *(recorded 2026-10-08)*
 
 **Decision.** Visualise → In review, In review → Visualise, and (after an approval) Approved → Visualise ("Reopen to Visualise") are team actions. Share appears only In review. Client comments never change the stage; editing stays allowed In review. Every move is a compare-and-set on the stage with its activity line, in one transaction (`script_review_move`).
 
@@ -6226,7 +6226,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Originated →** spec 4 §3; question 4.3.
 
-### D349 — Three share scopes; Approve only on a full share *(recorded 2026-10-08)*
+### D350 — Three share scopes; Approve only on a full share *(recorded 2026-10-08)*
 
 **Decision.** A share is the script only, the script and avatars, or the script, avatars and panels, and only from In review, so always after Mark final. Approve appears only on the full share; a partial share tells the client what it holds and what comes next. Panels reach spec 4 through one interface from spec 3 (the picked take per shot id); a full share carries whatever panels exist.
 
@@ -6236,7 +6236,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Originated →** spec 4 §3, §8; question 4.4.
 
-### D350 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
+### D351 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
 
 **Decision.** Four tables (`script_reviews`, `script_review_versions`, `script_review_comments`, `script_review_events`; migration 0054) hold the review. Spec 4 never writes `client_scripts.doc`; it changes only `stage` / `approved_at`, inside three plpgsql functions that lock the script row so a share, an approval and a stage move never interleave. The activity is derived from append-only rows.
 
@@ -6246,7 +6246,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Originated →** spec 4 §9.
 
-### D351 — Comments are on whole parts and belong to their version *(recorded 2026-10-08)*
+### D352 — Comments are on whole parts and belong to their version *(recorded 2026-10-08)*
 
 **Decision.** A comment is on the context card, a shot, a cast member's avatar, one of its views (Front, Left, Right, Back), or a panel, and only on parts the version on screen shows. No pins, no painting. A comment keeps the version it was made on; when a later version drops its shot, it is shown under "On a removed shot" with the shot's last text. A split's first half keeps the shot's id, and so its comments.
 
@@ -6256,7 +6256,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Refines →** D244, D309. **Originated →** spec 4 §5; questions 4.11, 4.12.
 
-### D352 — The team replies and resolves; comments are edited, never deleted *(recorded 2026-10-08)*
+### D353 — The team replies and resolves; comments are edited, never deleted *(recorded 2026-10-08)*
 
 **Decision.** The team replies under a client's comment and marks the thread Resolved (and can reopen it); the client sees both. Anyone with the link edits any client comment's text, shown as "edited by"; team replies are not editable from the link. Nothing is deleted.
 
@@ -6268,7 +6268,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Originated →** spec 4 §5; question 4.10.
 
-### D353 — Approval: anyone with the link, under a typed name, of the version on screen *(recorded 2026-10-08)*
+### D354 — Approval: anyone with the link, under a typed name, of the version on screen *(recorded 2026-10-08)*
 
 **Decision.** Approve reel records the typed name and the time and moves the script to Approved, the only way a script reaches the canvas gallery's Scripts tab. The request carries the version number on the client's screen; if a newer version was shared, it is refused. With open threads, a confirm names them first. A second tap answers success and records nothing more.
 
@@ -6280,7 +6280,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Originated →** spec 4 §8; questions 4.5, 4.13.
 
-### D354 — No withdrawal; reopen and share again; the approved link is a record *(recorded 2026-10-08)*
+### D355 — No withdrawal; reopen and share again; the approved link is a record *(recorded 2026-10-08)*
 
 **Decision.** The client cannot withdraw an approval. The team reopens an approved script to Visualise and shares again on the same link for a new approval (Approved › Reopened › Approved). While the version on screen is approved, the link is a read-only record: no comments, edits, replies or resolves.
 
@@ -6290,7 +6290,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Originated →** spec 4 §8; questions 4.6, 4.7.
 
-### D355 — Script links reuse the video review link: /r/s/<title>-<code>, no password yet *(recorded 2026-10-08)*
+### D356 — Script links reuse the video review link: /r/s/<title>-<code>, no password yet *(recorded 2026-10-08)*
 
 **Decision.** A script's link is `/r/s/<title-slug>-<code>`, the code D311's (the first 4 hex characters of the script id, longer on a clash), under the public prefixes `src/proxy.ts` already exempts. Every public script route goes through `withScriptShareToken` in `route-helpers.ts`, the second named token resolver beside `withShareToken`. The client's typed name is the same stored entry as on a video review. No password or accounts yet; the password comes with the video links' (one scheme for both).
 
@@ -6302,7 +6302,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 **Refines →** D309, D311. **Originated →** spec 4 §4, §10; question 4.8.
 
-### D356 — An in-app count of client comments and approvals *(recorded 2026-10-08)*
+### D357 — An in-app count of client comments and approvals *(recorded 2026-10-08)*
 
 **Decision.** The library card and the script's review panel show "Client feedback n": client comments plus approvals, a total with no seen-state, in D310's amber. No email or push.
 
@@ -6317,7 +6317,7 @@ Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "docs(adr): D347–D356 for script copilot spec 4 (client review)"
+git commit -m "docs(adr): D348–D357 for script copilot spec 4 (client review)"
 ```
 
 ---

@@ -4,9 +4,9 @@ import type { ScriptNotes } from "./schema";
 import { parseFieldPath, writeField } from "./fields";
 import { carryShot, castIdFor, toShot } from "./draft";
 
-// Spec 2 §9 — a copilot edit is a list of typed operations applied here, all or nothing (D331).
+// Spec 2 §9 — a copilot edit is a list of typed operations applied here, all or nothing (D332).
 // Anything an operation does not name is carried over untouched, so "only the targeted part
-// changes" holds by construction. Shot ids follow the rules spec 3 keys panels by (D330).
+// changes" holds by construction. Shot ids follow the rules spec 3 keys panels by (D331).
 
 export type OpsGen = { newShotId: (taken: Set<string>) => string; avatarIds: ReadonlySet<string> };
 export type OpsResult =
