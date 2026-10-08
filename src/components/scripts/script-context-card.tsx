@@ -7,7 +7,8 @@ import { SCRIPT_CONTEXT_ANCHOR } from "@/lib/scripts/anchors";
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1">
+    // One column at a readable measure, about 68 characters a line (asked for in testing).
+    <div className="flex min-w-0 max-w-[68ch] flex-col gap-1">
       <span className="text-eyebrow">{label}</span>
       <div className="text-sm leading-relaxed text-foreground">{children}</div>
     </div>
@@ -33,12 +34,12 @@ export function ScriptContextCard({ doc, stage, after }: { doc: ScriptDoc; stage
           <ScriptStageBadge stage={stage} />
         </div>
       </div>
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="flex flex-col gap-5">
         {context.purpose && <Section label="Purpose">{context.purpose}</Section>}
         {context.settingAndCamera && <Section label="Setting and camera">{context.settingAndCamera}</Section>}
       </div>
       {(context.disclaimers || context.watchOuts.length > 0) && (
-        <div className="grid gap-5 border-t border-border pt-5 md:grid-cols-2">
+        <div className="flex flex-col gap-5 border-t border-border pt-5">
           {context.disclaimers && <Section label="Disclaimers">{context.disclaimers}</Section>}
           {context.watchOuts.length > 0 && (
             <Section label="Watch-outs">

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarImageParams, avatarWorksWith, buildAvatarFrontPrompt, buildAvatarSheetPrompt,
+  avatarImageParams, avatarWorksWith, buildAvatarFrontPrompt, buildAvatarViewPrompt,
+  estimateSheetCredits,
   estimateAvatarImageCostUsd, estimateAvatarImageCredits, groupCandidatesByBatch,
   imageModelWorksWith, isSeedanceFaceModel, listSentence, mergeCandidates,
 } from "../generation";
@@ -32,22 +33,31 @@ describe("buildAvatarFrontPrompt", () => {
   });
 });
 
-describe("buildAvatarSheetPrompt", () => {
-  it("asks for three views of the same person in one image and names it a reference sheet", () => {
-    const prompt = buildAvatarSheetPrompt();
-    expect(prompt).toContain("three views");
-    for (const view of ["front", "side profile", "back"]) expect(prompt).toContain(view);
-    expect(prompt).not.toContain("three-quarter");
-    expect(prompt).toContain("character reference sheet");
-    expect(prompt).toContain("same person");
+describe("buildAvatarViewPrompt (D339)", () => {
+  it("states which edge of the frame each profile faces, so the two never face the same way", () => {
+    expect(buildAvatarViewPrompt("left")).toContain("nose points to the LEFT edge");
+    expect(buildAvatarViewPrompt("right")).toContain("nose points to the RIGHT edge");
+    expect(buildAvatarViewPrompt("back")).toContain("facing directly away");
+    expect(buildAvatarViewPrompt("front")).toContain("facing the camera");
   });
 
-  it("asks for the whole body in every view, not the front image's waist-up crop", () => {
-    const prompt = buildAvatarSheetPrompt();
-    expect(prompt).toContain("full body");
-    expect(prompt).toContain("head to toe");
-    expect(prompt).toContain("feet");
-    expect(prompt).not.toContain("upper body");
+  it("asks for the same person, head to toe, on a plain backdrop, with no text", () => {
+    for (const view of ["front", "left", "right", "back"] as const) {
+      const prompt = buildAvatarViewPrompt(view);
+      expect(prompt).toContain("same person as the reference image");
+      expect(prompt).toContain("head to toe");
+      expect(prompt).toContain("identity markers");
+      expect(prompt).toContain("No text");
+    }
+  });
+});
+
+describe("estimateSheetCredits", () => {
+  it("is one view's estimate times the number of views", () => {
+    const one = estimateSheetCredits("gemini:gemini-3.1-flash-image", 1);
+    expect(one).toBeGreaterThan(0);
+    expect(estimateSheetCredits("gemini:gemini-3.1-flash-image", 4)).toBe(one! * 4);
+    expect(estimateSheetCredits("nope:none", 4)).toBeNull();
   });
 });
 

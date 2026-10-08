@@ -17,6 +17,7 @@ import {
   clientReviewPrefix,
   pathForAvatarImage,
   pathForAvatarGenerated,
+  pathForScriptPanel,
 } from "./paths";
 
 describe("sanitizeSlug", () => {
@@ -238,6 +239,11 @@ describe("pathForAvatarGenerated", () => {
     expect(pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "jpg" }))
       .toContain("/generated/sheet/");
   });
+
+  it("names a view's file after the view, so four parallel uploads never share a name", () => {
+    const path = pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "png", name: "view-left" });
+    expect(path).toMatch(/\/generated\/sheet\/view-left__.+\.png$/);
+  });
 });
 
 describe("pathForClientReviewCut", () => {
@@ -249,5 +255,16 @@ describe("pathForClientReviewCut", () => {
   it("prefix is what the finalize route checks against", () => {
     const args = { clientId: "c", canvasId: "cv", nodeId: "n" };
     expect(pathForClientReviewCut({ ...args, ext: "mov" }).startsWith(clientReviewPrefix(args))).toBe(true);
+  });
+});
+
+describe("pathForScriptPanel", () => {
+  it("keeps a script's panels under the script, one folder per shot", () => {
+    const path = pathForScriptPanel({ clientId: "c1", scriptId: "s1", shotId: "s01", ext: "png" });
+    expect(path).toMatch(/^clients\/c1\/scripts\/s1\/panels\/s01\/panel__.+\.png$/);
+  });
+
+  it("never lets a shot id leave its folder", () => {
+    expect(pathForScriptPanel({ clientId: "c1", scriptId: "s1", shotId: "../x", ext: "png" })).toContain("/panels/x/");
   });
 });

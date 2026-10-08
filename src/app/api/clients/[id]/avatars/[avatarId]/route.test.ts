@@ -10,11 +10,13 @@ vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/avatars", () => ({
   getAvatar: vi.fn(), updateAvatar: vi.fn(), archiveAvatar: vi.fn(),
 }));
+vi.mock("@/lib/db/script-visualise", () => ({ listScriptsUsingAvatar: vi.fn() }));
 
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { getAvatar, updateAvatar, archiveAvatar } from "@/lib/db/avatars";
+import { listScriptsUsingAvatar } from "@/lib/db/script-visualise";
 
 const params = Promise.resolve({ id: "c1", avatarId: "a1" });
 const url = "http://localhost/api/clients/c1/avatars/a1";
@@ -31,6 +33,7 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1" } as never);
     vi.mocked(updateAvatar).mockImplementation(async (_c, _a, p) => makeAvatar(p));
+    vi.mocked(listScriptsUsingAvatar).mockResolvedValue([]);
   });
 
   it("GET is a 404 for an avatar the client does not own", async () => {
@@ -156,5 +159,22 @@ describe("/api/clients/[id]/avatars/[avatarId]", () => {
     expect(archiveAvatar).toHaveBeenCalledWith("c1", "a1");
     vi.mocked(archiveAvatar).mockResolvedValue(false);
     expect((await DELETE(new NextRequest(url, { method: "DELETE" }), { params })).status).toBe(404);
+  });
+
+  it("DELETE refuses while a script uses the avatar, and archives nothing (D346)", async () => {
+    vi.mocked(listScriptsUsingAvatar).mockResolvedValue(["Reel 01 · Golu starts today"]);
+    const { DELETE } = await import("./route");
+    const res = await DELETE(new NextRequest(url, { method: "DELETE" }), { params });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("Reel 01 · Golu starts today");
+    expect(archiveAvatar).not.toHaveBeenCalled();
+  });
+
+  it("DELETE archives an avatar no script uses", async () => {
+    vi.mocked(archiveAvatar).mockResolvedValue(true);
+    const { DELETE } = await import("./route");
+    const res = await DELETE(new NextRequest(url, { method: "DELETE" }), { params });
+    expect(res.status).toBe(200);
+    expect(listScriptsUsingAvatar).toHaveBeenCalledWith("c1", "a1");
   });
 });

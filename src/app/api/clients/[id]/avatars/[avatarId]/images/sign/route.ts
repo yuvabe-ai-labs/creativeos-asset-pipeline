@@ -9,7 +9,8 @@ const SignSchema = z.object({
   filename: z.string().min(1),
   contentType: z.string().min(1),
   size: z.number().nonnegative(),
-  slot: z.enum(["front", "sheet"]),
+  // D339 — sheets are four generated views; only the front is uploaded.
+  slot: z.enum(["front"]),
 });
 
 // POST /api/clients/:id/avatars/:avatarId/images/sign — validate, then hand back a signed URL

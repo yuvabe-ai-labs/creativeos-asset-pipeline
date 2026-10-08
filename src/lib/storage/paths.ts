@@ -189,8 +189,10 @@ export function pathForAvatarGenerated(args: {
   avatarId: string;
   slot: AvatarImageSlot;
   ext: string;
+  /** D339 — "view-left", "strip": four views upload at once, so each gets its own name. */
+  name?: string;
 }): string {
-  const name = buildStoredName(undefined, { slug: "output", ext: args.ext });
+  const name = buildStoredName(undefined, { slug: args.name ?? "output", ext: args.ext });
   return `clients/${args.clientId}/avatars/${args.avatarId}/generated/${args.slot}/${name}`;
 }
 
@@ -275,4 +277,12 @@ const MEDIA_EXT_BY_TYPE: Record<string, string> = {
 /** File extension for a response's content-type, tolerating `; charset=…` and casing. */
 export function extForContentType(contentType: string): string {
   return MEDIA_EXT_BY_TYPE[contentType.split(";")[0].trim().toLowerCase()] ?? "bin";
+}
+
+/** D337 — a storyboard panel take, under its script, one folder per shot. A shot id is the
+ *  script's own text, so it is slugged before it becomes a folder. */
+export function pathForScriptPanel(args: { clientId: string; scriptId: string; shotId: string; ext: string }): string {
+  const shot = sanitizeSlug(args.shotId).replace(/^[.-]+/, "") || "shot";
+  const name = buildStoredName(undefined, { slug: "panel", ext: args.ext });
+  return `clients/${args.clientId}/scripts/${args.scriptId}/panels/${shot}/${name}`;
 }

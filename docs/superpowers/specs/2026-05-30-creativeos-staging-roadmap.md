@@ -5910,7 +5910,7 @@ elements on it. That followed from not having read the handoff design; phase 2 f
 design instead.
 **Originated →** `docs/superpowers/specs/2026-09-29-client-avatars-design.md` §2–5.
 
-### D288 — An avatar is a front image plus a three-view profile sheet generated from it *(recorded 2026-09-30; amended the same day)*
+### D288 — An avatar is a front image plus a three-view profile sheet generated from it *(recorded 2026-09-30; amended the same day; **sheet SUPERSEDED by D339** (four views))*
 
 **Decision.** `ready` requires a name, a front image and a current profile sheet. The sheet is one
 16:9 image showing three views of the person — front, side profile, back — generated from the
@@ -6808,6 +6808,105 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 1 §6.
 
+### D337 — Visualise keeps its own records beside the script; the script holds only the cast's avatar links *(recorded 2026-10-08)*
+
+**Decision.** Storyboard panels live in `script_panel_takes` (every drawing) and `script_panel_picks` (one picked take per shot), keyed by script and shot id. A panel's generation is owned by its script (`generations.script_id`, a third owner beside node and avatar). The only write Visualise makes into `client_scripts.doc` is a cast member's `avatarId`, applied to the document as stored so keys this code does not know survive.
+
+**Why.** Spec 2 is the only writer of a script's text and is built at the same time; panels re-keyed by shot survive edits, splits and removals without touching the document.
+
+**Rejected.** Panels inside the script document (two writers of one JSON column). A generation owned by the avatar (a panel shows several people).
+
+**Originated →** `2026-10-08-script-copilot-3-visualise-design.md` §9.
+
+### D338 — The inline avatar maker makes one face, then its four views, and saves it to Avatars *(recorded 2026-10-08)*
+
+**Decision.** Each cast slot is a full avatar maker using the Studio's own routes: AI-generated makes one front from the person's description plus the avatar instructions (Seedream, the Studio's default face model), then the four views, then marks the avatar ready; Specific person uploads a photo, takes the existing likeness consent, then the four views. Regenerate avatar always makes a new face; a failed step resumes without one. A face keeps its kind: switching between AI-generated and Specific makes a new avatar rather than overwriting the linked one.
+
+**Why.** Spec 3 Q1 chose a slimmed maker inside Visualise that keeps everything the Visualise board shows; the board shows no candidate grid, and one click to a saved avatar is the demo's path.
+
+**Rejected.** The Studio's candidate batch inside the slot. A trip to the Studio and back. Turning a real person's photo into a generated face in place.
+
+**Originated →** spec 3 §5.2, §14 (3.1).
+
+### D339 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
+
+**Decision.** The sheet is four separate 3:4 images made from the front image (`client_avatars.sheet_views`), each prompt stating which edge of the frame the person faces. Once all four exist they are also composed side by side into `sheet`, so everything that sends the sheet (D308) is unchanged. A view that fails is refunded and named; the others are kept and the missing one can be made alone. Sheets are no longer uploaded: the Studio's sheet upload is removed and the image routes take only the front. Avatars made before keep their three-view or uploaded `sheet` until their four views are generated. A Specific person's face photo is still an upload.
+
+**Why.** Spec 3 Q3: one kind of sheet for every avatar, Studio included. The dry run's two profiles faced the same way until the direction was stated. Separate views are what panels send as references and what spec 4's client comments on. An uploaded single image cannot stand in for the four views, so it would leave an avatar that looks finished in the Studio but cannot be drawn into a panel (user's answer, 8 Oct 2026).
+
+**Rejected.** Three views with the direction stated (Q3 a). Four views only for Visualise avatars (two kinds of sheet). One generated four-up image (cannot send or comment on a view alone). Keeping the sheet upload as a replacement for the views (the avatar could not be drawn into panels). An upload per view (more work, and nobody has asked for it).
+
+**Originated →** spec 3 §5.4, §14 (3.3).
+
+### D340 — A person on screen can be drawn once their avatar is saved with its four views *(recorded 2026-10-08)*
+
+**Decision.** A shot's panel can be drawn when every cast member on screen links to a live, saved avatar with a current four-view sheet; B-roll can be drawn at any time. The readiness line counts such cast members and the shots whose picked take is current.
+
+**Why.** Spec 3 Q2: avatars come first so faces hold.
+
+**Rejected.** The front image alone (Q2 a). Requiring it for the lead only.
+
+**Originated →** spec 3 §5.3, §7.
+
+### D341 — What a panel is drawn from *(recorded 2026-10-08)*
+
+**Decision.** One prompt, built by a pure function shared by browser and server: the marker-and-wash style; the shot's visual; the setting and camera; the regional kit; each on-screen person in words with their four views as references (every person's Front first, other views dropped first over the model's cap, references numbered in the prompt); card and pack areas drawn blank; never any text, brand or labelled pack. The shot's VO and on-screen text are never in the prompt.
+
+**Why.** Each clause answers a dry-run finding (details drift without words; the kitchen goes European without the kit; text and brands creep in; sketches read as a plan) or a house rule.
+
+**Rejected.** References alone. Drawing the cards and relying on the no-text rule (Q5 c).
+
+**Originated →** spec 3 §6.1–§6.3; parent §11.1.
+
+### D342 — Regional kits are read from the brand KB's text and matched per shot *(recorded 2026-10-08)*
+
+**Decision.** Until the KB has fields for them, the kits are parsed from the "Regional kits" table wherever the house rules were pasted into the active KB, and matched to each shot by region, place and language names (the shot and its people first, then the whole script). With no table, panels are drawn without a kit and the readiness line says so.
+
+**Why.** Spec 2 keeps the house rules as pasted text for the demo; Reel 01 names "Chennai" and "Tamil", never "Tamil Nadu".
+
+**Rejected.** A kit picker in Visualise (no such control in the spec). A per-client kit setting (a KB change that spec 2 owns).
+
+**Originated →** spec 3 §6.2; spec 2 §4.1.
+
+### D343 — Panels keep takes; out of date is decided by fingerprints and never redraws on its own *(recorded 2026-10-08)*
+
+**Decision.** Every draw is a take, recorded before the model call with a fingerprint of the shot's drawn text and each on-screen person's avatar and face. A new take becomes the pick; the operator can pick an earlier one; the client sees only the pick. A pick whose fingerprints differ from today's is Out of date and stays visible until redrawn. Reopen's effects follow from stable shot ids: an edited shot and a split's first half go out of date, a split's second half and a new shot start empty, a removed shot's takes are not shown.
+
+**Why.** Spec 3 Q6, Q10, Q11. Recording before the call means an avatar refined mid-draw shows the result out of date at once.
+
+**Rejected.** Redrawing automatically (Q6 b). Replacing the panel on redraw (Q10 a).
+
+**Originated →** spec 3 §6.4, §6.6, §8.1.
+
+### D344 — The prompt box shows the exact prompt; an edit carries until the shot changes *(recorded 2026-10-08)*
+
+**Decision.** Each panel has a hidden prompt box showing the prompt its picked take was drawn with. Edit and regenerate sends it as written; reset regenerates from the prompt built from the script. A plain redraw keeps a hand-edited prompt while the shot's text is unchanged and starts fresh once it changed.
+
+**Why.** Spec 3 Q9; Q11 says a hand-edited prompt does not carry over to a changed shot.
+
+**Rejected.** A separate instruction box per panel (Q9 a).
+
+**Originated →** spec 3 §6.7, §8.1.
+
+### D345 — Nano Banana 2 draws every panel; Generate all shows its total and runs three at a time *(recorded 2026-10-08)*
+
+**Decision.** Panels use `gemini:gemini-3.1-flash-image`, no picker, billed through the same reserve-and-settle run as the Avatar Studio (`runBilledImageGeneration`). Generate all draws every shot without a current panel that can be drawn, after a dialog naming the count and total; the browser runs the per-shot draw three at a time and stops starting new ones at the credit cap.
+
+**Why.** Spec 3 Q7, Q8, Q13.
+
+**Rejected.** A model picker or a probe first (Q13 b, c). A background task for Generate all (the per-shot draw already takes under a minute, and the page shows each panel as it lands).
+
+**Originated →** spec 3 §6.1, §6.5.
+
+### D346 — Reopen is Visualise's only stage move; an avatar a script uses cannot be archived *(recorded 2026-10-08)*
+
+**Decision.** Reopen moves a script from Visualise to Generate, conditioned on its stage; avatars and panels are kept. Visualise work is allowed at Visualise and In review. The Avatars library's archive (and Discard draft) refuses while any live script's cast uses the avatar, naming the scripts.
+
+**Why.** Spec 3 §3, §8; Q12. Spec 4: editing stays allowed while In review.
+
+**Rejected.** Clearing or keeping a link to an archived avatar (Q12 a, b).
+
+**Originated →** spec 3 §8.1, §8.2.
 ### D347 — Client review of a script: one link, a frozen version per share *(recorded 2026-10-08)*
 
 **Decision.** Each share of a script records a version — the script text, plus the avatar images and the picked panel take per shot when the share includes them — on one link per script that never changes. The link shows the latest version, frozen; the team keeps editing between shares. The client cannot open an earlier version; the activity names what changed, each change linking to its part.

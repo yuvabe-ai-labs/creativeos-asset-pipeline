@@ -6,6 +6,10 @@ import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
 import { ScriptReviewWorkspace } from "@/components/script-review/team/script-review-workspace";
 import { reelLabel } from "@/lib/scripts/utils";
+import { cn } from "@/lib/utils";
+import { VisualiseView } from "@/components/visualise/visualise-view";
+import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
+import { isVisualiseStage } from "@/lib/scripts/visualise/cast";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
@@ -21,13 +25,16 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   const script = await getScript(client.id, scriptId);
   if (!script) notFound();
 
-  // Faces for the cast: only this client's live avatars, so another client's id shows no face.
-  const avatars = await listAvatars(client.id);
-  const avatarFaces = Object.fromEntries(avatars.map((a) => [a.id, a.front?.url ?? null]));
+  // Spec 3 — Visualise and In review show the Visualise view; other stages the read-only view.
+  const board = isVisualiseStage(script.stage) ? await loadVisualiseBoard(client.id, script) : null;
+  // Faces for the read-only cast: only this client's live avatars, so another client's id shows no face.
+  const avatarFaces = board
+    ? {}
+    : Object.fromEntries((await listAvatars(client.id)).map((a) => [a.id, a.front?.url ?? null]));
   const label = reelLabel(script.doc.header.reelNumber);
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
+    <main className={cn("mx-auto w-full flex-1 px-6 py-12", board ? "max-w-7xl" : "max-w-6xl")}>
       <Breadcrumb className="animate-rise mb-6 shrink-0">
         <BreadcrumbList>
           <BreadcrumbItem><BreadcrumbLink render={<Link href="/">Clients</Link>} /></BreadcrumbItem>
@@ -39,7 +46,11 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
           <BreadcrumbItem><BreadcrumbPage>{label ? `${label} · ` : ""}{script.doc.header.title}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <ScriptReviewWorkspace clientId={client.id} script={script} avatarFaces={avatarFaces} />
+      {/* MERGE (specs 3+4, temporary): Visualise stages show spec 3's view; the review workspace
+          wraps the read-only view elsewhere. The client-review UI plan re-homes the workspace. */}
+      {board
+        ? <VisualiseView clientId={client.id} initial={{ script, board }} />
+        : <ScriptReviewWorkspace clientId={client.id} script={script} avatarFaces={avatarFaces} />}
     </main>
   );
 }
