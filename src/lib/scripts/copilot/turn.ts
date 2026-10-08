@@ -21,7 +21,11 @@ import {
 
 export type Reply = { content: string; card: MessageCard | null };
 export type TurnDeps = {
+  /** The writing model (SCRIPT_WRITER_MODEL): the draft and chat edits. */
   call: StructuredCall;
+  /** A faster model (SCRIPT_QUICK_MODEL) for reading the message, the angles and the card; the
+   *  writer when absent. */
+  quick?: StructuredCall;
   loadSignals: () => Promise<{ brief: string; signals: { id: string; name: string }[] }>;
   newShotId?: (taken: Set<string>) => string;
 };
@@ -43,8 +47,9 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
   const avatarIds = new Set(ctx.avatars.map((a) => a.id));
   const formats = libraryFormats(ctx.library).map((f) => f.format);
   const nextReel = nextReelNumber(ctx.library);
+  const quick = deps.quick ?? deps.call;
 
-  const ex = await deps.call({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, lastAssistant, text }), schema: extractionSchema });
+  const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, lastAssistant, text }), schema: extractionSchema });
   const merged = mergeExtraction(script.brief, ex, avatarIds);
   let brief: Brief = merged.brief;
   let doc: ScriptDoc | null = null;
@@ -67,7 +72,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     }
     if (step.kind === "angles") {
       const research = await deps.loadSignals();
-      const out = await deps.call({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, text }), schema: anglesOutputSchema });
+      const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, text }), schema: anglesOutputSchema });
       const angles = normalizeAngles(out.angles, new Set(research.signals.map((s) => s.id)), avatarIds);
       if (angles.length === 0) throw new Error("The copilot proposed no angles.");
       brief = { ...brief, angles };
@@ -86,7 +91,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     }
     if (step.kind === "card") {
       const angle = brief.angles.find((a) => angleText(a) === brief.narrative.value) ?? null;
-      const out = await deps.call({ name: "script_card", ...cardPrompt(base, { brief, angle, cardChange: merged.cardChange, nextReel }), schema: cardOutputSchema });
+      const out = await quick({ name: "script_card", ...cardPrompt(base, { brief, angle, cardChange: merged.cardChange, nextReel }), schema: cardOutputSchema });
       const card = normalizeCard(out, { reelNumber: brief.reelNumber ?? nextReel, avatarIds });
       brief = { ...brief, card, phase: "confirm" };
       say(withAck(`Here's the brief I'll write from. Say "write it", or tell me which line to change.`), { kind: "confirmation", card });

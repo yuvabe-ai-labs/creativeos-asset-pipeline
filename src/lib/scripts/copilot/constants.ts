@@ -5,6 +5,11 @@
  *  repeats; slower than gpt-5.4-mini (35-85 s per first draft). */
 export const SCRIPT_WRITER_MODEL = "gemini-3.1-pro-preview";
 
+/** The quick model for the short steps that hold no house-spec writing: reading the person's
+ *  message, proposing angles, building the confirmation card. Timed 8 Oct 2026 on Jackfruit 365:
+ *  2.7 s / 5.8 s / 3.4 s against 10.6 s / 19.5 s / 17.7 s on the writer (D335, refined). */
+export const SCRIPT_QUICK_MODEL = "gpt-5.4-mini";
+
 /** The probe's candidates: "two or three candidate models" (spec 2 §11). Each is already called
  *  elsewhere in this repo, so its id and key are known to work. */
 export const SCRIPT_WRITER_CANDIDATES = ["gpt-5.4-mini", "gemini-3.1-pro-preview", "gemini-3.8-flash"] as const;

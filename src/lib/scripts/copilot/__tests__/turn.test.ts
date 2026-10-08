@@ -128,6 +128,17 @@ describe("before the draft", () => {
     expect(out.patch?.doc).toBeUndefined();
   });
 
+  it("uses the quick model to read, propose angles and build the card, and the writer only for the draft", async () => {
+    const quick = fakeModel({ script_brief_read: [extraction({ skipAll: true }), extraction({ confirm: true })], script_angles: [{ angles: [angle("A"), angle("B"), angle("C")], researchNote: "" }], script_card: [CARD] });
+    const writer = fakeModel({ script_draft: [DRAFT] });
+    const d = { ...deps(writer.call), quick: quick.call };
+    const first = ok(await run(script(), "take it from here", d));
+    expect(quick.calls).toEqual(["script_brief_read", "script_angles", "script_card"]);
+    expect(writer.calls).toEqual([]);
+    ok(await run(script({ brief: first.patch!.brief! }), "write it", d));
+    expect(writer.calls).toEqual(["script_draft"]);
+  });
+
   it("refuses to save over a brief that changed during the turn", async () => {
     const m = fakeModel({ script_brief_read: [extraction()] });
     const out = await run(script(), "hi", deps(m.call), script({ docVersion: 2 }));

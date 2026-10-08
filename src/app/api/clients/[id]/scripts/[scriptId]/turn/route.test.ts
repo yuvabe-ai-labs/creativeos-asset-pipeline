@@ -16,6 +16,7 @@ vi.mock("@/lib/scripts/copilot/turn", () => ({ prepareTurn: vi.fn() }));
 import { changeGenerateScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState } from "@/lib/db/script-generate";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { prepareTurn } from "@/lib/scripts/copilot/turn";
+import { structuredCaller } from "@/lib/scripts/copilot/model";
 import { allowClient, generateScript, jsonRequest, runChangeAgainst, SCRIPT_ID, stateOf } from "@/lib/scripts/copilot/__tests__/route-mocks";
 
 const params = Promise.resolve({ id: "c1", scriptId: SCRIPT_ID });
@@ -41,6 +42,8 @@ describe("POST .../turn", () => {
     expect(vi.mocked(prepareTurn).mock.calls[0][0]).toMatchObject({ text: "UGC", lastAssistant: "What format?" });
     expect(vi.mocked(insertScriptMessages).mock.calls[1]).toEqual(["c1", SCRIPT_ID, null, [{ role: "assistant", content: "UGC it is.", card: null }]]);
     expect((await res.json()).state.script.id).toBe(SCRIPT_ID);
+    // The writer for the draft and edits, a quicker model for reading, angles and the card.
+    expect(vi.mocked(structuredCaller).mock.calls.map((c) => c[0]).sort()).toEqual(["gemini-3.1-pro-preview", "gpt-5.4-mini"]);
   });
 
   it("keeps the person's message and says nothing changed when the model fails", async () => {

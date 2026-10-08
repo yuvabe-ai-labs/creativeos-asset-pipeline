@@ -6,7 +6,7 @@ import {
 import { loadCopilotContext, loadSignals } from "@/lib/scripts/copilot/context";
 import { structuredCaller } from "@/lib/scripts/copilot/model";
 import { prepareTurn, type Reply } from "@/lib/scripts/copilot/turn";
-import { MAX_MESSAGE_CHARS, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
+import { MAX_MESSAGE_CHARS, SCRIPT_QUICK_MODEL, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
 
 // A first draft is one long structured call; give it room (as the avatar generation routes do).
 export const maxDuration = 300;
@@ -38,7 +38,7 @@ export async function POST(req: Request, { params }: Ctx) {
         const ctx = await loadCopilotContext(client);
         const apply = await prepareTurn(
           { script, ctx, text, lastAssistant },
-          { call: structuredCaller(SCRIPT_WRITER_MODEL), loadSignals: () => loadSignals(clientId) },
+          { call: structuredCaller(SCRIPT_WRITER_MODEL), quick: structuredCaller(SCRIPT_QUICK_MODEL), loadSignals: () => loadSignals(clientId) },
         );
         const outcome = await changeGenerateScript(clientId, scriptId, apply);
         replies = "error" in outcome ? [{ content: outcome.error, card: null }] : outcome.result;

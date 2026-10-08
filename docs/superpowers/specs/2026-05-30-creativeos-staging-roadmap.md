@@ -6898,6 +6898,8 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 2 §11; answer 2.11.
 
+**Refined (8 Oct 2026, user's call after timing turns).** The short steps that write no script text (reading the person's message, proposing angles, the confirmation card) run on gpt-5.4-mini (`SCRIPT_QUICK_MODEL`): 2.7 s, 5.8 s and 3.4 s against 10.6 s, 19.5 s and 17.7 s on gemini-3.1-pro-preview. The draft, chat edits and inline edits stay on gemini-3.1-pro-preview, where the probe showed the house rules hold.
+
 ### D336 — Turns are request and response, writes compare-and-set, and copilot calls are not charged *(recorded 2026-10-08)*
 
 **Decision.** A turn is one request that returns the whole workspace state (no streaming; the chat shows a working line). Every write to the script, brief or notes is a compare-and-set on `doc_version`; on a conflict the change is re-applied to the newer script. Copilot text calls reserve no credits.
