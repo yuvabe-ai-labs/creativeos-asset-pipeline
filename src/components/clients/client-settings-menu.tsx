@@ -1,18 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Globe, Images, Settings, UserRound } from "lucide-react";
+import { BookOpen, FileText, Globe, Images, Settings, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /**
- * Entry point to the client's setup surfaces: its knowledge (Brand KB, Market) and its
- * avatars. They are separate pages, not views of one page, so they are reached from here
- * rather than from a tab strip — tabs would promise in-place switching that a route change
- * doesn't deliver.
+ * Entry point to the client's surfaces beside its canvases: its scripts, its knowledge (Brand KB,
+ * Market) and its avatars. They are separate pages, not views of one page, so they are reached
+ * from here rather than from a tab strip — tabs would promise in-place switching that a route
+ * change doesn't deliver.
  */
 export function ClientSettingsMenu({ slug }: { slug: string }) {
   const items = [
+    {
+      href: `/clients/${slug}/scripts`,
+      icon: FileText,
+      label: "Scripts",
+      hint: "Reel scripts, draft to sign-off",
+    },
     {
       href: `/clients/${slug}/kb`,
       icon: BookOpen,
