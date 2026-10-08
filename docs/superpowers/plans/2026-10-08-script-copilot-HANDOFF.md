@@ -11,9 +11,9 @@ run from the repo root). Read this first in any new conversation about the scrip
 |---|---|
 | Parent spec + map of how the four specs fit (§4a) | [2026-10-07-script-copilot-design.md](../specs/2026-10-07-script-copilot-design.md) |
 | Spec 1 · library, script, handoff | **Built, reviewed, merged into local `staging` (356f567f), verified in the app by the user.** Not pushed. |
-| Spec 2 · Generate | [spec](../specs/2026-10-08-script-copilot-2-generate-design.md) + [interaction model](../specs/2026-10-08-script-copilot-2-interaction-model.md) + [formats, slots and tools](../specs/2026-10-08-script-copilot-2-formats-slots-tools.md). Final. Plan being written. |
-| Spec 3 · Visualise | [spec](../specs/2026-10-08-script-copilot-3-visualise-design.md). Final. Plan being written. |
-| Spec 4 · Client review | [spec](../specs/2026-10-08-script-copilot-4-client-review-design.md). Final. Plan being written. |
+| Spec 2 · Generate | [spec](../specs/2026-10-08-script-copilot-2-generate-design.md) + [interaction model](../specs/2026-10-08-script-copilot-2-interaction-model.md) + [formats, slots and tools](../specs/2026-10-08-script-copilot-2-formats-slots-tools.md). Final. **Plan not written yet** (writer stopped; do it after specs 3 and 4). |
+| Spec 3 · Visualise | [spec](../specs/2026-10-08-script-copilot-3-visualise-design.md). Final. **Plan written: 14 tasks, commit 370b8bb6 in sc-visualise.** One open question (§2a). |
+| Spec 4 · Client review | [spec](../specs/2026-10-08-script-copilot-4-client-review-design.md). Final. **Plan written: 19 tasks, commits 0b5770fb + 7b571fe9 in sc-review; the user approved its six flagged gaps (team may reply and resolve after approval).** |
 | Every product answer (59) | [questions file](../specs/2026-10-08-script-copilot-open-questions.md) |
 | Explainer (shareable) | https://claude.ai/artifact/RLbXdnfrXHf6dYTbm7uN4k#decisions |
 | Screen mockups | https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM |
@@ -38,6 +38,16 @@ of `.env` / `.env.local`.
 **Were the plans finished?** Background agents in the old session were writing them. In each
 worktree run `git log --oneline -3`: a commit adding the plan file means it is done. If there is
 none, the new conversation writes it first (§4).
+
+## 2a. Open before building
+
+- **Spec 3:** the Avatar Studio lets a user upload their own sheet instead of generating one. The
+  plan keeps the upload, and an upload replaces all four views. Ask the user: keep it, or drop
+  uploads now that sheets are four generated views?
+- **Spec 3:** apply migration  on staging (Supabase SQL editor, by the user) before its in-app checks.
+- **Spec 4:** apply migration  the same way before its in-app checks.
+- **Spec 2 must honour (from spec 3's plan):** an edited shot keeps its id; a split shot's first
+  half keeps the original id, because panels and takes are keyed by shot id.
 
 ## 3. Rules every build follows
 
@@ -73,10 +83,10 @@ Start each conversation **from inside its worktree folder** (open that folder in
 Resume the script copilot work. Read docs/superpowers/plans/2026-10-08-script-copilot-HANDOFF.md
 first (on staging; it is in this worktree too). This worktree is .claude/worktrees/sc-visualise,
 branch worktree-sc-visualise, for spec 3 (Visualise).
-1. If docs/superpowers/plans/2026-10-08-script-copilot-3-visualise.md is not committed here, write
-   it with superpowers:writing-plans from docs/superpowers/specs/2026-10-08-script-copilot-3-visualise-design.md,
-   following the constraints in the handoff §3 (migration 0053, ADRs D337–D346).
-2. Summarise the plan for me and wait for my review.
+1. The plan is committed here: docs/superpowers/plans/2026-10-08-script-copilot-3-visualise.md
+   (14 tasks). Read it and the spec docs/superpowers/specs/2026-10-08-script-copilot-3-visualise-design.md.
+2. Ask me the open question in the handoff §2a (the Studio's sheet upload) and update the plan
+   with my answer. Then summarise the plan and wait for my go-ahead.
 3. After I approve, execute it with superpowers:subagent-driven-development, then the
    whole-branch review. Do not merge or push.
 ```
