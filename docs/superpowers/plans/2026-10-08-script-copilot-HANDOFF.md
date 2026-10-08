@@ -95,14 +95,17 @@ branch worktree-sc-visualise, for spec 3 (Visualise).
 
 ```
 Resume the script copilot work. Read docs/superpowers/plans/2026-10-08-script-copilot-HANDOFF.md
-first. This worktree is .claude/worktrees/sc-review, branch worktree-sc-review, for spec 4
-(Client review).
-1. If docs/superpowers/plans/2026-10-08-script-copilot-4-client-review.md is not committed here,
-   write it with superpowers:writing-plans from docs/superpowers/specs/2026-10-08-script-copilot-4-client-review-design.md,
-   following the handoff §3 (migration 0054, ADRs D347–D356; stub spec 3's picked-panel interface).
-2. Summarise the plan for me and wait for my review.
+first (on staging; it is in this worktree too). This worktree is .claude/worktrees/sc-review,
+branch worktree-sc-review, for spec 4 (Client review).
+1. The plan is committed here: docs/superpowers/plans/2026-10-08-script-copilot-4-client-review.md
+   (19 tasks; my calls on its six flagged gaps are already in it, including that the team can
+   reply and resolve after approval). Read it and the spec
+   docs/superpowers/specs/2026-10-08-script-copilot-4-client-review-design.md.
+2. Summarise the plan and wait for my go-ahead.
 3. After I approve, execute it with superpowers:subagent-driven-development, then the
-   whole-branch review. Do not merge or push.
+   whole-branch review. Spec 3 is being built in parallel in .claude/worktrees/sc-visualise:
+   keep the spec-3 stub in src/lib/script-review/bridge.ts and do not touch that worktree.
+   Do not merge or push.
 ```
 
 ### Spec 2 · Generate (build third — merges last)
