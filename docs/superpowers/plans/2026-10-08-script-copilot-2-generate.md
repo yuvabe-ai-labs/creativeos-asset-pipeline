@@ -4606,3 +4606,641 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
+### Task 10: The browser data layer: service and query hooks
+
+**Files:**
+- Create: `src/services/script-generate.service.ts`
+- Modify: `src/hooks/queries/scripts.ts` (add `scriptKeys.generate`)
+- Create: `src/hooks/queries/script-generate.ts`
+- Test: `src/services/script-generate.service.test.ts`
+
+**Interfaces:**
+- Consumes: `readJson` (`src/services/read-json.ts`); `GenerateState`, `ScriptMessage` (Task 1); `ScriptStage`; the routes from Tasks 8–9.
+- Produces:
+  - `scriptGenerateService`: `create(clientId): Promise<string>` (the new script id), `state(clientId, scriptId): Promise<GenerateState>`, `turn(clientId, scriptId, text): Promise<GenerateState>`, `setField(clientId, scriptId, path, value): Promise<GenerateState>`, `inlineEdit(clientId, scriptId, body: { path: string; selectedText: string; offset: number; instruction: string }): Promise<{ state: GenerateState; undo: { path: string; before: string } }>`, `resolveProposal(clientId, scriptId, messageId, decision: "accept" | "reject"): Promise<GenerateState>`, `linkAvatar(clientId, scriptId, castId, avatarId: string | null): Promise<GenerateState>`, `markFinal(clientId, scriptId): Promise<ScriptStage>`.
+  - `scriptKeys.generate(clientId, scriptId)`.
+  - Hooks: `useGenerateState(clientId, scriptId, initialData)`, `useSendTurn`, `useSetScriptField`, `useInlineEdit`, `useResolveProposal`, `useLinkCastAvatar` (each `(clientId, scriptId)`), `useMarkFinal(clientId, scriptId)`, `useCreateScript(clientId)`.
+
+Every Generate route returns the whole workspace state, so each write hook simply replaces the cached state with the answer (one owner per resource, AGENTS.md). A sent message shows at once: `useSendTurn` adds it to the cache optimistically and rolls back on failure.
+
+- [ ] **Step 1: Write the failing service test**
+
+Read `src/services/client-review.service.test.ts` for how this repo stubs `fetch`, and follow it.
+
+```ts
+// src/services/script-generate.service.test.ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { scriptGenerateService } from "./script-generate.service";
+
+const fetchMock = vi.fn();
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+});
+const reply = (body: unknown, status = 200) => fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(body), { status }));
+const STATE = { script: { id: "s1" }, messages: [], openItems: [], avatars: [] };
+
+describe("scriptGenerateService", () => {
+  it("starts a new script and returns its id", async () => {
+    reply({ scriptId: "s1" }, 201);
+    expect(await scriptGenerateService.create("c1")).toBe("s1");
+    expect(fetchMock).toHaveBeenCalledWith("/api/clients/c1/scripts", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("sends a chat message and returns the state", async () => {
+    reply({ state: STATE });
+    expect(await scriptGenerateService.turn("c1", "s1", "UGC")).toEqual(STATE);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/clients/c1/scripts/s1/turn");
+    expect(init).toMatchObject({ method: "POST", body: JSON.stringify({ text: "UGC" }) });
+  });
+
+  it("returns the undo with an inline edit", async () => {
+    reply({ state: STATE, undo: { path: "shots.s01.vo", before: "Old" } });
+    const out = await scriptGenerateService.inlineEdit("c1", "s1", { path: "shots.s01.vo", selectedText: "Old", offset: 0, instruction: "warmer" });
+    expect(out.undo).toEqual({ path: "shots.s01.vo", before: "Old" });
+  });
+
+  it("throws the server's message", async () => {
+    reply({ error: "Not final yet: 1 item is still open (REVIEW (S8): placeholder)." }, 409);
+    await expect(scriptGenerateService.markFinal("c1", "s1")).rejects.toThrow("Not final yet");
+  });
+});
+```
+
+Run: `npx vitest run src/services/script-generate.service.test.ts`
+Expected: FAIL, module not found.
+
+- [ ] **Step 2: Write the service**
+
+```ts
+// src/services/script-generate.service.ts
+import type { GenerateState } from "@/lib/scripts/copilot/schema";
+import type { ScriptStage } from "@/lib/scripts/constants";
+import { readJson } from "./read-json";
+
+// Script copilot spec 2 — browser calls to the Generate routes. No caching here (TanStack Query owns it).
+
+const scriptUrl = (clientId: string, scriptId: string) => `/api/clients/${clientId}/scripts/${scriptId}`;
+const send = (url: string, method: string, body?: unknown) =>
+  fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+class ScriptGenerateService {
+  async create(clientId: string): Promise<string> {
+    const res = await send(`/api/clients/${clientId}/scripts`, "POST");
+    return (await readJson<{ scriptId: string }>(res, "Could not start a new script.")).scriptId;
+  }
+
+  async state(clientId: string, scriptId: string): Promise<GenerateState> {
+    const res = await fetch(`${scriptUrl(clientId, scriptId)}/generate`);
+    return (await readJson<{ state: GenerateState }>(res, "Could not load the script.")).state;
+  }
+
+  async turn(clientId: string, scriptId: string, text: string): Promise<GenerateState> {
+    const res = await send(`${scriptUrl(clientId, scriptId)}/turn`, "POST", { text });
+    return (await readJson<{ state: GenerateState }>(res, "The copilot could not answer.")).state;
+  }
+
+  async setField(clientId: string, scriptId: string, path: string, value: string): Promise<GenerateState> {
+    const res = await send(`${scriptUrl(clientId, scriptId)}/fields`, "PATCH", { path, value });
+    return (await readJson<{ state: GenerateState }>(res, "Could not save that change.")).state;
+  }
+
+  async inlineEdit(
+    clientId: string, scriptId: string,
+    body: { path: string; selectedText: string; offset: number; instruction: string },
+  ): Promise<{ state: GenerateState; undo: { path: string; before: string } }> {
+    const res = await send(`${scriptUrl(clientId, scriptId)}/inline-edit`, "POST", body);
+    return readJson(res, "Could not make that edit.");
+  }
+
+  async resolveProposal(clientId: string, scriptId: string, messageId: string, decision: "accept" | "reject"): Promise<GenerateState> {
+    const res = await send(`${scriptUrl(clientId, scriptId)}/proposals/${messageId}`, "POST", { decision });
+    return (await readJson<{ state: GenerateState }>(res, "Could not apply that change.")).state;
+  }
+
+  async linkAvatar(clientId: string, scriptId: string, castId: string, avatarId: string | null): Promise<GenerateState> {
+    const res = await send(`${scriptUrl(clientId, scriptId)}/cast/${encodeURIComponent(castId)}`, "PATCH", { avatarId });
+    return (await readJson<{ state: GenerateState }>(res, "Could not change the avatar.")).state;
+  }
+
+  async markFinal(clientId: string, scriptId: string): Promise<ScriptStage> {
+    const res = await send(`${scriptUrl(clientId, scriptId)}/mark-final`, "POST");
+    return (await readJson<{ stage: ScriptStage }>(res, "Could not mark the script final.")).stage;
+  }
+}
+
+export const scriptGenerateService = new ScriptGenerateService();
+```
+
+Run: `npx vitest run src/services/script-generate.service.test.ts`
+Expected: PASS.
+
+- [ ] **Step 3: Add the query key**
+
+In `src/hooks/queries/scripts.ts`, add to `scriptKeys` (after `approved`):
+
+```ts
+  /** One script's Generate workspace: script, brief, notes, conversation, open items (spec 2). */
+  generate: (clientId: string, scriptId: string) => [...scriptKeys.all(clientId), "generate", scriptId] as const,
+```
+
+- [ ] **Step 4: Write the hooks**
+
+```ts
+// src/hooks/queries/script-generate.ts
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { scriptGenerateService } from "@/services/script-generate.service";
+import type { GenerateState } from "@/lib/scripts/copilot/schema";
+import { scriptKeys } from "./scripts";
+
+// Script copilot spec 2 — the Generate workspace through TanStack Query. Every write returns the
+// whole state, so each mutation replaces the cached state with the server's answer.
+
+export function useGenerateState(clientId: string, scriptId: string, initialData: GenerateState) {
+  return useQuery({
+    queryKey: scriptKeys.generate(clientId, scriptId),
+    queryFn: () => scriptGenerateService.state(clientId, scriptId),
+    initialData,
+    enabled: Boolean(clientId && scriptId),
+  });
+}
+
+function useStateWrite<V>(clientId: string, scriptId: string, write: (v: V) => Promise<GenerateState>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: write,
+    onSuccess: (state) => queryClient.setQueryData(scriptKeys.generate(clientId, scriptId), state),
+  });
+}
+
+/** One chat message. Shown at once; rolled back if the request fails. */
+export function useSendTurn(clientId: string, scriptId: string) {
+  const queryClient = useQueryClient();
+  const key = scriptKeys.generate(clientId, scriptId);
+  return useMutation({
+    mutationFn: (text: string) => scriptGenerateService.turn(clientId, scriptId, text),
+    onMutate: async (text) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<GenerateState>(key);
+      if (previous) {
+        queryClient.setQueryData<GenerateState>(key, {
+          ...previous,
+          messages: [...previous.messages, { id: `pending-${Date.now()}`, role: "user", content: text, card: null, createdAt: new Date().toISOString() }],
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _text, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    },
+    onSuccess: (state) => queryClient.setQueryData(key, state),
+  });
+}
+
+export function useSetScriptField(clientId: string, scriptId: string) {
+  return useStateWrite(clientId, scriptId, ({ path, value }: { path: string; value: string }) =>
+    scriptGenerateService.setField(clientId, scriptId, path, value));
+}
+
+export function useInlineEdit(clientId: string, scriptId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { path: string; selectedText: string; offset: number; instruction: string }) =>
+      scriptGenerateService.inlineEdit(clientId, scriptId, body),
+    onSuccess: ({ state }) => queryClient.setQueryData(scriptKeys.generate(clientId, scriptId), state),
+  });
+}
+
+export function useResolveProposal(clientId: string, scriptId: string) {
+  return useStateWrite(clientId, scriptId, ({ messageId, decision }: { messageId: string; decision: "accept" | "reject" }) =>
+    scriptGenerateService.resolveProposal(clientId, scriptId, messageId, decision));
+}
+
+export function useLinkCastAvatar(clientId: string, scriptId: string) {
+  return useStateWrite(clientId, scriptId, ({ castId, avatarId }: { castId: string; avatarId: string | null }) =>
+    scriptGenerateService.linkAvatar(clientId, scriptId, castId, avatarId));
+}
+
+/** Generate → Visualise. The library and every other script list change with it. */
+export function useMarkFinal(clientId: string, scriptId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => scriptGenerateService.markFinal(clientId, scriptId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: scriptKeys.all(clientId) }),
+  });
+}
+
+export function useCreateScript(clientId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => scriptGenerateService.create(clientId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: scriptKeys.all(clientId) }),
+  });
+}
+```
+
+- [ ] **Step 5: Type-check and commit**
+
+Run: `npx vitest run src/services && npx tsc --noEmit`
+Expected: PASS, no type errors.
+
+```bash
+git add src/services/script-generate.service.ts src/services/script-generate.service.test.ts src/hooks/queries/scripts.ts src/hooks/queries/script-generate.ts
+git commit -m "feat(scripts): Generate service and query hooks
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 11: The script view, made editable (typing, inline AI edit, cast links)
+
+**Files:**
+- Create: `src/components/scripts/script-edit-context.tsx`
+- Create: `src/components/scripts/script-text.tsx`
+- Create: `src/components/scripts/script-header-fields.tsx`
+- Create: `src/hooks/use-script-selection.ts`
+- Create: `src/components/scripts/generate/inline-edit-prompt.tsx`
+- Create: `src/components/scripts/generate/cast-avatar-link.tsx`
+- Modify: `src/components/scripts/script-context-card.tsx`, `src/components/scripts/script-cast-list.tsx`, `src/components/scripts/script-shot-row.tsx`
+
+**Interfaces:**
+- Consumes: `HEADER_LABEL` (Task 2); `CopilotAvatar` (Task 1); `MAX_SELECTION_CHARS` (Task 1); `Textarea`, `InputGroup`, `InputGroupTextarea`, `InputGroupAddon`, `InputGroupButton`, `Select*`, `Button` from `src/components/ui/*`; `cn` (`@/lib/utils`).
+- Produces:
+  - `ScriptEdit = { commit: (path: string, value: string) => void; castControl?: (member: CastMember) => ReactNode; busyPath: string | null }`, `ScriptEditProvider({ value, children })`, `useScriptEdit(): ScriptEdit | null`.
+  - `ScriptText({ path, value, multiline?, placeholder?, className?, initiallyEditing?, onDone? })`: plain text with no provider above it; editable with one.
+  - `ScriptHeaderFields({ header })`.
+  - `ScriptSelection = { path: string; text: string; offset: number; top: number; left: number }`, `useScriptSelection(container: RefObject<HTMLElement | null>, enabled: boolean): { selection: ScriptSelection | null; clear: () => void }`.
+  - `InlineEditPrompt({ selection, pending, onSubmit, onClose })`.
+  - `CastAvatarLink({ member, avatars, pending, onChange })`.
+
+**"It is the same view, not a second drawing of the script"** (spec 2 §3). No new props on `ScriptView`: editing comes from a context. Without a `ScriptEditProvider` above it, every `ScriptText` renders exactly the text it rendered before, so Visualise, Client review and the read-only page are unchanged. This is the merge point with specs 3 and 4: they add their own optional props; this plan only swaps bare text expressions for `ScriptText`.
+
+**Two gestures on one piece of text** (spec 2 §9): a **click** with no selection starts typing (a shadcn `Textarea`); a **drag-selection** inside one field opens the inline AI prompt beside it. The display element is a focusable `<span role="button">` (Enter starts typing) because selected text cannot live inside a `<button>`; this is the one exception to the native-controls rule, recorded in Global Constraints. An empty field shows its placeholder and carries no `data-script-path`, so a placeholder can never be selected and sent as text.
+
+There are no DOM tests in this repo (vitest runs in node, no Testing Library). This task is checked in the app in Task 14; keep logic out of the components where it can be tested, as Tasks 2–7 did.
+
+- [ ] **Step 0: Read**
+
+Read `src/components/nodes/editable-field.tsx` and `script-document.tsx` (AGENTS.md's references for inline-editable text), `src/components/ui/input-group.tsx`, `src/components/ui/textarea.tsx` and `src/components/ui/select.tsx`, and `src/components/avatars/avatar-model-select.tsx` (a Base UI `Select` in this repo).
+
+- [ ] **Step 1: Write the edit context**
+
+```tsx
+// src/components/scripts/script-edit-context.tsx
+"use client";
+
+import { createContext, useContext, type ReactNode } from "react";
+import type { CastMember } from "@/lib/scripts/schema";
+
+/** Spec 2 §3 — present only in the Generate workspace. Without it the script view is read-only and
+ *  renders exactly as spec 1 drew it. Paths are those of src/lib/scripts/copilot/fields.ts. */
+export type ScriptEdit = {
+  /** Save what the person typed into one field. */
+  commit: (path: string, value: string) => void;
+  /** The control under each cast member (the avatar link, spec 2 §4.4). */
+  castControl?: (member: CastMember) => ReactNode;
+  /** The field an inline AI edit is working on, shown as busy. */
+  busyPath: string | null;
+};
+
+const ScriptEditContext = createContext<ScriptEdit | null>(null);
+
+export function ScriptEditProvider({ value, children }: { value: ScriptEdit; children: ReactNode }) {
+  return <ScriptEditContext.Provider value={value}>{children}</ScriptEditContext.Provider>;
+}
+
+export function useScriptEdit(): ScriptEdit | null {
+  return useContext(ScriptEditContext);
+}
+```
+
+- [ ] **Step 2: Write `ScriptText`**
+
+```tsx
+// src/components/scripts/script-text.tsx
+"use client";
+
+import { useState, type KeyboardEvent } from "react";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { useScriptEdit } from "./script-edit-context";
+
+type Props = {
+  /** The field's path (src/lib/scripts/copilot/fields.ts). */
+  path: string;
+  value: string;
+  /** One line: Enter saves. Otherwise Ctrl/Cmd+Enter or leaving the field saves. */
+  multiline?: boolean;
+  placeholder?: string;
+  className?: string;
+  /** Opens straight into typing (the "Add a watch-out" slot). */
+  initiallyEditing?: boolean;
+  onDone?: () => void;
+};
+
+/** One script field. Plain text unless a ScriptEditProvider is above it (spec 2 §9: typing, and the
+ *  selection that starts an inline AI edit). */
+export function ScriptText({ path, value, multiline = true, placeholder = "Add…", className, initiallyEditing = false, onDone }: Props) {
+  const edit = useScriptEdit();
+  const [editing, setEditing] = useState(initiallyEditing);
+  const [draft, setDraft] = useState(value);
+
+  if (!edit) return <>{value}</>;
+
+  const start = () => { setDraft(value); setEditing(true); };
+  const finish = (save: boolean) => {
+    setEditing(false);
+    if (save && draft !== value) edit.commit(path, draft);
+    onDone?.();
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false); }
+    if (e.key === "Enter" && (!multiline || e.metaKey || e.ctrlKey)) { e.preventDefault(); finish(true); }
+  };
+
+  if (editing) {
+    return (
+      <Textarea
+        autoFocus
+        value={draft}
+        rows={multiline ? 3 : 1}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => finish(true)}
+        onKeyDown={onKeyDown}
+        className={cn("min-h-0 text-sm", className)}
+      />
+    );
+  }
+
+  const empty = value.trim() === "";
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      // Only real text is selectable for an inline edit; a placeholder never is.
+      data-script-path={empty ? undefined : path}
+      onMouseUp={() => {
+        // A plain click starts typing; a drag-selection is left for the inline AI prompt.
+        if (window.getSelection()?.isCollapsed ?? true) start();
+      }}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); start(); } }}
+      className={cn(
+        "cursor-pointer whitespace-pre-wrap rounded-sm underline-offset-4 decoration-dotted decoration-2 decoration-transparent transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-primary/5 hover:underline hover:decoration-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        empty && "text-muted-foreground",
+        edit.busyPath === path && "animate-pulse",
+        className,
+      )}
+    >
+      {empty ? placeholder : value}
+    </span>
+  );
+}
+```
+
+- [ ] **Step 3: Write the header fields (edit mode only)**
+
+```tsx
+// src/components/scripts/script-header-fields.tsx
+"use client";
+
+import type { ScriptHeader } from "@/lib/scripts/schema";
+import { HEADER_LABEL } from "@/lib/scripts/copilot/fields";
+import { ScriptText } from "./script-text";
+
+const FIELDS = ["format", "region", "postDate", "theme", "aspect", "targetLength", "production"] as const;
+
+/** In the Generate workspace the header line opens into its fields so each can be typed (spec 2 §7). */
+export function ScriptHeaderFields({ header }: { header: ScriptHeader }) {
+  return (
+    <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      <div className="flex gap-2">
+        <dt className="w-28 shrink-0 text-muted-foreground">Reel number</dt>
+        <dd><ScriptText path="header.reelNumber" value={header.reelNumber === null ? "" : String(header.reelNumber)} multiline={false} /></dd>
+      </div>
+      {FIELDS.map((f) => (
+        <div key={f} className="flex gap-2">
+          <dt className="w-28 shrink-0 text-muted-foreground">{HEADER_LABEL[f]}</dt>
+          <dd className="min-w-0"><ScriptText path={`header.${f}`} value={header[f]} multiline={false} /></dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+```
+
+- [ ] **Step 4: Make the context card, cast list and shot row use them**
+
+`script-context-card.tsx`: add `"use client";` as the first line (it now reads the edit context; its props are plain data, so the server page can still render it). Then:
+
+```tsx
+// new imports
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useScriptEdit } from "./script-edit-context";
+import { ScriptText } from "./script-text";
+import { ScriptHeaderFields } from "./script-header-fields";
+```
+
+Inside `ScriptContextCard`, at the top: `const editing = useScriptEdit() !== null; const [addingWatchOut, setAddingWatchOut] = useState(false);`
+
+- Title: `<h1 className="font-display text-2xl font-medium"><ScriptText path="header.title" value={header.title} multiline={false} /></h1>`.
+- Below the title block, replace the facts `<span>` with: `{editing ? <ScriptHeaderFields header={header} /> : <span className="text-sm text-muted-foreground">{facts}</span>}`.
+- Each section shows when it has text **or** when editing, and its text goes through `ScriptText`: `{(context.purpose || editing) && <Section label="Purpose"><ScriptText path="context.purpose" value={context.purpose} /></Section>}`; the same for `settingAndCamera` and `disclaimers`; the disclaimers/watch-outs block shows when `editing` too.
+- Watch-outs: `{context.watchOuts.map((w, i) => <li key={`${i}-${w}`}><ScriptText path={`context.watchOuts.${i}`} value={w} /></li>)}`; then, when editing, either the add slot or the add chip:
+
+```tsx
+{editing && (addingWatchOut ? (
+  <li><ScriptText path={`context.watchOuts.${context.watchOuts.length}`} value="" initiallyEditing onDone={() => setAddingWatchOut(false)} /></li>
+) : (
+  <li className="list-none">
+    <Button variant="outline" size="xs" className="-ml-4 border-dashed border-primary/40 text-primary hover:bg-primary/5" onClick={() => setAddingWatchOut(true)}>
+      <Plus strokeWidth={1.5} /> Add a watch-out
+    </Button>
+  </li>
+))}
+```
+
+`script-cast-list.tsx`: add `"use client";`, import `useScriptEdit` and `ScriptText`. In each card: `const edit = useScriptEdit();` once at the top of the component; the name becomes `<ScriptText path={`cast.${c.id}.name`} value={c.name} multiline={false} />`, the description `<ScriptText path={`cast.${c.id}.description`} value={c.description} />` (keep the `<p>` wrapper and its classes), and the "No avatar yet" line becomes `{edit?.castControl ? edit.castControl(c) : !c.avatarId && <span className="text-xs text-muted-foreground">No avatar yet</span>}`.
+
+`script-shot-row.tsx` (already rendered inside the client `ScriptShotList`): import `useScriptEdit` and `ScriptText`; at the top `const editing = useScriptEdit() !== null;`. Replace the three text cells' contents with `<ScriptText path={`shots.${shot.id}.visual`} value={shot.visual} />`, the same for `vo` and `onScreenText` (keep each `<span>`'s classes on the cell). In the time cell, under the range, when editing add the beat and length so they can be typed:
+
+```tsx
+{editing && (
+  <>
+    <ScriptText path={`shots.${shot.id}.beat`} value={shot.beat} multiline={false} placeholder="Beat" className="text-xs uppercase tracking-wide" />
+    <span className="text-xs"><ScriptText path={`shots.${shot.id}.lengthSeconds`} value={String(shot.lengthSeconds)} multiline={false} />s</span>
+  </>
+)}
+```
+
+Run: `npx tsc --noEmit && npx vitest run src/lib/scripts`
+Expected: no errors; spec 1's tests still pass. Then open a seeded script at `/clients/jackfruit-365/scripts/<reel 01 id>` (any stage but Generate) and confirm it looks exactly as before: no hover underline, no edit chips.
+
+- [ ] **Step 5: Write the selection hook**
+
+```ts
+// src/hooks/use-script-selection.ts
+"use client";
+
+import { useEffect, useState, type RefObject } from "react";
+import { MAX_SELECTION_CHARS } from "@/lib/scripts/copilot/constants";
+
+/** A selection inside one script field, positioned relative to `container` (spec 2 §9). */
+export type ScriptSelection = { path: string; text: string; offset: number; top: number; left: number };
+
+const fieldOf = (node: Node | null) =>
+  (node instanceof Element ? node : node?.parentElement)?.closest<HTMLElement>("[data-script-path]") ?? null;
+
+/** Watches for a drag-selection that starts and ends inside the same script field. The selection
+ *  stays until `clear()`, so the prompt keeps its target while the person types the instruction. */
+export function useScriptSelection(container: RefObject<HTMLElement | null>, enabled: boolean) {
+  const [selection, setSelection] = useState<ScriptSelection | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const onMouseUp = () => {
+      const box = container.current;
+      const sel = window.getSelection();
+      if (!box || !sel || sel.isCollapsed || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      const field = fieldOf(range.startContainer);
+      if (!field || field !== fieldOf(range.endContainer) || !box.contains(field)) return;
+      const text = range.toString();
+      if (!text.trim()) return;
+      // The selection's start, counted in characters from the start of the field's text.
+      const before = document.createRange();
+      before.selectNodeContents(field);
+      before.setEnd(range.startContainer, range.startOffset);
+      const rect = range.getBoundingClientRect();
+      const outer = box.getBoundingClientRect();
+      setSelection({
+        path: field.dataset.scriptPath ?? "",
+        text: text.slice(0, MAX_SELECTION_CHARS),
+        offset: before.toString().length,
+        top: rect.bottom - outer.top + box.scrollTop + 6,
+        left: Math.max(0, Math.min(rect.left - outer.left, outer.width - 320)),
+      });
+    };
+    document.addEventListener("mouseup", onMouseUp);
+    return () => document.removeEventListener("mouseup", onMouseUp);
+  }, [container, enabled]);
+
+  return { selection, clear: () => setSelection(null) };
+}
+```
+
+- [ ] **Step 6: Write the inline prompt and the cast link**
+
+```tsx
+// src/components/scripts/generate/inline-edit-prompt.tsx
+"use client";
+
+import { useState } from "react";
+import { ArrowUp, Loader2 } from "lucide-react";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
+import type { ScriptSelection } from "@/hooks/use-script-selection";
+
+/** The small prompt beside selected text (spec 2 §9 "Inline AI edit"). Keyed by the selection at the
+ *  call site, so a new selection starts with an empty instruction. */
+export function InlineEditPrompt({ selection, pending, onSubmit, onClose }: {
+  selection: ScriptSelection;
+  pending: boolean;
+  onSubmit: (instruction: string) => void;
+  onClose: () => void;
+}) {
+  const [instruction, setInstruction] = useState("");
+  const submit = () => { if (instruction.trim() && !pending) onSubmit(instruction.trim()); };
+  return (
+    <div
+      role="dialog"
+      aria-label="Change the selected text"
+      className="absolute z-20 w-80 rounded-xl border border-border bg-card p-2 shadow-lg animate-rise"
+      style={{ top: selection.top, left: selection.left }}
+    >
+      <InputGroup>
+        <InputGroupTextarea
+          autoFocus
+          rows={2}
+          value={instruction}
+          disabled={pending}
+          placeholder="Shorter, warmer, add the claim line…"
+          onChange={(e) => setInstruction(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") { e.preventDefault(); onClose(); }
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+          }}
+        />
+        <InputGroupAddon align="block-end">
+          <span className="truncate text-xs text-muted-foreground">“{selection.text.length > 48 ? `${selection.text.slice(0, 48)}…` : selection.text}”</span>
+          <InputGroupButton size="icon-xs" className="ml-auto" aria-label="Apply the change" disabled={pending || !instruction.trim()} onClick={submit}>
+            {pending ? <Loader2 className="animate-spin" strokeWidth={1.5} /> : <ArrowUp strokeWidth={1.5} />}
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
+    </div>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/generate/cast-avatar-link.tsx
+"use client";
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { CastMember } from "@/lib/scripts/schema";
+import type { CopilotAvatar } from "@/lib/scripts/copilot/schema";
+
+const WORDS_ONLY = "words-only";
+
+/** Swap a cast member's avatar, or unlink to words only so spec 3 makes a new one (spec 2 §4.4). */
+export function CastAvatarLink({ member, avatars, pending, onChange }: {
+  member: CastMember;
+  avatars: CopilotAvatar[];
+  pending: boolean;
+  onChange: (avatarId: string | null) => void;
+}) {
+  const linked = avatars.find((a) => a.id === member.avatarId);
+  const label = linked?.name ?? (member.avatarId ? "Avatar no longer available" : "Words only");
+  return (
+    <Select
+      value={member.avatarId ?? WORDS_ONLY}
+      disabled={pending}
+      onValueChange={(v) => { if (typeof v === "string") onChange(v === WORDS_ONLY ? null : v); }}
+    >
+      <SelectTrigger size="sm" className="mt-1 w-fit min-w-40" aria-label={`Avatar for ${member.name}`}>
+        <SelectValue>{label}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={WORDS_ONLY}>Words only</SelectItem>
+        {avatars.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+```
+
+If `InputGroupTextarea`, `InputGroupButton`'s `size`, `SelectTrigger`'s `size`, or `animate-rise` differ from what is written here, follow the vendored primitive and `globals.css`; do not add new variants.
+
+- [ ] **Step 7: Type-check, lint and commit**
+
+Run: `npx tsc --noEmit && npx eslint src/components/scripts src/hooks/use-script-selection.ts`
+Expected: no errors.
+
+```bash
+git add src/components/scripts/script-edit-context.tsx src/components/scripts/script-text.tsx src/components/scripts/script-header-fields.tsx src/components/scripts/script-context-card.tsx src/components/scripts/script-cast-list.tsx src/components/scripts/script-shot-row.tsx src/hooks/use-script-selection.ts src/components/scripts/generate/inline-edit-prompt.tsx src/components/scripts/generate/cast-avatar-link.tsx
+git commit -m "feat(scripts): the script view, made editable through a context; inline-edit prompt and cast link
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
