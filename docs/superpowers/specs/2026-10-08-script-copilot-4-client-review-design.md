@@ -139,7 +139,9 @@ it straight at that part's thread, so the client never scrolls the length of the
 - the **context card**;
 - each **shot**;
 - each **cast member's avatar**, as a whole: one comment box on their card, beside the four views
-  and the voice. A single view takes no comment of its own (*revised 9 Oct 2026, D359*);
+  and the voice, in place of the card's comment button. A single view takes no comment of its own
+  (*revised 9 Oct 2026, D359*). On a script-only share the card has no avatar, so no box, and keeps
+  its comment button;
 - each **storyboard panel**, once spec 3 has made it and the share includes it.
 
 A comment belongs to one part. There are no pins on spots inside an image and no painting.
@@ -192,7 +194,9 @@ shows the latest. Earlier versions survive as activity lines naming what changed
 to the part ("S1 revised" jumps to S1). The client cannot open an earlier version or see a
 highlighted diff; both can come later, and nothing is lost because spec 3 keeps every panel take.
 
-**Activity** is the history of the review, oldest first:
+**Activity** is the history of the review, drawn as a timeline with the **latest on top**. The
+latest two events show; the earlier ones open from a "n earlier" row beneath them (*revised 9 Oct
+2026*; it was oldest first, all shown). The events:
 
 - Shared, version 1, and what it included
 - n comments, by whom

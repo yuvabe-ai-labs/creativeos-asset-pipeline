@@ -14,8 +14,11 @@ import { VoiceSampleButton } from "./voice-sample-button";
 
 /** Spec 4 §4 (review board): a cast member as the client sees them — spec 3's cast card with every
  *  making control taken out. The four-view sheet and the voice show on a share with avatars, with one
- *  comment box beside them for the whole avatar, never one per view (D359). */
+ *  comment box beside them for the whole avatar, never one per view, in place of the header's comment
+ *  button (D359). A script-only share has no box, so its header keeps the button. */
 export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMember; avatar?: AvatarSnapshot; showAvatar: boolean }) {
+  // Where the avatar shows, its box is the card's one way to comment; the header keeps the count.
+  const boxed = showAvatar && Boolean(avatar);
   return (
     <Card id={castAnchor(member.id)} className="flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40">
       <header className="flex items-start justify-between gap-3">
@@ -26,7 +29,7 @@ export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMem
           </div>
           <p className="text-sm text-muted-foreground">{member.description}</p>
         </div>
-        <PartMarker part={{ kind: "cast", castId: member.id }} className="shrink-0" />
+        <PartMarker part={{ kind: "cast", castId: member.id }} action={!boxed} className="shrink-0" />
       </header>
       {showAvatar &&
         (avatar ? (
