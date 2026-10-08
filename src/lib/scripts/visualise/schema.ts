@@ -1,3 +1,6 @@
+import type { Avatar } from "@/lib/avatars/schema";
+import type { RegionalKit } from "./kits";
+
 // Spec 3 — Visualise's own records, kept beside the script (D337). Pure types.
 
 /** For each cast member on screen when a panel was drawn: whose avatar, and its face then. */
@@ -21,4 +24,18 @@ export type PanelTake = {
   error: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+/** D344 — how a draw chooses its prompt: as the panel last was ("draw"), as the operator wrote
+ *  it ("edited"), or rebuilt from the script ("reset"). */
+export type DrawBody = { kind: "draw" } | { kind: "edited"; prompt: string } | { kind: "reset" };
+
+/** Everything the Visualise view needs beside the script. */
+export type VisualiseBoard = {
+  /** The avatars the cast links to, archived ones included, so a stale link still explains itself. */
+  avatars: Avatar[];
+  takes: PanelTake[];
+  /** shot id → picked take id */
+  picks: Record<string, string>;
+  kits: RegionalKit[];
 };
