@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { ScriptView } from "@/components/scripts/script-view";
 import type { ScriptViewSlots } from "@/components/scripts/script-view-slots";
 import { useReplyToThread, useResolveThread, useTeamScriptReview } from "@/hooks/queries/script-review";
+import { useReviewColumn } from "@/hooks/use-review-column";
 import { buildThreads, placeThreads } from "@/lib/script-review/threads";
 import type { Part } from "@/lib/script-review/types";
 import type { Script } from "@/lib/scripts/schema";
@@ -39,7 +40,9 @@ export function ScriptReviewWorkspace({
   // only the client's link becomes a record after approval.
   const open = Boolean(review?.latest);
 
+  const column = useReviewColumn();
   const surface: ReviewSurface = {
+    ...column,
     mode: "team",
     doc: script.doc,
     placed,

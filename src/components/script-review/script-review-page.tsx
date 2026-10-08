@@ -6,6 +6,7 @@ import { NameGate } from "@/components/client-review/name-gate";
 import { ScriptView } from "@/components/scripts/script-view";
 import type { ScriptViewSlots } from "@/components/scripts/script-view-slots";
 import { useIsServerOrHydrating } from "@/hooks/use-is-server-or-hydrating";
+import { useReviewColumn } from "@/hooks/use-review-column";
 import { useApproveScript, useEditScriptComment, usePostScriptComment, usePublicScriptReview } from "@/hooks/queries/script-review";
 import {
   PREPAINT_SCRIPT, browserStore, clearReviewerName, readReviewerName, saveReviewerName,
@@ -52,7 +53,9 @@ export function ScriptReviewPage({ token, initial }: { token: string; initial: P
     return name;
   }
 
+  const column = useReviewColumn();
   const surface: ReviewSurface = {
+    ...column,
     mode: "client",
     doc: version.doc,
     placed,

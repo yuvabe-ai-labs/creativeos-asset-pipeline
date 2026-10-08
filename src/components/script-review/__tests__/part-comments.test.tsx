@@ -19,6 +19,11 @@ function surface(comments: ScriptComment[], commentable: Part[]): ReviewSurface 
     placed: placeThreads(buildThreads(comments), doc, {}),
     commentable: new Map(commentable.map((p) => [partKey(p), p])),
     onPost: async () => {},
+    focus: null,
+    openPart: () => {},
+    clearFocus: () => {},
+    columnOpen: false,
+    setColumnOpen: () => {},
   };
 }
 
