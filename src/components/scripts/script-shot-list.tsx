@@ -38,10 +38,11 @@ export function ScriptShotList({ shots, cast, compact = false, aside }: {
         )}
         {grouped ? (
           groupByBeat(timed).map((g, i) => (
-            <div key={`${g.beat}-${i}`}>
-              <div className="flex justify-between border-b border-border bg-muted/30 px-4 py-1.5">
-                <span className="text-eyebrow">{g.beat || "No beat"}</span>
-                <span className="text-xs tabular-nums text-muted-foreground">{formatRange(g.start, g.end)}</span>
+            <div key={`${g.beat}-${i}`} className="border-t border-border first:border-t-0">
+              {/* Hierarchy from weight and colour, not size: the beat reads as the group's heading. */}
+              <div className="flex items-baseline justify-between border-b border-border bg-muted px-4 py-2.5">
+                <span className="text-eyebrow font-semibold text-foreground">{g.beat || "No beat"}</span>
+                <span className="text-xs font-medium tabular-nums text-muted-foreground">{formatRange(g.start, g.end)}</span>
               </div>
               <ul>{g.shots.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} compact={compact} aside={aside ? aside(t) : undefined} />)}</ul>
             </div>
