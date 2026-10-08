@@ -37,6 +37,16 @@ describe("fillToFinal", () => {
     expect(items[0].question).toMatch(/swap the theme/);
   });
 
+  it("lists a placeholder in a cast name, a beat label or the theme, so none reaches the client (final review)", () => {
+    const doc: ScriptDoc = {
+      ...r06,
+      header: { ...r06.header, theme: "[theme to confirm]" },
+      cast: r06.cast.map((c) => ({ ...c, name: "[founder name]" })),
+      shots: r06.shots.map((s) => (s.id === "s04" ? { ...s, beat: "[TOPIC]" } : s)),
+    };
+    expect(ids(doc)).toEqual(["placeholder.header.theme", "placeholder.cast.james.name", "placeholder.shots.s04.beat"]);
+  });
+
   it("asks for the draft when there is none", () => {
     expect(ids(null)).toEqual(["draft"]);
   });

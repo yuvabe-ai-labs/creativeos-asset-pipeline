@@ -40,6 +40,8 @@ export function fillToFinal(doc: ScriptDoc | null, notes: ScriptNotes): OpenItem
     if (!doc.header[field].trim()) add(`header.${field}`, label, `What's the ${label.toLowerCase()} for this reel?`);
     else placeholder(`header.${field}`, label, doc.header[field], false);
   }
+  // The theme may be empty, but never a placeholder: nothing in brackets reaches the client (spec 2 §12).
+  placeholder("header.theme", HEADER_LABEL.theme, doc.header.theme, false);
 
   const context = [
     ["purpose", "Purpose", "What is this reel for? I can propose a Purpose line."],
@@ -54,6 +56,7 @@ export function fillToFinal(doc: ScriptDoc | null, notes: ScriptNotes): OpenItem
   doc.context.watchOuts.forEach((w, i) => placeholder(`context.watchOuts.${i}`, `Watch-out ${i + 1}`, w, false));
 
   for (const c of doc.cast) {
+    placeholder(`cast.${c.id}.name`, `Character: ${c.name}`, c.name, false);
     if (!c.description.trim()) add(`cast.${c.id}.description`, `Character: ${c.name}`, `Describe ${c.name}: age, place, clothing, voice.`);
     else placeholder(`cast.${c.id}.description`, `Character: ${c.name}`, c.description, false);
   }
@@ -63,6 +66,7 @@ export function fillToFinal(doc: ScriptDoc | null, notes: ScriptNotes): OpenItem
     const where = `${s.beat.trim() || "The shot"} (S${i + 1})`;
     const isReview = /review/i.test(s.beat);
     if (!s.beat.trim()) add(`shots.${s.id}.beat`, `S${i + 1}: beat`, `Which beat is S${i + 1}?`);
+    else placeholder(`shots.${s.id}.beat`, `S${i + 1}: beat`, s.beat, false);
     if (!s.visual.trim()) add(`shots.${s.id}.visual`, `S${i + 1}: visual`, `What do we see in S${i + 1}?`);
     else placeholder(`shots.${s.id}.visual`, where, s.visual, false);
     if (firstOfBeat.has(s.id)) {
