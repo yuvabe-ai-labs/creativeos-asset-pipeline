@@ -7012,3 +7012,13 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** "New since you last looked". Email.
 
 **Refines →** D310. **Originated →** spec 4 §6; question 4.9.
+
+### D357 — Client review is the Visualise board, read-only, with a Comments column *(recorded 2026-10-08)*
+
+**Decision.** The client's review page draws the shared version in the Visualise board's frame (spec 3 §4) — the script in its compact form, the cast cards (four-view sheet and voice on a share with avatars) and, on a full share, the Storyboard — with every making control removed and a Comments column at the right. Threads live only in that column: each part (context, shot, person, view, panel) shows an amber count and a comment action that open its thread there; below `xl` the column opens over the page from a Comments button, straight at the part. The team's Visualise view carries the same markers and column, with spec 4's actions on its readiness line; after approval the team's page shows the approved version, read-only, the same way.
+
+**Why.** The client approves the visual reel, so they should read it as the team built it (user, 8 Oct: "the review surface is effectively the same as Visualise, just that the client reviews it"). Full threads under each shot of a narrow pane and under storyboard tiles crowd the board, worst on the phone the client opens the link on.
+
+**Rejected.** Spec 1's table with the panel beside each shot (the first build). Threads inline under each part. A third layout of the reel for review.
+
+**Refines →** D351, D355, D356. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §4, §6; decisions 4.14–4.17.

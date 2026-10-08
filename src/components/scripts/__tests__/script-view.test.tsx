@@ -33,3 +33,13 @@ describe("ScriptView slots (MP3)", () => {
     expect(s04).toContain('data-slot-test="shot-s04"');
   });
 });
+
+describe("the context slot sits inside the context card", () => {
+  it("renders the slot within the card's section, so the card can show it is commented", () => {
+    const html = renderToStaticMarkup(
+      <ScriptView script={{ doc: reelDoc(), stage: "in_review" }} avatarFaces={{}} slots={{ context: <span data-slot-test="context" /> }} />,
+    );
+    const card = html.slice(html.indexOf('id="script-context"'), html.indexOf("</section>"));
+    expect(card).toContain('data-slot-test="context"');
+  });
+});
