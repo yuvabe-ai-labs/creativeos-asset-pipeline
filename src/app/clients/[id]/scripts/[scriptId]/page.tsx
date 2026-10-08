@@ -7,7 +7,7 @@ import { resolveOrgId } from "@/lib/dal";
 import { ScriptReviewWorkspace } from "@/components/script-review/team/script-review-workspace";
 import { reelLabel } from "@/lib/scripts/utils";
 import { cn } from "@/lib/utils";
-import { VisualiseView } from "@/components/visualise/visualise-view";
+import { TeamReviewBoard } from "@/components/script-review/team/team-review-board";
 import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
 import { isVisualiseStage } from "@/lib/scripts/visualise/cast";
 import {
@@ -34,7 +34,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   const label = reelLabel(script.doc.header.reelNumber);
 
   return (
-    <main className={cn("mx-auto w-full flex-1 px-6 py-12", board ? "max-w-7xl" : "max-w-6xl")}>
+    <main className={cn("mx-auto w-full flex-1 px-6 py-12", board ? "max-w-[96rem]" : "max-w-6xl")}>
       <Breadcrumb className="animate-rise mb-6 shrink-0">
         <BreadcrumbList>
           <BreadcrumbItem><BreadcrumbLink render={<Link href="/">Clients</Link>} /></BreadcrumbItem>
@@ -46,10 +46,8 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
           <BreadcrumbItem><BreadcrumbPage>{label ? `${label} · ` : ""}{script.doc.header.title}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      {/* MERGE (specs 3+4, temporary): Visualise stages show spec 3's view; the review workspace
-          wraps the read-only view elsewhere. The client-review UI plan re-homes the workspace. */}
       {board
-        ? <VisualiseView clientId={client.id} initial={{ script, board }} />
+        ? <TeamReviewBoard clientId={client.id} initial={{ script, board }} />
         : <ScriptReviewWorkspace clientId={client.id} script={script} avatarFaces={avatarFaces} />}
     </main>
   );

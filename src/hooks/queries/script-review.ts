@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { scriptReviewService } from "@/services/script-review.service";
 import { scriptKeys } from "@/hooks/queries/scripts";
+import { visualiseKeys } from "@/hooks/queries/visualise";
 import { upsertComment } from "@/lib/script-review/utils";
 import type { PublicScriptReview } from "@/lib/script-review/assemble";
 import type { ShareScope, TeamStageMove } from "@/lib/script-review/constants";
@@ -33,6 +34,8 @@ export function useMoveScriptStage(clientId: string, scriptId: string) {
       void queryClient.invalidateQueries({ queryKey: scriptReviewKeys.team(clientId, scriptId) });
       // The library's stage filter and the gallery's Scripts tab (approved scripts) read these.
       void queryClient.invalidateQueries({ queryKey: scriptKeys.all(clientId) });
+      // Visualise reads the stage from its own board query (Reopen shows only at Visualise).
+      void queryClient.invalidateQueries({ queryKey: visualiseKeys.board(clientId, scriptId) });
     },
   });
 }
