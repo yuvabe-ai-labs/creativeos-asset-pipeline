@@ -13,8 +13,8 @@ import {
   type CopilotAction,
 } from "@/lib/copilot/actions";
 import type { AppNode } from "@/lib/canvas-nodes";
-import type { ReelScript } from "@/lib/nodes/reel-script";
 import { CURRENT_GROUPING_VERSION } from "@/lib/nodes/group-shots";
+import { parseScriptNode } from "@/lib/nodes/parse-script-node";
 import { usePlaybookRunner } from "./use-playbook-runner";
 import { normalizeSlots } from "@/lib/copilot/runner";
 
@@ -107,32 +107,21 @@ export function useCopilotChat(canvasId: string) {
       return;
     }
     try {
-      let output: ReelScript | null = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const res = await fetch(`/api/nodes/${target.id}/parse`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ source }),
-        });
-        if (res.ok) {
-          output = ((await res.json()) as { output: ReelScript }).output;
-          break;
-        }
-        if (res.status === 404 && attempt < 2) {
-          await new Promise((r) => setTimeout(r, 900)); // node still autosaving — wait past the debounce
-          continue;
-        }
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        setMessages((m) => [...m, { role: "assistant", content: err.error ?? "Parsing failed." }]);
-        return;
-      }
-      if (!output) {
+      // Shared with the gallery's script drop: POST the parse, retrying while the node autosaves.
+      const result = await parseScriptNode(target.id, source);
+      if (!result.ok) {
         setMessages((m) => [
           ...m,
-          { role: "assistant", content: "The node is still saving — ask me to parse it again in a moment." },
+          {
+            role: "assistant",
+            content: result.reason === "saving"
+              ? "The node is still saving — ask me to parse it again in a moment."
+              : result.error,
+          },
         ]);
         return;
       }
+      const output = result.output;
       // D257 — a parse adopts the current grouping rules. Written in the SAME call as `parsed`,
       // because fanOutShots below reads the node synchronously and must pack under them.
       storeApi
