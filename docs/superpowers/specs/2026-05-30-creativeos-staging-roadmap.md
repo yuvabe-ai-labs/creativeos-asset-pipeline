@@ -6709,3 +6709,73 @@ content). A layout picker (the instruction says it). Defaulting to Nano Banana w
 avatar edges into Image Gen and Video Gen; D290 — the composite inherits the face's model;
 D308 — the avatar contributes front then sheet, and an over-cap request is refused, never sliced.
 **Originated →** `2026-10-01-composite-node-design.md` (rewritten 2026-10-06).
+
+### D320 — Script copilot: four specs; Produce folds into spec 1 *(recorded 2026-10-08)*
+
+**Decision.** In-platform script writing ships as four specs: 1 library, script and handoff; 2 Generate (the copilot); 3 Visualise; 4 Client review. Produce is part of spec 1.
+
+**Why.** Produce's only new part is how a canvas picks up an approved script, and that depends on the script's shape, which spec 1 owns. AI sits only in specs 2 and 3.
+
+**Rejected.** Five specs with Produce on its own (a spec for one action).
+
+**Originated →** `2026-10-08-script-copilot-1-library-and-script-design.md` §0.
+
+### D321 — A script has a cast of client Avatars, exactly one of them the lead *(recorded 2026-10-08)*
+
+**Decision.** A script holds one or more people; each shot names who is on screen, or nobody. Each person points to a client Avatar, made once and reused across scripts. Exactly one is the lead.
+
+**Why.** 15 of the 28 Jackfruit365 outlines put two or more people on screen, Reel 01 included. A person described only in words has no reference image, so their face changes panel to panel and the client reviews the wrong person. People recur across reels (James in 8; Rajan and Saraswathi in 04 and 21; Harpreet and Gurmeet in 16 and 27).
+
+**Rejected.** One avatar per script (the parent spec's first answer). Supporting people as prose only. A cast owned by each script and regenerated every time.
+
+**Refines →** D287–D297 (client Avatars). **Originated →** spec 1 §2.3.
+
+### D322 — Only the lead's avatar crosses onto the canvas *(recorded 2026-10-08)*
+
+**Decision.** When a script reaches a canvas, the lead's avatar is attached to the Script node. Supporting cast stay in the shot descriptions as words.
+
+**Why.** A Script node holds one avatar (D298) and nothing after approval changes in this work. **Known gap:** a supporting person's face in the generated video will not match their storyboard face; closing it means a Script node that holds a cast, which changes the video pipeline.
+
+**Rejected.** Teaching the canvas to hold a cast now (out of scope).
+
+**Refines →** D298. **Originated →** spec 1 §5.5.
+
+### D323 — Approved scripts reach a canvas from a Scripts tab in the gallery, as a copy *(recorded 2026-10-08)*
+
+**Decision.** The canvas gallery has a Scripts tab listing the client's approved scripts. Dragging one makes a Script node holding a copy of the printed script; it can be dragged in more than once; re-approving a script never changes nodes already on a canvas.
+
+**Why.** Every other client asset reaches a canvas this way, teams already group a month of reels on one canvas, and a live link would re-parse a canvas under someone mid-production.
+
+**Rejected.** A "send to canvas" action with a canvas picker. A new canvas per script. A live link between script and node.
+
+**Originated →** spec 1 §5.1, §5.4.
+
+### D324 — The handoff prints the team's outline layout, one row per shot; the parse is unchanged *(recorded 2026-10-08)*
+
+**Decision.** An approved script is printed as the Jackfruit365 outlines are written (header line, Purpose, Character, Setting and camera, a Beat · Visual · VO · On-screen text table, disclaimers) with one table row per shot, and parsed by the existing Script node parse with no prompt change.
+
+**Why.** The parse is built for that layout and copies voiceover verbatim onto one shot per row, so one row per shot gives the canvas exactly the shots the client approved.
+
+**Rejected.** Writing the structured shots straight into the node's parsed version (touches node versioning; the parsed shape lacks setting, transition and cast anyway). Extending the parse prompt.
+
+**Refines →** D19, D267, D286. **Originated →** spec 1 §5.3.
+
+### D325 — The script's shape follows the team's outlines; formats are the client's words *(recorded 2026-10-08)*
+
+**Decision.** Header fields from the outlines' header line, including production ("AI-generated"); the context card is Purpose, Setting and camera, disclaimers and watch-outs; beat labels are free text; setting changes and transitions are written into the visual. Formats and names are inferred from the client's scripts, not a product list. "Avatar" means the asset only; the founder format is "Founder-led".
+
+**Why.** All 28 outlines share this skeleton; the founder reels invent their own beat labels; "avatar" naming both an asset and a format confused the team.
+
+**Rejected.** Separate Setting and Transition fields. A fixed list of formats or beats.
+
+**Originated →** spec 1 §2.
+
+### D326 — Three seeded scripts, one per format, loaded by a developer *(recorded 2026-10-08)*
+
+**Decision.** Spec 1 ships three hand-split scripts as fixtures, one per format structure: Reel 01 (UGC, 14 shots), Reel 06 (Founder-led, 9 shots) and Reel 08 (UGC, review first, 9 shots), in `src/lib/scripts/fixtures/`, seeded with `scripts/seed-script.mjs`. There is no product button for them.
+
+**Why.** Specs 3 and 4 lead the demo and can be built before the copilot; the fixture is also the copilot's target and the handoff's test. Keeping it out of the product keeps the copilot the only way users make a script.
+
+**Rejected.** Waiting for spec 2 before building Visualise and Client review. A user-facing import.
+
+**Originated →** spec 1 §6.
