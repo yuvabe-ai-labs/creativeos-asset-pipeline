@@ -28,7 +28,16 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{label}</DialogTitle>
+          <div className="flex items-center gap-3">
+            <DialogTitle>{label}</DialogTitle>
+            {picking && (
+              // Beside the title, above the blocking layer, clear of the dialog's text.
+              <span role="status" aria-live="polite" className="relative z-20 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <Loader2 className="size-4 animate-spin text-primary" strokeWidth={1.5} />
+                Setting this version…
+              </span>
+            )}
+          </div>
           <DialogDescription>
             {view.status === "out_of_date"
               ? "Out of date: drawn before the shot or an avatar changed. It stays until you redraw it."
@@ -55,15 +64,9 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
           </div>
         </div>
         {picking && (
-          // Setting the picked take is a request: block the dialog and say so until it lands. The
-          // same overlay the Studio shows while a face is set ("Setting as the front…").
-          // The message sits at the bottom on its own surface, clear of the dialog's text beneath.
-          <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex items-end justify-center rounded-[inherit] bg-background/60 pb-5">
-            <span className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-card">
-              <Loader2 className="size-4 animate-spin text-primary" strokeWidth={1.5} />
-              Setting this version…
-            </span>
-          </div>
+          // Setting the picked take is a request: block the dialog until it lands. The message
+          // sits beside the title, above this layer (the Studio's "Setting as the front…" overlay).
+          <div aria-hidden className="absolute inset-0 z-10 rounded-[inherit] bg-background/60" />
         )}
       </DialogContent>
     </Dialog>
