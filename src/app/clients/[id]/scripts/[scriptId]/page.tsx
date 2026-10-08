@@ -1,14 +1,13 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
+import { getGenerateScript, loadGenerateState } from "@/lib/db/script-generate";
 import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
 import { ScriptView } from "@/components/scripts/script-view";
+import { ScriptBreadcrumb } from "@/components/scripts/script-breadcrumb";
+import { GenerateWorkspace } from "@/components/scripts/generate/generate-workspace";
 import { reelLabel } from "@/lib/scripts/utils";
-import {
-  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +16,22 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   const client = await getClientBySlug(id);
   const effectiveOrgId = await resolveOrgId();
   if (!client || client.org_id !== effectiveOrgId) redirect("/");
+
+  // Spec 2 — at Generate the script opens in the copilot workspace, with or without a draft yet.
+  const atGenerate = await getGenerateScript(client.id, scriptId);
+  if (atGenerate?.stage === "generate") {
+    const state = await loadGenerateState(client.id, scriptId);
+    if (!state) notFound();
+    const doc = state.script.doc;
+    const reel = doc ? reelLabel(doc.header.reelNumber) : null;
+    const title = doc ? `${reel ? `${reel} · ` : ""}${doc.header.title}` : state.script.brief.card?.title ?? "New script";
+    return (
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 py-8">
+        <ScriptBreadcrumb client={client} title={title} />
+        <GenerateWorkspace clientId={client.id} initialState={state} />
+      </main>
+    );
+  }
 
   const script = await getScript(client.id, scriptId);
   if (!script) notFound();
@@ -28,17 +43,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
-      <Breadcrumb className="animate-rise mb-6 shrink-0">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink render={<Link href="/">Clients</Link>} /></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbLink render={<Link href={`/clients/${client.slug}`}>{client.name}</Link>} /></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbLink render={<Link href={`/clients/${client.slug}/scripts`}>Scripts</Link>} /></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbPage>{label ? `${label} · ` : ""}{script.doc.header.title}</BreadcrumbPage></BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <ScriptBreadcrumb client={client} title={`${label ? `${label} · ` : ""}${script.doc.header.title}`} />
       <ScriptView script={script} avatarFaces={avatarFaces} />
     </main>
   );
