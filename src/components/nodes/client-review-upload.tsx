@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
+import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
+import { titleFromFilename, uniqueTitle } from "@/lib/nodes/title";
 import { CUT_CONTENT_TYPES, CUT_EXTENSIONS, CUT_MAX_BYTES } from "@/lib/client-review/constants";
 import { cutExtension } from "@/lib/client-review/validate";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
@@ -30,6 +33,19 @@ export function ClientReviewUpload({
   const [percent, setPercent] = useState<number | null>(null);
   const flushAutosave = useFlushAutosave();
   const editable = useCanvasEditable();
+  const store = useCanvasStoreApi();
+
+  // The node takes the cut's file name, replacing whatever it carried before (a duplicated
+  // node arrives with its source's title). If another Client review node on the canvas
+  // already has that name, it is numbered "(1)", "(2)", … so the feedback list stays readable.
+  function nameAfterFile(filename: string) {
+    const { nodes, updateNodeData } = store.getState();
+    const taken = nodes
+      .filter((n) => n.type === "client-review" && n.id !== nodeId)
+      .map((n) => (n.data as ClientReviewNodeData).title ?? "");
+    const title = uniqueTitle(titleFromFilename(filename), taken);
+    if (title) updateNodeData(nodeId, { title });
+  }
 
   async function upload(file: File) {
     if (file.size > CUT_MAX_BYTES) {
@@ -50,6 +66,11 @@ export function ClientReviewUpload({
         contentType,
         onProgress: setPercent,
       });
+      // Rename and save BEFORE onUploaded: it refetches the header's feedback list, which
+      // reads titles from the saved node, so it would otherwise show the old name. A failed
+      // save must not report the (successful) upload as failed; autosave retries the title.
+      nameAfterFile(file.name);
+      await flushAutosave().catch(() => {});
       onUploaded(next);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed.");
