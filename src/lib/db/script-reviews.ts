@@ -98,7 +98,14 @@ export async function getLatestVersion(reviewId: string): Promise<ScriptVersion 
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data ? rowToVersion(data as ScriptVersionRow) : null;
+  if (!data) return null;
+  // Loud, not skipped: a share diffed against "no version" sends expectedLatest 0, which the
+  // database refuses as stale for ever. A frozen doc must stay readable across schema changes
+  // (plan merge point MP8).
+  const row = data as ScriptVersionRow;
+  const version = rowToVersion(row);
+  if (!version) throw new Error(`Version ${row.number} of this review could not be read.`);
+  return version;
 }
 
 export type ShareResult = { status: "ok"; version: ScriptVersion } | { status: "stale" | "not_in_review" };
@@ -300,8 +307,19 @@ export async function hasApproval(scriptId: string, versionNumber: number): Prom
   return (count ?? 0) > 0;
 }
 
-/** Client comments and approvals per script, for one client's library (spec 4 §6). */
+/** Client comments and approvals per script, for one client's library (spec 4 §6). A count is
+ *  never worth a broken library: on a read error (say, before migration 0054 is applied) it logs
+ *  and answers no counts. */
 export async function listFeedbackCounts(clientId: string): Promise<Record<string, number>> {
+  try {
+    return await readFeedbackCounts(clientId);
+  } catch (e) {
+    console.error("[script-review] could not read the library's feedback counts", e);
+    return {};
+  }
+}
+
+async function readFeedbackCounts(clientId: string): Promise<Record<string, number>> {
   const supabase = createServerSupabase();
   const [comments, approvals] = await Promise.all([
     supabase

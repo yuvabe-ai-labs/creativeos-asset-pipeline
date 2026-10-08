@@ -50,6 +50,7 @@
 | MP5 | Stage writes | Spec 2's Mark final and spec 3's Reopen (Visualise → Generate) write `client_scripts.stage` their own way; spec 4's moves go through `script_review_move`. Keep spec 4's label "Reopen to Visualise" distinct from spec 3's "Reopen". |
 | MP6 | `src/components/scripts/scripts-library.tsx`, `script-card.tsx` | Spec 2 adds "New script"; spec 4 adds the feedback count. Both additive. |
 | MP7 | Migration `0054`, ADRs `D347`–`D356` | Renumber the migration if `0054` is taken at merge; the ADR numbers are booked. |
+| MP8 | `src/lib/scripts/schema.ts` vs `script_review_versions.doc` | Every shared version is re-read through the live `scriptDocSchema`. A schema change (spec 2 merges last) must keep stored docs parseable: new fields optional or defaulted, no tightened limits, or migrate the stored versions. An unreadable latest version now fails loudly (`getLatestVersion` throws) instead of silently blocking every share. |
 
 ## Decided by the user on 8 Oct (were flagged gaps)
 

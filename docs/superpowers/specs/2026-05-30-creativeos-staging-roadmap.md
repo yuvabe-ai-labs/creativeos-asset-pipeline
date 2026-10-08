@@ -6884,7 +6884,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 ### D354 — No withdrawal; reopen and share again; the approved link is a record *(recorded 2026-10-08)*
 
-**Decision.** The client cannot withdraw an approval. The team reopens an approved script to Visualise and shares again on the same link for a new approval (Approved › Reopened › Approved). While the version on screen is approved, the link is a read-only record: no comments, edits, replies or resolves.
+**Decision.** The client cannot withdraw an approval. The team reopens an approved script to Visualise and shares again on the same link for a new approval (Approved › Reopened › Approved). While the version on screen is approved, the link is a read-only record for the client: no client comments or edits. The team can still reply and resolve (user, 8 Oct).
 
 **Why.** Comments after sign-off are the late changes this feature exists to stop (parent spec §0). Spec 1 §5.4 already keeps canvas copies stable when a script is re-approved.
 
