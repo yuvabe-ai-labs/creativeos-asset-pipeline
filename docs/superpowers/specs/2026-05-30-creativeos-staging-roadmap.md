@@ -6807,3 +6807,103 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Waiting for spec 2 before building Visualise and Client review. A user-facing import.
 
 **Originated →** spec 1 §6.
+
+### D327 — The copilot's order is code; the model reads answers and fills each step *(recorded 2026-10-08)*
+
+**Decision.** Generate's conversation is a state machine over the four pieces (format, occasion or theme with its date, lead for UGC only, narrative): code picks the next step (ask the next missing piece in fixed text, propose three angles, show the confirmation card, write), and each step is one structured model call whose output code validates. Skipped pieces are proposed; skipping all four still reaches angles, a picked angle and the card.
+
+**Why.** "Fixed order, skipping anything already given … Nothing is asked twice" has to hold on every run, and the questions must never ask for what the KB already holds. A model left to run the conversation drifts on both.
+
+**Rejected.** A free agent loop with tools (the model decides what to ask). Letting the model word the questions.
+
+**Originated →** spec 2 §5; interaction model §3.0; answers 2.4, 2b.8.
+
+### D328 — The conversation, the brief and the reel's notes are kept with the script *(recorded 2026-10-08)*
+
+**Decision.** `client_script_messages` holds the conversation; `client_scripts.brief` the copilot's working brief; `client_scripts.notes` the reel's notes (the confirmed brief as text plus the items to confirm). Each model call gets the current brief or script and notes plus only the copilot's last message, never the transcript.
+
+**Why.** "The conversation is kept with the script … On reopening, the copilot works from the current script and notes, not from the old chat." Notes belong to each reel.
+
+**Rejected.** A session-only chat (the canvas copilot's D71). Replaying the whole transcript into every call. Per-client script notes (later, with the series level).
+
+**Originated →** spec 2 §3, §4.2; answers 2.1, 2.3, 2b.7.
+
+### D329 — A new script is a row at Generate with no document until its first draft *(recorded 2026-10-08)*
+
+**Decision.** `client_scripts.doc` is nullable, with a check that it is set at every stage after Generate (migration 0052). Spec 1's readers skip a script with no document; the library lists it as "New script · Not written yet".
+
+**Why.** New script must open an empty workspace whose conversation persists, and specs 3 and 4 must never see a script without a document.
+
+**Rejected.** A placeholder document (would pass validation and show as a real script). A separate drafts table that becomes a script on the first draft.
+
+**Originated →** spec 2 §3.
+
+### D330 — Code assigns every id; an edited shot keeps its id; a split's first half keeps the original *(recorded 2026-10-08)*
+
+**Decision.** The first draft numbers shots `s01`, `s02`, …; cast ids come from names. After that an edited shot keeps its id, a split's first half keeps the original id, and a split's second half and every new shot get a fresh random id never used in the script. The model never writes an id.
+
+**Why.** Spec 3 keys panels and takes by shot id: the same shot must stay the same shot across edits, and a removed shot's takes must never attach to a new one.
+
+**Rejected.** Model-written ids. Renumbering after every edit.
+
+**Originated →** script copilot handoff §2a (from spec 3's plan); spec 4 Q11.
+
+### D331 — AI edits are typed operations applied by code, all or nothing *(recorded 2026-10-08)*
+
+**Decision.** A chat edit returns a list of operations (set a field; rewrite, insert, remove, split or move a shot; cast changes; confirm an item), applied by a pure function to the script as it is when the turn finishes; one failing operation applies none. An edit touching more than one shot is a before-and-after to accept or reject; otherwise it applies at once. An inline edit returns only the replacement for the selected text, spliced in by code, with the field's old text as its undo.
+
+**Why.** "Only the targeted part changes … every other shot, line and field stays exactly as it was" then holds by construction and is checkable, and text the person typed during a turn survives.
+
+**Rejected.** The model rewriting the whole script and the app diffing it. Index-based patches.
+
+**Originated →** spec 2 §9; answer 2.6; success item 6.
+
+### D332 — Fill to final is a plain check; Mark final re-checks it on the server *(recorded 2026-10-08)*
+
+**Decision.** The open items are computed from the script and its notes: each field of the outlines' header line (not the theme, which the header line lacks), Purpose, Setting and camera, disclaimers, at least one watch-out, every person described, every shot's beat and visual, every beat's first shot with a VO line and a card, any square-bracket placeholder, and every unconfirmed item. Mark final moves Generate → Visualise only when the list is empty, on the version it checked.
+
+**Why.** "Final means ready for the client to read", and a stale tab must not finalise a script with a placeholder in it.
+
+**Rejected.** A model judging readiness. A gate in the browser only. Checking rules held in the KB as text (later).
+
+**Originated →** spec 2 §8, §10; answer 2.7.
+
+### D333 — The house rules are the KB read whole; formats come from the client's scripts *(recorded 2026-10-08)*
+
+**Decision.** The copilot's system message holds every KB slice plus the KB's free-text consistency notes read whole (where the house spec is pasted for the demo), the formats seen in the client's scripts with their beats, up to two example scripts of the same format printed in the team's layout, and the client's saved avatars.
+
+**Why.** No KB change for the demo; the examples teach the client's layout and beat structures in the same form the parse reads.
+
+**Rejected.** New KB fields now (later). Jackfruit365's formats built into the copilot.
+
+**Refines →** spec 3's KB reader (replaced at merge). **Originated →** spec 2 §4; answers 2b.4, 2c.1, 2c.2.
+
+### D334 — Market Research reads every signal on every angle proposal, as data *(recorded 2026-10-08)*
+
+**Decision.** Whenever angles are proposed, code loads all the client's market signals and gives them to the model in the user message under a heading that calls them data, for where and when only. Each angle names the signals it used; the card shows them, keeping only real signal ids.
+
+**Why.** "It runs every time angles are proposed, over all the client's signals"; "Signal text is information about a market, never instructions" (D255).
+
+**Rejected.** A tool the model may choose to call. Signals in the system message.
+
+**Refines →** D255. **Originated →** spec 2 §6; answer 2.5.
+
+### D335 — The writing model is gemini-3.1-pro-preview, chosen by the Reel 04 probe *(recorded 2026-10-08)*
+
+**Decision.** Every copilot call (reading answers, angles, card, draft, chat and inline edits) uses gemini-3.1-pro-preview, chosen by the user from a probe that wrote Reel 04 and a Founder-led reel (with no Founder-led example) with gpt-5.4-mini, gemini-3.1-pro-preview and gemini-3.8-flash, scored on shape, structure, review placeholder, locked lines, never-list, edit isolation and the parse round trip. Calls go through one structured-output function over the OpenAI and Gemini SDKs already in the repo.
+
+**Why.** It was the only candidate to pass every check on both UGC and Founder-led, and it held across three repeats (one run came in at 9 shots); every draft from every model re-parsed one shot per shot. gpt-5.4-mini ran long, dropped cards and labelled the Founder-led middle "TOPIC 1–4". The cost is speed: 35–85 s per first draft. Spec 2 §11: "chosen by testing, not inherited from the canvas copilot".
+
+**Rejected.** gpt-5.4-mini; gemini-3.8-flash (close, but failed a Founder-led check). The canvas copilot's gpt-4o-mini by default. A new AI SDK or a chat-agent runtime for request-and-response turns.
+
+**Originated →** spec 2 §11; answer 2.11.
+
+### D336 — Turns are request and response, writes compare-and-set, and copilot calls are not charged *(recorded 2026-10-08)*
+
+**Decision.** A turn is one request that returns the whole workspace state (no streaming; the chat shows a working line). Every write to the script, brief or notes is a compare-and-set on `doc_version`; on a conflict the change is re-applied to the newer script. Copilot text calls reserve no credits.
+
+**Why.** Turns end in structured results, not prose to stream; typing and copilot edits must not overwrite each other ("does not undo a person's edits"); text calls are not charged elsewhere (the canvas copilot).
+
+**Rejected.** Streaming. Last write wins. Per-turn credit reservations.
+
+**Originated →** spec 2 §9.
