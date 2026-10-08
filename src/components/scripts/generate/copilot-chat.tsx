@@ -25,7 +25,7 @@ export function CopilotChat({ messages, actions, suggestions }: { messages: Scri
       <ScrollArea className="min-h-0 flex-1">
         <ol className="flex flex-col gap-4 p-4" aria-live="polite">
           {messages.map((m) => <CopilotChatMessage key={m.id} message={m} actions={actions} />)}
-          {actions.busy && <li className="animate-pulse text-sm text-muted-foreground">Working on it. A first draft takes up to a minute.</li>}
+          {actions.busy && <li className="animate-pulse text-sm text-muted-foreground">Working on it. A first draft appears on the right as it is written.</li>}
         </ol>
         <div ref={end} />
       </ScrollArea>

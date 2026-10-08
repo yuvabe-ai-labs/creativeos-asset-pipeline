@@ -6909,3 +6909,5 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Streaming. Last write wins. Per-turn credit reservations.
 
 **Originated →** spec 2 §9.
+
+**Refined (9 Oct 2026, user's call).** The first draft now streams: the turn route answers as newline-delimited JSON, sending draft previews (header, cast, each finished shot) while Gemini writes, then the whole state. The right pane draws the previews read-only, then the saved script replaces them. Everything else stays request and response.

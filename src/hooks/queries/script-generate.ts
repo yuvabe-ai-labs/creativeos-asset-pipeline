@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { scriptGenerateService } from "@/services/script-generate.service";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
+import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 import { scriptKeys } from "./scripts";
 
 // Script copilot spec 2 — the Generate workspace through TanStack Query. Every write returns the
@@ -25,12 +26,13 @@ function useStateWrite<V>(clientId: string, scriptId: string, write: (v: V) => P
   });
 }
 
-/** One chat message. Shown at once; rolled back if the request fails. */
-export function useSendTurn(clientId: string, scriptId: string) {
+/** One chat message. Shown at once; rolled back if the request fails. While a first draft streams,
+ *  each preview goes to `onDraft`. */
+export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft: PartialDraft) => void) {
   const queryClient = useQueryClient();
   const key = scriptKeys.generate(clientId, scriptId);
   return useMutation({
-    mutationFn: (text: string) => scriptGenerateService.turn(clientId, scriptId, text),
+    mutationFn: (text: string) => scriptGenerateService.turn(clientId, scriptId, text, onDraft),
     onMutate: async (text) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<GenerateState>(key);

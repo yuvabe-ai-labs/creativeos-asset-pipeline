@@ -9,6 +9,8 @@ import { ScriptEditProvider, type ScriptEdit } from "@/components/scripts/script
 import { useScriptSelection } from "@/hooks/use-script-selection";
 import { useInlineEdit, useLinkCastAvatar, useMarkFinal, useSetScriptField } from "@/hooks/queries/script-generate";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
+import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
+import { DraftPreview } from "./draft-preview";
 import { CastAvatarLink } from "./cast-avatar-link";
 import { InlineEditPrompt } from "./inline-edit-prompt";
 import { MarkFinalBar } from "./mark-final-bar";
@@ -17,7 +19,7 @@ import { ScriptNotesPanel } from "./script-notes-panel";
 type Undo = { path: string; before: string };
 
 /** The right pane (spec 2 §3): Mark final above, the editable script, the reel's notes beneath. */
-export function GenerateScriptPane({ clientId, state, chatBusy }: { clientId: string; state: GenerateState; chatBusy: boolean }) {
+export function GenerateScriptPane({ clientId, state, chatBusy, draft }: { clientId: string; state: GenerateState; chatBusy: boolean; draft: PartialDraft | null }) {
   const { script } = state;
   const router = useRouter();
   const setField = useSetScriptField(clientId, script.id);
@@ -88,6 +90,8 @@ export function GenerateScriptPane({ clientId, state, chatBusy }: { clientId: st
           />
           <ScriptNotesPanel notes={script.notes} openItems={state.openItems} />
         </ScriptEditProvider>
+      ) : draft ? (
+        <DraftPreview draft={draft} clientId={clientId} />
       ) : (
         <EmptyState
           title="The draft appears here"
