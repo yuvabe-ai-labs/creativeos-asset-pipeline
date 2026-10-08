@@ -17,11 +17,16 @@ import { useNodeCost } from "@/hooks/use-node-cost";
 import { MultishotPromptFocusView } from "./multishot-prompt-focus-view";
 import { DEFAULT_IMAGE_PROMPT_SLICES } from "@/lib/kb/parse-context";
 import type { MultishotNodeData, MultishotPromptNodeData } from "@/lib/canvas-nodes";
+import { foldMultishotVoiceover, multishotVoiceover } from "@/lib/nodes/voiceover";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { PresenterFace } from "./presenter-face";
+import { useShotPresenter } from "@/hooks/use-shot-presenter";
+import { withAvatarAsSpeaker } from "@/lib/avatars/presenter";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
-  file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image", multishot: "Multishot",
+  file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image", composite: "Composite", multishot: "Multishot",
 };
 
 // Multishot Prompt node (D231). Sibling of the Video Prompt node's compact launcher (same
@@ -55,7 +60,19 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
     return nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
   }, [nodes, edges, id]);
   const budget = (multishotSource?.data as MultishotNodeData | undefined)?.totalSeconds;
-  const cuts = (multishotSource?.data as MultishotNodeData | undefined)?.cuts ?? [];
+  // The avatar in this shot speaks the script's on-camera lines: the server renames that speaker
+  // for the writer and the request (withAvatarAsSpeaker), so the preview renames it the same way.
+  const presenter = useShotPresenter(id);
+  const avatarName = presenter?.inShot ? presenter.avatar.name : "";
+  const { cuts, sequenceVoiceover } = useMemo(() => {
+    const data = multishotSource?.data as MultishotNodeData | undefined;
+    // D307 — one list for the sequence, with any lines an older node left on its cuts.
+    const source = data ? foldMultishotVoiceover({ cuts: data.cuts ?? [], sequenceVoiceover: multishotVoiceover(data) }) : { cuts: [], sequenceVoiceover: undefined };
+    if (!avatarName) return source;
+    // D286 — lines spanning every cut; the preview renders them exactly as the money path sends them.
+    const [row] = withAvatarAsSpeaker([{ nodeId: id, type: "multishot", data: source }], avatarName);
+    return row.data as typeof source;
+  }, [multishotSource, avatarName, id]);
   // D236 — the model the ladder was built for. This node never SETS it; the choice lives on the
   // Multishot node, and reading it here is what keeps the beat editor's token syntax and the
   // rendered prompt agreeing with what will actually be generated.
@@ -72,13 +89,13 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
       const fileUrl =
         n.type === "file" || n.type === "draw"
           ? (nd.fileUrl as string | undefined)
-          : n.type === "image-gen"
+          : isGeneratedImageType(n.type)
             ? (typeof nd.parsed === "string" ? (nd.parsed as string) : undefined)
             : undefined;
       const fileKind =
         n.type === "file" || n.type === "draw"
           ? (nd.fileKind as string | undefined)
-          : n.type === "image-gen"
+          : isGeneratedImageType(n.type)
             ? "image"
             : undefined;
       const typeLabel = TYPE_LABEL[n.type ?? ""] ?? String(n.type);
@@ -142,10 +159,13 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
           placeholder="Multishot prompt"
           onCommitTitle={(t) => updateNodeData(id, { title: t })}
           status={
-            <span
-              className={cn("size-1.5 rounded-full", plan ? "bg-primary" : "bg-muted-foreground/40")}
-              title={plan ? "Generated" : "Not generated"}
-            />
+            <span className="flex items-center gap-1.5">
+              <PresenterFace promptNodeId={id} />
+              <span
+                className={cn("size-1.5 rounded-full", plan ? "bg-primary" : "bg-muted-foreground/40")}
+                title={plan ? "Generated" : "Not generated"}
+              />
+            </span>
           }
         />
 
@@ -195,6 +215,7 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
       plan={plan}
       slices={slices}
       cuts={cuts}
+      sequenceVoiceover={sequenceVoiceover}
       targetModel={targetModel}
       multishotNodeId={multishotSource?.id ?? null}
       upstream={upstream}

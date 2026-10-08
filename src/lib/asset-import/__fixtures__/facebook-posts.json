@@ -1,0 +1,80 @@
+[
+ {
+  "postId": "1565472575623177",
+  "url": "https://www.facebook.com/reel/1681841923284509/",
+  "time": "2026-10-02T12:34:54.000Z",
+  "text": "This October, we’re reading about sisterhood in all its forms — bonds that weath",
+  "isVideo": true,
+  "media": [
+   {
+    "__typename": "Video",
+    "thumbnail": "https://scontent-iad6-1.xx.fbcdn.net/v/t51.82787-10/832131236_18628566199034330_4691630380348945493_n.jpg?stp=dst-jpg_tt6&cstp=mx1206x2144&ctp=s960x960&_nc_cat=107&ccb=1-7&_nc_sid=5fad0e&_nc_ohc=A8FTjZQDXtEQ7kNvwEYqNVc&_nc_oc=AdoA-AHtsvc3m7Yy_eDFPAAv8wWZZ1YbWJkNuEgClkNf5qMCq1KYF0We-0N6Ff9A1-DxviIgfMA-wDP1EPFEmgue&_nc_zt=23&_nc_ht=scontent-iad6-1.xx&_nc_gid=InZ1Psdh2c0LLtCeZZLaAA&_nc_ss=70289&oh=00_AQMRZd5IJO3cjrFRiUZz40grxSWhKmppWmDfx2JJ5O_kUQ&oe=6AC8EE4C",
+    "image": {
+     "uri": "https://scontent-iad6-1.xx.fbcdn.net/v/t51.82787-10/832131236_18628566199034330_4691630380348945493_n.jpg?stp=dst-jpg_tt6&cstp=mx1206x2144&ctp=p296x100&_nc_cat=107&ccb=1-7&_nc_sid=5fad0e&_nc_ohc=A8FTjZQDXtEQ7kNvwEYqNVc&_nc_oc=AdoA-AHtsvc3m7Yy_eDFPAAv8wWZZ1YbWJkNuEgClkNf5qMCq1KYF0We-0N6Ff9A1-DxviIgfMA-wDP1EPFEmgue&_nc_zt=23&_nc_ht=scontent-iad6-1.xx&_nc_gid=InZ1Psdh2c0LLtCeZZLaAA&_nc_ss=70289&oh=00_AQMRZd5IJO3cjrFRiUZz40grxSWhKmppWmDfx2JJ5O_kUQ&oe=6AC8EE4C"
+    },
+    "width": 1080,
+    "height": 1920,
+    "thumbnailImage": {
+     "uri": "https://scontent-iad6-1.xx.fbcdn.net/v/t51.82787-10/832131236_18628566199034330_4691630380348945493_n.jpg?stp=dst-jpg_tt6&cstp=mx1206x2144&ctp=s960x960&_nc_cat=107&ccb=1-7&_nc_sid=5fad0e&_nc_ohc=A8FTjZQDXtEQ7kNvwEYqNVc&_nc_oc=AdoA-AHtsvc3m7Yy_eDFPAAv8wWZZ1YbWJkNuEgClkNf5qMCq1KYF0We-0N6Ff9A1-DxviIgfMA-wDP1EPFEmgue&_nc_zt=23&_nc_ht=scontent-iad6-1.xx&_nc_gid=InZ1Psdh2c0LLtCeZZLaAA&_nc_ss=70289&oh=00_AQMRZd5IJO3cjrFRiUZz40grxSWhKmppWmDfx2JJ5O_kUQ&oe=6AC8EE4C"
+    },
+    "videoDeliveryLegacyFields": {
+     "browser_native_hd_url": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m367/AQOC5g5BjqAOsOcJfwO0HkUqGmVdXvYIDiuk7U3Ftichr8I_C9E-vPxHV-AzoDj1Os6xfbS1dcY8VJw1NqHoPYD_SRq9oGQagfLepnOwzQ.mp4?_nc_cat=101&_nc_sid=8bf8fe&_nc_ht=video-iad3-1.xx.fbcdn.net&_nc_ohc=LSxmgy2YlkQQ7kNvwHkIfUr&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5GQUNFQk9PSy4uQzMuNzIwLnByb2dyZXNzaXZlX2gyNjQtYmFzaWMtZ2VuMl83MjBwIiwieHB2X2Fzc2V0X2lkIjoxNjc1OTk0NzQ0MjM0MjM2LCJhc3NldF9hZ2VfZGF5cyI6MiwidmlfdXNlY2FzZV9pZCI6MTAwOTksImR1cmF0aW9uX3MiOjYsInVybGdlbl9zb3VyY2UiOiJ3d3cifQ%3D%3D&ccb=17-1&_nc_gid=InZ1Psdh2c0LLtCeZZLaAA&_nc_ss=70289&_nc_zt=28&oh=00_AQM0nO8KLgiEVxWEKHYYHk-9JuHU6_vU110NCzwmSx-yTA&oe=6AC8F919&bitrate=838495&tag=progressive_h264-basic-gen2_720p",
+     "browser_native_sd_url": "https://video-iad6-1.xx.fbcdn.net/o1/v/t2/f2/m367/AQM-LL8_QHGt_0XcBg-SxPiYrHswxgL5ZNTbDF9mX-NViERyYC0wIceFvo3POw1CfXFO5fskwrgagZxRY1fiIl1g9zf4xEl4jfOaJ2gq6Q.mp4?_nc_cat=106&_nc_sid=8bf8fe&_nc_ht=video-iad6-1.xx.fbcdn.net&_nc_ohc=bJT6le9vUAUQ7kNvwFTA49P&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5GQUNFQk9PSy4uQzMuMzYwLnByb2dyZXNzaXZlX2gyNjQtYmFzaWMtZ2VuMl8zNjBwIiwieHB2X2Fzc2V0X2lkIjoxNjc1OTk0NzQ0MjM0MjM2LCJhc3NldF9hZ2VfZGF5cyI6MiwidmlfdXNlY2FzZV9pZCI6MTAwOTksImR1cmF0aW9uX3MiOjYsInVybGdlbl9zb3VyY2UiOiJ3d3cifQ%3D%3D&ccb=17-1&_nc_gid=InZ1Psdh2c0LLtCeZZLaAA&_nc_ss=70289&_nc_zt=28&oh=00_AQNh-VQFqxxRo8Mq6tZnqubB6qlJMlzsOWT5Yg9qXEjNPg&oe=6AC8FE4C&bitrate=232373&tag=progressive_h264-basic-gen2_360p"
+    }
+   }
+  ]
+ },
+ {
+  "postId": "1560059176164517",
+  "url": "https://www.facebook.com/bluetokaicoffee/posts/pfbid02DtxHQyHCBiTMAvT1WoEN1NjpuyjStAAbWvobauVEWkspAv6Ci7NSBtgqt9ondasMl",
+  "time": "2026-09-27T12:25:57.000Z",
+  "text": "October is bringing eight more stories, questions, and rabbit holes to Grounds f",
+  "media": [
+   {
+    "mediaset_token": "pcb.1560059176164517",
+    "url": "https://www.facebook.com/bluetokaicoffee/posts/pfbid02DtxHQyHCBiTMAvT1WoEN1NjpuyjStAAbWvobauVEWkspAv6Ci7NSBtgqt9ondasMl"
+   },
+   {
+    "__typename": "Photo",
+    "thumbnail": "https://scontent-hou1-1.xx.fbcdn.net/v/t51.82787-15/825326377_18626865931034330_4472252468229698257_n.jpg?stp=dst-jpg_tt6&cstp=mx3277x4096&ctp=s590x590&_nc_cat=104&ccb=1-7&_nc_sid=127cfc&_nc_ohc=F4mWQkd--iQQ7kNvwEEZpR4&_nc_oc=Adr0DfbaeUc-Qw9LJJOcjj5aixXDO_7tWHlS4GktqEKdgulYUQmW-IzXWCeDsayu1Bk&_nc_zt=23&_nc_ht=scontent-hou1-1.xx&_nc_gid=VrhTDZRAURb_XnAFU5-aFg&_nc_ss=70289&oh=00_AQMdskTfkpE1LLWhKEMsT-iCaYZ3TYNrbpmNomhM_VbJ9Q&oe=6AC90F2B",
+    "image": {
+     "uri": "https://scontent-hou1-1.xx.fbcdn.net/v/t51.82787-15/825326377_18626865931034330_4472252468229698257_n.jpg?stp=dst-jpg_tt6&cstp=mx3277x4096&ctp=s590x590&_nc_cat=104&ccb=1-7&_nc_sid=127cfc&_nc_ohc=F4mWQkd--iQQ7kNvwEEZpR4&_nc_oc=Adr0DfbaeUc-Qw9LJJOcjj5aixXDO_7tWHlS4GktqEKdgulYUQmW-IzXWCeDsayu1Bk&_nc_zt=23&_nc_ht=scontent-hou1-1.xx&_nc_gid=VrhTDZRAURb_XnAFU5-aFg&_nc_ss=70289&oh=00_AQMdskTfkpE1LLWhKEMsT-iCaYZ3TYNrbpmNomhM_VbJ9Q&oe=6AC90F2B"
+    }
+   },
+   {
+    "__typename": "Photo",
+    "thumbnail": "https://scontent-hou1-1.xx.fbcdn.net/v/t51.82787-15/826869701_18626865961034330_6968837021703629130_n.jpg?stp=dst-jpg_tt6&cstp=mx1080x1350&ctp=s590x590&_nc_cat=101&ccb=1-7&_nc_sid=127cfc&_nc_ohc=QqDeVqH-tpYQ7kNvwHCgCcn&_nc_oc=AdqrC0d14wvNide6T02zq-BFsPDt6XC-ca0aHsuXTs8myjyXbKHPEeksQM8hmmR6HmQ&_nc_zt=23&_nc_ht=scontent-hou1-1.xx&_nc_gid=VrhTDZRAURb_XnAFU5-aFg&_nc_ss=70289&oh=00_AQPviBMQo5OT0UrE4fpY5GZhbbdTqSsFXNpi_DgvG0QFAw&oe=6AC904DC",
+    "image": {
+     "uri": "https://scontent-hou1-1.xx.fbcdn.net/v/t51.82787-15/826869701_18626865961034330_6968837021703629130_n.jpg?stp=dst-jpg_tt6&cstp=mx1080x1350&ctp=s590x590&_nc_cat=101&ccb=1-7&_nc_sid=127cfc&_nc_ohc=QqDeVqH-tpYQ7kNvwHCgCcn&_nc_oc=AdqrC0d14wvNide6T02zq-BFsPDt6XC-ca0aHsuXTs8myjyXbKHPEeksQM8hmmR6HmQ&_nc_zt=23&_nc_ht=scontent-hou1-1.xx&_nc_gid=VrhTDZRAURb_XnAFU5-aFg&_nc_ss=70289&oh=00_AQPviBMQo5OT0UrE4fpY5GZhbbdTqSsFXNpi_DgvG0QFAw&oe=6AC904DC"
+    }
+   }
+  ]
+ },
+ {
+  "postId": "1559057036264731",
+  "url": "https://www.facebook.com/bluetokaicoffee/posts/pfbid0rTNsyxUQzzSe5vqNrsWt7XkhNyRABzK4yLzB3KCUBxZWkZoYTBLeYPB1UA8rsXasl",
+  "time": "2026-09-26T13:08:18.000Z",
+  "text": "Wherever the day takes you, take good coffee with you. 🕺\n\n#bluetokaieasypour #s",
+  "isVideo": true,
+  "media": [
+   {
+    "mediaset_token": "pcb.1559057036264731",
+    "url": "https://www.facebook.com/bluetokaicoffee/posts/pfbid0rTNsyxUQzzSe5vqNrsWt7XkhNyRABzK4yLzB3KCUBxZWkZoYTBLeYPB1UA8rsXasl"
+   },
+   {
+    "__typename": "Video",
+    "thumbnail": "https://scontent-hou1-1.xx.fbcdn.net/v/t51.82787-10/825322257_18626523460034330_4975678214773180006_n.jpg?stp=dst-jpg_tt6&cstp=mx720x960&ctp=s590x590&_nc_cat=101&ccb=1-7&_nc_sid=5fad0e&_nc_ohc=bqVyG00646EQ7kNvwEzUx0h&_nc_oc=AdrQuOBIu7lr8ntJho74OMUX05xayo_O5xAuoFJGDBGZ1olmNGer5dT-XPM94wz-A00&_nc_zt=23&_nc_ht=scontent-hou1-1.xx&_nc_gid=VrhTDZRAURb_XnAFU5-aFg&_nc_ss=70289&oh=00_AQNdJwGKVJwGJuS90QSnjVzFk_XGFsAKmiskuupndjcpNQ&oe=6AC90EAA",
+    "image": {
+     "uri": "https://scontent-hou1-1.xx.fbcdn.net/v/t51.82787-10/825322257_18626523460034330_4975678214773180006_n.jpg?stp=dst-jpg_tt6&cstp=mx720x960&ctp=s590x590&_nc_cat=101&ccb=1-7&_nc_sid=5fad0e&_nc_ohc=bqVyG00646EQ7kNvwEzUx0h&_nc_oc=AdrQuOBIu7lr8ntJho74OMUX05xayo_O5xAuoFJGDBGZ1olmNGer5dT-XPM94wz-A00&_nc_zt=23&_nc_ht=scontent-hou1-1.xx&_nc_gid=VrhTDZRAURb_XnAFU5-aFg&_nc_ss=70289&oh=00_AQNdJwGKVJwGJuS90QSnjVzFk_XGFsAKmiskuupndjcpNQ&oe=6AC90EAA"
+    }
+   },
+   {
+    "__typename": "Video",
+    "thumbnail": "https://scontent-hou1-1.xx.fbcdn.net/v/t51.82787-10/825269607_18626523487034330_2577233185110892167_n.jpg?stp=dst-jpg_tt6&cstp=mx720x960&ctp=s590x590&_nc_cat=110&ccb=1-7&_nc_sid=5fad0e&_nc_ohc=OOOhX9jsdUUQ7kNvwGRiJD8&_nc_oc=AdoX6vuwsLXCdGhsapdYz5tSv55I6HVaHMcsLggbBx704j_4B0s-St-gNGFhgdvO9qg&_nc_zt=23&_nc_ht=scontent-hou1-1.xx&_nc_gid=VrhTDZRAURb_XnAFU5-aFg&_nc_ss=70289&oh=00_AQPbSx3mNl-isSBw-u_Ltoa-6W-PeO10qzGza6JkdEdUiA&oe=6AC8EE35",
+    "image": {
+     "uri": "https://scontent-hou1-1.xx.fbcdn.net/v/t51.82787-10/825269607_18626523487034330_2577233185110892167_n.jpg?stp=dst-jpg_tt6&cstp=mx720x960&ctp=s590x590&_nc_cat=110&ccb=1-7&_nc_sid=5fad0e&_nc_ohc=OOOhX9jsdUUQ7kNvwGRiJD8&_nc_oc=AdoX6vuwsLXCdGhsapdYz5tSv55I6HVaHMcsLggbBx704j_4B0s-St-gNGFhgdvO9qg&_nc_zt=23&_nc_ht=scontent-hou1-1.xx&_nc_gid=VrhTDZRAURb_XnAFU5-aFg&_nc_ss=70289&oh=00_AQPbSx3mNl-isSBw-u_Ltoa-6W-PeO10qzGza6JkdEdUiA&oe=6AC8EE35"
+    }
+   }
+  ]
+ }
+]

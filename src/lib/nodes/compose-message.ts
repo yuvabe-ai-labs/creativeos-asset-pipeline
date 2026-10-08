@@ -1,4 +1,5 @@
 import type { UpstreamPreview } from "@/lib/nodes/resolve-inputs";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,10 @@ export function isVisionAttachment(u: VisionAttachmentCandidate): boolean {
   }
   // An Image Gen still: its output IS the image. It only carries a fileUrl on the video path
   // (mapUpstreamForVideo); the image-Prompt path never sets it, so this cannot fire there.
-  if (u.type === "image-gen" && hasImageUrl) return true;
+  if (isGeneratedImageType(u.type) && hasImageUrl) return true;
+  // The script's avatar in this shot, as the browser lists it (useMentionUpstream). The server
+  // carries the same image as a file row (getPromptUpstream), so both count it in the same place.
+  if (u.type === "avatar" && hasImageUrl) return true;
   return false;
 }
 
@@ -73,16 +77,26 @@ function toImagePart(u: UpstreamPreview): ImagePart {
 // Document (PDF/DOCX) upstreams without extracted text are already represented
 // as a "[File: name]" hint inside the compiled text block — they are not sent
 // as URL parts because OpenAI's chat API cannot read arbitrary document URLs.
+//
+// `labelImages` (D281, the multishot writer only): each image is preceded by "Reference image N:",
+// N counted over the same `isVisionAttachment` order as `refEntriesOf`, so the operator's
+// Direction ("reference image 2 (kitchen.png)", via resolveRefMentions) points at a picture the
+// writer can actually tell apart. Off by default — every other caller's message is unchanged.
 export function buildUserContent(
   compiledText: string,
   upstream: UpstreamPreview[],
+  opts: { labelImages?: boolean } = {},
 ): UserContent {
   const visionAttachments = upstream.filter(isVisionAttachment);
   if (visionAttachments.length === 0) return compiledText;
 
   return [
     { type: "text", text: compiledText },
-    ...visionAttachments.map(toImagePart),
+    ...visionAttachments.flatMap((u, i): ContentPart[] =>
+      opts.labelImages
+        ? [{ type: "text", text: `Reference image ${i + 1}:` }, toImagePart(u)]
+        : [toImagePart(u)],
+    ),
   ];
 }
 

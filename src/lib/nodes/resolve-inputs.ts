@@ -1,13 +1,15 @@
 import "server-only";
 import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes";
+import { getPromptUpstream } from "@/lib/avatars/presenter-server";
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
 import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
 import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
-import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { describeVoLineForWriter, renderVoiceover } from "@/lib/nodes/voiceover";
+import { describeVoLineForWriter, multishotVoiceover } from "@/lib/nodes/voiceover";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script",
@@ -17,9 +19,17 @@ const TYPE_LABEL: Record<string, string> = {
   shot: "Shot",
   draw: "Sketch",
   "image-gen": "Image",
+  composite: "Composite",
   "video-prompt": "Motion Prompt",
   multishot: "Multishot",
 };
+
+/** D299 — the avatar's virtual row is labelled "Avatar", so the roster reads
+ *  "Presenter: Riya" rather than "File: Riya". */
+function labelOf(u: { type: string; data: Record<string, unknown> }): string {
+  if (u.data.presenter === "sheet") return "Avatar sheet";
+  return u.data.presenter === true ? "Avatar" : TYPE_LABEL[u.type] ?? u.type;
+}
 
 export type UpstreamPreview = {
   nodeId: string;
@@ -54,7 +64,8 @@ export async function resolvePromptInputs(
   const slices = normalizeSlices(slicesInput);
   const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
 
-  const ups = await getUpstreamOutputs(nodeId);
+  // D299 — with the presenter as a virtual input when it is in the shot.
+  const ups = await getPromptUpstream(nodeId);
 
   // A Shot already carries the full reel script narrowed to its one shot (D21), so
   // we do NOT walk to its parent Script — that would pass the entire reel (all shots)
@@ -62,8 +73,11 @@ export async function resolvePromptInputs(
   const upstream = ups.map((u) => ({
     nodeId: u.nodeId,
     versionId: u.versionId,
-    label: TYPE_LABEL[u.type] ?? u.type,
+    label: labelOf(u),
     type: u.type,
+    // Only the presenter's row is named here: the image-Prompt roster never named file nodes, and
+    // this keeps every other node's prompt text exactly as it was.
+    ...(u.data.presenter && typeof u.data.title === "string" ? { name: u.data.title } : {}),
     text: getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
     fileUrl:
       u.type === "file" || u.type === "draw"
@@ -97,7 +111,7 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
   const base: UpstreamPreview = {
     nodeId: u.nodeId,
     versionId: u.versionId,
-    label: TYPE_LABEL[u.type] ?? u.type,
+    label: labelOf(u),
     type: u.type,
     text: "",
   };
@@ -105,7 +119,7 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
   const filed = typeof u.data.filename === "string" ? u.data.filename.trim() : "";
   const name = titled || filed || undefined;
 
-  if (u.type === "image-gen") {
+  if (isGeneratedImageType(u.type)) {
     // The still's URL is the active output (a string). Feed it as vision, never as text.
     const url = typeof u.activeOutput === "string" ? u.activeOutput : undefined;
     return { ...base, text: "", fileUrl: url, fileKind: "image", ...(name ? { name } : {}) };
@@ -144,7 +158,7 @@ export async function resolveVideoPromptInputs(
   const slices = normalizeSlices(slicesInput);
   const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
 
-  const ups = await getUpstreamOutputs(nodeId);
+  const ups = await getPromptUpstream(nodeId);
   const upstream = ups.map((u) =>
     mapUpstreamForVideo({
       nodeId: u.nodeId,
@@ -213,6 +227,8 @@ export type ResolvedMultishotInputs = {
    * written from stated direction, so this has to reach the writer. Empty when the script has none.
    */
   scriptNotes: string;
+  /** D286 — the upstream Multishot node's lines spanning every shot. */
+  sequenceVoiceover?: VoLine[];
 };
 
 /**
@@ -230,7 +246,7 @@ export async function resolveMultishotPromptInputs(
   const slices = normalizeSlices(slicesInput);
   const clientContext = kbCtx.kb ? buildParseContext(kbCtx.kb, slices) : "";
 
-  const ups = await getUpstreamOutputs(nodeId);
+  const ups = await getPromptUpstream(nodeId);
   const upstream = ups.map((u) => mapUpstreamForVideo(u));
   const source = ups.find((u) => u.type === "multishot");
   // Beyond `id` truthiness, also require the two fields buildMultishotUserTurn reads
@@ -255,6 +271,8 @@ export async function resolveMultishotPromptInputs(
     cuts,
     targetModel,
     scriptNotes,
+    // D307 — the Multishot's one voiceover list, with any lines an older node left on its cuts.
+    sequenceVoiceover: source ? multishotVoiceover(source.data) : undefined,
   };
 }
 
@@ -278,6 +296,8 @@ export function buildMultishotUserTurn(args: {
    * (src/lib/nodes/multishot-models.ts).
    */
   maxCutChars?: number | null;
+  /** D286 — lines that play over every shot. Stated once, above the shots, never per shot. */
+  sequenceVoiceover?: VoLine[];
 }): string {
   const blocks: string[] = [];
 
@@ -311,29 +331,22 @@ export function buildMultishotUserTurn(args: {
       const steer = (args.cutInstructions[cut.id] ?? "").trim();
       if (steer) lines.push(`  Operator instruction for THIS shot: ${steer}`);
 
-      // D267 (Task 5) — WHAT is spoken over this shot, so the writer can frame a talking face or
-      // keep everyone silent for narration (VO_PERFORMANCE_RULES). Never an instruction to write
-      // the words — `renderPlan` (multishot-plan.ts) appends the actual line afterwards.
-      const voLines = (cut.voiceover ?? []).filter((l) => l.text.trim());
-      for (const l of voLines) {
-        lines.push(`  Voiceover on this shot: ${describeVoLineForWriter(l)}`);
-      }
-
-      // The same line `renderPlan`/`checkPlanLimits` append to this cut's beat, so the writer can
-      // see how much of its own ceiling (e.g. Kling's 512) the voiceover already spends, joined by
-      // the same one space `withVoiceover` inserts (multishot-plan.ts).
-      const rendered = renderVoiceover(cut.voiceover);
-      if (rendered && args.maxCutChars) {
-        const takes = rendered.length + 1;
-        lines.push(
-          `  Room for your beat: ${Math.max(0, args.maxCutChars - takes)} characters ` +
-            `(its voiceover takes ${takes} of ${args.maxCutChars}).`,
-        );
-      }
+      // D307 — no voiceover rides a cut; every line is in the sequence block below.
 
       return lines.join("\n");
     })
     .join("\n\n");
+
+  // D286 — WHAT is spoken across the whole clip, so the writer keeps faces silent for narration
+  // (VO_PERFORMANCE_RULES). Never an instruction to write the words — renderPlan puts them on the
+  // wire once, above the ladder.
+  const spanning = (args.sequenceVoiceover ?? []).filter((l) => l.text.trim());
+  if (spanning.length > 0) {
+    blocks.push(
+      "Voiceover across the whole sequence — it plays over every shot below, not over any one of them. Do not write these words into any beat:\n" +
+        spanning.map((l) => `  ${describeVoLineForWriter(l)}`).join("\n"),
+    );
+  }
 
   blocks.push(`Shots (return exactly one beat per shot, echoing each cutId):\n${shots}`);
 

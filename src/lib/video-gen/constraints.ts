@@ -5,7 +5,7 @@ import type {
   EvaluatedConstraints,
 } from "./types";
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "./assign-image-roles";
 
 export function buildConstraintState(
   imageRoles: Record<string, ImageRole>,

@@ -85,10 +85,13 @@ const STATUS_RANK: Record<TrayStatus, number> = {
   ready: 2,
 };
 
-/** Reduce all rows to the single newest row per node_id (by created_at). */
+/** Reduce all rows to the single newest row per node_id (by created_at). An avatar-owned row
+ *  (node_id null, D291) is not a canvas job — the tray has no node to show it on — so it is
+ *  skipped here before it ever reaches a node lookup. */
 export function latestJobPerNode(jobs: GenerationRow[]): GenerationRow[] {
   const latest = new Map<string, GenerationRow>();
   for (const jobRow of jobs) {
+    if (jobRow.node_id === null) continue;
     const cur = latest.get(jobRow.node_id);
     if (!cur || Date.parse(jobRow.created_at) > Date.parse(cur.created_at)) {
       latest.set(jobRow.node_id, jobRow);
@@ -108,6 +111,9 @@ export function deriveTrayItems(
   const items: TrayItem[] = [];
 
   for (const jobRow of latestJobPerNode(jobs)) {
+    // latestJobPerNode already drops avatar-owned rows (node_id null); this narrows the type
+    // for TS the same way rather than asserting it away.
+    if (jobRow.node_id === null) continue;
     const node = byId.get(jobRow.node_id);
     if (!node) continue; // node deleted → orphan row
     const kind = resolveTrayKind(jobRow.type, node.type);

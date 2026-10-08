@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scriptParsePrompt } from "../script-parse";
+import { scriptParsePrompt, SCENE_SPLIT_RULES } from "../script-parse";
 
 describe("script-parse schema", () => {
   const shotProps = (scriptParsePrompt.schema as {
@@ -27,8 +27,46 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("is version 9", () => {
-    expect(scriptParsePrompt.version).toBe(9);
+  it("is version 11", () => {
+    expect(scriptParsePrompt.version).toBe(11);
+  });
+
+  // D286 — each scene carries its suggested cuts; strict mode requires the key on every row.
+  // Visual only: a split scene's voiceover plays over the whole sequence.
+  it("declares a required, visual-only beats list on every shot, strict-mode shaped", () => {
+    expect(shotProps.required).toContain("beats");
+    const beats = shotProps.properties.beats as {
+      type: string;
+      items: { required: string[]; properties: Record<string, unknown>; additionalProperties: boolean };
+    };
+    expect(beats.type).toBe("array");
+    expect(beats.items.additionalProperties).toBe(false);
+    expect([...beats.items.required].sort()).toEqual(["description", "duration_seconds"]);
+    expect(beats.items.properties).not.toHaveProperty("voiceover");
+  });
+
+  it("splits only where the script signals cuts, and composes the shared rules", () => {
+    expect(SCENE_SPLIT_RULES).toMatch(/montage/i);
+    expect(SCENE_SPLIT_RULES).toMatch(/cut to/i);
+    expect(SCENE_SPLIT_RULES).toMatch(/EXACTLY ONE beat/);
+    expect(SCENE_SPLIT_RULES).toMatch(/never invent/i);
+    expect(SCENE_SPLIT_RULES).toMatch(/add up/i);
+    expect(scriptParsePrompt.system).toContain(SCENE_SPLIT_RULES);
+  });
+
+  // v10 read "Handheld cuts — A, B, C" as one beat 3/3 runs: only "quick cuts of" was listed.
+  it("treats the word cuts in any phrasing as a signal, with a worked example of each", () => {
+    expect(SCENE_SPLIT_RULES).toMatch(/"cuts" or "montage" in any phrasing/);
+    expect(SCENE_SPLIT_RULES).toContain("Handheld cuts — tucking pleats");
+    expect(SCENE_SPLIT_RULES).toContain("An ordinary workday in cuts");
+    // …and the counter-example that keeps one subject's consecutive actions whole.
+    expect(SCENE_SPLIT_RULES).toMatch(/Commas alone are not cuts/);
+  });
+
+  // "By default have the VO at sequence level" — beats never carry a line.
+  it("keeps voiceover off every beat", () => {
+    expect(SCENE_SPLIT_RULES).toMatch(/Beats carry no voiceover/);
+    expect(SCENE_SPLIT_RULES).toMatch(/whole sequence/);
   });
 
   // The operator's own creators write "Scene 3 — How to Use | 10–18 sec" and "VO + Text Overlay:".

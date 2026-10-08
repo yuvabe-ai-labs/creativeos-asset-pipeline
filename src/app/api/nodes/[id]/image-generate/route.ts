@@ -1,4 +1,5 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
+import { withStillPresenter } from "@/lib/avatars/presenter-server";
 import { insertVersion, setActiveVersion, getVersionById } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
@@ -8,7 +9,7 @@ import {
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
-import { withProductDetailSuffix } from "@/lib/image-gen/utils";
+import { withProductDetailSuffix, mimeToExt } from "@/lib/image-gen/utils";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -23,12 +24,6 @@ import { uploadImageGen } from "@/lib/storage";
 import sharp from "sharp";
 import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
 import { createServerSupabase } from "@/lib/supabase/server";
-
-function mimeToExt(mimeType: string): string {
-  if (mimeType === "image/jpeg") return "jpg";
-  if (mimeType === "image/webp") return "webp";
-  return "png";
-}
 
 const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "modify", "freeform"];
 function asIntent(v: unknown): EditIntent | undefined {
@@ -70,7 +65,9 @@ export async function POST(
     const validatedParams = parseResult.data as Record<string, unknown>;
 
     // Resolve upstream nodes
-    const upstream = await getUpstreamOutputs(nodeId);
+    // D299 — when the Prompt feeding this still has the presenter in the shot, the face joins
+    // the connected images.
+    const upstream = await withStillPresenter(await getUpstreamOutputs(nodeId));
 
     // All connected image URLs (File images, Draw sketches, other Image Gen outputs).
     const connectedImageUrls = upstream
@@ -332,7 +329,13 @@ export async function POST(
       });
       await setActiveVersion(nodeId, version.id);
 
-      const cost = result.tokensUsed ? computeImageCost(modelId, result.tokensUsed) : null;
+      // A provider billed per image (Seedream) reports its exact charge; token-billed ones don't.
+      const cost =
+        result.costUsd !== undefined
+          ? { usd: result.costUsd }
+          : result.tokensUsed
+            ? computeImageCost(modelId, result.tokensUsed)
+            : null;
       // cost is only ever null when the provider returned no token usage — an actual cost
       // of 0 credits in that case, not a reason to skip settlement.
       const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;

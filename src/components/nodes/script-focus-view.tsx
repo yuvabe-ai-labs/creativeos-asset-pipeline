@@ -29,9 +29,12 @@ import {
   describeGenerations,
   type GroupingVersion,
 } from "@/lib/nodes/group-shots";
+import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import { ScriptDocument } from "./script-document";
 import { ScriptEmptyState } from "./script-empty-state";
 import { ScriptSignalsPicker } from "./script-signals-picker";
+import { ScriptPresenterBlock } from "./script-presenter";
+import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
 type Path = (string | number)[];
@@ -45,6 +48,8 @@ type ScriptFocusViewProps = {
   parsed: ReelScript | null;
   groupModes?: Record<string, boolean>;
   groupingVersion?: GroupingVersion;
+  /** D286 — the Script node's re-split cache, so the badges read a fresh split when there is one. */
+  sceneBeats?: SceneBeatCache;
   slices: KBSliceKey[];
   signalIds: string[];
   signalMode: SignalMode;
@@ -66,6 +71,7 @@ export function ScriptFocusView({
   parsed,
   groupModes,
   groupingVersion,
+  sceneBeats,
   slices,
   signalIds,
   signalMode,
@@ -91,6 +97,7 @@ export function ScriptFocusView({
     actionLabel: string;
     onConfirm: () => void;
   } | null>(null);
+  const { openDrawer } = useGalleryDrawer();
 
   // Reseed the draft from the saved script when the view opens or a fresh parse
   // lands. Adjusting state during render is React's documented alternative to a
@@ -116,6 +123,7 @@ export function ScriptFocusView({
     parsed?.visual_script?.shots ?? [],
     groupModes,
     groupingVersion ?? 1,
+    sceneBeats,
   ).length;
 
   // One picker, two homes: the empty state (beside the KB slice toggles) and a
@@ -181,18 +189,22 @@ export function ScriptFocusView({
     onPatch({ kbSlices: next });
   }
 
-  function requestClose() {
+  function requestClose(then?: () => void) {
+    const close = () => {
+      onOpenChange(false);
+      then?.();
+    };
     if (dirty) {
       setConfirm({
         title: "Discard unsaved changes?",
         description:
           "You have edits that haven't been saved. Closing now will discard them.",
         actionLabel: "Discard",
-        onConfirm: () => onOpenChange(false),
+        onConfirm: close,
       });
       return;
     }
-    onOpenChange(false);
+    close();
   }
 
   return (
@@ -212,7 +224,7 @@ export function ScriptFocusView({
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             <Button
               variant="ghost"
-              onClick={requestClose}
+              onClick={() => requestClose()}
               className="h-auto p-0 text-muted-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
             >
               <ArrowLeft className="size-4" /> Back to canvas
@@ -228,6 +240,16 @@ export function ScriptFocusView({
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
                 </SheetTitle>
+                {/* D298 — the script's presenter. Opening the gallery closes this sheet first:
+                    the drawer cannot sit over a modal sheet. */}
+                <div className="mt-3">
+                  <ScriptPresenterBlock
+                    scriptId={nodeId}
+                    onOpenGallery={() =>
+                      requestClose(() => openDrawer({ tab: "avatars", connectToNodeId: nodeId }))
+                    }
+                  />
+                </div>
               </div>
 
               {/* Three tiers, and exactly ONE filled button at any time:
@@ -371,6 +393,7 @@ export function ScriptFocusView({
                   script={draft}
                   scriptNodeId={nodeId}
                   groupModes={groupModes}
+                  sceneBeats={sceneBeats}
                   groupingVersion={groupingVersion}
                   readOnly={!editable}
                   onChange={(path: Path, value) =>

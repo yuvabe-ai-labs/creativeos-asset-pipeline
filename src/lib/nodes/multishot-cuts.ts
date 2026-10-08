@@ -33,7 +33,7 @@
 // control's movement depend on another's.
 import type { ReelShot, VoLine } from "./reel-script";
 import { shotSeconds } from "./group-shots";
-import type { MultishotCapability } from "./multishot-models";
+import type { MultishotCapability, LadderCheck } from "./multishot-models";
 
 export type MultishotCut = {
   /**
@@ -163,21 +163,60 @@ export function resizeCut(
 }
 
 /**
- * Append a 1s cut, funded by unspent seconds under the ceiling — never by shortening an existing
- * one. Refused when the ladder is already full.
+ * Insert a 1s cut at `index`, funded by unspent seconds under the ceiling — never by shortening
+ * an existing one. `index === cuts.length` appends; an out-of-range index is clamped into
+ * [0, cuts.length] rather than producing a hole.
  *
- * DEFERRED — nothing calls this today. The operator asked for "Add cut" to come out of the UI
- * (2026-09-03): the Multishot node's card and focus view both dropped the affordance, but the
- * logic is exactly the kind of thing worth keeping ready rather than reinventing once the flow
- * wants it again. Its tests still run, so it cannot rot silently.
+ * Refused when the ladder is already full, and once the model's cut cap is reached — on Kling a
+ * 7th cut is a vendor rejection, not a quality hint. `canAddCut` below returns the same two
+ * refusals with the sentence to show for each; this function is the enforcement, that one is the
+ * explanation, and they must not disagree (their agreement is tested).
+ *
+ * Every existing cut keeps its object identity, for the same reason `resizeCut` guarantees it:
+ * "did this edit touch a neighbour?" should be answerable with `===`.
+ *
+ * D279 — this REPLACES the append-only `addCut`, which sat here with no caller from 2026-09-03
+ * until the Multishot focus view regained its add/remove affordances. The history is in the ADR
+ * log, not here.
  */
-export function addCut(cuts: MultishotCut[], cap: MultishotCapability): MultishotCut[] {
+export function insertCut(
+  cuts: MultishotCut[],
+  index: number,
+  cap: MultishotCapability,
+): MultishotCut[] {
   if (headroomOf(cuts, cap) < cap.minCutSeconds) return cuts;
-  // Also refused once the model's cut cap is reached — on Kling a 7th cut is a rejection, not a
-  // quality hint. `addCut` has no caller today (see below) but must not be the one path that
-  // builds an illegal ladder when it gets one.
   if (cap.maxCuts !== null && cuts.length >= cap.maxCuts) return cuts;
-  return [...cuts, newCut("", cap.minCutSeconds)];
+
+  const at = Math.max(0, Math.min(Math.round(index), cuts.length));
+  return [...cuts.slice(0, at), newCut("", cap.minCutSeconds), ...cuts.slice(at)];
+}
+
+/** Append a 1s cut. `insertCut` at the end — the name reads better at the "Add shot" call site. */
+export function addCut(cuts: MultishotCut[], cap: MultishotCapability): MultishotCut[] {
+  return insertCut(cuts, cuts.length, cap);
+}
+
+/**
+ * Why `insertCut` would refuse — the sentence half, so the UI never renders a dead control.
+ *
+ * The ceiling is reported BEFORE the cut cap: it is the one an operator can clear by shortening a
+ * shot, and `checkLadder`'s own rule is that only the first violation is stated, because a stacked
+ * list reads as a failure rather than as an instruction.
+ *
+ * This does not hold the invariant — `insertCut` enforces independently. A guard that lives only
+ * in a component is a guard the next caller silently skips.
+ */
+export function canAddCut(cuts: MultishotCut[], cap: MultishotCapability): LadderCheck {
+  if (headroomOf(cuts, cap) < cap.minCutSeconds) {
+    return {
+      ok: false,
+      reason: `${cap.maxTotalSeconds}s maximum reached. Shorten a shot to make room.`,
+    };
+  }
+  if (cap.maxCuts !== null && cuts.length >= cap.maxCuts) {
+    return { ok: false, reason: `${cap.label} allows ${cap.maxCuts} shots.` };
+  }
+  return { ok: true };
 }
 
 /**
@@ -185,9 +224,8 @@ export function addCut(cuts: MultishotCut[], cap: MultishotCapability): Multisho
  * reason resizing takes from nobody: the operator sees the change they asked for and nothing
  * else. Those seconds become headroom another cut can grow into. The last cut cannot be removed.
  *
- * DEFERRED — nothing calls this today, for the same reason and on the same terms as `addCut`
- * above. The operator asked for the per-cut "X" to come out of the Multishot focus view
- * (2026-09-04); the affordance is gone, the logic is kept ready, and its tests still run.
+ * D279 — wired to the Multishot focus view's per-shot "X". It sat here with no caller from
+ * 2026-09-04 until then; the history is in the ADR log.
  */
 export function removeCut(cuts: MultishotCut[], index: number): MultishotCut[] {
   if (cuts.length <= 1 || index < 0 || index >= cuts.length) return cuts;

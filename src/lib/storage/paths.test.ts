@@ -13,6 +13,10 @@ import {
   pathForMarketThumb,
   pathForMarketMedia,
   extForContentType,
+  pathForClientReviewCut,
+  clientReviewPrefix,
+  pathForAvatarImage,
+  pathForAvatarGenerated,
 } from "./paths";
 
 describe("sanitizeSlug", () => {
@@ -209,5 +213,41 @@ describe("extForContentType", () => {
   // archive is best-effort and a weird content-type is not worth losing the bytes.
   it("falls back to bin for anything unrecognised", () => {
     expect(extForContentType("application/x-unknown")).toBe("bin");
+  });
+});
+
+describe("pathForAvatarImage", () => {
+  const args = { clientId: "c1", avatarId: "a1", filename: "My Face.PNG" };
+
+  it("nests under the client, the avatar and the slot", () => {
+    const path = pathForAvatarImage({ ...args, slot: "front" });
+    expect(path.startsWith("clients/c1/avatars/a1/front/")).toBe(true);
+    expect(path.endsWith(".png")).toBe(true);
+  });
+
+  it("keeps the two slots apart", () => {
+    expect(pathForAvatarImage({ ...args, slot: "sheet" })).toContain("/avatars/a1/sheet/");
+  });
+});
+
+describe("pathForAvatarGenerated", () => {
+  it("keeps generated images apart from uploads, per slot", () => {
+    const path = pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "front", ext: "png" });
+    expect(path.startsWith("clients/c1/avatars/a1/generated/front/")).toBe(true);
+    expect(path.endsWith(".png")).toBe(true);
+    expect(pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "jpg" }))
+      .toContain("/generated/sheet/");
+  });
+});
+
+describe("pathForClientReviewCut", () => {
+  it("stores the cut under the node's client-review folder", () => {
+    const p = pathForClientReviewCut({ clientId: "c", canvasId: "cv", nodeId: "n", ext: "mp4" });
+    expect(p.startsWith("clients/c/canvases/cv/nodes/n/client-review/cut__")).toBe(true);
+    expect(p.endsWith(".mp4")).toBe(true);
+  });
+  it("prefix is what the finalize route checks against", () => {
+    const args = { clientId: "c", canvasId: "cv", nodeId: "n" };
+    expect(pathForClientReviewCut({ ...args, ext: "mov" }).startsWith(clientReviewPrefix(args))).toBe(true);
   });
 });

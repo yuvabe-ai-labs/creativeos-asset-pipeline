@@ -22,6 +22,7 @@ import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { fileNodeService } from "@/services/file-node.service";
+import { AvatarNode } from "@/components/nodes/avatar-node";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -30,8 +31,11 @@ import { PromptNode } from "@/components/nodes/prompt-node";
 import { ShotNode } from "@/components/nodes/shot-node";
 import { MultishotNode } from "@/components/nodes/multishot-node";
 import { MultishotPromptNode } from "@/components/nodes/multishot-prompt-node";
+import { ClientReviewNode } from "@/components/nodes/client-review-node";
+import { ClientFeedbackDrawer } from "@/components/canvas/client-feedback-drawer/client-feedback-drawer";
 import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
+import { CompositeNode } from "@/components/nodes/composite-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { PostNode } from "@/components/nodes/post-node";
@@ -43,10 +47,11 @@ import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
+import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
-import { ClientIdProvider } from "./client-id-context";
+import { ClientIdProvider, ClientSlugProvider } from "./client-id-context";
 import { GenerationTray } from "./generation-tray";
 import { CopilotPanel } from "./copilot-panel";
 import { LockBanner } from "./lock-banner";
@@ -62,6 +67,7 @@ import type { ClientKBJobRow } from "@/lib/db/types";
 const nodeTypes: NodeTypes = {
   script: ScriptNode,
   kb: KBNode,
+  avatar: AvatarNode,
   file: FileNode,
   text: TextNode,
   prompt: PromptNode,
@@ -70,20 +76,24 @@ const nodeTypes: NodeTypes = {
   "multishot-prompt": MultishotPromptNode,
   draw: DrawNode,
   "image-gen": ImageGenNode,
+  composite: CompositeNode,
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
   post: PostNode,
+  "client-review": ClientReviewNode,
 };
 
 export function Canvas({
   canvasId,
   clientId,
+  clientSlug,
   initialKBJob,
   hasActiveKB,
   initialDriveRootFolder,
 }: {
   canvasId: string;
   clientId: string;
+  clientSlug: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
   initialDriveRootFolder: { id: string; name: string } | null;
@@ -138,6 +148,10 @@ export function Canvas({
   // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a senior's
   // decision made elsewhere lands here without a reload.
   useCanvasApprovalSync(canvasId);
+  // Every cost figure on the canvas reads one shared query; this is its one live refresh.
+  useCanvasCostLiveUpdates(canvasId, (nodeId) =>
+    storeApi.getState().nodes.some((n) => n.id === nodeId),
+  );
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
   useLayoutEffect(() => {
@@ -361,6 +375,7 @@ export function Canvas({
   return (
     <ReactFlowProvider>
     <ClientIdProvider value={clientId}>
+    <ClientSlugProvider value={clientSlug}>
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
@@ -394,6 +409,10 @@ export function Canvas({
           because its rows fly the canvas to a node — the same navigation the generation
           tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
       <ReviewDrawer canvasId={canvasId} />
+
+      {/* D309: client feedback drawer — opened by clicking a Client review node. Non-modal
+          and right-side like the review drawer, so feedback and the canvas share the screen. */}
+      <ClientFeedbackDrawer />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
@@ -503,6 +522,7 @@ export function Canvas({
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>
+    </ClientSlugProvider>
     </ClientIdProvider>
     </ReactFlowProvider>
   );

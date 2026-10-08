@@ -5,22 +5,548 @@ taking human-presenter UGC video into the product.
 **Read with:** [2026-09-18 spike findings](2026-09-18-seedance-human-reference-findings.md) ·
 [UGC bench design](2026-09-21-ugc-bench-design.md)
 
-## 0. Status — read this first (updated 2026-09-23)
+## 0. Status — read this first (updated 2026-09-30)
 
 **Where the work stands, and where to pick it up.**
 
 | Thread | State |
 |---|---|
-| Seedream → Seedance chain | **Verified**, twice (spike 2026-09-18, bench since) |
+| Seedream → Seedance chain | **Verified**, three times (spike 2026-09-18, bench, probes 2026-09-24) |
 | `/ugc` bench, Seedance tab | Built, on `origin/staging`. Voice anchor added 2026-09-22 |
 | `/ugc` bench, Gemini Omni tab | Built 2026-09-23, **probed live** (§3.5). Photo upload allowed there |
-| Canvas integration (§6) | **Not started — this is the next piece of work** |
-| OmniHuman 1.5 (BytePlus Vision AI) | **Paused** at an account permission wall (§8) |
-| ElevenLabs | Voice API useful; its lip-sync is app-only (§8) |
+| **The 24-hour trusted-URL problem** | **GONE — see §0.1.** A GCS copy works; no vendor-URL machinery at all |
+| Canvas integration | **Not started.** Design settled (§0.2); split into six specs (§0.3), to be written one at a time |
+| Voice | Consistency falls out of the avatar. Three mechanisms; re-voicing SHIPPED, anchor still unexercised (§0.2) |
+| Avatar + Composite nodes | **Designed 2026-09-29** (§0.2). Two new node types; avatar is client-level |
+| System-prompt audit | **Done. §0.4** has the walk from the Script, the proposed edits, and what NOT to change |
+| OmniHuman 1.5 (BytePlus Vision AI) | **Paused** at an account permission wall (§7) |
+| ElevenLabs | **SHIPPED** D282–D284 to staging 2026-09-27 — re-voicing works on any clip (§0.2) |
 
-**To take this into the canvas, start at §6.** §3 is the API reference you will need, §4 the
-rules that constrain the design, and §9 the product questions that need answers before the
-data model is fixed.
+**§0.2** the design · **§0.3** the six specs · **§0.4** the prompt changes, line by line.
+§0.1 is the probe evidence. §3 is the API reference; §4 the vendor rules, two of them disproved.
+§1, §2 and §5 are the bench, kept as history.
+
+## 0.1 What the probes proved (2026-09-24)
+
+Three probes were run against the live API. They cost about **$2.57** in total and between
+them they **deleted a whole section of the planned build**. Probe scripts were throwaway and
+are not in the repo.
+
+**Artefacts** (clips, reference faces and comparison sheets) are on the machine that ran them,
+at `~/Desktop/ugc-probes-2026-09-24/` — **not in the repo**, since they are several MB of mp4.
+Move them somewhere shared if they should outlive that machine. Every vendor URL from these
+runs has expired; the local copies are the only surviving record.
+
+### Finding 1 — a byte-identical copy on OUR OWN GCS keeps working ✅
+
+**This is the important one.** §4 point 2 said to assume a re-hosted copy loses trusted status.
+That assumption is **wrong**.
+
+A fresh Seedream face was downloaded, uploaded byte-identically to
+`storage.googleapis.com/creativeos-assets/…`, and sent to Seedance as the *only*
+`reference_image`. The task was **accepted (HTTP 200) and succeeded in 135 s**, and the face in
+the output is unmistakably the same man as the reference.
+
+**The likely reason is that provenance was never the gate.** Line up everything known:
+
+| Reference | Result |
+|---|---|
+| A real person's uploaded photo | **Rejected** (spike 2026-09-18) |
+| Seedream face at the vendor URL | Accepted (spike, and §0.1 finding 2) |
+| Seedream face at our own GCS URL | **Accepted** (2026-09-24) |
+
+That fits a **real-likeness detector**, not a URL allowlist. The vendor's "trusted outputs"
+policy appears to govern *permission to depict a real person*; an AI-generated face never trips
+it, wherever it is hosted.
+
+**Consequences — this is what a reader should act on:**
+- **No vendor-URL machinery.** No second URL on the version row, no `vendorGeneratedAt`, no freshness
+  branch at video-generate time, no expiry UI.
+- **The face is stored in GCS and passed as a GCS URL, exactly like every other canvas image.**
+  There is no special case in the image pipeline at all.
+- **The 24-hour clock does not apply to us.** A reel can be built over days or weeks.
+- The `seedance-images.ts` re-encode "landmine" (§4) **is not a landmine.** Re-encoding a
+  reference does not cost anything we depend on.
+- The last-frame refresh chain and the `asset://` route **do not need investigating.** They
+  existed only to work around this problem.
+
+**Caveat to carry, not to build on:** this behaviour is undocumented and inferred from three
+data points. The vendor could tighten it. Recommendation: **store the vendor URL in
+`paramsUsed` anyway** (a free string, alongside the `tokensUsed` / dimensions already there) as
+insurance, and build **none** of the freshness machinery on top of it. If BytePlus ever starts
+enforcing provenance, that field is what lets us react.
+
+Artefacts: `trust-face.jpg`, `trust-probe.mp4`, `trust-compare.png`.
+A probe object was left in the live bucket at `probe/ugc-trust/1790189477012-face.jpg` —
+**delete it when convenient.**
+
+### Finding 2 — mixed trusted + untrusted references are fine ✅
+
+One Seedance task carrying **two** `reference_image` parts: the face as the verbatim vendor URL,
+and a product still downloaded and re-sent as a base64 data URL (a copy). Accepted, succeeded in
+141 s, and the clip shows the man holding the correct shoe and turning it to camera.
+
+So a UGC shot can combine **a generated presenter and the client's own product photography**,
+and the product image needs no special handling. (Given finding 1, neither does the face — but
+this probe is what proved the *combination* is not rejected wholesale.)
+
+**One real defect observed.** The product image was generated with an explicit "no text, no
+logo", and by the third second **Seedance had invented lettering on the shoe's side panel.**
+Any UGC prompt record must therefore keep the product-preservation language from `SPINE`
+(`src/prompts/video-prompt-shared.ts`) even though it drops the first-frame framing. See §0.4.
+
+Artefact: `ugc-mixed-refs-probe.mp4`.
+
+### Finding 3 — Seedream `seed` is NOT deterministic ❌
+
+Tested because a reproducible face would have solved the (then-live) expiry problem. It does not.
+
+`seed` is **accepted without error** — no rejection, nothing echoed back — but two calls with the
+same seed and identical prompt returned **two different men**: different face shape, hairline,
+jaw and beard density. A no-seed control pair also differed, which rules out the API merely
+caching identical prompts, so this is genuine non-determinism rather than a measurement artefact.
+
+**A presenter's face cannot be recreated once lost.** Finding 1 makes that harmless (nothing is
+ever lost), but it matters for any future feature that assumes a face can be regenerated.
+
+Worth knowing: what *does* stay consistent across runs is the **casting** — a specific enough
+prompt reliably returns the same type of person, just not the same individual.
+
+Artefacts: `seed-A-seed.jpg`, `seed-B-seed.jpg`, `seed-D1-noseed.jpg`, `seed-D2-noseed.jpg`,
+`seed-sheet.png`.
+
+### Finding 4 — generation is slower than recorded ⏱
+
+Both 5 s / 720p clips took **135 s and 141 s**, against the 80–100 s in §3.3. The two-reference
+clip was the slower one. **Budget the Trigger.dev timeout against ~150 s, not ~100 s.**
+
+### Decisions taken by the operator, 2026-09-24
+
+**1 — One presenter per reel.** A reel stars one person; the per-shot choice is only *whether
+this shot is AI-presenter UGC*, not *who*. Given finding 1 this costs nothing to maintain — one
+Seedream Image Gen node is wired into each shot's Video Gen node, and there is no clock to race.
+
+**2 — A consistent voice is in scope** (2026-09-24). The voice anchor — extract the
+audio of the first clip the operator likes, send it back as `reference_audio` on every later
+generation — is part of the feature, not a later nicety. The whole loop already exists in the
+bench, so it is a **port**, not a design. It is Seedance-only: Omni accepts no audio input.
+
+**3 — ElevenLabs is explicitly later.** Nothing in `src/` references them today. Their TTS
+would be a sensible controlled-voice source and their lip-sync is app-only; either way it is a
+separate piece of work and not part of this one.
+
+These still need ADR numbers (the log had reached D147 at last count).
+
+## 0.2 The design (settled 2026-09-29)
+
+Everything below supersedes the 2026-09-24 sketch. **Live page, with the diagrams:**
+https://claude.ai/artifact/5ZEEb4SWQp87e79aaPpayt
+
+### Two kinds of UGC, and the engine follows from the kind
+
+The operator never picks a video model. They pick **who the presenter is**, and the engine
+follows, because each kind has exactly one engine that will accept its face.
+
+| | Specific person | Generic person |
+|---|---|---|
+| The face | an uploaded photo of someone real | generated by Seedream |
+| Engine | **Gemini Omni** — Seedance refuses real faces | **Seedance 2.5** — the only model that trusts a Seedream face |
+| Longest call | 10 s | 30 s |
+| Cost per 5 s | $0.50 | $1.16 |
+| Lip-sync | preserved through re-voicing | inherent — one model pass |
+| Voice | applied afterwards, always | native, or carried forward, or re-voiced |
+| Consent | a real likeness — needs an owner | nobody real |
+
+**Both Google gates are confirmed** (operator, 2026-09-28): Nano Banana accepts a real
+photograph and generates a model sheet from it, and Omni animates that face. Neither is an
+assumption any more. Note the bench's own caveat still stands — Google refuses real likenesses
+*often*, so a refusal is a runtime outcome the UI must show, not a case that cannot happen.
+
+### UGC is a genre crossing the existing packing axis
+
+Not a lane. All four cells must work:
+
+| | Single shot | Multishot |
+|---|---|---|
+| **Brand** | ships today | ships today |
+| **UGC — specific** (Omni) | ✓ | ✓ — 3–10 s total |
+| **UGC — generic** (Seedance) | ✓ | ✓ — 4–30 s total |
+
+All four cells are in the design. **If the build is staged, start with UGC multishot** — those
+records already carry the person-handling, while the single-shot Seedance record is the one
+written from a contradictory premise (*"a still image (the first frame) is provided… do not
+invent new objects, **people**, settings"*) and needs the most work.
+
+Omni **is** multishot-capable — `MULTISHOT_MODELS` registers it at 3–10 s, Kling at 3–15 s and
+Seedance at 4–30 s. Ten seconds is two or three beats, so a specific-presenter reel always takes
+several calls; multishot still halves the seams at the same price, since cost is per second of
+output either way.
+
+**No new packing logic is needed.** `MULTISHOT_MODELS` holds each engine's floor and ceiling,
+`checkLadder` enforces them, and `multishotPromptFor` routes on the capability id — so "a node
+cannot end up with Omni's limits and another model's prompt". UGC needs the avatar to set the
+target model, and all four cells inherit what already works.
+
+### The Avatar (renamed from "presenter", 2026-09-28)
+
+A **new node type**, holding a **client-level** record. Not a flag, not a File, not an Image Gen
+node. It is the only thing on the canvas whose existence means "this is the person", which is
+what lets the lane below know it is writing UGC — **there is no `shotKind` flag**.
+
+What it holds:
+
+| | Field | Generic | Specific |
+|---|---|---|---|
+| Identity | name, kind | generated | a real person |
+| Face | base face | a Seedream prompt + its image | an uploaded photograph |
+| | vendor URL | kept as insurance, unused | — |
+| Likeness | model sheet | **identical** — several angles from Nano Banana, whichever face it starts with | |
+| Voice | declaration | native · anchor · a named voice | a named voice only |
+| | named voice | an ElevenLabs `voiceId` + settings — a stock voice, a Library voice, **or one cloned from a sample the client uploaded** | |
+| | anchor clip | the extracted mp3 + its source clip | not possible — Omni takes no audio |
+| | description | the voice in words | |
+| Governance | client | the owner — client-level, not per canvas | |
+| | consent | none needed | **required: who agreed, and when** |
+
+**Nothing about the engine is stored on it.** Engine, length ceiling and available voice options
+are all *derived* from the kind. Storing them would be a second copy to keep in agreement with
+the first, which is what D236 exists to prevent — and it keeps a future face-capable model with
+a longer ceiling a capability-table change rather than a migration of every avatar row.
+
+**Four rules, all decided 2026-09-28:**
+
+| Rule | What it buys | What it costs |
+|---|---|---|
+| Belongs to the **client**, not a canvas | Created once, picked into any canvas — a reference, never a copy | — |
+| Always the **latest** — no versioning | Improve it once, every canvas improves | A January reel regenerated in April uses April's avatar, so a re-run shot may not match its neighbours. Regenerate the reel rather than add snapshots |
+| Chosen **before grouping**, never after | No reel can be packed against one ceiling and then handed an avatar implying another | Changing the avatar means a new reel |
+| **Cannot be deleted** | Nothing reaches into finished work — canvases keep no snapshot | A cast only grows; hiding becomes a question once the list is long |
+
+### Wiring — the wire is the signal
+
+| Edge | Means |
+|---|---|
+| `avatar → script` | *this reel stars this person* — sets engine, ceiling, prompt genre. One per reel, before grouping |
+| `avatar → composite` | *this composite contains them* — the person is one of its references |
+| avatar ⇢ video-gen | resolved, never drawn. `seededFrom.scriptNodeId` already lets shots and multishot groups look up their reel's avatar (D236's pattern) |
+
+This is why the avatar had to be a node rather than a field on the Script: a field could declare
+the reel, but could never be wired into one particular image — so the composite would have needed
+a mode toggle after all.
+
+**The product still wires per shot.** The avatar moved up to the reel because it is the only
+thing there is exactly one of.
+
+### The Composite node (new, 2026-09-28)
+
+**Composites are not avatar data.** A picture of the avatar holding the product in a kitchen
+belongs to *that shot* — the next one wants a different product and a different room. The avatar
+keeps only what is true of the person wherever they appear: face, model sheet, voice.
+
+So composites live on the canvas: a **Composite node** — image references in, **a prompt typed on
+the node itself**, one image out. The existing Image Gen lane could do the generating, but it
+needs a separate Prompt node wired in and every asset wired to both; for an asset step that is
+more wiring than it is worth (operator decision, 2026-09-28).
+
+**Its prompt inverts the house style.** A composite is a *reference*, and D281 says a reference's
+lighting, framing and backdrop are never carried into a beat — so it must **not** be styled: no
+lens spec, no lighting recipe, no grade. Keep subject, the transcribe-setting rule, multi-image
+composition and brand rules.
+
+### Voice — consistency falls out of the avatar
+
+Not a per-clip problem. The avatar declares one voice and every generation in the reel realises
+that declaration, so nothing can drift between shots. Three mechanisms honour it:
+
+| | Lip-sync | Consistency | Engines | Cost |
+|---|---|---|---|---|
+| **Native, unsteered** | inherent | none — a new voice per clip | Seedance | included |
+| **Native + anchor** (`reference_audio`) | inherent | approximate | Seedance | free |
+| **Re-voice** (ElevenLabs, D282, shipped) | preserved, drift-guarded | exact | **any, Omni included** | ~$0.01 / 5 s |
+
+**Re-voicing works on any clip with an audio track, so it is available to both kinds of UGC.**
+The branch decides only what *else* is on offer. Count the steps after the picture exists: native
+has none, which is why lip-sync is inherent rather than preserved and holds up better the longer
+the clip runs.
+
+**D282–D284 shipped while this was being designed** (staging, 2026-09-27): `voice-change/revoice.ts`
+fetches the video, extracts the audio with ffmpeg, calls `eleven_multilingual_sts_v2`, **aborts if
+the durations drift more than 0.25 s**, replaces the track and appends a new version. Failures are
+classified so a 4xx that is not a 429 never retries — a broken voice request cannot burn the paid
+video generation. The choice persists as `VideoGenNodeData.voiceChange`.
+
+Today that is a per-node action taken *after* a clip exists. The unification is the **job, not the
+UI**: if the avatar declares a voice, `video-generate` should chain into voicing and the node
+should show one status stream — which is what makes the mechanisms indistinguishable from outside.
+That needs a partial-success state (drift aborts keep the original: "clip is good, voice didn't
+take"), one cost line, and one preview surface.
+
+### The build
+
+**Two new node types:** Avatar (client-level record, picker, focus view) and Composite.
+
+**Prompt records** (§0.4 has the walk from the Script and the proposed text):
+
+| # | Record | Notes |
+|---|---|---|
+| 4 | UGC motion — single/multishot × omni/seedance | behind one shared `UGC_SPINE`, as `SPINE` is shared today. Veo and Kling never appear in a UGC row, so it is four, not eight |
+| 1 | base face | Seedream, generic branch only |
+| 1 | model sheet | Nano Banana, both branches — must not alter the face it was given |
+| 1 | composite | Nano Banana, per shot — must not alter the face **and** must not style it |
+| 1 | UGC composer | `shot-compose-ugc` — **single-shot lane only**; the Multishot node has no composer |
+
+**Two data catalogs**, also single-shot only: UGC shot roles + default, UGC shot controls
+(handheld, phone, ring light).
+
+**Two pre-existing fixes this forces open:** `VO_PERFORMANCE_RULES` into the four single-shot
+records; the image-prompt writer branching by model (OpenAI currently receives a prompt headed
+"for Nano Banana").
+
+### Still open
+
+- **Untested:** how re-voicing treats Seedance's music and effects — speech-to-speech receives the
+  whole mixed track, and this decides whether re-voicing is usable on the generic branch or only
+  on the specific one, where there is no native audio to lose.
+- **Untested:** Hinglish. Seedance 2.5 lists nine languages and Hindi is not among them.
+  Re-voicing changes the voice, not the words.
+- **Parked:** wiring an avatar to a Composite node but not to the Script.
+- **Owed:** ADR numbers; the stray probe object at `probe/ugc-trust/1790189477012-face.jpg`;
+  OmniHuman account access (§7).
+
+
+## 0.3 The build — six specs, written one at a time (plan set 2026-09-29)
+
+The design in §0.2 is settled. It is **too large for one spec**: recent design docs in this repo
+run 94–333 lines each and cover one implementable feature, and this covers two node types, a
+client-level record, eight prompt records and two catalogs.
+
+**The page is the guide over all of them** —
+https://claude.ai/artifact/5ZEEb4SWQp87e79aaPpayt. Each spec should open with a link to it
+rather than restating the architecture.
+
+| # | Spec | Covers | Depends on | Ships alone |
+|---|---|---|---|---|
+| ~~**A**~~ | ~~Seedream image provider~~ | **ALREADY BUILT** (found 2026-09-30). `image-gen/providers/seedream.ts` + `params/seedream.ts`, registered in `registry.ts` and `client-models.ts`, tested, per-image pricing in `cost.ts` (`SEEDREAM_IMAGE_PRICE_TABLE`), with its own design spec `2026-09-19-seedream-5-image-models-design.md`. **Nothing to write — but read the warning below before B1** | — | done |
+| **B1** | **Avatar — identity** | `avatars` table (client-scoped) + the four rules; Avatar node type, picker, focus view; base face (A) or upload; model sheet via Nano Banana; `avatar → script`; engine/ceiling/voice-options **derived** from kind, never stored; resolution through `seededFrom.scriptNodeId`; the blocking rules | A | Yes |
+| **B2** | **Avatar — voice** | the declaration field; picking an account or Library voice (both already shipped); **uploading a client's own voice and cloning it**; consent for BOTH likenesses, face and voice, in one record; how re-voicing consumes the declaration | B1 | Yes |
+| **C** | Composite node | node type; avatar + File inputs; **prompt typed on the node**; the composite prompt record, which must not style the image | B1 | Yes |
+| **D** | UGC prompt records | `UGC_SPINE` + 4 motion records (single/multishot × omni/seedance), the composer record, shot roles, shot controls, and three shared-block edits. **§0.4 has the proposed text, line by line** | B1 | Yes |
+| **E** | Voice unification — **later** | chain voicing into `video-generate` from the declaration so the node shows one status stream; partial-success state for drift aborts; one cost line; one preview surface | B2 | Yes |
+
+**Suggested order: B1 → B2 → D → C.** A is done. B1 unblocks everything else; D and C are
+independent of each other.
+
+### Why B is two documents
+
+Splitting at **identity vs voice** rather than by layer keeps each independently reviewable — B1
+is "who is this person and how does the canvas know", B2 is "how do they sound". It also lands
+the consent work in **one** place covering both likenesses, rather than a face checkbox in B1 and
+a voice checkbox in B2 that nobody reconciles.
+
+### ⚠ The shipped Seedream model id is not the one we probed
+
+| | id |
+|---|---|
+| Shipped provider, lite | `seedream-5-0-lite-260128` |
+| Shipped provider, pro | `dola-seedream-5-0-pro-260628` |
+| **What the bench and all three probes used** | **`seedream-5-0-260128`** |
+
+§3.1 of this doc says `seedream-5-0-260128` is the **only** Seedream model whose faces
+Seedance trusts, and that the docs name a *5.0 lite* id **that does not exist**. The shipped
+provider uses exactly such a lite id.
+
+**Resolve this before B1, against `GET /api/v3/models`** — not the docs. Either the id was
+added or renamed since 2026-09-18, or the two are different models. If the shipped lite id is
+not the trusted one, **the generic avatar branch produces faces Seedance rejects**, and that
+failure costs a paid clip to discover.
+
+### Verify before writing, do not assume
+
+- **B2 — the ElevenLabs cloning API.** What exists today is `/v1/voices/add/{publicOwnerId}/{voiceId}`
+  (`voice-catalog.ts`), which **saves a Library voice to the account**. That is not cloning.
+  Creating a voice from an uploaded sample is a different call, and its endpoint, file limits and
+  consent requirements must come from ElevenLabs' own docs. This repo has been burned once by
+  sourcing vendor limits secondhand (see `reference-kling-docs`).
+- **Everything downstream of cloning already works.** The picker surfaces cloned voices and lists
+  them first (`CUSTOM_VOICE_CATEGORIES`), and re-voicing applies any account voice. B2's new
+  surface is only the creation step.
+- **A — model ids from `GET /api/v3/models`,** never from the docs (§3.1).
+
+### Do not carry over from the bench
+
+- The `--flags` prompt builder — the vendor's *legacy* method (§3.2). The product provider
+  already uses body parameters.
+- Browser-side orchestration, polling and session-only state.
+- Its own ModelArk client: the product provider already retries transient poll failures and
+  translates the real-person rejection.
+
+### Owed regardless of which spec goes first
+
+- **ADR numbers.** The log has reached **D284**, so the next free is **D285**. Decisions needing
+  entries: two UGC kinds with the engine derived from the kind; the Avatar node and its four
+  rules; no `shotKind` flag (the wire is the signal); the Composite node; composites are not
+  avatar data; voice consistency falls out of the avatar.
+- **A stray probe object** at `probe/ugc-trust/1790189477012-face.jpg` in the live bucket.
+- **OmniHuman** account access (§7) — unrelated to these specs, still blocked.
+
+
+## 0.4 The prompt changes — what to build (2026-09-30)
+
+**Genre and packing are independent —
+brand and UGC each have a single-shot and a multishot form, and all four cells are real.** The
+build may still start with UGC multishot, but the design covers four.
+
+### First, a correction: the person-handling in the shared blocks is NOT UGC bleed
+
+An earlier pass suspected the multishot prompts had picked up UGC flavour that should be
+"restored" for brand. **The history says otherwise**, and reverting it would reintroduce a fixed
+bug:
+
+| Line in `multishot-prompt-generate.ts` | What | Arrived in |
+|---|---|---|
+| 48–50 | the people-wearing-product examples | `d01c9861` — *one plain action per beat* (D263) |
+| 56 | identity-only; *"face, build, hair, wardrobe"*; identity sheet | `d6d68939` — **D281** |
+| 70 | PERSON / PRODUCT / GARMENT / SURFACE / BRAND MARK | `04630bfe` — *the writer names a reference* |
+| 179 | *"'a young woman' → 'a young woman in a loose linen shirt'"* | `d01c9861` (D263) |
+
+D281's own stated reason is a **brand** failure: *"A three-angle character turnaround on a grey
+seamless was read as the location, and the plan arrived on a light studio background."* A
+character turnaround is a brand asset. The multishot lane was built for **people wearing
+products** from the start.
+
+**So the difference between brand-multishot and UGC-multishot is not whether a person may appear.
+It is premise:**
+
+| | Brand multishot | UGC multishot |
+|---|---|---|
+| Who | a model, named fresh per beat | **one specific avatar**, the same person throughout |
+| What they do | wear or use the product in a scene | **talk to camera** about it |
+| Preservation | the product survives the beat | the product **and the person** survive across beats |
+
+### The walk from the Script — what to change, file by file
+
+| Stage | File | The change to make |
+|---|---|---|
+| Script parse | `script-parse.ts` | **Nothing.** It transcribes what the designer wrote |
+| Grouping | *(no prompt)* | Nothing |
+| Composer *(single-shot only)* | `shot-compose.ts` | **Add `shot-compose-ugc`:** *"a shot composer for fast, handheld, spoken-to-camera UGC."* Ideas must be concrete about what the person does with the product, what they say, and where they stand. Avoid: studio staging, product-only frames, glamour slow-motion |
+| | `shot-roles.ts` | **Add a UGC role set and make `talk-to-camera` its default** — see the catalog below |
+| | `shot-controls.ts` | **Add UGC options** to each control — see the catalog below |
+| Image prompt | `prompt-generate.ts` | **Split it by model** — an `imagePromptFor(target)` switch with a Nano Banana record and an OpenAI one, exhaustive, no `default`. UGC adds nothing here: base face, model sheet and composite each carry their own record |
+| Motion, single | `video-prompt-{veo,kling,omni,seedance}` | **Add `-ugc-seedance` and `-ugc-omni`,** each composing `UGC_SPINE` where the others compose `SPINE`. Veo and Kling get no UGC form — neither takes a face reference |
+| Motion, multishot | `multishot-prompt-{omni,kling,seedance}` | **Add `-ugc-seedance` and `-ugc-omni`,** composing the existing multishot blocks **plus** `UGC_SPINE` |
+| Shared | `SPINE` | **Leave it.** Write `UGC_SPINE` alongside — two rules, text below |
+| Shared | `VO_PERFORMANCE_RULES` | **Import it into the four single-shot records.** No text change; they simply do not use it today |
+| Shared | `MULTISHOT_SHARED_CRAFT` | **Extend `PRESERVATION` to people** — text below |
+
+### The two catalogs, as content
+
+**`shot-roles.ts` — the UGC roles.** Same `ShotRole` shape: `key`, `label`, `slots`, `avoid`.
+
+| Role | Must make concrete | Avoid |
+|---|---|---|
+| **`talk-to-camera`** *(default)* | the line delivered, where they stand, what the hands do, framing | staged product beauty, no eye contact, wide environmental scenes |
+| `unboxing` | the packaging, the reveal, the first reaction, the hands | studio seamless, glamour slow-motion |
+| `demo` | the action demonstrated, the product in use, what visibly changes | impossible results, before/after splits |
+| `problem` | the annoyance, how it reads on the face, the product absent | medical framing, exaggerated distress |
+| `first-impression` | the reaction, the detail they notice, the verdict | scripted-ad delivery |
+
+**`shot-controls.ts` — the UGC options,** added to the existing three controls:
+
+| Control | Add |
+|---|---|
+| lens | front camera (selfie), phone wide, handheld 35 mm |
+| composition | arm's length, over-the-shoulder product, close on hands |
+| lighting | window daylight, ring light, available indoor |
+
+These matter more than a preset list usually would: `prompt-generate.ts` states that the Shot
+controls block **overrides** its own vocabulary, so without them a UGC shot inherits
+"85 mm f/1.8, studio softbox" whatever the writer asks for.
+
+Two of those are **brand-side fixes UGC merely exposes** — the image-prompt branching and the
+`VO_PERFORMANCE_RULES` wiring — and are worth doing on their own.
+
+### What the multishot lane already carries
+
+The reason the UGC delta is narrow. All present today:
+
+| Element | Where |
+|---|---|
+| On-screen speaker direction — *"keep that person's face visible and readable toward the camera while they speak; one simple action; nothing covers the mouth; no fast head turns"* | `video-prompt-shared.ts:121`, imported by all three multishot records |
+| *"A reference is identity only… carry **face, build, hair, wardrobe**"* | `multishot-prompt-generate.ts:56` |
+| *"a sheet showing one subject from several angles is an **identity sheet**, never a location"* | same paragraph |
+| PERSON alongside PRODUCT / GARMENT / SURFACE / BRAND MARK | `multishot-prompt-generate.ts:70` |
+| *"'a young woman' → 'a young woman in a loose linen shirt'"* | `multishot-prompt-generate.ts:179` |
+| Worked examples are people wearing product | `multishot-prompt-generate.ts:48–50` |
+| Native dialogue markers; words appended by `renderVoiceover` | `multishot-prompt-seedance.ts:73` |
+
+**The multishot lane has no composer and no controls** — `multishot-node.tsx:36` says
+*"switcher, and no Composer"*, and `MultishotNodeData` has no `controls` field
+(*"camera move and motion energy describe ONE continuous take"*). So the composer record,
+the shot roles and the shot controls only apply to the **single-shot** UGC form.
+
+**What is missing:** preservation is product-only; nothing says one specific person recurs
+across beats; and the premise is untested for talk-to-camera.
+
+### The three concrete edits
+
+**1 — extend `PRESERVATION` to people.** `MULTISHOT_SHARED_CRAFT`, after the existing product
+sentence. Shared, so brand gets it too:
+
+```
+A referenced PERSON must survive the same way: the same face, build, hair and wardrobe in
+every beat they appear in, named the same way each time. Left unsaid, the model returns a
+different person two beats later.
+```
+
+**2 — a new `UGC_SPINE`, composed only by the UGC records.** Two rules, deliberately:
+
+```
+UGC — ONE PERSON, TO CAMERA
+They are the subject, not set dressing. The product is in their hands or worn — held up,
+turned to the lens, put on — never staged beside them.
+
+Unless the shot text says otherwise, the register is a phone at arm's length: handheld,
+eye-level, close enough to read the face. No crane, no dolly, no studio lighting.
+```
+
+Person-constancy lives in edit 1, not here, so one instruction is not duplicated across two
+blocks the same record composes. Keep it short: D263 **removed** a five-rule physics section and
+four editing-grammar rules from this block because *"each asked the writer to narrate one more
+motion per beat… the operator reported the result as overcomplicated motion."*
+
+**3 — pair the worked examples.** A brand fix, independent of UGC. Both exemplars in
+`referenceIdentificationBlock` are people wearing product, and the file says *"the example is
+what the writer imitates"* — so a macro product reel imitates a person walking. Replace one:
+
+```
+    A hand sets the tan CHUPPS Sliders down on a terrazzo step.
+    A college student crosses a campus courtyard in the black CHUPPS V-Straps.
+```
+
+### Deliberately not changing
+
+| | Why |
+|---|---|
+| the identity-only rule (D281) | added for a brand bug; reverting reintroduces it |
+| *"add no setting the shot text does not name"* | D262's rule. UGC does not get to invent settings either |
+| `VO_PERFORMANCE_RULES` itself | already correct for talk-to-camera; UGC inherits it unchanged |
+| dialogue in the writer | D267 removed it; `renderVoiceover` appends the words afterwards |
+
+### Validate before committing any of it
+
+Run a real UGC shot list through the **existing** multishot Seedance writer and read the plan —
+one LLM call, no video. If it already produces good talk-to-camera beats, edit 2 may shrink to
+one rule or none. Edits 1 and 3 stand on their own merits either way.
+
+`src/lib/ugc/starter.ts` has the bench's own UGC scripts to test with. Three things the bench
+does that the product deliberately does not: it writes dialogue inline (D267), it says *"the
+creator in the reference image"* (`referenceIdentificationBlock` forbids that phrasing), and it
+asks for *"no background music"* so a clip can be reused as a voice anchor.
+
+The prompt inheritance graph — which shared block reaches which record — is an appendix on the
+page: https://claude.ai/artifact/5ZEEb4SWQp87e79aaPpayt
+
 
 ## 1. What this is
 
@@ -127,8 +653,9 @@ GET /contents/generations/tasks/{id}
 - **On failure:** `error: { code, message }`, surfaced verbatim. The product translates one
   well-known code, `InputImageSensitiveContentDetected.PrivacyInformation` (a real-person
   reference was rejected), in `seedance.ts`.
-- A spike clip took about 80–100 s end to end. The task itself expires after 48 h by default
-  (`execution_expires_after`).
+- A spike clip took about 80–100 s end to end. **Corrected 2026-09-24:** two 5 s / 720p clips
+  took **135 s and 141 s** (§0.1, finding 4). Budget timeouts against ~150 s. The task itself
+  expires after 48 h by default (`execution_expires_after`).
 
 Bench code: `getVideoTask()` in `src/lib/ugc/client.ts`, and `src/app/api/ugc/video/[taskId]/route.ts`.
 
@@ -207,26 +734,17 @@ These come from the vendor's "trusted outputs" policy
    frames, for 30 days, from the same account, on ModelArk. Preset digital characters
    (`asset://<id>`) and identity-verified real people are separate routes, and we haven't
    tested either.
-2. **Only the original, unmodified output is trusted.** Re-encoding, cropping or overlaying
-   the image loses trust. **We have not tested** whether a byte-identical copy served from
-   our own GCS keeps trust. Assume it does not until someone tests it.
-   **Watch out for `src/lib/video-gen/providers/seedance-images.ts`** (added on staging).
-   It re-encodes any reference that's outside Seedance's limits (aspect ratio 0.4–2.5,
-   300–6000 px) and sends it inline, and that would strip a Seedream face's trust. A
-   standard 2K Seedream face is within limits and passes through untouched. Keep Seedream
-   sizes inside those limits, or skip re-encoding for trusted sources.
-3. **There are two clocks, and the shorter one is what limits you.** The *trust* lasts 30 days,
-   but the *URL* expires in 24 h. After a day we still have the image in our own storage, but
-   the vendor URL that Seedance trusts is dead. Whether a trusted output can be referenced
-   after 24 h some other way (the API accepts "asset IDs" in places) is **an open question**.
+2. ~~**Only the original, unmodified output is trusted**~~ and ~~**there are two clocks**~~ —
+   both **DISPROVED / MOOT** (§0.1, finding 1). A byte-identical copy from our own GCS is
+   accepted, so the 24 h URL expiry does not constrain us and the `seedance-images.ts`
+   re-encode warning no longer applies. The vendor still documents the rule; we simply are
+   not subject to it, because nothing we send is a real person's likeness.
 4. **Output URLs are not storage.** Anything worth keeping must be copied to our bucket
    within 24 h. The product already does this for video in `completeGeneration()`.
 
-**What this means for the product:** the canvas today stores every generated image in GCS
-and passes GCS URLs to video-gen. **Following that pattern, a Seedream face would be
-rejected by Seedance**, because the GCS copy is not the trusted original. A Seedream image
-node has to keep the **vendor URL, with its creation time,** alongside the stored copy, and
-the video-gen node has to send the vendor URL while it's still valid.
+**For the product:** a Seedream face flows exactly like every other canvas image — stored in
+GCS, passed as a GCS URL. No special case. Keep the vendor URL in `paramsUsed` as cheap
+insurance and build nothing on it.
 
 ## 5. How data flows in the bench
 
@@ -286,86 +804,7 @@ flowchart LR
 | UI | `src/components/ugc/*`, `src/app/ugc/page.tsx` | Settings bar, face column, script tiles, voice strip (under the tiles — the voice is a Seedance input), activity log |
 | Build config | `next.config.ts` | `serverExternalPackages` + `outputFileTracingIncludes` so the ffmpeg binary ships with the voice route |
 
-## 6. Taking it into the canvas — the next piece of work
-
-The bench answered *whether* this works. This section is *how it becomes a canvas feature*.
-The product already owns every mechanism the bench faked; almost nothing here is new plumbing.
-
-| Concern | Bench | Product (where it already lives) |
-|---|---|---|
-| Video provider | own client | `src/lib/video-gen/providers/seedance.ts`, id `seedance:seedance-2-5` — **already shipped** |
-| Second engine | own Omni client | `src/lib/video-gen/providers/gemini-omni.ts` — **already shipped** |
-| Async execution | browser polling | `trigger/video-generate.ts` -> `POST /api/webhooks/generation` -> `completeGeneration()` |
-| Job record | none | `generations` table (`src/lib/db/generations.ts`), graduating into `node_versions` |
-| Live status | React state | Supabase Realtime, `src/hooks/use-video-gen-status.ts` |
-| Storage | none (links expire) | `uploadImageGen` / `uploadVideoGen` in `src/lib/storage/index.ts` (GCS) |
-| Image provider | own `generateImage()` | `src/lib/image-gen/`: registry + `providers/{openai,gemini}.ts`, sync route `src/app/api/nodes/[id]/image-generate/route.ts` |
-| Cost | none | `src/lib/video-gen/cost.ts` (Seedance + Omni rates present); `src/lib/image-gen/cost.ts` is token-based and needs a per-image branch for Seedream |
-
-**So the new work is exactly three things: a Seedream image provider, a way to keep the vendor
-URL usable, and a decision about what a "presenter" is on the canvas.**
-
-### 6.1 Step one — Seedream as an image-gen provider
-
-Synchronous, so it needs no Trigger task and fits the existing image-generate route.
-
-- Extend `ImageProvider` in `src/lib/image-gen/types.ts` (today `"openai" | "gemini"`).
-- Add `src/lib/image-gen/providers/seedream.ts` implementing `MediaGenModelSpec.generate`,
-  and register it in `src/lib/image-gen/registry.ts` + `client-models.ts`.
-- Follow `docs/superpowers/guides/image-gen-model-management.md`.
-- **The model id is load-bearing:** only `seedream-5-0-260128` (the non-pro "5.0 lite")
-  produces faces Seedance will trust. Keep it in one constant, the way the Seedance provider
-  keeps `VENDOR_MODEL`. Take ids from `GET /api/v3/models`, never from the docs (§3.1).
-- Cost: Seedream is priced per image (about $0.035), not per token, so `image-gen/cost.ts`
-  needs a per-image branch rather than a token calculation.
-- Reuse the existing key: **`BYTEPLUS_API_KEY`**, the same one Seedance uses.
-
-### 6.2 Step two — keep the trusted URL (the only genuinely new constraint)
-
-Everything hard about this feature is in §4: **Seedance trusts a face only as the vendor's own
-original URL, and that URL dies after 24 h**, while the canvas stores its own GCS copy and
-passes GCS URLs around.
-
-What a version row therefore has to carry, alongside the stored image:
-- the **vendor URL** exactly as returned, and
-- **when it was generated**, so freshness can be judged.
-
-Then, at video-generate time, for a reference image that came from Seedream:
-- **vendor URL younger than 24 h** -> send the vendor URL;
-- **older, or absent** -> send the GCS URL and let the existing real-person error translation
-  in `seedance.ts` explain the rejection, or block the run in the UI with a clear reason.
-
-Two landmines to respect:
-- `src/lib/video-gen/providers/seedance-images.ts` **re-encodes** any reference outside
-  Seedance's limits and sends it inline, which strips trust. A 2K Seedream face is within the
-  limits today, so it passes through untouched — but that interaction needs an explicit test.
-- A byte-identical copy on our own GCS is **assumed untrusted** (§4, point 2) and has never
-  been tested. Testing it is cheap and would simplify this whole section if it passed.
-
-### 6.3 Step three — what a "presenter" is on the canvas
-
-The bench's "face row" has no equivalent in the product. That is a product-shaped decision, not
-a technical one, and §9 lists the questions. Whichever way it goes, the mechanics above hold.
-
-### 6.4 Optional, once the basics land
-
-- **Voice consistency (Seedance only):** store the extracted mp3 in GCS next to the presenter
-  and pass it as `reference_audio` on every generation, adding it to `buildSeedanceContent()`
-  beside the existing frames-vs-references rule. Audio has no trusted-output constraint that we
-  know of, so a hosted copy should be fine — untested (§7). The bench's `src/lib/ugc/voice.ts`
-  is a working ffmpeg extraction to copy from; note that a Vercel build needs `ffmpeg-static`
-  traced into the route (see the bench's `next.config.ts`).
-- **Engine choice:** Omni and Seedance are both registered providers already, so offering both
-  on a node is a picker question rather than an integration one (§3.5 for the trade-offs).
-
-### 6.5 Do not carry over from the bench
-
-- The `--flags` prompt builder (the legacy method — §3.2).
-- Browser-side orchestration, polling and session-only state.
-- Its own ModelArk client: the product provider already retries transient poll failures and
-  translates the real-person rejection.
-
-## 7. Known and unknown
+## 6. Known and unknown
 
 **Verified:**
 - The Seedream → Seedance `reference_image` chain works end to end: 720×1280, about 5 s,
@@ -374,13 +813,20 @@ a technical one, and §9 lists the questions. Whichever way it goes, the mechani
 - Gemini Omni accepts a Seedream face as a reference and returned a 5 s 9:16 h264+AAC clip in
   26 s, synchronously (2026-09-23, §3.5).
 - The BytePlus Vision AI signature V4 implementation is correct; the account is what is denied
-  (2026-09-23, §8).
+  (2026-09-23, §7).
 - A Seedance task created through the bench started and was polled (2026-09-22; the result
   wasn't seen because the dev server was stopped).
 
+**Moved to verified on 2026-09-24 (§0.1):**
+- ~~Whether a byte-identical re-hosted copy keeps trusted status.~~ **It does** — finding 1.
+- ~~Whether a trusted output can be referenced after its URL expires.~~ **Moot** — we never need
+  to; we host our own copy.
+- **New:** a trusted vendor URL and an untrusted copy can travel in the **same** `content`
+  array — finding 2.
+- **New:** Seedream `seed` is accepted but **not deterministic** — finding 3.
+- **New:** Seedance **invents branding** on a product that was specified as unbranded — finding 2.
+
 **Not verified. Check before relying on it:**
-- Whether a byte-identical re-hosted copy keeps trusted status.
-- Whether a trusted output can be referenced after its URL expires.
 - How Hinglish dialogue comes out.
 - **Whether Seedance accepts the bench's `reference_audio` at all**, and how well it holds a
   voice across clips. The voice anchor shipped 2026-09-22 but no generation has used it yet.
@@ -397,7 +843,7 @@ needs a balance above USD 30, an AI Savings Plan, or a Seedance resource pack.
 different service (`cv.byteplusapi.com`) with AccessKey/SecretKey HMAC signing, not the
 ModelArk key. It was dropped from this round on cost.
 
-## 8. Paused threads (2026-09-23)
+## 7. Paused threads (2026-09-23)
 
 **OmniHuman 1.5 — blocked on account permission, not on code.**
 It is BytePlus *Vision AI* (`cv.byteplusapi.com`), not ModelArk, and every call must be signed
@@ -432,19 +878,3 @@ way to preview OmniHuman quality before we integrate it.
 **Lip-sync as a separate step** (video + audio -> re-synced video) is a real product category
 if we ever want ElevenLabs voices on Omni footage: Sync.so, Hedra, HeyGen, Creatify Aurora,
 OmniHuman. Unpriced and unevaluated.
-
-## 9. Product questions to answer before the data model is fixed
-
-These are decisions for the product, not for whoever writes the code.
-
-1. **What is a presenter on the canvas?** A reusable entity (a client's cast, reused across
-   canvases), or just an image node that happens to feed video-gen?
-2. **What happens when the trusted URL expires after 24 h?** Silently regenerate the face,
-   block the run and tell the user, or fall back to the GCS copy and accept the rejection risk?
-3. **Is a consistent voice part of the feature**, or does VO stay in the edit? The answer
-   decides whether §6.4 is in scope, and whether ElevenLabs enters the product at all.
-4. **Which engine is the default**, given Omni is roughly 2–8x cheaper and faster while
-   Seedance is the only one with voice control and longer clips (30 s vs 10 s)?
-5. **Do we need real people at all?** If yes, the only sanctioned route is BytePlus's
-   real-person asset library (consent, verification, Advanced Creation Rights, AK/SK), which is
-   a much larger piece of work than anything in §6.

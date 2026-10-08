@@ -10,6 +10,7 @@ import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
 import { ScriptFocusView } from "./script-focus-view";
+import { ScriptPresenterRow } from "./script-presenter";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { ProcessingPill } from "./processing-pill";
@@ -18,7 +19,10 @@ import { voiceoverMappingIssue } from "@/lib/nodes/voiceover";
 import { DEFAULT_PARSE_SLICES, type KBSliceKey } from "@/lib/kb/parse-context";
 import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
+import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import { useNodeConnectionState } from "./use-node-connection-state";
+import { useAddAvatarNode } from "@/hooks/use-add-avatar-node";
+import { AVATAR_DRAG_MIME, parseAvatarDragPayload } from "@/lib/avatars/canvas";
 
 export function ScriptNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -34,6 +38,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
     kbSlices?: KBSliceKey[];
     groupModes?: Record<string, boolean>;
     groupingVersion?: GroupingVersion;
+    sceneBeats?: SceneBeatCache;
     signalIds?: string[];
     signalMode?: SignalMode;
   };
@@ -44,9 +49,11 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const slices = d.kbSlices ?? DEFAULT_PARSE_SLICES;
   const groupModes = d.groupModes;
   const groupingVersion = d.groupingVersion;
+  const sceneBeats = d.sceneBeats;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const connState = useNodeConnectionState(id, "script");
+  const addAvatarNode = useAddAvatarNode();
 
   // Open locally (double-click / "Open ↗") OR when the shared signal points here —
   // the Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
@@ -67,6 +74,21 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       onDoubleClick={(e) => {
         e.stopPropagation();
         setFocusOpen(true);
+      }}
+      // D298 — drop an avatar from the gallery here and it becomes this script's presenter.
+      // Stopped here so the pane's own drop handler does not also add a loose node.
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(AVATAR_DRAG_MIME)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={(e) => {
+        const avatar = parseAvatarDragPayload(e.dataTransfer.getData(AVATAR_DRAG_MIME));
+        if (!avatar) return;
+        e.preventDefault();
+        e.stopPropagation();
+        addAvatarNode(avatar.avatarId, { position: { x: 0, y: 0 }, presenterOf: id });
       }}
       className={cn(
         "group w-44 rounded-lg border border-border bg-card shadow-card",
@@ -114,14 +136,16 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
           </div>
         </div>
       ) : (
-        <div className="px-3 py-3">
+        <div className="flex flex-col gap-1.5 px-3 py-3">
           <Button
             variant="ghost"
             onClick={() => setFocusOpen(true)}
-            className="nodrag -mx-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
+            className="nodrag -mx-1.5 h-auto self-start gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
           >
             Open ↗
           </Button>
+          {/* D298 — who presents this script, or the chip to cast one once it is parsed. */}
+          <ScriptPresenterRow scriptId={id} parsed={parsed !== null} />
         </div>
       )}
 
@@ -148,6 +172,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       source={source}
       parsed={parsed}
       groupModes={groupModes}
+      sceneBeats={sceneBeats}
       groupingVersion={groupingVersion}
       slices={slices}
       signalIds={d.signalIds ?? []}

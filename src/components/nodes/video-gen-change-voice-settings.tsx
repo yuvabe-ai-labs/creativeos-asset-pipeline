@@ -1,0 +1,125 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { EstimatedCreditsLabel } from "./estimated-credits-label";
+import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
+
+type Props = {
+  /** Changes when the operator switches to another take — re-seeds the seed field. */
+  sourceId: string | null;
+  settings: VoiceChangeSettings;
+  onSettings: (patch: Partial<VoiceChangeSettings>) => void;
+  estimatedCredits: number | null;
+  applyBlockedReason: string | null;
+  submitting: boolean;
+  /** A voice change is running — the button reads "Changing voice…" until the new version lands. */
+  changing: boolean;
+  onApply: () => void;
+};
+
+function SliderRow({ label, hint, value, onCommit }: { label: string; hint?: string; value: number; onCommit: (v: number) => void }) {
+  // Live value while dragging; the node's settings (and the Apply cost estimate) update only
+  // on release — same drag-vs-commit split as post-inspector-common.tsx's onPreview/onChange.
+  const [live, setLive] = useState(value);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        {/* Base UI's Slider Root puts `id` on a wrapping div, not the focusable thumb input —
+            its accessible name goes through `aria-label` below (slider.tsx forwards it to the
+            Thumb) instead of an htmlFor pairing, so this label is plain text, not a <label for>. */}
+        <Label className="text-xs font-medium">{label}</Label>
+        <span className="text-xs tabular-nums text-muted-foreground">{live}</span>
+      </div>
+      {/* Base UI's single-thumb Slider takes/returns a one-element array, not a bare number
+          (src/components/ui/slider.tsx normalises `value`/`defaultValue` the same way). */}
+      <Slider
+        aria-label={label}
+        min={0}
+        max={100}
+        step={1}
+        value={[live]}
+        onValueChange={(v) => setLive(Array.isArray(v) ? v[0] : v)}
+        onValueCommitted={(v) => onCommit(Array.isArray(v) ? v[0] : v)}
+        className="nodrag"
+      />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+// D284 — the voice editor's Settings card and Apply. Style exaggeration (always 0, ElevenLabs'
+// recommendation) and the model (always Multilingual — it covers Hindi/Hinglish; the English-only
+// model has no use here) are fixed rather than offered.
+export function VideoGenChangeVoiceSettings(p: Props) {
+  // Seed keeps typing usable (clearing the field, entering multi-digit numbers) — a value bound
+  // straight to `settings.seed ?? ""` would round-trip every keystroke through Number(...) and
+  // reject a partially-typed or just-cleared value before onSettings could ever store it.
+  const [seedText, setSeedText] = useState(p.settings.seed?.toString() ?? "");
+  const seedN = Number(seedText);
+  const seedInvalid = seedText !== "" && (!Number.isInteger(seedN) || seedN < 0 || seedN > 4294967295);
+  const busy = p.submitting || p.changing;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-seeds the local text from the new source's settings, same idiom as use-market.ts's initial fetch
+    setSeedText(p.settings.seed?.toString() ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-seed on an external settings change (source switch), not on our own keystrokes
+  }, [p.sourceId]);
+
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-card">
+      <div className="flex flex-col gap-4">
+        <span className="text-eyebrow">Settings</span>
+        <SliderRow label="Stability" value={p.settings.stability} onCommit={(v) => p.onSettings({ stability: v })} hint="Lower is more expressive; higher is steadier." />
+        <SliderRow label="Similarity" value={p.settings.similarity} onCommit={(v) => p.onSettings({ similarity: v })} hint="How closely to match the chosen voice." />
+        <div className="flex items-center justify-between">
+          <Label htmlFor="vc-boost" className="text-xs font-medium">Speaker boost</Label>
+          <Switch id="vc-boost" checked={p.settings.speakerBoost} onCheckedChange={(v) => p.onSettings({ speakerBoost: v })} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="vc-noise" className="text-xs font-medium">Remove background noise</Label>
+            <Switch id="vc-noise" checked={p.settings.removeBackgroundNoise} onCheckedChange={(v) => p.onSettings({ removeBackgroundNoise: v })} />
+          </div>
+          <p className="text-xs text-muted-foreground">Also removes music and ambience.</p>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="vc-seed" className="text-xs font-medium">Seed</Label>
+          <Input
+            id="vc-seed"
+            inputMode="numeric"
+            placeholder="Random"
+            className="nodrag h-8 w-40"
+            aria-invalid={seedInvalid}
+            value={seedText}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              setSeedText(raw);
+              const n = Number(raw);
+              p.onSettings({ seed: raw === "" || !Number.isInteger(n) || n < 0 || n > 4294967295 ? undefined : n });
+            }}
+          />
+        </div>
+        {seedInvalid && (
+          <p className="text-xs text-destructive">Seed must be a whole number from 0 to 4294967295</p>
+        )}
+      </div>
+
+      <Tooltip>
+        <TooltipTrigger render={<span className="block w-full" />}>
+          <Button type="button" size="lg" className="w-full" onClick={p.onApply} disabled={Boolean(p.applyBlockedReason) || busy}>
+            {busy ? <Loader2 className="size-4 animate-spin" strokeWidth={1.5} /> : <Sparkles className="size-4" strokeWidth={1.5} />}
+            {busy ? "Changing voice…" : "Change voice"}
+            {!busy && p.estimatedCredits !== null && <EstimatedCreditsLabel credits={p.estimatedCredits} />}
+          </Button>
+        </TooltipTrigger>
+        {p.applyBlockedReason && !busy && <TooltipContent side="top">{p.applyBlockedReason}</TooltipContent>}
+      </Tooltip>
+    </div>
+  );
+}

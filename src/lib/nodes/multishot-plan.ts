@@ -9,6 +9,7 @@ import type { MultishotCapability, LadderCheck } from "./multishot-models";
 import { dialectForCapability } from "./prompt-token-dialect";
 import { renderRefs, toStoredRefs, citedRefIds, type RefEntry } from "./ref-binding";
 import { renderVoiceover } from "./voiceover";
+import type { VoLine } from "./reel-script";
 
 export type MultishotBeat = { cutId: string; text: string };
 
@@ -127,13 +128,23 @@ function withLook(look: string, ladder: string): string {
   return trimmed ? `${trimmed}\n\n${ladder}` : ladder;
 }
 
+/** D286 — how lines spanning the whole sequence are introduced in the rendered prompt. */
+export const SEQUENCE_VO_PREFIX = "Across every shot — ";
+
 /**
- * D267 (Task 3) — a cut's beat, followed by its rendered voiceover, separated by a single space.
- * A cut with no lines (`voiceover` absent, `[]`, or every line blank) appends nothing, so it
- * renders exactly as it does without this feature.
+ * D286 — the sequence voiceover, a blank line, then the ladder. Sits between the look and the
+ * ladder so it reads as direction for the whole clip, not as part of shot 1. `semicolonSafe` is
+ * Kling's: a `;` in prose ahead of the triples would be read as a shot terminator.
  */
-function withVoiceover(beatText: string, renderedVoiceover: string): string {
-  return renderedVoiceover ? `${beatText} ${renderedVoiceover}` : beatText;
+function withSequenceVoiceover(
+  lines: VoLine[] | undefined,
+  ladder: string,
+  semicolonSafe = false,
+): string {
+  const rendered = renderVoiceover(lines);
+  if (!rendered) return ladder;
+  const text = semicolonSafe ? rendered.replace(/;/g, ",") : rendered;
+  return `${SEQUENCE_VO_PREFIX}${text}\n\n${ladder}`;
 }
 
 /**
@@ -155,12 +166,15 @@ function withVoiceover(beatText: string, renderedVoiceover: string): string {
  * BUG-010 — beats store image citations as ids; `refIds` is the order the references are sent in
  * NOW, and every citation is numbered against it here. Every production caller passes it; the
  * default only serves text that holds no stored ids (legacy positions echo unchanged).
+ *
+ * D286 — `sequenceVoiceover` renders once between the look and the ladder (`withSequenceVoiceover`).
  */
 export function renderPlan(
   plan: MultishotPlan,
   cuts: MultishotCut[],
   cap: MultishotCapability,
   refIds: string[] = [],
+  sequenceVoiceover?: VoLine[],
 ): string {
   plan = renderPlanRefs(plan, cap, refIds);
   const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
@@ -189,16 +203,13 @@ export function renderPlan(
         // make when it echoes an unknown token rather than renumbering it. Only correctness earns
         // a rewrite.
         //
-        // D267 (Task 3) — the cut's rendered voiceover joins the beat BEFORE the `;` replacement,
-        // so a `;` inside a spoken line is protected the same way one inside the beat's own prose
-        // is: either would otherwise end the shot early on Kling's comma/semicolon parser.
-        const beatText = (byId.get(cut.id) ?? "").trim();
-        const vo = renderVoiceover(cut.voiceover);
-        const text = withVoiceover(beatText, vo).replace(/;/g, ",");
+        // D307 — no voiceover rides a cut: a Multishot's lines span the whole sequence and render
+        // once above the ladder (withSequenceVoiceover, semicolon-safe for this parser).
+        const text = (byId.get(cut.id) ?? "").trim().replace(/;/g, ",");
         return `shot ${i + 1}, ${cut.seconds}, ${text};`;
       })
       .join("\n");
-    return withLook(plan.look, shots);
+    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, shots, true));
   }
 
   if (cap.shotFormat === "bare-timecode") {
@@ -222,10 +233,10 @@ export function renderPlan(
       .map((cut) => {
         const from = at;
         at += cut.seconds;
-        return `${from}-${at}s: ${withVoiceover((byId.get(cut.id) ?? "").trim(), renderVoiceover(cut.voiceover))}`;
+        return `${from}-${at}s: ${(byId.get(cut.id) ?? "").trim()}`;
       })
       .join("\n");
-    return withLook(plan.look, ladder);
+    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
   }
 
   let at = 0;
@@ -233,11 +244,11 @@ export function renderPlan(
     .map((cut) => {
       const from = at;
       at += cut.seconds;
-      return `[${from}-${at}s] ${withVoiceover((byId.get(cut.id) ?? "").trim(), renderVoiceover(cut.voiceover))}`;
+      return `[${from}-${at}s] ${(byId.get(cut.id) ?? "").trim()}`;
     })
     .join("\n");
 
-  return withLook(plan.look, ladder);
+  return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
 }
 
 /**
@@ -321,6 +332,7 @@ export function checkPlanLimits(
   cuts: MultishotCut[],
   cap: MultishotCapability,
   refIds: string[] = [],
+  sequenceVoiceover?: VoLine[],
 ): LadderCheck {
   // Measured on what is SENT (BUG-010): a stored `@[Label](id)` is far longer than the `@image_1`
   // it becomes, and the budget is the vendor's, on the request.
@@ -328,17 +340,14 @@ export function checkPlanLimits(
   if (cap.maxCutChars !== null) {
     const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
     for (const [i, cut] of cuts.entries()) {
-      const beatText = (byId.get(cut.id) ?? "").trim();
-      // D267 (Task 3) — measured on what is SENT: the cut's own voiceover rides its beat in the
-      // rendered prompt, so it counts against the same per-cut budget. Never truncated — the
-      // reason names the voiceover as the cause so the operator knows which half to shorten.
-      const vo = renderVoiceover(cut.voiceover);
-      const text = withVoiceover(beatText, vo);
+      // Measured on what is SENT. D307 — no voiceover rides a cut any more, so a beat's budget is
+      // the beat alone; the sequence's lines are measured with the whole prompt below.
+      const text = (byId.get(cut.id) ?? "").trim();
       if (text.length > cap.maxCutChars) {
         return {
           ok: false,
           reason:
-            `Shot ${i + 1} is ${text.length} characters${vo ? " (including its voiceover)" : ""} · ` +
+            `Shot ${i + 1} is ${text.length} characters · ` +
             `${cap.label} allows ${cap.maxCutChars}. Shorten it, or rewrite that shot with AI.`,
         };
       }
@@ -346,7 +355,9 @@ export function checkPlanLimits(
   }
 
   if (cap.maxPromptChars !== null) {
-    const rendered = renderPlan(plan, cuts, cap);
+    // D286 — the sequence voiceover is sent, so it is measured. It sits in no beat, so the
+    // per-cut loop above rightly ignores it.
+    const rendered = renderPlan(plan, cuts, cap, [], sequenceVoiceover);
     if (rendered.length > cap.maxPromptChars) {
       return {
         ok: false,
@@ -454,5 +465,37 @@ export function setBeatText(
   return {
     ...plan,
     beats: plan.beats.map((b) => (b.cutId === cutId ? { ...b, text } : b)),
+  };
+}
+
+/**
+ * D279 — does this plan cover this ladder, and does it carry beats the ladder no longer has?
+ *
+ * The ONE place that question is answered. Derived on every read, never stored, and **the plan is
+ * never written from a Multishot-node edit**: the plan lives on a different node in its
+ * `node_versions` row, so writing it from the node that owns the cuts would cross a boundary the
+ * component does not own, and would trip `planIsDirty` into reporting unsaved edits the operator
+ * never made.
+ *
+ * A BLANK beat counts as unwritten. `renderPlan` resolves a missing beat to `""` (see its
+ * `byId.get(cut.id) ?? ""`), so an empty beat and an absent one are the same shipped artifact —
+ * an empty shot, billed. A check that distinguished them would pass the case it exists to catch.
+ *
+ * `orphaned` is reported for DISPLAY and is never an error: `renderPlan` walks the cuts, so a beat
+ * whose cut is gone is simply never rendered. This is deliberately narrower than re-running
+ * `parsePlan`, which rejects the plan whole on an orphaned beat — that would invalidate a plan
+ * that renders perfectly well just because the operator removed a shot.
+ */
+export function planCoverage(
+  plan: MultishotPlan,
+  cuts: MultishotCut[],
+): { unwritten: string[]; orphaned: string[] } {
+  const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
+  const cutIds = new Set(cuts.map((c) => c.id));
+  return {
+    // Cut order, not beat order: this drives "Shot 4 has no written prompt", and that number is
+    // the cut's position on the ladder.
+    unwritten: cuts.filter((c) => !(byId.get(c.id) ?? "").trim()).map((c) => c.id),
+    orphaned: plan.beats.filter((b) => !cutIds.has(b.cutId)).map((b) => b.cutId),
   };
 }

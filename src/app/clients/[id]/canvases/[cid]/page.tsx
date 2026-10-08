@@ -18,6 +18,8 @@ import { GalleryDrawerProvider } from "@/components/canvas/gallery-drawer-contex
 import { GalleryDrawerTrigger } from "@/components/canvas/gallery-drawer-trigger";
 import { ReviewDrawerProvider } from "@/components/canvas/review-drawer/review-drawer-context";
 import { ReviewDrawerTrigger } from "@/components/canvas/review-drawer/review-drawer-trigger";
+import { ClientFeedbackProvider } from "@/components/canvas/client-feedback-drawer/client-feedback-context";
+import { ClientFeedbackTrigger } from "@/components/canvas/client-feedback-drawer/client-feedback-trigger";
 import { getOrgReviewCounts } from "@/lib/db/review";
 import { CanvasCostChip } from "@/components/canvas/canvas-cost-chip";
 import { listNodes } from "@/lib/db/nodes";
@@ -102,6 +104,7 @@ export default async function CanvasPage({
     {/* D161: opens straight away when arrived at via a review link — the senior followed
         a count to get here, so the list should already be on screen. */}
     <ReviewDrawerProvider initialOpen={reviewMode}>
+    <ClientFeedbackProvider>
     <main className="flex flex-1 flex-col">
       <header className="flex items-center justify-between border-b border-border/70 bg-background/60 px-6 py-3 backdrop-blur">
         <Breadcrumb>
@@ -127,6 +130,7 @@ export default async function CanvasPage({
         </Breadcrumb>
         <div className="flex items-center gap-3">
           <CanvasCostChip canvasId={canvas.id} />
+          <ClientFeedbackTrigger canvasId={canvas.id} />
           <ReviewDrawerTrigger canvasId={canvas.id} initialCounts={reviewCounts} />
           <GalleryDrawerTrigger />
         </div>
@@ -138,6 +142,7 @@ export default async function CanvasPage({
           <Canvas
             canvasId={canvas.id}
             clientId={client.id}
+            clientSlug={client.slug}
             initialKBJob={latestKBJob}
             hasActiveKB={!!activeKBVersion}
             initialDriveRootFolder={initialDriveRootFolder}
@@ -145,6 +150,7 @@ export default async function CanvasPage({
         </CanvasStoreProvider>
       </div>
     </main>
+    </ClientFeedbackProvider>
     </ReviewDrawerProvider>
     </GalleryDrawerProvider>
   );

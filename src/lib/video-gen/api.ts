@@ -21,6 +21,11 @@ export type UpstreamPromptNode = {
    * on the latter, a plain node-type check with no traversal of its own. */
   type: string;
   text: string | null;
+  /** D308 — images the prompt cites, by id (second in reference priority). */
+  citedIds?: string[];
+  /** D308 — the shot's avatar, when it is in the shot: its front and its profile sheet. */
+  avatarFrontId?: string | null;
+  avatarSheetId?: string | null;
 };
 
 export type StartGenerationPayload = {

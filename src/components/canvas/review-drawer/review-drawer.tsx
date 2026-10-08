@@ -11,7 +11,7 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useReviewList } from "@/hooks/use-review-list";
 import { ReviewItemThumb } from "@/components/review/review-item-thumb";
 import { ReviewListSkeleton } from "@/components/review/review-list-skeleton";
-import { InfiniteScrollSentinel } from "@/components/review/infinite-scroll-sentinel";
+import { InfiniteScrollSentinel } from "@/components/shared/infinite-scroll-sentinel";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { isUnhandledPointer, urlWithoutParams } from "@/lib/review/focus-pointer";
 import { useReviewDrawer } from "./review-drawer-context";

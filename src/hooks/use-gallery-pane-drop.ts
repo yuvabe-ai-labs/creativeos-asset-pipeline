@@ -5,6 +5,8 @@ import { useReactFlow } from "@xyflow/react";
 import { useGalleryDrawer as useGalleryCommit } from "./use-gallery-drawer";
 import { GALLERY_DRAG_MIME } from "@/components/canvas/gallery-drawer/gallery-drawer";
 import type { GalleryImage } from "@/components/canvas/gallery-drawer/types";
+import { AVATAR_DRAG_MIME, parseAvatarDragPayload } from "@/lib/avatars/canvas";
+import { useAddAvatarNode } from "./use-add-avatar-node";
 
 export interface GalleryPaneDropHandlers {
   onDragOver: (e: React.DragEvent) => void;
@@ -21,16 +23,27 @@ export interface GalleryPaneDropHandlers {
  */
 export function useGalleryPaneDrop(): GalleryPaneDropHandlers {
   const { handleAdd } = useGalleryCommit();
+  const addAvatarNode = useAddAvatarNode();
   const reactFlow = useReactFlow();
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes(GALLERY_DRAG_MIME)) return;
+    const types = e.dataTransfer.types;
+    if (!types.includes(GALLERY_DRAG_MIME) && !types.includes(AVATAR_DRAG_MIME)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
+      // D298 — an avatar from the gallery's Avatars tab: a node where it was dropped.
+      const avatar = parseAvatarDragPayload(e.dataTransfer.getData(AVATAR_DRAG_MIME));
+      if (avatar) {
+        e.preventDefault();
+        addAvatarNode(avatar.avatarId, {
+          position: reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY }),
+        });
+        return;
+      }
       const raw = e.dataTransfer.getData(GALLERY_DRAG_MIME);
       if (!raw) return;
       e.preventDefault();
@@ -42,7 +55,7 @@ export function useGalleryPaneDrop(): GalleryPaneDropHandlers {
         console.warn("[gallery] pane drop payload malformed:", err);
       }
     },
-    [handleAdd, reactFlow],
+    [handleAdd, addAvatarNode, reactFlow],
   );
 
   return { onDragOver, onDrop };

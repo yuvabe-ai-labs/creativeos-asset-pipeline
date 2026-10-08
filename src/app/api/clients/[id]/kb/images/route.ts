@@ -15,6 +15,7 @@ import {
   isApiError,
 } from "@/lib/api/route-helpers";
 import { uploadBrandImage } from "@/lib/storage";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 
 // POST /api/clients/:id/kb/images — upload one brand image
 export async function POST(
@@ -60,6 +61,7 @@ export async function POST(
       storageUrl: publicUrl,
       sizeBytes: file.size,
     });
+    await startImageAnalysisQuietly(clientId);
 
     return apiOk({ image });
   });
@@ -70,11 +72,12 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, async (_clientId) => {
+  return withClient(req, params, async (clientId) => {
     const imageId = new URL(req.url).searchParams.get("imageId");
     if (!imageId) return apiError("imageId is required.", 400);
 
-    await deleteBrandImage(imageId);
+    await deleteBrandImage(clientId, imageId);
+    await startImageAnalysisQuietly(clientId);
     return apiOk({ ok: true as const });
   });
 }

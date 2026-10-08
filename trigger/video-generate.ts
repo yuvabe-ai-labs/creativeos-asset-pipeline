@@ -1,4 +1,5 @@
 import { task, logger, wait } from "@trigger.dev/sdk/v3";
+import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
 
 const MOCK_VIDEO_URL = "https://www.w3schools.com/html/mov_bbb.mp4";
 const MOCK_DURATION_SECONDS = 8;
@@ -13,68 +14,23 @@ export const videoGenerateTask = task({
     startFrameUrl?: string;
     endFrameUrl?: string;
     referenceUrls: string[];
+    /** D299 — the presenter's voice, on Seedance. Other providers ignore it. */
+    referenceAudioUrl?: string;
     params: Record<string, unknown>;
     mockMode?: boolean;
   }) => {
     const { generationId, modelId } = payload;
     const MOCK_MODE = payload.mockMode === true;
-    const appUrl = process.env.APP_URL;
-    if (!appUrl) throw new Error("APP_URL env var not set");
-    const secret = process.env.TRIGGER_WEBHOOK_SECRET;
-    if (!secret) throw new Error("TRIGGER_WEBHOOK_SECRET env var not set");
-
-    const webhookUrl = `${appUrl}/api/webhooks/generation`;
-
-    const postWebhook = async (body: object) => {
-      const res = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${secret}`,
-        },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "(unreadable)");
-        logger.error("Generation webhook call failed", { status: res.status, body: text });
-      }
-      return res;
-    };
-
-    /**
-     * Report a webhook TRANSPORT failure without letting it replace the thing being reported.
-     *
-     * Node's fetch reports every transport failure as the same opaque `TypeError: fetch failed`
-     * with the real reason only on `cause`. Thrown from the catch block below, it escaped the task
-     * as the run's error — so a generation that failed for a real, nameable reason surfaced as a
-     * bare "fetch failed" with the actual cause discarded, and the generation row was never marked
-     * failed either. That is how an APP_URL typo (https:// against an http dev server, cause
-     * ERR_SSL_WRONG_VERSION_NUMBER) masqueraded as an Omni problem.
-     */
-    const postWebhookSafely = async (body: object, context: string) => {
-      try {
-        await postWebhook(body);
-      } catch (e) {
-        const chain: string[] = [];
-        let cur: unknown = e;
-        for (let i = 0; i < 4 && cur instanceof Error; i += 1) {
-          const code = (cur as { code?: unknown }).code;
-          chain.push(typeof code === "string" ? `${cur.message} [${code}]` : cur.message);
-          cur = (cur as { cause?: unknown }).cause;
-        }
-        logger.error("Generation webhook unreachable", {
-          context,
-          webhookUrl,
-          reason: chain.join(" ← "),
-        });
-      }
-    };
+    // Fail fast on a misconfigured deploy — before the mock wait and before any (paid) provider
+    // call, exactly where the pre-D284 inline version checked (restored after the D284 extraction
+    // to post-webhook.ts dropped it — review fix).
+    const { url: webhookUrl } = assertWebhookConfig();
 
     if (MOCK_MODE) {
       logger.info("MOCK MODE: simulating video generation", { generationId, modelId });
       await wait.for({ seconds: 30 });
       logger.info("MOCK MODE: returning hardcoded video", { generationId });
-      await postWebhook({
+      await postGenerationWebhook({
         generationId,
         status: "succeeded",
         videoUrl: MOCK_VIDEO_URL,
@@ -103,6 +59,7 @@ export const videoGenerateTask = task({
         startFrameUrl: payload.startFrameUrl,
         endFrameUrl: payload.endFrameUrl,
         referenceUrls: payload.referenceUrls ?? [],
+        referenceAudioUrl: payload.referenceAudioUrl,
         params: payload.params,
       });
 
@@ -114,7 +71,7 @@ export const videoGenerateTask = task({
       });
 
       try {
-        await postWebhook({
+        await postGenerationWebhook({
           generationId,
           status: "succeeded",
           videoUrl: result.videoUrl,
@@ -136,7 +93,7 @@ export const videoGenerateTask = task({
 
       // Safely: this is the ONLY record of why the generation failed. An unguarded post here
       // threw over the top of `error` and lost it.
-      await postWebhookSafely({ generationId, status: "failed", error }, "failure report");
+      await postGenerationWebhookSafely({ generationId, status: "failed", error }, "failure report");
       // Rethrow so the run itself is marked failed with the REAL reason. Swallowing it made a
       // failed generation show up as a successful run in the Trigger dashboard.
       throw e instanceof Error ? e : new Error(error);

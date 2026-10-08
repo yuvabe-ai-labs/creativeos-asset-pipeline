@@ -1,5 +1,6 @@
 import type { ReelShot } from "./reel-script";
 import { MULTISHOT_MODELS } from "./multishot-models";
+import { beatsForScene, type SceneBeatCache } from "./scene-beats";
 
 /**
  * D258 — the packing window, derived from what the models publish.
@@ -215,7 +216,12 @@ export type Generation = {
    * arithmetic one. The one case regrouping cannot fix, which is why it earns a warning.
    */
   overCeiling: boolean;
-  /** A multi-shot group, which multishot suits — advisory only, never auto-applied (D259). */
+  /**
+   * How many cuts multishot would make: a single scene's suggested beats (D286), else its row
+   * count. 1 for a scene with no split.
+   */
+  cutCount: number;
+  /** 2+ cuts, which multishot suits — advisory only, never auto-applied (D259). */
   recommendMultishot: boolean;
   /** Identity of this grouping, and the key an override is stored under. */
   key: string;
@@ -256,11 +262,14 @@ export function scenesAsGenerations(shots: ReelShot[]): ShotGroup[] {
  * override whose key matches no current generation is ignored: after a re-parse the grouping it
  * described no longer exists, and applying it to a differently-shaped group would carry an
  * intent onto rows it was never about.
+ *
+ * `beatCache` — the Script node's re-split cache (D286), consulted for a single scene's cut count.
  */
 export function describeGenerations(
   shots: ReelShot[],
   overrides?: Record<string, boolean>,
   groupingVersion: GroupingVersion = 1,
+  beatCache?: SceneBeatCache,
 ): Generation[] {
   const groups =
     groupingVersion === 3
@@ -270,6 +279,12 @@ export function describeGenerations(
   return groups.map((group, index) => {
     const key = generationKey(group.shotIndexes);
     const override = overrides?.[key];
+    // D286 — a lone scene's cuts are its suggested beats. A stale split still counts: the badge
+    // keeps its last answer until the toggle re-splits.
+    const cutCount =
+      group.shotIndexes.length === 1
+        ? (beatsForScene(shots[group.shotIndexes[0]] ?? {}, beatCache).beats?.length ?? 1)
+        : group.shotIndexes.length;
     return {
       index,
       shotIndexes: group.shotIndexes,
@@ -279,8 +294,8 @@ export function describeGenerations(
           ? override
           : defaultMultishotFor(group.shotIndexes, groupingVersion),
       overCeiling: group.seconds > PACK_CEILING_SECONDS,
-      // A v3 generation is one scene, so there is no multi-shot group to recommend multishot for.
-      recommendMultishot: groupingVersion !== 3 && group.shotIndexes.length > 1,
+      cutCount,
+      recommendMultishot: cutCount > 1,
       key,
     };
   });

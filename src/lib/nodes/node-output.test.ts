@@ -2,6 +2,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { getNodeOutput, renderShotForImage, renderShotContext, shotContextMode } from "./node-output";
 
 describe("getNodeOutput", () => {
+  it("returns a composite's active image URL, like image-gen (D312)", () => {
+    expect(
+      getNodeOutput({ type: "composite", data: {}, activeOutput: " https://cdn/c.png " }),
+    ).toBe("https://cdn/c.png");
+    expect(getNodeOutput({ type: "composite", data: {}, activeOutput: null })).toBe("");
+  });
+
   it("returns a text node's data.text", () => {
     expect(getNodeOutput({ type: "text", data: { text: "  hello  " }, activeOutput: null })).toBe("hello");
   });
@@ -103,6 +110,18 @@ describe("getNodeOutput", () => {
     expect(getNodeOutput({ type: "multishot", data: {}, activeOutput: null })).toBe("");
   });
 
+  it("prints a multishot node's sequence voiceover above its shots", () => {
+    const out = getNodeOutput({
+      type: "multishot",
+      data: {
+        cuts: [{ id: "c1", text: "keys", seconds: 2 }],
+        sequenceVoiceover: [{ text: "Made by hand.", speaker: "narrator" }],
+      },
+      activeOutput: null,
+    });
+    expect(out).toBe('Across every shot — Voiceover: "Made by hand."\nShot 1 (2s): keys');
+  });
+
   it("returns a post node's rendered fileUrl", () => {
     const output = getNodeOutput({
       type: "post",
@@ -163,11 +182,10 @@ describe("shotContextMode", () => {
   });
 });
 
-// The connected-input panel showed "Shot 1 (8s): <description>" with no spoken line, while the
-// rendered prompt for that same cut ends with it — so the panel told the operator the node held
-// less than it does.
-describe("a Multishot node's output states what each cut says", () => {
-  it("appends the cut's spoken line", () => {
+// D307 — a Multishot speaks over the whole sequence: an older node's cut lines are stated once,
+// with the sequence's, ahead of the shots, never on a shot.
+describe("a Multishot node's output states what it says, once, for the sequence", () => {
+  it("leads with every line and leaves the shots as they are", () => {
     const out = getNodeOutput({
       type: "multishot",
       data: {
@@ -183,10 +201,8 @@ describe("a Multishot node's output states what each cut says", () => {
       },
       activeOutput: null,
     });
-    expect(out).toContain(
-      'Shot 1 (8s): She adds Jackfruit365 to a bowl of atta. creator says: "For lunch, I add it to the atta."',
-    );
-    expect(out).toContain("Shot 2 (4s): Steam off the tawa.");
-    expect(out).not.toMatch(/Shot 2 .*says/);
+    expect(out).toContain('Across every shot — creator says: "For lunch, I add it to the atta."');
+    expect(out).toContain("Shot 1 (8s): She adds Jackfruit365 to a bowl of atta.\n");
+    expect(out).not.toMatch(/Shot \d .*says/);
   });
 });

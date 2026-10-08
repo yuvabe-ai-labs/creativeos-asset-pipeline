@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { buildMultishotUserTurn } from "../resolve-inputs";
-import { renderVoiceover } from "../voiceover";
 import type { MultishotCut } from "../multishot-cuts";
 
 const cuts: MultishotCut[] = [
@@ -170,37 +169,37 @@ describe("buildMultishotUserTurn script notes", () => {
 // spoken by whom, on-screen or off — so it can frame a talking face or leave the scene silent for
 // narration (VO_PERFORMANCE_RULES, video-prompt-shared.ts), and (for a model with a per-cut
 // ceiling) how much room the line leaves in that shot's beat.
-describe("buildMultishotUserTurn voiceover context", () => {
+// D307 — cuts carry no voiceover of their own; every line reaches the writer through the
+// sequence block (resolveMultishotPromptInputs folds an older node's cut lines into it).
+describe("buildMultishotUserTurn — no per-shot voiceover (D307)", () => {
   const base = { clientContext: "", upstream: [], instruction: "", cutInstructions: {} };
   const cutsWithVo: MultishotCut[] = [
     { id: "c1", text: "keys", seconds: 2, voiceover: [{ text: "To work.", speaker: "narrator", delivery: "warm" }] },
-    { id: "c2", text: "cab", seconds: 2, voiceover: [] },
+    { id: "c2", text: "cab", seconds: 2 },
   ];
 
-  it("tells the writer which line plays over which shot, never an instruction to write it", () => {
-    const turn = buildMultishotUserTurn({ ...base, cuts: cutsWithVo });
-    expect(turn).toContain('  Voiceover on this shot: narrator (off-screen, warm): "To work."');
-    expect(turn).not.toMatch(/write.*verbatim/i);
-    expect(turn).not.toMatch(/every line must appear exactly once/i);
-    // Never on the shot with no lines.
-    expect(turn.split("cutId: c2")[1]).not.toContain("Voiceover on this shot");
-  });
-
-  it("tells the writer how much of its per-cut ceiling the voiceover already spends", () => {
-    const rendered = renderVoiceover(cutsWithVo[0].voiceover);
-    const takes = rendered.length + 1;
+  it("never states a line against a shot, nor a per-shot budget for it", () => {
     const turn = buildMultishotUserTurn({ ...base, cuts: cutsWithVo, maxCutChars: 512 });
-    expect(turn).toContain(
-      `  Room for your beat: ${512 - takes} characters (its voiceover takes ${takes} of 512).`,
-    );
-  });
-
-  it("omits the budget hint without a maxCutChars, and for a shot with no voiceover", () => {
-    const turn = buildMultishotUserTurn({ ...base, cuts: cutsWithVo });
+    expect(turn).not.toContain("Voiceover on this shot");
     expect(turn).not.toContain("Room for your beat");
   });
+});
 
-  it("carries neither line when no cut has voiceover", () => {
-    expect(buildMultishotUserTurn({ ...base, cuts })).not.toMatch(/voiceover/i);
+describe("buildMultishotUserTurn — sequence voiceover (D286)", () => {
+  const base = { clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {} };
+
+  it("states lines that play over every shot, once, above the shots", () => {
+    const turn = buildMultishotUserTurn({
+      ...base,
+      sequenceVoiceover: [{ text: "Made slowly, by hand.", speaker: "narrator" }],
+    });
+    expect(turn).toContain("Voiceover across the whole sequence");
+    expect(turn).toContain('narrator (off-screen): "Made slowly, by hand."');
+    expect(turn.indexOf("whole sequence")).toBeLessThan(turn.indexOf("cutId: c1"));
+    expect(turn.match(/Made slowly/g)).toHaveLength(1);
+  });
+
+  it("adds nothing when there are no sequence lines", () => {
+    expect(buildMultishotUserTurn({ ...base, sequenceVoiceover: [] })).not.toContain("whole sequence");
   });
 });

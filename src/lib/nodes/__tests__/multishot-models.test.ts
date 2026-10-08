@@ -90,12 +90,18 @@ describe("checkLadder", () => {
     expect(checkLadder(cuts(1, 1), omni).ok).toBe(false);
   });
 
-  it("refuses more cuts than the model allows, naming both numbers", () => {
+  it("refuses more cuts than the model allows, naming both numbers and the way out", () => {
     const refused = checkLadder(cuts(1, 1, 1, 1, 1, 1, 1), kling);
     expect(refused.ok).toBe(false);
+    // Asserted as the WHOLE sentence, not toContain("7")/toContain("6") as before: this string
+    // renders verbatim on the Multishot card, the Multishot focus view AND Video Gen's disabled
+    // Generate, so its wording is a contract across three surfaces. It used to end "Regroup the
+    // shots on the Script." — the only route before D279, and wrong once shots can be removed on
+    // the node itself.
     if (!refused.ok) {
-      expect(refused.reason).toContain("7");
-      expect(refused.reason).toContain("6");
+      expect(refused.reason).toBe(
+        "7 shots · Kling 3.0 Omni allows 6. Remove a shot, or switch the model.",
+      );
     }
   });
 

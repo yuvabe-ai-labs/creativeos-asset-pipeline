@@ -276,4 +276,134 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(payload.prompt).not.toContain("shot 1, ");
     expect(payload.params.multi_shot).toBeUndefined();
   });
+
+  // D279 — the hole this closes: renderPlan and checkPlanLimits both resolve a missing beat to
+  // "", so a cut the plan does not cover renders as an EMPTY SHOT, passes every character
+  // budget, and is billed. Adding a shot on the Multishot node is the first route that can
+  // produce this while the prompt node stays connected.
+  it("rejects a ladder the plan does not cover, before any generation is recorded", async () => {
+    const threeCuts: MultishotCut[] = [
+      { id: "c1", text: "keys", seconds: 5 },
+      { id: "c2", text: "cab", seconds: 7 },
+      { id: "c3", text: "a shot added after the prompt was written", seconds: 2 },
+    ];
+    mocks.graph = buildGraph(threeCuts, KLING_OMNI_MODEL_ID, PLAN); // PLAN covers c1 and c2 only
+
+    const res = await post({
+      modelId: KLING_OMNI_MODEL_ID,
+      params: {},
+      imageRoles: { ig: "reference" },
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe(
+      "Shot 3 has no written prompt. Re-generate the Multishot Prompt, or write that shot.",
+    );
+
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+
+  it("names the FIRST uncovered shot when several are uncovered", async () => {
+    const fourCuts: MultishotCut[] = [
+      { id: "c1", text: "keys", seconds: 4 },
+      { id: "cX", text: "added", seconds: 2 },
+      { id: "c2", text: "cab", seconds: 4 },
+      { id: "cY", text: "also added", seconds: 2 },
+    ];
+    mocks.graph = buildGraph(fourCuts, KLING_OMNI_MODEL_ID, PLAN);
+
+    const res = await post({
+      modelId: KLING_OMNI_MODEL_ID,
+      params: {},
+      imageRoles: { ig: "reference" },
+    });
+
+    const json = await res.json();
+    expect(json.error).toContain("Shot 2");
+    expect(json.error).not.toContain("Shot 4");
+  });
+
+  // An orphaned beat alone is NOT an error — renderPlan walks the cuts, so it is never rendered.
+  // Asserted explicitly so a later tightening to parsePlan cannot silently start refusing it.
+  it("still generates when the plan carries a beat whose cut was removed", async () => {
+    const planWithOrphan: MultishotPlan = {
+      ...PLAN,
+      beats: [...PLAN.beats, { cutId: "c-removed", text: "a shot that no longer exists" }],
+    };
+    mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, planWithOrphan);
+
+    const res = await post({
+      modelId: KLING_OMNI_MODEL_ID,
+      params: {},
+      imageRoles: { ig: "reference" },
+    });
+
+    expect(res.status).toBe(202);
+    expect(mocks.triggerTask).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A single-take video-prompt lane: vg <- vp (string prompt). No images.
+function simpleGraph(): Record<string, Row[]> {
+  return {
+    vg: [{ nodeId: "vp", type: "video-prompt", data: {}, activeOutput: "A hand lifts keys.", versionId: "v9" }],
+    vp: [],
+  };
+}
+
+describe("POST video-generate — no voice at generate time (D284)", () => {
+  it("ignores a voiceId in the body and never sends a voice to the task", async () => {
+    mocks.graph = simpleGraph();
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {}, voiceId: "v1" });
+    expect(res.status).toBe(202);
+    expect(mocks.triggerTask.mock.calls[0][1]).not.toHaveProperty("voice");
+  });
+});
+
+// D308 — the references a request sends are chosen by selectReferences, never cut silently.
+describe("POST video-generate — references within the cap (D308)", () => {
+  const file = (id: string, extra: Record<string, unknown> = {}): Row => ({
+    nodeId: id, type: "file", data: { fileKind: "image", fileUrl: `https://img.example/${id}.png`, ...extra },
+    activeOutput: null, versionId: null,
+  });
+  // Kling 3.0 Omni takes 5 references. Seven images: five files, the avatar's front and its sheet.
+  function graphWithImages(): Record<string, Row[]> {
+    return {
+      vg: [{ nodeId: "mp", type: "multishot-prompt", data: {}, activeOutput: { ...PLAN, targetModel: KLING_OMNI_MODEL_ID }, versionId: "v1" }],
+      mp: [
+        file("f1"), file("f2"), file("f3"), file("f4"), file("f5"),
+        file("av", { presenter: true }), file("av:sheet", { presenter: "sheet" }),
+        { nodeId: "ms", type: "multishot", data: { cuts: LEGAL_KLING_CUTS, targetModel: KLING_OMNI_MODEL_ID }, activeOutput: null, versionId: null },
+      ],
+    };
+  }
+  const sentUrls = () =>
+    (mocks.triggerTask.mock.calls[0][1] as unknown as { referenceUrls: string[] }).referenceUrls.map((u) => u.split("/").pop());
+
+  it("fills the slots by priority, so the avatar is never the one dropped", async () => {
+    mocks.graph = graphWithImages();
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: {} });
+    expect(res.status).toBe(202);
+    // Avatar front first, then its sheet, then the files in order — sent in prompt order.
+    expect(sentUrls()).toEqual(["f1.png", "f2.png", "f3.png", "av.png", "av:sheet.png"]);
+  });
+
+  it("refuses references selected beyond the cap instead of cutting them", async () => {
+    mocks.graph = graphWithImages();
+    const roles = Object.fromEntries(["f1", "f2", "f3", "f4", "f5", "av"].map((id) => [id, "reference"]));
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: roles });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Kling 3.0 Omni takes 5 references; 6 are selected. Turn some off in Video Gen.");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("never sends an image turned off", async () => {
+    mocks.graph = graphWithImages();
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: { av: "off" } });
+    expect(res.status).toBe(202);
+    expect(sentUrls()).not.toContain("av.png");
+  });
 });

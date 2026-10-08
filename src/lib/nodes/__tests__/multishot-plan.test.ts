@@ -6,6 +6,7 @@ import {
   checkPlanLimits,
   planIsDirty,
   setBeatText,
+  planCoverage,
   storePlanRefs,
   renderPlanRefs,
   planMissingRefs,
@@ -264,70 +265,40 @@ describe("renderPlan per model", () => {
 });
 
 // D267 (Task 3) — the cut's own VO lines, rendered and appended to its beat, in all three formats.
-// The voiceover comes from the CUT, never from the plan's beats: an edited line applies without
-// regenerating the plan.
-describe("renderPlan — voiceover appended to the cut's own beat", () => {
+// D307 — a Multishot speaks over the whole sequence; cuts carry no lines of their own. A cut's
+// lines (an older node's, before they are folded into the sequence) are never rendered on its beat.
+describe("renderPlan — no voiceover on a cut (D307)", () => {
   const vo: VoLine[] = [{ text: "Try it today.", speaker: "narrator" }];
   const cutsWithVo: MultishotCut[] = [
     { id: "c1", text: "", seconds: 2, voiceover: vo },
     { id: "c2", text: "", seconds: 3 },
   ];
-
-  it("appends after Omni's beat, before the next line", () => {
-    expect(renderPlan(perModelPlan, cutsWithVo, OMNI)).toBe(
-      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
-        '[0-2s] A hand sweeps keys off oak. Voiceover: "Try it today."\n' +
-        "[2-5s] A cab door swings open onto sunlit paving.",
-    );
-  });
-
-  it("appends inside Kling's triple, before the terminating semicolon", () => {
-    expect(renderPlan(perModelPlan, cutsWithVo, KLING)).toBe(
-      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
-        'shot 1, 2, A hand sweeps keys off oak. Voiceover: "Try it today.";\n' +
-        "shot 2, 3, A cab door swings open onto sunlit paving.;",
-    );
-  });
-
-  it("appends after Seedance's bare-timecode beat", () => {
-    expect(renderPlan(perModelPlan, cutsWithVo, SEEDANCE)).toBe(
-      "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
-        '0-2s: A hand sweeps keys off oak. Voiceover: "Try it today."\n' +
-        "2-5s: A cab door swings open onto sunlit paving.",
-    );
-  });
-
-  it("renders a cut with no voiceover key and one with [] identically to today, in all three formats", () => {
-    const emptyArr: MultishotCut[] = planCuts.map((c) => ({ ...c, voiceover: [] }));
-    const expectedOmni =
+  const expected = {
+    omni:
       "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
       "[0-2s] A hand sweeps keys off oak.\n" +
-      "[2-5s] A cab door swings open onto sunlit paving.";
-    const expectedKling =
+      "[2-5s] A cab door swings open onto sunlit paving.",
+    kling:
       "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
       "shot 1, 2, A hand sweeps keys off oak.;\n" +
-      "shot 2, 3, A cab door swings open onto sunlit paving.;";
-    const expectedSeedance =
+      "shot 2, 3, A cab door swings open onto sunlit paving.;",
+    seedance:
       "Low sun from camera-left, warm grey concrete, 35mm at knee height.\n\n" +
       "0-2s: A hand sweeps keys off oak.\n" +
-      "2-5s: A cab door swings open onto sunlit paving.";
+      "2-5s: A cab door swings open onto sunlit paving.",
+  };
 
-    expect(renderPlan(perModelPlan, planCuts, OMNI)).toBe(expectedOmni);
-    expect(renderPlan(perModelPlan, emptyArr, OMNI)).toBe(expectedOmni);
-    expect(renderPlan(perModelPlan, planCuts, KLING)).toBe(expectedKling);
-    expect(renderPlan(perModelPlan, emptyArr, KLING)).toBe(expectedKling);
-    expect(renderPlan(perModelPlan, planCuts, SEEDANCE)).toBe(expectedSeedance);
-    expect(renderPlan(perModelPlan, emptyArr, SEEDANCE)).toBe(expectedSeedance);
+  it("renders each beat alone, in all three formats, whatever a cut carries", () => {
+    expect(renderPlan(perModelPlan, cutsWithVo, OMNI)).toBe(expected.omni);
+    expect(renderPlan(perModelPlan, cutsWithVo, KLING)).toBe(expected.kling);
+    expect(renderPlan(perModelPlan, cutsWithVo, SEEDANCE)).toBe(expected.seedance);
+    expect(renderPlan(perModelPlan, planCuts, SEEDANCE)).toBe(expected.seedance);
   });
 
-  it("replaces a semicolon inside voiceover text the same way the beat's own is replaced (triple)", () => {
-    const cutsWithSemi: MultishotCut[] = [
-      { id: "c1", text: "", seconds: 2, voiceover: [{ text: "Wait; then go.", speaker: "narrator" }] },
-      { id: "c2", text: "", seconds: 3 },
-    ];
-    const rendered = renderPlan(perModelPlan, cutsWithSemi, KLING);
-    expect(rendered).toContain('shot 1, 2, A hand sweeps keys off oak. Voiceover: "Wait, then go.";');
-    expect(rendered.match(/;/g)).toHaveLength(2); // one terminator per shot, no more
+  it("puts the sequence's lines once, above the ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, SEEDANCE, [], vo)).toContain(
+      'Voiceover: "Try it today."\n\n0-2s: A hand sweeps keys off oak.',
+    );
   });
 });
 
@@ -373,33 +344,14 @@ describe("checkPlanLimits", () => {
     expect(res.ok).toBe(false);
   });
 
-  // D267 (Task 3) — the limit is measured on what is SENT, and the voiceover rides along with the
-  // beat. A cut whose beat alone is fine but whose beat-plus-voiceover breaches the cap must be
-  // reported, and the reason must say the voiceover is why, so the operator knows which half of
-  // the cut to shorten (the voiceover itself is never truncated).
-  //
-  // Review finding (Task 5) — "(including its voiceover)" used to be appended after the message's
-  // final full stop, reading as if it qualified "rewrite that shot with AI" rather than the
-  // character count a few words earlier. It must sit immediately after the count it explains.
-  it("reports a cut whose beat alone fits but beat + voiceover exceeds the per-cut cap", () => {
+  // D307 — no voiceover rides a cut, so a beat's own cap measures the beat alone.
+  it("does not count a cut's lines against that beat's cap", () => {
     const cutsWithVo: MultishotCut[] = [
       { id: "c1", text: "", seconds: 2, voiceover: [{ text: "x".repeat(200), speaker: "narrator" }] },
       { id: "c2", text: "", seconds: 3 },
     ];
-    const plan = {
-      ...perModelPlan,
-      beats: [{ cutId: "c1", text: "y".repeat(400) }, perModelPlan.beats[1]],
-    };
-    expect(plan.beats[0].text.length).toBeLessThanOrEqual(512);
-
-    const res = checkPlanLimits(plan, cutsWithVo, KLING);
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.reason).toContain("Shot 1");
-      // Sits right after the character count, not tacked onto the end of the sentence.
-      expect(res.reason).toMatch(/^Shot 1 is \d+ characters \(including its voiceover\) · Kling/);
-      expect(res.reason).not.toMatch(/AI\.\s*\(including its voiceover\)/);
-    }
+    const plan = { ...perModelPlan, beats: [{ cutId: "c1", text: "y".repeat(400) }, perModelPlan.beats[1]] };
+    expect(checkPlanLimits(plan, cutsWithVo, KLING)).toEqual({ ok: true });
   });
 });
 
@@ -749,5 +701,119 @@ describe("plan reference binding (BUG-010)", () => {
     const beat = `${"x".repeat(500)} @[File: A-very-long-reference-name.png](a)`;
     const p: MultishotPlan = { version: 1, look: "", beats: [{ cutId: "c1", text: beat }] };
     expect(checkPlanLimits(p, [{ id: "c1", text: "", seconds: 3 }], KLING, ["a"])).toEqual({ ok: true });
+  });
+});
+
+describe("planCoverage", () => {
+  const cut = (id: string): MultishotCut => ({ id, text: `shot ${id}`, seconds: 2 });
+  const plan = (...beats: [string, string][]): MultishotPlan => ({
+    version: 1,
+    look: "Warm low sun.",
+    beats: beats.map(([cutId, text]) => ({ cutId, text })),
+  });
+
+  it("reports nothing when every cut has a written beat", () => {
+    expect(planCoverage(plan(["c1", "keys"], ["c2", "cab"]), [cut("c1"), cut("c2")])).toEqual({
+      unwritten: [],
+      orphaned: [],
+    });
+  });
+
+  it("reports a cut with no beat at all", () => {
+    expect(planCoverage(plan(["c1", "keys"]), [cut("c1"), cut("c2")])).toEqual({
+      unwritten: ["c2"],
+      orphaned: [],
+    });
+  });
+
+  // THE CASE THIS FUNCTION EXISTS FOR. renderPlan resolves a missing beat to "", so a blank beat
+  // and an absent one produce the identical shipped artifact — an empty shot, billed.
+  it("counts a blank beat as unwritten", () => {
+    expect(planCoverage(plan(["c1", "keys"], ["c2", "   "]), [cut("c1"), cut("c2")])).toEqual({
+      unwritten: ["c2"],
+      orphaned: [],
+    });
+  });
+
+  it("reports a beat whose cut is gone as orphaned, not unwritten", () => {
+    expect(planCoverage(plan(["c1", "keys"], ["c9", "gone"]), [cut("c1")])).toEqual({
+      unwritten: [],
+      orphaned: ["c9"],
+    });
+  });
+
+  it("reports both at once", () => {
+    expect(planCoverage(plan(["c9", "gone"]), [cut("c1"), cut("c2")])).toEqual({
+      unwritten: ["c1", "c2"],
+      orphaned: ["c9"],
+    });
+  });
+
+  // Discriminating on purpose: c3's beat is PRESENT but blank, and sits FIRST in plan.beats while
+  // c3 is last on the ladder. Cut order gives ["c2","c3"]; anything deriving the order from
+  // plan.beats gives ["c3","c2"]. The previous version of this test used two entirely-absent cuts,
+  // which have no beat-order position at all — so it passed under either implementation.
+  it("returns unwritten in CUT order, not beat order", () => {
+    const result = planCoverage(plan(["c3", "   "], ["c1", "keys"]), [
+      cut("c1"),
+      cut("c2"),
+      cut("c3"),
+    ]);
+    expect(result.unwritten).toEqual(["c2", "c3"]);
+  });
+
+  it("treats an empty ladder as covered — checkLadder is what rejects that", () => {
+    expect(planCoverage(plan(["c1", "keys"]), [])).toEqual({
+      unwritten: [],
+      orphaned: ["c1"],
+    });
+  });
+});
+
+// D286 — a line that spans the sequence renders ONCE, between the look and the ladder, and never
+// inside any shot.
+describe("renderPlan — sequence voiceover", () => {
+  const seq: VoLine[] = [{ text: "Made slowly; by hand.", speaker: "narrator" }];
+  const look = "Low sun from camera-left, warm grey concrete, 35mm at knee height.";
+
+  it("sits between the look and Omni's ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], seq)).toBe(
+      `${look}\n\n` +
+        'Across every shot — Voiceover: "Made slowly; by hand."\n\n' +
+        "[0-2s] A hand sweeps keys off oak.\n" +
+        "[2-5s] A cab door swings open onto sunlit paving.",
+    );
+  });
+
+  it("replaces semicolons on Kling so the line cannot end a shot", () => {
+    const rendered = renderPlan(perModelPlan, planCuts, KLING, [], seq);
+    expect(rendered).toContain('Across every shot — Voiceover: "Made slowly, by hand."\n\nshot 1, 2,');
+    expect(rendered.match(/;/g)).toHaveLength(2);
+  });
+
+  it("sits before Seedance's ladder", () => {
+    expect(renderPlan(perModelPlan, planCuts, SEEDANCE, [], seq)).toContain(
+      'Across every shot — Voiceover: "Made slowly; by hand."\n\n0-2s:',
+    );
+  });
+
+  it("leads the prompt when there is no look", () => {
+    expect(
+      renderPlan({ ...perModelPlan, look: "" }, planCuts, OMNI, [], seq).startsWith("Across every shot — "),
+    ).toBe(true);
+  });
+
+  it("renders nothing for no lines or an empty list", () => {
+    const plain = renderPlan(perModelPlan, planCuts, OMNI);
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], [])).toBe(plain);
+    expect(renderPlan(perModelPlan, planCuts, OMNI, [], undefined)).toBe(plain);
+  });
+
+  it("counts against the whole-prompt budget, not any cut's", () => {
+    const long: VoLine[] = [{ text: "x".repeat(KLING.maxPromptChars!), speaker: "narrator" }];
+    const result = checkPlanLimits(perModelPlan, planCuts, KLING, [], long);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/whole prompt/);
+    expect(checkPlanLimits(perModelPlan, planCuts, KLING).ok).toBe(true);
   });
 });

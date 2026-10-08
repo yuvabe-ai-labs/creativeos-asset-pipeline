@@ -6,8 +6,9 @@ import {
   markKBJobFailed,
   getKBJob,
 } from "@/lib/db/kb-jobs";
-import { insertKBDocument, insertKBVersion, setActiveKBVersion } from "@/lib/db/kb";
+import { getActiveKBVersion, insertKBDocument, insertKBVersion, setActiveKBVersion } from "@/lib/db/kb";
 import { getClientById, setKBStatus } from "@/lib/db/clients";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { uploadKBDocument } from "@/lib/storage";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { KB_JOB_NON_TERMINAL_STATUSES } from "@/lib/kb/constants";
@@ -109,10 +110,12 @@ export async function POST(req: Request) {
       docIdsForVersion.push(researchDoc.id);
     }
 
-    // 2. Insert the KB version + set active + flip kb_status.
+    // 2. Insert the KB version + set active + flip kb_status. The build leaves Image Analysis empty;
+    // on a rebuild the client already has one, so it is carried over, reviews included (D318).
+    const previous = (await getActiveKBVersion(job.client_id))?.output as TraceableBrandKB | undefined;
     const version = await insertKBVersion({
       clientId: job.client_id,
-      output: body.kbOutput,
+      output: previous?.image_analysis ? { ...body.kbOutput, image_analysis: previous.image_analysis } : body.kbOutput,
       modelUsed: body.modelUsed,
       docIdsUsed: docIdsForVersion,
       fillRate: body.fillRate,
@@ -122,6 +125,9 @@ export async function POST(req: Request) {
 
     // 3. Mark the job succeeded.
     await markKBJobSucceeded({ jobId: body.jobId, versionId: version.id });
+
+    // 4. This run fills Image Analysis from every brand image, or leaves a current one alone (D312).
+    await startImageAnalysisQuietly(job.client_id);
 
     return apiOk({ ok: true, versionId: version.id });
   } catch (e) {

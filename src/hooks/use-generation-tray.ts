@@ -52,7 +52,7 @@ export function useGenerationTray(canvasId: string): void {
           const row = payload.new as GenerationRow;
           if (!row?.id) return;
           const ids = new Set(storeApi.getState().nodes.map((n) => n.id));
-          if (!ids.has(row.node_id)) return;
+          if (row.node_id === null || !ids.has(row.node_id)) return;
           upsertTrayJob(row);
         },
       )

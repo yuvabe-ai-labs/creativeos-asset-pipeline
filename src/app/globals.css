@@ -39,6 +39,8 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-text: var(--warning-text);
+  --color-client: var(--client);
+  --color-client-text: var(--client-text);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-info-text: var(--info-text);
@@ -177,6 +179,11 @@
   --warning: var(--yellow-500);
   --warning-foreground: var(--neutral-900); /* 11.61:1 */
   --warning-text: var(--yellow-700);
+  /* D310: the Client review node's own accent — the one sanctioned non-purple node colour,
+     so client-facing work reads apart from generation nodes. Fill/border use the brand
+     yellow; text and icons use yellow-700 (4.57:1), never yellow-500 (1.53:1). */
+  --client: var(--yellow-500);
+  --client-text: var(--yellow-700);
   --info: var(--cyan-500);
   --info-foreground: var(--neutral-900); /* 7.35:1 */
   --info-text: var(--cyan-700);
@@ -232,6 +239,8 @@
   --success-foreground: #160f2e;
   --success-text: #90c645;
   --warning: #ffca2d;
+  --client: #ffca2d;
+  --client-text: #ffca2d;
   --warning-foreground: #160f2e;
   --warning-text: #ffca2d;
   --info: #2bb7c7;

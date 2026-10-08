@@ -94,10 +94,41 @@ const GEMINI_IMAGE_ESTIMATE_TABLE: Record<string, Record<string, number>> = {
   "gemini:gemini-3-pro-image":     { "1K": 0.134, "2K": 0.134, "4K": 0.24 },
 };
 
+// Seedream bills per image, not per token (ref/byteplus-docs/seedance_2.5_PRICING.md, image
+// rows; D285). Lite is flat. Pro is priced by output pixels — every 1K/1.5K size in the vendor
+// table is <= 2.61 MP ($0.045) and every 2K size is above it ($0.09) — so a per-resolution row is
+// exact. These are the real charge, not an estimate: the provider reports them as `costUsd`.
+const SEEDREAM_IMAGE_PRICE_TABLE: Record<string, Record<string, number>> = {
+  "seedream:seedream-5-0-lite": { "2K": 0.035, "3K": 0.035, "4K": 0.035 },
+  "seedream:seedream-5-0-pro":  { "1K": 0.045, "1.5K": 0.045, "2K": 0.09 },
+};
+
+// Pro charges $0.003 per input image from the second one; Lite's input images are free.
+const SEEDREAM_PER_EXTRA_REFERENCE_USD: Record<string, number> = {
+  "seedream:seedream-5-0-pro": 0.003,
+};
+
+/** Seedream's input-image charge: the first reference is free, each further one is priced. */
+export function seedreamReferenceCostUsd(modelId: string, referenceCount: number): number {
+  const perExtra = SEEDREAM_PER_EXTRA_REFERENCE_USD[modelId] ?? 0;
+  return Math.max(0, referenceCount - 1) * perExtra;
+}
+
+/** Full Seedream charge for one image, or null for an unpriced model/resolution. */
+export function seedreamImageCostUsd(
+  modelId: string,
+  resolution: string,
+  referenceCount: number,
+): number | null {
+  const output = SEEDREAM_IMAGE_PRICE_TABLE[modelId]?.[resolution];
+  if (output === undefined) return null;
+  return output + seedreamReferenceCostUsd(modelId, referenceCount);
+}
+
 /**
  * Exact pre-generation OUTPUT cost estimate for an image model. Returns USD (not credits —
  * callers apply usdToFinalCredits from src/lib/credits/units.ts). `quality` is ignored for
- * Gemini models (no such param). "auto" (a real option on gpt-image-2/gpt-image-1 — no
+ * Gemini and Seedream models (no such param). "auto" (a real option on gpt-image-2/gpt-image-1 — no
  * option on -mini) has no published price since OpenAI resolves the tier server-side;
  * treated as "high" (worst case) so the estimate never falls short of the real charge.
  */
@@ -115,6 +146,10 @@ export function estimateImageOutputCost(
   const geminiEntry = GEMINI_IMAGE_ESTIMATE_TABLE[modelId];
   if (geminiEntry) {
     return geminiEntry[size] ?? null;
+  }
+  const seedreamEntry = SEEDREAM_IMAGE_PRICE_TABLE[modelId];
+  if (seedreamEntry) {
+    return seedreamEntry[size] ?? null;
   }
   return null;
 }

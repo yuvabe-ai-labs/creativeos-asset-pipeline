@@ -2,10 +2,15 @@ import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { uploadVideoGen } from "@/lib/storage";
+import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
+import { readVoiceChange } from "@/lib/voice-change/source";
+import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
+import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
 
 // Every failure path in this file needs the same two calls in the same order — a small
 // local helper keeps that from drifting out of sync across the 3 sites that need it.
@@ -18,27 +23,14 @@ async function failAndRefund(
   await refundReservation({ orgId, generationId });
 }
 
-function buildVideoDownloadHeaders(modelUsed: string | null): HeadersInit {
-  const base = { "User-Agent": "Mozilla/5.0 (compatible; CreativeOS/1.0)" };
-  // Veo and Gemini Omni both return a Google Files API URI that needs the API key to download.
-  // Same key, same header — they are the same API.
-  if (modelUsed?.startsWith("veo:") || modelUsed?.startsWith("gemini:")) {
-    const key = process.env.GOOGLE_GENAI_API_KEY ?? "";
-    return { ...base, "x-goog-api-key": key };
-  }
-  if (modelUsed?.startsWith("openai:")) {
-    const key = process.env.OPENAI_API_KEY ?? "";
-    return { ...base, Authorization: `Bearer ${key}` };
-  }
-  return base;
-}
-
 export type CompleteGenerationInput =
   | {
       generationId: string;
       status: "succeeded";
       videoUrl: string;
       durationSeconds: number;
+      /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
+      stored?: boolean;
       meta?: Record<string, unknown>;
     }
   | {
@@ -55,6 +47,29 @@ export async function completeGeneration(
   // Idempotency: skip if already resolved (duplicate webhook delivery)
   if (generation.status !== "running") return;
 
+  // An avatar-owned row (node_id null) has no node to attach a version to. The one kind that
+  // completes through this webhook is the avatar's voice preview (D294), which has its own
+  // settlement. The Studio's images (D291) finish inside their own request and never arrive
+  // here, so anything else is dropped the same defensive way as the org-mismatch backstop below.
+  if (!generation.node_id) {
+    if (isVoicePreviewGeneration(generation)) {
+      await completeAvatarVoicePreview(generation, input);
+      return;
+    }
+    console.error("[completeGeneration] generation has no node_id — dropping", {
+      generationId: input.generationId,
+    });
+    await failAndRefund(
+      input.generationId,
+      generation.org_id,
+      "Dropped: generation has no node to attach output to",
+    ).catch((e) => {
+      console.error("[completeGeneration] failAndRefund failed on missing-node path", { error: e });
+    });
+    return;
+  }
+  const nodeId = generation.node_id;
+
   // D79: the org recorded on the job at creation must still match the current org of
   // the node it targets. Should be impossible in practice (nothing in this app moves a
   // client between orgs) — this is a backstop against exactly the class of bug this
@@ -62,7 +77,7 @@ export async function completeGeneration(
   const { data: currentChain, error: chainError } = await createServerSupabase()
     .from("nodes")
     .select("canvases!inner(clients!inner(org_id))")
-    .eq("id", generation.node_id)
+    .eq("id", nodeId)
     .maybeSingle();
   if (chainError) throw chainError;
   const canvas = currentChain
@@ -98,48 +113,67 @@ export async function completeGeneration(
     return;
   }
 
-  // 1. Download video from provider URL and upload to GCS
-  const videoResponse = await fetch(input.videoUrl, {
-    headers: buildVideoDownloadHeaders(generation.model_used),
-  });
-  if (!videoResponse.ok) {
-    await failAndRefund(
-      input.generationId,
-      generation.org_id,
-      `Failed to download video from provider: ${videoResponse.status}`,
-    );
-    return;
-  }
-  const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
-
-  console.log("[complete] GCP_PROJECT_ID present:", !!process.env.GCP_PROJECT_ID, "GCS_BUCKET present:", !!process.env.GCS_BUCKET);
-
+  // 1. Get the video into our bucket. D282: a voice-changed generation arrives already stored.
   let storedVideoUrl: string;
-  try {
-    const result = await uploadVideoGen({
-      nodeId: generation.node_id,
-      body: videoBuffer,
-      contentType: "video/mp4",
+  if (input.stored) {
+    if (!isOwnStoredUrl(input.videoUrl)) {
+      await failAndRefund(
+        input.generationId,
+        generation.org_id,
+        "Stored video URL is outside this app's bucket",
+      );
+      return;
+    }
+    storedVideoUrl = input.videoUrl;
+  } else {
+    const videoResponse = await fetch(input.videoUrl, {
+      headers: videoDownloadHeaders(generation.model_used),
     });
-    storedVideoUrl = result.url;
-  } catch (e) {
-    await failAndRefund(
-      input.generationId,
-      generation.org_id,
-      `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`,
-    );
+    if (!videoResponse.ok) {
+      await failAndRefund(
+        input.generationId,
+        generation.org_id,
+        `Failed to download video from provider: ${videoResponse.status}`,
+      );
+      return;
+    }
+    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+    try {
+      const result = await uploadVideoGen({
+        nodeId,
+        body: videoBuffer,
+        contentType: "video/mp4",
+      });
+      storedVideoUrl = result.url;
+    } catch (e) {
+      await failAndRefund(
+        input.generationId,
+        generation.org_id,
+        `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`,
+      );
+      return;
+    }
+  }
+
+  // D284 — a voice change appends a version: the root's model/params/inputs + the voice record.
+  const voiceChange = generation.type === "voice" ? readVoiceChange(generation.inputs_snapshot?.voiceChange) : null;
+  if (generation.type === "voice" && !voiceChange) {
+    await failAndRefund(input.generationId, generation.org_id, "Voice change record is missing");
     return;
   }
+  const driftMs = (input.meta?.voiceChange as { driftMs?: unknown } | undefined)?.driftMs;
 
   // 2. INSERT node_versions
   const version = await insertVersion({
-    nodeId: generation.node_id,
+    nodeId,
     // R11.1. There is no session at this boundary — this runs from the Trigger.dev
     // webhook, so resolveCallerContext() has nothing to resolve. generations.user_id is
     // who kicked the job off, captured at insertGeneration and (per db/generations.ts)
     // the REAL operator even while impersonating — exactly the maker we want.
     operatorUserId: generation.user_id,
-    inputsUsed: generation.inputs_snapshot ?? {},
+    inputsUsed: voiceChange
+      ? { ...(generation.inputs_snapshot ?? {}), voiceChange: { ...voiceChange, ...(typeof driftMs === "number" ? { driftMs } : {}) } }
+      : generation.inputs_snapshot ?? {},
     paramsUsed: {
       ...(generation.params_snapshot ?? {}),
       durationSeconds: input.durationSeconds,
@@ -149,15 +183,17 @@ export async function completeGeneration(
   });
 
   // 3. Move active pointer
-  await setActiveVersion(generation.node_id, version.id);
+  await setActiveVersion(nodeId, version.id);
 
   // 4. Compute cost and mark succeeded
   const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);
   const resolution = asResolutionString(generation.params_snapshot?.resolution);
 
-  const cost = generation.model_used
-    ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
-    : null;
+  const cost = voiceChange
+    ? computeVoiceChangeCost(input.durationSeconds, voiceChange.priceMultiplier)
+    : generation.model_used
+      ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
+      : null;
   // cost is only ever null when model_used is unset (shouldn't happen — every video
   // generation records a model at insertGeneration) — an actual cost of 0 credits in that
   // case, not a reason to skip settlement.

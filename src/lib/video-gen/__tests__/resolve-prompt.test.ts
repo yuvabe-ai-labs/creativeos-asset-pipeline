@@ -75,6 +75,21 @@ describe("resolveVideoGenPrompt", () => {
     }
   });
 
+  it("renders and returns the Multishot node's sequence voiceover (D286)", async () => {
+    const sequenceVoiceover = [{ text: "Made by hand.", speaker: "narrator" }];
+    const multishotPromptNode = output({ nodeId: "mp-1", type: "multishot-prompt", activeOutput: plan });
+    const multishotNode = output({ nodeId: "m-1", type: "multishot", data: { cuts, sequenceVoiceover } });
+    const result = await resolveVideoGenPrompt(
+      [multishotPromptNode],
+      async (id) => (id === "mp-1" ? [multishotNode] : []),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.prompt).toContain('Across every shot — Voiceover: "Made by hand."');
+      expect(result.sequenceVoiceover).toEqual(sequenceVoiceover);
+    }
+  });
+
   // D236 — the format comes from the PLAN's own stamp. The Multishot node here still says the
   // default (Omni), and the Kling-stamped plan must still render as Kling triples: what was
   // written is what ships.

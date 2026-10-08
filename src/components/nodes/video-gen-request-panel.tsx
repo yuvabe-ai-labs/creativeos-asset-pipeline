@@ -1,6 +1,6 @@
 "use client";
 
-import { Image as ImageIcon, PencilLine, SlidersHorizontal } from "lucide-react";
+import { AudioLines, Image as ImageIcon, PencilLine, SlidersHorizontal } from "lucide-react";
 import {
   videoGenClientModelMap,
   resolveVideoModelId,
@@ -9,15 +9,17 @@ import {
   describeAllVersionParams,
   type VersionParamEntry,
 } from "@/lib/generations/version-params";
+import { voiceChangeRows } from "@/lib/voice-change/describe";
 import { LeftSection } from "./focus-left-section";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
 
 const ROLE_LABEL: Record<ImageRole, string> = {
   start_frame: "Start",
   end_frame: "End",
   reference: "Ref",
+  off: "Off",
 };
 
 /**
@@ -71,13 +73,22 @@ function durationDisplay(p: VersionParamEntry): { label: string; value: string }
  * out rather than shown empty: Kling has no aspect ratio (it infers one from the input frame),
  * and a row reading "Aspect ratio —" would claim a value was sent when none was.
  */
-export function VideoGenRequestPanel({ version }: { version: VideoGenVersionSummary }) {
+export function VideoGenRequestPanel({
+  version,
+  labelById,
+}: {
+  version: VideoGenVersionSummary;
+  /** Every version's `vN` label (versionLabelsById), so a voice change names its source version. */
+  labelById: Map<string, string>;
+}) {
   const model = version.modelUsed
     ? videoGenClientModelMap[resolveVideoModelId(version.modelUsed)]
     : undefined;
   const images = requestImages(version.inputsUsed);
   const params = describeAllVersionParams(model?.params, version.paramsUsed);
   const prompt = version.inputsUsed?.prompt?.trim() ?? "";
+  // D284 — a voice-changed version's voice, source and settings, as rows like the Settings list.
+  const voiceRows = voiceChangeRows(version.inputsUsed, labelById);
 
   return (
     <div className="flex flex-col gap-8 px-6 py-5">
@@ -129,6 +140,16 @@ export function VideoGenRequestPanel({ version }: { version: VideoGenVersionSumm
               </li>
             ))}
           </ul>
+        </LeftSection>
+      )}
+
+      {voiceRows && (
+        <LeftSection icon={AudioLines} label="Voice change">
+          <dl className="flex flex-col gap-px overflow-hidden rounded-lg border border-border bg-border shadow-card">
+            {voiceRows.map((row) => (
+              <ParamRow key={row.label} label={row.label} value={row.value} />
+            ))}
+          </dl>
         </LeftSection>
       )}
 

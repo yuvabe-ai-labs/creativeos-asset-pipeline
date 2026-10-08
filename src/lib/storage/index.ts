@@ -14,8 +14,16 @@ import {
   pathForNodeFile,
   pathForReviewAnnotation,
   pathForVideoGen,
+  pathForVideoGenVoice,
+  pathForAvatarImage,
+  pathForAvatarGenerated,
+  pathForAvatarVoicePreview,
+  pathForAvatarVoiceSample,
+  pathForAvatarNamedVoiceSample,
+  pathForClientReviewCut,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
+import type { AvatarImageSlot } from "@/lib/avatars/schema";
 
 export type UploadResult = { url: string; path: string };
 
@@ -108,6 +116,21 @@ export async function uploadVideoGen(args: {
   return _upload(path, args.body, args.contentType);
 }
 
+// A generation can run up to 10 minutes (video-generate's maxDuration: 600) before the task
+// uploads, plus the voice-change step's own retries (video-voice-change: maxDuration 120 x
+// retry.maxAttempts 2); 5 minutes (the default) is far too short. Two hours covers that with
+// margin to spare.
+// D284 — signVideoGenVoiceUrls itself was removed with generate-time voice; this constant is
+// kept for Task 4's signRevoicedVideoUrl, which re-voice-as-a-version-action will add.
+export const VOICE_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
+
+// D284 — the task has no GCS credentials; the voice-change route signs the one upload up front.
+export async function signRevoicedVideoUrl(args: { nodeId: string; generationId: string }): Promise<{ putUrl: string; url: string }> {
+  const { clientId, canvasId } = await resolveOwnership(args.nodeId);
+  const path = pathForVideoGenVoice({ clientId, canvasId, nodeId: args.nodeId, generationId: args.generationId, variant: "revoiced" });
+  return { putUrl: await _signPutUrl(path, "video/mp4", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
 export async function uploadClientLogo(args: {
   clientId: string;
   filename: string;
@@ -146,6 +169,21 @@ export async function uploadBrandImage(args: {
     imageId: args.imageId,
     filename: args.filename,
   });
+  return _upload(path, args.body, args.contentType);
+}
+
+/**
+ * An imported brand asset (D302, D304) — or its video's poster, under the same id. Takes bytes
+ * rather than signing: they come from a provider CDN fetched inside the asset-import task.
+ */
+export async function uploadImportedBrandMedia(args: {
+  clientId: string;
+  imageId: string;
+  filename: string;
+  body: Buffer;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForBrandImage({ clientId: args.clientId, imageId: args.imageId, filename: args.filename });
   return _upload(path, args.body, args.contentType);
 }
 
@@ -212,6 +250,72 @@ export async function signClientBrandAssetUpload(args: {
   return _sign(path, args.contentType);
 }
 
+export async function signAvatarImageUpload(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  filename: string;
+  contentType: string;
+}): Promise<SignedUploadResult> {
+  const path = pathForAvatarImage({
+    clientId: args.clientId,
+    avatarId: args.avatarId,
+    slot: args.slot,
+    filename: args.filename,
+  });
+  return _sign(path, args.contentType);
+}
+
+// Stores a generated avatar image exactly as the provider returned it (no re-encode).
+export async function uploadAvatarGenerated(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  ext: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForAvatarGenerated({
+    clientId: args.clientId,
+    avatarId: args.avatarId,
+    slot: args.slot,
+    ext: args.ext,
+  });
+  return _upload(path, args.body, args.contentType);
+}
+
+// D294 — the avatar-voice-preview task has no GCS credentials either; the route signs its one
+// upload up front, exactly as signRevoicedVideoUrl does for a canvas voice change.
+export async function signAvatarVoicePreviewUrl(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): Promise<{ putUrl: string; url: string }> {
+  const path = pathForAvatarVoicePreview(args);
+  return { putUrl: await _signPutUrl(path, "video/mp4", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
+// D296 — the voice reference extracted from a native preview's clip. Signed by the route
+// alongside the clip's own upload, for the same reason: the task has no GCS credentials.
+export async function signAvatarVoiceSampleUrl(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): Promise<{ putUrl: string; url: string }> {
+  const path = pathForAvatarVoiceSample(args);
+  return { putUrl: await _signPutUrl(path, "audio/mpeg", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
+// D299 — a named voice's reference audio, made in the web server (no signed upload needed).
+export async function uploadAvatarNamedVoiceSample(args: {
+  clientId: string;
+  avatarId: string;
+  voiceId: string;
+  body: Buffer;
+}): Promise<UploadResult> {
+  return _upload(pathForAvatarNamedVoiceSample(args), args.body, "audio/mpeg");
+}
+
 // Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —
 // every asset in a decision belongs to the same node, so a per-asset resolve would be the
 // same query N times. Uploads run before any DB write and the first failure throws, which
@@ -248,6 +352,11 @@ export function parsePathFromUrl(url: string): string | null {
   const prefix = `https://storage.googleapis.com/${getBucketName()}/`;
   if (url.startsWith(prefix)) return url.slice(prefix.length);
   return null;
+}
+
+/** True when `url` is a public URL of an object in this app's bucket. */
+export function isOwnStoredUrl(url: string): boolean {
+  return parsePathFromUrl(url) !== null;
 }
 
 const SUPABASE_PUBLIC_RE =
@@ -308,4 +417,17 @@ export async function uploadMarketMedia(args: {
     ext: extForContentType(args.contentType),
   });
   return _upload(path, args.body, args.contentType);
+}
+
+// Authorize a direct browser → GCS upload of a Client review cut (up to 500 MB,
+// far past Vercel's 4.5 MB body cap — the bytes never touch a function).
+export async function signClientReviewUpload(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  ext: string;
+  contentType: string;
+}): Promise<SignedUploadResult> {
+  const path = pathForClientReviewCut(args);
+  return _sign(path, args.contentType);
 }

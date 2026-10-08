@@ -12,6 +12,7 @@ import {
   RefreshCw,
   ChevronDown,
   TriangleAlert,
+  Compass,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -53,12 +54,14 @@ import {
   planCitedRefIds,
   planMissingRefs,
   planIsDirty,
+  planCoverage,
   setBeatText,
   type MultishotPlan,
 } from "@/lib/nodes/multishot-plan";
 import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
-import { renderVoiceover } from "@/lib/nodes/voiceover";
+import type { VoLine } from "@/lib/nodes/reel-script";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
+import { useMentionUpstream } from "@/hooks/use-mention-upstream";
 
 type MultishotPromptFocusViewProps = {
   open: boolean;
@@ -72,6 +75,8 @@ type MultishotPromptFocusViewProps = {
   // The upstream Multishot node's cut list (READ-ONLY here) and its own id, so a beat's
   // timecode click can hand focus back to the node that actually owns the budget.
   cuts: MultishotCut[];
+  /** D286 — the Multishot node's lines spanning every shot; rendered in the preview as sent. */
+  sequenceVoiceover?: VoLine[];
   /** D236 — read from the upstream Multishot node. Absent = the default (Gemini Omni). */
   targetModel?: string;
   multishotNodeId: string | null;
@@ -96,11 +101,14 @@ export function MultishotPromptFocusView({
   plan,
   slices,
   cuts,
+  sequenceVoiceover,
   targetModel,
   multishotNodeId,
   upstream,
   onPatch,
 }: MultishotPromptFocusViewProps) {
+  // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
+  const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   // The model the upstream Multishot node is currently SET to — what the next Generate will use.
@@ -201,7 +209,7 @@ export function MultishotPromptFocusView({
   // The attached images in `<IMAGE_REF_N>` order — shared by every chip editor on this node
   // (sequence steer, per-cut instructions, the look block, every beat) so a reference binds to
   // the same picture wherever it is mentioned.
-  const promptRefImages = visionAttachmentsOf(upstream).map((u) => ({
+  const promptRefImages = visionAttachmentsOf(mentionUpstream).map((u) => ({
     id: u.id,
     label: u.label,
     fileUrl: u.fileUrl,
@@ -223,8 +231,8 @@ export function MultishotPromptFocusView({
   // BUG-010 — wrapped in `storedRefDialect`: chips read from image IDS (and legacy positions),
   // and every edit serialises back to ids, so a saved plan can't be re-pointed by a disconnect.
   const labelOfRef = useCallback(
-    (id: string) => upstream.find((u) => u.id === id)?.label,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `upstream` is rebuilt every render
+    (id: string) => mentionUpstream.find((u) => u.id === id)?.label,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `mentionUpstream` is rebuilt every render
     [refIdsKey],
   );
   const beatDialect = useMemo(
@@ -282,6 +290,17 @@ export function MultishotPromptFocusView({
       return { cutId: b.cutId, text: b.text, from, to: at };
     });
   }, [planDraft, cuts]);
+
+  // D279 — which cuts this plan does not write. The same function the video-generate route
+  // enforces with, so this panel and that refusal cannot describe the ladder differently.
+  //
+  // Reads the SAVED cuts — the Multishot focus view buffers its own edits (D280), so a
+  // half-finished ladder never reaches here and "not written yet" always names a real,
+  // committed gap rather than an edit in progress.
+  const unwritten = useMemo(
+    () => new Set(planDraft ? planCoverage(planDraft, cuts).unwritten : []),
+    [planDraft, cuts],
+  );
 
   // D240 — hand edits are BUFFERED in planDraft and land in the node_versions row only on Save.
   // They used to patch the canvas store on every keystroke and never reach the database at all,
@@ -530,10 +549,9 @@ export function MultishotPromptFocusView({
     }
   }
 
-  // No editors for `instruction` / `cutInstructions` any longer (operator request 2026-09-08 —
-  // they were added on 2026-09-04 and this node never had them before that). The values are still
-  // READ from the node and still travel in every request, so a node that has them keeps its steer;
-  // there is simply no longer a surface for typing new ones.
+  // Per-cut instruction editors were removed (operator request 2026-09-08); `cutInstructions` is
+  // still read from the node and sent, there is just no surface for typing new ones. The
+  // sequence-level `instruction` came back as the Direction box (D281).
 
   /**
    * Persist the hand-edited plan onto the ACTIVE version, in place — no new version row. Same
@@ -679,7 +697,7 @@ export function MultishotPromptFocusView({
               {outputView === "prompt" ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                   {planDraft ? (
-                    <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap, refIds)} images={promptRefImages} />
+                    <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap, refIds, sequenceVoiceover)} images={promptRefImages} />
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       Generate a multishot prompt first — this shows the exact compiled string,
@@ -720,6 +738,29 @@ export function MultishotPromptFocusView({
                         </p>
                       )}
 
+                      {/* D281 — the operator's Direction: what each reference is FOR. The writer
+                          otherwise has to guess, and a character turnaround on a grey seamless got
+                          read as the location. @-chips resolve server-side to "reference image N",
+                          the same number the attached image is labelled with. Node input, not plan
+                          output, so it writes through immediately and is not held by Save/Cancel. */}
+                      <div className="flex flex-col gap-2">
+                        <FieldLabel icon={Compass} label="Direction" />
+                        <MentionInstructionEditor
+                          value={instructionDraft}
+                          onChange={(v) => {
+                            setInstructionDraft(v);
+                            onPatch({ instruction: v });
+                          }}
+                          placeholder="e.g. @ the turnaround is the character — identity only, ignore its backdrop. Take the setting and light from @ the kitchen shot."
+                          upstream={mentionUpstream}
+                          disabled={isReadOnly || generating || !!refining}
+                          className="min-h-16"
+                        />
+                        <p className="text-[0.65rem] text-muted-foreground">
+                          References are used for identity only unless you say otherwise here.
+                        </p>
+                      </div>
+
                       {cuts.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                           Connect a Multishot node with at least one shot to write against.
@@ -751,13 +792,10 @@ export function MultishotPromptFocusView({
                                 <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/70">
                                   {cut.text.trim() || "No shot description yet — edit the Multishot node."}
                                 </p>
-                                {/* What this shot SAYS. Shown because the writer no longer writes
-                                    spoken lines — they are appended to this shot's beat when the
-                                    prompt is rendered — so a card without them read as a shot with
-                                    no voiceover at all. */}
-                                {renderVoiceover(cut.voiceover) && (
-                                  <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-primary/80">
-                                    {renderVoiceover(cut.voiceover)}
+                                {unwritten.has(cut.id) && (
+                                  <p className="mt-1.5 flex items-center gap-1 text-[0.7rem] text-destructive">
+                                    <TriangleAlert className="size-3 shrink-0" strokeWidth={1.5} />
+                                    Not written yet — re-generate, or write this shot.
                                   </p>
                                 )}
                               </div>
@@ -770,6 +808,13 @@ export function MultishotPromptFocusView({
                     {/* Generate, at the foot of the column it acts on — same placement as the
                         image and video prompt views. */}
                     <div className="shrink-0 border-t border-border px-5 py-3">
+                      {unwritten.size > 0 && (
+                        <p className="mb-2 text-[0.7rem] text-destructive">
+                          {unwritten.size === 1
+                            ? "1 shot has no written prompt. Video Gen will refuse until it does."
+                            : `${unwritten.size} shots have no written prompt. Video Gen will refuse until they do.`}
+                        </p>
+                      )}
                       <Button
                         className="w-full"
                         onClick={runGenerate}
@@ -960,7 +1005,7 @@ export function MultishotPromptFocusView({
                           <MentionInstructionEditor
                             value={planDraft.look}
                             onChange={updateLook}
-                            upstream={upstream}
+                            upstream={mentionUpstream}
                             dialect={beatDialect}
                             disabled={isReadOnly || !!refining}
                           />
@@ -979,16 +1024,13 @@ export function MultishotPromptFocusView({
                               from={beat.from}
                               to={beat.to}
                               text={beat.text}
-                              upstream={upstream}
+                              upstream={mentionUpstream}
 
                               dialect={beatDialect}
                               onChange={(v) => updateBeat(beat.cutId, v)}
                               onRerun={() => runRefine("cut", { cutId: beat.cutId })}
                               onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}
                               mentionables={planMentions}
-                              spokenLine={renderVoiceover(
-                                cuts.find((c) => c.id === beat.cutId)?.voiceover,
-                              )}
                               showRerun={SHOW_PER_BEAT_REGENERATE}
                               rerunning={refining?.cutId === beat.cutId}
                               onFocusTimings={focusTimings}

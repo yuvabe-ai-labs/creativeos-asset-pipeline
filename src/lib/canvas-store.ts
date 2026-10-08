@@ -13,11 +13,20 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
-import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
+import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
+import {
+  multishotSeedFor,
+  pruneBeatCache,
+  type MultishotSeed,
+  type SceneBeatCache,
+} from "@/lib/nodes/scene-beats";
 import type { ShotComposeIdea } from "@/lib/nodes/shot-compose";
 import { deriveShotType } from "@/lib/nodes/shot-types";
 import {
@@ -37,6 +46,9 @@ import type { PlaybookRun } from "@/lib/copilot/runner";
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
 // Seeded on creation with nodes loaded from the DB (1D-5).
+
+/** What a Video Gen node is running: a new video, or a voice change on one (D284). */
+export type VideoGenJobKind = "video" | "voice";
 
 export type CanvasState = {
   canvasName: string;
@@ -58,10 +70,14 @@ export type CanvasState = {
   fanOutShots: (scriptNodeId: string) => void;
   /** D227 — set one generation's mode from the Script's Visual script list. */
   setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
+  /** D286 — cache one scene's fresh split on the Script node (never in `parsed`). */
+  cacheSceneBeats: (scriptNodeId: string, fingerprint: string, beats: SceneBeat[]) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
-  videoGenStatus: Record<string, { isGenerating: boolean; lastError: string | null }>;
-  setVideoGenGenerating: (nodeId: string, v: boolean) => void;
+  // `kind` says what is running (D284): a fresh video, or a voice change on an existing one —
+  // the focus view shows the two differently. Null when nothing runs.
+  videoGenStatus: Record<string, { isGenerating: boolean; kind: VideoGenJobKind | null; lastError: string | null }>;
+  setVideoGenGenerating: (nodeId: string, v: boolean, kind?: VideoGenJobKind) => void;
   setVideoGenError: (nodeId: string, err: string | null) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
   // keyed by generation id. The tray derives its list from these + the node graph (D9).
@@ -104,6 +120,9 @@ function defaultData(type: string): AppNode["data"] {
   switch (type) {
     case "file":
       return { title: "" };
+    case "avatar":
+      // Filled by whoever adds the node (the gallery) — an Avatar node is never added bare.
+      return { avatarId: "" };
     case "text":
       return {};
     case "shot":
@@ -114,6 +133,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "" };
     case "image-gen":
       return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
+    case "composite":
+      return { title: "", modelId: COMPOSITE_DEFAULT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
     case "post":
@@ -223,7 +244,14 @@ export function createCanvasStore(
 
       // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
       // which the edges.id uuid column rejects (failing the whole save batch).
-      set({ edges: addEdge({ ...connection, id: crypto.randomUUID() }, get().edges) });
+      // D298 — a script has one presenter: another avatar's edge into it is replaced.
+      const replaced = source && target ? replacedPresenterEdges(get().nodes, get().edges, source, target) : [];
+      const kept = replaced.length ? get().edges.filter((e) => !replaced.includes(e)) : get().edges;
+      set({
+        edges: addEdge({ ...connection, id: crypto.randomUUID() }, kept),
+        ...(replaced.length && { removedEdgeIds: [...get().removedEdgeIds, ...replaced.map((e) => e.id)] }),
+      });
+      if (replaced.length) toast(PRESENTER_REPLACED_MESSAGE);
     },
     addNode: (type, position, id) =>
       set({
@@ -237,21 +265,33 @@ export function createCanvasStore(
           } as AppNode,
         ],
       }),
-    updateNodeData: (id, data) =>
+    updateNodeData: (id, data) => {
+      // A patch that changes nothing must not replace the nodes array: autosave watches it
+      // by reference, and focus views routinely re-patch values they just read back (the
+      // active version's output, its approval status), each of which queued a full-canvas
+      // save. Shallow on purpose — a fresh object for a nested value still counts as a change.
+      const target = get().nodes.find((n) => n.id === id);
+      if (!target) return;
+      const current = target.data as Record<string, unknown>;
+      if (Object.entries(data).every(([k, v]) => Object.is(current[k], v))) return;
       set({
         nodes: get().nodes.map((n) =>
           n.id === id
             ? ({ ...n, data: { ...n.data, ...data } } as AppNode)
             : n,
         ),
-      }),
-    connectNodes: (sourceId, targetId) =>
+      });
+    },
+    connectNodes: (sourceId, targetId) => {
+      // D298 — the gallery's path keeps one presenter per script too, announced once, here.
+      const replaced = replacedPresenterEdges(get().nodes, get().edges, sourceId, targetId);
+      const kept = replaced.length ? get().edges.filter((e) => !replaced.includes(e)) : get().edges;
       set({
-        edges: addEdge(
-          { source: sourceId, target: targetId, id: crypto.randomUUID() },
-          get().edges,
-        ),
-      }),
+        edges: addEdge({ source: sourceId, target: targetId, id: crypto.randomUUID() }, kept),
+        ...(replaced.length && { removedEdgeIds: [...get().removedEdgeIds, ...replaced.map((e) => e.id)] }),
+      });
+      if (replaced.length) toast(PRESENTER_REPLACED_MESSAGE);
+    },
     // The counterpart to connectNodes: drop the wire, keep both nodes. Dropped edge ids MUST
     // land in removedEdgeIds — autosave sends that list as the delete set, so an edge removed
     // from `edges` alone is only gone in memory and resurrects on the next load. Same cascade
@@ -429,13 +469,19 @@ export function createCanvasStore(
         parsed?: ReelScript;
         groupModes?: Record<string, boolean>;
         groupingVersion?: GroupingVersion;
+        sceneBeats?: SceneBeatCache;
       };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
       if (shots.length === 0) return;
 
       const scriptTitle = data.title || parsed?.title || "";
-      const generations = describeGenerations(shots, data.groupModes, data.groupingVersion ?? 1);
+      const generations = describeGenerations(
+        shots,
+        data.groupModes,
+        data.groupingVersion ?? 1,
+        data.sceneBeats,
+      );
 
       // Matching is on the EXACT index set, not on overlap. A group whose boundaries moved under
       // a re-parse is genuinely a different generation and correctly gets its own node; the old
@@ -494,13 +540,20 @@ export function createCanvasStore(
           // single 2s shot store 3, so the card read "3s · 1 cuts" over `checkLadder`'s red "2s ·
           // Gemini Omni 1.1 needs at least 3s." — two numbers for one ladder. The ladder keeps its
           // real length and the violation is STATED, never silently corrected.
-          const cuts = cutsFromShots(groupShots);
+          // D286 — a lone scene is cut at its fresh suggested beats, and the lines no beat
+          // carries span the ladder. Stale beats make one cut, as before.
+          const seed: MultishotSeed =
+            groupShots.length === 1
+              ? multishotSeedFor(groupShots[0], data.sceneBeats)
+              : { rows: groupShots };
+          const cuts = cutsFromShots(seed.rows);
           const totalSeconds = totalOf(cuts);
           return {
             id: crypto.randomUUID(),
             type: "multishot",
             position,
-            data: {
+            // D307 — each shot's lines join the sequence's: a Multishot speaks over the whole sequence.
+            data: foldMultishotVoiceover({
               // The envelope only — `cuts` is the sole shot list on this node type.
               script: { ...parsed, visual_script: { ...parsed?.visual_script, shots: undefined } },
               order: generation.index + 1,
@@ -508,8 +561,9 @@ export function createCanvasStore(
               cuts,
               // D261 — starts on the model its ladder fits, not on the Omni default.
               targetModel: bestFitMultishotModel(cuts),
+              ...(seed.sequenceVoiceover ? { sequenceVoiceover: seed.sequenceVoiceover } : {}),
               seededFrom,
-            },
+            }),
           };
         }
 
@@ -560,10 +614,11 @@ export function createCanvasStore(
         parsed?: ReelScript;
         groupModes?: Record<string, boolean>;
         groupingVersion?: GroupingVersion;
+        sceneBeats?: SceneBeatCache;
       };
       const shots = data.parsed?.visual_script?.shots ?? [];
       const version = data.groupingVersion ?? 1;
-      const generation = describeGenerations(shots, data.groupModes, version).find(
+      const generation = describeGenerations(shots, data.groupModes, version, data.sceneBeats).find(
         (g) => g.key === key,
       );
       if (!generation) return;
@@ -601,9 +656,16 @@ export function createCanvasStore(
       // it would give one cut where the script had several. Only when the script rows are gone
       // does the node's own row stand in.
       const scriptRows = generation.shotIndexes.map((i) => shots[i]).filter(Boolean);
+      // D286 — a lone scene's fresh beats are the rows its cuts come from, and its untied lines
+      // span them. The toggle re-splits a stale scene BEFORE calling here; a failed re-split lands
+      // as one cut.
+      const seed: MultishotSeed =
+        scriptRows.length === 1
+          ? multishotSeedFor(scriptRows[0], data.sceneBeats)
+          : { rows: scriptRows };
       const converted =
         targetType === "multishot"
-          ? shotDataToMultishot(node.data as ShotNodeData, scriptRows)
+          ? shotDataToMultishot(node.data as ShotNodeData, seed.rows, seed.sequenceVoiceover)
           : multishotDataToShot(node.data as MultishotNodeData);
 
       // Outgoing edges are dropped: a prompt written for a cut ladder does not describe a
@@ -617,6 +679,15 @@ export function createCanvasStore(
         ),
         edges: get().edges.filter((e) => e.source !== node.id),
         removedEdgeIds: [...get().removedEdgeIds, ...outgoing.map((e) => e.id)],
+      });
+    },
+    cacheSceneBeats: (scriptNodeId, fingerprint, beats) => {
+      const script = get().nodes.find((n) => n.id === scriptNodeId);
+      if (!script || script.type !== "script") return;
+      const data = script.data as { parsed?: ReelScript; sceneBeats?: SceneBeatCache };
+      const rows = data.parsed?.visual_script?.shots ?? [];
+      get().updateNodeData(scriptNodeId, {
+        sceneBeats: pruneBeatCache(data.sceneBeats, rows, fingerprint, beats),
       });
     },
     // Promote chosen compose ideas (D28) into sibling Shot nodes — the §15 "duplicate to
@@ -664,12 +735,14 @@ export function createCanvasStore(
 
     videoGenStatus: {},
 
-    setVideoGenGenerating: (nodeId, v) =>
+    setVideoGenGenerating: (nodeId, v, kind) =>
       set((s) => ({
         videoGenStatus: {
           ...s.videoGenStatus,
           [nodeId]: {
             isGenerating: v,
+            // A start that doesn't say its kind keeps a known one (hydration may land first).
+            kind: v ? (kind ?? s.videoGenStatus[nodeId]?.kind ?? "video") : null,
             lastError: s.videoGenStatus[nodeId]?.lastError ?? null,
           },
         },
@@ -681,6 +754,7 @@ export function createCanvasStore(
           ...s.videoGenStatus,
           [nodeId]: {
             isGenerating: s.videoGenStatus[nodeId]?.isGenerating ?? false,
+            kind: s.videoGenStatus[nodeId]?.kind ?? null,
             lastError: err,
           },
         },
@@ -694,6 +768,7 @@ export function createCanvasStore(
 
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),
+
 
     focusSection: null,
     setFocusSection: (section) => set({ focusSection: section }),

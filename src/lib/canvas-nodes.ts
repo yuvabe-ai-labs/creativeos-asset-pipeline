@@ -4,13 +4,15 @@ import type { Node } from "@xyflow/react";
 import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import type { SignalMode } from "@/lib/market/constants";
-import type { ReelScript } from "@/lib/nodes/reel-script";
+import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import type { VideoControls } from "@/lib/nodes/video-controls";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import type { PostFormat, PostLayer } from "@/lib/post/types";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
+import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
+import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 export type ScriptNodeData = {
   title?: string;
@@ -29,8 +31,20 @@ export type ScriptNodeData = {
    * migration, so no canvas reshapes under its operator and a re-parse adopts the current rules.
    */
   groupingVersion?: GroupingVersion;
+  /**
+   * D286 — re-split results for scenes edited since the parse, keyed by `sceneFingerprint`.
+   * Kept here, not in `parsed` (the active version's output, D19): writing that would reseed the
+   * focus view's unsaved draft. Pruned to the current rows on every write.
+   */
+  sceneBeats?: SceneBeatCache;
   signalIds?: string[]; // market signals flavouring the parse (D204); undefined = none
   signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
+};
+
+/** D298 — an avatar on the canvas. Only the id: the avatar is read live, so a name, face or
+ *  voice changed in the Avatar Studio reaches every canvas without re-dropping. */
+export type AvatarNodeData = {
+  avatarId: string;
 };
 
 export type KBNodeData = {
@@ -84,6 +98,8 @@ export type PromptNodeData = {
   instruction?: string; // operator instruction
   parsed?: unknown; // active output (generated prompt text) — DISPLAY ONLY, hydrated from the active version (D19)
   kbSlices?: KBSliceKey[]; // ambient KB slices injected into the compiled prompt
+  /** D299 — the operator's "In this shot" choice for the script's presenter. Absent = default. */
+  presenter?: { inShot: boolean };
 };
 
 export type ImageGenNodeData = {
@@ -97,6 +113,17 @@ export type ImageGenNodeData = {
   baseReferenceNodeId?: string;       // D39: connected image node pinned as the edit base (else first-connected)
 };
 
+/** D312 — a shot's picture made in one step: wired references in, an instruction typed here,
+ *  one image out. The instruction stores references as `@[Label](nodeId)` chips (D272). */
+export type CompositeNodeData = {
+  title?: string;
+  instruction?: string;
+  /** Seedream by default; locked to SEEDANCE_FACE_MODEL_ID while an avatar is wired. */
+  modelId?: string;
+  params?: Record<string, unknown>;
+  parsed?: unknown; // D19: active version output (image URL) — display only, never persisted
+};
+
 export type VideoPromptNodeData = {
   title?: string;
   instruction?: string;         // operator steer ("emphasize the pour; let steam rise")
@@ -104,6 +131,8 @@ export type VideoPromptNodeData = {
   kbSlices?: KBSliceKey[];      // ambient brand tone, like the Prompt node
   targetProvider?: VideoProvider; // D77: text-camera (veo/sora) vs external-camera (kling)
   parsed?: unknown;             // D19: active version output (motion prompt text) — display only
+  /** D299 — the operator's "In this shot" choice for the script's presenter. Absent = default. */
+  presenter?: { inShot: boolean };
 };
 
 export type VideoGenNodeData = {
@@ -112,6 +141,8 @@ export type VideoGenNodeData = {
   params?: Record<string, unknown>;
   imageRoles?: Record<string, "start_frame" | "end_frame" | "reference">;
   parsed?: unknown; // D19: active version output (video URL, display only — never persisted)
+  /** D284 — the Change voice workspace's last choice (voice + settings). */
+  voiceChange?: { voiceId: string | null; settings: VoiceChangeSettings };
 };
 
 export type ShotNodeData = {
@@ -152,6 +183,12 @@ export type MultishotNodeData = {
    *  multishot-cuts.ts's header for the full model. */
   cuts?: MultishotCut[];
   /**
+   * D286 — VO lines that play over the WHOLE ladder, not one cut: a scene's lines the script did
+   * not tie to a single beat. Rendered once in the prompt header (renderPlan). Absent or [] = none.
+   * Cuts keep their own `voiceover` for tied lines (D267).
+   */
+  sequenceVoiceover?: VoLine[];
+  /**
    * D236 — which multishot model this ladder is built for. A video-gen client model id.
    *
    * Absent reads as `DEFAULT_MULTISHOT_MODEL` (Gemini Omni), which is what every node that
@@ -188,6 +225,8 @@ export type MultishotPromptNodeData = {
   kbSlices?: KBSliceKey[];
   /** D19: the active version's output — always a MultishotPlan, never a string. */
   parsed?: unknown;
+  /** D299 — the operator's "In this shot" choice for the script's presenter. Absent = default. */
+  presenter?: { inShot: boolean };
 };
 
 export type PostNodeData = {
@@ -221,9 +260,14 @@ export type PostNodeData = {
   thumbnail?: string;
 };
 
+// D309: an uploaded cut shared with the client by link. The video, token and comments
+// live in canvas_reviews / canvas_review_comments — only the title is node data.
+export type ClientReviewNodeData = { title?: string };
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
+  | Node<AvatarNodeData, "avatar">
   | Node<FileNodeData, "file">
   | Node<TextNodeData, "text">
   | Node<PromptNodeData, "prompt">
@@ -232,9 +276,11 @@ export type AppNode =
   | Node<MultishotPromptNodeData, "multishot-prompt">
   | Node<DrawNodeData, "draw">
   | Node<ImageGenNodeData, "image-gen">
+  | Node<CompositeNodeData, "composite">
   | Node<VideoPromptNodeData, "video-prompt">
   | Node<VideoGenNodeData, "video-gen">
-  | Node<PostNodeData, "post">;
+  | Node<PostNodeData, "post">
+  | Node<ClientReviewNodeData, "client-review">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
@@ -244,20 +290,28 @@ export type AppNode =
 // never read, so `prompt` is deliberately absent from video-gen's source list here.
 export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   kb:                 ["script"],
+  // D298 — an avatar presents a script, and nothing else. Its face and voice reach the shots
+  // through that script (part 2, D299), not through edges of their own.
+  // D312 — and is placed into a composite: the wire says "this picture contains this person".
+  avatar:             ["script", "composite"],
   script:             ["prompt"],
   shot:               ["prompt", "video-prompt"],
   // The multishot lane skips the still entirely: a start frame fixes ONE composition and
   // this node is a sequence of several.
   multishot:          ["multishot-prompt"],
-  file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post"],
-  draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post"],
+  file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
+  draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
   text:               ["prompt", "video-prompt", "multishot-prompt"],
   prompt:             ["prompt", "image-gen"],
-  "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post"],
+  "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
+  // D312 — a composite is a reference image: Image Gen's outputs, plus another composite (a
+  // location sheet made first becomes the background of an avatar composite).
+  composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
   "video-prompt":     ["video-gen"],
   "multishot-prompt": ["video-gen"],
   "video-gen":        [],
   "post":             [],
+  "client-review":    [],
 } as const;
 
 // The single ordered connection check: may a `sourceType` node feed a `targetType` node?

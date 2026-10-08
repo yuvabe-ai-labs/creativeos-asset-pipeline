@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  AudioLines,
   BadgeCheck,
   ChevronDown,
   Clapperboard,
@@ -98,6 +99,12 @@ import {
 } from "./video-gen-version-history";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
+import { versionLabelsById } from "@/lib/generations/version-labels";
+import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
+import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
+import { VideoGenPresenterNotes } from "./video-gen-presenter-notes";
+import { useShotPresenter } from "@/hooks/use-shot-presenter";
+import { presenterDefaultVoiceId, presenterVideoNotes, unavailableModelsFor } from "@/lib/avatars/presenter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import {
@@ -124,10 +131,12 @@ import { ActiveRulesCard } from "./video-gen-active-rules-card";
 import { VideoGenShotSpine } from "./video-gen-shot-spine";
 import { VideoGenModelPicker } from "./video-gen-model-picker";
 import { describeShotSpine, describeDurationLabel } from "@/lib/video-gen/shot-spine";
+import { readVoiceMeta } from "@/lib/voice-change/meta";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
+import { selectReferences } from "@/lib/video-gen/select-references";
 
 type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
 
@@ -274,6 +283,7 @@ type Props = {
   modelId?: string;
   params?: Record<string, unknown>;
   imageRoles: Record<string, ImageRole>;
+  voiceChange?: VoiceChangeNodeState;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -485,6 +495,7 @@ export function VideoGenFocusView({
   modelId: modelIdProp,
   params: paramsProp,
   imageRoles: imageRolesProp,
+  voiceChange: voiceChangeProp,
   onPatch,
 }: Props) {
   const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
@@ -495,6 +506,9 @@ export function VideoGenFocusView({
   );
   const [upstreamImages, setUpstreamImages] = useState<UpstreamImage[]>([]);
   const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
+  // D299 — the script's presenter, when it is in this shot.
+  const shotPresenter = useShotPresenter(promptNode?.id);
+  const presenterAvatar = shotPresenter?.inShot ? shotPresenter.avatar : null;
   const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   // ── D243 review annotations (video): paint on a PAUSED FRAME, not the player ──
@@ -502,6 +516,9 @@ export function VideoGenFocusView({
   const [videoPaused, setVideoPaused] = useState(true);
   const [videoDurationMs, setVideoDurationMs] = useState(0);
   const [reviewAnnotating, setReviewAnnotating] = useState(false);
+  // D284 — the right column's video-vs-workspace mode; the two never combine (see the toggle
+  // below the version history's annotate control).
+  const [changeVoiceOpen, setChangeVoiceOpen] = useState(false);
   const [capturedFrame, setCapturedFrame] = useState<{
     base64: string;
     timecodeMs: number;
@@ -550,6 +567,9 @@ export function VideoGenFocusView({
   const [loadingVersions, setLoadingVersions] = useState(open);
   const [loadingConnected, setLoadingConnected] = useState(open);
 
+  const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
+    useVideoGenStatus(nodeId);
+
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
   if (openNodeSeed.open !== open || openNodeSeed.nodeId !== nodeId) {
@@ -559,9 +579,26 @@ export function VideoGenFocusView({
       // Normally the video pane — but a programmatic open from the review drawer or the
       // navbar inbox asks for "details", where sign-off lives. Landing on the video pane
       // would make a reviewer hunt for the control they were sent here to use.
-      setSelected(focusStoreApi.getState().focusSection ?? "video");
+      const requested = focusStoreApi.getState().focusSection;
+      setSelected(requested ?? "video");
+      // D284 — reopening while a voice change runs lands back in Edit voice, where it was
+      // started; otherwise on the generate settings.
+      setChangeVoiceOpen(isChangingVoice && !requested);
       setLoadingVersions(true);
       setLoadingConnected(true);
+    }
+  }
+
+  // D284 — a voice change that becomes known while the view is open (the running-job lookup
+  // lands after the sheet opens, or it was started from another tab) opens Edit voice too.
+  // Only on the false → true edge, so switching Edit voice off mid-change sticks.
+  const [seenChangingVoice, setSeenChangingVoice] = useState(isChangingVoice);
+  if (seenChangingVoice !== isChangingVoice) {
+    setSeenChangingVoice(isChangingVoice);
+    if (isChangingVoice && open && !changeVoiceOpen) {
+      setChangeVoiceOpen(true);
+      setSelected("video");
+      setReviewAnnotating(false);
     }
   }
 
@@ -571,9 +608,6 @@ export function VideoGenFocusView({
   useEffect(() => {
     if (open) focusStoreApi.getState().setFocusSection(null);
   }, [open, focusStoreApi]);
-
-  const { isGenerating, lastError, setGenerating, setLastError } =
-    useVideoGenStatus(nodeId);
 
   // Stable Zustand actions — used directly in effects so deps don't include
   // the per-render wrapper functions returned by useVideoGenStatus.
@@ -886,12 +920,13 @@ export function VideoGenFocusView({
   }
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
-    const updated = { ...effectiveImageRoles };
+    const updated = { ...imageRolesProp };
 
-    // Toggle: clicking the role already assigned to this image clears it
-    if (updated[imageId] === newRole) {
-      delete updated[imageId];
-      onPatch({ imageRoles: updated });
+    // Toggle: clicking the role an image already plays turns it off (D308). Stored as "off", not
+    // deleted: a deleted role read as unassigned, and the default fill put it straight back.
+    if (effectiveImageRoles[imageId] === newRole) {
+      const next = { ...imageRolesProp, [imageId]: "off" as const };
+      onPatch({ imageRoles: next });
       return;
     }
 
@@ -985,7 +1020,8 @@ export function VideoGenFocusView({
         modelId,
         // D98: post the reconciled values, never the possibly-stale `params` state.
         params: effectiveParams,
-        imageRoles: effectiveImageRoles,
+        // D308 — the stored roles, "off" included; the server runs the same selectReferences.
+        imageRoles: supportedImageRoles,
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
@@ -1120,8 +1156,13 @@ export function VideoGenFocusView({
   // the same rule the server applies. Persisted, not merely displayed — the constraint state below
   // is computed from these roles, and a client that showed a default it never saved was exactly
   // the divergence that let Generate run on a state the request would then reject.
+  // D308 — only on a model that takes no references: there the default is a start frame, which
+  // must be stored. On a model that takes references, unassigned images are placed by
+  // selectReferences (below, and identically on the server) — saving "reference" on all of them
+  // used to put a node over the model's cap.
   useEffect(() => {
     if (loadingConnected || upstreamImages.length === 0) return;
+    if (imageInputs.maxReferenceImages > 0) return;
     const filled = autoAssignImageRoles(
       upstreamImages.map((img) => ({ nodeId: img.id, url: img.imageUrl, type: img.type })),
       imageRolesProp,
@@ -1164,9 +1205,30 @@ export function VideoGenFocusView({
   // have a rule forbidding them together. Reconciling here (rather than only on model change)
   // also heals nodes already persisted in the contradictory state, which would otherwise stay
   // stuck failing at generate with no way for the operator to see why.
+  // D308 — which references go, by the rule the server applies: the stored choices, then the
+  // avatar's front, cited images, the avatar's sheet and the rest within the cap.
+  const referenceSelection = selectReferences({
+    images: upstreamImages.map((img) => ({ id: img.id })),
+    roles: supportedImageRoles,
+    cap: imageInputs.maxReferenceImages,
+    modelLabel: currentModel?.label ?? modelId,
+    citedIds: new Set(promptNode?.citedIds ?? []),
+    avatarFrontId: promptNode?.avatarFrontId ?? null,
+    avatarSheetId: promptNode?.avatarSheetId ?? null,
+    framesExcludeReferences: areFramesAndRefsExclusive(currentModel?.rules),
+    unusable: currentModel?.provider === "seedance" && promptNode?.avatarSheetId
+      ? new Map([[promptNode.avatarSheetId, "Seedance can't use the profile sheet"]])
+      : undefined,
+  });
+  const leftOutReason = new Map(referenceSelection.leftOut.map((l) => [l.id, l.reason]));
+  // The roles as the request will use them: stored frames, plus "reference" on what is sent.
+  const selectedRoles: Record<string, ImageRole> = Object.fromEntries([
+    ...Object.entries(supportedImageRoles).filter(([, r]) => r === "start_frame" || r === "end_frame"),
+    ...referenceSelection.sent.map((id) => [id, "reference" as const]),
+  ]);
   const effectiveImageRoles = reconcileRolesWithRules(
     currentModel?.rules,
-    supportedImageRoles,
+    selectedRoles,
     params,
   );
   const constraintState = buildConstraintState(
@@ -1218,12 +1280,31 @@ export function VideoGenFocusView({
     isMultishotPromptConnected && upstreamMultishotCuts
       ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
       : null;
-  const disableGenerate = constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok);
+  // D299 — models the presenter's face rules out; a node already on one can't generate with it.
+  const presenterUnavailable = presenterAvatar ? unavailableModelsFor(presenterAvatar) : undefined;
+  const presenterBlock = presenterUnavailable?.[modelId];
+  const presenterNotes = presenterAvatar
+    ? presenterVideoNotes({
+        avatar: presenterAvatar,
+        provider: currentModel?.provider,
+        hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
+      })
+    : [];
+  const presenterVoiceId = presenterAvatar ? presenterDefaultVoiceId(presenterAvatar) : null;
+  // D308 — references saved beyond the cap (a node from before, or a model switch): the server
+  // refuses them rather than cutting, so Generate says so first, in the same words.
+  const overCapReason = referenceSelection.overCap > 0
+    ? `${currentModel?.label ?? modelId} takes ${imageInputs.maxReferenceImages} references; ${imageInputs.maxReferenceImages + referenceSelection.overCap} are selected. Turn some off.`
+    : null;
+  const disableGenerate =
+    constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
       ? ladderCheck.reason
-      : constraints.disableGenerateReason;
+      : presenterBlock
+        ? presenterBlock
+        : overCapReason ?? constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -1243,7 +1324,9 @@ export function VideoGenFocusView({
       lockedDuration !== undefined ? constraints.lockedParamReasons.duration : undefined,
   });
 
-  const mode: "skeleton" | "result" | "empty" = isGenerating
+  // A voice change keeps showing the video it is re-voicing, veiled (like Image Gen's edit);
+  // only a fresh video gets the empty-frame skeleton.
+  const mode: "skeleton" | "result" | "empty" = isGenerating && !(isChangingVoice && videoUrl)
     ? "skeleton"
     : videoUrl
       ? "result"
@@ -1252,6 +1335,7 @@ export function VideoGenFocusView({
   // The version the node currently shows — what "Sent to model" reports on, matching the prompt
   // focus views. Undefined until the versions fetch lands, or on a node that never generated.
   const activeVersion = versions.find((v) => v.id === activeVersionId);
+  const activeVoice = readVoiceMeta(activeVersion?.paramsUsed?.voice);
 
   // D244 read path: the standing change request on the active version and its stored
   // frame annotations — derived from the versions list the history panel already has.
@@ -1414,6 +1498,7 @@ export function VideoGenFocusView({
             ) : (
               connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                const outReason = c.type === "image" ? leftOutReason.get(c.id) : undefined;
                 const remove = editable ? removeFor(c.id, c.label) : null;
                 return (
                   <RailItem
@@ -1429,7 +1514,11 @@ export function VideoGenFocusView({
                     active={selected === c.id}
                     onClick={() => setSelected(c.id)}
                     badge={
-                      role ? (
+                      outReason ? (
+                        <span title={outReason} className="shrink-0 rounded-full border border-dashed border-border px-1.5 py-0.5 text-[0.6rem] font-semibold text-muted-foreground">
+                          Out
+                        </span>
+                      ) : role ? (
                         <span
                           className={cn(
                             "shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold",
@@ -1493,8 +1582,33 @@ export function VideoGenFocusView({
                 min-content width, so one long unbreakable string inside any pane silently
                 overrides w-[54%] and squeezes the video column beside it. */}
             <div className="min-h-0 w-[54%] min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
+              {/* D284 — Edit voice takes over this column, as Image Gen's Edit does. */}
+              {selected === "video" && changeVoiceOpen && (
+                <div className="px-6 py-5">
+                  <VideoGenChangeVoice
+                    nodeId={nodeId}
+                    versions={versions}
+                    // The take = the version the output column is showing, like Image Gen's Edit.
+                    sourceId={activeVersion?.output && !activeVersion.error ? activeVersion.id : null}
+                    running={isGenerating}
+                    changing={isChangingVoice}
+                    value={voiceChangeProp}
+                    defaultVoiceId={presenterVoiceId}
+                    onChange={(next) => onPatch({ voiceChange: next })}
+                    // Stays open, like Image Gen's Edit: the video on the right shows the
+                    // change in progress. Marked now rather than on the Realtime insert, so
+                    // there is no gap where the button is idle again.
+                    onApplied={() => {
+                      videoRef.current?.pause(); // the veil covers the controls
+                      setVideoGenGenerating(nodeId, true, "voice");
+                      setLastError(null);
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
-              {selected === "video" && (
+              {selected === "video" && !changeVoiceOpen && (
                 <div className="flex flex-col gap-10 px-6 py-5">
                   {/* Model first: it decides which roles exist, which params show, and which
                       combinations are legal, so every choice below it is downstream of this one. */}
@@ -1505,6 +1619,7 @@ export function VideoGenFocusView({
                     modelId={modelId}
                     onModelChange={handleModelChange}
                     loading={loadingConnected}
+                    unavailable={presenterUnavailable}
                     lockedToModelId={multishotTargetModel}
                     restrictionReason={
                       isMultishotPromptConnected
@@ -1570,6 +1685,9 @@ export function VideoGenFocusView({
                       </Accordion>
                     )}
                   </VideoGenModelPicker>
+                  {presenterAvatar && (
+                    <VideoGenPresenterNotes name={presenterAvatar.name} notes={presenterNotes} />
+                  )}
                   {(() => {
                     return (
                       <>
@@ -1587,6 +1705,7 @@ export function VideoGenFocusView({
                               imageInputs={imageInputs}
                               onRoleChange={handleRoleChange}
                               onOpenDetail={(id) => setSelected(id)}
+                              leftOut={leftOutReason}
                               disableFrameInputs={constraints.disableFrameInputs}
                               disableRefs={constraints.disableRefs}
                               onReset={handleReset}
@@ -1612,7 +1731,9 @@ export function VideoGenFocusView({
                           }
                         >
                           <Sparkles className="size-4" strokeWidth={1.5} />
-                          {isGenerating
+                          {isChangingVoice
+                            ? "Changing voice…"
+                            : isGenerating
                             ? "Generating…"
                             : videoUrl
                               ? "Re-generate"
@@ -1714,7 +1835,10 @@ export function VideoGenFocusView({
                           onToggleAnnotate={
                             videoUrl
                               ? () => {
-                                  setReviewAnnotating((v) => !v);
+                                  // D284: annotating and the Change voice workspace don't combine.
+                                  const next = !reviewAnnotating;
+                                  setReviewAnnotating(next);
+                                  if (next) setChangeVoiceOpen(false);
                                   setCapturedFrame(null);
                                   setOpenTimecode(null);
                                 }
@@ -1797,7 +1921,7 @@ export function VideoGenFocusView({
                     ))}
                   </div>
                 ) : activeVersion ? (
-                  <VideoGenRequestPanel version={activeVersion} />
+                  <VideoGenRequestPanel version={activeVersion} labelById={versionLabelsById(versions)} />
                 ) : (
                   <p className="px-6 py-5 text-sm text-muted-foreground">
                     No request recorded yet — generate a video to capture the prompt, images and
@@ -1810,11 +1934,35 @@ export function VideoGenFocusView({
             {/* Right column — the video, always visible. Faintly sunk so the
                 settings column reads as raised against it. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
-              <div className="flex items-center gap-1.5">
-                <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
-                <span className="text-eyebrow">Video</span>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-1.5">
+                  <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
+                  <span className="text-eyebrow">Video</span>
+                </div>
+                {/* D284 — beside the heading, like Image Gen's Edit switch: the mode acts on the
+                    video shown directly below, which stays the output. */}
+                {!loadingVersions && versions.some((v) => v.output && !v.error) && (
+                  <VideoGenChangeVoiceToggle
+                    id={`video-edit-voice-${nodeId}`}
+                    checked={changeVoiceOpen}
+                    // Free during a voice change — that's the mode it runs in — but not while a
+                    // new video is generating.
+                    disabled={!editable || (isGenerating && !isChangingVoice)}
+                    onCheckedChange={(next) => {
+                      setChangeVoiceOpen(next);
+                      if (next) {
+                        setSelected("video"); // the editor lives in the centre column's video pane
+                        // The two modes never combine — mirror the annotate toggle's off-cleanup.
+                        setReviewAnnotating(false);
+                        setCapturedFrame(null);
+                        setOpenTimecode(null);
+                      }
+                    }}
+                  />
+                )}
               </div>
               <div className="min-h-0 flex-1">
+                <>
                 {mode === "skeleton" && (
                   // 9:16, flush left — the same footprint the result frame will occupy.
                   <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
@@ -1920,6 +2068,11 @@ export function VideoGenFocusView({
                   // image-gen result: the border hugs the video instead of a
                   // width-forced box painting gutters inside it.
                   <div className="flex h-full min-h-0 flex-col">
+                    {activeVoice?.status === "failed" && (
+                      <p className="mb-1 text-xs text-muted-foreground">
+                        Voice change failed — showing the original audio.
+                      </p>
+                    )}
                     {markerTimecodes.length > 0 && videoDurationMs > 0 && (
                       <div className="relative mb-1 h-2 w-full rounded-full bg-muted">
                         {markerTimecodes.map((ms, i) => (
@@ -1967,6 +2120,17 @@ export function VideoGenFocusView({
                         }
                         className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
                       />
+
+                      {/* D284 — the take being re-voiced stays in place under a veil, the same
+                          treatment Image Gen gives an image being edited. */}
+                      {isChangingVoice && (
+                        <div className="absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm">
+                          <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
+                            <AudioLines className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                            Changing voice…
+                          </div>
+                        </div>
+                      )}
 
                       {reviewAnnotating && videoPaused && (
                         <div className="absolute right-2 top-2 z-20">
@@ -2068,6 +2232,7 @@ export function VideoGenFocusView({
                     </div>
                   </div>
                 )}
+                </>
               </div>
 
             </div>
