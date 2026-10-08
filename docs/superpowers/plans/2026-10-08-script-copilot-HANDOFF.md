@@ -44,8 +44,8 @@ none, the new conversation writes it first (§4).
 - **Spec 3:** the Avatar Studio lets a user upload their own sheet instead of generating one. The
   plan keeps the upload, and an upload replaces all four views. Ask the user: keep it, or drop
   uploads now that sheets are four generated views?
-- **Spec 3:** apply migration  on staging (Supabase SQL editor, by the user) before its in-app checks.
-- **Spec 4:** apply migration  the same way before its in-app checks.
+- **Spec 3:** apply migration 0053 on staging (Supabase SQL editor, by the user) before its in-app checks.
+- **Spec 4:** apply migration 0054 the same way before its in-app checks.
 - **Spec 2 must honour (from spec 3's plan):** an edited shot keeps its id; a split shot's first
   half keeps the original id, because panels and takes are keyed by shot id.
 
