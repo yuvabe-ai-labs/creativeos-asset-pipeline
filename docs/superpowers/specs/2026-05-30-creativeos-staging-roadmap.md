@@ -5910,7 +5910,7 @@ elements on it. That followed from not having read the handoff design; phase 2 f
 design instead.
 **Originated →** `docs/superpowers/specs/2026-09-29-client-avatars-design.md` §2–5.
 
-### D288 — An avatar is a front image plus a three-view profile sheet generated from it *(recorded 2026-09-30; amended the same day)*
+### D288 — An avatar is a front image plus a three-view profile sheet generated from it *(recorded 2026-09-30; amended the same day; **sheet SUPERSEDED by D339** (four views))*
 
 **Decision.** `ready` requires a name, a front image and a current profile sheet. The sheet is one
 16:9 image showing three views of the person — front, side profile, back — generated from the
@@ -6911,3 +6911,218 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Originated →** spec 2 §9.
 
 **Refined (9 Oct 2026, user's call).** The first draft now streams: the turn route answers as newline-delimited JSON, sending draft previews (header, cast, each finished shot) while Gemini writes, then the whole state. The right pane draws the previews read-only, then the saved script replaces them. Everything else stays request and response.
+
+### D337 — Visualise keeps its own records beside the script; the script holds only the cast's avatar links *(recorded 2026-10-08)*
+
+**Decision.** Storyboard panels live in `script_panel_takes` (every drawing) and `script_panel_picks` (one picked take per shot), keyed by script and shot id. A panel's generation is owned by its script (`generations.script_id`, a third owner beside node and avatar). The only write Visualise makes into `client_scripts.doc` is a cast member's `avatarId`, applied to the document as stored so keys this code does not know survive.
+
+**Why.** Spec 2 is the only writer of a script's text and is built at the same time; panels re-keyed by shot survive edits, splits and removals without touching the document.
+
+**Rejected.** Panels inside the script document (two writers of one JSON column). A generation owned by the avatar (a panel shows several people).
+
+**Originated →** `2026-10-08-script-copilot-3-visualise-design.md` §9.
+
+### D338 — The inline avatar maker makes one face, then its four views, and saves it to Avatars *(recorded 2026-10-08)*
+
+**Decision.** Each cast slot is a full avatar maker using the Studio's own routes: AI-generated makes one front from the person's description plus the avatar instructions (Seedream, the Studio's default face model), then the four views, then marks the avatar ready; Specific person uploads a photo, takes the existing likeness consent, then the four views. Regenerate avatar always makes a new face; a failed step resumes without one. A face keeps its kind: switching between AI-generated and Specific makes a new avatar rather than overwriting the linked one.
+
+**Why.** Spec 3 Q1 chose a slimmed maker inside Visualise that keeps everything the Visualise board shows; the board shows no candidate grid, and one click to a saved avatar is the demo's path.
+
+**Rejected.** The Studio's candidate batch inside the slot. A trip to the Studio and back. Turning a real person's photo into a generated face in place.
+
+**Originated →** spec 3 §5.2, §14 (3.1).
+
+### D339 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
+
+**Decision.** The sheet is four separate 3:4 images made from the front image (`client_avatars.sheet_views`), each prompt stating which edge of the frame the person faces. Once all four exist they are also composed side by side into `sheet`, so everything that sends the sheet (D308) is unchanged. A view that fails is refunded and named; the others are kept and the missing one can be made alone. Sheets are no longer uploaded: the Studio's sheet upload is removed and the image routes take only the front. Avatars made before keep their three-view or uploaded `sheet` until their four views are generated. A Specific person's face photo is still an upload.
+
+**Why.** Spec 3 Q3: one kind of sheet for every avatar, Studio included. The dry run's two profiles faced the same way until the direction was stated. Separate views are what panels send as references and what spec 4's client comments on. An uploaded single image cannot stand in for the four views, so it would leave an avatar that looks finished in the Studio but cannot be drawn into a panel (user's answer, 8 Oct 2026).
+
+**Rejected.** Three views with the direction stated (Q3 a). Four views only for Visualise avatars (two kinds of sheet). One generated four-up image (cannot send or comment on a view alone). Keeping the sheet upload as a replacement for the views (the avatar could not be drawn into panels). An upload per view (more work, and nobody has asked for it).
+
+**Originated →** spec 3 §5.4, §14 (3.3).
+
+### D340 — A person on screen can be drawn once their avatar is saved with its four views *(recorded 2026-10-08)*
+
+**Decision.** A shot's panel can be drawn when every cast member on screen links to a live, saved avatar with a current four-view sheet; B-roll can be drawn at any time. The readiness line counts such cast members and the shots whose picked take is current.
+
+**Why.** Spec 3 Q2: avatars come first so faces hold.
+
+**Rejected.** The front image alone (Q2 a). Requiring it for the lead only.
+
+**Originated →** spec 3 §5.3, §7.
+
+### D341 — What a panel is drawn from *(recorded 2026-10-08)*
+
+**Decision.** One prompt, built by a pure function shared by browser and server: the marker-and-wash style; the shot's visual; the setting and camera; the regional kit; each on-screen person in words with their four views as references (every person's Front first, other views dropped first over the model's cap, references numbered in the prompt); card and pack areas drawn blank; never any text, brand or labelled pack. The shot's VO and on-screen text are never in the prompt.
+
+**Why.** Each clause answers a dry-run finding (details drift without words; the kitchen goes European without the kit; text and brands creep in; sketches read as a plan) or a house rule.
+
+**Rejected.** References alone. Drawing the cards and relying on the no-text rule (Q5 c).
+
+**Originated →** spec 3 §6.1–§6.3; parent §11.1.
+
+### D342 — Regional kits are read from the brand KB's text and matched per shot *(recorded 2026-10-08)*
+
+**Decision.** Until the KB has fields for them, the kits are parsed from the "Regional kits" table wherever the house rules were pasted into the active KB, and matched to each shot by region, place and language names (the shot and its people first, then the whole script). With no table, panels are drawn without a kit and the readiness line says so.
+
+**Why.** Spec 2 keeps the house rules as pasted text for the demo; Reel 01 names "Chennai" and "Tamil", never "Tamil Nadu".
+
+**Rejected.** A kit picker in Visualise (no such control in the spec). A per-client kit setting (a KB change that spec 2 owns).
+
+**Originated →** spec 3 §6.2; spec 2 §4.1.
+
+### D343 — Panels keep takes; out of date is decided by fingerprints and never redraws on its own *(recorded 2026-10-08)*
+
+**Decision.** Every draw is a take, recorded before the model call with a fingerprint of the shot's drawn text and each on-screen person's avatar and face. A new take becomes the pick; the operator can pick an earlier one; the client sees only the pick. A pick whose fingerprints differ from today's is Out of date and stays visible until redrawn. Reopen's effects follow from stable shot ids: an edited shot and a split's first half go out of date, a split's second half and a new shot start empty, a removed shot's takes are not shown.
+
+**Why.** Spec 3 Q6, Q10, Q11. Recording before the call means an avatar refined mid-draw shows the result out of date at once.
+
+**Rejected.** Redrawing automatically (Q6 b). Replacing the panel on redraw (Q10 a).
+
+**Originated →** spec 3 §6.4, §6.6, §8.1.
+
+### D344 — The prompt box shows the exact prompt; an edit carries until the shot changes *(recorded 2026-10-08)*
+
+**Decision.** Each panel has a hidden prompt box showing the prompt its picked take was drawn with. Edit and regenerate sends it as written; reset regenerates from the prompt built from the script. A plain redraw keeps a hand-edited prompt while the shot's text is unchanged and starts fresh once it changed.
+
+**Why.** Spec 3 Q9; Q11 says a hand-edited prompt does not carry over to a changed shot.
+
+**Rejected.** A separate instruction box per panel (Q9 a).
+
+**Originated →** spec 3 §6.7, §8.1.
+
+### D345 — Nano Banana 2 draws every panel; Generate all shows its total and runs three at a time *(recorded 2026-10-08)*
+
+**Decision.** Panels use `gemini:gemini-3.1-flash-image`, no picker, billed through the same reserve-and-settle run as the Avatar Studio (`runBilledImageGeneration`). Generate all draws every shot without a current panel that can be drawn, after a dialog naming the count and total; the browser runs the per-shot draw three at a time and stops starting new ones at the credit cap.
+
+**Why.** Spec 3 Q7, Q8, Q13.
+
+**Rejected.** A model picker or a probe first (Q13 b, c). A background task for Generate all (the per-shot draw already takes under a minute, and the page shows each panel as it lands).
+
+**Originated →** spec 3 §6.1, §6.5.
+
+### D346 — Reopen is Visualise's only stage move; an avatar a script uses cannot be archived *(recorded 2026-10-08)*
+
+**Decision.** Reopen moves a script from Visualise to Generate, conditioned on its stage; avatars and panels are kept. Visualise work is allowed at Visualise and In review. The Avatars library's archive (and Discard draft) refuses while any live script's cast uses the avatar, naming the scripts.
+
+**Why.** Spec 3 §3, §8; Q12. Spec 4: editing stays allowed while In review.
+
+**Rejected.** Clearing or keeping a link to an archived avatar (Q12 a, b).
+
+**Originated →** spec 3 §8.1, §8.2.
+### D347 — Client review of a script: one link, a frozen version per share *(recorded 2026-10-08)*
+
+**Decision.** Each share of a script records a version — the script text, plus the avatar images and the picked panel take per shot when the share includes them — on one link per script that never changes. The link shows the latest version, frozen; the team keeps editing between shares. The client cannot open an earlier version; the activity names what changed, each change linking to its part.
+
+**Why.** Approval must bind to exactly what the client saw. Clients keep one link (the D309 habit). "S1, S4, S5 revised" tells the client where to look without a diff view.
+
+**Rejected.** A live link showing work in progress. Locking the script while In review. Opening earlier versions, or a highlighted diff (later; nothing is lost).
+
+**Refines →** D309. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §3, §7; questions 4.1, 4.2.
+
+### D348 — The team moves a script into and out of In review by hand *(recorded 2026-10-08)*
+
+**Decision.** Visualise → In review, In review → Visualise, and (after an approval) Approved → Visualise ("Reopen to Visualise") are team actions. Share appears only In review. Client comments never change the stage; editing stays allowed In review. Every move is a compare-and-set on the stage with its activity line, in one transaction (`script_review_move`).
+
+**Why.** A comment can be a question. D309 comments never change state. Spec 1's "In review" filter should list exactly the scripts with the client.
+
+**Rejected.** Any client comment moving the script back. A client "Request changes" action. Sharing moving the stage by itself (the parent spec's first answer).
+
+**Originated →** spec 4 §3; question 4.3.
+
+### D349 — Three share scopes; Approve only on a full share *(recorded 2026-10-08)*
+
+**Decision.** A share is the script only, the script and avatars, or the script, avatars and panels, and only from In review, so always after Mark final. Approve appears only on the full share; a partial share tells the client what it holds and what comes next. Panels reach spec 4 through one interface from spec 3 (the picked take per shot id); a full share carries whatever panels exist.
+
+**Why.** The client signs off on the visual reel (parent spec §0), while an early round of comments on the words is still worth having.
+
+**Rejected.** Requiring every avatar and panel before any share. Senior-only sharing. Approving a partial share.
+
+**Originated →** spec 4 §3, §8; question 4.4.
+
+### D350 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
+
+**Decision.** Four tables (`script_reviews`, `script_review_versions`, `script_review_comments`, `script_review_events`; migration 0054) hold the review. Spec 4 never writes `client_scripts.doc`; it changes only `stage` / `approved_at`, inside three plpgsql functions that lock the script row so a share, an approval and a stage move never interleave. The activity is derived from append-only rows.
+
+**Why.** Spec 2 is the only writer of the script's text (parent spec §4a.4). Specs 2, 3 and 4 are built in parallel. Numbering versions and approving "the latest" both need one lock.
+
+**Rejected.** Comments inside the script document. Version numbers computed in the app without a lock.
+
+**Originated →** spec 4 §9.
+
+### D351 — Comments are on whole parts and belong to their version *(recorded 2026-10-08)*
+
+**Decision.** A comment is on the context card, a shot, a cast member's avatar, one of its views (Front, Left, Right, Back), or a panel, and only on parts the version on screen shows. No pins, no painting. A comment keeps the version it was made on; when a later version drops its shot, it is shown under "On a removed shot" with the shot's last text. A split's first half keeps the shot's id, and so its comments.
+
+**Why.** D309 rejected painting for clients on phones; the post approval design called anchored pins a V2; D244 keeps annotations with the output they were made on.
+
+**Rejected.** Spot pins. Painted regions. Moving orphaned comments to the context card. Dropping them.
+
+**Refines →** D244, D309. **Originated →** spec 4 §5; questions 4.11, 4.12.
+
+### D352 — The team replies and resolves; comments are edited, never deleted *(recorded 2026-10-08)*
+
+**Decision.** The team replies under a client's comment and marks the thread Resolved (and can reopen it); the client sees both. Anyone with the link edits any client comment's text, shown as "edited by"; team replies are not editable from the link. Nothing is deleted.
+
+**Why.** It is how the client sees a comment was acted on (the mockup's Comments column), and D309's edit-never-delete rule carries over.
+
+**Rejected.** A read-only team (D309, D244). Resolve without replies.
+
+**Known limit.** With no client login, anyone with the link can edit any client comment, until the password lands.
+
+**Originated →** spec 4 §5; question 4.10.
+
+### D353 — Approval: anyone with the link, under a typed name, of the version on screen *(recorded 2026-10-08)*
+
+**Decision.** Approve reel records the typed name and the time and moves the script to Approved, the only way a script reaches the canvas gallery's Scripts tab. The request carries the version number on the client's screen; if a newer version was shared, it is refused. With open threads, a confirm names them first. A second tap answers success and records nothing more.
+
+**Why.** D309's trust model, with its limit stated. Whole-package approval (parent spec §10).
+
+**Rejected.** Only a contact named by the team can approve. A team-recorded offline approval (later, if clients approve by phone). Refusing approval while threads are open.
+
+**Known limit.** A typed name proves nothing, and a forwarded link can approve.
+
+**Originated →** spec 4 §8; questions 4.5, 4.13.
+
+### D354 — No withdrawal; reopen and share again; the approved link is a record *(recorded 2026-10-08)*
+
+**Decision.** The client cannot withdraw an approval. The team reopens an approved script to Visualise and shares again on the same link for a new approval (Approved › Reopened › Approved). While the version on screen is approved, the link is a read-only record for the client: no client comments or edits. The team can still reply and resolve (user, 8 Oct).
+
+**Why.** Comments after sign-off are the late changes this feature exists to stop (parent spec §0). Spec 1 §5.4 already keeps canvas copies stable when a script is re-approved.
+
+**Rejected.** Withdrawal until the first canvas drop. Approval final forever. Comments after approval.
+
+**Originated →** spec 4 §8; questions 4.6, 4.7.
+
+### D355 — Script links reuse the video review link: /r/s/<title>-<code>, no password yet *(recorded 2026-10-08)*
+
+**Decision.** A script's link is `/r/s/<title-slug>-<code>`, the code D311's (the first 4 hex characters of the script id, longer on a clash), under the public prefixes `src/proxy.ts` already exempts. Every public script route goes through `withScriptShareToken` in `route-helpers.ts`, the second named token resolver beside `withShareToken`. The client's typed name is the same stored entry as on a video review. No password or accounts yet; the password comes with the video links' (one scheme for both).
+
+**Why.** One auditable unauthenticated surface (D309). The link shape the operator already chose (D311). The client is not asked their name twice on one device.
+
+**Rejected.** A new public prefix and proxy exemption. Unguessable tokens (D311 chose readable). Client accounts.
+
+**Known limit.** The code is guessable, and the link carries real faces and unreleased claims; the password is the first follow-up.
+
+**Refines →** D309, D311. **Originated →** spec 4 §4, §10; question 4.8.
+
+### D356 — An in-app count of client comments and approvals *(recorded 2026-10-08)*
+
+**Decision.** The library card and the script's review panel show "Client feedback n": client comments plus approvals, a total with no seen-state, in D310's amber. No email or push. On both review pages each commented part carries the same amber: a count chip beside it and a faint amber edge on its card, so a client scanning fourteen shots sees where the notes are; an avatar view's comment action is an icon button under the image (user, 8 Oct, from the design canvas).
+
+**Why.** D310's chip set the pattern; a seen-state needs a per-user table. One amber for "the client said something here" everywhere, instead of the mockup's yellow pin, which the design system keeps for glows.
+
+**Rejected.** "New since you last looked". Email.
+
+**Refines →** D310. **Originated →** spec 4 §6; question 4.9.
+
+### D357 — Client review is the Visualise board, read-only, with a Comments column *(recorded 2026-10-08)*
+
+**Decision.** The client's review page draws the shared version in the Visualise board's frame (spec 3 §4) — the script in its compact form, the cast cards (four-view sheet and voice on a share with avatars) and, on a full share, the Storyboard — with every making control removed and a Comments column at the right. Threads live only in that column: each part (context, shot, person, view, panel) shows an amber count and a comment action that open its thread there; below `xl` the column opens over the page from a Comments button, straight at the part. The team's Visualise view carries the same markers and column, with spec 4's actions on its readiness line; after approval the team's page shows the approved version, read-only, the same way.
+
+**Why.** The client approves the visual reel, so they should read it as the team built it (user, 8 Oct: "the review surface is effectively the same as Visualise, just that the client reviews it"). Full threads under each shot of a narrow pane and under storyboard tiles crowd the board, worst on the phone the client opens the link on.
+
+**Rejected.** Spec 1's table with the panel beside each shot (the first build). Threads inline under each part. A third layout of the reel for review.
+
+**Refines →** D351, D355, D356. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §4, §6; decisions 4.14–4.17.

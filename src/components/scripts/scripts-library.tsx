@@ -13,13 +13,15 @@ import { NewScriptButton } from "./new-script-button";
 
 type Filter = "all" | ScriptStage;
 
-// Spec 1 §3, with spec 2's New script and the scripts the copilot has not written yet.
-export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwritten }: {
+// Spec 1 §3, with spec 2's New script and the scripts the copilot has not written yet, and spec 4's
+// client-feedback count on each card.
+export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwritten, feedback }: {
   clientId: string;
   clientName: string;
   clientSlug: string;
   scripts: Script[];
   unwritten: UnwrittenScript[];
+  feedback?: Record<string, number>;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const shown = filter === "all" ? scripts : scripts.filter((s) => s.stage === filter);
@@ -76,7 +78,7 @@ export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwr
                 <ScriptUnwrittenCard key={u.id} script={u} href={`/clients/${clientSlug}/scripts/${u.id}`} />
               ))}
               {shown.map((s) => (
-                <ScriptCard key={s.id} script={s} href={`/clients/${clientSlug}/scripts/${s.id}`} />
+                <ScriptCard key={s.id} script={s} href={`/clients/${clientSlug}/scripts/${s.id}`} feedbackCount={feedback?.[s.id] ?? 0} />
               ))}
             </div>
           )}

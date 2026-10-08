@@ -4,11 +4,11 @@
 to the answers in [the questions file](2026-10-08-script-copilot-open-questions.md)**
 Branch: `worktree-script-copilot`. Parent spec: [2026-10-07-script-copilot-design.md](2026-10-07-script-copilot-design.md).
 Builds on: [spec 1](2026-10-08-script-copilot-1-library-and-script-design.md) (the script, the cast, the script view) and [spec 2](2026-10-08-script-copilot-2-generate-design.md) (a script arrives complete and client-ready).
-ADRs: D337–D346 (booked; moved up one on 8 Oct, D319 was taken).
+ADRs: D337–D346 (recorded 8 Oct with the plan).
 Explainer, with every decision that crosses specs: https://claude.ai/artifact/RLbXdnfrXHf6dYTbm7uN4k#decisions ·
 Screen mockups: https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM — the Visualise board
-(`#artboard-c1426575309f`) is the reference for the cast slot (§5); it shows one person where this
-spec has one slot per cast member.
+(`#artboard-c1426575309f`) is the reference for the page's layout (§4, decided 8 Oct) and the cast
+slot (§5); it shows one person where this spec has one slot per cast member.
 
 ---
 
@@ -69,12 +69,15 @@ The script stays at **Visualise** throughout. Spec 3 moves no stage, with one ex
 It is **spec 1's read-only script view** (spec 1 §4) with Visualise's work put beside it. Nothing
 in the script's text is editable here; text changes happen in Generate (spec 2), through Reopen.
 
-- **Top:** the header and the context card, as in spec 1.
-- **The cast**, below the context card: one slot per person, the lead marked (§5).
-- **The shots**, in order, each with **its storyboard panel beside it** (§6). Group by beat works
-  as in spec 1.
-- **A readiness line** at the top: how many cast members have an avatar, and how many shots have a
-  current panel (§7), with **Generate all** beside it.
+It is laid out in **two panes, as on the Visualise board** (decided 8 Oct):
+
+- **A readiness line** across the top: how many cast members have an avatar, and how many shots
+  have a current panel (§7), with **Generate all** beside it.
+- **The script, on the left:** the context card and the shots in order, as in spec 1, stacked to
+  fit the narrower pane. Each shot shows whether its panel is made, or offers **Generate panel**.
+  Group by beat works as in spec 1.
+- **Visuals, on the right:** **the cast**, one slot per person with the lead marked (§5); then
+  **the storyboard**, every shot's panel in order in a grid, captioned with its shot and time (§6).
 
 ## 5. The cast: one client Avatar per person
 

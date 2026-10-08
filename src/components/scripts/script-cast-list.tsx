@@ -1,12 +1,22 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { castAnchor } from "@/lib/scripts/anchors";
 import type { CastMember } from "@/lib/scripts/schema";
 import { useScriptEdit } from "./script-edit-context";
 import { ScriptText } from "./script-text";
 
-export function ScriptCastList({ cast, avatarFaces }: { cast: CastMember[]; avatarFaces: Record<string, string | null> }) {
+export function ScriptCastList({
+  cast,
+  avatarFaces,
+  renderExtra,
+}: {
+  cast: CastMember[];
+  avatarFaces: Record<string, string | null>;
+  renderExtra?: (member: CastMember) => ReactNode;
+}) {
   const edit = useScriptEdit();
   return (
     <section aria-label="Cast" className="flex flex-col gap-3">
@@ -14,8 +24,9 @@ export function ScriptCastList({ cast, avatarFaces }: { cast: CastMember[]; avat
       <ul className="grid gap-3 md:grid-cols-2">
         {cast.map((c) => {
           const face = c.avatarId ? avatarFaces[c.avatarId] ?? null : null;
+          const extra = renderExtra?.(c);
           return (
-            <li key={c.id} className="flex gap-3 rounded-xl border border-border bg-card p-3">
+            <li key={c.id} id={castAnchor(c.id)} className="flex flex-wrap gap-3 rounded-xl border border-border bg-card p-3 has-[[data-part-commented]]:border-client/40">
               <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
                 {face ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -24,7 +35,7 @@ export function ScriptCastList({ cast, avatarFaces }: { cast: CastMember[]; avat
                   <UserRound className="absolute inset-0 m-auto size-6 text-muted-foreground/50" strokeWidth={1.5} aria-hidden />
                 )}
               </div>
-              <div className="flex min-w-0 flex-col gap-1">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium"><ScriptText path={`cast.${c.id}.name`} value={c.name} multiline={false} /></span>
                   {c.isLead && <Badge variant="outline">Lead</Badge>}
@@ -32,6 +43,7 @@ export function ScriptCastList({ cast, avatarFaces }: { cast: CastMember[]; avat
                 <p className="text-sm text-muted-foreground"><ScriptText path={`cast.${c.id}.description`} value={c.description} /></p>
                 {edit?.castControl ? edit.castControl(c) : !c.avatarId && <span className="text-xs text-muted-foreground">No avatar yet</span>}
               </div>
+              {extra ? <div className="basis-full">{extra}</div> : null}
             </li>
           );
         })}

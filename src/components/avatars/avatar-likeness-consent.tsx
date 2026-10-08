@@ -10,6 +10,8 @@ import type { Avatar } from "@/lib/avatars/schema";
 import { formatDate } from "@/lib/kb/utils";
 
 type Props = {
+  /** Two Specific people on one Visualise page must not share an id. */
+  id?: string;
   avatar: Avatar;
   confirming: boolean;
   onConfirm: () => void;
@@ -18,7 +20,7 @@ type Props = {
 // D289 — an uploaded front is a real person: the operator ticks the statement themselves and
 // the server records who and when. Consent is one-way here — once confirmed there is no
 // untick, only replacing the front image clears it (see `frontChangePatch`).
-export function AvatarLikenessConsent({ avatar, confirming, onConfirm }: Props) {
+export function AvatarLikenessConsent({ id = "likeness-consent", avatar, confirming, onConfirm }: Props) {
   const [ticked, setTicked] = useState(false);
 
   if (avatar.likenessConsentAt) {
@@ -34,12 +36,12 @@ export function AvatarLikenessConsent({ avatar, confirming, onConfirm }: Props) 
     <div className="flex flex-col gap-2.5 rounded-lg border bg-card p-3">
       <div className="flex items-start gap-2.5">
         <Checkbox
-          id="likeness-consent"
+          id={id}
           checked={ticked}
           onCheckedChange={(checked) => setTicked(checked === true)}
           className="mt-0.5"
         />
-        <Label htmlFor="likeness-consent" className="cursor-pointer font-normal">
+        <Label htmlFor={id} className="cursor-pointer font-normal">
           {LIKENESS_CONSENT_STATEMENT}
         </Label>
       </div>

@@ -4,7 +4,7 @@ import { previewDoc, type PartialDraft } from "@/lib/scripts/copilot/partial-dra
 
 /** The first draft as it streams in (D336, refined): the same script view, read-only, filling shot
  *  by shot. Replaced by the saved, editable script when the copilot finishes. */
-export function DraftPreview({ draft, clientId }: { draft: PartialDraft; clientId: string }) {
+export function DraftPreview({ draft }: { draft: PartialDraft }) {
   const doc = previewDoc(draft);
   return (
     <div className="flex flex-col gap-4" aria-busy="true">
@@ -14,7 +14,7 @@ export function DraftPreview({ draft, clientId }: { draft: PartialDraft; clientI
       </div>
       <div className="opacity-90">
         <ScriptView
-          script={{ id: "draft-preview", clientId, stage: "generate", doc, approvedAt: null, createdAt: "", updatedAt: "" }}
+          script={{ stage: "generate", doc }}
           avatarFaces={{}}
         />
       </div>

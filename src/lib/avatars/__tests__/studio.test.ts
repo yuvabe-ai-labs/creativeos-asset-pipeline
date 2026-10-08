@@ -3,7 +3,7 @@ import {
   avatarFaceLabel, avatarLifecycle, isLookDone, isStepDone, isStepLoading, isStepOpen, stepStatusLine,
   studioOpeningStep, STUDIO_STEPS, voiceChoiceOf, type StudioSnapshot,
 } from "../studio";
-import { GENERATED, makeAvatar, makeImage } from "./fixtures";
+import { GENERATED, makeAvatar, makeImage, makeViews } from "./fixtures";
 import type { Avatar, AvatarVoice, AvatarVoiceSample } from "../schema";
 
 const NAMED: AvatarVoice = { mode: "named", voiceId: "v1", name: "Surabhi", labels: {}, previewUrl: null };
@@ -27,6 +27,11 @@ describe("STUDIO_STEPS", () => {
   it("runs Name, Look, Profile sheet, Voice, Preview, with only the first two required", () => {
     expect(STUDIO_STEPS.map((s) => s.id)).toEqual(["name", "look", "sheet", "voice", "preview"]);
     expect(STUDIO_STEPS.filter((s) => !s.optional).map((s) => s.id)).toEqual(["name", "look"]);
+  });
+
+  it("the sheet step asks for four views", () => {
+    const sheet = STUDIO_STEPS.find((s) => s.id === "sheet")!;
+    expect(sheet.lede).toContain("Front, left, right and back");
   });
 });
 
@@ -111,7 +116,10 @@ describe("stepStatusLine", () => {
     expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheet: null }) }))).toBe("Optional");
     expect(stepStatusLine("sheet", snap({ sheetGenerating: true }))).toBe("Generating…");
     expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheetStale: true }) }))).toBe("Out of date");
-    expect(stepStatusLine("sheet", snap())).toBe("Added");
+    expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheet: makeImage(GENERATED), sheetViews: null }) }))).toBe("Three views");
+    expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheetViews: makeViews() }) }))).toBe("Four views");
+    expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheet: null, sheetViews: { ...makeViews(), left: null } }) }))).toBe("Missing a view");
+    expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheet: makeImage(), sheetViews: null }) }))).toBe("Older sheet");
   });
   it("an optional step left with Continue reads Skipped", () => {
     const skipped = new Set(["sheet", "voice", "preview"] as const);

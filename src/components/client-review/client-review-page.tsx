@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useIsServerOrHydrating } from "@/hooks/use-is-server-or-hydrating";
 import { useEditComment, usePostComment, usePublicReview } from "@/hooks/queries/client-reviews";
 import type { PublicReview } from "@/lib/client-review/wire";
 import {
@@ -11,13 +12,6 @@ import { CommentComposer } from "./comment-composer";
 import { CommentList } from "./comment-list";
 import { NameGate } from "./name-gate";
 import { ReviewVideo } from "./review-video";
-
-// True while the HTML is being produced on the server and while React hydrates it; false for
-// every render React does purely in the browser (Fast Refresh, an error-boundary retry).
-const noSubscribe = () => () => {};
-function useIsServerOrHydrating(): boolean {
-  return useSyncExternalStore(noSubscribe, () => false, () => true);
-}
 
 export function ClientReviewPage({ token, initial }: { token: string; initial: PublicReview }) {
   const { data: review } = usePublicReview(token, initial);

@@ -3,7 +3,7 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { publicUrlFor, removeObject } from "@/lib/storage";
-import { frontChangePatch, sheetChangePatch, withStatus } from "@/lib/avatars/utils";
+import { frontChangePatch, withStatus } from "@/lib/avatars/utils";
 import { AVATAR_STORED_NAME_RE } from "@/lib/avatars/constants";
 import { preconditionFailed } from "@/lib/avatars/route-responses";
 import type { AvatarImage } from "@/lib/avatars/schema";
@@ -12,7 +12,8 @@ const FinalizeSchema = z.object({
   path: z.string().min(1),
   filename: z.string().min(1),
   size: z.number().nonnegative(),
-  slot: z.enum(["front", "sheet"]),
+  // D339 — sheets are four generated views; only the front is uploaded.
+  slot: z.enum(["front"]),
   imageWidth: z.number().positive().optional(),
   imageHeight: z.number().positive().optional(),
 });
@@ -60,8 +61,8 @@ export async function POST(
       };
 
       // Conditioned on the front that was read, like the pick and sheet routes: a front upload
-      // replaces the face that was on screen, and a sheet upload attaches to it.
-      const change = slot === "front" ? frontChangePatch(current, image) : sheetChangePatch(image);
+      // replaces the face that was on screen.
+      const change = frontChangePatch(current, image);
       const avatar = await updateAvatar(clientId, avatarId, withStatus(current, change), {
         ifFrontUrl: current.front?.url ?? null,
       });
@@ -72,7 +73,7 @@ export async function POST(
       // Only an UPLOAD is removed when replaced, and only when it is a genuinely different
       // object: finalizing the same upload twice (a retry, a double submit) would otherwise
       // delete the object the row now points at.
-      const replaced = current[slot];
+      const replaced = current.front;
       if (replaced?.source.kind === "upload" && replaced.url !== image.url) {
         try {
           await removeObject(replaced.url);

@@ -2,7 +2,7 @@ import { COMMENT_BODY_MAX, CUT_EXTENSIONS, REVIEWER_NAME_MAX, TIMECODE_MAX_MS } 
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
-function text(value: unknown, label: string, max: number): Parsed<string> {
+export function text(value: unknown, label: string, max: number): Parsed<string> {
   if (typeof value !== "string") return { ok: false, error: `${label} is required.` };
   const trimmed = value.trim();
   if (!trimmed) return { ok: false, error: `${label} is required.` };
@@ -10,7 +10,7 @@ function text(value: unknown, label: string, max: number): Parsed<string> {
   return { ok: true, value: trimmed };
 }
 
-function record(input: unknown): Record<string, unknown> | null {
+export function record(input: unknown): Record<string, unknown> | null {
   return input && typeof input === "object" && !Array.isArray(input)
     ? (input as Record<string, unknown>)
     : null;

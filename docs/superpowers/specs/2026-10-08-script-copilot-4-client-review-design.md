@@ -1,7 +1,8 @@
 # Script copilot · spec 4 — client review: the link, comments per part, activity, and approval
 
 **8 October 2026 · product spec (the *what*) · spec 4 of 4 · no AI in this spec · revised 8 Oct 2026
-to the answers in [the questions file](2026-10-08-script-copilot-open-questions.md)**
+to the answers in [the questions file](2026-10-08-script-copilot-open-questions.md); revised again 8 Oct
+for the review board (§4, §6, §13 4.14–4.17)**
 Branch: `worktree-script-copilot`. Parent spec: [2026-10-07-script-copilot-design.md](2026-10-07-script-copilot-design.md).
 Spec 1: [2026-10-08-script-copilot-1-library-and-script-design.md](2026-10-08-script-copilot-1-library-and-script-design.md) ·
 Spec 3: [2026-10-08-script-copilot-3-visualise-design.md](2026-10-08-script-copilot-3-visualise-design.md).
@@ -81,7 +82,8 @@ VISUALISE ──team moves it──▶ IN REVIEW ──Share (v1, v2, …)──
    stays the same across versions.**
 5. The client opens the link and sees the version, read-only; comments on any part; and, on a
    full share, can **Approve**.
-6. The comments appear in the team's Visualise view beside the part they are about.
+6. The comments appear in the team's Visualise view: a marker on the part they are about, the
+   thread in the Comments column.
 7. The team revises and **shares again**: the next version goes on the same link, and the
    activity says what changed.
 8. The client presses **Approve.** The script moves to **Approved** and appears in the canvas
@@ -95,25 +97,40 @@ Spec 1's library filter "In review" lists exactly the scripts with the client.
 
 ## 4. What the client sees
 
+*Revised 8 Oct 2026 (review board): the client's page is the Visualise board (spec 3 §4), read-only,
+with a Comments column, as the mockup's Client review board draws it. It replaces "the picked panel
+beside each shot".*
+
 One page with no app chrome, the same rule the video review links follow. From the mockup board:
 
 - **A header**: who it is from and for ("Yuvabe Studios × Jackfruit365 · for your review"), the
-  script's title, and "Version 2 · shared 10 Oct · read-only".
-- **The reel, read-only**, in spec 1's one script view (spec 1 §4): the header and context card,
-  the cast, and the shots in order with timecode, visual, voiceover, on-screen text and who is on
-  screen. On a share with avatars, each cast member's four-view sheet and voice; on a share with
-  panels, the picked panel beside each shot. The client sees the same layout as the team.
-- **A comment action on every commentable part**, and a marker on each part that has comments.
-- **A Comments column** listing the threads, each labelled with its part, with the team's replies
-  and Resolved marks, and **Add a comment**.
+  script's title, "Version 2 · shared 10 Oct · read-only", and **Approve reel** on a full share
+  only (§8).
+- **The reel, read-only, laid out as the Visualise board**, in three parts:
+  - **The script**: the context card, then the shots in order (timecode, visual, voiceover,
+    on-screen text, who is on screen), in the same compact form the team reads in Visualise.
+  - **The visuals**: a card per cast member (name, Lead, description). On a share with avatars,
+    each card adds the four-view sheet, which enlarges on a tap, and the voice with a sample to
+    play. On a full share, the **Storyboard**: every shot's picked panel in order, the shot's
+    visual line on hover, enlarging on a tap; a shot with no panel shows an empty frame.
+  - **Comments and Activity** (below).
+  The client sees what the team sees in Visualise, minus every control that makes or changes
+  something.
+- **A comment action on every commentable part**, and a marker with the count on each part that has
+  comments. The threads themselves are not drawn under the part: the action and the marker open
+  that part's thread in the Comments column.
+- **A Comments column** listing the threads by part, in page order, each labelled with its part,
+  with the team's replies and Resolved marks, "On a removed shot", and **Add a comment**.
 - **An Activity list**: each share and what changed, comments, and the approval.
-- **Approve reel**, on a full share only (§8).
 
 The client cannot edit the script, regenerate anything or see the copilot. They see the version
 that was shared, never work in progress.
 
 The client may be on a phone: the video review page is mobile-first because clients open links
-from WhatsApp. This page reads on a phone too, with the panel beside each shot stacking under it.
+from WhatsApp. On a wide screen the script, the visuals and the Comments column sit side by side.
+On a narrower screen, a phone included, the script and the visuals stack and the Comments column
+becomes a **Comments** button that opens it over the page; a part's comment action or marker opens
+it straight at that part's thread, so the client never scrolls the length of the reel to comment.
 
 ## 5. Comments
 
@@ -145,13 +162,22 @@ last text; on a split, the first half keeps the shot's identity and its comments
 
 ## 6. What the team sees
 
-In the **Visualise view** (spec 3), the same view they revise in:
+In the **Visualise view** (spec 3), the same view they revise in (*revised 8 Oct 2026, review
+board*):
 
-- each commented part shows its comments beside it, so a note on shot 4 sits next to shot 4, and a
-  note on a cast member's left view sits next to that view;
-- the same **Comments** and **Activity** lists the client sees, with **Reply** and **Resolve**;
-- **Move to In review** (at Visualise), then **Share** with its scope choice, **Share again**, and
-  **Copy link**; and **Move back to Visualise**.
+- each commented part carries the same marker the client sees: on a shot's row, on a cast member,
+  on each of their four views, and on each storyboard panel; the marker opens that part's thread
+  in the Comments column, so a note on shot 4 is one click from shot 4;
+- the same **Comments** and **Activity** column the client sees, with **Reply** and **Resolve**,
+  side by side on a wide screen and opened from a **Comments** button on a narrower one;
+- on Visualise's top line, beside its own actions: **Move to In review** (at Visualise), then
+  **Share** with its scope choice, **Share again**, and **Copy link**; **Move back to Visualise**;
+  and the client feedback count.
+
+**After approval**, the team's script page shows **what the client approved**: the same read-only
+board the client sees, drawn from the approved version, with the Comments and Activity column
+(the team can still reply and resolve) and **Reopen to Visualise**. It is the record of the
+sign-off, not the live script.
 
 In the **Scripts library** the card shows the stage chip through spec 1's stage filter, and a
 **count of client comments and approvals**, like the existing "Client feedback" chip on video
@@ -196,7 +222,7 @@ Nothing in the activity is edited or removed later.
   script to Visualise and shares again on the same link for a new approval; the activity reads
   Approved › Reopened › Approved. Canvas nodes already made keep their copy (spec 1 §5.4).
 - **After approval, the link is a read-only record** showing "Approved on …", and takes no more
-  comments.
+  client comments. The team can still reply and resolve (8 Oct).
 
 ## 9. Constraint for the plan
 
@@ -229,8 +255,8 @@ Spec 4 is done when, for Jackfruit365's seeded Reel 01:
    offers script only, with avatars, or with avatars and panels.
 2. A script-only share gives the team one link; a client with no account opens it on a phone and
    sees the context card, the cast and all 14 shots, read-only, with no Approve.
-3. The client comments on the context card, on a shot, on a cast member's avatar and on one of its
-   views. Each comment appears in the team's Visualise view beside that part; the team replies and
+3. The client comments on the context card and on a shot of the script-only share, and, once a
+   share includes avatars (version 2), on a cast member's avatar and on one of its views. Each comment shows as a marker on that part in the team's Visualise view, with its thread in the Comments column; the team replies and
    resolves one.
 4. The team edits a shot **without sharing**; the client's link does not change. The team shares
    again with avatars and panels; the **same link** shows version 2, the activity names what
@@ -279,5 +305,11 @@ In one line each:
 | 4.11 | Comments on a removed shot stay, under "On a removed shot"; a split's first half keeps them |
 | 4.12 | No spot pins; a comment is on a whole part, including each avatar view |
 | 4.13 | Approve with open threads, after a confirm that names them |
+| 4.14 | (8 Oct, review board) The client's page is the Visualise board, read-only, with a Comments column; panels sit in the Storyboard, not beside each shot |
+| 4.15 | (8 Oct, review board) Threads live only in the Comments column; a part shows its marker and comment action, which open its thread there |
+| 4.16 | (8 Oct, review board) On a narrower screen the Comments column opens over the page from a Comments button, straight at the part |
+| 4.17 | (8 Oct, review board) After approval the team's page shows the approved version, read-only, with the column and Reopen to Visualise |
 
-**Still open:** none.
+**Still open:** which script text becomes Approved: the live script (with any edits made since the
+last share) or the approved version (raised by the final review on 8 Oct; matters once spec 2 can
+edit a script).

@@ -1,4 +1,4 @@
-import type { PersonType } from "./schema";
+import type { AvatarViewId, PersonType } from "./schema";
 
 // Deliberately narrower than LOGO_EXTENSIONS: a face reference is a photo, never svg or gif.
 export const AVATAR_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
@@ -52,6 +52,24 @@ export const READINESS_GAP_LABELS = {
 // Fixed, never operator-selectable: a front image is a portrait, a sheet is a wide strip.
 export const AVATAR_FRONT_ASPECT = "3:4";
 export const AVATAR_SHEET_ASPECT = "16:9";
+
+// D339 — the four views, in the order they are shown, sent as references and commented on
+// (spec 4). Each is a 3:4 portrait-shaped image, head to toe.
+export const AVATAR_VIEWS = ["front", "left", "right", "back"] as const satisfies readonly AvatarViewId[];
+export const AVATAR_VIEW_LABELS: Record<AvatarViewId, string> = {
+  front: "Front", left: "Left", right: "Right", back: "Back",
+};
+export const AVATAR_VIEW_ASPECT = "3:4";
+
+// D339 — the dry run (parent spec §11.1): asked for a left and a right profile together, the
+// model returned two views facing the same way. Naming the edge of the frame the nose points
+// to fixed it, so every view states its direction.
+export const AVATAR_VIEW_DIRECTIONS: Record<AvatarViewId, string> = {
+  front: "Front view: facing the camera straight on.",
+  left: "Left profile: turned 90 degrees so the nose points to the LEFT edge of the image; only one side of the face is visible.",
+  right: "Right profile: turned 90 degrees so the nose points to the RIGHT edge of the image; only one side of the face is visible.",
+  back: "Back view: facing directly away from the camera; the face is not visible.",
+};
 
 // Two, not four: enough to compare, and half the credits on a first try (operator, 2026-10-01).
 export const AVATAR_BATCH_DEFAULT = 4;

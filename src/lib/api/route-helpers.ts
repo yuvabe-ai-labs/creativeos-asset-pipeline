@@ -8,6 +8,8 @@ import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
 import { toCanonicalShareToken } from "@/lib/client-review/token";
+import { getScriptReviewByToken } from "@/lib/db/script-reviews";
+import type { ScriptReviewByToken } from "@/lib/script-review/wire";
 
 // PostgREST may surface an embedded to-one relation as an object or a single-element
 // array, depending on schema-cache heuristics (same ambiguity handled in
@@ -257,6 +259,21 @@ export async function withShareToken(
   const token = toCanonicalShareToken(raw);
   if (!token) return apiError("Review not found.", 404);
   const review = await getReviewByToken(token);
+  if (!review) return apiError("Review not found.", 404);
+  return handler(review);
+}
+
+// D355: the second named token resolver, for /api/r/s/[token]/* (script reviews). Same rules as
+// withShareToken — under the same proxy exemption, no session, no org check, no impersonation
+// gate — and the same link parsing (D311): only the code at the end finds the review.
+export async function withScriptShareToken(
+  params: Promise<{ token: string }>,
+  handler: (review: ScriptReviewByToken) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { token: raw } = await params;
+  const token = toCanonicalShareToken(raw);
+  if (!token) return apiError("Review not found.", 404);
+  const review = await getScriptReviewByToken(token);
   if (!review) return apiError("Review not found.", 404);
   return handler(review);
 }

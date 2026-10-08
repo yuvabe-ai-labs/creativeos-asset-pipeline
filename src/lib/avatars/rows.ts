@@ -1,5 +1,5 @@
 import type {
-  Avatar, AvatarImage, AvatarStatus, AvatarVoice, AvatarVoiceSample, PersonType, AvatarCandidate,
+  Avatar, AvatarImage, AvatarSheetViews, AvatarStatus, AvatarVoice, AvatarVoiceSample, PersonType, AvatarCandidate,
 } from "./schema";
 import type { AvatarPatch } from "./utils";
 import type { GenerationRow } from "@/lib/db/types";
@@ -15,6 +15,7 @@ export type AvatarRow = {
   front: AvatarImage | null;
   sheet: AvatarImage | null;
   sheet_stale: boolean;
+  sheet_views: AvatarSheetViews | null;
   voice: AvatarVoice | null;
   voice_sample: AvatarVoiceSample | null;
   status: AvatarStatus;
@@ -35,6 +36,7 @@ export function rowToAvatar(row: AvatarRow): Avatar {
     front: row.front,
     sheet: row.sheet,
     sheetStale: row.sheet_stale,
+    sheetViews: row.sheet_views ?? null,
     voice: row.voice,
     voiceSample: row.voice_sample,
     status: row.status,
@@ -53,6 +55,7 @@ const COLUMN: Record<keyof AvatarPatch, string> = {
   front: "front",
   sheet: "sheet",
   sheetStale: "sheet_stale",
+  sheetViews: "sheet_views",
   status: "status",
   voice: "voice",
   voiceSample: "voice_sample",

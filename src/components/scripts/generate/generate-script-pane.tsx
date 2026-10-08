@@ -85,13 +85,13 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft }: { clien
       {script.doc ? (
         <ScriptEditProvider value={edit}>
           <ScriptView
-            script={{ id: script.id, clientId: script.clientId, stage: script.stage, doc: script.doc, approvedAt: null, createdAt: script.createdAt, updatedAt: script.updatedAt }}
+            script={{ stage: script.stage, doc: script.doc }}
             avatarFaces={avatarFaces}
           />
           <ScriptNotesPanel notes={script.notes} openItems={state.openItems} />
         </ScriptEditProvider>
       ) : draft ? (
-        <DraftPreview draft={draft} clientId={clientId} />
+        <DraftPreview draft={draft} />
       ) : (
         <EmptyState
           title="The draft appears here"
