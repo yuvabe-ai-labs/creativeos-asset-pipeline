@@ -4,8 +4,9 @@ import { isUuid } from "@/lib/avatars/utils";
 import { listAvatars } from "@/lib/db/avatars";
 import { changeWithRetry, type Change, type ChangeOutcome } from "@/lib/scripts/copilot/change";
 import { rowToGenerateScript, rowToMessage, type GenerateScriptRow, type ScriptMessageRow } from "@/lib/scripts/copilot/rows";
+import { fillToFinal } from "@/lib/scripts/copilot/fill-to-final";
 import {
-  briefSchema, type Brief, type CopilotAvatar, type GenerateScript, type MessageCard,
+  briefSchema, type Brief, type CopilotAvatar, type GenerateScript, type GenerateState, type MessageCard,
   type ScriptMessage, type ScriptNotes, type ScriptPatch, type UnwrittenScript,
 } from "@/lib/scripts/copilot/schema";
 
@@ -137,4 +138,13 @@ export async function listCopilotAvatars(clientId: string): Promise<CopilotAvata
   return avatars
     .filter((a) => a.status === "ready" && !a.archivedAt)
     .map((a) => ({ id: a.id, name: a.name, story: a.story ?? "", front: a.front?.url ?? null }));
+}
+
+/** Everything the Generate workspace shows. Every Generate route returns this, so the browser's
+ *  cache is replaced whole after any change (src/hooks/queries/script-generate.ts). */
+export async function loadGenerateState(clientId: string, scriptId: string): Promise<GenerateState | null> {
+  const script = await getGenerateScript(clientId, scriptId);
+  if (!script) return null;
+  const [messages, avatars] = await Promise.all([listScriptMessages(clientId, scriptId), listCopilotAvatars(clientId)]);
+  return { script, messages, avatars, openItems: fillToFinal(script.doc, script.notes) };
 }
