@@ -54,13 +54,11 @@ describe("versionParts", () => {
     expect(parts.some((p) => p.kind === "view" || p.kind === "panel")).toBe(false);
   });
 
-  it("a share with avatars adds a view only where the view has an image", () => {
+  it("a share with avatars offers each avatar as one part, never its views (D359)", () => {
     const v = content({ scope: "avatars", visuals: { avatars: { meenakshi: avatarSnapshot({ front: "f", left: "l" }) }, panels: {} } });
-    const views = versionParts(v).filter((p) => p.kind === "view");
-    expect(views).toEqual([
-      { kind: "view", castId: "meenakshi", view: "front" },
-      { kind: "view", castId: "meenakshi", view: "left" },
-    ]);
+    const parts = versionParts(v);
+    expect(parts).toContainEqual({ kind: "cast", castId: "meenakshi" });
+    expect(parts.some((p) => p.kind === "view")).toBe(false);
   });
 
   it("a full share adds a panel only for shots that have one", () => {
@@ -70,12 +68,13 @@ describe("versionParts", () => {
 });
 
 describe("isPartInVersion (Review Focus 3)", () => {
-  it("refuses a shot the version lacks, a view with no image, and a panel on a partial share", () => {
+  it("refuses a shot the version lacks, any view (D359), and a panel on a partial share", () => {
     const withFront = content({ scope: "avatars", visuals: { avatars: { meenakshi: avatarSnapshot() }, panels: { s01: { takeId: "t", url: "u" } } } });
     expect(isPartInVersion({ kind: "shot", shotId: "s99" }, withFront)).toBe(false);
     expect(isPartInVersion({ kind: "view", castId: "meenakshi", view: "left" }, withFront)).toBe(false);
     expect(isPartInVersion({ kind: "panel", shotId: "s01" }, withFront)).toBe(false);
-    expect(isPartInVersion({ kind: "view", castId: "meenakshi", view: "front" }, withFront)).toBe(true);
+    expect(isPartInVersion({ kind: "view", castId: "meenakshi", view: "front" }, withFront)).toBe(false);
+    expect(isPartInVersion({ kind: "cast", castId: "meenakshi" }, withFront)).toBe(true);
     expect(isPartInVersion({ kind: "cast", castId: "husband" }, withFront)).toBe(true);
   });
 });

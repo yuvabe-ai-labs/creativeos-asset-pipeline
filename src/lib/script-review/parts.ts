@@ -76,18 +76,13 @@ export function partOrder(part: Part, doc: ScriptDoc): number {
 }
 
 /** Spec 4 §5: the parts this version showed the client, so the only ones that take comments.
- *  The scope decides; visuals a scope does not include are ignored even when present. */
+ *  The scope decides; visuals a scope does not include are ignored even when present. A cast member
+ *  takes comments whole, avatar included, never one of its views (D359); the "view" kind stays only
+ *  so comments made before that still read. */
 export function versionParts(version: VersionContent): Part[] {
   const parts: Part[] = [{ kind: "context" }];
   for (const shot of version.doc.shots) parts.push({ kind: "shot", shotId: shot.id });
-  for (const member of version.doc.cast) {
-    parts.push({ kind: "cast", castId: member.id });
-    const avatar = scopeIncludes(version.scope, "avatars") ? version.visuals.avatars[member.id] : undefined;
-    if (!avatar) continue;
-    for (const view of AVATAR_VIEWS) {
-      if (avatar.views[view]) parts.push({ kind: "view", castId: member.id, view });
-    }
-  }
+  for (const member of version.doc.cast) parts.push({ kind: "cast", castId: member.id });
   if (scopeIncludes(version.scope, "panels")) {
     for (const shot of version.doc.shots) {
       if (version.visuals.panels[shot.id]) parts.push({ kind: "panel", shotId: shot.id });

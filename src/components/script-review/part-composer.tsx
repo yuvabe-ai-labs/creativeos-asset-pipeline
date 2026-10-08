@@ -14,12 +14,15 @@ export function PartComposer({
   onSubmit,
   onCancel,
   initial = "",
+  autoFocus = true,
 }: {
   placeholder: string;
   submitLabel: string;
   onSubmit: (body: string) => Promise<void>;
   onCancel?: () => void;
   initial?: string;
+  /** Off for a box that is always on the page, so it never takes focus on load. */
+  autoFocus?: boolean;
 }) {
   const [body, setBody] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -46,7 +49,7 @@ export function PartComposer({
         onChange={(e) => setBody(e.target.value)}
         maxLength={COMMENT_BODY_MAX}
         placeholder={placeholder}
-        autoFocus
+        autoFocus={autoFocus}
         className="min-h-16 text-base md:text-sm"
       />
       {error && <p className="text-xs text-destructive">{error}</p>}

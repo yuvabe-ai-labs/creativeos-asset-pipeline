@@ -1,19 +1,18 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { Avatar, AvatarViewId } from "@/lib/avatars/schema";
+import type { Avatar } from "@/lib/avatars/schema";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import { CastSlot } from "./cast-slot";
 
 // Spec §5 — one slot per person in the cast, the lead first as the script lists them.
-export function CastSlots({ clientId, scriptId, doc, avatars, castMarker, viewMarker }: {
+export function CastSlots({ clientId, scriptId, doc, avatars, castMarker }: {
   clientId: string;
   scriptId: string;
   doc: ScriptDoc;
   avatars: ReadonlyMap<string, Avatar>;
-  /** Spec 4 merge point: the comment marker on a person, and on each of their views. */
+  /** Spec 4 merge point: the comment marker on a person (their avatar is commented on whole, D359). */
   castMarker?: (castId: string) => ReactNode;
-  viewMarker?: (castId: string, view: AvatarViewId) => ReactNode;
 }) {
   return (
     <section aria-label="Cast" className="flex flex-col gap-3">
@@ -28,7 +27,6 @@ export function CastSlots({ clientId, scriptId, doc, avatars, castMarker, viewMa
             avatar={member.avatarId ? avatars.get(member.avatarId) ?? null : null}
             takenIds={doc.cast.filter((c) => c.id !== member.id && c.avatarId).map((c) => c.avatarId!)}
             headerExtra={castMarker?.(member.id)}
-            marker={viewMarker ? (view) => viewMarker(member.id, view) : undefined}
           />
         ))}
       </div>

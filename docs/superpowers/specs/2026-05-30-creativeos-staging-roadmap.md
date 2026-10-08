@@ -7083,7 +7083,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §9.
 
-### D352 — Comments are on whole parts and belong to their version *(recorded 2026-10-08)*
+### D352 — Comments are on whole parts and belong to their version *(recorded 2026-10-08; **views refined by D359**, 2026-10-09)*
 
 **Decision.** A comment is on the context card, a shot, a cast member's avatar, one of its views (Front, Left, Right, Back), or a panel, and only on parts the version on screen shows. No pins, no painting. A comment keeps the version it was made on; when a later version drops its shot, it is shown under "On a removed shot" with the shot's last text. A split's first half keeps the shot's id, and so its comments.
 
@@ -7139,7 +7139,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D309, D311. **Originated →** spec 4 §4, §10; question 4.8.
 
-### D357 — An in-app count of client comments and approvals *(recorded 2026-10-08)*
+### D357 — An in-app count of client comments and approvals *(recorded 2026-10-08; **the view's comment button retired by D359**, 2026-10-09)*
 
 **Decision.** The library card and the script's review panel show "Client feedback n": client comments plus approvals, a total with no seen-state, in D310's amber. No email or push. On both review pages each commented part carries the same amber: a count chip beside it and a faint amber edge on its card, so a client scanning fourteen shots sees where the notes are; an avatar view's comment action is an icon button under the image (user, 8 Oct, from the design canvas).
 
@@ -7149,7 +7149,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Refines →** D310. **Originated →** spec 4 §6; question 4.9.
 
-### D358 — Client review is the Visualise board, read-only, with a Comments column *(recorded 2026-10-08)*
+### D358 — Client review is the Visualise board, read-only, with a Comments column *(recorded 2026-10-08; **"view" dropped from its parts by D359**, 2026-10-09)*
 
 **Decision.** The client's review page draws the shared version in the Visualise board's frame (spec 3 §4) — the script in its compact form, the cast cards (four-view sheet and voice on a share with avatars) and, on a full share, the Storyboard — with every making control removed and a Comments column at the right. Threads live only in that column: each part (context, shot, person, view, panel) shows an amber count and a comment action that open its thread there; below `xl` the column opens over the page from a Comments button, straight at the part. The team's Visualise view carries the same markers and column, with spec 4's actions on its readiness line; after approval the team's page shows the approved version, read-only, the same way.
 
@@ -7158,3 +7158,13 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Spec 1's table with the panel beside each shot (the first build). Threads inline under each part. A third layout of the reel for review.
 
 **Refines →** D352, D356, D357. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §4, §6; decisions 4.14–4.17.
+
+### D359 — An avatar is commented on whole: one box on its card, no comment per view *(recorded 2026-10-09)*
+
+**Decision.** A client comments on a cast member's avatar as a whole, never on one of its four views. The review cast card drops the comment button under each view; beside the views and the voice it carries one comment box (on a share with avatars, while comments are open) that posts on the cast member, so the thread is the person's in the Comments column. The person's marker in the card header (count and comment action) stays. A version no longer offers a view as a part, so the comment route refuses one, and the team's Visualise view draws no marker on a view. The `view` part kind stays in the data only so comments made before this still read; nothing migrates them.
+
+**Why.** User, 9 Oct, from the review screen: "I don't want per view commenting", with one text area for the whole avatar drawn in the card's empty space beside the views. The design canvas's own avatar comment ("Could she have more grey in her hair?") is about the person, not a view.
+
+**Rejected.** Keeping per-view comments beside the avatar box. Migrating comments already made on a view to the person (user: "don't worry about existing comments").
+
+**Refines →** D352, D357, D358. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §5, §6, §11 criterion 3; decision 4.12 (amended 9 Oct).

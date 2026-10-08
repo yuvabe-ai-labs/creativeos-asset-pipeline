@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,15 +17,13 @@ type Props = {
   generating: readonly AvatarViewId[];
   /** The views show an older front image: dimmed until they are remade. */
   stale?: boolean;
-  /** Spec 4 merge point: a comment marker beside each view. */
-  marker?: (view: AvatarViewId) => ReactNode;
   /** 4 in a row (the Studio) or a compact 2×2 (Visualise's cast card). */
   columns?: 2 | 4;
 };
 
 // D340 — the sheet's four views as four tiles, Front, Left, Right, Back. Shared by the Avatar
 // Studio's sheet step and Visualise's cast slot, so there is one way a sheet looks.
-export function AvatarSheetViews({ name, views, generating, stale = false, marker, columns = 4 }: Props) {
+export function AvatarSheetViews({ name, views, generating, stale = false, columns = 4 }: Props) {
   const [zoomed, setZoomed] = useState<AvatarViewId | null>(null);
 
   return (
@@ -55,7 +53,6 @@ export function AvatarSheetViews({ name, views, generating, stale = false, marke
                 )}
               </div>
               <span className="text-center text-xs text-muted-foreground">{label}</span>
-              {marker?.(view)}
             </li>
           );
         })}

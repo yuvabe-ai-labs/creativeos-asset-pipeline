@@ -31,7 +31,7 @@ const STEP_COPY = {
 } as const;
 
 // Spec §5.2 — one person in the cast: a full avatar maker, inline, as on the Visualise board.
-export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker, headerExtra }: {
+export function CastSlot({ clientId, scriptId, member, avatar, takenIds, headerExtra }: {
   clientId: string;
   scriptId: string;
   member: CastMember;
@@ -39,8 +39,6 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker,
   avatar: Avatar | null;
   /** Avatars other people in this script already have. */
   takenIds: string[];
-  /** Spec 4 merge point: comment markers per view, given the view id. */
-  marker?: (view: (typeof AVATAR_VIEWS)[number]) => ReactNode;
   /** Spec 4 merge point: the comment marker on the person. */
   headerExtra?: ReactNode;
 }) {
@@ -73,7 +71,7 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker,
       </header>
 
       <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
-        <AvatarSheetViews columns={2} name={member.name} views={avatar?.sheetViews ?? null} generating={generating} stale={avatar?.sheetStale ?? false} marker={marker} />
+        <AvatarSheetViews columns={2} name={member.name} views={avatar?.sheetViews ?? null} generating={generating} stale={avatar?.sheetStale ?? false} />
         <div className="flex min-w-0 flex-col gap-3">
           {mode === "ai" ? (
             <CastSlotAiMaker avatar={reusableFor("ai", avatar)} modelId={modelId} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />

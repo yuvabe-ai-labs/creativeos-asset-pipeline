@@ -64,7 +64,6 @@ export function TeamReviewBoard({ clientId, initial, initialReview }: {
           contextMarker: <PartMarker part={{ kind: "context" }} className="self-end" />,
           shotMarker: (shotId) => <PartMarker part={{ kind: "shot", shotId }} />,
           castMarker: (castId) => <PartMarker part={{ kind: "cast", castId }} />,
-          viewMarker: (castId, view) => <PartMarker part={{ kind: "view", castId, view }} className="self-center" />,
           panelMarker: (shotId) => <PartMarker part={{ kind: "panel", shotId }} className="self-start" />,
           column: shared ? <ReviewColumn activity={review?.activity ?? []} /> : undefined,
         }}

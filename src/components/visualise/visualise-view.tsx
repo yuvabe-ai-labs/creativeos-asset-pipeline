@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ScriptBoardFrame } from "@/components/scripts/script-board-frame";
 import { ScriptView } from "@/components/scripts/script-view";
-import type { AvatarViewId } from "@/lib/avatars/schema";
 import { usePickTake, useReopenScript, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
 import { usePanelDraws } from "@/hooks/use-panel-draws";
 import { useVisualiseModel } from "@/hooks/use-visualise-model";
@@ -35,7 +34,6 @@ export type VisualiseReview = {
   contextMarker: ReactNode;
   shotMarker: (shotId: string) => ReactNode;
   castMarker: (castId: string) => ReactNode;
-  viewMarker: (castId: string, view: AvatarViewId) => ReactNode;
   panelMarker: (shotId: string) => ReactNode;
   /** Absent until something has been shared, so the board keeps its two panes. */
   column?: ReactNode;
@@ -108,7 +106,6 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
               doc={script.doc}
               avatars={model.avatars}
               castMarker={review?.castMarker}
-              viewMarker={review?.viewMarker}
             />
             <StoryboardGrid
               settings={
