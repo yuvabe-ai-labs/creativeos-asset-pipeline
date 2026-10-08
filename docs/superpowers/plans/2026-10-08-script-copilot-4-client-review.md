@@ -6347,7 +6347,7 @@ Share **Script only** (version 1); copy the link. In the private window at 390px
 
 - [ ] **Step 5: Criterion 3 — comments on each kind of part**
 
-As the client, comment on the context card, on S4, and on Meenakshi (the cast member). Each appears in the team's view beside that part and in the Comments column; the team replies to one and resolves one; the client sees the reply ("Team") and "Resolved by …" after a reload. The view comment needs a share with avatars (spec gap, see "Not decided by the spec" 6): it is made in Step 6 on version 2.
+As the client, comment on the context card, on S4, and on Meenakshi (the cast member). Each appears in the team's view beside that part and in the Comments column; the team replies to one and resolves one; the client sees the reply ("Team") and "Resolved by …" after a reload. The view comment needs a share with avatars (see "Decided by the user on 8 Oct", item 6): it is made in Step 6 on version 2.
 
 - [ ] **Step 6: Criterion 4 — edits stay with the team until the next share**
 
@@ -6372,7 +6372,7 @@ Team: **Reopen to Visualise**, then **Move to In review**, then **Share again** 
 
 - [ ] **Step 11: Report**
 
-Summarise for the user: what passed, anything that failed with its output, the migration state on staging, the merge points still open (MP1 panels and MP2 four views are stubs until spec 3 merges), and the "Not decided by the spec" list for their decision. Do not push or merge; the user decides.
+Summarise for the user: what passed, anything that failed with its output, the migration state on staging, the merge points still open (MP1 panels and MP2 four views are stubs until spec 3 merges), and the rulings made during the build. Do not push or merge; the user decides.
 
 ---
 
