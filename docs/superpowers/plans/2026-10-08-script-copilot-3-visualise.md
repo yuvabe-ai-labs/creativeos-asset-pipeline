@@ -15,6 +15,7 @@
 - **Visualise data stays out of the script.** "Spec 3 keeps its data (panels, takes, prompts, generations) separate from the script document, keyed by script and shot, and only writes the cast members' avatar links into the script." The cast link is written into the raw stored `doc` JSON (`cast[i].avatarId` only), never by re-serialising a parsed doc.
 - **One stage move:** "Its only stage change is Reopen (Visualise → Generate)." Visualise work (cast links, panels, picks) is allowed while the script is at `visualise` or `in_review` (spec 4: "Editing stays allowed while In review"); Reopen only from `visualise`.
 - **Four views for every avatar:** "The sheet is four views: Front, Left, Right, Back. This holds for every avatar in the product, the Avatar Studio included." "Avatars made earlier keep three views until their sheet is regenerated." Left and Right are made "with that stated" (the direction the person faces).
+- **No sheet uploads (user's answer, 8 Oct 2026, handoff §2a):** every sheet is four generated views. The Studio's "add your own profile sheet" upload is removed, and the image routes refuse `slot: "sheet"`. An avatar that already has an uploaded sheet keeps it until its four views are generated, the same as an older three-view sheet. A face photo (the front) is still uploaded for a Specific person.
 - **Archive refusal:** "An avatar used in any script cannot be archived. The Avatars library's archive action refuses while a script uses it."
 - **Panels:** Nano Banana 2 (`gemini:gemini-3.1-flash-image`) for every panel, no model picker. "Generate all draws every shot that has no current panel: missing or out of date. It shows its total first." "Each panel keeps its earlier takes." "The client only ever sees the picked take." The prompt box is "hidden by default, showing the exact prompt sent to draw that frame". Out-of-date panels are "never redrawn on their own".
 - **What a panel never shows:** "On-screen text is never drawn into a panel, and neither is the AI-generated label"; no generated text, brand names or labelled packs; card and pack areas are drawn blank.
@@ -65,7 +66,7 @@ Specs 2 and 4 are built at the same time from the same base. Spec 3 only *adds* 
 | `src/lib/avatars/schema.ts` | `AvatarViewId`, `AvatarSheetViews`, `Avatar.sheetViews` |
 | `src/lib/avatars/constants.ts` | `AVATAR_VIEWS`, `AVATAR_VIEW_LABELS`, `AVATAR_VIEW_ASPECT`, `AVATAR_VIEW_DIRECTIONS` |
 | `src/lib/avatars/rows.ts` | `sheet_views` mapping |
-| `src/lib/avatars/utils.ts` | `hasFourViews`, `sheetKind`, `missingViews`, `viewsToMake`, `sheetViewsPatch`; `sheetChangePatch` clears views |
+| `src/lib/avatars/utils.ts` | `hasFourViews`, `sheetKind`, `missingViews`, `viewsToMake`, `sheetViewsPatch`; `sheetChangePatch` deleted (no sheet uploads) |
 | `src/lib/avatars/generation.ts` | `buildAvatarViewPrompt` (replaces `buildAvatarSheetPrompt`), `estimateSheetCredits` |
 | `src/lib/avatars/sheet-layout.ts` | Pure strip layout for the composed sheet |
 | `src/lib/avatars/sheet-compose.ts` | Composes the four views into the `sheet` strip (server) |
@@ -73,6 +74,7 @@ Specs 2 and 4 are built at the same time from the same base. Spec 3 only *adds* 
 | `src/lib/avatars/studio.ts` | Sheet step copy and `sheetStatusLabel` |
 | `src/app/api/clients/[id]/avatars/[avatarId]/sheet/route.ts` | Generates the four views (or the missing ones), composes the strip |
 | `src/app/api/clients/[id]/avatars/[avatarId]/route.ts` | DELETE refuses while a script uses the avatar |
+| `src/app/api/clients/[id]/avatars/[avatarId]/images/route.ts`, `images/sign/route.ts` | Take the front only; sheets are no longer uploaded |
 | `src/components/avatars/avatar-sheet-views.tsx` | Four view tiles, shared by the Studio and Visualise |
 | `src/components/avatars/avatar-studio-sheet-step.tsx`, `avatar-sheet-generate.tsx`, `avatar-studio-summary.tsx`, `avatar-likeness-consent.tsx` | Studio shows four views; consent takes an id |
 | `src/components/nodes/avatar-focus-view.tsx` | Shows the composed strip at its own aspect |
@@ -122,7 +124,7 @@ Specs 2 and 4 are built at the same time from the same base. Spec 3 only *adds* 
 - Modify (tests): `src/lib/avatars/__tests__/fixtures.ts`, `src/lib/avatars/__tests__/rows.test.ts`, `src/lib/avatars/__tests__/utils.test.ts`, `src/lib/db/avatars.test.ts`
 
 **Interfaces:**
-- Produces: type `AvatarViewId = "front" | "left" | "right" | "back"`; type `AvatarSheetViews = Record<AvatarViewId, AvatarImage | null>`; `Avatar.sheetViews: AvatarSheetViews | null`; `AvatarPatch` accepts `sheetViews`; constants `AVATAR_VIEWS` (that order), `AVATAR_VIEW_LABELS`, `AVATAR_VIEW_ASPECT = "3:4"`; `hasFourViews(a: Pick<Avatar,"sheetViews"|"sheetStale">): boolean`; `sheetKind(a: Pick<Avatar,"sheet"|"sheetViews">): "none" | "three-view" | "uploaded" | "four-view"`; `missingViews(a: Pick<Avatar,"sheetViews"|"sheetStale">): AvatarViewId[]`; `sheetChangePatch(image)` now also sets `sheetViews: null`; test fixture `makeViews(prefix = "v"): AvatarSheetViews`.
+- Produces: type `AvatarViewId = "front" | "left" | "right" | "back"`; type `AvatarSheetViews = Record<AvatarViewId, AvatarImage | null>`; `Avatar.sheetViews: AvatarSheetViews | null`; `AvatarPatch` accepts `sheetViews`; constants `AVATAR_VIEWS` (that order), `AVATAR_VIEW_LABELS`, `AVATAR_VIEW_ASPECT = "3:4"`; `hasFourViews(a: Pick<Avatar,"sheetViews"|"sheetStale">): boolean`; `sheetKind(a: Pick<Avatar,"sheet"|"sheetViews">): "none" | "three-view" | "uploaded" | "four-view"`; `missingViews(a: Pick<Avatar,"sheetViews"|"sheetStale">): AvatarViewId[]`; test fixture `makeViews(prefix = "v"): AvatarSheetViews`.
 
 - [ ] **Step 1: Write the migration**
 
@@ -240,16 +242,9 @@ describe("sheet views (D339)", () => {
 
 In `src/lib/db/avatars.test.ts`, add `sheet_views: null,` to `ROW` after `sheet_stale: false,`.
 
-In `src/lib/avatars/__tests__/utils.test.ts`, replace the `sheetChangePatch` describe block with the one below and add the other three (import `hasFourViews`, `missingViews`, `sheetKind` from `../utils`, and `GENERATED`, `makeViews` from `./fixtures`):
+In `src/lib/avatars/__tests__/utils.test.ts`, add these three blocks (import `hasFourViews`, `missingViews`, `sheetKind` from `../utils`, and `makeViews` from `./fixtures`). Leave the `sheetChangePatch` block alone; Task 3 deletes it along with the sheet upload:
 
 ```ts
-describe("sheetChangePatch", () => {
-  it("makes an uploaded sheet current and drops the four views it replaces", () => {
-    const image = makeImage();
-    expect(sheetChangePatch(image)).toEqual({ sheet: image, sheetStale: false, sheetViews: null });
-  });
-});
-
 describe("hasFourViews (D339)", () => {
   it("needs every view, made from the front the avatar has now", () => {
     expect(hasFourViews(makeAvatar({ sheetViews: makeViews() }))).toBe(true);
@@ -260,7 +255,7 @@ describe("hasFourViews (D339)", () => {
 });
 
 describe("sheetKind (D339)", () => {
-  it("tells the four views from an older three-view sheet and the operator's own upload", () => {
+  it("tells the four views from an older three-view sheet and an older upload", () => {
     expect(sheetKind(makeAvatar({ sheetViews: makeViews() }))).toBe("four-view");
     expect(sheetKind(makeAvatar({ sheet: makeImage(GENERATED), sheetViews: null }))).toBe("three-view");
     expect(sheetKind(makeAvatar({ sheet: makeImage(), sheetViews: null }))).toBe("uploaded");
@@ -302,8 +297,8 @@ export type AvatarSheetViews = Record<AvatarViewId, AvatarImage | null>;
 and in `Avatar`, after `sheet: AvatarImage | null;`:
 
 ```ts
-  /** D339 — the four views. Null for an avatar whose sheet is the older three-view image (kept
-   *  until regenerated), an upload of the operator's own, or none. When all four exist, `sheet`
+  /** D339 — the four views. Null for an avatar whose sheet is the older three-view image or an
+   *  upload from before D339 (both kept until the views are generated), or that has none. When all four exist, `sheet`
    *  holds them composed side by side, so everything that sends the sheet (D308) is unchanged. */
   sheetViews: AvatarSheetViews | null;
 ```
@@ -329,14 +324,9 @@ In `src/lib/avatars/rows.ts`: import `AvatarSheetViews` with the other schema ty
 In `src/lib/avatars/utils.ts`:
 - import `AVATAR_VIEWS` from `./constants` (add to the existing import) and `AvatarViewId` from `./schema`;
 - add `| "sheetViews"` to the `AvatarPatch` Pick list;
-- replace `sheetChangePatch` and add the helpers:
+- add the helpers below `sheetChangePatch` (leave it as it is; Task 3 deletes it with the sheet upload):
 
 ```ts
-/** The operator's own sheet: one image, which replaces any four views (D339). */
-export function sheetChangePatch(image: AvatarImage): AvatarPatch {
-  return { sheet: image, sheetStale: false, sheetViews: null };
-}
-
 /** D339 — a current four-view sheet: every view made, from the front image the avatar has now. */
 export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">): boolean {
   const views = avatar.sheetViews;
@@ -346,7 +336,8 @@ export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">):
 export type SheetKind = "none" | "three-view" | "uploaded" | "four-view";
 
 /** Which kind of sheet an avatar has. A generated single image is the older three-view sheet
- *  (D288), kept until it is regenerated. */
+ *  (D288); an uploaded one predates D339, which ended sheet uploads. Both are kept until the
+ *  four views are generated. */
 export function sheetKind(avatar: Pick<Avatar, "sheet" | "sheetViews">): SheetKind {
   if (avatar.sheetViews) return "four-view";
   if (!avatar.sheet) return "none";
@@ -898,7 +889,7 @@ describe("POST sheet — four views (D339)", () => {
     expect(res.status).toBe(409);
   });
 
-  it("removes an uploaded sheet the new views replace", async () => {
+  it("removes an older uploaded sheet the new views replace", async () => {
     const { POST } = await import("./route");
     await POST(post({ modelId: NB2 }), { params });
     expect(removeObject).toHaveBeenCalledWith(makeAvatar().sheet!.url);
@@ -1073,11 +1064,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `src/components/avatars/avatar-sheet-views.tsx`
 - Modify: `src/components/avatars/avatar-studio-sheet-step.tsx`, `src/components/avatars/avatar-sheet-generate.tsx`, `src/components/avatars/avatar-studio-summary.tsx`, `src/components/avatars/avatar-likeness-consent.tsx`, `src/components/nodes/avatar-focus-view.tsx`
 - Modify: `src/hooks/use-avatar-generation.ts`, `src/services/avatars.service.ts`, `src/lib/avatars/studio.ts`
-- Test: `src/lib/avatars/__tests__/studio.test.ts`
+- Modify (sheet uploads end): `src/app/api/clients/[id]/avatars/[avatarId]/images/route.ts`, `src/app/api/clients/[id]/avatars/[avatarId]/images/sign/route.ts`, `src/hooks/use-avatar-studio.ts`, `src/lib/avatars/utils.ts`
+- Test: `src/lib/avatars/__tests__/studio.test.ts`, `src/app/api/clients/[id]/avatars/[avatarId]/images/route.test.ts`, `src/lib/avatars/__tests__/utils.test.ts`
 
 **Interfaces:**
 - Consumes: `hasFourViews`, `sheetKind`, `missingViews` (Task 1); `estimateSheetCredits` (Task 2); the sheet route's `{ avatar, creditsCharged, spentCredits, failed }`.
 - Produces: `AvatarSheetViews` component `({ name, views, generating, stale?, marker? })` where `marker?: (view: AvatarViewId) => ReactNode` (spec 4 merge point); `sheetStatusLabel(avatar, optional: string): string` in `studio.ts`; `avatarsService.generateSheet(clientId, avatarId, modelId, views?) → { avatar, creditsCharged, spentCredits, failed: { view, label, error }[] }`; `useAvatarGeneration` returns `generatingViews: AvatarViewId[]` (replacing `generatingSheet`, which stays as a derived boolean) and `generateSheet(modelId, views?)`; `AvatarLikenessConsent` accepts `id?: string`.
+- Removes (user's answer, handoff §2a: no sheet uploads): the Studio's sheet dropzone; `slot: "sheet"` on `POST …/images/sign` and `POST …/images` (now 400); `sheetChangePatch`. `avatarsService.uploadImage` and `useAvatarStudio().uploadImage` take `slot: "front"` only. `AvatarImageSlot` keeps `"sheet"`, which is still the storage folder generated views are written to.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1087,6 +1080,7 @@ In `src/lib/avatars/__tests__/studio.test.ts`, add to the "the sheet line follow
     expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheet: makeImage(GENERATED), sheetViews: null }) }))).toBe("Three views");
     expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheetViews: makeViews() }) }))).toBe("Four views");
     expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheet: null, sheetViews: { ...makeViews(), left: null } }) }))).toBe("Missing a view");
+    expect(stepStatusLine("sheet", snap({ avatar: makeAvatar({ sheet: makeImage(), sheetViews: null }) }))).toBe("Older sheet");
 ```
 
 and a new case:
@@ -1102,6 +1096,8 @@ and a new case:
 
 Run: `npx vitest run src/lib/avatars/__tests__/studio.test.ts`
 Expected: FAIL — "Added" returned for each.
+
+(The suite's own fixture: `makeImage()` with no argument is an upload, `makeImage(GENERATED)` a generated image, as Task 1's `sheetKind` test relies on.)
 
 - [ ] **Step 3: Update `studio.ts`**
 
@@ -1121,7 +1117,7 @@ export function sheetStatusLabel(
   if (avatar.sheetStale) return "Out of date";
   if (kind === "four-view") return hasFourViews(avatar) ? "Four views" : "Missing a view";
   if (kind === "three-view") return "Three views";
-  return "Added";
+  return "Older sheet"; // an upload from before D339 ended sheet uploads
 }
 ```
 
@@ -1321,11 +1317,13 @@ Replace `src/components/avatars/avatar-studio-sheet-step.tsx` with:
 ```tsx
 "use client";
 
+import { useState } from "react";
 import type { useAvatarGeneration } from "@/hooks/use-avatar-generation";
 import type { useAvatarStudio } from "@/hooks/use-avatar-studio";
+import { Button } from "@/components/ui/button";
+import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import { missingViews, sheetKind } from "@/lib/avatars/utils";
-import { AvatarImageDropzone } from "./avatar-image-dropzone";
 import { AvatarSheetGenerate } from "./avatar-sheet-generate";
 import { AvatarSheetViews } from "./avatar-sheet-views";
 
@@ -1337,10 +1335,13 @@ type Props = {
 const NOTICE = "rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-sm";
 
 // The Profile sheet step (D288, optional since D295, four views since D339): made from the front
-// image, view by view, or the operator's own single image, which replaces the views.
+// image, view by view. Sheets are no longer uploaded (D339). An avatar that still has an older
+// single-image sheet, three-view or uploaded, can open it until its four views replace it.
 export function AvatarStudioSheetStep({ studio: s, generation: g }: Props) {
+  const [showOlder, setShowOlder] = useState(false);
   const avatar = s.avatar;
   const kind = avatar ? sheetKind(avatar) : "none";
+  const older = kind === "three-view" || kind === "uploaded" ? avatar?.sheet ?? null : null;
   const missing = avatar ? missingViews(avatar) : [];
   const partial = kind === "four-view" && !avatar?.sheetStale && missing.length > 0;
   const working = s.uploading !== null || g.generatingSheet || g.picking !== null;
@@ -1353,8 +1354,14 @@ export function AvatarStudioSheetStep({ studio: s, generation: g }: Props) {
       {avatar?.sheetStale && kind !== "none" && (
         <p className={NOTICE}>The front image changed. Regenerate the four views so they show the same person.</p>
       )}
-      {kind === "three-view" && !avatar?.sheetStale && (
-        <p className={NOTICE}>This is the older three-view sheet. Regenerate it to get the four views.</p>
+      {older && !avatar?.sheetStale && (
+        <p className={NOTICE}>
+          This avatar has an older single-image sheet. Generate the four views to replace it; storyboard
+          panels need them.{" "}
+          <Button variant="link" size="xs" className="h-auto p-0" onClick={() => setShowOlder(true)}>
+            View it
+          </Button>
+        </p>
       )}
       <AvatarSheetViews
         name={s.name.trim() || "This avatar"}
@@ -1371,20 +1378,52 @@ export function AvatarStudioSheetStep({ studio: s, generation: g }: Props) {
         onModelChange={g.setSheetModelId}
         onGenerate={(modelId) => g.generateSheet(modelId, partial ? missing : undefined)}
       />
-      <AvatarImageDropzone
-        label="Or add your own profile sheet"
-        hint="One image. It replaces the four views."
-        aspect="16 / 9"
-        image={kind === "uploaded" || kind === "three-view" ? avatar?.sheet ?? null : null}
-        uploading={s.uploading === "sheet"}
-        disabled={working}
-        zoomTitle="Profile sheet"
-        onFile={(file) => s.uploadImage("sheet", file)}
-      />
+      {showOlder && older && (
+        <FullScreenImageZoom imageUrl={older.url} title="Older profile sheet" onClose={() => setShowOlder(false)} />
+      )}
     </>
   );
 }
 ```
+
+- [ ] **Step 7b: End sheet uploads (user's answer, handoff §2a)**
+
+Every sheet is four generated views, so nothing may upload one any more. In `src/app/api/clients/[id]/avatars/[avatarId]/images/route.test.ts`, replace the `"a new sheet is current"` test with:
+
+```ts
+  it("refuses a sheet upload: sheets are four generated views (D339)", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(req("images", { ...body, slot: "sheet", path: "clients/c1/avatars/a1/sheet/s.png" }), { params });
+    expect(res.status).toBe(400);
+    expect(updateAvatar).not.toHaveBeenCalled();
+  });
+```
+
+and add to the `"POST images/sign"` block:
+
+```ts
+  it("will not sign a sheet upload (D339)", async () => {
+    const { POST } = await import("./sign/route");
+    const res = await POST(
+      req("images/sign", { filename: "s.png", contentType: "image/png", size: 100, slot: "sheet" }),
+      { params },
+    );
+    expect(res.status).toBe(400);
+    expect(signAvatarImageUpload).not.toHaveBeenCalled();
+  });
+```
+
+Run: `npx vitest run "src/app/api/clients/[id]/avatars/[avatarId]/images"`
+Expected: FAIL on both (each route still accepts `"sheet"`).
+
+Then:
+- In both `images/sign/route.ts` and `images/route.ts`, change `slot: z.enum(["front", "sheet"])` to `slot: z.enum(["front"])`.
+- In `images/route.ts`, drop `sheetChangePatch` from the import, use `frontChangePatch(current, image)` directly as the change, read `current.front` as `replaced`, and update the precondition comment to name the front upload only.
+- Delete `sheetChangePatch` from `src/lib/avatars/utils.ts` and its `describe` block (and import) from `src/lib/avatars/__tests__/utils.test.ts`. Nothing else calls it once Task 2's route is in.
+- In `src/services/avatars.service.ts`, `uploadImage`'s `slot` parameter becomes `slot: "front"`. In `src/hooks/use-avatar-studio.ts`, `uploadImage`'s `slot` parameter becomes `slot: "front"` and the "a front and a sheet drop together" comment loses the sheet. The `uploading` state keeps its `AvatarImageSlot | null` type.
+
+Run: `npx vitest run "src/app/api/clients/[id]/avatars" src/lib/avatars`
+Expected: PASS.
 
 - [ ] **Step 8: Consent ids and the canvas focus view**
 
@@ -1402,16 +1441,16 @@ and change the `<img>` inside `Reference` from `object-cover` to `object-contain
 
 - [ ] **Step 9: Type check, lint, and look at it**
 
-Run: `npx tsc --noEmit && npx eslint src/components/avatars src/hooks/use-avatar-generation.ts src/lib/avatars`
+Run: `npx tsc --noEmit && npx eslint src/components/avatars src/hooks/use-avatar-generation.ts src/hooks/use-avatar-studio.ts src/services/avatars.service.ts src/lib/avatars "src/app/api/clients/[id]/avatars/[avatarId]/images"`
 Expected: clean.
 
-Run the app (`npm run dev`), open an avatar in the Avatar Studio, go to Profile sheet, click Generate the four views. Expected: four placeholders, then four tiles labelled Front, Left, Right, Back with the two profiles facing opposite edges; the stepper reads "Four views". On an avatar with an older sheet the notice reads "This is the older three-view sheet…". (This needs migration 0053 applied: Task 1 Step 8.)
+Run the app (`npm run dev`), open an avatar in the Avatar Studio, go to Profile sheet, click Generate the four views. Expected: four placeholders, then four tiles labelled Front, Left, Right, Back with the two profiles facing opposite edges; the stepper reads "Four views". There is no "add your own profile sheet" area. On an avatar with an older sheet (three-view or uploaded) the notice reads "This avatar has an older single-image sheet…" and **View it** opens that sheet full screen. The Look step's front upload still works. (This needs migration 0053 applied: Task 1 Step 8.)
 
 - [ ] **Step 10: Commit**
 
 ```bash
-git add src/components/avatars src/components/nodes/avatar-focus-view.tsx src/hooks/use-avatar-generation.ts src/services/avatars.service.ts src/lib/avatars
-git commit -m "feat(avatars): the Studio's sheet step shows and makes four views (D339)
+git add src/components/avatars src/components/nodes/avatar-focus-view.tsx src/hooks/use-avatar-generation.ts src/hooks/use-avatar-studio.ts src/services/avatars.service.ts src/lib/avatars "src/app/api/clients/[id]/avatars/[avatarId]/images"
+git commit -m "feat(avatars): the Studio's sheet step shows and makes four views; sheets are no longer uploaded (D339)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -6046,11 +6085,11 @@ Append to the end of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadm
 
 ### D339 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
 
-**Decision.** The sheet is four separate 3:4 images made from the front image (`client_avatars.sheet_views`), each prompt stating which edge of the frame the person faces. Once all four exist they are also composed side by side into `sheet`, so everything that sends the sheet (D308) is unchanged. A view that fails is refunded and named; the others are kept and the missing one can be made alone. Avatars made before keep their three-view `sheet` until regenerated; an uploaded sheet replaces the views.
+**Decision.** The sheet is four separate 3:4 images made from the front image (`client_avatars.sheet_views`), each prompt stating which edge of the frame the person faces. Once all four exist they are also composed side by side into `sheet`, so everything that sends the sheet (D308) is unchanged. A view that fails is refunded and named; the others are kept and the missing one can be made alone. Sheets are no longer uploaded: the Studio's sheet upload is removed and the image routes take only the front. Avatars made before keep their three-view or uploaded `sheet` until their four views are generated. A Specific person's face photo is still an upload.
 
-**Why.** Spec 3 Q3: one kind of sheet for every avatar, Studio included. The dry run's two profiles faced the same way until the direction was stated. Separate views are what panels send as references and what spec 4's client comments on.
+**Why.** Spec 3 Q3: one kind of sheet for every avatar, Studio included. The dry run's two profiles faced the same way until the direction was stated. Separate views are what panels send as references and what spec 4's client comments on. An uploaded single image cannot stand in for the four views, so it would leave an avatar that looks finished in the Studio but cannot be drawn into a panel (user's answer, 8 Oct 2026).
 
-**Rejected.** Three views with the direction stated (Q3 a). Four views only for Visualise avatars (two kinds of sheet). One generated four-up image (cannot send or comment on a view alone).
+**Rejected.** Three views with the direction stated (Q3 a). Four views only for Visualise avatars (two kinds of sheet). One generated four-up image (cannot send or comment on a view alone). Keeping the sheet upload as a replacement for the views (the avatar could not be drawn into panels). An upload per view (more work, and nobody has asked for it).
 
 **Originated →** spec 3 §5.4, §14 (3.3).
 
