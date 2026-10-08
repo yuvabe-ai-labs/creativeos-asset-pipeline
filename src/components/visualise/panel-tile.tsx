@@ -55,14 +55,17 @@ export function PanelTile({ label, time, description, view, aspect, credits, onD
   return (
     <figure className="relative m-0 flex min-w-0 flex-col gap-2">
       <div className="group relative">
-        <PanelFrame view={view} aspect={aspect} label={label} onOpen={onOpen} />
-        {/* The shot on hover or focus. The scrim is sized for a white sketch, the brightest case. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-lg bg-gradient-to-t from-foreground/90 via-foreground/70 to-transparent px-3 pb-3 pt-10 opacity-0 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-focus-within:opacity-100 group-hover:opacity-100"
-        >
-          <p className="line-clamp-5 text-xs leading-snug text-background">{description}</p>
-        </div>
+        <PanelFrame view={view} aspect={aspect} label={label} description={description} onOpen={onOpen} />
+        {/* The shot on hover or focus. The scrim is sized for a white sketch, the brightest case.
+            Not while drawing: the placeholder already shows it. */}
+        {!busy && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-lg bg-gradient-to-t from-foreground/90 via-foreground/70 to-transparent px-3 pb-3 pt-10 opacity-0 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-focus-within:opacity-100 group-hover:opacity-100"
+          >
+            <p className="line-clamp-5 text-xs leading-snug text-background">{description}</p>
+          </div>
+        )}
         {badge && (
           <Hint text={badge.hint} className="absolute left-2 top-2">
             <Badge variant="outline" className={badge.tone}>{badge.text}</Badge>
