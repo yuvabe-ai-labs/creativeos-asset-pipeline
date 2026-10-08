@@ -5,17 +5,19 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { CastMember, Shot } from "@/lib/scripts/schema";
 import { formatRange, groupByBeat, timeShots, type TimedShot } from "@/lib/scripts/timeline";
-import { SHOT_GRID, ScriptShotRow } from "./script-shot-row";
+import { SHOT_GRID, ScriptShotRow, type ShotState } from "./script-shot-row";
 
 const COLUMNS = ["Time", "Visual", "VO", "On-screen text", "On screen"];
 
-export function ScriptShotList({ shots, cast, compact = false, aside }: {
+export function ScriptShotList({ shots, cast, compact = false, aside, shotState }: {
   shots: Shot[];
   cast: CastMember[];
   /** Stacked rows for a narrow pane (Visualise), with no column header. */
   compact?: boolean;
   /** Drawn beside each compact row (Visualise: the panel status). */
   aside?: (t: TimedShot) => ReactNode;
+  /** Each compact row's click target and drawing state (Visualise). */
+  shotState?: (t: TimedShot) => ShotState;
 }) {
   const [grouped, setGrouped] = useState(true);
   const switchId = useId();
@@ -44,11 +46,11 @@ export function ScriptShotList({ shots, cast, compact = false, aside }: {
                 <span className="text-eyebrow font-semibold text-foreground">{g.beat || "No beat"}</span>
                 <span className="text-xs font-medium tabular-nums text-muted-foreground">{formatRange(g.start, g.end)}</span>
               </div>
-              <ul>{g.shots.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} compact={compact} aside={aside ? aside(t) : undefined} />)}</ul>
+              <ul>{g.shots.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} compact={compact} aside={aside ? aside(t) : undefined} state={shotState?.(t)} />)}</ul>
             </div>
           ))
         ) : (
-          <ul>{timed.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} compact={compact} aside={aside ? aside(t) : undefined} />)}</ul>
+          <ul>{timed.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} compact={compact} aside={aside ? aside(t) : undefined} state={shotState?.(t)} />)}</ul>
         )}
       </div>
     </section>

@@ -59,6 +59,10 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
           avatarFaces={model.avatarFaces}
           compact
           cast={null}
+          shotState={(t) => {
+            const v = model.views.get(t.shot.id)!;
+            return { drawing: v.status === "generating", onOpen: v.pick ? () => setOpenShot(t.shot.id) : undefined };
+          }}
           shotAside={(t) => (
             <PanelShotStatus
               view={model.views.get(t.shot.id)!}
