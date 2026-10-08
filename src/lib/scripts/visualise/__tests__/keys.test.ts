@@ -38,7 +38,8 @@ describe("shotKey (D343)", () => {
 describe("faceKey (D343)", () => {
   it("changes when the front or any view changes, and only then", () => {
     const a = readyAvatar(MEENAKSHI_AVATAR, "meenakshi");
-    expect(faceKey({ ...a, name: "Renamed", voice: null })).toBe(faceKey(a));
+    const renamed = { ...a, name: "Renamed", voice: null };
+    expect(faceKey(renamed)).toBe(faceKey(a));
     expect(faceKey({ ...a, sheetViews: { ...a.sheetViews!, left: makeViews("new").left } })).not.toBe(faceKey(a));
     expect(faceKey({ ...a, front: { ...a.front!, url: "https://x/new.png" } })).not.toBe(faceKey(a));
   });
