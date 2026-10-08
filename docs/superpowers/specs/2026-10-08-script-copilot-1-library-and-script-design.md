@@ -227,7 +227,15 @@ the shot descriptions as words.
 face. The demo ends at approval and handoff, so it does not show this. Closing it means teaching
 the canvas to hold a cast, which changes the video pipeline and is later work (§9).
 
-## 6. The seeded Reel 01
+## 6. The seeded Reel 01, plus Reels 06 and 08 *(extended 8 Oct by spec 2 Q2c.2)*
+
+Three seeded scripts, one per format structure, so the copilot can learn each from the library
+(spec 2 §4.3): **Reel 01** (UGC, 14 shots), **Reel 06** (Founder-led, 9 shots) and **Reel 08**
+(UGC, review first, 9 shots), each split by hand from the outline, every shot with a VO line and
+on-screen text (a beat's card carries across its split shots), each 52 seconds. Loaded with
+.
+
+The rest of this section describes Reel 01.
 
 This spec ships **Reel 01, "Golu starts today"**, already written as a script for the Jackfruit365
 client:

@@ -34,7 +34,15 @@ describe("printScript", () => {
   });
 
   it("leaves an empty on-screen text cell empty, not bold markers", () => {
-    expect(tableRows(text)[1].endsWith("| Nine nights of guests, and the kitchen doesn't close. |  |")).toBe(true);
+    const blank: ScriptDoc = structuredClone(doc);
+    blank.shots[1] = { ...blank.shots[1], onScreenText: "" };
+    expect(tableRows(printScript(blank))[1].endsWith("| Nine nights of guests, and the kitchen doesn't close. |  |")).toBe(true);
+  });
+
+  it("carries a beat's card onto both of its split shots", () => {
+    const rows = tableRows(text);
+    expect(rows[0].endsWith("| **Golu starts today.** |")).toBe(true);
+    expect(rows[1].endsWith("| **Golu starts today.** |")).toBe(true);
   });
 
   it("prints disclaimers and watch-outs after the table", () => {
