@@ -21,7 +21,7 @@ export function ScriptCastList({
           const face = c.avatarId ? avatarFaces[c.avatarId] ?? null : null;
           const extra = renderExtra?.(c);
           return (
-            <li key={c.id} id={castAnchor(c.id)} className="flex flex-wrap gap-3 rounded-xl border border-border bg-card p-3">
+            <li key={c.id} id={castAnchor(c.id)} className="flex flex-wrap gap-3 rounded-xl border border-border bg-card p-3 has-[[data-part-commented]]:border-client/40">
               <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
                 {face ? (
                   // eslint-disable-next-line @next/next/no-img-element

@@ -10,7 +10,7 @@ export function ScriptShotRow({ timed, cast, after }: { timed: TimedShot; cast: 
   const { shot } = timed;
   const names = shot.onScreen.map((id) => cast.find((c) => c.id === id)?.name).filter(Boolean);
   return (
-    <li id={shotAnchor(shot.id)} className={`grid gap-3 border-b border-border px-4 py-3 last:border-b-0 ${SHOT_GRID}`}>
+    <li id={shotAnchor(shot.id)} className={`grid gap-3 border-b border-border px-4 py-3 last:border-b-0 has-[[data-part-commented]]:bg-client/5 ${SHOT_GRID}`}>
       <span className="flex flex-col text-sm tabular-nums text-muted-foreground">
         <span className="font-medium text-foreground">S{timed.index + 1}</span>
         {formatRange(timed.start, timed.end)}

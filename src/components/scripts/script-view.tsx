@@ -16,17 +16,9 @@ export function ScriptView({
   avatarFaces: Record<string, string | null>;
   slots?: ScriptViewSlots;
 }) {
-  const card = <ScriptContextCard doc={script.doc} stage={script.stage} />;
   return (
     <div className="flex flex-col gap-8">
-      {slots?.context ? (
-        <div className="flex flex-col gap-3">
-          {card}
-          {slots.context}
-        </div>
-      ) : (
-        card
-      )}
+      <ScriptContextCard doc={script.doc} stage={script.stage} after={slots?.context} />
       <ScriptCastList cast={script.doc.cast} avatarFaces={avatarFaces} renderExtra={slots?.castMember} />
       <ScriptShotList shots={script.doc.shots} cast={script.doc.cast} renderAfter={slots?.shot} />
     </div>
