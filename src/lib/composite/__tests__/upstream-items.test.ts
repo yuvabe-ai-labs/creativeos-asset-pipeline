@@ -3,7 +3,7 @@ import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { Avatar } from "@/lib/avatars/schema";
 import { avatarSheetId } from "@/lib/video-gen/select-references";
-import { compositeUpstreamItems, compositeMentionUpstream, compositeMentionables } from "../upstream-items";
+import { compositeUpstreamItems, compositeMentionUpstream, compositeMentionables, compositePreviewOf } from "../upstream-items";
 
 const node = (id: string, type: string, data: Record<string, unknown>) =>
   ({ id, type, position: { x: 0, y: 0 }, data }) as unknown as AppNode;
@@ -63,6 +63,31 @@ describe("compositeMentionUpstream / compositeMentionables", () => {
       "Composite: Office sheet",
       "Sketch: Sketch",
     ]);
+  });
+
+  // D320 — a wired script or multishot is offered whole and shot by shot, with no image.
+  it("offers a wired multishot and each of its shots as context", () => {
+    const nodes = [
+      ...NODES,
+      node("m", "multishot", { title: "Morning reel", cuts: [{ id: "c1", text: "She wakes up.", seconds: 3 }, { id: "c2", text: "Coffee pour.", seconds: 2 }] }),
+    ];
+    const items = compositeUpstreamItems("c", nodes, [edge("f"), edge("m")], AVATARS);
+    expect(items.find((i) => i.id === "m")).toMatchObject({ type: "multishot", label: "Morning reel" });
+    const mention = compositeMentionUpstream(items);
+    expect(mention.map((m) => m.id)).toEqual(["f"]);
+    expect(compositeMentionables(mention, items).map((m) => [m.id, m.label])).toEqual([
+      ["f", "File: Sandals.png"],
+      ["m", "Multishot: Morning reel"],
+      ["m:shot:c1", "Shot: Morning reel · Shot 1"],
+      ["m:shot:c2", "Shot: Morning reel · Shot 2"],
+    ]);
+  });
+
+  it("previews an image input by its picture and a multishot by the shots the composite reads", () => {
+    const nodes = [...NODES, node("m", "multishot", { title: "Morning reel", cuts: [{ id: "c1", text: "She wakes up.", seconds: 3 }] })];
+    const items = compositeUpstreamItems("c", nodes, [edge("av"), edge("m")], AVATARS);
+    expect(compositePreviewOf(items[0])).toMatchObject({ type: "avatar", label: "Riya", fileUrl: "https://cdn/front.png", text: "" });
+    expect(compositePreviewOf(items[1])).toMatchObject({ type: "multishot", label: "Morning reel", text: "Shot 1 (3s): She wakes up." });
   });
 
   it("offers no sheet chip for a stale sheet", () => {

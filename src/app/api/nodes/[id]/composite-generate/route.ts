@@ -11,6 +11,7 @@ import {
   mentionIds,
   type CompositeRef,
 } from "@/lib/composite/references";
+import { compositeContextLines, contextIds, resolveContextMentions } from "@/lib/composite/context";
 import { resolveCompositeModelId } from "@/lib/composite/model";
 import { referenceProblem, runCompositeGeneration } from "@/lib/composite/run-generation";
 import {
@@ -53,9 +54,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const inputs = await loadCompositeInputs(nodeId, clientId);
     if (!inputs.ok) return apiError(inputs.error, 400);
-    const { refs, avatarIds } = inputs;
+    const { refs, avatarIds, contexts } = inputs;
 
-    const dangling = danglingMentions(rawInstruction, refs);
+    // D320 — a chip on a wired script or shot is not dangling, though it carries no image.
+    const dangling = danglingMentions(rawInstruction, refs, contextIds(contexts));
     if (dangling.length) return apiError(danglingMentionMessage(dangling), 400);
 
     // D312 — the operator's model, Seedream by default. A non-Seedream composite of an avatar
@@ -136,13 +138,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (problem) return apiError(problem.message, problem.status);
 
     const referenceUrls = images.map((i) => i.url);
-    const prompt = buildCompositePrompt({ refs, instruction: resolveCompositeMentions(rawInstruction, refs) });
+    const prompt = buildCompositePrompt({
+      refs,
+      instruction: resolveCompositeMentions(resolveContextMentions(rawInstruction, contexts), refs),
+      context: compositeContextLines(contexts, rawInstruction),
+    });
 
     return runCompositeGeneration({
       ...run,
       prompt,
       referenceUrls,
-      inputsUsed: { promptId: COMPOSITE_PROMPT_ID, instruction: rawInstruction, prompt, referenceImageUrls: referenceUrls, avatarIds },
+      inputsUsed: {
+        promptId: COMPOSITE_PROMPT_ID,
+        instruction: rawInstruction,
+        prompt,
+        referenceImageUrls: referenceUrls,
+        avatarIds,
+        contextNodeIds: contexts.map((c) => c.nodeId),
+      },
     });
   });
 }

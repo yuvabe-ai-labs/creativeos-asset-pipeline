@@ -8,18 +8,24 @@ import { AddConnection } from "./add-connection";
 import { RailItem } from "./focus-rail-item";
 import { useRailDisconnect } from "./use-rail-disconnect";
 
+/** "compose", "history", or the id of a wired input whose preview is open. */
+export type CompositeRailSelection = string;
+
 type Props = {
   nodeId: string;
   upstream: CompositeUpstreamItem[];
-  selected: "compose" | "history";
-  onSelect: (next: "compose" | "history") => void;
+  selected: CompositeRailSelection;
+  onSelect: (next: CompositeRailSelection) => void;
   versionCount: number;
 };
 
-// D312 — the Composite focus view's left rail: compose, the wired inputs, History.
+// D312 — the Composite focus view's left rail: compose, the wired inputs, History. A wired input
+// opens its read-only preview, as every other focus view's rail does.
 export function CompositeFocusRail({ nodeId, upstream, selected, onSelect, versionCount }: Props) {
   const editable = useCanvasEditable();
-  const { removeFor } = useRailDisconnect(nodeId, () => {});
+  const { removeFor } = useRailDisconnect(nodeId, (removedId) => {
+    if (selected === removedId) onSelect("compose");
+  });
   return (
       <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
         <RailItem icon={<Combine className="size-4 text-primary" strokeWidth={1.5} />} label="Composite" active={selected === "compose"} onClick={() => onSelect("compose")} />
@@ -33,7 +39,7 @@ export function CompositeFocusRail({ nodeId, upstream, selected, onSelect, versi
           upstream.map((u) => {
             const remove = editable ? removeFor(u.id, u.label) : null;
             return (
-              <RailItem key={u.id} icon={<NodeIcon type={u.type} />} label={u.label} active={false} onClick={() => onSelect("compose")} onRemove={remove?.onClick} removeLabel={remove?.label} removeKind={remove?.kind} />
+              <RailItem key={u.id} icon={<NodeIcon type={u.type} />} label={u.label} active={selected === u.id} onClick={() => onSelect(u.id)} onRemove={remove?.onClick} removeLabel={remove?.label} removeKind={remove?.kind} />
             );
           })
         )}

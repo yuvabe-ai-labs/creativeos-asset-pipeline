@@ -40,6 +40,33 @@ describe("buildCompositePrompt (D312)", () => {
     expect(bare).toContain("An empty bedroom, four angles, warm light.");
   });
 
+  // D320 — a wired script or shot: a still of that moment, its words never lettered in.
+  it("puts the shot context before the instruction, only when there is some", () => {
+    const p = buildCompositePrompt({
+      refs: [SANDALS],
+      instruction: "Sandals.png (image 3) for Shot 2 of Launch reel (see the shot context).",
+      context: ["From Launch reel:\n- Shot 2 (2s): Close-up of the sandals on the floor."],
+    });
+    expect(p).toContain("Shot context:");
+    expect(p).toMatch(/show a moment, not motion/);
+    expect(p).toMatch(/Never write any of its words/);
+    expect(p.indexOf("Shot 2 (2s)")).toBeLessThan(p.indexOf("Make this picture:"));
+    expect(buildCompositePrompt({ refs: [SANDALS], instruction: "On a desk." })).not.toContain("Shot context");
+  });
+
+  // "A background for @Shot 1" came back with the shot's presenter in it: the context must serve
+  // the description, not override it.
+  it("lets the description decide: a background takes the shot's place, never its person", () => {
+    const p = buildCompositePrompt({
+      refs: [],
+      instruction: "A suitable background image for One Spoon (see the shot context).",
+      context: ["From One Spoon:\n- Shot 1 (4s): The creator stands at the kitchen counter."],
+    });
+    expect(p).toMatch(/The description below decides WHAT the picture is/);
+    expect(p).toMatch(/background, location, setting/);
+    expect(p).toMatch(/Put NO person, hands or body in it/);
+  });
+
   it("adds no styling of its own", () => {
     const plain = buildCompositePrompt({ refs: [SANDALS], instruction: "On a desk." });
     for (const term of ["mm", "f/", "aperture", "depth of field", "bokeh", "golden hour", "softbox", "film", "grain", "grade"]) {
