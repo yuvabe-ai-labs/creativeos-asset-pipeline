@@ -1,0 +1,54 @@
+{
+  "header": {
+    "reelNumber": 1,
+    "title": "Golu starts today",
+    "format": "UGC",
+    "region": "South",
+    "postDate": "Sun 11 Oct (first day of Navratri)",
+    "theme": "Navratri / Golu",
+    "aspect": "9:16",
+    "targetLength": "45 to 55 sec"
+  },
+  "context": {
+    "purpose": "Open the series on the first morning of Golu in a Chennai home. Festival week doesn't have to mean looking away from health: the batter gets its spoon, and the pack's claim carries the benefit.",
+    "settingAndCamera": "Chennai flat with a Golu of five or seven steps (padi) in the hall and a pair of marapachi bommai at the centre. Kitchen in soft morning daylight with a gas stove and an iron dosa tawa. Gentle handheld, top-down on the batter bowl.",
+    "disclaimers": "D3 applies as well as D1, D2 and D4, because the study is named.",
+    "watchOuts": [
+      "Post Sun 11 Oct, the first day of Navratri, and confirm it in a Panchang. Onion and garlic stay off screen. Golu is kept in many Tamil, Telugu and Kannada homes, not all.",
+      "Meenakshi never says her family's sugar is in check. The only health line is the pack's own claim, which legal should clear in her voice, with D1 on screen.",
+      "Sundal on the Golu tray, no mithai."
+    ]
+  },
+  "cast": [
+    {
+      "id": "meenakshi",
+      "name": "Meenakshi",
+      "description": "Meenakshi, 54, Chennai. Cotton saree in the kitchen, silk with a zari border for guests. Glass bangles, kumkum pottu, reading glasses on a chain. Easy, amused English with a Tamil lilt.",
+      "avatarId": null,
+      "isLead": true
+    },
+    {
+      "id": "husband",
+      "name": "Meenakshi's husband",
+      "description": "Her husband, 58, in a veshti.",
+      "avatarId": null,
+      "isLead": false
+    }
+  ],
+  "shots": [
+    { "id": "s01", "beat": "HOOK", "lengthSeconds": 3, "visual": "First morning of Golu. Early light in the hall. Meenakshi straightens the last doll on the steps.", "vo": "Golu starts today.", "onScreenText": "Golu starts today.", "onScreen": ["meenakshi"] },
+    { "id": "s02", "beat": "HOOK", "lengthSeconds": 2, "visual": "She turns to camera with a small laugh.", "vo": "Nine nights of guests, and the kitchen doesn't close.", "onScreenText": "", "onScreen": ["meenakshi"] },
+    { "id": "s03", "beat": "INTRO", "lengthSeconds": 4, "visual": "The same morning, in the kitchen. Sambar simmering, the iron tawa heating, a bowl of dosa batter on the counter.", "vo": "Festival week is busy, but that's no reason to let health slide.", "onScreenText": "Festivals, without compromising on health", "onScreen": [] },
+    { "id": "s04", "beat": "INTRO", "lengthSeconds": 3, "visual": "Cut to the kitchen door. Through it, the Golu steps wait in the hall.", "vo": "So breakfast stays simple: dosa and sambar.", "onScreenText": "", "onScreen": [] },
+    { "id": "s05", "beat": "STORY", "lengthSeconds": 4, "visual": "Meenakshi holds the pack up beside the batter bowl.", "vo": "This is where Jackfruit365 comes in.", "onScreenText": "One bowl. One stir.", "onScreen": ["meenakshi"] },
+    { "id": "s06", "beat": "STORY", "lengthSeconds": 3, "visual": "She tilts the bowl towards camera. Her husband sits down at the table behind her.", "vo": "I put it in the batter, so one stir covers the whole breakfast.", "onScreenText": "", "onScreen": ["meenakshi", "husband"] },
+    { "id": "s07", "beat": "STEP", "lengthSeconds": 6, "visual": "Top-down on the bowl. Meenakshi levels one tablespoon of flour, then a second, and stirs both into the batter.", "vo": "One level tablespoon of the flour for each person. Two of us at breakfast, so two spoons.", "onScreenText": "Just 1 tablespoon per meal", "onScreen": ["meenakshi"] },
+    { "id": "s08", "beat": "REVIEW", "lengthSeconds": 8, "visual": "A real Amazon review card slides in with a Verified Purchase badge. Meenakshi glances at it. Use a real, cleared review on this theme: fitting the habit into a busy week.", "vo": "One customer wrote on Amazon: \"[real review, verbatim]\".", "onScreenText": "Customer review on Amazon · Verified Purchase", "onScreen": ["meenakshi"] },
+    { "id": "s09", "beat": "BODY", "lengthSeconds": 2.5, "visual": "A dosa sizzles on the iron tawa.", "vo": "Then it's dosas, sambar and chutney, same as always.", "onScreenText": "No change to your diet", "onScreen": [] },
+    { "id": "s10", "beat": "BODY", "lengthSeconds": 2.5, "visual": "Soft dissolve to the family at the breakfast table with dosas, sambar, coconut chutney and a little podi.", "vo": "No change to our diet.", "onScreenText": "No change to your diet", "onScreen": ["meenakshi", "husband"] },
+    { "id": "s11", "beat": "PAYOFF", "lengthSeconds": 3.5, "visual": "Meenakshi taps the claim line on the pack.", "vo": "Breakfast is done. Jackfruit365 helps control blood sugar levels, and that's how we're starting Golu.", "onScreenText": "Helps control blood sugar levels*", "onScreen": ["meenakshi"] },
+    { "id": "s12", "beat": "PAYOFF", "lengthSeconds": 3.5, "visual": "She lights the kuthuvilakku while her husband finishes his coffee. The silk saree waits on a chair for the evening.", "vo": "Now, let the guests come.", "onScreenText": "Guests tonight.", "onScreen": ["meenakshi", "husband"] },
+    { "id": "s13", "beat": "PROOF", "lengthSeconds": 3, "visual": "Slow push-in on the open pack. Hold the claim card for 3 seconds.", "vo": "It's clinically tested green jackfruit flour.", "onScreenText": "Helps control blood sugar levels* · Clinically tested. Nutrition & Diabetes, 2021", "onScreen": [] },
+    { "id": "s14", "beat": "OUTRO", "lengthSeconds": 4, "visual": "Pack on the steel counter beside the brass lamp.", "vo": "Jackfruit365 Green Jackfruit Flour. Available on Amazon.", "onScreenText": "Pack shot. Available on Amazon. Disclaimer line.", "onScreen": [] }
+  ]
+}
