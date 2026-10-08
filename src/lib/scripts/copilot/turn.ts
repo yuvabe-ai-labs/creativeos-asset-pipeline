@@ -7,7 +7,7 @@ import { fieldLabel, parseFieldPath, readField, writeField } from "./fields";
 import { fillToFinal } from "./fill-to-final";
 import { anglesPrompt, cardPrompt, draftPrompt, editPrompt, extractPrompt, inlinePrompt, type CopilotBase } from "./messages";
 import type { StructuredCall } from "./model";
-import { applyOps, beforeAfter, type OpsGen } from "./ops";
+import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
 import { anglesOutputSchema, cardOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
 import { libraryFormats, nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
 import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptNotes } from "./schema";
@@ -131,6 +131,11 @@ async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, 
   return (current) => {
     if (out.ops.length === 0) return { patch: null, result: [{ content: reply, card: null }] };
     if (!current.doc) return { error: "There's no draft to change.", status: 409 };
+    // A shot the person typed into while the model worked is not overwritten (spec 2 §9).
+    const stale = staleTargets(out.ops, doc.shots, current.doc);
+    if (stale.length > 0) {
+      return { patch: null, result: [{ content: `You changed ${stale.join(", ")} while I was working, so I left it as you wrote it. Ask me again if you still want the change.`, card: null }] };
+    }
     const r = applyOps(current.doc, current.notes, out.ops, gen);
     if (!r.ok) return { patch: null, result: [{ content: `I couldn't make that change: ${r.error} Nothing was changed.`, card: null }] };
     if (r.touchedShotIds.length > 1) {
@@ -144,6 +149,11 @@ async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, 
 export function acceptProposal(current: GenerateScript, card: ProposalCard, gen: OpsGen): Change<{ card: ProposalCard; reply: string }> {
   if (card.status !== "pending") return { error: "That change was already settled.", status: 409 };
   if (!current.doc) return { error: "There's no draft to change.", status: 409 };
+  // card.before is the shots as they were when proposed: a shot changed since then is not overwritten.
+  const stale = staleTargets(card.ops, card.before, current.doc);
+  if (stale.length > 0) {
+    return { patch: null, result: { card: { ...card, status: "stale" }, reply: `You changed ${stale.join(", ")} since I proposed that, so nothing was applied. Ask me again.` } };
+  }
   const r = applyOps(current.doc, current.notes, card.ops, gen);
   if (!r.ok) {
     return { patch: null, result: { card: { ...card, status: "stale" }, reply: "The script changed since I proposed that, so nothing was applied. Ask me again." } };

@@ -169,6 +169,14 @@ describe("after the draft: chat edits", () => {
     expect(out.patch?.doc?.shots[2].vo).toBe("Copilot line.");
   });
 
+  it("leaves a shot alone when the person typed into it while the copilot was rewriting it (final review 1)", async () => {
+    const m = fakeModel({ script_edit: [{ ops: [op({ op: "update_shot", shotId: "s03", shot: { beat: "INTRO", lengthSeconds: 4, visual: "Model visual.", vo: "Model line.", onScreenText: "Card", onScreen: ["meenakshi"] } })], reply: "Rewrote S3." }] });
+    const typed = { ...doc, shots: doc.shots.map((s) => (s.id === "s03" ? { ...s, visual: "Typed by the person." } : s)) };
+    const out = ok(await run(written, "rewrite S3", deps(m.call), { ...written, doc: typed, docVersion: 6 }));
+    expect(out.patch).toBeNull();
+    expect(out.result[0].content).toMatch(/You changed S3 while I was working/);
+  });
+
   it("changes nothing when an operation fails, and says so", async () => {
     const m = fakeModel({ script_edit: [{ ops: [op({ op: "remove_shot", shotId: "s99" })], reply: "Removed it." }] });
     const out = ok(await run(written, "remove S99", deps(m.call)));
@@ -203,6 +211,21 @@ describe("acceptProposal", () => {
     expect(out.patch).toBeNull();
     expect(out.result.card.status).toBe("stale");
     expect(out.result.reply).toMatch(/changed since I proposed that/);
+  });
+
+  it("applies nothing when the person changed a targeted shot since the proposal (final review 1)", () => {
+    const rewrite: ProposalCard = {
+      ...card,
+      before: [doc.shots[3]],
+      ops: [{ op: "update_shot", path: null, value: null, shotId: "s04", afterShotId: null, list: null, cast: null, itemId: null, second: null,
+        shot: { beat: "INTRO", lengthSeconds: 4, visual: "Proposed.", vo: "Proposed line.", onScreenText: "", onScreen: [] } }],
+    };
+    const typed = { ...written, doc: { ...doc, shots: doc.shots.map((s) => (s.id === "s04" ? { ...s, vo: "Pasted by the person." } : s)) } };
+    const out = ok(acceptProposal(typed, rewrite, gen));
+    expect(out.patch).toBeNull();
+    expect(out.result.card.status).toBe("stale");
+    expect(out.result.reply).toMatch(/You changed S4 since I proposed that/);
+    expect(ok(acceptProposal(written, rewrite, gen)).patch?.doc?.shots[3].visual).toBe("Proposed.");
   });
 
   it("refuses a card that was already settled", () => {

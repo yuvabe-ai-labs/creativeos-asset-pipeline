@@ -179,3 +179,18 @@ export function beforeAfter(before: ScriptDoc, after: ScriptDoc, touched: string
   const set = new Set(touched);
   return { before: before.shots.filter((s) => set.has(s.id)), after: after.shots.filter((s) => set.has(s.id)) };
 }
+
+/** Shots an edit rewrites whole (update, split, remove) whose content changed since `snapshot` was
+ *  taken: the person typed into them while the copilot worked, or after it proposed. Such an edit is
+ *  not applied, so it never undoes what the person typed (spec 2 §9). Returns the S-labels. */
+export function staleTargets(ops: EditOp[], snapshot: Shot[], current: ScriptDoc): string[] {
+  const rewrites = new Set(["update_shot", "split_shot", "remove_shot"]);
+  const stale: string[] = [];
+  for (const op of ops) {
+    if (!rewrites.has(op.op) || !op.shotId) continue;
+    const before = snapshot.find((s) => s.id === op.shotId);
+    const index = current.shots.findIndex((s) => s.id === op.shotId);
+    if (before && index >= 0 && JSON.stringify(before) !== JSON.stringify(current.shots[index])) stale.push(`S${index + 1}`);
+  }
+  return [...new Set(stale)];
+}
