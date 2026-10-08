@@ -1,12 +1,18 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ScriptView } from "@/components/scripts/script-view";
-import { useReopenScript, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
+import { usePickTake, useReopenScript, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
 import { usePanelDraws } from "@/hooks/use-panel-draws";
 import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { errorMessage } from "@/lib/avatars/utils";
+import { formatRange, timeShots } from "@/lib/scripts/timeline";
+import { PanelDialog } from "./panel-dialog";
+import { PanelShotStatus } from "./panel-shot-status";
+import { PanelTile } from "./panel-tile";
+import { StoryboardGrid } from "./storyboard-grid";
 import { VisualiseReadiness } from "./visualise-readiness";
 
 // Spec 3 §4, laid out as the Visualise board: the readiness line across the top; the script,
@@ -19,6 +25,10 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
   const draws = usePanelDraws(clientId, script.id);
   const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt);
   const reopen = useReopenScript(clientId, script.id);
+  const pick = usePickTake(clientId, script.id);
+  const [openShot, setOpenShot] = useState<string | null>(null);
+  const timed = useMemo(() => timeShots(script.doc.shots), [script.doc.shots]);
+  const shotLabel = (shotId: string) => `S${script.doc.shots.findIndex((s) => s.id === shotId) + 1}`;
 
   const onReopen = async () => {
     try {
@@ -42,11 +52,51 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
         onReopen={() => void onReopen()}
       />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        <ScriptView script={script} avatarFaces={model.avatarFaces} compact cast={null} />
+        <ScriptView
+          script={script}
+          avatarFaces={model.avatarFaces}
+          compact
+          cast={null}
+          shotAside={(t) => (
+            <PanelShotStatus
+              view={model.views.get(t.shot.id)!}
+              credits={model.credits.get(t.shot.id) ?? null}
+              onDraw={() => void draws.draw(t.shot.id)}
+            />
+          )}
+        />
         <section aria-label="Visuals" className="flex min-w-0 flex-col gap-8 rounded-2xl bg-muted/40 p-5">
-          {/* Task 13: the cast cards. Task 12: the Storyboard grid. */}
+          {/* Task 13: the cast cards. */}
+          <StoryboardGrid>
+            {timed.map((t) => (
+              <PanelTile
+                key={t.shot.id}
+                label={`S${t.index + 1}`}
+                time={formatRange(t.start, t.end)}
+                view={model.views.get(t.shot.id)!}
+                aspect={model.aspect}
+                credits={model.credits.get(t.shot.id) ?? null}
+                onDraw={() => void draws.draw(t.shot.id)}
+                onOpen={() => setOpenShot(t.shot.id)}
+              />
+            ))}
+          </StoryboardGrid>
         </section>
       </div>
+      {openShot && model.views.get(openShot) && (
+        <PanelDialog
+          open
+          onOpenChange={(o) => { if (!o) setOpenShot(null); }}
+          label={shotLabel(openShot)}
+          view={model.views.get(openShot)!}
+          inputs={model.inputs.get(openShot)!}
+          aspect={model.aspect}
+          credits={model.credits.get(openShot) ?? null}
+          picking={pick.isPending}
+          onPick={(takeId) => pick.mutate({ shotId: openShot, takeId })}
+          onDraw={(body) => void draws.draw(openShot, body)}
+        />
+      )}
     </div>
   );
 }
