@@ -19,17 +19,20 @@ export function PanelFrame({ view, aspect, label, onOpen }: { view: PanelView; a
     );
   }
   if (view.pick?.url) {
+    // The box sets the size, never the image: models return other shapes (GPT Image 2's "9:16"
+    // is about 2:3), which made drawn tiles taller than empty ones (testing).
     return (
-      <Button
-        variant="ghost"
-        aria-label={`Open the ${label} panel`}
-        onClick={onOpen}
-        className={cn(box, "h-auto cursor-zoom-in border border-border p-0")}
-        style={style}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={view.pick.url} alt="" className={cn("size-full object-cover", view.status === "out_of_date" && "opacity-60")} />
-      </Button>
+      <div className={cn(box, "border border-border")} style={style}>
+        <Button
+          variant="ghost"
+          aria-label={`Open the ${label} panel`}
+          onClick={onOpen}
+          className="absolute inset-0 h-full w-full cursor-zoom-in rounded-none p-0"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={view.pick.url} alt="" className={cn("absolute inset-0 size-full object-cover", view.status === "out_of_date" && "opacity-60")} />
+        </Button>
+      </div>
     );
   }
   return (
