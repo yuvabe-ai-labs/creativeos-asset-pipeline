@@ -7,6 +7,8 @@ import { scriptsService } from "@/services/scripts.service";
 export const scriptKeys = {
   all: (clientId: string) => ["scripts", clientId] as const,
   approved: (clientId: string) => [...scriptKeys.all(clientId), "approved"] as const,
+  /** One script's Generate workspace: script, brief, notes, conversation, open items (spec 2). */
+  generate: (clientId: string, scriptId: string) => [...scriptKeys.all(clientId), "generate", scriptId] as const,
 };
 
 /** The client's approved scripts: what the canvas gallery's Scripts tab offers (spec 1 §5.1).
