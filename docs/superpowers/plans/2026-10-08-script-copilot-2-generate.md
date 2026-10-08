@@ -5244,3 +5244,629 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
+### Task 12: The Generate workspace: chat, cards, notes, Mark final
+
+**Files:**
+- Create: `src/components/scripts/generate/generate-workspace.tsx`
+- Create: `src/components/scripts/generate/generate-script-pane.tsx`
+- Create: `src/components/scripts/generate/copilot-chat.tsx`
+- Create: `src/components/scripts/generate/copilot-chat-message.tsx`
+- Create: `src/components/scripts/generate/copilot-composer.tsx`
+- Create: `src/components/scripts/generate/copilot-research-card.tsx`
+- Create: `src/components/scripts/generate/copilot-angles-card.tsx`
+- Create: `src/components/scripts/generate/copilot-confirmation-card.tsx`
+- Create: `src/components/scripts/generate/copilot-proposal-card.tsx`
+- Create: `src/components/scripts/generate/script-notes-panel.tsx`
+- Create: `src/components/scripts/generate/mark-final-bar.tsx`
+- Create: `src/components/scripts/script-breadcrumb.tsx`
+- Modify: `src/app/clients/[id]/scripts/[scriptId]/page.tsx` (the `generate` branch)
+
+**Interfaces:**
+- Consumes: the hooks from Task 10; `ScriptEditProvider`, `ScriptEdit`, `ScriptText` (Task 11); `useScriptSelection`, `InlineEditPrompt`, `CastAvatarLink` (Task 11); `ScriptView` (spec 1); `GenerateState`, `ScriptMessage`, `MessageCard`, `ProposalCard`, `OpenItem`, `ScriptNotes`, `Angle`, `ConfirmationCard` (Task 1); `MAX_MESSAGE_CHARS`; `getGenerateScript`, `loadGenerateState` (Tasks 1–2); `EmptyState`, `Button`, `Badge`, `Checkbox`, `Label`, `ScrollArea`, `Tooltip*`, `InputGroup*`; `toast` from `sonner`; `useRouter` from `next/navigation`.
+- Produces: `GenerateWorkspace({ clientId, initialState }: { clientId: string; initialState: GenerateState })`; `ScriptBreadcrumb({ client, title }: { client: { name: string; slug: string }; title: string })`; the script page renders the workspace whenever the script is at `generate`.
+
+**The layout** (spec 2 §3): "Left: the copilot chat … Right: the script, in spec 1's script view … made editable. Under the script: the reel's notes … Above the script sits Mark final." Before the first draft the right pane says where the draft will appear. On narrow screens the two panes stack, chat first.
+
+**Mark final's state is the server's open items**, so the button, the count and the notes' "Still open" list always agree with what the server will check. After Mark final the page refreshes and renders whatever the `visualise` stage shows (spec 3's view once merged, spec 1's read-only view on this branch).
+
+Use the mockups on the Design canvas (https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM) for spacing and hierarchy where they show the Generate workspace; where the code below and the mockup differ in layout, follow the mockup and say so in the report. Component rules: one component per file, under about 200 lines.
+
+- [ ] **Step 1: Write the chat cards**
+
+```tsx
+// src/components/scripts/generate/copilot-research-card.tsx
+import { Search } from "lucide-react";
+import type { MessageCard } from "@/lib/scripts/copilot/schema";
+
+type Research = Extract<MessageCard, { kind: "research" }>;
+
+/** Spec 2 §6 — "The result appears as a card in the conversation, naming which signals each angle
+ *  actually used." */
+export function CopilotResearchCard({ card }: { card: Research }) {
+  const names = new Map(card.signals.map((s) => [s.id, s.name]));
+  return (
+    <div className="w-full rounded-xl border border-border bg-background p-3 text-sm">
+      <div className="mb-2 flex items-center gap-2">
+        <Search className="size-4 text-muted-foreground" strokeWidth={1.5} aria-hidden />
+        <span className="text-eyebrow">Market Research</span>
+        <span className="ml-auto text-xs text-muted-foreground">{card.signals.length} signal{card.signals.length === 1 ? "" : "s"} read</span>
+      </div>
+      <ul className="flex flex-col gap-1.5">
+        {card.perAngle.map((a) => (
+          <li key={a.angleId}>
+            <span className="font-medium">{a.angleId}</span>
+            <span className="text-muted-foreground"> · </span>
+            {a.signalIds.length > 0 ? a.signalIds.map((id) => names.get(id) ?? id).join(", ") : <span className="text-muted-foreground">no signal used</span>}
+            {a.note && <span className="text-muted-foreground"> · {a.note}</span>}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-muted-foreground">Signals shape where and when only. Claims and proof come from the brand KB.</p>
+    </div>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/generate/copilot-angles-card.tsx
+import { Button } from "@/components/ui/button";
+import type { Angle } from "@/lib/scripts/copilot/schema";
+
+/** Spec 2 §5 piece 4 — three proposed angles, each with what it commits to (interaction model §3.3).
+ *  Picking one sends the pick as the person's message; blending or writing one is typed. */
+export function CopilotAnglesCard({ angles, disabled, onPick }: { angles: Angle[]; disabled: boolean; onPick: (id: string) => void }) {
+  return (
+    <ol className="flex w-full flex-col gap-2">
+      {angles.map((a) => (
+        <li key={a.id} className="flex flex-col gap-2 rounded-xl border border-border bg-background p-3 text-sm">
+          <div className="flex items-start gap-2">
+            <span className="font-display text-base font-medium text-primary">{a.id}</span>
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="font-medium">{a.hook}</span>
+              <span className="text-muted-foreground">{a.situation}</span>
+            </div>
+          </div>
+          <dl className="grid grid-cols-[7rem_1fr] gap-x-2 gap-y-0.5 text-xs">
+            {[["Meal and use", a.mealMoment], ["Who else", a.supportingCast], ["Review theme", a.reviewTheme], ["Proof", a.proofEmphasis]]
+              .filter(([, v]) => v.trim())
+              .map(([k, v]) => (
+                <div key={k} className="contents">
+                  <dt className="text-muted-foreground">{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+          </dl>
+          <Button variant="outline" size="xs" className="self-start" disabled={disabled} onClick={() => onPick(a.id)}>
+            Go with {a.id}
+          </Button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/generate/copilot-confirmation-card.tsx
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type { ConfirmationCard } from "@/lib/scripts/copilot/schema";
+import { reelLabel } from "@/lib/scripts/utils";
+
+/** Spec 2 §5 — "Every path ends on the confirmation card: one short card listing each piece, marked
+ *  given or proposed, plus the cast … and the items to confirm. The person writes, or changes a line." */
+export function CopilotConfirmationCard({ card, disabled, onWrite }: { card: ConfirmationCard; disabled: boolean; onWrite: () => void }) {
+  return (
+    <div className="flex w-full flex-col gap-3 rounded-xl border border-border bg-background p-3 text-sm">
+      <div className="flex flex-col">
+        <span className="text-xs text-muted-foreground">{reelLabel(card.reelNumber)}</span>
+        <span className="font-display text-base font-medium">{card.title}</span>
+      </div>
+      <dl className="flex flex-col gap-1.5">
+        {card.lines.map((l) => (
+          <div key={l.label} className="grid grid-cols-[8rem_1fr_auto] items-start gap-2">
+            <dt className="text-muted-foreground">{l.label}</dt>
+            <dd>{l.value}</dd>
+            <Badge variant="outline" className="text-[0.7rem]">{l.source}</Badge>
+          </div>
+        ))}
+      </dl>
+      <div className="flex flex-col gap-1 border-t border-border pt-2">
+        <span className="text-eyebrow">Cast</span>
+        <ul className="flex flex-col gap-0.5">
+          {card.cast.map((c) => (
+            <li key={c.name}><span className="font-medium">{c.name}</span>{c.isLead && " (lead)"}<span className="text-muted-foreground"> · {c.role}</span></li>
+          ))}
+        </ul>
+      </div>
+      {card.toConfirm.length > 0 && (
+        <div className="flex flex-col gap-1 border-t border-border pt-2">
+          <span className="text-eyebrow">To confirm before Final</span>
+          <ul className="flex list-disc flex-col gap-0.5 pl-4">{card.toConfirm.map((t) => <li key={t}>{t}</li>)}</ul>
+        </div>
+      )}
+      <Button size="sm" className="self-start" disabled={disabled} onClick={onWrite}>Write it</Button>
+    </div>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/generate/copilot-proposal-card.tsx
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type { ProposalCard } from "@/lib/scripts/copilot/schema";
+import type { Shot } from "@/lib/scripts/schema";
+
+const STATUS: Record<Exclude<ProposalCard["status"], "pending">, string> = {
+  accepted: "Applied", rejected: "Not applied", stale: "Out of date, not applied",
+};
+
+function ShotLines({ shots }: { shots: Shot[] }) {
+  if (shots.length === 0) return <p className="text-muted-foreground">(none)</p>;
+  return (
+    <ul className="flex flex-col gap-2">
+      {shots.map((s) => (
+        <li key={s.id} className="flex flex-col gap-0.5">
+          <span className="text-eyebrow">{s.beat || "No beat"} · {s.lengthSeconds}s</span>
+          <span>{s.visual}</span>
+          {s.vo && <span className="text-muted-foreground">VO: {s.vo}</span>}
+          {s.onScreenText && <span className="font-medium">{s.onScreenText}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Spec 2 §9 — "A chat edit that touches several shots is shown as a before-and-after to accept or reject." */
+export function CopilotProposalCard({ card, disabled, onResolve }: {
+  card: ProposalCard;
+  disabled: boolean;
+  onResolve: (decision: "accept" | "reject") => void;
+}) {
+  return (
+    <div className="flex w-full flex-col gap-3 rounded-xl border border-border bg-background p-3 text-sm">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-1"><span className="text-eyebrow">Before</span><ShotLines shots={card.before} /></div>
+        <div className="flex flex-col gap-1"><span className="text-eyebrow">After</span><ShotLines shots={card.after} /></div>
+      </div>
+      {card.status === "pending" ? (
+        <div className="flex gap-2">
+          <Button size="sm" disabled={disabled} onClick={() => onResolve("accept")}>Accept</Button>
+          <Button size="sm" variant="outline" disabled={disabled} onClick={() => onResolve("reject")}>Reject</Button>
+        </div>
+      ) : (
+        <Badge variant="outline" className="self-start">{STATUS[card.status]}</Badge>
+      )}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Write the message, the composer and the chat**
+
+```tsx
+// src/components/scripts/generate/copilot-chat-message.tsx
+import { cn } from "@/lib/utils";
+import type { ScriptMessage } from "@/lib/scripts/copilot/schema";
+import { CopilotResearchCard } from "./copilot-research-card";
+import { CopilotAnglesCard } from "./copilot-angles-card";
+import { CopilotConfirmationCard } from "./copilot-confirmation-card";
+import { CopilotProposalCard } from "./copilot-proposal-card";
+
+export type ChatActions = {
+  busy: boolean;
+  send: (text: string) => void;
+  resolve: (messageId: string, decision: "accept" | "reject") => void;
+};
+
+export function CopilotChatMessage({ message, actions }: { message: ScriptMessage; actions: ChatActions }) {
+  const mine = message.role === "user";
+  const { card } = message;
+  return (
+    <li className={cn("flex flex-col gap-2", mine ? "items-end" : "items-start")}>
+      {message.content && (
+        <div className={cn("max-w-[92%] whitespace-pre-wrap rounded-2xl text-sm leading-relaxed", mine ? "bg-muted px-3.5 py-2.5" : "px-0.5")}>
+          {message.content}
+        </div>
+      )}
+      {card?.kind === "research" && <CopilotResearchCard card={card} />}
+      {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} disabled={actions.busy} onPick={(id) => actions.send(`Go with ${id}.`)} />}
+      {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} disabled={actions.busy} onWrite={() => actions.send("Write it.")} />}
+      {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
+    </li>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/generate/copilot-composer.tsx
+"use client";
+
+import { useState } from "react";
+import { ArrowUp } from "lucide-react";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
+import { MAX_MESSAGE_CHARS } from "@/lib/scripts/copilot/constants";
+
+export function CopilotComposer({ busy, onSend }: { busy: boolean; onSend: (text: string) => void }) {
+  const [text, setText] = useState("");
+  const send = () => {
+    const t = text.trim();
+    if (!t || busy) return;
+    onSend(t);
+    setText("");
+  };
+  return (
+    <div className="border-t border-border p-3">
+      <InputGroup>
+        <InputGroupTextarea
+          rows={2}
+          value={text}
+          maxLength={MAX_MESSAGE_CHARS}
+          placeholder="Tell the copilot about the reel, or ask for a change…"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+        />
+        <InputGroupAddon align="block-end">
+          <span className="text-xs text-muted-foreground">Enter to send · Shift+Enter for a new line</span>
+          <InputGroupButton size="icon-xs" className="ml-auto" aria-label="Send" disabled={busy || !text.trim()} onClick={send}>
+            <ArrowUp strokeWidth={1.5} />
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
+    </div>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/generate/copilot-chat.tsx
+"use client";
+
+import { useEffect, useRef } from "react";
+import { Sparkles } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import type { ScriptMessage } from "@/lib/scripts/copilot/schema";
+import { CopilotChatMessage, type ChatActions } from "./copilot-chat-message";
+import { CopilotComposer } from "./copilot-composer";
+
+/** Spec 2 §3 — the left pane. The conversation is kept with the script. */
+export function CopilotChat({ messages, actions }: { messages: ScriptMessage[]; actions: ChatActions }) {
+  const end = useRef<HTMLDivElement>(null);
+  // Follow the conversation: scroll to the newest message, or the working line, when either appears.
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages.length, actions.busy]);
+
+  return (
+    <section aria-label="Copilot" className="flex min-h-[32rem] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card lg:sticky lg:top-6 lg:h-[calc(100vh-9rem)]">
+      <header className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <Sparkles className="size-4 text-primary" strokeWidth={1.5} aria-hidden />
+        <h2 className="font-display text-base font-medium">Copilot</h2>
+      </header>
+      <ScrollArea className="min-h-0 flex-1">
+        <ol className="flex flex-col gap-4 p-4" aria-live="polite">
+          {messages.map((m) => <CopilotChatMessage key={m.id} message={m} actions={actions} />)}
+          {actions.busy && <li className="animate-pulse text-sm text-muted-foreground">Working on it. A first draft takes up to a minute.</li>}
+        </ol>
+        <div ref={end} />
+      </ScrollArea>
+      <CopilotComposer busy={actions.busy} onSend={actions.send} />
+    </section>
+  );
+}
+```
+
+- [ ] **Step 3: Write the notes panel and the Mark final bar**
+
+```tsx
+// src/components/scripts/generate/script-notes-panel.tsx
+"use client";
+
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import type { OpenItem, ScriptNotes } from "@/lib/scripts/copilot/schema";
+import { useScriptEdit } from "../script-edit-context";
+import { ScriptText } from "../script-text";
+
+/** Spec 2 §4.2 — the reel's own notes, under the script: the confirmed brief (edited like the
+ *  script), the items to confirm, and what fill to final is still waiting on (§8). */
+export function ScriptNotesPanel({ notes, openItems }: { notes: ScriptNotes; openItems: OpenItem[] }) {
+  const edit = useScriptEdit();
+  return (
+    <section aria-label="The reel's notes" className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-card">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-eyebrow">The reel's notes</h2>
+        <p className="text-sm text-muted-foreground">For this reel only: the brief it was written from, and what is still to settle.</p>
+      </div>
+      <div className="text-sm leading-relaxed">
+        <ScriptText path="notes.brief" value={notes.brief} placeholder="Add notes for this reel…" />
+      </div>
+      {notes.confirmations.length > 0 && (
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <span className="text-eyebrow">To confirm before Final</span>
+          {notes.confirmations.map((c) => (
+            <div key={c.id} className="flex items-start gap-2">
+              <Checkbox
+                id={`confirm-${c.id}`}
+                checked={c.confirmed}
+                onCheckedChange={(checked) => edit?.commit(`notes.confirm.${c.id}`, checked === true ? "yes" : "no")}
+              />
+              <Label htmlFor={`confirm-${c.id}`} className={cn("text-sm font-normal leading-snug", c.confirmed && "text-muted-foreground line-through")}>{c.text}</Label>
+            </div>
+          ))}
+        </div>
+      )}
+      {openItems.length > 0 && (
+        <div className="flex flex-col gap-1 border-t border-border pt-4">
+          <span className="text-eyebrow">Still open</span>
+          <ul className="flex list-disc flex-col gap-1 pl-4 text-sm">
+            {openItems.map((i) => (
+              <li key={i.id}><span className="font-medium">{i.label}.</span> <span className="text-muted-foreground">{i.question}</span></li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/generate/mark-final-bar.tsx
+"use client";
+
+import { CheckCircle2, Loader2, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { OpenItem } from "@/lib/scripts/copilot/schema";
+
+/** Spec 2 §10 — "Mark final … is available only when the fill-to-final list (§8) is empty." */
+export function MarkFinalBar({ openItems, canUndo, onUndo, onMarkFinal, pending, disabled }: {
+  openItems: OpenItem[];
+  canUndo: boolean;
+  onUndo: () => void;
+  onMarkFinal: () => void;
+  pending: boolean;
+  disabled: boolean;
+}) {
+  const blocked = openItems.length > 0;
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      <Button variant="ghost" size="sm" disabled={!canUndo} onClick={onUndo}>
+        <Undo2 strokeWidth={1.5} /> Undo
+      </Button>
+      <span className="text-sm text-muted-foreground" aria-live="polite">
+        {blocked ? `${openItems.length} to settle before it's final` : "Ready for the client to read"}
+      </span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-block" />}>
+            <Button disabled={blocked || disabled || pending} onClick={onMarkFinal}>
+              {pending ? <Loader2 className="animate-spin" strokeWidth={1.5} /> : <CheckCircle2 strokeWidth={1.5} />}
+              Mark final
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {blocked ? "Final means ready for the client to read. Settle what the notes list as still open." : "Moves the script to Visualise."}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 4: Write the script pane and the workspace**
+
+```tsx
+// src/components/scripts/generate/generate-script-pane.tsx
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ScriptView } from "@/components/scripts/script-view";
+import { ScriptEditProvider, type ScriptEdit } from "@/components/scripts/script-edit-context";
+import { useScriptSelection } from "@/hooks/use-script-selection";
+import { useInlineEdit, useLinkCastAvatar, useMarkFinal, useSetScriptField } from "@/hooks/queries/script-generate";
+import type { GenerateState } from "@/lib/scripts/copilot/schema";
+import { CastAvatarLink } from "./cast-avatar-link";
+import { InlineEditPrompt } from "./inline-edit-prompt";
+import { MarkFinalBar } from "./mark-final-bar";
+import { ScriptNotesPanel } from "./script-notes-panel";
+
+type Undo = { path: string; before: string };
+
+/** The right pane (spec 2 §3): Mark final above, the editable script, the reel's notes beneath. */
+export function GenerateScriptPane({ clientId, state, chatBusy }: { clientId: string; state: GenerateState; chatBusy: boolean }) {
+  const { script } = state;
+  const router = useRouter();
+  const setField = useSetScriptField(clientId, script.id);
+  const inline = useInlineEdit(clientId, script.id);
+  const link = useLinkCastAvatar(clientId, script.id);
+  const markFinal = useMarkFinal(clientId, script.id);
+  const [undos, setUndos] = useState<Undo[]>([]);
+  const pane = useRef<HTMLDivElement>(null);
+  const { selection, clear } = useScriptSelection(pane, script.doc !== null);
+  const fail = (e: Error) => toast.error(e.message);
+
+  const restore = (u: Undo) =>
+    setField.mutate({ path: u.path, value: u.before }, { onSuccess: () => setUndos((s) => s.filter((x) => x !== u)), onError: fail });
+
+  const edit: ScriptEdit = useMemo(() => ({
+    commit: (path, value) => setField.mutate({ path, value }, { onError: fail }),
+    busyPath: inline.isPending ? (selection?.path ?? null) : null,
+    castControl: (member) => (
+      <CastAvatarLink
+        member={member}
+        avatars={state.avatars}
+        pending={link.isPending}
+        onChange={(avatarId) => link.mutate({ castId: member.id, avatarId }, { onError: fail })}
+      />
+    ),
+  }), [setField, inline.isPending, selection?.path, state.avatars, link]);
+
+  const runInline = (instruction: string) => {
+    if (!selection) return;
+    inline.mutate(
+      { path: selection.path, selectedText: selection.text, offset: selection.offset, instruction },
+      {
+        onSuccess: ({ undo }) => {
+          setUndos((s) => [...s.slice(-19), undo]);
+          clear();
+          window.getSelection()?.removeAllRanges();
+          // Spec 2 §9: inline edits apply at once, with undo. The copilot's line in the chat says what changed.
+          toast("Changed. The copilot says what in the chat.", { action: { label: "Undo", onClick: () => restore(undo) } });
+        },
+        onError: fail,
+      },
+    );
+  };
+
+  const final = () =>
+    markFinal.mutate(undefined, {
+      onSuccess: () => { toast.success("Marked final. On to Visualise."); router.refresh(); },
+      onError: fail,
+    });
+
+  const avatarFaces = Object.fromEntries(state.avatars.map((a) => [a.id, a.front]));
+
+  return (
+    <div ref={pane} className="relative flex min-w-0 flex-col gap-6">
+      <MarkFinalBar
+        openItems={state.openItems}
+        canUndo={undos.length > 0}
+        onUndo={() => { const last = undos.at(-1); if (last) restore(last); }}
+        onMarkFinal={final}
+        pending={markFinal.isPending}
+        disabled={chatBusy || script.doc === null}
+      />
+      {script.doc ? (
+        <ScriptEditProvider value={edit}>
+          <ScriptView
+            script={{ id: script.id, clientId: script.clientId, stage: script.stage, doc: script.doc, approvedAt: null, createdAt: script.createdAt, updatedAt: script.updatedAt }}
+            avatarFaces={avatarFaces}
+          />
+          <ScriptNotesPanel notes={script.notes} openItems={state.openItems} />
+        </ScriptEditProvider>
+      ) : (
+        <EmptyState
+          title="The draft appears here"
+          body="Answer the copilot, or say “take it from here”, then confirm the brief. The script is written here, and you can edit every part of it."
+        />
+      )}
+      {selection && (
+        <InlineEditPrompt
+          key={`${selection.path}:${selection.offset}:${selection.text}`}
+          selection={selection}
+          pending={inline.isPending}
+          onSubmit={runInline}
+          onClose={clear}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/generate/generate-workspace.tsx
+"use client";
+
+import { toast } from "sonner";
+import { useGenerateState, useResolveProposal, useSendTurn } from "@/hooks/queries/script-generate";
+import type { GenerateState } from "@/lib/scripts/copilot/schema";
+import { CopilotChat } from "./copilot-chat";
+import { GenerateScriptPane } from "./generate-script-pane";
+
+/** Spec 2 §3 — the Generate workspace: the copilot on the left, the script on the right. */
+export function GenerateWorkspace({ clientId, initialState }: { clientId: string; initialState: GenerateState }) {
+  const scriptId = initialState.script.id;
+  const { data: state } = useGenerateState(clientId, scriptId, initialState);
+  const turn = useSendTurn(clientId, scriptId);
+  const proposal = useResolveProposal(clientId, scriptId);
+  const fail = (e: Error) => toast.error(e.message);
+
+  const actions = {
+    busy: turn.isPending || proposal.isPending,
+    send: (text: string) => turn.mutate(text, { onError: fail }),
+    resolve: (messageId: string, decision: "accept" | "reject") => proposal.mutate({ messageId, decision }, { onError: fail }),
+  };
+
+  return (
+    <div className="grid min-h-0 flex-1 items-start gap-6 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
+      <CopilotChat messages={state.messages} actions={actions} />
+      <GenerateScriptPane clientId={clientId} state={state} chatBusy={actions.busy} />
+    </div>
+  );
+}
+```
+
+- [ ] **Step 5: The breadcrumb and the page's Generate branch**
+
+Extract the script page's breadcrumb (two call sites now, AGENTS.md "Two call sites = extract"):
+
+```tsx
+// src/components/scripts/script-breadcrumb.tsx
+import Link from "next/link";
+import {
+  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+
+export function ScriptBreadcrumb({ client, title }: { client: { name: string; slug: string }; title: string }) {
+  return (
+    <Breadcrumb className="animate-rise mb-6 shrink-0">
+      <BreadcrumbList>
+        <BreadcrumbItem><BreadcrumbLink render={<Link href="/">Clients</Link>} /></BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem><BreadcrumbLink render={<Link href={`/clients/${client.slug}`}>{client.name}</Link>} /></BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem><BreadcrumbLink render={<Link href={`/clients/${client.slug}/scripts`}>Scripts</Link>} /></BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem><BreadcrumbPage>{title}</BreadcrumbPage></BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+```
+
+In `src/app/clients/[id]/scripts/[scriptId]/page.tsx`: replace the inline `<Breadcrumb>…</Breadcrumb>` with `<ScriptBreadcrumb client={client} title={`${label ? `${label} · ` : ""}${script.doc.header.title}`} />` (drop the now-unused breadcrumb imports), and, right after the org check and before `getScript`, add the Generate branch:
+
+```tsx
+  // Spec 2 — at Generate the script opens in the copilot workspace, with or without a draft yet.
+  const atGenerate = await getGenerateScript(client.id, scriptId);
+  if (atGenerate?.stage === "generate") {
+    const state = await loadGenerateState(client.id, scriptId);
+    if (!state) notFound();
+    const doc = state.script.doc;
+    const title = doc
+      ? `${reelLabel(doc.header.reelNumber) ? `${reelLabel(doc.header.reelNumber)} · ` : ""}${doc.header.title}`
+      : state.script.brief.card?.title ?? "New script";
+    return (
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 py-8">
+        <ScriptBreadcrumb client={client} title={title} />
+        <GenerateWorkspace clientId={client.id} initialState={state} />
+      </main>
+    );
+  }
+```
+
+with `import { getGenerateScript, loadGenerateState } from "@/lib/db/script-generate";`, `import { GenerateWorkspace } from "@/components/scripts/generate/generate-workspace";` and `import { ScriptBreadcrumb } from "@/components/scripts/script-breadcrumb";`. Every other stage renders as before.
+
+- [ ] **Step 6: Type-check, lint, look at it, commit**
+
+Run: `npx tsc --noEmit && npx eslint src/components/scripts "src/app/clients/[id]/scripts" && npx vitest run src/lib/scripts src/services`
+Expected: no errors; tests pass.
+
+With migration 0052 applied (Task 1 Step 11), start the dev server and seed a **throwaway copy** of Reel 01 at Generate. Never move the seeded Reels 01, 06 or 08 themselves: specs 3 and 4 are checked against them on the same staging database. Copy `src/lib/scripts/fixtures/reel-01.json` to your OS temp folder, change its `header.title` to `"Generate check (delete me)"` (the seed matches on reel number and title, so a new title makes a new row), and run `node scripts/seed-script.mjs jackfruit-365 --file <that copy> --stage generate`. Open it from the library. Check: chat on the left with an empty conversation; the script on the right with dotted-underline hover on text; clicking text opens a textarea that saves on blur; selecting words opens the prompt beside them; Mark final is disabled with "1 to settle before it's final" (the review placeholder); the notes panel lists it under "Still open". Leave the copy for Task 14; tell the user its id so they can archive it at the end (`update client_scripts set archived_at = now() where id = '<id>';`).
+
+```bash
+git add src/components/scripts/generate src/components/scripts/script-breadcrumb.tsx "src/app/clients/[id]/scripts/[scriptId]/page.tsx"
+git commit -m "feat(scripts): the Generate workspace: copilot chat, cards, editable script, notes and Mark final
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
