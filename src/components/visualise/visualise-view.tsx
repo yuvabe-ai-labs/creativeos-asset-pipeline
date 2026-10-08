@@ -9,6 +9,7 @@ import { usePanelDraws } from "@/hooks/use-panel-draws";
 import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { errorMessage } from "@/lib/avatars/utils";
 import { formatRange, timeShots } from "@/lib/scripts/timeline";
+import { CastSlots } from "./cast-slots";
 import { PanelDialog } from "./panel-dialog";
 import { PanelShotStatus } from "./panel-shot-status";
 import { PanelTile } from "./panel-tile";
@@ -66,7 +67,7 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
           )}
         />
         <section aria-label="Visuals" className="flex min-w-0 flex-col gap-8 rounded-2xl bg-muted/40 p-5">
-          {/* Task 13: the cast cards. */}
+          <CastSlots clientId={clientId} scriptId={script.id} doc={script.doc} avatars={model.avatars} />
           <StoryboardGrid>
             {timed.map((t) => (
               <PanelTile
