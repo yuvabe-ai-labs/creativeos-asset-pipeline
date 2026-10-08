@@ -1,10 +1,11 @@
-import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
+import { NextResponse } from "next/server";
+import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import {
   changeGenerateScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState,
 } from "@/lib/db/script-generate";
 import { loadCopilotContext, loadSignals } from "@/lib/scripts/copilot/context";
-import { structuredCaller } from "@/lib/scripts/copilot/model";
+import { streamingCaller, structuredCaller } from "@/lib/scripts/copilot/model";
 import { prepareTurn, type Reply } from "@/lib/scripts/copilot/turn";
 import { MAX_MESSAGE_CHARS, SCRIPT_QUICK_MODEL, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
 
@@ -15,6 +16,9 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
 // POST /api/clients/:id/scripts/:scriptId/turn { text } — one chat message to the copilot (spec 2
 // §5–§9). The person's message is saved first so it is never lost; the replies are saved after.
+// The answer is newline-delimited JSON (D336, refined): `{type:"draft"}` previews while a first
+// draft streams in, then one `{type:"state"}` line with the whole workspace (or `{type:"error"}`).
+// Bad input is refused up front as an ordinary JSON error, before anything streams.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
   return withClient(req, params, async (clientId, client) =>
@@ -33,23 +37,42 @@ export async function POST(req: Request, { params }: Ctx) {
       const lastAssistant = [...history].reverse().find((m) => m.role === "assistant")?.content ?? "";
       await insertScriptMessages(clientId, scriptId, userId, [{ role: "user", content: text, card: null }]);
 
-      let replies: Reply[];
-      try {
-        const ctx = await loadCopilotContext(client);
-        const apply = await prepareTurn(
-          { script, ctx, text, lastAssistant },
-          { call: structuredCaller(SCRIPT_WRITER_MODEL), quick: structuredCaller(SCRIPT_QUICK_MODEL), loadSignals: () => loadSignals(clientId) },
-        );
-        const outcome = await changeGenerateScript(clientId, scriptId, apply);
-        replies = "error" in outcome ? [{ content: outcome.error, card: null }] : outcome.result;
-      } catch (e) {
-        console.error("[script-copilot] turn failed", e);
-        replies = [{ content: "Something went wrong on my side, and nothing was changed. Send that again.", card: null }];
-      }
-      await insertScriptMessages(clientId, scriptId, null, replies.map((r) => ({ role: "assistant" as const, ...r })));
-
-      const state = await loadGenerateState(clientId, scriptId);
-      return state ? apiOk({ state }) : apiError("Script not found.", 404);
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const emit = (line: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+          try {
+            let replies: Reply[];
+            try {
+              const ctx = await loadCopilotContext(client);
+              const apply = await prepareTurn(
+                { script, ctx, text, lastAssistant },
+                {
+                  call: structuredCaller(SCRIPT_WRITER_MODEL),
+                  quick: structuredCaller(SCRIPT_QUICK_MODEL),
+                  stream: streamingCaller(SCRIPT_WRITER_MODEL),
+                  onDraft: (draft) => emit({ type: "draft", draft }),
+                  loadSignals: () => loadSignals(clientId),
+                },
+              );
+              const outcome = await changeGenerateScript(clientId, scriptId, apply);
+              replies = "error" in outcome ? [{ content: outcome.error, card: null }] : outcome.result;
+            } catch (e) {
+              console.error("[script-copilot] turn failed", e);
+              replies = [{ content: "Something went wrong on my side, and nothing was changed. Send that again.", card: null }];
+            }
+            await insertScriptMessages(clientId, scriptId, null, replies.map((r) => ({ role: "assistant" as const, ...r })));
+            const state = await loadGenerateState(clientId, scriptId);
+            emit(state ? { type: "state", state } : { type: "error", error: "Script not found." });
+          } catch (e) {
+            console.error("[script-copilot] turn could not finish", e);
+            emit({ type: "error", error: "The copilot could not answer." });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new NextResponse(stream, { headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-cache" } });
     }),
   );
 }
