@@ -29,6 +29,8 @@ import { GalleryFolderTile } from "./gallery-folder-tile";
 import { GallerySignalsTab } from "./gallery-signals-tab";
 import { GalleryAvatarsTab } from "./gallery-avatars-tab";
 import { useRefreshAvatars } from "@/hooks/queries/avatars";
+import { GalleryScriptsTab } from "./gallery-scripts-tab";
+import { useRefreshScripts } from "@/hooks/queries/scripts";
 import { DriveFolderPicker } from "./drive-folder-picker";
 import { GalleryAddUrl } from "./gallery-add-url";
 import { moodboardItemToGalleryImage } from "./moodboard-image";
@@ -126,6 +128,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     if (options?.tab) setTab(options.tab);
   }
   const refreshAvatars = useRefreshAvatars(clientId);
+  const refreshScripts = useRefreshScripts(clientId);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [imageMap, setImageMap] = useState<Map<string, GalleryImage>>(new Map());
@@ -279,6 +282,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     else if (tab === "moodboard") moodboards.refresh();
     else if (tab === "signals") void market.refresh();
     else if (tab === "avatars") void refreshAvatars();
+    else if (tab === "scripts") void refreshScripts();
     else void generations.refresh();
   }
 
@@ -363,7 +367,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           />
           <GalleryTabs value={tab} onChange={setTab} />
 
-          {!noFolderLinked && tab !== "moodboard" && tab !== "signals" && tab !== "avatars" && (
+          {!noFolderLinked && tab !== "moodboard" && tab !== "signals" && tab !== "avatars" && tab !== "scripts" && (
             <GalleryToolbar
               searchQuery={browser.search}
               onSearchChange={browser.setSearch}
@@ -504,9 +508,14 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               />
             )}
 
+            {tab === "scripts" && (
+              <GalleryScriptsTab clientId={clientId} defaultPosition={computeDefaultPosition} />
+            )}
+
             {tab !== "moodboard" &&
               tab !== "signals" &&
               tab !== "avatars" &&
+              tab !== "scripts" &&
               (noFolderLinked ? (
               <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
                 <FolderOpen className="size-10 text-muted-foreground/40" strokeWidth={1.5} />
@@ -558,7 +567,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               ))}
           </div>
 
-          {tab !== "avatars" && (
+          {tab !== "avatars" && tab !== "scripts" && (
             <GalleryFooter
               selectedCount={selectedIds.size}
               maxSelection={MAX_SELECTION}

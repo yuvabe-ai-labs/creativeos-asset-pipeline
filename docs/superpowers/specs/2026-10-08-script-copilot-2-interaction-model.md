@@ -243,7 +243,7 @@ What is on the list:
 | A section that is missing or empty: header, Purpose, Character, Setting and camera, the shot table, Watch-outs | Asks for what it can't infer, or proposes the text to accept |
 | Disclaimers, when one applies | Proposes the disclaimers the KB says apply; when none applies, the script says so explicitly |
 | A shot with no beat, length or visual | Proposes it |
-| A shot whose VO or on-screen text is empty (every row in all 28 outlines has both) | Proposes the line or the card |
+| A beat whose first shot has no VO line or card (split shots may carry them; every row in all 28 outlines has both) | Proposes the line or the card |
 | A placeholder, such as the review beat's "[real review, verbatim]" | "Paste the cleared Amazon review for this theme" (open question 2) |
 | A date or custom to confirm, such as a festival day | "Confirm Sun 11 Oct is the first day of Navratri" (open question 3) |
 | A proof line that is not cleared | "Is this line cleared?" or swap for a locked line (open question 4) |

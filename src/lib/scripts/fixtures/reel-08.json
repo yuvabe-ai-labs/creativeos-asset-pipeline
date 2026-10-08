@@ -1,0 +1,48 @@
+{
+  "header": {
+    "reelNumber": 8,
+    "title": "I read the label first",
+    "format": "UGC, review first",
+    "region": "North and West",
+    "postDate": "Thu 26 Nov",
+    "theme": "Diabetes Awareness Month",
+    "aspect": "9:16",
+    "targetLength": "45 to 55 sec",
+    "production": "AI-generated"
+  },
+  "context": {
+    "purpose": "Show a careful, unhyped first step: Hemant reads the back of the pack and the study page before he adds a spoon to the family's atta. Trust comes from reading, not from selling.",
+    "settingAndCamera": "Pune flat living and dining room with a small mandir shelf, a dining table and a wall clock. Pack, a printed study page and a notebook on the table. Warm lamp and daylight mix. Handheld at the table.",
+    "disclaimers": "D3 applies as well as D1, D2 and D4, because the study is named.",
+    "watchOuts": [
+      "Hemant says nothing about his own health or any result. He reads, adds the spoon and sits down to the same meal."
+    ]
+  },
+  "cast": [
+    {
+      "id": "hemant",
+      "name": "Hemant",
+      "description": "Hemant, 53, Pune, runs a hardware shop. Half-sleeve cotton shirt, reading glasses, steel watch. Cautious and thoughtful, speaks English with a Marathi lilt.",
+      "avatarId": null,
+      "isLead": true
+    },
+    {
+      "id": "anjali",
+      "name": "Anjali",
+      "description": "His wife Anjali, 49, in a cotton kurta set with a dupatta, brings the chapatis to the table.",
+      "avatarId": null,
+      "isLead": false
+    }
+  ],
+  "shots": [
+    { "id": "s01", "beat": "HOOK", "lengthSeconds": 4, "visual": "Hemant holds the pack up to camera and taps the back label.", "vo": "First thing I did was read the back of the pack.", "onScreenText": "I read the label first.", "onScreen": ["hemant"] },
+    { "id": "s02", "beat": "REVIEW", "lengthSeconds": 8, "visual": "A real Amazon review card slides in with a Verified Purchase badge. Hemant glances at it. Use a real, cleared review on this theme: reading the label and the details carefully.", "vo": "One customer wrote on Amazon: \"[real review, verbatim]\".", "onScreenText": "Customer review on Amazon · Verified Purchase", "onScreen": ["hemant"] },
+    { "id": "s03", "beat": "INTRO", "lengthSeconds": 6, "visual": "Evening at home. Anjali holds up the pack and asks a question. Hemant takes it from her and reads the label.", "vo": "Anjali asked, what is this? I said, let's read about it first.", "onScreenText": "Read first.", "onScreen": ["hemant", "anjali"] },
+    { "id": "s04", "beat": "STORY", "lengthSeconds": 7, "visual": "He flips the printed study page and points at the journal name.", "vo": "So I read about the study too. I like to know what's going into my family's food.", "onScreenText": "Read about the study first.", "onScreen": ["hemant"] },
+    { "id": "s05", "beat": "STEP", "lengthSeconds": 6, "visual": "Top-down at home. One tablespoon of flour into the atta, hand mixes.", "vo": "After that it was easy. One tablespoon of the Jackfruit365 flour in the atta.", "onScreenText": "Just 1 tablespoon per meal", "onScreen": [] },
+    { "id": "s06", "beat": "BODY", "lengthSeconds": 5, "visual": "Anjali puts chapatis, a vegetable bhaji, a bowl of varan and a little rice on the table. Hemant smiles. The plates are the same as always.", "vo": "Same chapatis, same thali. Nothing on the plate is different.", "onScreenText": "No change to your diet", "onScreen": ["hemant", "anjali"] },
+    { "id": "s07", "beat": "PAYOFF", "lengthSeconds": 5, "visual": "Hemant and Anjali at the table. He gives her a quiet nod.", "vo": "Now it's just part of dinner. Nothing dramatic.", "onScreenText": "Part of dinner now.", "onScreen": ["hemant", "anjali"] },
+    { "id": "s08", "beat": "PROOF", "lengthSeconds": 5, "visual": "Hold on the claim card with the pack.", "vo": "Clinically tested. 100% green jackfruit, nothing else.", "onScreenText": "Helps control blood sugar levels* · 100% green jackfruit. Nothing else.", "onScreen": [] },
+    { "id": "s09", "beat": "OUTRO", "lengthSeconds": 6, "visual": "Pack on the table.", "vo": "Jackfruit365. Available on Amazon, where you can read the reviews.", "onScreenText": "Pack shot. Available on Amazon. Disclaimer lines. · Read the reviews on Amazon", "onScreen": [] }
+  ]
+}

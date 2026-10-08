@@ -111,8 +111,8 @@ A **slot** is one piece of a finished script. Each row: where its content comes 
 | **Beat** | The format's structure | Set |
 | **Length** | The beat's typical length (§1), summing to about 50 s | Set |
 | **Visual** | The angle, the persona, the kit; transitions in the prose | Written |
-| **VO** | The angle, in the KB's voice; locked lines verbatim | Written — **every row in all 28 reels has VO** |
-| **On-screen text** | Locked lines where the beat calls for one; else a short card | Written — **every row in all 28 reels has on-screen text** |
+| **VO** | The angle, in the KB's voice; locked lines verbatim | Written on the beat's first shot; split shots carry it (every row in all 28 reels has VO) |
+| **On-screen text** | Locked lines where the beat calls for one; else a short card | Written on the beat's first shot; split shots carry it (every row in all 28 reels has a card) |
 | **On screen** | The cast | Set, or nobody (B-roll) |
 
 ### 2.3 Beat-specific rules

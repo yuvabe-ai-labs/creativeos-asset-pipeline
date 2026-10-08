@@ -13,6 +13,7 @@ import {
   ChevronDown,
   TriangleAlert,
   Compass,
+  Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
 import { MultishotBeatCard } from "./multishot-beat-card";
+import { VoLinesEditor } from "./vo-lines-editor";
 import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
 import { planMentionables } from "@/lib/nodes/plan-mentions";
@@ -751,13 +753,15 @@ export function MultishotPromptFocusView({
                             setInstructionDraft(v);
                             onPatch({ instruction: v });
                           }}
-                          placeholder="e.g. @ the turnaround is the character — identity only, ignore its backdrop. Take the setting and light from @ the kitchen shot."
+                          placeholder="e.g. @ the turnaround is the character. Use @ the kitchen shot as the background. Follow @ the storyboard for framing."
                           upstream={mentionUpstream}
                           disabled={isReadOnly || generating || !!refining}
                           className="min-h-16"
                         />
+                        {/* D319 — every reference is used: its role is read from the image unless
+                            the Direction states one. */}
                         <p className="text-[0.65rem] text-muted-foreground">
-                          References are used for identity only unless you say otherwise here.
+                          Each reference is used for what it shows: a place as the background, panels as a storyboard, a person as the character. Say it here to change that.
                         </p>
                       </div>
 
@@ -1043,6 +1047,19 @@ export function MultishotPromptFocusView({
                             />
                           ))}
                         </div>
+
+                        {/* The Multishot node's voiceover, which ships with this plan (renderPlan).
+                            It was only visible in the Prompt tab, so the Breakup view read as if
+                            the sequence had none. Read-only: it belongs to the Multishot node. */}
+                        {(sequenceVoiceover?.length ?? 0) > 0 && (
+                          <div className="flex shrink-0 flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-card">
+                            <FieldLabel icon={Mic} label="Voiceover · whole sequence" />
+                            <VoLinesEditor lines={sequenceVoiceover} readOnly />
+                            <p className="text-[0.65rem] text-muted-foreground">
+                              Plays over every shot. Edit it on the Multishot node.
+                            </p>
+                          </div>
+                        )}
                       </>
                     )}
                     </div>

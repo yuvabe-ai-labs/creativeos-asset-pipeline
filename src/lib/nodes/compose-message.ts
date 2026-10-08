@@ -10,7 +10,7 @@ type TextPart = {
 
 type ImagePart = {
   type: "image_url";
-  image_url: { url: string; detail: "auto" };
+  image_url: { url: string; detail: "auto" | "high" };
 };
 
 export type ContentPart = TextPart | ImagePart;
@@ -57,10 +57,10 @@ export function visionAttachmentsOf<T extends VisionAttachmentCandidate>(items: 
   return items.filter(isVisionAttachment);
 }
 
-function toImagePart(u: UpstreamPreview): ImagePart {
+function toImagePart(u: UpstreamPreview, detail: ImagePart["image_url"]["detail"] = "auto"): ImagePart {
   return {
     type: "image_url",
-    image_url: { url: u.fileUrl!, detail: "auto" },
+    image_url: { url: u.fileUrl!, detail },
   };
 }
 
@@ -82,6 +82,9 @@ function toImagePart(u: UpstreamPreview): ImagePart {
 // N counted over the same `isVisionAttachment` order as `refEntriesOf`, so the operator's
 // Direction ("reference image 2 (kitchen.png)", via resolveRefMentions) points at a picture the
 // writer can actually tell apart. Off by default — every other caller's message is unchanged.
+//
+// D319 — labelled images are also sent at `detail: "high"`: the multishot writer now reads a
+// storyboard's panels and inventories a background's props, which "auto" can downsample past.
 export function buildUserContent(
   compiledText: string,
   upstream: UpstreamPreview[],
@@ -94,7 +97,7 @@ export function buildUserContent(
     { type: "text", text: compiledText },
     ...visionAttachments.flatMap((u, i): ContentPart[] =>
       opts.labelImages
-        ? [{ type: "text", text: `Reference image ${i + 1}:` }, toImagePart(u)]
+        ? [{ type: "text", text: `Reference image ${i + 1}:` }, toImagePart(u, "high")]
         : [toImagePart(u)],
     ),
   ];

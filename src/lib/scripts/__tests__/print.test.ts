@@ -33,8 +33,10 @@ describe("printScript", () => {
     expect(rows[8]).toContain("| **BODY 33-35.5s** |");
   });
 
-  it("leaves an empty on-screen text cell empty, not bold markers", () => {
-    expect(tableRows(text)[1].endsWith("| Nine nights of guests, and the kitchen doesn't close. |  |")).toBe(true);
+  it("leaves a carried card empty, not bold markers: the beat's first shot holds it", () => {
+    const rows = tableRows(text);
+    expect(rows[0].endsWith("| **Golu starts today.** |")).toBe(true);
+    expect(rows[1].endsWith("| Nine nights of guests, and the kitchen doesn't close. |  |")).toBe(true);
   });
 
   it("prints disclaimers and watch-outs after the table", () => {

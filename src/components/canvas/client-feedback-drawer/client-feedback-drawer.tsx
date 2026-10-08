@@ -15,6 +15,7 @@ import { EditableField } from "@/components/nodes/editable-field";
 import { ClientReviewUpload } from "@/components/nodes/client-review-upload";
 import { clientReviewKeys, useNodeClientReview } from "@/hooks/queries/client-reviews";
 import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
+import { sharePathFor } from "@/lib/client-review/paths";
 import type { NodeClientReview } from "@/lib/client-review/wire";
 import { useClientFeedback } from "./client-feedback-context";
 
@@ -91,6 +92,8 @@ function FeedbackPanel({
 
   const review = data?.review ?? null;
   const comments = data?.comments ?? [];
+  // Built from the live title, so Copy link / Open as client follow a rename immediately.
+  const sharePath = review ? sharePathFor(review.shareToken, title) : null;
 
   function seek(ms: number) {
     const video = videoRef.current;
@@ -101,9 +104,9 @@ function FeedbackPanel({
 
   // window is read on click, never during render — canvas components are server-rendered too.
   async function copyLink() {
-    if (!review) return;
+    if (!sharePath) return;
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${review.sharePath}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${sharePath}`);
       toast.success("Link copied");
     } catch {
       toast.error("Couldn't copy — copy it from Open as client.");
@@ -147,7 +150,7 @@ function FeedbackPanel({
                 size="sm"
                 className="flex-1"
                 nativeButton={false}
-                render={<a href={review.sharePath} target="_blank" rel="noopener noreferrer" />}
+                render={<a href={sharePath ?? undefined} target="_blank" rel="noopener noreferrer" />}
               >
                 <ExternalLink className="size-3.5" strokeWidth={1.5} /> Open as client
               </Button>

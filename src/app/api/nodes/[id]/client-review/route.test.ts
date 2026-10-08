@@ -77,14 +77,14 @@ describe("/api/nodes/[id]/client-review", () => {
     expect(await res.json()).toEqual({ review: null, comments: [] });
   });
 
-  it("GET returns the video URL and share path once a cut exists", async () => {
+  it("GET returns the video URL and share code once a cut exists", async () => {
     vi.mocked(getReviewByNodeId).mockResolvedValue({
       id: "r1", video_path: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, share_token: "b4b4",
     } as never);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/nodes/n1/client-review"), { params });
     const body = await res.json();
-    expect(body.review).toEqual({ videoUrl: `https://cdn/${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, sharePath: "/r/dosa-film-b4b4" });
+    expect(body.review).toEqual({ videoUrl: `https://cdn/${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, shareToken: "b4b4" });
   });
 
   it("POST creates the review with a fresh token for a path inside the node", async () => {
@@ -97,9 +97,9 @@ describe("/api/nodes/[id]/client-review", () => {
     expect(res.status).toBe(201);
     const input = vi.mocked(createReview).mock.calls[0][0];
     expect(input).toMatchObject({ canvasId: "cv1", nodeId: "n1", videoPath: `${PREFIX}cut__2026-10-06T08-54-55-123Z.mp4`, createdBy: "user-1" });
-    // D311: the code is the node id's leading characters ("n1" here), the link carries the title.
+    // D311: the code is the node id's leading characters ("n1" here); the drawer adds the title.
     expect(input.shareToken).toBe("n1");
-    expect((await res.json()).review.sharePath).toBe("/r/dosa-film-n1");
+    expect((await res.json()).review.shareToken).toBe("n1");
   });
 
   it("POST retries one character longer when the share code is taken", async () => {
