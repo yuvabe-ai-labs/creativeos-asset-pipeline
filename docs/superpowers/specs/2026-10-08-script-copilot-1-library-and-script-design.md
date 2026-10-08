@@ -233,7 +233,7 @@ Three seeded scripts, one per format structure, so the copilot can learn each fr
 (spec 2 §4.3): **Reel 01** (UGC, 14 shots), **Reel 06** (Founder-led, 9 shots) and **Reel 08**
 (UGC, review first, 9 shots), each split by hand from the outline, every shot with a VO line and
 on-screen text (a beat's card carries across its split shots), each 52 seconds. Loaded with
-.
+`node scripts/seed-script.mjs <client-slug> --file src/lib/scripts/fixtures/reel-0N.json`.
 
 The rest of this section describes Reel 01.
 
