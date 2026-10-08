@@ -57,9 +57,12 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
         {picking && (
           // Setting the picked take is a request: block the dialog and say so until it lands. The
           // same overlay the Studio shows while a face is set ("Setting as the front…").
-          <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 rounded-[inherit] bg-background/60 text-xs font-medium text-foreground">
-            <Loader2 className="size-5 animate-spin text-primary" strokeWidth={1.5} />
-            Setting this version…
+          // The message sits at the bottom on its own surface, clear of the dialog's text beneath.
+          <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex items-end justify-center rounded-[inherit] bg-background/60 pb-5">
+            <span className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-card">
+              <Loader2 className="size-4 animate-spin text-primary" strokeWidth={1.5} />
+              Setting this version…
+            </span>
           </div>
         )}
       </DialogContent>
