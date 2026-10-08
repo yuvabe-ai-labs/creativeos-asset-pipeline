@@ -3,6 +3,9 @@ import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
 import { parseRegionalKits } from "../kits";
 import { blankAreas, panelAspect } from "../panel-prompt";
 import { castReadyForPanels, estimatePanelCredits, panelInputs, panelReferenceCap } from "../panel-inputs";
+import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
+import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { PANEL_MODEL_ID } from "../constants";
 import {
   avatarMap, HUSBAND_AVATAR, linkedDoc, MEENAKSHI_AVATAR, readyAvatar, reel01Doc,
 } from "./fixtures";
@@ -60,6 +63,27 @@ describe("panelInputs on Reel 01 (D341)", () => {
 
   it("has no clothing instruction for a person drawn without reference images", () => {
     expect(inputs("s02", 0).prompt).not.toContain("Dress them exactly as in those images");
+  });
+
+  it("opens with the house style block: full bleed, no drawn border (testing: some panels came back framed)", () => {
+    const p = inputs("s01").prompt;
+    expect(p.startsWith("STYLE (the same in every panel")).toBe(true);
+    expect(p).toContain("Framing: full bleed");
+    expect(p).toContain("No drawn border, frame line, margin, paper edge, tape or vignette");
+  });
+
+  it("names the house style image, sent after the people's views, as style only", () => {
+    expect(inputs("s06").prompt).toContain("Reference image 9 shows the drawing style only");
+    expect(inputs("s09").prompt).toContain("Reference image 1 shows the drawing style only");
+    expect(inputs("s09").prompt).toContain("never copy its room, furniture, objects or layout");
+  });
+
+  it("keeps one reference slot for the house style image", () => {
+    expect(panelReferenceCap()).toBe(imageGenClientModelMap[PANEL_MODEL_ID]!.maxReferenceImages! - 1);
+  });
+
+  it("prices the house style image in, so the cost shown is what is reserved", () => {
+    expect(estimatePanelCredits(8, "9:16")).toBe(estimateAvatarImageCredits({ modelId: PANEL_MODEL_ID, aspect: "9:16", referenceCount: 9 }));
   });
 
   it("draws the setting, the kit, the sketch style, and never any text or brand", () => {

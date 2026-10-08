@@ -3,6 +3,7 @@ import { runBilledImageGeneration } from "@/lib/image-gen/billed-run";
 import { uploadScriptPanel } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
 import { PANEL_MODEL_ID } from "./constants";
+import { HOUSE_STYLE_REF } from "./house-style";
 
 // D337, D345 — one storyboard panel, owned by its script and billed like any image.
 export async function runPanelGeneration(args: {
@@ -25,8 +26,12 @@ export async function runPanelGeneration(args: {
     modelId: PANEL_MODEL_ID,
     aspect: args.aspect,
     prompt: args.prompt,
-    referenceUrls: args.referenceUrls,
-    inputsSnapshot: { slot: "panel", shotId: args.shotId, prompt: args.prompt, referenceUrls: args.referenceUrls },
+    // The house style image last, matching the prompt's "Reference image N shows the drawing style".
+    referenceUrls: [...args.referenceUrls, HOUSE_STYLE_REF.dataUrl],
+    inputsSnapshot: {
+      slot: "panel", shotId: args.shotId, prompt: args.prompt,
+      referenceUrls: [...args.referenceUrls, HOUSE_STYLE_REF.id],
+    },
     store: (body, mimeType) =>
       uploadScriptPanel({
         clientId: args.clientId, scriptId: args.scriptId, shotId: args.shotId,

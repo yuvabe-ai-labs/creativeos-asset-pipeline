@@ -18,8 +18,9 @@ export function castReadyForPanels(avatar: Avatar | null | undefined): avatar is
   return Boolean(avatar && !avatar.archivedAt && avatar.status === "ready" && hasFourViews(avatar));
 }
 
+/** The model's reference limit, less the one slot the house style image takes. */
 export function panelReferenceCap(): number {
-  return imageGenClientModelMap[PANEL_MODEL_ID]?.maxReferenceImages ?? 0;
+  return Math.max(0, (imageGenClientModelMap[PANEL_MODEL_ID]?.maxReferenceImages ?? 0) - 1);
 }
 
 /** Every person's Front first, then the other views person by person, cut at the model's cap:
@@ -80,7 +81,8 @@ export function panelInputs(input: {
   };
 }
 
-/** D345 — a panel bills like any image: the same estimate the draw reserves. */
+/** D345 — a panel bills like any image: the same estimate the draw reserves. `referenceCount`
+ *  is the people's views; the house style image the draw adds is counted here too. */
 export function estimatePanelCredits(referenceCount: number, aspect: string): number | null {
-  return estimateAvatarImageCredits({ modelId: PANEL_MODEL_ID, aspect, referenceCount });
+  return estimateAvatarImageCredits({ modelId: PANEL_MODEL_ID, aspect, referenceCount: referenceCount + 1 });
 }

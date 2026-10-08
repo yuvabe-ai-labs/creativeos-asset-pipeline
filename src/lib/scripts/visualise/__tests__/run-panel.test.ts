@@ -7,6 +7,7 @@ vi.mock("@/lib/storage", () => ({ uploadScriptPanel: vi.fn() }));
 import { runBilledImageGeneration } from "@/lib/image-gen/billed-run";
 import { uploadScriptPanel } from "@/lib/storage";
 import { runPanelGeneration } from "../run-panel";
+import { HOUSE_STYLE_REF } from "../house-style";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -22,8 +23,11 @@ describe("runPanelGeneration", () => {
     const call = vi.mocked(runBilledImageGeneration).mock.calls[0][0];
     expect(call).toMatchObject({
       owner: { scriptId: "s1" }, modelId: "gemini:gemini-3.1-flash-image", aspect: "9:16",
-      inputsSnapshot: { slot: "panel", shotId: "s06", prompt: "A panel.", referenceUrls: ["a", "b"] },
+      inputsSnapshot: { slot: "panel", shotId: "s06", prompt: "A panel.", referenceUrls: ["a", "b", "house-style:v1"] },
     });
+    // The house style image goes last, inline; the generation row records only its id.
+    expect(call.referenceUrls).toEqual(["a", "b", HOUSE_STYLE_REF.dataUrl]);
+    expect(HOUSE_STYLE_REF.dataUrl.startsWith("data:image/jpeg;base64,")).toBe(true);
     await call.store(Buffer.from("x"), "image/png");
     expect(uploadScriptPanel).toHaveBeenCalledWith(expect.objectContaining({ clientId: "c1", scriptId: "s1", shotId: "s06", ext: "png" }));
   });

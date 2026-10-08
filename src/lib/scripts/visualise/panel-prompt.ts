@@ -17,13 +17,26 @@ export type PanelPerson = {
 };
 export type PanelReference = { url: string; castId: string; view: AvatarViewId };
 
-export const PANEL_STYLE_CLAUSE =
-  "A storyboard panel drawn as a loose marker-and-wash sketch: confident black marker lines, flat " +
-  "grey and muted colour washes, white paper showing through, no photographic detail. It reads as " +
-  "a plan to approve, not a finished film.";
+// The house style, the same block first in every panel (approved in testing, 8 Oct 2026: a loose
+// one-line style let some panels come back framed and others full bleed, with drifting lines).
+export const PANEL_STYLE_BLOCK = [
+  "STYLE (the same in every panel; it never varies):",
+  "- A storyboard frame drawn as a marker-and-wash sketch: black fineliner and alcohol markers on white marker paper. It reads as a plan to approve, not a finished film.",
+  "- Lines: confident, even, medium-weight black ink outlines around every figure and object; light hatching for shadow; no sketchy construction lines.",
+  "- Colour: flat marker washes in a muted palette (warm greys, cream, ochre, muted gold, terracotta, sage); white paper left showing in the highlights; skin in warm mid-tones.",
+  "- Light: soft daylight from one side; simple cool-grey cast shadows.",
+  "- Detail: enough to read the action, the people and the setting; no photographic texture, no gradients, no 3D render look, no painterly brushwork.",
+  "- Framing: full bleed. The drawing fills the whole frame edge to edge. No drawn border, frame line, margin, paper edge, tape or vignette.",
+].join("\n");
+
+/** The house style image is sent last (run-panel.ts), after the people's views. */
+export function styleReferenceClause(styleRefNumber: number): string {
+  return `Reference image ${styleRefNumber} shows the drawing style only: match its line, washes, palette and ` +
+    "full-bleed framing; never copy its room, furniture, objects or layout.";
+}
 export const PANEL_NOBODY_CLAUSE = "Nobody is on screen: draw no people. Hands may appear only if the action needs them.";
 export const PANEL_REFERENCE_CLAUSE =
-  "The reference images show the people's identity only: never copy their plain grey background, lighting or layout.";
+  "The people's reference images show their identity only: never copy their plain grey background, lighting or layout.";
 export const PANEL_NO_TEXT_CLAUSE =
   "Never draw any text, letters, numbers, logos, brand names, labels, price tags or captions anywhere " +
   "in the frame. Every container, jar, packet and box is plain and unlabelled.";
@@ -82,7 +95,8 @@ export function buildPanelPrompt(input: {
   const { doc, shot, kit, people, references } = input;
   const blanks = blankAreas(shot).map((id) => BLANK_AREAS.find((a) => a.id === id)!.clause);
   return [
-    PANEL_STYLE_CLAUSE,
+    PANEL_STYLE_BLOCK,
+    styleReferenceClause(references.length + 1),
     `Frame: ${panelAspect(doc)}.`,
     `This shot: ${sentence(shot.visual)}`,
     doc.context.settingAndCamera ? `Setting and camera for the whole reel: ${sentence(doc.context.settingAndCamera)}` : "",
