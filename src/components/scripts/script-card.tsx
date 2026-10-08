@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { Script } from "@/lib/scripts/schema";
 import { headerLine, reelLabel, shotSummary } from "@/lib/scripts/utils";
+import { ClientFeedbackCount } from "@/components/script-review/client-feedback-count";
 import { ScriptStageBadge } from "./script-stage-badge";
 
-export function ScriptCard({ script, href }: { script: Script; href: string }) {
+export function ScriptCard({ script, href, feedbackCount = 0 }: { script: Script; href: string; feedbackCount?: number }) {
   const { header } = script.doc;
   return (
     <Link
@@ -18,7 +19,10 @@ export function ScriptCard({ script, href }: { script: Script; href: string }) {
         <span className="font-display text-lg font-medium leading-tight text-foreground">{header.title}</span>
         <span className="text-sm text-muted-foreground">{headerLine(header)}</span>
       </div>
-      <span className="border-t border-border pt-3 text-sm text-muted-foreground">{shotSummary(script.doc)}</span>
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+        <span className="text-sm text-muted-foreground">{shotSummary(script.doc)}</span>
+        <ClientFeedbackCount count={feedbackCount} />
+      </div>
     </Link>
   );
 }

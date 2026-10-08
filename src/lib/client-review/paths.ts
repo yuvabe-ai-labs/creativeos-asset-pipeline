@@ -8,7 +8,7 @@ const LEGACY_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 // The title part of a share link: lower-case words joined by dashes, accents dropped, at most
 // SLUG_MAX characters (cut at a word). Purely for the client to read — lookups ignore it (D311).
-function linkSlug(title: string): string {
+export function linkSlug(title: string, fallback = "cut"): string {
   const words = title
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
@@ -21,7 +21,7 @@ function linkSlug(title: string): string {
     if (next.length > SLUG_MAX) break;
     slug = next;
   }
-  return slug || "cut";
+  return slug || fallback;
 }
 
 /** The client-facing link for a review: `/r/<title-slug>-<code>` (D311). Links minted before

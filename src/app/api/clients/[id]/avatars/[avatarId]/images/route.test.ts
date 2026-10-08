@@ -38,6 +38,16 @@ beforeEach(() => {
 });
 
 describe("POST images/sign", () => {
+  it("will not sign a sheet upload (D339)", async () => {
+    const { POST } = await import("./sign/route");
+    const res = await POST(
+      req("images/sign", { filename: "s.png", contentType: "image/png", size: 100, slot: "sheet" }),
+      { params },
+    );
+    expect(res.status).toBe(400);
+    expect(signAvatarImageUpload).not.toHaveBeenCalled();
+  });
+
   it("signs a valid image for the avatar's slot", async () => {
     vi.mocked(signAvatarImageUpload).mockResolvedValue({ signedUrl: "s", path: FRONT_PATH, url: "u" });
     const { POST } = await import("./sign/route");
@@ -144,11 +154,11 @@ describe("POST images (finalize)", () => {
     expect(removeObject).not.toHaveBeenCalled();
   });
 
-  it("a new sheet is current", async () => {
-    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ sheetStale: true, status: "draft" }));
+  it("refuses a sheet upload: sheets are four generated views (D339)", async () => {
     const { POST } = await import("./route");
-    await POST(req("images", { ...body, slot: "sheet", path: "clients/c1/avatars/a1/sheet/s.png" }), { params });
-    expect(vi.mocked(updateAvatar).mock.calls[0][2]).toMatchObject({ sheetStale: false });
+    const res = await POST(req("images", { ...body, slot: "sheet", path: "clients/c1/avatars/a1/sheet/s.png" }), { params });
+    expect(res.status).toBe(400);
+    expect(updateAvatar).not.toHaveBeenCalled();
   });
 });
 

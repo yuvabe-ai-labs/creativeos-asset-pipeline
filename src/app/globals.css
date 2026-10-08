@@ -41,6 +41,8 @@
   --color-warning-text: var(--warning-text);
   --color-client: var(--client);
   --color-client-text: var(--client-text);
+  --color-scrim: var(--scrim);
+  --color-on-scrim: var(--on-scrim);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-info-text: var(--info-text);
@@ -184,6 +186,10 @@
      yellow; text and icons use yellow-700 (4.57:1), never yellow-500 (1.53:1). */
   --client: var(--yellow-500);
   --client-text: var(--yellow-700);
+  /* Text over imagery (a storyboard tile's shot line): white on a dark scrim in both themes, so it
+     reads over a white sketch, the brightest frame. Defined once here; .dark does not flip it. */
+  --scrim: var(--neutral-900);
+  --on-scrim: var(--neutral-0);
   --info: var(--cyan-500);
   --info-foreground: var(--neutral-900); /* 7.35:1 */
   --info-text: var(--cyan-700);
@@ -291,6 +297,13 @@
 }
 
 /* ─── Yuvabe utilities ──────────────────────────────────────────────── */
+
+/* Text on a scrim over imagery: the on-scrim colour with a soft shadow in the scrim's colour, so a
+   bright patch of the image under a letter never swallows it. */
+.scrim-text {
+  color: var(--on-scrim);
+  text-shadow: 0 1px 2px color-mix(in oklab, var(--scrim) 60%, transparent);
+}
 
 /* Eyebrow — widely-tracked small caps above headings (replaces mono labels) */
 .text-eyebrow {

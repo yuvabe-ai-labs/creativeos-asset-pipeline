@@ -23,6 +23,7 @@ const ROW: AvatarRow = {
   front: null,
   sheet: null,
   sheet_stale: false,
+  sheet_views: null,
   voice: null,
   voice_sample: null,
   status: "draft",

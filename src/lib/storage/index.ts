@@ -17,6 +17,7 @@ import {
   pathForVideoGenVoice,
   pathForAvatarImage,
   pathForAvatarGenerated,
+  pathForScriptPanel,
   pathForAvatarVoicePreview,
   pathForAvatarVoiceSample,
   pathForAvatarNamedVoiceSample,
@@ -272,6 +273,8 @@ export async function uploadAvatarGenerated(args: {
   avatarId: string;
   slot: AvatarImageSlot;
   ext: string;
+  /** D339 — the stored name's stem ("view-left", "strip"), so parallel uploads never share one. */
+  name?: string;
   body: Buffer | ArrayBuffer | Uint8Array;
   contentType: string;
 }): Promise<UploadResult> {
@@ -280,6 +283,7 @@ export async function uploadAvatarGenerated(args: {
     avatarId: args.avatarId,
     slot: args.slot,
     ext: args.ext,
+    name: args.name,
   });
   return _upload(path, args.body, args.contentType);
 }
@@ -430,4 +434,17 @@ export async function signClientReviewUpload(args: {
 }): Promise<SignedUploadResult> {
   const path = pathForClientReviewCut(args);
   return _sign(path, args.contentType);
+}
+
+// D337 — one storyboard panel's bytes, stored as the provider returned them.
+export async function uploadScriptPanel(args: {
+  clientId: string;
+  scriptId: string;
+  shotId: string;
+  ext: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForScriptPanel({ clientId: args.clientId, scriptId: args.scriptId, shotId: args.shotId, ext: args.ext });
+  return _upload(path, args.body, args.contentType);
 }

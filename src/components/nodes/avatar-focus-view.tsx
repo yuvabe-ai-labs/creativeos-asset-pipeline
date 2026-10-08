@@ -36,7 +36,7 @@ function Reference({ label, image, aspect, onZoom }: {
         style={{ aspectRatio: aspect }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={image.url} alt="" className="size-full object-cover" />
+        <img src={image.url} alt="" className="size-full object-contain" />
       </Button>
     </div>
   );
@@ -96,7 +96,8 @@ export function AvatarFocusView({ open, onOpenChange, avatar, studioHref }: Prop
                     onZoom={() => setZoomed({ url: avatar.front!.url, title: "Front image" })} />
                 )}
                 {avatar.sheet && (
-                  <Reference label="Profile sheet" image={avatar.sheet} aspect="16 / 9"
+                  <Reference label="Profile sheet" image={avatar.sheet}
+                    aspect={avatar.sheet.width && avatar.sheet.height ? `${avatar.sheet.width} / ${avatar.sheet.height}` : "16 / 9"}
                     onZoom={() => setZoomed({ url: avatar.sheet!.url, title: "Profile sheet" })} />
                 )}
               </div>

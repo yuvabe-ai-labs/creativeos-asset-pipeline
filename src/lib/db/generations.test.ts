@@ -17,6 +17,16 @@ beforeEach(() => {
 });
 
 describe("insertGeneration", () => {
+  it("sends no script_id for a generation a script does not own, so it works before migration 0053 (review finding 2)", async () => {
+    await insertGeneration({ avatarId: "a1", orgId: "org-1", type: "image" });
+    expect(insert.mock.calls[0][0]).not.toHaveProperty("script_id");
+  });
+
+  it("writes a script-owned row for a storyboard panel (D337)", async () => {
+    await insertGeneration({ scriptId: "s1", orgId: "org-1", type: "image" });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ node_id: null, avatar_id: null, script_id: "s1" }));
+  });
+
   it("writes an avatar-owned row with no node", async () => {
     await insertGeneration({ avatarId: "a1", orgId: "org-1", clientId: "c1", type: "image" });
     expect(insert).toHaveBeenCalledWith(

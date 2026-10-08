@@ -15,6 +15,9 @@ export type ScriptRow = {
 /** A row the app can show, or null. A row that fails validation (hand-edited, or from an
  *  older shape) is skipped with a warning rather than breaking the whole library. */
 export function rowToScript(row: ScriptRow): Script | null {
+  // A new script has no draft until the copilot writes one (spec 2, migration 0052). It is not
+  // a broken row, so it is skipped without a warning; the Generate workspace reads it its own way.
+  if (row.doc === null) return null;
   const doc = scriptDocSchema.safeParse(row.doc);
   if (!doc.success || !isScriptStage(row.stage)) {
     console.warn(`[scripts] skipping script ${row.id}: ${doc.success ? `unknown stage "${row.stage}"` : doc.error.message}`);

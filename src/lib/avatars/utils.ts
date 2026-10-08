@@ -1,9 +1,9 @@
 import {
   AVATAR_IMAGE_CONTENT_TYPES, AVATAR_IMAGE_EXTENSION_CONTENT_TYPES, AVATAR_IMAGE_EXTENSIONS,
   AVATAR_IMAGE_MAX_BYTES, AVATAR_IMAGE_MAX_LABEL, AVATAR_NAME_MAX, AVATAR_STORY_MAX,
-  LIKENESS_CONSENT_CHANGED_ERROR, READINESS_GAP_LABELS,
+  AVATAR_VIEWS, LIKENESS_CONSENT_CHANGED_ERROR, READINESS_GAP_LABELS,
 } from "./constants";
-import type { Avatar, AvatarImage } from "./schema";
+import type { Avatar, AvatarImage, AvatarSheetViews, AvatarViewId } from "./schema";
 import { voiceAfterFrontChange } from "./voice";
 
 export type ReadinessGap = keyof typeof READINESS_GAP_LABELS;
@@ -15,7 +15,7 @@ export type ReadinessInput = Pick<
 
 export type AvatarPatch = Partial<Pick<
   Avatar,
-  | "name" | "story" | "personType" | "front" | "sheet" | "sheetStale" | "status"
+  | "name" | "story" | "personType" | "front" | "sheet" | "sheetStale" | "sheetViews" | "status"
   | "likenessConsentBy" | "likenessConsentAt" | "voice" | "voiceSample"
 >>;
 
@@ -73,8 +73,55 @@ export function frontChangePatch(current: Avatar, image: AvatarImage): AvatarPat
   };
 }
 
-export function sheetChangePatch(image: AvatarImage): AvatarPatch {
-  return { sheet: image, sheetStale: false };
+/** D339 — a current four-view sheet: every view made, from the front image the avatar has now. */
+export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">): boolean {
+  const views = avatar.sheetViews;
+  return !avatar.sheetStale && views !== null && AVATAR_VIEWS.every((v) => views[v] !== null);
+}
+
+export type SheetKind = "none" | "three-view" | "uploaded" | "four-view";
+
+/** Which kind of sheet an avatar has. A generated single image is the older three-view sheet
+ *  (D288); an uploaded one predates D339, which ended sheet uploads. Both are kept until the
+ *  four views are generated. */
+export function sheetKind(avatar: Pick<Avatar, "sheet" | "sheetViews">): SheetKind {
+  if (avatar.sheetViews) return "four-view";
+  if (!avatar.sheet) return "none";
+  return avatar.sheet.source.kind === "upload" ? "uploaded" : "three-view";
+}
+
+/** The views a Generate would make: only the gaps in a current sheet, otherwise all four. */
+export function missingViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">): AvatarViewId[] {
+  const views = avatar.sheetViews;
+  if (!views || avatar.sheetStale) return [...AVATAR_VIEWS];
+  return AVATAR_VIEWS.filter((v) => views[v] === null);
+}
+
+/** D339 — the views a sheet request makes. Only the ones asked for when the sheet is current;
+ *  all four when there are none or they show an older front, so views of two faces never mix. */
+export function viewsToMake(
+  current: Pick<Avatar, "sheetViews" | "sheetStale">,
+  requested?: readonly AvatarViewId[],
+): AvatarViewId[] {
+  if (!requested || !current.sheetViews || current.sheetStale) return [...AVATAR_VIEWS];
+  return AVATAR_VIEWS.filter((v) => requested.includes(v));
+}
+
+const NO_VIEWS: AvatarSheetViews = { front: null, left: null, right: null, back: null };
+
+/** New views laid over the ones already made from this front (none, when they are out of date).
+ *  `complete` is the full set once all four exist. `sheet` is cleared here: the caller composes
+ *  the strip from `complete`, so video never gets an older strip beside newer views. */
+export function sheetViewsPatch(
+  current: Pick<Avatar, "sheetViews" | "sheetStale">,
+  made: Partial<Record<AvatarViewId, AvatarImage>>,
+): { patch: AvatarPatch; complete: Record<AvatarViewId, AvatarImage> | null } {
+  const base = current.sheetViews && !current.sheetStale ? current.sheetViews : NO_VIEWS;
+  const views: AvatarSheetViews = { ...base, ...made };
+  const complete = AVATAR_VIEWS.every((v) => views[v] !== null)
+    ? (views as Record<AvatarViewId, AvatarImage>)
+    : null;
+  return { patch: { sheetViews: views, sheetStale: false, sheet: null }, complete };
 }
 
 /** States `status: "draft"` whenever the merged avatar (`current` with `patch` applied) is

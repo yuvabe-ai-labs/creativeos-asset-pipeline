@@ -6,15 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { avatarWorksWith } from "@/lib/avatars/generation";
-import { avatarFaceLabel } from "@/lib/avatars/studio";
+import { avatarFaceLabel, sheetStatusLabel } from "@/lib/avatars/studio";
 import { avatarVoiceLabel } from "@/lib/avatars/voice";
 import type { Avatar } from "@/lib/avatars/schema";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
-
-function sheetLabel(avatar: Avatar | null): string {
-  if (!avatar?.sheet) return "Optional";
-  return avatar.sheetStale ? "Out of date" : "Added";
-}
 
 // D297 — the avatar so far, beside every step: its face, what it has, and the names of the video
 // models it can be used with. It carries no Save and no Archive; those have their own places.
@@ -47,7 +42,7 @@ export function AvatarStudioSummary({ avatar, name }: { avatar: Avatar | null; n
         <dt className="text-muted-foreground">Face</dt>
         <dd className="text-right font-medium">{(avatar && avatarFaceLabel(avatar)) ?? "—"}</dd>
         <dt className="text-muted-foreground">Profile sheet</dt>
-        <dd className="text-right font-medium">{sheetLabel(avatar)}</dd>
+        <dd className="text-right font-medium">{sheetStatusLabel(avatar, "Optional")}</dd>
         <dt className="text-muted-foreground">Voice</dt>
         <dd className="text-right font-medium">{avatarVoiceLabel(avatar?.voice ?? null) ?? "Optional"}</dd>
         {native && (

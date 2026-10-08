@@ -2,10 +2,11 @@ import { defaultsForModel, imageGenClientModelMap } from "@/lib/image-gen/client
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
-  AVATAR_FRAMING_CLAUSE, AVATAR_STYLES, AVATAR_WORKS_WITH, SEEDANCE_FACE_MODEL_ID,
+  AVATAR_FRAMING_CLAUSE, AVATAR_STYLES, AVATAR_VIEW_ASPECT, AVATAR_VIEW_DIRECTIONS, AVATAR_WORKS_WITH,
+  SEEDANCE_FACE_MODEL_ID,
   type AvatarAttributes, type AvatarStyleId,
 } from "./constants";
-import type { Avatar, AvatarCandidate } from "./schema";
+import type { Avatar, AvatarCandidate, AvatarViewId } from "./schema";
 
 // Pure, and deliberately without a "server-only" guard: the Studio calls these to show a cost
 // before generating, and the routes call the same functions to reserve — so the number on the
@@ -26,21 +27,27 @@ export function buildAvatarFrontPrompt(input: {
     .join(" ");
 }
 
-/** The profile sheet is made from the front image, so the prompt only describes the layout.
- *  "character reference sheet" is stated because a multi-angle image on a plain backdrop has
- *  been read as a location before (roadmap D281). The front image is waist-up, so the prompt
- *  has to ask for the whole body outright — left unsaid, models copy the reference's crop. */
-export function buildAvatarSheetPrompt(): string {
-  return (
-    "A character reference sheet of the same person as the reference image: three views side by " +
-    "side in one wide image — front, side profile, and back. Each view is a full body shot, " +
-    "head to toe, standing upright with the feet visible and a little space above the head and " +
-    "below the feet. The reference image may be cropped at the waist: continue the same " +
-    "outfit down to the feet with matching trousers or skirt and shoes. Same person, same " +
-    "face, same hair, same outfit and the same scale in every view. Arms relaxed at the sides, " +
-    "neutral expression, even soft light, plain light-grey seamless background. No text, no " +
-    "labels, no borders."
-  );
+/** D339 — one view of the sheet, made from the front image. "Character reference sheet" is
+ *  said because a figure on a plain backdrop has been read as a location before (D281); the
+ *  front is waist-up, so the whole body is asked for outright, or models copy its crop. */
+export function buildAvatarViewPrompt(view: AvatarViewId): string {
+  return [
+    "One view from a character reference sheet of the same person as the reference image.",
+    AVATAR_VIEW_DIRECTIONS[view],
+    "Full body, head to toe, standing upright, with the feet visible and a little space above the " +
+      "head and below the feet. The reference image may be cropped at the waist: continue the same " +
+      "outfit down to the feet with matching clothes and shoes.",
+    "Same person, same face, same hair, same skin tone, same build, same outfit, and the same " +
+      "accessories and identity markers in the same colours.",
+    "Arms relaxed at the sides, neutral expression, even soft light, plain light-grey seamless " +
+      "background. One person only. No text, no labels, no borders.",
+  ].join(" ");
+}
+
+/** What making `count` views costs: each view is one image with the front as its reference. */
+export function estimateSheetCredits(modelId: string, count: number): number | null {
+  const one = estimateAvatarImageCredits({ modelId, aspect: AVATAR_VIEW_ASPECT, referenceCount: 1 });
+  return one === null ? null : one * count;
 }
 
 /** The model's own defaults with the aspect ratio forced. Null for an unknown model. */

@@ -5,7 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { REVIEWER_NAME_MAX } from "@/lib/client-review/constants";
 
-export function NameGate({ title, onSubmit }: { title: string; onSubmit: (name: string) => void }) {
+export function NameGate({
+  title,
+  onSubmit,
+  blurb = "Watch the cut and leave comments for the team.",
+}: {
+  title: string;
+  onSubmit: (name: string) => void;
+  blurb?: string;
+}) {
   const [name, setName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const ready = name.trim().length > 0;
@@ -28,7 +36,7 @@ export function NameGate({ title, onSubmit }: { title: string; onSubmit: (name: 
       <div className="flex flex-col gap-2">
         <p className="text-eyebrow text-muted-foreground">Yuvabe Studios</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight">{title || "Your cut"}</h1>
-        <p className="text-sm text-muted-foreground">Watch the cut and leave comments for the team.</p>
+        <p className="text-sm text-muted-foreground">{blurb}</p>
       </div>
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">Your name</span>

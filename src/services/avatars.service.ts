@@ -1,5 +1,5 @@
 import { readImageSize, uploadViaSignedUrl } from "@/lib/uploads/client";
-import type { Avatar, AvatarCandidate, AvatarImageSlot, VoicePreview } from "@/lib/avatars/schema";
+import type { Avatar, AvatarCandidate, AvatarViewId, VoicePreview } from "@/lib/avatars/schema";
 import { avatarImageContentType, type AvatarUpdateInput } from "@/lib/avatars/utils";
 import type { AvatarAttributes, AvatarStyleId } from "@/lib/avatars/constants";
 import { readJson } from "./read-json";
@@ -72,7 +72,8 @@ class AvatarsService {
   async uploadImage(
     clientId: string,
     avatarId: string,
-    slot: AvatarImageSlot,
+    // D339 — sheets are no longer uploaded; only the front is.
+    slot: "front",
     file: File,
   ): Promise<Avatar> {
     const base = `/api/clients/${clientId}/avatars/${avatarId}/images`;
@@ -119,13 +120,21 @@ class AvatarsService {
     return (await readJson<{ avatar: Avatar }>(res, "Could not set the front image.")).avatar;
   }
 
+  /** D339 — makes the sheet's views (all four, or only `views` when the sheet is current).
+   *  `failed` names any view that did not come back; the others are kept. */
   async generateSheet(
     clientId: string,
     avatarId: string,
     modelId: string,
-  ): Promise<{ avatar: Avatar; creditsCharged: number; spentCredits: number | null }> {
+    views?: AvatarViewId[],
+  ): Promise<{
+    avatar: Avatar;
+    creditsCharged: number;
+    spentCredits: number | null;
+    failed: { view: AvatarViewId; label: string; error: string }[];
+  }> {
     const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/sheet`, {
-      method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ modelId }),
+      method: "POST", headers: JSON_HEADERS, body: JSON.stringify(views ? { modelId, views } : { modelId }),
     });
     return readJson(res, "Could not generate the profile sheet.");
   }

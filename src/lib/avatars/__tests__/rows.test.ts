@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { patchToRow, rowToAvatar, generationToCandidate, generationToImage, type AvatarRow } from "../rows";
-import { makeAvatar, makeImage } from "./fixtures";
+import { makeAvatar, makeImage, makeViews } from "./fixtures";
 import type { GenerationRow } from "@/lib/db/types";
 
 const row: AvatarRow = {
   id: "a1", client_id: "c1", name: "Riya", story: "",
   person_type: "specific",
   likeness_consent_by: "user-1", likeness_consent_at: "2026-09-30T10:05:00.000Z",
-  front: makeImage(), sheet: makeImage(), sheet_stale: false,
+  front: makeImage(), sheet: makeImage(), sheet_stale: false, sheet_views: null,
   voice: null, voice_sample: null, status: "ready", archived_at: null,
   created_at: "2026-09-30T10:00:00.000Z", updated_at: "2026-09-30T10:05:00.000Z",
 };
@@ -84,5 +84,19 @@ describe("generationToCandidate", () => {
     const sheet = gen({ inputs_snapshot: { slot: "sheet", prompt: "p", batchId: null, referenceUrls: ["u"] } });
     expect(generationToCandidate(sheet)).toBeNull();
     expect(generationToCandidate(gen({ status: "failed", output_snapshot: null }))).toBeNull();
+  });
+});
+
+describe("sheet views (D339)", () => {
+  it("maps sheet_views both ways", () => {
+    const views = makeViews();
+    expect(rowToAvatar({ ...row, sheet_views: views }).sheetViews).toEqual(views);
+    expect(patchToRow({ sheetViews: null })).toEqual({ sheet_views: null });
+  });
+
+  it("reads a row from before the column existed as no views", () => {
+    const older: Partial<AvatarRow> = { ...row };
+    delete older.sheet_views;
+    expect(rowToAvatar(older as AvatarRow).sheetViews).toBeNull();
   });
 });
