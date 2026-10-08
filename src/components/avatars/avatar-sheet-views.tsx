@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AvatarViewsGallery } from "./avatar-views-gallery";
 import { cn } from "@/lib/utils";
 import { AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
-import type { AvatarSheetViews as Views, AvatarViewId } from "@/lib/avatars/schema";
+import type { AvatarViewImages as Views, AvatarViewId } from "@/lib/avatars/schema";
 
 type Props = {
   /** The person's name, for alt text and the zoom title. */

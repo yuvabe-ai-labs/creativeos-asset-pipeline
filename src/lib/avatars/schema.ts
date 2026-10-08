@@ -12,6 +12,10 @@ export type AvatarViewId = "front" | "left" | "right" | "back";
  *  made yet, or its generation failed. */
 export type AvatarSheetViews = Record<AvatarViewId, AvatarImage | null>;
 
+/** What a sheet draws for each view: only the URL. A live avatar's views fit it, and so does a
+ *  shared version's frozen snapshot (spec 4), which keeps URLs only. */
+export type AvatarViewImages = Record<AvatarViewId, Pick<AvatarImage, "url"> | null>;
+
 // D288 — how an image came to exist. Seedance eligibility (D290, plan 2) is computed from the
 // `generated` fields and never stored, so they are recorded from day one.
 export type AvatarImageSource =

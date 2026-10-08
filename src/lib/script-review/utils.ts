@@ -1,4 +1,6 @@
 // src/lib/script-review/utils.ts
+import type { AvatarViewImages } from "@/lib/avatars/schema";
+import { AVATAR_VIEWS, type AvatarView } from "./constants";
 import type { ScriptComment } from "./types";
 
 // The team and its clients are in India; a fixed zone makes the server-rendered HTML and the
@@ -18,4 +20,9 @@ export function upsertComment(comments: ScriptComment[], comment: ScriptComment)
   return comments.some((c) => c.id === comment.id)
     ? comments.map((c) => (c.id === comment.id ? comment : c))
     : [...comments, comment];
+}
+
+/** A frozen avatar's view URLs in the shape spec 3's sheet draws. */
+export function snapshotViewImages(views: Record<AvatarView, string | null>): AvatarViewImages {
+  return Object.fromEntries(AVATAR_VIEWS.map((v) => [v, views[v] ? { url: views[v] } : null])) as AvatarViewImages;
 }

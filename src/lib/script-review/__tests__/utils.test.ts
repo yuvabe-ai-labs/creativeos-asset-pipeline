@@ -1,6 +1,6 @@
 // src/lib/script-review/__tests__/utils.test.ts
 import { describe, it, expect } from "vitest";
-import { formatDayTime, formatShortDay, upsertComment } from "../utils";
+import { formatDayTime, formatShortDay, snapshotViewImages, upsertComment } from "../utils";
 import { comment } from "./fixtures";
 
 describe("dates", () => {
@@ -20,5 +20,13 @@ describe("upsertComment", () => {
     const a = comment({ id: "a", body: "one" });
     expect(upsertComment([a], comment({ id: "b" })).map((c) => c.id)).toEqual(["a", "b"]);
     expect(upsertComment([a], comment({ id: "a", body: "two" }))[0].body).toBe("two");
+  });
+});
+
+describe("snapshotViewImages", () => {
+  it("gives the sheet the shape it draws, with no image where a view was not frozen", () => {
+    expect(snapshotViewImages({ front: "f", left: null, right: "r", back: null })).toEqual({
+      front: { url: "f" }, left: null, right: { url: "r" }, back: null,
+    });
   });
 });
