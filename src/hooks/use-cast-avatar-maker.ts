@@ -103,10 +103,5 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId
         setStep("link");
         await linkCast.mutateAsync({ castId: member.id, avatarId });
       }, "Could not use that avatar"),
-    change: () =>
-      run(async () => {
-        setStep("link");
-        await linkCast.mutateAsync({ castId: member.id, avatarId: null });
-      }, "Could not change the avatar"),
   };
 }

@@ -96,7 +96,7 @@ export async function makeGeneratedAvatar(
 /** The slot's one-line status (spec §5.2: "Made 9 Oct · saved to Avatars"). */
 export function castSlotLine(avatar: Avatar | null): string {
   if (!avatar) return "No avatar yet";
-  if (avatar.archivedAt) return "This avatar was archived. Change it to go on.";
+  if (avatar.archivedAt) return "This avatar was archived. Pick another to go on.";
   if (avatar.status !== "ready") return "Draft · saved to Avatars once its four views are made";
   const made = `Made ${formatDate(avatar.createdAt)} · saved to Avatars`;
   return hasFourViews(avatar) ? made : `${made} · needs its four views`;

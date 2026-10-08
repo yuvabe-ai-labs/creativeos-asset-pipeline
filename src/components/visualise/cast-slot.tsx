@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AvatarSheetViews } from "@/components/avatars/avatar-sheet-views";
@@ -90,10 +89,8 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
 
           <div className="grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
             <CastSlotVoice clientId={clientId} castId={member.id} avatar={avatar && !avatar.archivedAt ? avatar : null} onChanged={() => void maker.refresh()} />
-            <div className="flex flex-wrap items-center gap-2">
-              <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />
-              {avatar && <Button variant="ghost" size="sm" disabled={maker.busy} onClick={() => void maker.change()}>Change</Button>}
-            </div>
+            {/* Picking replaces the link; no separate Change (removed in testing: it read as Regenerate). */}
+            <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />
           </div>
           <p className="text-xs text-muted-foreground" aria-live="polite">
             {maker.step ? STEP_COPY[maker.step] : castSlotLine(avatar)}

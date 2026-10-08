@@ -97,7 +97,7 @@ describe("the slot's rules", () => {
     expect(castSlotLine(makeAvatar({ sheetViews: makeViews(), createdAt: "2026-10-09T10:00:00.000Z" }))).toMatch(/^Made .+ · saved to Avatars$/);
     expect(castSlotLine(makeAvatar({ sheetViews: null }))).toMatch(/needs its four views$/);
     expect(castSlotLine(draft())).toBe("Draft · saved to Avatars once its four views are made");
-    expect(castSlotLine(makeAvatar({ archivedAt: "2026-10-08T00:00:00.000Z" }))).toBe("This avatar was archived. Change it to go on.");
+    expect(castSlotLine(makeAvatar({ archivedAt: "2026-10-08T00:00:00.000Z" }))).toBe("This avatar was archived. Pick another to go on.");
   });
 });
 
