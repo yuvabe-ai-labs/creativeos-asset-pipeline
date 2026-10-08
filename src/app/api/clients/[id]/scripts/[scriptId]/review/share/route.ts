@@ -41,8 +41,12 @@ export async function POST(req: Request, { params }: Ctx) {
         sharedBy: caller.userId,
         actorName,
       });
-      if (result.status === "stale") return apiError("Someone else shared a version just now. Reload, then share again.", 409);
-      if (result.status === "not_in_review") return apiError(NOT_IN_REVIEW, 409);
+      if (result.status !== "ok") {
+        return apiError(
+          result.status === "stale" ? "Someone else shared a version just now. Reload, then share again." : NOT_IN_REVIEW,
+          409,
+        );
+      }
       const { number, scope, sharedAt } = result.version;
       return apiOk({ version: { number, scope, sharedAt }, shareToken: review.share_token }, 201);
     }),
