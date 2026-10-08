@@ -6,7 +6,8 @@ import { newShotId as randomShotId, toScriptDoc } from "./draft";
 import { fieldLabel, parseFieldPath, readField, writeField } from "./fields";
 import { fillToFinal } from "./fill-to-final";
 import { anglesPrompt, cardPrompt, draftPrompt, editPrompt, extractPrompt, inlinePrompt, type CopilotBase } from "./messages";
-import type { StructuredCall } from "./model";
+import type { StreamingCall, StructuredCall } from "./model";
+import { parsePartialDraft, type PartialDraft } from "./partial-draft";
 import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
 import { anglesOutputSchema, cardOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
 import { libraryFormats, nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
@@ -26,6 +27,9 @@ export type TurnDeps = {
   /** A faster model (SCRIPT_QUICK_MODEL) for reading the message, the angles and the card; the
    *  writer when absent. */
   quick?: StructuredCall;
+  /** Streams the first draft (D336, refined); with it, `onDraft` sees each new part as it arrives. */
+  stream?: StreamingCall;
+  onDraft?: (draft: PartialDraft) => void;
   loadSignals: () => Promise<{ brief: string; signals: { id: string; name: string }[] }>;
   newShotId?: (taken: Set<string>) => string;
 };
@@ -103,7 +107,19 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
         break;
       }
       const card = brief.card;
-      const out = await deps.call({ name: "script_draft", ...draftPrompt(base, { brief, card }), schema: draftOutputSchema });
+      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card }), schema: draftOutputSchema };
+      let shown = "";
+      const out = deps.stream
+        ? await deps.stream(draftArgs, (text) => {
+          const partial = parsePartialDraft(text);
+          if (!partial) return;
+          // Report only when something new can be drawn: a header field, a person or a whole shot.
+          const sig = `${Object.keys(partial.header).length}:${partial.cast.length}:${partial.shots.length}`;
+          if (sig === shown) return;
+          shown = sig;
+          deps.onDraft?.(partial);
+        })
+        : await deps.call(draftArgs);
       doc = toScriptDoc(out, { reelNumber: card.reelNumber, avatarIds });
       notes = cardToNotes(card);
       brief = { ...brief, phase: "written" };

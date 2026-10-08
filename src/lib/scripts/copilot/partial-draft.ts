@@ -88,12 +88,9 @@ export function parsePartialDraft(text: string): PartialDraft | null {
     .filter((c): c is Record<string, unknown> => !!c && typeof c === "object" && str((c as Record<string, unknown>).name))
     .map((c) => ({ key: str(c.key) ? c.key : "", name: c.name as string, description: str(c.description) ? c.description : "", isLead: c.isLead === true }));
 
-  // A shot is shown once it has fully arrived: while the list is still open, its last entry may be
-  // half a shot. The schema puts `summary` after `shots`, so its key means the list is closed.
-  const rawShots = Array.isArray(o.shots) ? o.shots : [];
-  const shotsAt = text.lastIndexOf('"shots"');
-  const listClosed = shotsAt >= 0 && /"summary"\s*:/.test(text.slice(shotsAt));
-  const shots = (listClosed ? rawShots : rawShots.slice(0, -1))
+  // A shot is shown once every field has arrived. `onScreen` is written last, so a shot that has it
+  // has its visual, VO and card complete; a half-arrived shot fails the schema and waits.
+  const shots = (Array.isArray(o.shots) ? o.shots : [])
     .map((s) => shotFieldsSchema.safeParse(s))
     .flatMap((r) => (r.success ? [r.data] : []));
 

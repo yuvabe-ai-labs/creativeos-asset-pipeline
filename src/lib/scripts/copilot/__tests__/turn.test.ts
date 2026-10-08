@@ -119,6 +119,21 @@ describe("before the draft", () => {
     expect(out.result[0].content).toMatch(/2 things to settle before it's final\. First: Paste a real, cleared Amazon review/);
   });
 
+  it("streams the draft: reports each new shot as it arrives, then saves the whole draft", async () => {
+    const brief: Brief = { ...EMPTY_BRIEF, phase: "confirm", format: { value: "UGC", status: "given" }, occasion: { value: "x", status: "given" }, lead: { value: "y", status: "given" }, narrative: { value: "n", status: "given" }, card: CARD };
+    const quick = fakeModel({ script_brief_read: [extraction({ confirm: true })] });
+    const whole = JSON.stringify(DRAFT);
+    const stream = vi.fn(async (_args: unknown, onText: (t: string) => void) => {
+      for (const at of [whole.indexOf("\"cast\""), whole.indexOf("\"REVIEW\""), whole.length]) onText(whole.slice(0, at));
+      return DRAFT;
+    });
+    const previews: number[] = [];
+    const d = { ...deps(fakeModel({}).call), quick: quick.call, stream: stream as never, onDraft: (p: { shots: unknown[] }) => previews.push(p.shots.length) };
+    const out = ok(await run(script({ brief }), "write it", d));
+    expect(previews).toEqual([0, 1, 2]);
+    expect(out.patch?.doc?.shots.map((s) => s.id)).toEqual(["s01", "s02"]);
+  });
+
   it("rebuilds the card when the person changes a line instead of confirming", async () => {
     const brief: Brief = { ...EMPTY_BRIEF, phase: "confirm", format: { value: "UGC", status: "given" }, occasion: { value: "x", status: "given" }, lead: { value: "y", status: "given" }, narrative: { value: "n", status: "given" }, card: CARD };
     const m = fakeModel({ script_brief_read: [extraction({ cardChange: "make it dinner" })], script_card: [{ ...CARD, title: "Dinner" }] });
