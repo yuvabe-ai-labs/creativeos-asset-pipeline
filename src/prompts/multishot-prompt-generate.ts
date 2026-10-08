@@ -24,7 +24,10 @@ import type { RefineScope } from "@/lib/nodes/refine-suggestions";
 //     forbids writing it; renderPlan appends the actual line afterwards.
 // @10 (D281): references are identity-only unless the operator's direction says otherwise; images
 //     arrive labelled "Reference image N" and the direction may cite them by that number.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@10";
+// @11 (D319): every reference gets a role (stated by the direction, or inferred from the image) and
+//     background / storyboard / character / product roles are written out in full; the schema
+//     gains a scratch `references` reading filled before the look and beats.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@11";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -53,7 +56,25 @@ export function referenceIdentificationBlock(format: "timecode" | "triple"): str
   return `REFERENCES
 The reference images are ATTACHED to your message, each preceded by "Reference image N". LOOK AT THEM and identify what each one shows. The number exists only so the operator's direction can point at a picture; what a reference is, you decide from the image itself.
 
-A REFERENCE IS IDENTITY ONLY unless the operator's direction says to take something else from it. From a reference, carry who or what it shows — face, build, hair, wardrobe, the product's design. Never carry its background, backdrop, studio lighting, the colour of a seamless, its camera angle or its framing into the look or into any beat. A sheet showing one subject from several angles on a plain background is an identity sheet, never a location.
+EVERY REFERENCE HAS A ROLE — DECIDE IT, THEN HONOUR IT IN FULL. The operator's direction (and any per-shot instruction) may say what a reference is for — "use reference image 2 as the background", "follow the storyboard in reference image 3", "reference image 1 is the character". When it does, that is the role. When it does NOT, infer the role from the image itself — the operator attached it for a reason, and silently ignoring it is the failure to avoid:
+- A place with no main subject — a room, a street, a landscape, an interior, a set — is a BACKGROUND.
+- A grid or strip of panels, sketches or numbered frames is a STORYBOARD.
+- A person, alone or shown from several angles, is a CHARACTER.
+- An object or packshot is a PRODUCT; a logo or wordmark is a BRAND MARK (see below).
+- An image whose subject is irrelevant but whose colour, light or grade is striking, with nothing else to take from it, is a STYLE reference.
+A direction that states a role always wins over what you infer.
+
+A CHARACTER OR PRODUCT REFERENCE CARRIES IDENTITY, NOT ITS BACKDROP. From it, carry who or what it shows — face, build, hair, wardrobe, the product's design. Never carry its background, backdrop, studio lighting, the colour of a seamless, its camera angle or its framing into the look or into any beat. A sheet showing one subject from several angles on a plain background is an identity sheet, never a location. Only a reference whose role is background, storyboard or style contributes a place, a composition or a look.
+
+A role is not satisfied by a passing mention. The video model receives the picture, but it reproduces only the elements the prompt NAMES: anything in the reference you leave unwritten is usually dropped or replaced. So study the image closely and write out what it contains:
+
+- BACKGROUND / LOCATION / SETTING / ENVIRONMENT — the subject is placed IN that place. Inventory it as repeatable physical facts: the kind of space, its architecture and surfaces (walls, floor, ground), the main furniture and props and where they sit in frame, colours and materials, windows and light sources, time of day, and anything distinctive enough that its absence would be noticed. Put it in the look block, and in every beat set there name the setting and the elements that beat's framing would show ("at the white marble counter, the arched window and hanging brass pendants behind her"). Do not swap in a different place or simplify it to a generic one.
+- STORYBOARD / SHOT REFERENCE / COMPOSITION — read the panels in order (left to right, top to bottom unless they are numbered) and map them to the shots in order, unless the direction maps them differently. For each shot, carry what its panel shows: shot size, camera angle and height, where the subject sits in frame, what they are doing, what is in the foreground and background, and any arrow or note indicating a camera move or action. Never carry the drawing style — sketch lines, greyscale, panel borders, handwritten notes — into the look; a storyboard is a plan for the shot, not its appearance.
+- CHARACTER / PERSON / AVATAR — describe the person so they read as the same individual in every beat they appear in: apparent age and build, skin tone, hair (colour, length, style), facial hair or glasses, and EVERY visible wardrobe item with its colour and material (top, layers, bottoms, footwear), plus accessories (jewellery, watch, bag, headwear). Repeat that description, not a shortened one, in every beat the character appears in.
+- PRODUCT — name every distinct element the reference shows that should appear: how many items, each one's colour and material, parts and accessories that come with it (a lid, a strap, a case, the box). Do not redraw its geometry, stitching or logo in words — the reference carries those, and prose competing with it produces a hybrid — but never leave out a component, so the model does not drop it.
+- STYLE / MOOD / LOOK — take its light, palette, contrast and grade into the look block as repeatable physical facts, not its subject or its location.
+
+A reference may hold more than one role ("the character, in this kitchen"); apply each. When two references compete for the same role (two backgrounds, two storyboards) and the direction does not say which shot gets which, follow the shot texts; if they do not decide it either, use the first for the whole sequence.
 
 DO NOT WRITE REFERENCE TOKENS. Never write <IMAGE_REF_0>, "the first image", "reference image 2", @Image1, or any other pointer into the attachment list. Which picture binds to which beat is the operator's decision, made by hand after reading your draft. A token you assign yourself binds a specific photograph silently, and a wrong binding raises no error — it is only visible in a clip already paid for.
 
@@ -61,7 +82,7 @@ Instead, NAME WHAT YOU SAW, in prose, wherever that thing appears in a beat:
 
 ${example}
 
-A short identifying phrase — colour, material, product name — is exactly right: "the black CHUPPS V-Straps", "the tan leather sliders", "a young woman in a loose oatmeal shirt". It tells the operator which attachment you meant, so a misreading is caught in the text rather than in a finished video, and it gives them the anchor to attach the reference to. Do not go further into that product's own design: the reference carries its geometry, stitching and logo placement, and prose competing with it produces a hybrid of the two. Describe instead what the reference cannot — framing, motion, light, wardrobe, ground contact.
+For a product or character that only appears in passing, a short identifying phrase — colour, material, product name — is exactly right: "the black CHUPPS V-Straps", "the tan leather sliders", "a young woman in a loose oatmeal shirt". It tells the operator which attachment you meant, so a misreading is caught in the text rather than in a finished video, and it gives them the anchor to attach the reference to. Do not go further into that product's own design: the reference carries its geometry, stitching and logo placement, and prose competing with it produces a hybrid of the two. Describe instead what the reference cannot — framing, motion, light, wardrobe, ground contact. A background, storyboard or central character is described as its role asks above, using as much of the beat as any length limit allows.
 
 Name the thing IN EVERY BEAT it appears in, not once at the top.
 
@@ -72,7 +93,7 @@ NOT EVERY ATTACHMENT IS A THING THAT CAN APPEAR IN A SCENE. Decide which KIND ea
 
   When a shot asks for the logo — "…followed by logo", "end on the brand mark" — write the shot the frame actually needs and stop there: the product arrangement, the final held framing, and clear, uncluttered space where the mark will sit. The lock-up is composited in post, where the type is exact. Generated lettering is not, and this request carries a standing instruction against screen-space type anyway.
 
-USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The attachments are a library, not a checklist. Name a product where the shot's own content asks for it and leave the rest out — forcing an unrelated product into a beat in order to "use" it is worse than omitting it. The operator adds any others by hand.`;
+USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The attachments are a library, not a checklist. Name a product where the shot's own content asks for it and leave the rest out — forcing an unrelated product into a beat in order to "use" it is worse than omitting it. The operator adds any others by hand. Backgrounds, storyboards and characters are the exception: a background or character applies to every shot it plausibly belongs in (or only the shots the direction names), and a storyboard's panels map onto the shots.`;
 }
 
 /** Omni's copy — byte-identical to what shipped before this became a function. */
@@ -96,12 +117,16 @@ ONLY from look direction that is actually stated — in the shot texts, in the s
 notes, or in the operator's instructions. Transcribe what is stated; do not complete it. If the
 script gives a time of day and nothing else, the look is that time of day and nothing else.
 
-Never derive the look from the brand context, the product, the market, the season or the
-reference images. None of those is a statement of how THIS film looks, and filling the gap from
-them invents a setting the script never asked for. The one exception is stated direction itself:
-when the operator's direction names a reference as the source of the look ("take the setting and
-light from reference image 2"), describe that image's setting and light as repeatable physical
-facts. A reference the direction does not name that way contributes nothing to the look.
+Never derive the look from the brand context, the product, the market or the season. None of
+those is a statement of how THIS film looks, and filling the gap from them invents a setting the
+script never asked for. Nor from a character or product reference's backdrop — a studio seamless
+behind a person is not a location.
+
+The exception is a reference whose role (see REFERENCES) is BACKGROUND or STYLE — whether the
+operator's direction names it so ("take the setting and light from reference image 2") or the image
+plainly is one. An attached background IS stated direction. Describe its setting, its key elements
+and its light as repeatable physical facts, in enough detail that the place could be rebuilt from
+your words; from a style reference take only light, palette and grade.
 
 If nothing states any look direction, return an empty string for the look. An empty look is
 correct, not a failure — do not write a default.
@@ -119,7 +144,8 @@ it once; do not repeat it inside the beats.`;
 export const MULTISHOT_SHOT_TEXT_CONTRACT = `THE SHOT TEXT IS THE BRIEF
 The operator's shot text is what that shot IS. Your beat RENDERS it; it does not replace it. Do not
 substitute a different subject, setting or action, and do not add people, props or places the shot
-text does not call for.
+text does not call for — except what an attached background or storyboard reference brings with it
+(the elements of the background, the content of the storyboard panels).
 
 Do not add weather, season, time of day or location that the shot text, the script's production
 notes and the operator's instructions do not state. The brand context tells you how the brand
@@ -229,9 +255,43 @@ export type MultishotPromptSpec = {
   schema: Record<string, unknown>;
 };
 
+/**
+ * D319 — the writer's reading of the attached references, filled BEFORE the look and the beats.
+ *
+ * Scratch work, never stored: `parsePlan` rebuilds the plan from `look` and `beats` only, and the
+ * refine merge reads only `look` / `text`, so this field is dropped on every path. It exists
+ * because strict structured output generates properties in schema order — placing it first makes
+ * the model inventory each picture (and the role the direction gives it) before it writes a single
+ * beat, instead of glancing at a background or a storyboard and naming it in passing. An empty
+ * array is the answer when nothing is attached.
+ */
+const REFERENCE_READING = {
+  type: "array",
+  description:
+    "Fill this FIRST. One entry per attached reference image, in order. Not shown to anyone — it is your working notes for the look and beats that follow.",
+  items: {
+    type: "object",
+    additionalProperties: false,
+    required: ["image", "role", "contents"],
+    properties: {
+      image: { type: "integer", description: "The N of \"Reference image N\"." },
+      role: {
+        type: "string",
+        description:
+          "This image's role: background, storyboard, character, product, brand mark or style (or several). Quote the direction or shot instruction that gives it; when none does, write \"inferred\" and the reason you read it that way.",
+      },
+      contents: {
+        type: "string",
+        description:
+          "What the image actually shows, in the detail its role needs: for a background, the space, surfaces, props and their positions, colours and light; for a storyboard, each panel in order with shot size, angle, subject placement and action; for a character, age, build, hair and every wardrobe item and accessory with colours; for a product, every component and colour; for a brand mark or style reference, brief.",
+      },
+    },
+  },
+} as const;
+
 /** Shared verbatim across SCHEMA and MULTISHOT_LOOK_SCHEMA — see the reuse rule in AGENTS.md. */
 const LOOK_DESCRIPTION =
-  "One paragraph of look and atmosphere governing every beat — light direction, time of day, lens feel, palette, ground, grade — written only from look direction the shot texts, the script's production notes or the operator state. Repeatable physical facts only. An empty string when nothing states any.";
+  "One paragraph of look and atmosphere governing every beat — light direction, time of day, lens feel, palette, ground, grade — written only from look direction the shot texts, the script's production notes or the operator state, or from an attached background or style reference. Repeatable physical facts only. An empty string when nothing states any.";
 
 /**
  * The plan JSON shape — IDENTICAL across models (D238). Exported so Kling's writer imports it
@@ -243,8 +303,9 @@ const LOOK_DESCRIPTION =
 export const MULTISHOT_PLAN_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["look", "beats"],
+  required: ["references", "look", "beats"],
   properties: {
+    references: REFERENCE_READING,
     look: {
       type: "string",
       description: LOOK_DESCRIPTION,
@@ -334,8 +395,9 @@ export function planSchemaForCuts(cutIds: string[]): Record<string, unknown> {
 export const MULTISHOT_LOOK_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["look"],
+  required: ["references", "look"],
   properties: {
+    references: REFERENCE_READING,
     look: {
       type: "string",
       description: LOOK_DESCRIPTION,
@@ -346,8 +408,9 @@ export const MULTISHOT_LOOK_SCHEMA = {
 export const MULTISHOT_BEAT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["text"],
+  required: ["references", "text"],
   properties: {
+    references: REFERENCE_READING,
     text: {
       type: "string",
       description:
