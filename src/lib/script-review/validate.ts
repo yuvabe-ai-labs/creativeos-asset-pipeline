@@ -53,7 +53,13 @@ export function parseShare(input: unknown): Parsed<{ scope: ShareScope }> {
   return isShareScope(scope) ? { ok: true, value: { scope } } : { ok: false, error: "Choose what the share includes." };
 }
 
-export function parseStageMove(input: unknown): Parsed<{ move: TeamStageMove }> {
-  const move = record(input)?.move;
-  return isTeamStageMove(move) ? { ok: true, value: { move } } : { ok: false, error: "Unknown stage move." };
+/** Moving into In review also shares (D349, refined 9 Oct 2026), so that move carries the scope. */
+export function parseStageMove(input: unknown): Parsed<{ move: TeamStageMove; scope?: ShareScope }> {
+  const body = record(input);
+  const move = body?.move;
+  if (!isTeamStageMove(move)) return { ok: false, error: "Unknown stage move." };
+  if (move !== "to_review") return { ok: true, value: { move } };
+  return isShareScope(body?.scope)
+    ? { ok: true, value: { move, scope: body.scope } }
+    : { ok: false, error: "Choose what to share with the client." };
 }

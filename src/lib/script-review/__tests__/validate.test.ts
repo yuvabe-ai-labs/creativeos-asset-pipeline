@@ -42,8 +42,14 @@ describe("team bodies", () => {
   });
 
   it("parseStageMove knows the three team moves, never approve", () => {
-    expect(parseStageMove({ move: "to_review" })).toEqual({ ok: true, value: { move: "to_review" } });
+    expect(parseStageMove({ move: "back_to_visualise" })).toEqual({ ok: true, value: { move: "back_to_visualise" } });
     expect(parseStageMove({ move: "approve" }).ok).toBe(false);
+  });
+
+  it("parseStageMove needs a share scope to move into In review, because that move also shares", () => {
+    expect(parseStageMove({ move: "to_review", scope: "panels" })).toEqual({ ok: true, value: { move: "to_review", scope: "panels" } });
+    expect(parseStageMove({ move: "to_review" })).toEqual({ ok: false, error: "Choose what to share with the client." });
+    expect(parseStageMove({ move: "to_review", scope: "everything" }).ok).toBe(false);
   });
 });
 
