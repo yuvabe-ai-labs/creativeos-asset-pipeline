@@ -1,8 +1,8 @@
 // src/lib/script-review/load.ts
 import "server-only";
-import { listScriptComments, listScriptEvents, listVersions } from "@/lib/db/script-reviews";
+import { getLatestVersion, getScriptReviewForScript, listScriptComments, listScriptEvents, listVersions } from "@/lib/db/script-reviews";
 import { assemblePublic, type PublicScriptReview, type ReviewState } from "./assemble";
-import type { ScriptReviewByToken } from "./wire";
+import type { ScriptReviewByToken, ScriptVersion } from "./wire";
 
 /** Everything a payload needs. A script with no review row yet still has its stage-move events. */
 export async function loadReviewState(reviewId: string | null, scriptId: string): Promise<ReviewState> {
@@ -19,4 +19,12 @@ export async function loadReviewState(reviewId: string | null, scriptId: string)
 export async function buildPublicScriptReview(review: ScriptReviewByToken): Promise<PublicScriptReview | null> {
   const state = await loadReviewState(review.id, review.script_id);
   return assemblePublic(state, { stage: review.stage, fromName: review.orgName, forName: review.clientName });
+}
+
+/** Spec 4 §6 (review board, 4.17): the version an approved script's page shows — the latest share,
+ *  which is the one approved (a share needs In review, so none can follow an approval). Null for a
+ *  script approved without a review, such as a seeded one: its page keeps spec 1's view. */
+export async function loadApprovedVersion(scriptId: string): Promise<ScriptVersion | null> {
+  const review = await getScriptReviewForScript(scriptId);
+  return review ? getLatestVersion(review.id) : null;
 }

@@ -4,7 +4,9 @@ import { getClientBySlug } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
 import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
-import { ScriptReviewWorkspace } from "@/components/script-review/team/script-review-workspace";
+import { ScriptView } from "@/components/scripts/script-view";
+import { ApprovedReviewBoard } from "@/components/script-review/team/approved-review-board";
+import { loadApprovedVersion } from "@/lib/script-review/load";
 import { reelLabel } from "@/lib/scripts/utils";
 import { cn } from "@/lib/utils";
 import { TeamReviewBoard } from "@/components/script-review/team/team-review-board";
@@ -25,16 +27,18 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   const script = await getScript(client.id, scriptId);
   if (!script) notFound();
 
-  // Spec 3 — Visualise and In review show the Visualise view; other stages the read-only view.
+  // Spec 3 — Visualise and In review show the Visualise view, with spec 4's review on it; an approved
+  // script with a review shows the approved version (spec 4, 4.17); other stages the read-only view.
   const board = isVisualiseStage(script.stage) ? await loadVisualiseBoard(client.id, script) : null;
+  const approved = script.stage === "approved" ? await loadApprovedVersion(script.id) : null;
   // Faces for the read-only cast: only this client's live avatars, so another client's id shows no face.
-  const avatarFaces = board
+  const avatarFaces = board || approved
     ? {}
     : Object.fromEntries((await listAvatars(client.id)).map((a) => [a.id, a.front?.url ?? null]));
   const label = reelLabel(script.doc.header.reelNumber);
 
   return (
-    <main className={cn("mx-auto w-full flex-1 px-6 py-12", board ? "max-w-[96rem]" : "max-w-6xl")}>
+    <main className={cn("mx-auto w-full flex-1 px-6 py-12", board || approved ? "max-w-[96rem]" : "max-w-6xl")}>
       <Breadcrumb className="animate-rise mb-6 shrink-0">
         <BreadcrumbList>
           <BreadcrumbItem><BreadcrumbLink render={<Link href="/">Clients</Link>} /></BreadcrumbItem>
@@ -46,9 +50,13 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
           <BreadcrumbItem><BreadcrumbPage>{label ? `${label} · ` : ""}{script.doc.header.title}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      {board
-        ? <TeamReviewBoard clientId={client.id} initial={{ script, board }} />
-        : <ScriptReviewWorkspace clientId={client.id} script={script} avatarFaces={avatarFaces} />}
+      {board ? (
+        <TeamReviewBoard clientId={client.id} initial={{ script, board }} />
+      ) : approved ? (
+        <ApprovedReviewBoard clientId={client.id} script={script} version={approved} />
+      ) : (
+        <ScriptView script={script} avatarFaces={avatarFaces} />
+      )}
     </main>
   );
 }
