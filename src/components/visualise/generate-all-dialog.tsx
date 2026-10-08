@@ -10,12 +10,18 @@ import {
 import { generateAllLabel, type GenerateAllPlan } from "@/lib/scripts/visualise/state";
 
 // D345 — Generate all shows its total first ("Redraw 9 panels · about N credits"), then runs.
-export function GenerateAllDialog({ plan, busy, onConfirm }: { plan: GenerateAllPlan; busy: boolean; onConfirm: () => void }) {
+export function GenerateAllDialog({ plan, busy, onConfirm, variant = "default" }: {
+  plan: GenerateAllPlan;
+  busy: boolean;
+  onConfirm: () => void;
+  /** "outline" where a primary Generate all is already on the page (purple used sparingly). */
+  variant?: "default" | "outline";
+}) {
   const [open, setOpen] = useState(false);
   const none = plan.shotIds.length === 0;
   return (
     <>
-      <Button disabled={none || busy} onClick={() => setOpen(true)}>
+      <Button variant={variant} disabled={none || busy} onClick={() => setOpen(true)}>
         <Sparkles className="size-4" strokeWidth={1.5} />
         {busy ? "Drawing…" : "Generate all"}
       </Button>
