@@ -45,21 +45,21 @@ export function ScriptShotRow({ timed, cast, compact = false, aside, state, afte
           {shot.onScreenText && <span className="text-sm font-medium text-foreground">{shot.onScreenText}</span>}
           <span className="text-xs text-muted-foreground">{who}</span>
         </span>
-        {/* While its panel draws, a faint sweep over the shot (the Skeleton's shimmer, neutral). */}
-        {state?.drawing && (
-          <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
-            <span className="animate-shimmer absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
-          </span>
-        )}
       </>
     );
     const box = "relative flex min-w-0 flex-1 items-start gap-3";
     return (
       <li
         id={shotAnchor(shot.id)}
-        className={`flex flex-col gap-3 border-b border-border px-4 py-3 last:border-b-0 ${COMMENTED}`}
+        className={`relative flex flex-col gap-3 overflow-hidden border-b border-border px-4 py-3 last:border-b-0 ${COMMENTED}`}
         aria-busy={state?.drawing || undefined}
       >
+        {/* While its panel draws, a faint sweep across the whole shot row (the Skeleton's shimmer, neutral). */}
+        {state?.drawing && (
+          <span aria-hidden className="pointer-events-none absolute inset-0">
+            <span className="animate-shimmer absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
+          </span>
+        )}
         <div className="flex items-start gap-3">
           {state?.onOpen ? (
             <Button
