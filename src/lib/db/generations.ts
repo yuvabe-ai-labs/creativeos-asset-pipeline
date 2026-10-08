@@ -36,6 +36,8 @@ export async function insertGeneration(input: {
   // Exactly one owner: a canvas node, or an avatar (Avatar Studio images, D291).
   nodeId?: string;
   avatarId?: string;
+  // or a script, for a storyboard panel (D337)
+  scriptId?: string;
   orgId: string;
   clientId?: string;
   userId?: string;
@@ -45,8 +47,8 @@ export async function insertGeneration(input: {
   paramsSnapshot?: Record<string, unknown>;
   inputsSnapshot?: Record<string, unknown>;
 }): Promise<GenerationRow> {
-  if (!input.nodeId && !input.avatarId) {
-    throw new Error("A generation must belong to a node or an avatar.");
+  if (!input.nodeId && !input.avatarId && !input.scriptId) {
+    throw new Error("A generation must belong to a node or an avatar, or a script.");
   }
   const supabase = createServerSupabase();
   const { data, error } = await supabase
@@ -54,6 +56,7 @@ export async function insertGeneration(input: {
     .insert({
       node_id: input.nodeId ?? null,
       avatar_id: input.avatarId ?? null,
+      script_id: input.scriptId ?? null,
       org_id: input.orgId,
       client_id: input.clientId ?? null,
       user_id: input.userId ?? null,

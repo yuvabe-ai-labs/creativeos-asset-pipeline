@@ -278,3 +278,11 @@ const MEDIA_EXT_BY_TYPE: Record<string, string> = {
 export function extForContentType(contentType: string): string {
   return MEDIA_EXT_BY_TYPE[contentType.split(";")[0].trim().toLowerCase()] ?? "bin";
 }
+
+/** D337 — a storyboard panel take, under its script, one folder per shot. A shot id is the
+ *  script's own text, so it is slugged before it becomes a folder. */
+export function pathForScriptPanel(args: { clientId: string; scriptId: string; shotId: string; ext: string }): string {
+  const shot = sanitizeSlug(args.shotId).replace(/^[.-]+/, "") || "shot";
+  const name = buildStoredName(undefined, { slug: "panel", ext: args.ext });
+  return `clients/${args.clientId}/scripts/${args.scriptId}/panels/${shot}/${name}`;
+}

@@ -17,6 +17,11 @@ beforeEach(() => {
 });
 
 describe("insertGeneration", () => {
+  it("writes a script-owned row for a storyboard panel (D337)", async () => {
+    await insertGeneration({ scriptId: "s1", orgId: "org-1", type: "image" });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ node_id: null, avatar_id: null, script_id: "s1" }));
+  });
+
   it("writes an avatar-owned row with no node", async () => {
     await insertGeneration({ avatarId: "a1", orgId: "org-1", clientId: "c1", type: "image" });
     expect(insert).toHaveBeenCalledWith(
