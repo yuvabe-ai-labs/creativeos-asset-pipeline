@@ -6807,3 +6807,109 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Waiting for spec 2 before building Visualise and Client review. A user-facing import.
 
 **Originated →** spec 1 §6.
+
+### D347 — Client review of a script: one link, a frozen version per share *(recorded 2026-10-08)*
+
+**Decision.** Each share of a script records a version — the script text, plus the avatar images and the picked panel take per shot when the share includes them — on one link per script that never changes. The link shows the latest version, frozen; the team keeps editing between shares. The client cannot open an earlier version; the activity names what changed, each change linking to its part.
+
+**Why.** Approval must bind to exactly what the client saw. Clients keep one link (the D309 habit). "S1, S4, S5 revised" tells the client where to look without a diff view.
+
+**Rejected.** A live link showing work in progress. Locking the script while In review. Opening earlier versions, or a highlighted diff (later; nothing is lost).
+
+**Refines →** D309. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §3, §7; questions 4.1, 4.2.
+
+### D348 — The team moves a script into and out of In review by hand *(recorded 2026-10-08)*
+
+**Decision.** Visualise → In review, In review → Visualise, and (after an approval) Approved → Visualise ("Reopen to Visualise") are team actions. Share appears only In review. Client comments never change the stage; editing stays allowed In review. Every move is a compare-and-set on the stage with its activity line, in one transaction (`script_review_move`).
+
+**Why.** A comment can be a question. D309 comments never change state. Spec 1's "In review" filter should list exactly the scripts with the client.
+
+**Rejected.** Any client comment moving the script back. A client "Request changes" action. Sharing moving the stage by itself (the parent spec's first answer).
+
+**Originated →** spec 4 §3; question 4.3.
+
+### D349 — Three share scopes; Approve only on a full share *(recorded 2026-10-08)*
+
+**Decision.** A share is the script only, the script and avatars, or the script, avatars and panels, and only from In review, so always after Mark final. Approve appears only on the full share; a partial share tells the client what it holds and what comes next. Panels reach spec 4 through one interface from spec 3 (the picked take per shot id); a full share carries whatever panels exist.
+
+**Why.** The client signs off on the visual reel (parent spec §0), while an early round of comments on the words is still worth having.
+
+**Rejected.** Requiring every avatar and panel before any share. Senior-only sharing. Approving a partial share.
+
+**Originated →** spec 4 §3, §8; question 4.4.
+
+### D350 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
+
+**Decision.** Four tables (`script_reviews`, `script_review_versions`, `script_review_comments`, `script_review_events`; migration 0054) hold the review. Spec 4 never writes `client_scripts.doc`; it changes only `stage` / `approved_at`, inside three plpgsql functions that lock the script row so a share, an approval and a stage move never interleave. The activity is derived from append-only rows.
+
+**Why.** Spec 2 is the only writer of the script's text (parent spec §4a.4). Specs 2, 3 and 4 are built in parallel. Numbering versions and approving "the latest" both need one lock.
+
+**Rejected.** Comments inside the script document. Version numbers computed in the app without a lock.
+
+**Originated →** spec 4 §9.
+
+### D351 — Comments are on whole parts and belong to their version *(recorded 2026-10-08)*
+
+**Decision.** A comment is on the context card, a shot, a cast member's avatar, one of its views (Front, Left, Right, Back), or a panel, and only on parts the version on screen shows. No pins, no painting. A comment keeps the version it was made on; when a later version drops its shot, it is shown under "On a removed shot" with the shot's last text. A split's first half keeps the shot's id, and so its comments.
+
+**Why.** D309 rejected painting for clients on phones; the post approval design called anchored pins a V2; D244 keeps annotations with the output they were made on.
+
+**Rejected.** Spot pins. Painted regions. Moving orphaned comments to the context card. Dropping them.
+
+**Refines →** D244, D309. **Originated →** spec 4 §5; questions 4.11, 4.12.
+
+### D352 — The team replies and resolves; comments are edited, never deleted *(recorded 2026-10-08)*
+
+**Decision.** The team replies under a client's comment and marks the thread Resolved (and can reopen it); the client sees both. Anyone with the link edits any client comment's text, shown as "edited by"; team replies are not editable from the link. Nothing is deleted.
+
+**Why.** It is how the client sees a comment was acted on (the mockup's Comments column), and D309's edit-never-delete rule carries over.
+
+**Rejected.** A read-only team (D309, D244). Resolve without replies.
+
+**Known limit.** With no client login, anyone with the link can edit any client comment, until the password lands.
+
+**Originated →** spec 4 §5; question 4.10.
+
+### D353 — Approval: anyone with the link, under a typed name, of the version on screen *(recorded 2026-10-08)*
+
+**Decision.** Approve reel records the typed name and the time and moves the script to Approved, the only way a script reaches the canvas gallery's Scripts tab. The request carries the version number on the client's screen; if a newer version was shared, it is refused. With open threads, a confirm names them first. A second tap answers success and records nothing more.
+
+**Why.** D309's trust model, with its limit stated. Whole-package approval (parent spec §10).
+
+**Rejected.** Only a contact named by the team can approve. A team-recorded offline approval (later, if clients approve by phone). Refusing approval while threads are open.
+
+**Known limit.** A typed name proves nothing, and a forwarded link can approve.
+
+**Originated →** spec 4 §8; questions 4.5, 4.13.
+
+### D354 — No withdrawal; reopen and share again; the approved link is a record *(recorded 2026-10-08)*
+
+**Decision.** The client cannot withdraw an approval. The team reopens an approved script to Visualise and shares again on the same link for a new approval (Approved › Reopened › Approved). While the version on screen is approved, the link is a read-only record: no comments, edits, replies or resolves.
+
+**Why.** Comments after sign-off are the late changes this feature exists to stop (parent spec §0). Spec 1 §5.4 already keeps canvas copies stable when a script is re-approved.
+
+**Rejected.** Withdrawal until the first canvas drop. Approval final forever. Comments after approval.
+
+**Originated →** spec 4 §8; questions 4.6, 4.7.
+
+### D355 — Script links reuse the video review link: /r/s/<title>-<code>, no password yet *(recorded 2026-10-08)*
+
+**Decision.** A script's link is `/r/s/<title-slug>-<code>`, the code D311's (the first 4 hex characters of the script id, longer on a clash), under the public prefixes `src/proxy.ts` already exempts. Every public script route goes through `withScriptShareToken` in `route-helpers.ts`, the second named token resolver beside `withShareToken`. The client's typed name is the same stored entry as on a video review. No password or accounts yet; the password comes with the video links' (one scheme for both).
+
+**Why.** One auditable unauthenticated surface (D309). The link shape the operator already chose (D311). The client is not asked their name twice on one device.
+
+**Rejected.** A new public prefix and proxy exemption. Unguessable tokens (D311 chose readable). Client accounts.
+
+**Known limit.** The code is guessable, and the link carries real faces and unreleased claims; the password is the first follow-up.
+
+**Refines →** D309, D311. **Originated →** spec 4 §4, §10; question 4.8.
+
+### D356 — An in-app count of client comments and approvals *(recorded 2026-10-08)*
+
+**Decision.** The library card and the script's review panel show "Client feedback n": client comments plus approvals, a total with no seen-state, in D310's amber. No email or push. On both review pages each commented part carries the same amber: a count chip beside it and a faint amber edge on its card, so a client scanning fourteen shots sees where the notes are; an avatar view's comment action is an icon button under the image (user, 8 Oct, from the design canvas).
+
+**Why.** D310's chip set the pattern; a seen-state needs a per-user table. One amber for "the client said something here" everywhere, instead of the mockup's yellow pin, which the design system keeps for glows.
+
+**Rejected.** "New since you last looked". Email.
+
+**Refines →** D310. **Originated →** spec 4 §6; question 4.9.
