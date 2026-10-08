@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PanelInputs } from "@/lib/scripts/visualise/panel-inputs";
 import type { DrawBody } from "@/lib/scripts/visualise/schema";
@@ -53,6 +54,14 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
             />
           </div>
         </div>
+        {picking && (
+          // Setting the picked take is a request: block the dialog and say so until it lands. The
+          // same overlay the Studio shows while a face is set ("Setting as the front…").
+          <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 rounded-[inherit] bg-background/60 text-xs font-medium text-foreground">
+            <Loader2 className="size-5 animate-spin text-primary" strokeWidth={1.5} />
+            Setting this version…
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

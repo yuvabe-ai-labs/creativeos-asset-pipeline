@@ -104,7 +104,10 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
           aspect={model.aspect}
           credits={model.credits.get(openShot) ?? null}
           picking={pick.isPending}
-          onPick={(takeId) => pick.mutate({ shotId: openShot, takeId })}
+          onPick={(takeId) => pick.mutate(
+            { shotId: openShot, takeId },
+            { onError: (e) => toast.error(errorMessage(e, "Could not set this version")) },
+          )}
           onDraw={(body) => void draws.draw(openShot, body)}
         />
       )}

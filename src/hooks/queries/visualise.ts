@@ -47,9 +47,9 @@ export function usePickTake(clientId: string, scriptId: string) {
   return useMutation({
     mutationFn: ({ shotId, takeId }: { shotId: string; takeId: string }) =>
       visualiseService.pick(clientId, scriptId, shotId, takeId),
-    onMutate: ({ shotId, takeId }) =>
+    onSuccess: ({ pickId }, { shotId }) =>
       queryClient.setQueryData<BoardData>(key, (prev: BoardData | undefined) =>
-        prev ? { ...prev, board: { ...prev.board, picks: { ...prev.board.picks, [shotId]: takeId } } } : prev),
+        prev ? { ...prev, board: { ...prev.board, picks: { ...prev.board.picks, [shotId]: pickId } } } : prev),
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   });
 }
