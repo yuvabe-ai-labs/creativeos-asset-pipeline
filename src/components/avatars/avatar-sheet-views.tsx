@@ -19,17 +19,19 @@ type Props = {
   stale?: boolean;
   /** Spec 4 merge point: a comment marker beside each view. */
   marker?: (view: AvatarViewId) => ReactNode;
+  /** 4 in a row (the Studio) or a compact 2×2 (Visualise's cast card). */
+  columns?: 2 | 4;
 };
 
 // D339 — the sheet's four views as four tiles, Front, Left, Right, Back. Shared by the Avatar
 // Studio's sheet step and Visualise's cast slot, so there is one way a sheet looks.
-export function AvatarSheetViews({ name, views, generating, stale = false, marker }: Props) {
+export function AvatarSheetViews({ name, views, generating, stale = false, marker, columns = 4 }: Props) {
   const [zoomed, setZoomed] = useState<AvatarViewId | null>(null);
   const zoomedImage = zoomed ? views?.[zoomed] ?? null : null;
 
   return (
     <>
-      <ul aria-label={`${name}: four views`} className="grid grid-cols-4 gap-2.5">
+      <ul aria-label={`${name}: four views`} className={cn("grid gap-2.5", columns === 2 ? "grid-cols-2" : "grid-cols-4")}>
         {AVATAR_VIEWS.map((view) => {
           const image = views?.[view] ?? null;
           const busy = generating.includes(view);

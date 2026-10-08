@@ -53,7 +53,7 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
         onGenerateAll={() => void draws.drawAll(model.plan.shotIds)}
         onReopen={() => void onReopen()}
       />
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <ScriptView
           script={script}
           avatarFaces={model.avatarFaces}
@@ -71,7 +71,7 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
             />
           )}
         />
-        <section aria-label="Visuals" className="flex min-w-0 flex-col gap-8 rounded-2xl bg-muted/40 p-5">
+        <section aria-label="Visuals" className="flex min-w-0 flex-col gap-6 rounded-2xl bg-muted/40 p-4">
           <CastSlots clientId={clientId} scriptId={script.id} doc={script.doc} avatars={model.avatars} />
           <StoryboardGrid
             action={

@@ -42,7 +42,7 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
     : maker.step === "face" ? [...AVATAR_VIEWS] : [];
 
   return (
-    <Card className="flex flex-col gap-4 p-5 shadow-card">
+    <Card className="flex flex-col gap-3 p-4 shadow-card">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -59,34 +59,37 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
         </Tabs>
       </header>
 
-      <AvatarSheetViews name={member.name} views={avatar?.sheetViews ?? null} generating={generating} stale={avatar?.sheetStale ?? false} marker={marker} />
+      <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+        <AvatarSheetViews columns={2} name={member.name} views={avatar?.sheetViews ?? null} generating={generating} stale={avatar?.sheetStale ?? false} marker={marker} />
+        <div className="flex min-w-0 flex-col gap-3">
+          {mode === "ai" ? (
+            <CastSlotAiMaker avatar={reusableFor("ai", avatar)} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />
+          ) : (
+            <CastSlotPhotoMaker
+              name={member.name}
+              castId={member.id}
+              avatar={reusableFor("photo", avatar)}
+              uploading={maker.step === "upload"}
+              confirming={maker.step === "consent"}
+              busy={maker.busy}
+              onUpload={(file) => void maker.uploadPhoto(file)}
+              onConfirm={() => void maker.confirmConsent()}
+              onFinish={() => void maker.finish()}
+            />
+          )}
 
-      {mode === "ai" ? (
-        <CastSlotAiMaker avatar={reusableFor("ai", avatar)} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />
-      ) : (
-        <CastSlotPhotoMaker
-          name={member.name}
-          castId={member.id}
-          avatar={reusableFor("photo", avatar)}
-          uploading={maker.step === "upload"}
-          confirming={maker.step === "consent"}
-          busy={maker.busy}
-          onUpload={(file) => void maker.uploadPhoto(file)}
-          onConfirm={() => void maker.confirmConsent()}
-          onFinish={() => void maker.finish()}
-        />
-      )}
-
-      <div className="grid items-end gap-3 border-t border-border pt-4 md:grid-cols-[minmax(0,1fr)_auto]">
-        <CastSlotVoice clientId={clientId} castId={member.id} avatar={avatar && !avatar.archivedAt ? avatar : null} onChanged={() => void maker.refresh()} />
-        <div className="flex flex-wrap items-center gap-2">
-          <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />
-          {avatar && <Button variant="ghost" size="sm" disabled={maker.busy} onClick={() => void maker.change()}>Change</Button>}
+          <div className="flex flex-col gap-3 border-t border-border pt-3">
+            <CastSlotVoice clientId={clientId} castId={member.id} avatar={avatar && !avatar.archivedAt ? avatar : null} onChanged={() => void maker.refresh()} />
+            <div className="flex flex-wrap items-center gap-2">
+              <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />
+              {avatar && <Button variant="ghost" size="sm" disabled={maker.busy} onClick={() => void maker.change()}>Change</Button>}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {maker.step ? STEP_COPY[maker.step] : castSlotLine(avatar)}
+          </p>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground" aria-live="polite">
-        {maker.step ? STEP_COPY[maker.step] : castSlotLine(avatar)}
-      </p>
     </Card>
   );
 }

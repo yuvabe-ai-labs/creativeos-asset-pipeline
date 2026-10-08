@@ -15,7 +15,7 @@ export function StoryboardGrid({ action, children }: {
         </div>
         {action}
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">{children}</div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">{children}</div>
     </section>
   );
 }
