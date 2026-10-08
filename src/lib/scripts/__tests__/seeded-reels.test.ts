@@ -8,28 +8,48 @@ import reel08 from "../fixtures/reel-08.json";
 
 // The three seeded reels, one per format structure the 28 outlines use (formats, slots and tools
 // model §1): the copilot learns each structure from the library (spec 2 §4.3).
+//
+// The carry rule (decided 8 Oct): every BEAT has a VO line and an on-screen card, written once on
+// the beat's first shot; the beat's later (split) shots leave them empty and carry them. Copying
+// the VO onto each shot would have the parse map it twice and the line read twice.
 
-const beats = (doc: unknown) => groupByBeat(timeShots(scriptDocSchema.parse(doc).shots)).map((g) => g.beat);
-const voByBeat = (doc: unknown) =>
-  groupByBeat(timeShots(scriptDocSchema.parse(doc).shots)).map((g) => g.shots.map((t) => t.shot.vo).join(" "));
+const groups = (doc: unknown) => groupByBeat(timeShots(scriptDocSchema.parse(doc).shots));
+const beats = (doc: unknown) => groups(doc).map((g) => g.beat);
+const voByBeat = (doc: unknown) => groups(doc).map((g) => g.shots.map((t) => t.shot.vo).filter(Boolean).join(" "));
 
 describe("seeded reels", () => {
-  it.each([["01", reel01], ["06", reel06], ["08", reel08]])("Reel %s is valid, runs 52 s and every shot has VO and on-screen text", (_n, doc) => {
+  it.each([["01", reel01], ["06", reel06], ["08", reel08]])("Reel %s is valid and runs 52 s with one lead", (_n, doc) => {
     const parsed = scriptDocSchema.parse(doc);
     expect(totalSeconds(parsed.shots)).toBe(52);
     expect(parsed.header.production).toBe("AI-generated");
-    for (const s of parsed.shots) {
-      expect(s.vo.trim()).not.toBe("");
-      expect(s.onScreenText.trim()).not.toBe("");
-    }
     expect(parsed.cast.filter((c) => c.isLead)).toHaveLength(1);
   });
 
-  it("Reel 06 is Founder-led: fixed frame with free middle beats, no review, no payoff, James the only cast", () => {
+  it.each([["01", reel01], ["06", reel06], ["08", reel08]])("Reel %s: every beat's first shot has VO and a card; later shots carry them", (_n, doc) => {
+    for (const g of groups(doc)) {
+      const [first, ...rest] = g.shots;
+      expect(first.shot.vo.trim(), `${g.beat} first shot VO`).not.toBe("");
+      expect(first.shot.onScreenText.trim(), `${g.beat} first shot card`).not.toBe("");
+      for (const t of rest) {
+        // A continuation shot either carries (empty) or has its own line; never a copy of the first.
+        expect(t.shot.vo === "" || t.shot.vo !== first.shot.vo).toBe(true);
+      }
+    }
+  });
+
+  it("Reel 01 splits into 14 shots and carries its split beats' cards", () => {
+    const doc = scriptDocSchema.parse(reel01);
+    expect(doc.shots).toHaveLength(14);
+    expect(doc.shots.filter((s) => s.onScreenText === "").map((s) => s.id)).toEqual(["s02", "s04", "s06"]);
+  });
+
+  it("Reel 06 is Founder-led: fixed frame, free middle beats, no review, no payoff, James the only cast; two in-row cuts split", () => {
     const doc = scriptDocSchema.parse(reel06);
     expect(doc.header.format).toBe("Founder-led");
     expect(beats(reel06)).toEqual(["HOOK", "INTRO", "WHAT IT IS", "STEP", "WHY NO CHANGE", "PROOF", "HONEST LINE", "FOR FAMILIES", "OUTRO"]);
     expect(doc.cast.map((c) => c.name)).toEqual(["James"]);
+    expect(doc.shots).toHaveLength(11);
+    expect(groups(reel06).filter((g) => g.shots.length === 2).map((g) => g.beat)).toEqual(["INTRO", "WHY NO CHANGE"]);
   });
 
   it("Reel 08 is UGC review first: the review comes straight after the hook", () => {

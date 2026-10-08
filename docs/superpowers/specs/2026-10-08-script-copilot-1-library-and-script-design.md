@@ -135,6 +135,7 @@ Rules:
   writes "Soft dissolve to the family at the breakfast table". This replaces the parent spec's
   separate Setting and Transition fields, and it means the printed text carries them with no
   special handling.
+- **The carry rule (8 Oct):** every **beat** has a VO line and an on-screen card, written once on the beat's first shot; a beat's later, split shots leave them empty and **carry** them (the line keeps playing, the card stays up). Copying the line onto each shot would have the parse map it twice.
 - **A 9-row outline becomes roughly 12 to 15 shots**, because rows that hold an in-row cut are
   split into one shot each. Spec 2's copilot does that split; the seeded Reel 01 (§6) is split by
   hand.
@@ -230,9 +231,9 @@ the canvas to hold a cast, which changes the video pipeline and is later work (�
 ## 6. The seeded Reel 01, plus Reels 06 and 08 *(extended 8 Oct by spec 2 Q2c.2)*
 
 Three seeded scripts, one per format structure, so the copilot can learn each from the library
-(spec 2 §4.3): **Reel 01** (UGC, 14 shots), **Reel 06** (Founder-led, 9 shots) and **Reel 08**
-(UGC, review first, 9 shots), each split by hand from the outline, every shot with a VO line and
-on-screen text (a beat's card carries across its split shots), each 52 seconds. Loaded with
+(spec 2 §4.3): **Reel 01** (UGC, 14 shots), **Reel 06** (Founder-led, 11 shots) and **Reel 08**
+(UGC, review first, 9 shots), each split by hand from the outline, each 52 seconds, following the carry rule (§2.4): a
+beat's VO line and card sit on its first shot and carry across its split shots. Loaded with
 `node scripts/seed-script.mjs <client-slug> --file src/lib/scripts/fixtures/reel-0N.json`.
 
 The rest of this section describes Reel 01.

@@ -6800,7 +6800,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 ### D326 — Three seeded scripts, one per format, loaded by a developer *(recorded 2026-10-08)*
 
-**Decision.** Spec 1 ships three hand-split scripts as fixtures, one per format structure: Reel 01 (UGC, 14 shots), Reel 06 (Founder-led, 9 shots) and Reel 08 (UGC, review first, 9 shots), in `src/lib/scripts/fixtures/`, seeded with `scripts/seed-script.mjs`. There is no product button for them.
+**Decision.** Spec 1 ships three hand-split scripts as fixtures, one per format structure: Reel 01 (UGC, 14 shots), Reel 06 (Founder-led, 11 shots) and Reel 08 (UGC, review first, 9 shots), in `src/lib/scripts/fixtures/`, seeded with `scripts/seed-script.mjs`. There is no product button for them. Shots follow the carry rule: a beat's VO line and card sit on its first shot and carry across its split shots.
 
 **Why.** Specs 3 and 4 lead the demo and can be built before the copilot; the fixture is also the copilot's target and the handoff's test. Keeping it out of the product keeps the copilot the only way users make a script.
 

@@ -166,8 +166,8 @@ the formats model names (formats model §2):
 - **Cast**: one or more people, **exactly one lead**, each a name and a description in words,
   linked to a client Avatar where one exists.
 - **Shots**, in order, each with a free-text beat label, a length, the visual, the VO, the
-  on-screen text, and who is on screen (or nobody). **Every shot has both a VO line and on-screen
-  text**: every row of all 28 outlines does.
+  on-screen text, and who is on screen (or nobody). **Every beat has a VO line and on-screen
+  text** (every row of all 28 outlines does). They sit on the beat's first shot; a beat's later, split shots leave them empty and **carry** them (the line keeps playing, the card stays up). Copying the line onto each shot would have the parse map it twice.
 
 Rules the copilot follows when it writes, all from spec 1:
 
@@ -205,7 +205,8 @@ What is on the list:
   Watch-outs (all 28 outlines have each).
 - Disclaimers, when one applies by the KB's rules; when none applies, the script says so,
   never by leaving it blank.
-- A shot with no beat, length, visual, VO or on-screen text.
+- A shot with no beat, length or visual; or a **beat** whose first shot has no VO line or card
+  (later shots in a beat may carry them).
 - A placeholder anywhere, such as the review beat's "[real review, verbatim]": the copilot asks the
   person to paste a real, cleared Amazon review on that theme; if none fits, it offers to swap the
   theme, as the house rules say.
@@ -315,7 +316,8 @@ Spec 2 is done when, for the Jackfruit365 client, with its KB holding the house 
    regional kit, the locked lines verbatim, the disclaimers the house rules require, nothing from
    the never-list (parent §9, item 1).
 3. The draft is in spec 1's shape: a header, a context card, a cast with exactly one lead, and
-   **12 to 15 shots** each with a VO line and on-screen text and naming who is on screen, in-row
+   **12 to 15 shots**, every beat with a VO line and a card on its first shot (carried across its
+   split shots), each shot naming who is on screen, in-row
    cuts split, transitions in the visual. The lengths add up to the client's target length.
 4. A Founder-led reel (Reel 06's topic) comes out with the fixed frame and five labelled topic
    beats, with no review and no payoff.
