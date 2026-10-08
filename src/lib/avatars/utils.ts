@@ -1,9 +1,9 @@
 import {
   AVATAR_IMAGE_CONTENT_TYPES, AVATAR_IMAGE_EXTENSION_CONTENT_TYPES, AVATAR_IMAGE_EXTENSIONS,
   AVATAR_IMAGE_MAX_BYTES, AVATAR_IMAGE_MAX_LABEL, AVATAR_NAME_MAX, AVATAR_STORY_MAX,
-  LIKENESS_CONSENT_CHANGED_ERROR, READINESS_GAP_LABELS,
+  AVATAR_VIEWS, LIKENESS_CONSENT_CHANGED_ERROR, READINESS_GAP_LABELS,
 } from "./constants";
-import type { Avatar, AvatarImage } from "./schema";
+import type { Avatar, AvatarImage, AvatarViewId } from "./schema";
 import { voiceAfterFrontChange } from "./voice";
 
 export type ReadinessGap = keyof typeof READINESS_GAP_LABELS;
@@ -15,7 +15,7 @@ export type ReadinessInput = Pick<
 
 export type AvatarPatch = Partial<Pick<
   Avatar,
-  | "name" | "story" | "personType" | "front" | "sheet" | "sheetStale" | "status"
+  | "name" | "story" | "personType" | "front" | "sheet" | "sheetStale" | "sheetViews" | "status"
   | "likenessConsentBy" | "likenessConsentAt" | "voice" | "voiceSample"
 >>;
 
@@ -75,6 +75,30 @@ export function frontChangePatch(current: Avatar, image: AvatarImage): AvatarPat
 
 export function sheetChangePatch(image: AvatarImage): AvatarPatch {
   return { sheet: image, sheetStale: false };
+}
+
+/** D339 — a current four-view sheet: every view made, from the front image the avatar has now. */
+export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">): boolean {
+  const views = avatar.sheetViews;
+  return !avatar.sheetStale && views !== null && AVATAR_VIEWS.every((v) => views[v] !== null);
+}
+
+export type SheetKind = "none" | "three-view" | "uploaded" | "four-view";
+
+/** Which kind of sheet an avatar has. A generated single image is the older three-view sheet
+ *  (D288); an uploaded one predates D339, which ended sheet uploads. Both are kept until the
+ *  four views are generated. */
+export function sheetKind(avatar: Pick<Avatar, "sheet" | "sheetViews">): SheetKind {
+  if (avatar.sheetViews) return "four-view";
+  if (!avatar.sheet) return "none";
+  return avatar.sheet.source.kind === "upload" ? "uploaded" : "three-view";
+}
+
+/** The views a Generate would make: only the gaps in a current sheet, otherwise all four. */
+export function missingViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">): AvatarViewId[] {
+  const views = avatar.sheetViews;
+  if (!views || avatar.sheetStale) return [...AVATAR_VIEWS];
+  return AVATAR_VIEWS.filter((v) => views[v] === null);
 }
 
 /** States `status: "draft"` whenever the merged avatar (`current` with `patch` applied) is

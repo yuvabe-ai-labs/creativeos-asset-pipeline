@@ -2,9 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   avatarImageContentType, avatarReadinessGaps, errorMessage, isAvatarReady, frontChangePatch,
   sheetChangePatch, withStatus, planAvatarUpdate, validateAvatarImageFile, isUuid,
+  hasFourViews, missingViews, sheetKind,
 } from "../utils";
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
-import { GENERATED, makeAvatar, makeImage } from "./fixtures";
+import { GENERATED, makeAvatar, makeImage, makeViews } from "./fixtures";
 
 const ctx = { userId: "user-2", now: "2026-10-01T00:00:00.000Z" };
 
@@ -229,5 +230,36 @@ describe("isUuid", () => {
   });
   it("rejects an empty string", () => {
     expect(isUuid("")).toBe(false);
+  });
+});
+
+describe("hasFourViews (D339)", () => {
+  it("needs every view, made from the front the avatar has now", () => {
+    expect(hasFourViews(makeAvatar({ sheetViews: makeViews() }))).toBe(true);
+    expect(hasFourViews(makeAvatar({ sheetViews: { ...makeViews(), left: null } }))).toBe(false);
+    expect(hasFourViews(makeAvatar({ sheetViews: makeViews(), sheetStale: true }))).toBe(false);
+    expect(hasFourViews(makeAvatar({ sheetViews: null }))).toBe(false);
+  });
+});
+
+describe("sheetKind (D339)", () => {
+  it("tells the four views from an older three-view sheet and an older upload", () => {
+    expect(sheetKind(makeAvatar({ sheetViews: makeViews() }))).toBe("four-view");
+    expect(sheetKind(makeAvatar({ sheet: makeImage(GENERATED), sheetViews: null }))).toBe("three-view");
+    expect(sheetKind(makeAvatar({ sheet: makeImage(), sheetViews: null }))).toBe("uploaded");
+    expect(sheetKind(makeAvatar({ sheet: null, sheetViews: null }))).toBe("none");
+  });
+});
+
+describe("missingViews (D339)", () => {
+  it("lists only the gaps in a current sheet", () => {
+    expect(missingViews(makeAvatar({ sheetViews: { ...makeViews(), back: null } }))).toEqual(["back"]);
+    expect(missingViews(makeAvatar({ sheetViews: makeViews() }))).toEqual([]);
+  });
+
+  it("asks for all four when there are none, or they show an older front", () => {
+    const all = ["front", "left", "right", "back"];
+    expect(missingViews(makeAvatar({ sheetViews: null }))).toEqual(all);
+    expect(missingViews(makeAvatar({ sheetViews: { ...makeViews(), back: null }, sheetStale: true }))).toEqual(all);
   });
 });
