@@ -12,7 +12,17 @@ type Filter = "all" | ScriptStage;
 
 // Spec 1 §3. No "New script" yet: it arrives with spec 2, because the copilot is the only way a
 // script is made, and a button that does nothing would be worse than none.
-export function ScriptsLibrary({ clientName, clientSlug, scripts }: { clientName: string; clientSlug: string; scripts: Script[] }) {
+export function ScriptsLibrary({
+  clientName,
+  clientSlug,
+  scripts,
+  feedback,
+}: {
+  clientName: string;
+  clientSlug: string;
+  scripts: Script[];
+  feedback?: Record<string, number>;
+}) {
   const [filter, setFilter] = useState<Filter>("all");
   const shown = filter === "all" ? scripts : scripts.filter((s) => s.stage === filter);
   const filters: { id: Filter; label: string; count: number }[] = [
@@ -57,7 +67,7 @@ export function ScriptsLibrary({ clientName, clientSlug, scripts }: { clientName
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
               {shown.map((s) => (
-                <ScriptCard key={s.id} script={s} href={`/clients/${clientSlug}/scripts/${s.id}`} />
+                <ScriptCard key={s.id} script={s} href={`/clients/${clientSlug}/scripts/${s.id}`} feedbackCount={feedback?.[s.id] ?? 0} />
               ))}
             </div>
           )}

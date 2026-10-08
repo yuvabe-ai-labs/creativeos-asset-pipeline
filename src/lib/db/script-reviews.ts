@@ -5,6 +5,7 @@ import { ShareCodeTakenError } from "@/lib/db/client-reviews";
 import type { ScriptStage } from "@/lib/scripts/constants";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import type { ScriptReviewEventKind, ShareScope } from "@/lib/script-review/constants";
+import { tallyFeedback } from "@/lib/script-review/assemble";
 import { columnsToPart, partToColumns } from "@/lib/script-review/parts";
 import type {
   ChangedPart, CommentAuthorKind, Part, ScriptComment, ScriptReviewEvent, VersionVisuals,
@@ -297,4 +298,30 @@ export async function hasApproval(scriptId: string, versionNumber: number): Prom
     .eq("version_number", versionNumber);
   if (error) throw error;
   return (count ?? 0) > 0;
+}
+
+/** Client comments and approvals per script, for one client's library (spec 4 §6). */
+export async function listFeedbackCounts(clientId: string): Promise<Record<string, number>> {
+  const supabase = createServerSupabase();
+  const [comments, approvals] = await Promise.all([
+    supabase
+      .from("script_review_comments")
+      .select("script_reviews!inner(script_id, client_id)")
+      .eq("author_kind", "client")
+      .eq("script_reviews.client_id", clientId),
+    supabase
+      .from("script_review_events")
+      .select("script_id, client_scripts!inner(client_id)")
+      .eq("kind", "approved")
+      .eq("client_scripts.client_id", clientId),
+  ]);
+  if (comments.error) throw comments.error;
+  if (approvals.error) throw approvals.error;
+  type ReviewEmbed = { script_id: string } | { script_id: string }[] | null;
+  const commentScriptIds = ((comments.data ?? []) as unknown as { script_reviews: ReviewEmbed }[]).flatMap((r) => {
+    const review = Array.isArray(r.script_reviews) ? r.script_reviews[0] : r.script_reviews;
+    return review ? [review.script_id] : [];
+  });
+  const approvalScriptIds = ((approvals.data ?? []) as { script_id: string }[]).map((r) => r.script_id);
+  return tallyFeedback(commentScriptIds, approvalScriptIds);
 }

@@ -98,3 +98,10 @@ export function assembleTeam(
     feedbackCount: feedbackCount(state.comments, state.events),
   };
 }
+
+/** The library card's count (spec 4 §6), the same rule as feedbackCount, for every script at once. */
+export function tallyFeedback(commentScriptIds: string[], approvalScriptIds: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const id of [...commentScriptIds, ...approvalScriptIds]) counts[id] = (counts[id] ?? 0) + 1;
+  return counts;
+}

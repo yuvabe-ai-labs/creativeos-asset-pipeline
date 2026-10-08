@@ -1,6 +1,8 @@
 // src/lib/script-review/__tests__/assemble.test.ts
 import { describe, it, expect } from "vitest";
-import { approvalOf, assemblePublic, assembleTeam, canApprove, commentsOpen, feedbackCount, type ReviewState } from "../assemble";
+import {
+  approvalOf, assemblePublic, assembleTeam, canApprove, commentsOpen, feedbackCount, tallyFeedback, type ReviewState,
+} from "../assemble";
 import type { ScriptVersion } from "../wire";
 import { comment, content, event } from "./fixtures";
 
@@ -79,5 +81,12 @@ describe("feedbackCount (spec 4 §6)", () => {
     const comments = [comment({ id: "a" }), comment({ id: "b" }), comment({ id: "r", parentId: "a", authorKind: "team" })];
     const events = [event(), event({ id: "ap", kind: "approved", actorKind: "client" })];
     expect(feedbackCount(comments, events)).toBe(3);
+  });
+});
+
+describe("tallyFeedback", () => {
+  it("adds a script's client comments and approvals, per script", () => {
+    expect(tallyFeedback(["s1", "s1", "s2"], ["s1"])).toEqual({ s1: 3, s2: 1 });
+    expect(tallyFeedback([], [])).toEqual({});
   });
 });
