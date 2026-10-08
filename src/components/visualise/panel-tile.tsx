@@ -13,6 +13,8 @@ type Props = {
   label: string;
   /** "16.0–19.0s", the shot's place in the reel. */
   time: string;
+  /** The shot's visual line, shown over the frame on hover (testing). */
+  description: string;
   view: PanelView;
   aspect: string;
   credits: number | null;
@@ -41,7 +43,7 @@ function Hint({ text, children, className }: { text: string | null; children: Re
 // same three rows whatever its state, so the grid lines up (testing): the frame, the caption, one
 // button. Out of date and Failed sit on the frame as badges; why, and who an avatar is waited
 // for, are tooltips. An out-of-date panel stays visible and is never redrawn on its own.
-export function PanelTile({ label, time, view, aspect, credits, onDraw, onOpen, marker }: Props) {
+export function PanelTile({ label, time, description, view, aspect, credits, onDraw, onOpen, marker }: Props) {
   const busy = view.status === "generating";
   const action = busy ? "Drawing…" : view.pick ? "Regenerate" : view.failure ? "Generate again" : "Generate";
   const badge = view.status === "out_of_date"
@@ -52,8 +54,15 @@ export function PanelTile({ label, time, view, aspect, credits, onDraw, onOpen, 
 
   return (
     <figure className="relative m-0 flex min-w-0 flex-col gap-2">
-      <div className="relative">
+      <div className="group relative">
         <PanelFrame view={view} aspect={aspect} label={label} onOpen={onOpen} />
+        {/* The shot on hover or focus. The scrim is sized for a white sketch, the brightest case. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-lg bg-gradient-to-t from-foreground/90 via-foreground/70 to-transparent px-3 pb-3 pt-10 opacity-0 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-focus-within:opacity-100 group-hover:opacity-100"
+        >
+          <p className="line-clamp-5 text-xs leading-snug text-background">{description}</p>
+        </div>
         {badge && (
           <Hint text={badge.hint} className="absolute left-2 top-2">
             <Badge variant="outline" className={badge.tone}>{badge.text}</Badge>

@@ -99,6 +99,7 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
                 key={t.shot.id}
                 label={`S${t.index + 1}`}
                 time={formatRange(t.start, t.end)}
+                description={t.shot.visual}
                 view={model.views.get(t.shot.id)!}
                 aspect={model.aspect}
                 credits={model.credits.get(t.shot.id) ?? null}
