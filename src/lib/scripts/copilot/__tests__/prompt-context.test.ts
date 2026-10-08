@@ -15,6 +15,11 @@ describe("renderKbText", () => {
     expect(renderKbText(kb)).toContain("House rules (the brand KB's consistency notes, read whole):\nHOUSE SPEC: seven locked claim lines…");
   });
 
+  it("still reads the house rules when the KB page saved them as a list (an empty field is edited as one)", () => {
+    const kb = { image_analysis: { brand_consistency_notes: { value: ["Locked lines verbatim", "D1 on every reel"] } } } as never;
+    expect(renderKbText(kb)).toContain("House rules (the brand KB's consistency notes, read whole):\nLocked lines verbatim, D1 on every reel");
+  });
+
   it("says plainly when there is no KB", () => {
     expect(renderKbText(null)).toMatch(/no brand KB/);
   });

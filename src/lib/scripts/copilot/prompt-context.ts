@@ -14,7 +14,10 @@ import type { CopilotAvatar } from "./schema";
 export function renderKbText(kb: TraceableBrandKB | null): string {
   if (!kb) return "This client has no brand KB yet. Write from the person's description and the example scripts only, and say so.";
   const body = buildParseContext(kb, KB_PARSE_SLICES.map((s) => s.key));
-  const house = kb.image_analysis?.brand_consistency_notes?.value?.trim();
+  // A string normally; a list when it was typed into the KB page while empty (that editor splits
+  // an empty field on commas). Either way it is read as one text.
+  const raw: unknown = kb.image_analysis?.brand_consistency_notes?.value;
+  const house = (Array.isArray(raw) ? raw.join(", ") : typeof raw === "string" ? raw : "").trim();
   return [body, house ? `House rules (the brand KB's consistency notes, read whole):\n${house}` : ""].filter(Boolean).join("\n\n");
 }
 
