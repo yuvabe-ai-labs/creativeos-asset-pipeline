@@ -28,31 +28,33 @@ export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
 
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor={id} className="text-xs text-muted-foreground">Avatar instructions</Label>
+      <Label htmlFor={id} className="sr-only">Avatar instructions</Label>
       <InputGroup>
         <InputGroupInput
           id={id}
           value={instructions}
           maxLength={300}
           disabled={busy}
-          placeholder="Greyer at the temples, glasses on a chain"
+          className="text-sm"
+          placeholder="Instructions, e.g. greyer at the temples"
           onChange={(e) => setInstructions(e.target.value)}
         />
       </InputGroup>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2">
         {!hasFace ? (
-          <Button disabled={busy} onClick={() => onMake(instructions, false)}>
+          <Button className="w-full" disabled={busy} onClick={() => onMake(instructions, false)}>
             Make avatar <AvatarCreditCost credits={estimateMakeCredits(modelId)} />
           </Button>
         ) : (
           <>
             {next === "views" && (
-              <Button disabled={busy} onClick={() => onMake("", false)}>
+              <Button className="w-full" disabled={busy} onClick={() => onMake("", false)}>
                 Make the four views <AvatarCreditCost credits={estimateSheetCredits(modelId, viewCount)} />
               </Button>
             )}
-            {next === "save" && <Button disabled={busy} onClick={() => onMake("", false)}>Save to Avatars</Button>}
-            <Button variant="outline" disabled={busy} onClick={() => onMake(instructions, true)}>
+            {next === "save" && <Button className="w-full" disabled={busy} onClick={() => onMake("", false)}>Save to Avatars</Button>}
+            {/* The CTA is the card's next step; once saved, that is Regenerate. */}
+            <Button className="w-full" variant={next ? "outline" : "default"} disabled={busy} onClick={() => onMake(instructions, true)}>
               Regenerate avatar <AvatarCreditCost credits={estimateMakeCredits(modelId)} />
             </Button>
           </>

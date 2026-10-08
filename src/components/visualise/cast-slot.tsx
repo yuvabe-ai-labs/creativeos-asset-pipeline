@@ -88,7 +88,7 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
             <AvatarModelSelect id={`avatar-model-${member.id}`} value={modelId} onChange={setModelId} />
           </AvatarAdvancedSettings>
 
-          <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <div className="grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
             <CastSlotVoice clientId={clientId} castId={member.id} avatar={avatar && !avatar.archivedAt ? avatar : null} onChanged={() => void maker.refresh()} />
             <div className="flex flex-wrap items-center gap-2">
               <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />

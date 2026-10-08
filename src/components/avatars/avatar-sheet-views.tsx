@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
+import { AvatarViewsGallery } from "./avatar-views-gallery";
 import { cn } from "@/lib/utils";
 import { AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarSheetViews as Views, AvatarViewId } from "@/lib/avatars/schema";
@@ -27,7 +27,6 @@ type Props = {
 // Studio's sheet step and Visualise's cast slot, so there is one way a sheet looks.
 export function AvatarSheetViews({ name, views, generating, stale = false, marker, columns = 4 }: Props) {
   const [zoomed, setZoomed] = useState<AvatarViewId | null>(null);
-  const zoomedImage = zoomed ? views?.[zoomed] ?? null : null;
 
   return (
     <>
@@ -61,12 +60,8 @@ export function AvatarSheetViews({ name, views, generating, stale = false, marke
           );
         })}
       </ul>
-      {zoomed && zoomedImage && (
-        <FullScreenImageZoom
-          imageUrl={zoomedImage.url}
-          title={`${name} · ${AVATAR_VIEW_LABELS[zoomed]}`}
-          onClose={() => setZoomed(null)}
-        />
+      {zoomed && views && (
+        <AvatarViewsGallery name={name} views={views} focus={zoomed} onClose={() => setZoomed(null)} />
       )}
     </>
   );

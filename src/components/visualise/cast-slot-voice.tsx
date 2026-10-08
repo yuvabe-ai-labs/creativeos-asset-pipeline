@@ -38,7 +38,7 @@ export function CastSlotVoice({ clientId, castId, avatar, onChanged }: {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id} className="text-xs text-muted-foreground">Voice</Label>
+      <Label htmlFor={id} className="sr-only">Voice</Label>
       <Select value={value} onValueChange={(v) => { if (typeof v === "string") onChange(v); }} disabled={!avatar || voice.saving}>
         <SelectTrigger id={id} size="sm" className="w-full">
           <SelectValue>{avatarVoiceLabel(declared) ?? "No voice"}</SelectValue>
