@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,6 +15,8 @@ import { CastLibraryPicker } from "./cast-library-picker";
 import { CastSlotAiMaker } from "./cast-slot-ai-maker";
 import { CastSlotPhotoMaker } from "./cast-slot-photo-maker";
 import { CastSlotVoice } from "./cast-slot-voice";
+import { CastSlotPreview } from "./cast-slot-preview";
+import { Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
 import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
@@ -41,6 +43,9 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
 }) {
   const [modelId, setModelId] = useState(VISUALISE_AVATAR_MODEL_ID);
   const maker = useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId });
+  // Stable, so the preview's poll is not restarted on every render.
+  const { refresh } = maker;
+  const onPreviewSettled = useCallback(() => void refresh(), [refresh]);
   const [mode, setMode] = useState<Mode>(avatar?.front?.source.kind === "upload" ? "photo" : "ai");
   const generating = maker.step === "views" ? (avatar ? missingViews(avatar) : [...AVATAR_VIEWS])
     : maker.step === "face" ? [...AVATAR_VIEWS] : [];
@@ -90,9 +95,16 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
           <div className="grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
             <CastSlotVoice clientId={clientId} castId={member.id} avatar={avatar && !avatar.archivedAt ? avatar : null} onChanged={() => void maker.refresh()} />
             {/* Picking replaces the link; no separate Change (removed in testing: it read as Regenerate). */}
-            <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />
+            <div className="flex flex-col gap-1.5">
+              <span aria-hidden className="text-xs text-muted-foreground">From the library</span>
+              <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground" aria-live="polite">
+          {avatar && !avatar.archivedAt && avatar.voice && (
+            <CastSlotPreview clientId={clientId} avatar={avatar} disabled={maker.busy} onSettled={onPreviewSettled} />
+          )}
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
+            {maker.step && <Loader2 className="size-3.5 animate-spin text-primary" strokeWidth={1.5} />}
             {maker.step ? STEP_COPY[maker.step] : castSlotLine(avatar)}
           </p>
         </div>

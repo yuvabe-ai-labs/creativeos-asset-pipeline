@@ -28,7 +28,7 @@ export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
 
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor={id} className="sr-only">Avatar instructions</Label>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">Avatar instructions</Label>
       <InputGroup>
         <InputGroupInput
           id={id}

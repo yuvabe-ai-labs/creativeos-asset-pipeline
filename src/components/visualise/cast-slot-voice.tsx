@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAvatarVoice } from "@/hooks/use-avatar-voice";
@@ -38,7 +39,15 @@ export function CastSlotVoice({ clientId, castId, avatar, onChanged }: {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id} className="sr-only">Voice</Label>
+      <Label htmlFor={id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        Voice
+        {voice.saving && (
+          <span role="status" className="flex items-center gap-1 text-foreground">
+            <Loader2 className="size-3 animate-spin text-primary" strokeWidth={1.5} />
+            Saving…
+          </span>
+        )}
+      </Label>
       <Select value={value} onValueChange={(v) => { if (typeof v === "string") onChange(v); }} disabled={!avatar || voice.saving}>
         <SelectTrigger id={id} size="sm" className="w-full">
           <SelectValue>{avatarVoiceLabel(declared) ?? "No voice"}</SelectValue>
