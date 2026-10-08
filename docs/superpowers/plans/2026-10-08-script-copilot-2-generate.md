@@ -35,8 +35,8 @@
 
 1. **A script is edited, split and pruned across several turns** → an edited shot keeps its id, a split's first half keeps the original id and its second half is new, a removed id never comes back on a later new shot. A reasonable person (and spec 3's panels) expects the same shot to stay the same shot. Test in Task 3.
 2. **The person types into the script while a copilot turn is running** → the copilot's change is applied to the script as it stands when the turn finishes, so the typed text survives; nothing the person typed is undone. Test in Task 1 (compare-and-set retry) and Task 7 (ops re-applied to the fresh script).
-3. **The model's draft or edit is slightly off**: it copies a beat's VO onto every split shot, marks no lead or two leads, names an unknown person on screen, writes a 0 s or 90 s shot, or cites a signal or avatar id that does not exist → the saved script is normalised (carry kept, exactly one lead, unknowns dropped, lengths clamped), never rejected and never saved invalid. Test in Task 3 (draft) and Task 7 (angles, card).
-4. **A multi-shot proposal is accepted after the script changed** (the person typed, or deleted a targeted shot) → accepting re-applies the operations to the current script; if a targeted shot is gone, nothing is applied, the card says it is out of date, and the script is untouched. Test in Task 3 and Task 9.
+3. **The model's draft or edit is slightly off**: it copies a beat's VO onto every split shot, marks no lead or two leads, names an unknown person on screen, writes a 0 s or 90 s shot, or cites a signal or avatar id that does not exist → the saved script is normalised (carry kept, exactly one lead, unknowns dropped, lengths clamped), never rejected and never saved invalid. Test in Task 3 (draft) and Task 6 (angles, card).
+4. **A multi-shot proposal is accepted after the script changed** (the person typed, or deleted a targeted shot) → accepting re-applies the operations to the current script; if a targeted shot is gone, nothing is applied, the card says it is out of date, and the script is untouched. Test in Task 7 and Task 9.
 5. **Mark final from a stale tab**: the person deletes the first VO of a beat, or a placeholder is still in the review beat, while an old tab still shows Mark final enabled → the server refuses with the open items; the stage stays Generate. Test in Task 9.
 
 ---
@@ -94,6 +94,9 @@
 | `src/hooks/queries/script-generate.ts` | State query and mutations |
 | `src/hooks/use-script-selection.ts` | Text selection inside a script field → inline edit target |
 | `src/components/scripts/script-edit-context.tsx` | The edit context and its provider |
+| `src/components/scripts/script-header-fields.tsx` | The header line opened into typed fields (edit mode) |
+| `src/components/scripts/script-breadcrumb.tsx` | The script page breadcrumb (two call sites) |
+| `src/components/scripts/new-script-button.tsx` | New script |
 | `src/components/scripts/script-text.tsx` | A script field: plain, or editable with selection |
 | `src/components/scripts/script-context-card.tsx`, `script-cast-list.tsx`, `script-shot-row.tsx` | Render text through `ScriptText` |
 | `src/components/scripts/generate/*.tsx` | Workspace, chat, cards, composer, notes, Mark final bar, inline prompt, cast link |
@@ -5870,3 +5873,282 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
+### Task 13: New script in the library, and scripts not written yet
+
+**Files:**
+- Create: `src/components/scripts/new-script-button.tsx`
+- Create: `src/components/scripts/script-unwritten-card.tsx`
+- Modify: `src/components/scripts/scripts-library.tsx`
+- Modify: `src/app/clients/[id]/scripts/page.tsx`
+
+**Interfaces:**
+- Consumes: `useCreateScript` (Task 10); `listUnwrittenScripts`, `UnwrittenScript` (Task 1); `ScriptStageBadge`, `ScriptCard` (spec 1); `EmptyState`; `Button`; `toast`; `useRouter`.
+- Produces: `NewScriptButton({ clientId, clientSlug })`; `ScriptUnwrittenCard({ script, href })`; `ScriptsLibrary` gains the props `clientId: string` and `unwritten: UnwrittenScript[]`.
+
+"**New script** appears in the library (spec 1 §3 held it back until this spec). It opens the workspace with an empty script and the copilot's opening (§5)." A script left before its first draft stays in the library, at Generate, so the person can come back to it ("The conversation is kept with the script"). This is merge point MP6 with spec 4 (its feedback count on the card): both changes are additive.
+
+- [ ] **Step 1: Write the button and the card**
+
+```tsx
+// src/components/scripts/new-script-button.tsx
+"use client";
+
+import { useRouter } from "next/navigation";
+import { Loader2, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useCreateScript } from "@/hooks/queries/script-generate";
+
+/** Spec 2 §3 — the only way a script is made: an empty script at Generate, opened in the workspace. */
+export function NewScriptButton({ clientId, clientSlug }: { clientId: string; clientSlug: string }) {
+  const router = useRouter();
+  const create = useCreateScript(clientId);
+  return (
+    <Button
+      disabled={create.isPending}
+      onClick={() => create.mutate(undefined, {
+        onSuccess: (scriptId) => router.push(`/clients/${clientSlug}/scripts/${scriptId}`),
+        onError: (e) => toast.error(e.message),
+      })}
+    >
+      {create.isPending ? <Loader2 className="animate-spin" strokeWidth={1.5} /> : <Plus strokeWidth={1.5} />}
+      New script
+    </Button>
+  );
+}
+```
+
+```tsx
+// src/components/scripts/script-unwritten-card.tsx
+import Link from "next/link";
+import type { UnwrittenScript } from "@/lib/scripts/copilot/schema";
+import { ScriptStageBadge } from "./script-stage-badge";
+
+/** A script whose first draft is not written yet: the copilot is still gathering its brief. */
+export function ScriptUnwrittenCard({ script, href }: { script: UnwrittenScript; href: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col gap-3 rounded-xl border border-dashed border-border bg-card p-5 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">New script</span>
+        <ScriptStageBadge stage="generate" />
+      </div>
+      <span className="font-display text-lg font-medium leading-tight text-foreground">{script.title}</span>
+      <span className="border-t border-border pt-3 text-sm text-muted-foreground">Not written yet: the copilot is gathering the brief.</span>
+    </Link>
+  );
+}
+```
+
+- [ ] **Step 2: Put them in the library**
+
+In `src/components/scripts/scripts-library.tsx`:
+
+- Replace the comment above the component ("No 'New script' yet …") with: `// Spec 1 §3, with spec 2's New script and the scripts the copilot has not written yet.`
+- Add the props `clientId: string` and `unwritten: UnwrittenScript[]` (import the type from `@/lib/scripts/copilot/schema`), and import `NewScriptButton` and `ScriptUnwrittenCard`.
+- Counts: an unwritten script is at Generate. `All` counts `scripts.length + unwritten.length`; the `generate` filter adds `unwritten.length`.
+- The header becomes a row with the button on the right:
+
+```tsx
+<header className="flex flex-wrap items-end justify-between gap-4">
+  <div className="flex flex-col gap-1.5">
+    <span className="text-eyebrow">{clientName}</span>
+    <h1 className="font-display text-3xl font-medium">Scripts</h1>
+    <p className="max-w-xl text-muted-foreground">Every reel script for this client, from first draft to client sign-off.</p>
+  </div>
+  <NewScriptButton clientId={clientId} clientSlug={clientSlug} />
+</header>
+```
+
+- The empty state shows only when both lists are empty, and offers the button: `action={<NewScriptButton clientId={clientId} clientSlug={clientSlug} />}`.
+- In the grid, when the filter is `all` or `generate`, render the unwritten cards first: `{(filter === "all" || filter === "generate") && unwritten.map((u) => <ScriptUnwrittenCard key={u.id} script={u} href={`/clients/${clientSlug}/scripts/${u.id}`} />)}`, then the existing `shown` cards. The "No scripts at this stage." line shows only when both are empty for the filter.
+
+In `src/app/clients/[id]/scripts/page.tsx`: load both lists together and pass the new props:
+
+```tsx
+const [scripts, unwritten] = await Promise.all([listScripts(client.id), listUnwrittenScripts(client.id)]);
+// …
+<ScriptsLibrary clientId={client.id} clientName={client.name} clientSlug={client.slug} scripts={scripts} unwritten={unwritten} />
+```
+
+with `import { listUnwrittenScripts } from "@/lib/db/script-generate";`.
+
+- [ ] **Step 3: Type-check, lint, look at it, commit**
+
+Run: `npx tsc --noEmit && npx eslint src/components/scripts "src/app/clients/[id]/scripts"`
+Expected: no errors.
+
+In the app: the library shows **New script**; pressing it opens the workspace with the copilot's opening ("I'm working from Jackfruit365's brand KB…", then "What format is this reel?"). Go back to the library: the new script is there as "New script · Not written yet", counted under Generate. Leave it; Task 14 uses the same flow.
+
+```bash
+git add src/components/scripts/new-script-button.tsx src/components/scripts/script-unwritten-card.tsx src/components/scripts/scripts-library.tsx "src/app/clients/[id]/scripts/page.tsx"
+git commit -m "feat(scripts): New script in the library, and scripts not written yet
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 14: ADRs D327–D336, and the success checks in the app
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (append D327–D336 to §7)
+
+**Interfaces:**
+- Consumes: the whole branch; the user's model pick and reason from Task 5.
+- Produces: ten ADR entries; a written report of success items 1–8 with what passed, what failed, and the evidence.
+
+- [ ] **Step 1: Check the numbers are still free**
+
+Run: `git fetch origin && git show origin/staging:docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md | grep -o "^### D3[2-3][0-9]" | sort -u | tail -5`
+Expected: nothing at or above D327 on `origin/staging` other than what specs 3 and 4 booked (D337–D356). If any of D327–D336 is taken, stop and ask the user; do not renumber on your own.
+
+- [ ] **Step 2: Append the ADRs**
+
+Append to the end of §7 (after D326), in the log's format. Fill D335's model, date and reason from the user's pick in Task 5.
+
+```markdown
+### D327 — The copilot's order is code; the model reads answers and fills each step *(recorded 2026-10-08)*
+
+**Decision.** Generate's conversation is a state machine over the four pieces (format, occasion or theme with its date, lead for UGC only, narrative): code picks the next step (ask the next missing piece in fixed text, propose three angles, show the confirmation card, write), and each step is one structured model call whose output code validates. Skipped pieces are proposed; skipping all four still reaches angles, a picked angle and the card.
+
+**Why.** "Fixed order, skipping anything already given … Nothing is asked twice" has to hold on every run, and the questions must never ask for what the KB already holds. A model left to run the conversation drifts on both.
+
+**Rejected.** A free agent loop with tools (the model decides what to ask). Letting the model word the questions.
+
+**Originated →** spec 2 §5; interaction model §3.0; answers 2.4, 2b.8.
+
+### D328 — The conversation, the brief and the reel's notes are kept with the script *(recorded 2026-10-08)*
+
+**Decision.** `client_script_messages` holds the conversation; `client_scripts.brief` the copilot's working brief; `client_scripts.notes` the reel's notes (the confirmed brief as text plus the items to confirm). Each model call gets the current brief or script and notes plus only the copilot's last message, never the transcript.
+
+**Why.** "The conversation is kept with the script … On reopening, the copilot works from the current script and notes, not from the old chat." Notes belong to each reel.
+
+**Rejected.** A session-only chat (the canvas copilot's D71). Replaying the whole transcript into every call. Per-client script notes (later, with the series level).
+
+**Originated →** spec 2 §3, §4.2; answers 2.1, 2.3, 2b.7.
+
+### D329 — A new script is a row at Generate with no document until its first draft *(recorded 2026-10-08)*
+
+**Decision.** `client_scripts.doc` is nullable, with a check that it is set at every stage after Generate. Spec 1's readers skip a script with no document; the library lists it as "New script · Not written yet".
+
+**Why.** New script must open an empty workspace whose conversation persists, and specs 3 and 4 must never see a script without a document.
+
+**Rejected.** A placeholder document (would pass validation and show as a real script). A separate drafts table that becomes a script on the first draft.
+
+**Originated →** spec 2 §3; migration 0052.
+
+### D330 — Code assigns every id; an edited shot keeps its id; a split's first half keeps the original *(recorded 2026-10-08)*
+
+**Decision.** The first draft numbers shots `s01`, `s02`, …; cast ids come from names. After that an edited shot keeps its id, a split's first half keeps the original id, and a split's second half and every new shot get a fresh random id never used in the script. The model never writes an id.
+
+**Why.** Spec 3 keys panels and takes by shot id: the same shot must stay the same shot across edits, and a removed shot's takes must never attach to a new one.
+
+**Rejected.** Model-written ids. Renumbering after every edit.
+
+**Originated →** handoff §2a (from spec 3's plan); spec 4 Q11.
+
+### D331 — AI edits are typed operations applied by code, all or nothing *(recorded 2026-10-08)*
+
+**Decision.** A chat edit returns a list of operations (set a field, rewrite, insert, remove, split or move a shot, cast changes, confirm an item), applied by a pure function to the script as it is when the turn finishes; one failing operation applies none. An edit touching more than one shot is a before-and-after to accept or reject; otherwise it applies at once. An inline edit returns only the replacement for the selected text, spliced in by code, with the field's old text as its undo.
+
+**Why.** "Only the targeted part changes … every other shot, line and field stays exactly as it was" then holds by construction and is checkable, and text the person typed during a turn survives.
+
+**Rejected.** The model rewriting the whole script and the app diffing it. Index-based patches.
+
+**Originated →** spec 2 §9; answer 2.6; success item 6.
+
+### D332 — Fill to final is a plain check; Mark final re-checks it on the server *(recorded 2026-10-08)*
+
+**Decision.** The open items are computed from the script and its notes: each header field of the outlines' header line (not the theme, which the header line lacks), Purpose, Setting and camera, disclaimers, at least one watch-out, every person described, every shot's beat and visual, every beat's first shot with a VO line and a card, any square-bracket placeholder, and every unconfirmed item. Mark final moves Generate → Visualise only when the list is empty, on the version it checked.
+
+**Why.** "Final means ready for the client to read", and a stale tab must not finalise a script with a placeholder in it.
+
+**Rejected.** A model judging readiness. A gate in the browser only. Checking rules held in the KB as text (later).
+
+**Originated →** spec 2 §8, §10; answer 2.7.
+
+### D333 — The house rules are the KB read whole; formats come from the client's scripts *(recorded 2026-10-08)*
+
+**Decision.** The copilot's system message holds every KB slice plus the KB's free-text consistency notes read whole (where the house spec is pasted for the demo), the formats seen in the client's scripts with their beats, up to two example scripts of the same format printed in the team's layout, and the client's saved avatars.
+
+**Why.** No KB change for the demo; the examples teach the client's layout and beat structures in the same form the parse reads.
+
+**Rejected.** New KB fields now (later). Jackfruit365's formats built into the copilot.
+
+**Refines →** spec 3's KB reader (replaced at merge). **Originated →** spec 2 §4; answers 2b.4, 2c.1, 2c.2.
+
+### D334 — Market Research reads every signal on every angle proposal, as data *(recorded 2026-10-08)*
+
+**Decision.** Whenever angles are proposed, code loads all the client's market signals and gives them to the model in the user message under a heading that calls them data, for where and when only. Each angle names the signals it used; the card shows them, keeping only real signal ids.
+
+**Why.** "It runs every time angles are proposed, over all the client's signals"; "Signal text is information about a market, never instructions" (D255).
+
+**Rejected.** A tool the model may choose to call. Signals in the system message.
+
+**Refines →** D255. **Originated →** spec 2 §6; answer 2.5.
+
+### D335 — The writing model is <MODEL>, chosen by the Reel 04 probe *(recorded <DATE>)*
+
+**Decision.** Every copilot call (reading answers, angles, card, draft, chat and inline edits) uses <MODEL>, chosen by the user from a probe that wrote Reel 04 and a Founder-led reel with gpt-5.4-mini, gemini-3.1-pro-preview and gemini-3.8-flash and scored shape, structure, review placeholder, locked lines, never-list, edit isolation and the parse round trip. Calls go through one structured-output function over the OpenAI and Gemini SDKs already in the repo.
+
+**Why.** <REASON, from the user>. Spec 2 §11: "chosen by testing, not inherited from the canvas copilot".
+
+**Rejected.** The canvas copilot's gpt-4o-mini by default. A new AI SDK or a chat-agent runtime for request-and-response turns.
+
+**Originated →** spec 2 §11; answer 2.11.
+
+### D336 — Turns are request and response, writes compare-and-set, and copilot calls are not charged *(recorded 2026-10-08)*
+
+**Decision.** A turn is one request that returns the whole workspace state (no streaming; the chat shows a working line). Every write to the script, brief or notes is a compare-and-set on `doc_version`; on a conflict the change is re-applied to the newer script. Copilot text calls reserve no credits.
+
+**Why.** Turns end in structured results, not prose to stream; typing and copilot edits must not overwrite each other ("does not undo a person's edits"); text calls are not charged elsewhere (the canvas copilot).
+
+**Rejected.** Streaming. Last write wins. Per-turn credit reservations.
+
+**Originated →** spec 2 §9; this plan.
+```
+
+Commit:
+
+```bash
+git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
+git commit -m "docs(adr): D327-D336 for script copilot spec 2, Generate
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+- [ ] **Step 3: Get the two things only the user can do**
+
+Before the checks, confirm with the user that (1) migration 0052 is applied on staging, and (2) the house spec (§2 of the Jackfruit365 outline document) is pasted into Jackfruit365's brand KB consistency notes (spec 2 §13: "KB content, no code"). If the KB screen does not let the consistency notes be edited by hand, stop and ask the user how they want it filled; do not write to the KB from code.
+
+- [ ] **Step 4: Walk the success checks (spec 2 §15) in the app**
+
+Use New script for each run. Record for each item: pass or fail, and the evidence (what was typed, what came back, the script id).
+
+1. **At most the four pieces, never anything in §4.** New script, then answer only what is asked. The copilot asks format, occasion or theme, who leads (UGC), then shows a Market Research card and three angles; it never asks for region, length, aspect, locked lines or disclaimers. Then a second New script with only "take it from here": angles, a picked angle and a confirmation card appear, and "Write it" produces a draft.
+2. **Reel 04 as a first draft.** New script: "Reel 04, Kerala Piravi, UGC, Saraswathi". Pick an angle, write it. Read it against the outline's Reel 04 with the user: persona and Kerala kit, locked lines verbatim, the disclaimers the house rules need, nothing from the never-list. The user judges "accepts as a first draft".
+3. **Spec 1's shape.** That draft has a header, a context card, a cast with exactly one lead, 12 to 15 shots, a VO line and a card on each beat's first shot (split shots carry), who is on screen on every shot, transitions in the visuals, and lengths adding up to the target (the header shows the total).
+4. **Founder-led.** New script: "World Diabetes Day, from James, Founder-led". The lead question is skipped; the draft has HOOK, INTRO, five labelled topic beats, PROOF, OUTRO, no review and no payoff.
+5. **The review placeholder and the date.** The Reel 04 draft's review beat holds `[real review, verbatim]`; the notes list it and the unconfirmed date under "Still open"; Mark final is disabled and its tooltip says why. Paste a review in the chat ("Here's the review: …"): it lands verbatim in the review shot's VO. Tick the date: Mark final becomes available.
+6. **Only the targeted part changes.** Before each edit, open `/api/clients/<client id>/scripts/<script id>/generate` in a tab and save the JSON; after it, save again and compare (any JSON diff tool). An inline edit ("shorter" on one VO) changes only that field; a chat edit on one shot changes only that shot; "redo the hook" (two shots) shows a before-and-after first and changes nothing until accepted; Undo restores the inline edit exactly.
+7. **Mark final and reopening.** Mark final: the script shows at Visualise in the library. On this branch Reopen is spec 3's, so move it back by SQL (`update client_scripts set stage = 'generate' where id = '<id>';`): the conversation and the notes are still there.
+8. **The parse round trip.** Cite the probe's "parse round trip" checks from Task 5 (repeated runs). Then, with the user, approve the Reel 04 script by SQL (`update client_scripts set stage = 'approved', approved_at = now() where id = '<id>';`, as spec 4 does not exist on this branch), drag it onto a canvas from the gallery's Scripts tab, and check the Script node parses with one parsed shot per written shot and no manual fixing.
+
+Also check, once: a script at Visualise still renders exactly as before (no edit affordances), and the browser console shows no errors in the workspace.
+
+- [ ] **Step 5: Report, and clean up**
+
+Write the report in the final message (not a file): each item, pass or fail, with evidence, and anything that needs the user's decision. List every test row this task created (the Task 12 copy, the New script runs, the approved Reel 04) with ids, and ask the user whether to archive them: `update client_scripts set archived_at = now() where id in (…);`. Do not archive or delete anything yourself.
+
+---
+
+## Self-review (done when the plan was written)
+
+**Spec coverage.** §3 workspace → Tasks 11–12; New script → Tasks 8, 13; §4.1 KB → Task 4; §4.2 notes → Tasks 1, 6, 12; §4.3 formats from the library → Task 4; §4.4 avatar links → Tasks 3, 9, 11; §5 four pieces and the card → Tasks 6–7; §6 Market Research → Tasks 4, 7, 12; §7 the shape, carry, one shot per cut, placeholders, words → Tasks 3, 4; §8 fill to final → Tasks 2, 12; §9 three ways to edit → Tasks 3, 7, 9, 11, 12; §10 Mark final → Tasks 1, 9, 12; §11 the probe → Task 5; §15 items 1–8 → Task 14 (items 3–6 and 8 also by the probe and the unit tests). The handoff's shot-id rule → Task 3 and Review Focus 1.
+
+**Not built, by the spec:** importing scripts, tools beyond Market Research, more questions, KB fields, client-level notes, a review pool, rule flagging in typed text, avatar making (spec 3), two writers at once (the compare-and-set keeps writes safe, but there is no presence or lock).
+
+**Names checked across tasks:** `GenerateScript`, `GenerateState`, `ScriptPatch`, `Change`, `changeGenerateScript`, `loadGenerateState`, `fillToFinal`, `parseFieldPath` / `readField` / `writeField` / `fieldLabel`, `toScriptDoc`, `newShotId`, `applyOps` / `beforeAfter` / `OpsGen`, `CopilotContext` (with `hasKb`), `structuredCaller`, the six `*Prompt` builders, `prepareTurn` / `acceptProposal` / `prepareInline` / `spliceSelection`, `scriptKeys.generate`, `ScriptEdit` / `ScriptText`.
