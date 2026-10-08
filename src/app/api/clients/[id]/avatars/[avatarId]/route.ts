@@ -2,6 +2,8 @@ import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import { archiveAvatar, getAvatar, updateAvatar } from "@/lib/db/avatars";
+import { listScriptsUsingAvatar } from "@/lib/db/script-visualise";
+import { archiveRefusal } from "@/lib/scripts/visualise/cast";
 import { LIKENESS_CONSENT_CHANGED_ERROR } from "@/lib/avatars/constants";
 import { planAvatarUpdate, type AvatarPatch, type AvatarUpdateInput } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
@@ -78,11 +80,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
   );
 }
 
-// DELETE /api/clients/:id/avatars/:avatarId — archives (D287).
+// DELETE /api/clients/:id/avatars/:avatarId — archives (D287), unless a live script's cast uses
+// the avatar (D346): archiving would leave that script's people without a face.
 export async function DELETE(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
   return withClient(req, params, async (clientId) =>
     withTryCatch("Could not archive the avatar.", async () => {
+      const refusal = archiveRefusal(await listScriptsUsingAvatar(clientId, avatarId));
+      if (refusal) return apiError(refusal, 409);
       const archived = await archiveAvatar(clientId, avatarId);
       if (!archived) return apiError(NOT_FOUND, 404);
       return apiOk({ ok: true as const });
