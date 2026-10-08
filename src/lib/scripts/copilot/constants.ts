@@ -1,8 +1,9 @@
 // Script copilot spec 2 (Generate).
 
-/** The model that writes and edits scripts (spec 2 §11). Chosen by the probe in Task 5 and recorded
- *  as D335; until then the Script node parse's model, which this repo already calls. */
-export const SCRIPT_WRITER_MODEL = "gpt-5.4-mini";
+/** The model that writes and edits scripts (spec 2 §11), recorded as D335. Chosen 8 Oct 2026 by the
+ *  Reel 04 probe: the only candidate to pass every check on both UGC and Founder-led, and across
+ *  repeats; slower than gpt-5.4-mini (35-85 s per first draft). */
+export const SCRIPT_WRITER_MODEL = "gemini-3.1-pro-preview";
 
 /** The probe's candidates: "two or three candidate models" (spec 2 §11). Each is already called
  *  elsewhere in this repo, so its id and key are known to work. */
