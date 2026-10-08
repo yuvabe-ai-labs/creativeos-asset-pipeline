@@ -7,10 +7,18 @@ script structure, visualise view, client review view).
 Explainer page: https://claude.ai/artifact/RLbXdnfrXHf6dYTbm7uN4k · Screen mockups (the four
 stages, with generated avatar and storyboard images): https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM
 
-**Updated 8 October 2026.** This work is built as four specs: 1 · library, script and handoff
-([spec 1](2026-10-08-script-copilot-1-library-and-script-design.md)), 2 · Generate, 3 · Visualise,
-4 · Client review. Spec 1 changed this document where marked *(spec 1)*; its §8 lists every
-decision that crosses specs.
+**Updated 8 October 2026.** This work is built as four specs, all now written and all their
+open questions answered: [1 · library, script and handoff](2026-10-08-script-copilot-1-library-and-script-design.md)
+(built, tasks 1–8), [2 · Generate](2026-10-08-script-copilot-2-generate-design.md),
+[3 · Visualise](2026-10-08-script-copilot-3-visualise-design.md),
+[4 · Client review](2026-10-08-script-copilot-4-client-review-design.md). Spec 2 has two
+companions: the [interaction model](2026-10-08-script-copilot-2-interaction-model.md) and
+[formats, slots and tools](2026-10-08-script-copilot-2-formats-slots-tools.md). Every answer is in
+[the questions file](2026-10-08-script-copilot-open-questions.md).
+
+**§4a below is the map: how the four specs fit together, what each hands the next, and the
+order to build and merge them.** Where a later spec changed this document, the change is marked
+*(spec N)*; the stage sections (§5–§8) keep the original story and §4a holds the current rules.
 
 ---
 
@@ -75,6 +83,97 @@ it is final           panel per shot             approve the whole          pars
 
 Entry point: **Client › Scripts**, a library of the client's scripts (one card per reel, showing
 its title and stage) and a **New script** action.
+
+## 4a. How the four specs fit together *(added 8 October 2026)*
+
+### 4a.1 The spine: one script, four stages, one view
+
+Everything hangs off **the script** that spec 1 defines (spec 1 §2): a header, a context card, a
+cast with exactly one lead, and ordered shots. Each spec adds to the script's surroundings, never
+redraws the script:
+
+```
+                 ┌──────────────── the script (spec 1 §2) ────────────────┐
+                 │ header · context card · cast (one lead) · shots · notes │
+                 └──────────────────────────────────────────────────────────┘
+                        ▲ writes                ▲ links avatars          ▲ reads only
+  GENERATE (spec 2)     │        VISUALISE (spec 3)       │      CLIENT REVIEW (spec 4)      HANDOFF (spec 1 §5)
+  copilot + editable    │        avatars + panels         │      frozen versions, comments,   printed, parsed,
+  script view           │        beside the script view   │      approval on the script view  lead's avatar attached
+        │  Mark final   │                │  team moves it │                │  Approve                 ▲
+        └───────────────┴────────────────┴────────────────┴────────────────┴──────────────────────────┘
+        GENERATE ──────────▶ VISUALISE ──────────▶ IN REVIEW ──────────▶ APPROVED ──────▶ Scripts tab on the canvas
+                 ◀── Reopen (spec 3) ──  ◀── team moves back (spec 4)
+```
+
+**The one script view** (spec 1 §4) is the surface all three later specs put their work around.
+Generate makes it editable; Visualise puts a cast slot and a panel beside it; Client review shows
+it read-only to the client.
+
+### 4a.2 Who owns which stage move
+
+| Move | Owner | Rule |
+|---|---|---|
+| New script (→ Generate) | Spec 2 | The copilot is the only way a script is made |
+| Generate → Visualise, "Mark final" | Spec 2 | Only when **fill to final** is empty: **Final means ready for the client to read** |
+| Visualise → Generate, "Reopen" | Spec 3 | Avatars and panels kept; panels of changed shots marked out of date |
+| Visualise → In review | Spec 4 | By hand, by the team; the Share action appears only in In review |
+| In review → Visualise | Spec 4 | By hand, by the team; editing was allowed throughout |
+| In review → Approved, "Approve" | Spec 4 | The client, on a full share only (script + avatars + panels) |
+| Approved → a canvas | Spec 1 | Dragged from the gallery's Scripts tab; the node holds a copy; only the lead's avatar comes along |
+
+### 4a.3 What each spec hands the next
+
+| From → to | What is handed over | Guaranteed by |
+|---|---|---|
+| 1 → 2 | The script shape, the library, the editable script view, three seeded scripts (Reels 01, 06, 08) | Spec 1 §2–§4, §6 |
+| 2 → 3 | A **complete** script: every section, every shot with VO and on-screen text, the real review in place, dates confirmed, cast members linked to existing Avatars where they exist, the reel's notes holding the confirmed brief | Spec 2 §8 fill to final |
+| 3 → 4 | Every cast member a client Avatar with a **four-view sheet** and a voice; one **picked take** per shot's panel; readiness counts | Spec 3 §5–§7 |
+| 4 → 1 | An **approved** script, so it appears in the canvas gallery's Scripts tab | Spec 4 §8 |
+| 4 → 3 | Client comments beside each part in the Visualise view | Spec 4 §6 |
+| 2 → 4 | No placeholder ever reaches the client | Spec 2 §8 |
+
+### 4a.4 Shared things, and which spec owns them
+
+| Thing | Owner | Who else touches it |
+|---|---|---|
+| The script document | Spec 1 defines; **spec 2 is the only writer** of its text | Spec 3 writes only the cast's avatar links; spec 4 reads |
+| The reel's notes | Spec 2 (start as the confirmed brief + open items) | Edited like the script, in Generate |
+| Client Avatars | The existing Avatars feature | Spec 2 links them; spec 3 makes them inline, four views, and blocks archiving while in use; spec 4 lets the client comment per view |
+| Panels, takes, prompts | Spec 3, keyed by script and shot | Spec 4 shows the picked take; a frozen version records which |
+| Versions, comments, activity | Spec 4, keyed by script, version and part | Spec 3's view shows comments beside parts |
+| The brand KB | Existing | Spec 2 reads the house rules from it (pasted as text for the demo); spec 3 reads the regional kits |
+| The parse and the Script node | Existing, unchanged | Spec 1 prints the script in the team's layout and re-parses |
+
+### 4a.5 Build and merge order
+
+- **Spec 1 first.** Everything reads its shape and its view. Tasks 1–8 are built; tasks 9–12 (the
+  Scripts tab handoff, ADRs, end-to-end checks) can finish alongside the others.
+- **Specs 2, 3 and 4 in parallel**, each in its own worktree branched from spec 1's branch, because
+  each keeps its own data keyed by script and shot and only spec 2 writes the script's text.
+  - Spec 3 and spec 4 build against the seeded Reel 01, loaded at Visualise, without spec 2.
+  - Spec 4 builds first with comments on the context card, shots and cast; panel comments attach to
+    whatever panels spec 3 has made.
+  - The collision points to watch at merge: the cast slot in the script view (spec 3 adds the
+    avatar maker, spec 4 adds comment markers); the stage moves (spec 2's Mark final, spec 3's
+    Reopen, spec 4's moves); the Avatars feature (spec 2 links, spec 3 changes the sheet and
+    archiving).
+- **Merge: 1 → 3 → 4 → 2.** Visualise and review are the demo's centrepiece and need only the
+  seeded script; the copilot comes last.
+
+### 4a.6 Decisions that changed this document
+
+| Was (this document) | Now | Decided in |
+|---|---|---|
+| One avatar per script | A cast of client Avatars, one lead | Spec 1 |
+| Separate Setting and Transition fields on a shot | Written into the visual line | Spec 1 |
+| One per-client free-text "script notes" field | Notes per script; the house rules in the brand KB; client-level notes later | Spec 2 |
+| Three questions: occasion, persona, angle | Four pieces, any skippable: format, occasion or theme, lead (UGC only), narrative | Spec 2 |
+| A review beat may hold a placeholder | Final means client-ready; fill to final asks for the real review and confirmed dates | Spec 2 |
+| The avatar is made in the Avatar Studio, three views | Made inline in Visualise, four views for every avatar | Spec 3 |
+| "Send to client" moves the script to In review | The team moves it by hand; Share appears in In review; the share is script, + avatars, or + panels | Spec 4 |
+| The link shows the live script | Each share is a frozen version on the same link | Spec 4 |
+| Produce is a stage | Folded into spec 1's handoff; the canvas pulls approved scripts from a Scripts tab | Spec 1 |
 
 ## 5. Stage 1 — Generate
 
@@ -267,7 +366,7 @@ Findings:
 Carried into the later specs: the panel prompt composition (spec 3) and the per-view sheet prompt
 (spec 3) follow from these.
 
-## 12. Open questions
+## 12. Open questions *(all four specs' questions were answered on 8 October; what remains here is above the specs)*
 
 1. ~~Is the avatar made in stage 2 saved to the client's Avatars library?~~ **Answered 8 Oct: yes.**
    Each cast member is a client Avatar, made once and reused *(spec 1 §2.3)*.
