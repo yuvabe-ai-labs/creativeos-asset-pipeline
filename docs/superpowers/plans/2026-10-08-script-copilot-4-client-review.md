@@ -51,14 +51,16 @@
 | MP6 | `src/components/scripts/scripts-library.tsx`, `script-card.tsx` | Spec 2 adds "New script"; spec 4 adds the feedback count. Both additive. |
 | MP7 | Migration `0054`, ADRs `D347`–`D356` | Renumber the migration if `0054` is taken at merge; the ADR numbers are booked. |
 
-## Not decided by the spec (built as stated, flagged for the user)
+## Decided by the user on 8 Oct (were flagged gaps)
 
 1. Comments stay open while the team has moved the script back to Visualise (not approved); they close only on approval (§8 names only approval).
-2. After approval the link is a record: no client comments or edits, and no team replies or resolves either (§8 "a read-only record").
+2. After approval the link is a record for the **client**: no client comments or edits. **The team can still reply and resolve** (user, 8 Oct: the rule only stops the client commenting).
 3. Approve with no open threads approves on one tap; a confirm appears only with open threads (§8 asks only for that).
 4. From the link, only client comments are editable; team replies are not.
 5. "Moved to In review" is recorded but not shown in Activity (§7's list omits it).
-6. Success criterion 3 asks for a comment on an avatar view right after a script-only share, but a view exists only on a share with avatars; Task 19 makes that view comment on version 2.
+6. Success criterion 3 asks for a comment on an avatar view right after a script-only share, but a view exists only on a share with avatars; Task 19 makes that view comment on version 2, and spec 4's criterion is corrected to match.
+
+Items 1, 3, 4 and 5 were kept as built (user, 8 Oct).
 
 ---
 
@@ -3215,7 +3217,7 @@ git commit -m "feat(script-review): team routes to read the review, move the sta
 - Produces:
   - `POST …/review/comments/:commentId/replies` body `{ body }` → `201 { comment: ScriptComment }` (author kind `team`, the thread's version and part).
   - `PATCH …/review/comments/:commentId` body `{ resolved: boolean }` → `200 { comment: ScriptComment }`.
-  - Both: 404 for an unknown comment, a reply's id, or a foreign script; 409 once the version on screen is approved.
+  - Both: 404 for an unknown comment, a reply's id, or a foreign script. **Both still work after approval**: the team keeps replying and resolving on the record (user, 8 Oct).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3292,12 +3294,12 @@ describe("POST …/comments/:commentId/replies", () => {
     expect(insertScriptComment).not.toHaveBeenCalled();
   });
 
-  it("refuses once the version on screen is approved (the link is a record)", async () => {
+  it("still lets the team reply after the version on screen is approved", async () => {
     vi.mocked(getCommentForReply).mockResolvedValue(parent);
     vi.mocked(hasApproval).mockResolvedValue(true);
     const { POST } = await import("./route");
-    expect((await POST(post({ body: "x" }), { params })).status).toBe(409);
-    expect(insertScriptComment).not.toHaveBeenCalled();
+    expect((await POST(post({ body: "Noted for the edit." }), { params })).status).toBe(201);
+    expect(insertScriptComment).toHaveBeenCalled();
   });
 
   it("404s a comment this script's review does not have", async () => {
@@ -3379,11 +3381,12 @@ describe("PATCH …/comments/:commentId (resolve)", () => {
     expect((await PATCH(patch({ resolved: true }), { params: params("not-a-uuid") })).status).toBe(404);
   });
 
-  it("409s once the version on screen is approved", async () => {
+  it("still lets the team resolve after the version on screen is approved", async () => {
     vi.mocked(hasApproval).mockResolvedValue(true);
+    vi.mocked(setThreadResolved).mockResolvedValue(comment({ id: COMMENT_ID, resolvedAt: "t", resolvedByName: "Arun" }));
     const { PATCH } = await import("./route");
-    expect((await PATCH(patch({ resolved: true }), { params: params() })).status).toBe(409);
-    expect(setThreadResolved).not.toHaveBeenCalled();
+    expect((await PATCH(patch({ resolved: true }), { params: params() })).status).toBe(200);
+    expect(setThreadResolved).toHaveBeenCalled();
   });
 });
 ```
@@ -3401,11 +3404,11 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { resolveCallerContext } from "@/lib/dal";
 import { getScript } from "@/lib/db/scripts";
 import {
-  countScriptComments, getCommentForReply, getLatestVersion, getScriptReviewForScript, hasApproval, insertScriptComment,
+  countScriptComments, getCommentForReply, getScriptReviewForScript, insertScriptComment,
 } from "@/lib/db/script-reviews";
 import { isUuid } from "@/lib/avatars/utils";
 import { MAX_COMMENTS_PER_REVIEW } from "@/lib/client-review/constants";
-import { APPROVED_RECORD_ERROR, COMMENT_LIMIT_ERROR } from "@/lib/script-review/constants";
+import { COMMENT_LIMIT_ERROR } from "@/lib/script-review/constants";
 import { parseReply } from "@/lib/script-review/validate";
 import { teamActorName } from "@/lib/script-review/actor";
 
@@ -3426,8 +3429,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const parent = await getCommentForReply(review.id, commentId);
       if (!parent) return apiError("Comment not found.", 404);
       if (parent.parentId) return apiError("Reply to the thread's first comment.", 400);
-      const latest = await getLatestVersion(review.id);
-      if (latest && (await hasApproval(script.id, latest.number))) return apiError(APPROVED_RECORD_ERROR, 409);
+      // The team may reply after approval too (user, 8 Oct); only the client's link becomes a record.
       if ((await countScriptComments(review.id)) >= MAX_COMMENTS_PER_REVIEW) return apiError(COMMENT_LIMIT_ERROR, 409);
       const caller = await resolveCallerContext();
       const comment = await insertScriptComment({
@@ -3451,9 +3453,8 @@ export async function POST(req: Request, { params }: Ctx) {
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import { getScript } from "@/lib/db/scripts";
-import { getLatestVersion, getScriptReviewForScript, hasApproval, setThreadResolved } from "@/lib/db/script-reviews";
+import { getScriptReviewForScript, setThreadResolved } from "@/lib/db/script-reviews";
 import { isUuid } from "@/lib/avatars/utils";
-import { APPROVED_RECORD_ERROR } from "@/lib/script-review/constants";
 import { parseResolve } from "@/lib/script-review/validate";
 import { teamActorName } from "@/lib/script-review/actor";
 
@@ -3471,8 +3472,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       if (!script) return apiError("Script not found.", 404);
       const review = await getScriptReviewForScript(script.id);
       if (!review || !isUuid(commentId)) return apiError("Comment not found.", 404);
-      const latest = await getLatestVersion(review.id);
-      if (latest && (await hasApproval(script.id, latest.number))) return apiError(APPROVED_RECORD_ERROR, 409);
+      // The team may resolve after approval too (user, 8 Oct).
       const byName = parsed.value.resolved ? await teamActorName(await resolveCallerContext()) : null;
       const comment = await setThreadResolved({ reviewId: review.id, commentId, resolved: parsed.value.resolved, byName });
       if (!comment) return apiError("Comment not found.", 404);
@@ -6007,7 +6007,9 @@ export function ScriptReviewWorkspace({
   const resolve = useResolveThread(clientId, script.id);
   const threads = useMemo(() => buildThreads(review?.comments ?? []), [review?.comments]);
   const placed = useMemo(() => placeThreads(threads, script.doc, review?.removedShots ?? {}), [threads, script.doc, review?.removedShots]);
-  const open = review?.commentsOpen ?? false;
+  // The team replies and resolves whenever a version has been shared, approved or not (user, 8 Oct);
+  // only the client's link becomes a record after approval.
+  const open = Boolean(review?.latest);
 
   const surface: ReviewSurface = {
     mode: "team",

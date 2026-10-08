@@ -196,7 +196,7 @@ Nothing in the activity is edited or removed later.
   script to Visualise and shares again on the same link for a new approval; the activity reads
   Approved › Reopened › Approved. Canvas nodes already made keep their copy (spec 1 §5.4).
 - **After approval, the link is a read-only record** showing "Approved on …", and takes no more
-  comments.
+  client comments. The team can still reply and resolve (8 Oct).
 
 ## 9. Constraint for the plan
 
@@ -229,8 +229,8 @@ Spec 4 is done when, for Jackfruit365's seeded Reel 01:
    offers script only, with avatars, or with avatars and panels.
 2. A script-only share gives the team one link; a client with no account opens it on a phone and
    sees the context card, the cast and all 14 shots, read-only, with no Approve.
-3. The client comments on the context card, on a shot, on a cast member's avatar and on one of its
-   views. Each comment appears in the team's Visualise view beside that part; the team replies and
+3. The client comments on the context card and on a shot of the script-only share, and, once a
+   share includes avatars (version 2), on a cast member's avatar and on one of its views. Each comment appears in the team's Visualise view beside that part; the team replies and
    resolves one.
 4. The team edits a shot **without sharing**; the client's link does not change. The team shares
    again with avatars and panels; the **same link** shows version 2, the activity names what
