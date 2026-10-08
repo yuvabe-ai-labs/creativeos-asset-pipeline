@@ -20,6 +20,7 @@
 - **Panels:** Nano Banana 2 (`gemini:gemini-3.1-flash-image`) for every panel, no model picker. "Generate all draws every shot that has no current panel: missing or out of date. It shows its total first." "Each panel keeps its earlier takes." "The client only ever sees the picked take." The prompt box is "hidden by default, showing the exact prompt sent to draw that frame". Out-of-date panels are "never redrawn on their own".
 - **What a panel never shows:** "On-screen text is never drawn into a panel, and neither is the AI-generated label"; no generated text, brand names or labelled packs; card and pack areas are drawn blank.
 - **No new ways to make a script.** Build against the seeded Reel 01 at Visualise, without spec 2: `node scripts/seed-script.mjs <client-slug> --stage visualise`.
+- **UI reference: the mockup canvas** https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM (artboard `Visualise.dc.html`; read it with the Artifact tool's `read` action, path `project/Visualise.dc.html`). The page is two panes as on that board (user's answer, 8 Oct 2026): the script on the left, the cast and the Storyboard grid on the right. The board shows one avatar; this plan has one cast card per person (the 8 Oct decisions win where they differ). Any new mockup goes onto that canvas as an artboard. The board's colours and fonts are not the app's: build with the app's tokens and primitives.
 - **Controls are shadcn primitives from `src/components/ui/*` only** (Base UI, `render` prop, not `asChild`). Never a raw `<button>`, `<input>`, `<select>`, `<textarea>`, checkbox, radio or switch. Anything inside a field is composed with `InputGroup`.
 - **Design system:** colours only through the shadcn CSS variables; `font-display` headings; `primary` used sparingly; resting cards `shadow-card`; `.text-eyebrow` labels; Lucide icons at `strokeWidth={1.5}`; easing `cubic-bezier(0.22,1,0.36,1)` only; "Add"-type actions as dashed primary chips.
 - **Wording:** "avatar" means the asset only. Never "presenter" in user-facing text (code identifiers stay).
@@ -46,7 +47,7 @@ Specs 2 and 4 are built at the same time from the same base. Spec 3 only *adds* 
 
 | Shared thing | What spec 3 does | What the other spec must keep |
 |---|---|---|
-| `src/components/scripts/script-view.tsx`, `script-shot-list.tsx`, `script-shot-row.tsx` | Adds optional props only: `top`, `cast`, `shotAside` on `ScriptView`; `aside` on the list and row. Defaults render exactly as before. | Spec 4's comment markers go through the same slots, or through `CastSlot`'s and `PanelAside`'s `marker` props (Tasks 12, 13). |
+| `src/components/scripts/script-view.tsx`, `script-shot-list.tsx`, `script-shot-row.tsx` | Adds optional props only: `compact`, `cast` (`null` leaves the cast list out), `shotAside` on `ScriptView`; `compact` and `aside` on the list and row. Defaults render exactly as before. Visualise uses two panes (the Visualise board): the compact script on the left, the cast and the Storyboard grid on the right. | Spec 4's `slots` (its MP3) and these props coexist. Its comment markers on cast and panels go through `CastSlot`'s and `PanelTile`'s `marker` props (Tasks 12, 13), since those now live in the Visuals pane, not in the script view. |
 | `src/app/clients/[id]/scripts/[scriptId]/page.tsx` | Renders `VisualiseView` when the stage is `visualise` or `in_review`; otherwise the read-only `ScriptView` as now. | Spec 2 adds the `generate` branch; spec 4 decides whether `in_review` shows anything more. |
 | `src/lib/scripts/schema.ts` | Untouched. | Spec 2 keeps a shot's `id` when it edits the shot, gives a split's first half the original id and the second half a new one (spec 4 Q11 answer), and gives new shots new ids. Panels key on these ids. |
 | `src/lib/db/scripts.ts`, `src/hooks/queries/scripts.ts`, `src/services/scripts.service.ts` | Untouched. Spec 3's reads and writes live in new files (`script-visualise.ts`, `script-panels.ts`, `visualise.ts`). | Stage moves: spec 3's `reopenScript`, spec 2's Mark final and spec 4's moves can be consolidated into one `moveScriptStage` at merge. |
@@ -4365,7 +4366,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: the routes of Tasks 5 and 10; `runQueue`, `panelView`, `visualiseReadiness`, `generateAllPlan`, `generateAllLabel` (Task 9); `panelInputs`, `panelReferenceCap`, `estimatePanelCredits` (Task 8); `panelAspect` (Task 8); `loadVisualiseBoard` (Task 10); `isVisualiseStage` (Task 4).
-- Produces: `visualiseService.{ board, linkCast, reopen, draw, pick }`; `visualiseKeys.board(clientId, scriptId)`; `type BoardData = { script: Script; board: VisualiseBoard }`; `useVisualiseBoard(clientId, scriptId, initial)`, `useLinkCast(clientId, scriptId)` (mutation `{ castId, avatarId }`), `usePickTake(clientId, scriptId)` (mutation `{ shotId, takeId }`), `useReopenScript(clientId, scriptId)`; `usePanelDraws(clientId, scriptId) → { drawing: ReadonlySet<string>; drawingAll: boolean; draw(shotId, body?): Promise<void>; drawAll(shotIds): Promise<void> }`; `useVisualiseModel(script, board, drawing, now) → { avatars, aspect, inputs, views, credits, readiness, plan, avatarFaces }`; `ScriptView` optional props `top?: ReactNode`, `cast?: ReactNode`, `shotAside?: (t: TimedShot) => ReactNode`; `VisualiseView({ clientId, initial })`.
+- Produces: `visualiseService.{ board, linkCast, reopen, draw, pick }`; `visualiseKeys.board(clientId, scriptId)`; `type BoardData = { script: Script; board: VisualiseBoard }`; `useVisualiseBoard(clientId, scriptId, initial)`, `useLinkCast(clientId, scriptId)` (mutation `{ castId, avatarId }`), `usePickTake(clientId, scriptId)` (mutation `{ shotId, takeId }`), `useReopenScript(clientId, scriptId)`; `usePanelDraws(clientId, scriptId) → { drawing: ReadonlySet<string>; drawingAll: boolean; draw(shotId, body?): Promise<void>; drawAll(shotIds): Promise<void> }`; `useVisualiseModel(script, board, drawing, now) → { avatars, aspect, inputs, views, credits, readiness, plan, avatarFaces }`; `ScriptView` optional props `compact?: boolean`, `cast?: ReactNode | null` (`null` leaves the cast list out), `shotAside?: (t: TimedShot) => ReactNode`; `ScriptShotList` and `ScriptShotRow` gain `compact?` and `aside?`; `VisualiseView({ clientId, initial })`, laid out as two panes (the Visualise board).
 
 This task and the next two are UI. There is no DOM test environment in this repo (vitest runs in `node`), so each ends with a type check, lint, and a look in the running app; the logic they show is already tested in Tasks 8 and 9.
 
@@ -4606,6 +4607,12 @@ export function useVisualiseModel(script: Script, board: VisualiseBoard, drawing
 
 In `src/components/scripts/script-view.tsx`:
 
+Layout (user's answer, 8 Oct 2026; the Visualise board on the mockup canvas
+https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM, artboard `Visualise.dc.html`): **two panes.** The
+script, read-only, in a narrow left pane, each shot with a small panel status; and a **Visuals** pane
+on the right holding the cast cards and a **Storyboard** grid of 9:16 panels. A narrow pane cannot
+hold spec 1's five-column shot table, so the script view gains a stacked `compact` row.
+
 ```tsx
 import type { ReactNode } from "react";
 import type { Script } from "@/lib/scripts/schema";
@@ -4616,53 +4623,63 @@ import { ScriptShotList } from "./script-shot-list";
 
 /** Spec 1 §4 — the one script view. Read-only here; Generate, Visualise and Client review
  *  (specs 2 to 4) put their work around it rather than drawing the script their own way.
- *  The three optional slots are how they do it; left out, the view is exactly spec 1's. */
-export function ScriptView({ script, avatarFaces, top, cast, shotAside }: {
+ *  The optional props are how they do it; left out, the view is exactly spec 1's. */
+export function ScriptView({ script, avatarFaces, compact = false, cast, shotAside }: {
   script: Script;
   avatarFaces: Record<string, string | null>;
-  /** Shown above the context card (Visualise: the readiness line). */
-  top?: ReactNode;
-  /** Replaces the read-only cast list (Visualise: the cast slots). */
-  cast?: ReactNode;
-  /** Drawn beside each shot (Visualise: its storyboard panel). */
+  /** Stacked shot rows for a narrow pane (Visualise's left pane), instead of the table. */
+  compact?: boolean;
+  /** Replaces the read-only cast list; `null` leaves it out (Visualise shows the cast in its
+   *  Visuals pane). */
+  cast?: ReactNode | null;
+  /** Drawn beside each shot (Visualise: the shot's panel status). */
   shotAside?: (timed: TimedShot) => ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-8">
-      {top}
+    <div className={compact ? "flex flex-col gap-5" : "flex flex-col gap-8"}>
       <ScriptContextCard doc={script.doc} stage={script.stage} />
-      {cast ?? <ScriptCastList cast={script.doc.cast} avatarFaces={avatarFaces} />}
-      <ScriptShotList shots={script.doc.shots} cast={script.doc.cast} aside={shotAside} />
+      {cast === undefined ? <ScriptCastList cast={script.doc.cast} avatarFaces={avatarFaces} /> : cast}
+      <ScriptShotList shots={script.doc.shots} cast={script.doc.cast} compact={compact} aside={shotAside} />
     </div>
   );
 }
 ```
 
-In `src/components/scripts/script-shot-list.tsx`: add `aside?: (t: TimedShot) => ReactNode` to the props (import `ReactNode` and `TimedShot`), pass `aside={aside ? aside(t) : undefined}` to both `ScriptShotRow` call sites, and replace the column header with:
+In `src/components/scripts/script-shot-list.tsx`: add `compact?: boolean` (default `false`) and `aside?: (t: TimedShot) => ReactNode` to the props (import `ReactNode` and `TimedShot`); pass `compact={compact}` and `aside={aside ? aside(t) : undefined}` to both `ScriptShotRow` call sites; and render the column header only when not compact (`md:grid` → `{!compact && (<div …md:grid…>…</div>)}`; the header markup itself is unchanged).
+
+In `src/components/scripts/script-shot-row.tsx`, accept `compact?: boolean` and `aside?: ReactNode`. Without `compact` the row is exactly spec 1's (the `aside` is ignored there: nothing passes it). With `compact`, the shot stacks, in the board's shape (number and time, then the visual line, then VO, on-screen text and who is on screen), and the aside sits at its right:
 
 ```tsx
-        {aside ? (
-          <div className="hidden gap-4 border-b border-border bg-muted/50 px-4 py-2 md:flex">
-            <div className={`grid flex-1 gap-3 ${SHOT_GRID}`}>
-              {COLUMNS.map((c) => <span key={c} className="text-eyebrow">{c}</span>)}
-            </div>
-            <span className="text-eyebrow w-40 shrink-0">Panel</span>
-          </div>
-        ) : (
-          <div className={`hidden gap-3 border-b border-border bg-muted/50 px-4 py-2 md:grid ${SHOT_GRID}`}>
-            {COLUMNS.map((c) => <span key={c} className="text-eyebrow">{c}</span>)}
-          </div>
-        )}
-```
-
-In `src/components/scripts/script-shot-row.tsx`, accept `aside?: ReactNode` and render it beside the grid only when given:
-
-```tsx
-export function ScriptShotRow({ timed, cast, aside }: { timed: TimedShot; cast: CastMember[]; aside?: ReactNode }) {
+export function ScriptShotRow({ timed, cast, compact = false, aside }: {
+  timed: TimedShot;
+  cast: CastMember[];
+  /** Stacked, for a narrow pane (Visualise). */
+  compact?: boolean;
+  /** Beside a compact row (Visualise: the panel status). */
+  aside?: ReactNode;
+}) {
   const { shot } = timed;
   const names = shot.onScreen.map((id) => cast.find((c) => c.id === id)?.name).filter(Boolean);
-  const cells = (
-    <>
+  const who = names.length > 0 ? names.join(", ") : "Nobody (B-roll)";
+  if (compact) {
+    return (
+      <li className="flex items-start gap-3 border-b border-border px-4 py-3 last:border-b-0">
+        <span className="flex w-12 shrink-0 flex-col text-sm tabular-nums text-muted-foreground">
+          <span className="font-medium text-foreground">S{timed.index + 1}</span>
+          {formatRange(timed.start, timed.end)}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="text-sm">{shot.visual}</span>
+          {shot.vo && <span className="text-sm text-muted-foreground">{shot.vo}</span>}
+          {shot.onScreenText && <span className="text-sm font-medium">{shot.onScreenText}</span>}
+          <span className="text-xs text-muted-foreground">{who}</span>
+        </div>
+        {aside !== undefined && <div className="shrink-0">{aside}</div>}
+      </li>
+    );
+  }
+  return (
+    <li className={`grid gap-3 border-b border-border px-4 py-3 last:border-b-0 ${SHOT_GRID}`}>
       <span className="flex flex-col text-sm tabular-nums text-muted-foreground">
         <span className="font-medium text-foreground">S{timed.index + 1}</span>
         {formatRange(timed.start, timed.end)}
@@ -4670,16 +4687,7 @@ export function ScriptShotRow({ timed, cast, aside }: { timed: TimedShot; cast: 
       <span className="text-sm">{shot.visual}</span>
       <span className="text-sm text-muted-foreground">{shot.vo}</span>
       <span className="text-sm font-medium">{shot.onScreenText}</span>
-      <span className="text-xs text-muted-foreground">{names.length > 0 ? names.join(", ") : "Nobody (B-roll)"}</span>
-    </>
-  );
-  if (aside === undefined) {
-    return <li className={`grid gap-3 border-b border-border px-4 py-3 last:border-b-0 ${SHOT_GRID}`}>{cells}</li>;
-  }
-  return (
-    <li className="flex flex-col gap-4 border-b border-border px-4 py-3 last:border-b-0 md:flex-row md:items-start">
-      <div className={`grid min-w-0 flex-1 gap-3 ${SHOT_GRID}`}>{cells}</div>
-      <div className="md:w-40 md:shrink-0">{aside}</div>
+      <span className="text-xs text-muted-foreground">{who}</span>
     </li>
   );
 }
@@ -4837,8 +4845,9 @@ import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { errorMessage } from "@/lib/avatars/utils";
 import { VisualiseReadiness } from "./visualise-readiness";
 
-// Spec 3 §4 — spec 1's read-only script view with Visualise's work put beside it: the readiness
-// line on top, a cast slot per person (Task 13), a panel beside every shot (Task 12).
+// Spec 3 §4, laid out as the Visualise board: the readiness line across the top; the script,
+// read-only, in a narrow left pane; the Visuals pane on the right with a cast card per person
+// (Task 13) and the Storyboard grid (Task 12). Below `lg` the panes stack, script first.
 export function VisualiseView({ clientId, initial }: { clientId: string; initial: BoardData }) {
   const router = useRouter();
   const query = useVisualiseBoard(clientId, initial.script.id, initial);
@@ -4857,22 +4866,24 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
   };
 
   return (
-    <ScriptView
-      script={script}
-      avatarFaces={model.avatarFaces}
-      top={
-        <VisualiseReadiness
-          stage={script.stage}
-          readiness={model.readiness}
-          plan={model.plan}
-          kitsFound={board.kits.length > 0}
-          drawingAll={draws.drawingAll}
-          reopening={reopen.isPending}
-          onGenerateAll={() => void draws.drawAll(model.plan.shotIds)}
-          onReopen={() => void onReopen()}
-        />
-      }
-    />
+    <div className="flex flex-col gap-6">
+      <VisualiseReadiness
+        stage={script.stage}
+        readiness={model.readiness}
+        plan={model.plan}
+        kitsFound={board.kits.length > 0}
+        drawingAll={draws.drawingAll}
+        reopening={reopen.isPending}
+        onGenerateAll={() => void draws.drawAll(model.plan.shotIds)}
+        onReopen={() => void onReopen()}
+      />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        <ScriptView script={script} avatarFaces={model.avatarFaces} compact cast={null} />
+        <section aria-label="Visuals" className="flex min-w-0 flex-col gap-8 rounded-2xl bg-muted/40 p-5">
+          {/* Task 13: the cast cards. Task 12: the Storyboard grid. */}
+        </section>
+      </div>
+    </div>
   );
 }
 ```
@@ -4896,7 +4907,7 @@ and
         : <ScriptView script={script} avatarFaces={avatarFaces} />}
 ```
 
-with the imports `import { VisualiseView } from "@/components/visualise/visualise-view";`, `import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";`, `import { isVisualiseStage } from "@/lib/scripts/visualise/cast";`.
+with the imports `import { VisualiseView } from "@/components/visualise/visualise-view";`, `import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";`, `import { isVisualiseStage } from "@/lib/scripts/visualise/cast";`. Two panes need more width than spec 1's single column: give `<main>` `max-w-7xl` when `board` is set and keep `max-w-6xl` otherwise (`className={cn("mx-auto w-full flex-1 px-6 py-12", board ? "max-w-7xl" : "max-w-6xl")}`, importing `cn` from `@/lib/utils`).
 
 - [ ] **Step 7: Check it**
 
@@ -4906,7 +4917,7 @@ Expected: clean.
 Run: `npx vitest run src/lib/scripts "src/app/api/clients/[id]/scripts"`
 Expected: PASS (spec 1's view is unchanged when no slot is passed).
 
-With Reel 01 seeded at Visualise, open it. Expected: the readiness line reads "0 of 2 cast with an avatar · 0 of 14 shots with a current panel" (plus the kits note if the KB has no table); Generate all opens "Generate 5 panels · about N credits" and draws the five B-roll shots (refresh to see them in the database until Task 12 shows them); Reopen moves the script to Generate and the page then shows the read-only view. Re-seed with `--stage visualise` afterwards. An approved script still shows spec 1's view.
+With Reel 01 seeded at Visualise, open it. Expected: two panes as on the Visualise board (the script stacked on the left with no cast list, an empty Visuals pane on the right; stacked below `lg`); an approved script still shows spec 1's full-width table. The readiness line reads "0 of 2 cast with an avatar · 0 of 14 shots with a current panel" (plus the kits note if the KB has no table); Generate all opens "Generate 5 panels · about N credits" and draws the five B-roll shots (refresh to see them in the database until Task 12 shows them); Reopen moves the script to Generate and the page then shows the read-only view. Re-seed with `--stage visualise` afterwards. An approved script still shows spec 1's view.
 
 - [ ] **Step 8: Commit**
 
@@ -4919,15 +4930,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 12: A storyboard panel beside every shot
+### Task 12: The Storyboard grid, and a panel status beside every shot
 
 **Files:**
-- Create: `src/components/visualise/panel-aside.tsx`, `src/components/visualise/panel-frame.tsx`, `src/components/visualise/panel-dialog.tsx`, `src/components/visualise/panel-takes.tsx`, `src/components/visualise/panel-prompt-box.tsx`
+- Create: `src/components/visualise/panel-tile.tsx`, `src/components/visualise/panel-frame.tsx`, `src/components/visualise/panel-dialog.tsx`, `src/components/visualise/panel-takes.tsx`, `src/components/visualise/panel-prompt-box.tsx`, `src/components/visualise/storyboard-grid.tsx`, `src/components/visualise/panel-shot-status.tsx`
 - Modify: `src/components/visualise/visualise-view.tsx`
 
+Layout follows the Visualise board (mockup canvas https://claude.ai/artifact/65cg8RQ1NgTFUCjgmgQ2dM, `Visualise.dc.html`): the panels sit in a **Storyboard** grid in the Visuals pane (four across at full width), each a 9:16 frame captioned with its shot number and time, under the heading "Storyboard" and the note "Scene only. On-screen text is added in post." Each shot row in the left pane carries a small status: a check and "Panel" when current, the board's dashed "Generate panel" chip when it can be drawn, and otherwise a one-word state.
+
 **Interfaces:**
-- Consumes: `PanelView` (Task 9); `PanelInputs` (Task 8); `usePanelDraws`, `usePickTake`, `useVisualiseModel` (Task 11); `AvatarCreditCost`; `listSentence`.
-- Produces: `PanelAside({ label, view, aspect, credits, onDraw, onOpen, marker? })` (`marker` is spec 4's merge point); `PanelFrame({ view, aspect, label, onOpen })`; `PanelDialog({ open, onOpenChange, label, view, inputs, aspect, credits, picking, onPick, onDraw })`; `PanelTakes({ takes, pickId, disabled, onPick })`; `PanelPromptBox({ prompt, builtPrompt, credits, busy, onRegenerate, onReset })`.
+- Consumes: `PanelView` (Task 9); `PanelInputs` (Task 8); `usePanelDraws`, `usePickTake`, `useVisualiseModel` (Task 11); `AvatarCreditCost`; `listSentence`; `formatRange`, `timeShots` from `@/lib/scripts/timeline`.
+- Produces: `PanelTile({ label, time, view, aspect, credits, onDraw, onOpen, marker? })` (`marker` is spec 4's merge point); `StoryboardGrid({ children })`; `PanelShotStatus({ view, credits, onDraw })`; `PanelFrame({ view, aspect, label, onOpen })`; `PanelDialog({ open, onOpenChange, label, view, inputs, aspect, credits, picking, onPick, onDraw })`; `PanelTakes({ takes, pickId, disabled, onPick })`; `PanelPromptBox({ prompt, builtPrompt, credits, busy, onRegenerate, onReset })`.
 
 - [ ] **Step 1: The frame**
 
@@ -4978,9 +4991,9 @@ export function PanelFrame({ view, aspect, label, onOpen }: { view: PanelView; a
 }
 ```
 
-- [ ] **Step 2: The aside**
+- [ ] **Step 2: The tile, the grid, and the shot's status**
 
-Create `src/components/visualise/panel-aside.tsx`:
+Create `src/components/visualise/panel-tile.tsx`:
 
 ```tsx
 "use client";
@@ -4996,6 +5009,8 @@ import { PanelFrame } from "./panel-frame";
 type Props = {
   /** "S6" */
   label: string;
+  /** "16.0–19.0s", the shot's place in the reel. */
+  time: string;
   view: PanelView;
   aspect: string;
   credits: number | null;
@@ -5007,14 +5022,19 @@ type Props = {
 
 const STALE_COPY = { shot: "The shot changed", avatar: "An avatar changed" } as const;
 
-// Spec §6.4 — the panel beside its shot, with Generate or Regenerate and its cost. An out-of-date
-// panel stays visible with its badge and is never redrawn on its own.
-export function PanelAside({ label, view, aspect, credits, onDraw, onOpen, marker }: Props) {
+// Spec §6.4 — one shot's panel in the Storyboard grid (the Visualise board), captioned with its
+// shot and time, with Generate or Regenerate and its cost. An out-of-date panel stays visible with
+// its badge and is never redrawn on its own.
+export function PanelTile({ label, time, view, aspect, credits, onDraw, onOpen, marker }: Props) {
   const busy = view.status === "generating";
   const action = busy ? "Drawing…" : view.pick ? "Regenerate" : view.failure ? "Generate again" : "Generate";
   return (
-    <div className="relative flex flex-col gap-2">
+    <figure className="relative m-0 flex min-w-0 flex-col gap-2">
       <PanelFrame view={view} aspect={aspect} label={label} onOpen={onOpen} />
+      <figcaption className="flex justify-between text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="tabular-nums">{time}</span>
+      </figcaption>
       {view.status === "out_of_date" && (
         <div className="flex flex-col gap-0.5">
           <Badge variant="outline" className="self-start border-primary/30 bg-primary/5 text-primary">Out of date</Badge>
@@ -5025,12 +5045,71 @@ export function PanelAside({ label, view, aspect, credits, onDraw, onOpen, marke
         <span className="text-xs text-muted-foreground">Waiting for {listSentence(view.waitingFor)}&apos;s avatar</span>
       )}
       {view.failure && <span className="text-xs text-destructive-text">{view.failure} Nothing was charged.</span>}
-      <Button size="sm" variant={view.pick ? "outline" : "default"} disabled={!view.canGenerate || busy || credits === null} onClick={onDraw}>
+      <Button size="sm" className="w-full" variant={view.pick ? "outline" : "default"} disabled={!view.canGenerate || busy || credits === null} onClick={onDraw}>
         {action}
         <AvatarCreditCost credits={credits} />
       </Button>
       {marker}
-    </div>
+    </figure>
+  );
+}
+```
+
+Create `src/components/visualise/storyboard-grid.tsx`:
+
+```tsx
+import type { ReactNode } from "react";
+
+// Spec §6.1 — the Storyboard, as on the Visualise board: every shot's panel in order, scene only.
+export function StoryboardGrid({ children }: { children: ReactNode }) {
+  return (
+    <section aria-label="Storyboard" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="font-display text-xl font-medium">Storyboard</h2>
+        <span className="text-sm text-muted-foreground">Scene only. On-screen text is added in post.</span>
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">{children}</div>
+    </section>
+  );
+}
+```
+
+Create `src/components/visualise/panel-shot-status.tsx`:
+
+```tsx
+"use client";
+
+import { Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
+import type { PanelView } from "@/lib/scripts/visualise/state";
+
+// The board's per-shot line in the script pane: "Panel" when the picked take is current, the
+// dashed "Generate panel" chip when it can be drawn, otherwise the state in a word. The full
+// detail (badge, reason, cost, takes) lives on the panel's tile in the Storyboard.
+export function PanelShotStatus({ view, credits, onDraw }: { view: PanelView; credits: number | null; onDraw: () => void }) {
+  const quiet = "whitespace-nowrap text-xs font-medium text-muted-foreground";
+  if (view.status === "generating") return <span className={quiet}>Drawing…</span>;
+  if (view.status === "out_of_date") return <span className={quiet}>Out of date</span>;
+  if (view.pick) {
+    return (
+      <span className={`${quiet} inline-flex items-center gap-1`}>
+        <Check className="size-3.5" strokeWidth={1.5} aria-hidden />Panel
+      </span>
+    );
+  }
+  if (!view.canGenerate) return <span className={quiet}>Waits for avatar</span>;
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      disabled={credits === null}
+      onClick={onDraw}
+      className="border border-dashed border-primary/40 text-primary hover:bg-primary/5"
+    >
+      {view.failure ? "Generate again" : "Generate panel"}
+      <AvatarCreditCost credits={credits} />
+    </Button>
   );
 }
 ```
@@ -5213,32 +5292,49 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
 }
 ```
 
-- [ ] **Step 5: Put the panels beside the shots**
+- [ ] **Step 5: The Storyboard in the Visuals pane, and the status beside each shot**
 
-In `src/components/visualise/visualise-view.tsx`: import `useState`, `usePickTake`, `PanelAside`, `PanelDialog`; add
+In `src/components/visualise/visualise-view.tsx`: import `useMemo`, `useState`, `usePickTake`, `PanelTile`, `PanelDialog`, `StoryboardGrid`, `PanelShotStatus`, and `formatRange`, `timeShots` from `@/lib/scripts/timeline`; add
 
 ```tsx
   const pick = usePickTake(clientId, script.id);
   const [openShot, setOpenShot] = useState<string | null>(null);
+  const timed = useMemo(() => timeShots(script.doc.shots), [script.doc.shots]);
   const shotLabel = (shotId: string) => `S${script.doc.shots.findIndex((s) => s.id === shotId) + 1}`;
 ```
 
-pass this to `ScriptView`:
+pass this to the left pane's `ScriptView`:
 
 ```tsx
-      shotAside={(t) => (
-        <PanelAside
-          label={`S${t.index + 1}`}
-          view={model.views.get(t.shot.id)!}
-          aspect={model.aspect}
-          credits={model.credits.get(t.shot.id) ?? null}
-          onDraw={() => void draws.draw(t.shot.id)}
-          onOpen={() => setOpenShot(t.shot.id)}
-        />
-      )}
+          shotAside={(t) => (
+            <PanelShotStatus
+              view={model.views.get(t.shot.id)!}
+              credits={model.credits.get(t.shot.id) ?? null}
+              onDraw={() => void draws.draw(t.shot.id)}
+            />
+          )}
 ```
 
-and render the dialog after `ScriptView` (wrap both in a fragment):
+put the grid in the Visuals pane, after the cast (Task 13 adds the cast above it):
+
+```tsx
+          <StoryboardGrid>
+            {timed.map((t) => (
+              <PanelTile
+                key={t.shot.id}
+                label={`S${t.index + 1}`}
+                time={formatRange(t.start, t.end)}
+                view={model.views.get(t.shot.id)!}
+                aspect={model.aspect}
+                credits={model.credits.get(t.shot.id) ?? null}
+                onDraw={() => void draws.draw(t.shot.id)}
+                onOpen={() => setOpenShot(t.shot.id)}
+              />
+            ))}
+          </StoryboardGrid>
+```
+
+and render the dialog at the end of the view's outer `div`:
 
 ```tsx
       {openShot && model.views.get(openShot) && (
@@ -5262,13 +5358,13 @@ and render the dialog after `ScriptView` (wrap both in a fragment):
 Run: `npx tsc --noEmit && npx eslint src/components/visualise`
 Expected: clean.
 
-In the app, on Reel 01 at Visualise: every shot has a 9:16 frame on its right. B-roll shots (S3, S4, S9, S13, S14) offer Generate with a cost; shots with people say "Waiting for Meenakshi's avatar". Generate on S3 shows the placeholder at the panel's exact size, then the sketch. Regenerate adds a take; open the panel: the takes row shows 1 and 2, picking 1 makes it current. Show the prompt: the exact prompt is there; edit "closer on the tawa" and regenerate: only S3 changes; Reset to the script's prompt redraws from the built prompt. S13 and S14 show their claim card and pack area blank.
+In the app, on Reel 01 at Visualise, compare with the Visualise board: the Visuals pane shows "Storyboard" with its note and fourteen 9:16 frames, four across, each captioned S1…S14 with its time. In the script pane, B-roll shots (S3, S4, S9, S13, S14) show the dashed "Generate panel" chip with its cost and the others "Waits for avatar"; on the tiles, B-roll offers Generate with a cost and shots with people say "Waiting for Meenakshi's avatar". The chip and the tile's Generate both draw. A drawn shot's row then reads "✓ Panel". Generate on S3 shows the placeholder at the panel's exact size, then the sketch. Regenerate adds a take; open the panel: the takes row shows 1 and 2, picking 1 makes it current. Show the prompt: the exact prompt is there; edit "closer on the tawa" and regenerate: only S3 changes; Reset to the script's prompt redraws from the built prompt. S13 and S14 show their claim card and pack area blank.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add src/components/visualise
-git commit -m "feat(scripts): a storyboard panel beside every shot, with takes and the prompt box (D343, D344)
+git commit -m "feat(scripts): the storyboard grid and per-shot panel status, with takes and the prompt box (D343, D344)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -6027,14 +6123,14 @@ export function CastSlots({ clientId, scriptId, doc, avatars }: {
 }
 ```
 
-In `src/components/visualise/visualise-view.tsx`, import `CastSlots` and pass `cast={<CastSlots clientId={clientId} scriptId={script.id} doc={script.doc} avatars={model.avatars} />}` to `ScriptView`.
+In `src/components/visualise/visualise-view.tsx`, import `CastSlots` and render `<CastSlots clientId={clientId} scriptId={script.id} doc={script.doc} avatars={model.avatars} />` first in the Visuals pane, above `StoryboardGrid`, as on the Visualise board (the left pane's `ScriptView` keeps `cast={null}`).
 
 - [ ] **Step 8: Check it**
 
 Run: `npx tsc --noEmit && npx eslint src/components/visualise src/hooks src/lib/scripts/visualise && npx vitest run src/lib/scripts/visualise`
 Expected: clean and PASS. Any file over about 200 lines is split before committing.
 
-In the app, Reel 01 at Visualise: Meenakshi's slot shows her name, Lead, her description, the AI-generated / Specific person switch, four empty view tiles, the instructions box, Make avatar with its cost, the voice picker (disabled until there is an avatar), Pick from library, and "No avatar yet". Make avatar: "Making the face…", then the four tiles fill ("Making the four views…"), then "Made 9 Oct · saved to Avatars"; the readiness line reads "1 of 2 cast"; her shots' panels can now be generated, two-person shots still wait for her husband. In the Avatars library she appears saved with four views. Specific person: drop a photo, confirm the permission, Make the four views. Try archiving Meenakshi from the Studio: refused, naming Reel 01.
+In the app, Reel 01 at Visualise, compared with the Visualise board on the mockup canvas: the Visuals pane opens with a card per person, then the Storyboard. Meenakshi's slot shows her name, Lead, her description, the AI-generated / Specific person switch, four empty view tiles, the instructions box, Make avatar with its cost, the voice picker (disabled until there is an avatar), Pick from library, and "No avatar yet". Make avatar: "Making the face…", then the four tiles fill ("Making the four views…"), then "Made 9 Oct · saved to Avatars"; the readiness line reads "1 of 2 cast"; her shots' panels can now be generated, two-person shots still wait for her husband. In the Avatars library she appears saved with four views. Specific person: drop a photo, confirm the permission, Make the four views. Try archiving Meenakshi from the Studio: refused, naming Reel 01.
 
 - [ ] **Step 9: Commit**
 
