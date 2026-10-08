@@ -4,7 +4,7 @@ import { getClientBySlug } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
 import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
-import { ScriptView } from "@/components/scripts/script-view";
+import { ScriptReviewWorkspace } from "@/components/script-review/team/script-review-workspace";
 import { reelLabel } from "@/lib/scripts/utils";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -39,7 +39,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
           <BreadcrumbItem><BreadcrumbPage>{label ? `${label} · ` : ""}{script.doc.header.title}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <ScriptView script={script} avatarFaces={avatarFaces} />
+      <ScriptReviewWorkspace clientId={client.id} script={script} avatarFaces={avatarFaces} />
     </main>
   );
 }
