@@ -50,6 +50,18 @@ describe("panelInputs on Reel 01 (D341)", () => {
     expect(s06.prompt).toContain("Reference images 2 (front) show this person.");
   });
 
+  it("dresses each person exactly as their reference images, whatever the description says they wear elsewhere", () => {
+    // Testing on staging: Meenakshi's description says "Cotton saree in the kitchen, silk with a
+    // zari border for guests"; a kitchen shot drew a grey cotton saree over her cream silk views.
+    const p = inputs("s02").prompt;
+    expect(p).toContain("Dress them exactly as in those images: the same garments, colours and borders in every panel");
+    expect(p).toContain("whatever the description says they wear elsewhere");
+  });
+
+  it("has no clothing instruction for a person drawn without reference images", () => {
+    expect(inputs("s02", 0).prompt).not.toContain("Dress them exactly as in those images");
+  });
+
   it("draws the setting, the kit, the sketch style, and never any text or brand", () => {
     const p = inputs("s03").prompt;
     expect(p).toContain("marker-and-wash sketch");

@@ -59,7 +59,13 @@ function referenceNumbers(references: PanelReference[], castId: string): string 
 function peopleClause(people: PanelPerson[], references: PanelReference[]): string {
   const lines = people.map((p) => {
     const refs = referenceNumbers(references, p.castId);
-    const seen = refs ? ` Reference images ${refs} show this person.` : "";
+    // The images, not the words, decide what they wear: a description may give a wardrobe per
+    // place ("cotton in the kitchen, silk for guests"), which made the same person change clothes
+    // between panels (spec 3 criterion 4).
+    const seen = refs
+      ? ` Reference images ${refs} show this person. Dress them exactly as in those images: the same garments, ` +
+        "colours and borders in every panel, whatever the description says they wear elsewhere."
+      : "";
     return `- ${p.name}: ${sentence(p.description || p.name)}${seen} Keep their face, hair, build, ` +
       "clothing and every identity marker named here exactly the same, in the same colours.";
   });
