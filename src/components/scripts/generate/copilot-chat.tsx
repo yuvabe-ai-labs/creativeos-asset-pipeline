@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ScriptMessage } from "@/lib/scripts/copilot/schema";
+import type { Suggestion } from "@/lib/scripts/copilot/suggestions";
 import { CopilotChatMessage, type ChatActions } from "./copilot-chat-message";
 import { CopilotComposer } from "./copilot-composer";
+import { CopilotSuggestions } from "./copilot-suggestions";
 
 /** Spec 2 §3 — the left pane. The conversation is kept with the script. */
-export function CopilotChat({ messages, actions }: { messages: ScriptMessage[]; actions: ChatActions }) {
+export function CopilotChat({ messages, actions, suggestions }: { messages: ScriptMessage[]; actions: ChatActions; suggestions: Suggestion[] }) {
   const end = useRef<HTMLDivElement>(null);
+  const [text, setText] = useState("");
   // Follow the conversation: scroll to the newest message, or the working line, when either appears.
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages.length, actions.busy]);
 
@@ -26,7 +29,8 @@ export function CopilotChat({ messages, actions }: { messages: ScriptMessage[]; 
         </ol>
         <div ref={end} />
       </ScrollArea>
-      <CopilotComposer busy={actions.busy} onSend={actions.send} />
+      <CopilotSuggestions suggestions={suggestions} disabled={actions.busy} onSend={actions.send} onFill={setText} />
+      <CopilotComposer busy={actions.busy} text={text} onTextChange={setText} onSend={actions.send} />
     </section>
   );
 }

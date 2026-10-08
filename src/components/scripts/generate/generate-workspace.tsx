@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 import { useGenerateState, useResolveProposal, useSendTurn } from "@/hooks/queries/script-generate";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
+import { suggestionsFor } from "@/lib/scripts/copilot/suggestions";
 import { CopilotChat } from "./copilot-chat";
 import { GenerateScriptPane } from "./generate-script-pane";
 
@@ -22,7 +23,7 @@ export function GenerateWorkspace({ clientId, initialState }: { clientId: string
 
   return (
     <div className="grid min-h-0 flex-1 items-start gap-6 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
-      <CopilotChat messages={state.messages} actions={actions} />
+      <CopilotChat messages={state.messages} actions={actions} suggestions={suggestionsFor(state)} />
       <GenerateScriptPane clientId={clientId} state={state} chatBusy={actions.busy} />
     </div>
   );

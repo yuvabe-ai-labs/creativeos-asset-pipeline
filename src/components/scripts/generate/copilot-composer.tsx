@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
 import { MAX_MESSAGE_CHARS } from "@/lib/scripts/copilot/constants";
 
-export function CopilotComposer({ busy, onSend }: { busy: boolean; onSend: (text: string) => void }) {
-  const [text, setText] = useState("");
+/** The message box. Its text is held by the chat, so a suggestion can fill it. */
+export function CopilotComposer({ busy, text, onTextChange, onSend }: {
+  busy: boolean;
+  text: string;
+  onTextChange: (text: string) => void;
+  onSend: (text: string) => void;
+}) {
   const send = () => {
     const t = text.trim();
     if (!t || busy) return;
     onSend(t);
-    setText("");
+    onTextChange("");
   };
   return (
     <div className="border-t border-border p-3">
@@ -21,7 +25,7 @@ export function CopilotComposer({ busy, onSend }: { busy: boolean; onSend: (text
           value={text}
           maxLength={MAX_MESSAGE_CHARS}
           placeholder="Tell the copilot about the reel, or ask for a change…"
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => onTextChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
         />
         <InputGroupAddon align="block-end">
