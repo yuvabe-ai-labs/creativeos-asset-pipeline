@@ -5,14 +5,15 @@ vi.mock("server-only", () => ({}));
 const parse = vi.fn();
 vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ responses: { parse } }) }));
 const generateContent = vi.fn();
-vi.mock("@/lib/gemini/server", () => ({ createGemini: () => ({ models: { generateContent } }) }));
+const generateContentStream = vi.fn();
+vi.mock("@/lib/gemini/server", () => ({ createGemini: () => ({ models: { generateContent, generateContentStream } }) }));
 
-import { structuredCaller } from "../model";
+import { streamingCaller, structuredCaller } from "../model";
 
 const schema = z.object({ reply: z.string() });
 const args = { name: "probe", system: "SYS", user: "USER", schema };
 
-beforeEach(() => { parse.mockReset(); generateContent.mockReset(); });
+beforeEach(() => { parse.mockReset(); generateContent.mockReset(); generateContentStream.mockReset(); });
 
 describe("structuredCaller", () => {
   it("calls OpenAI's structured output for an OpenAI model and validates the result", async () => {
@@ -48,5 +49,20 @@ describe("structuredCaller", () => {
     await expect(structuredCaller("gpt-5.4-mini")(args)).rejects.toThrow("returned no content");
     generateContent.mockResolvedValue({ text: JSON.stringify({ nope: 1 }) });
     await expect(structuredCaller("gemini-3.8-flash")(args)).rejects.toThrow();
+  });
+
+  it("streams a Gemini answer, reporting the text so far, then validates the whole", async () => {
+    async function* chunks() { yield { text: "{\"reply\":" }; yield { text: " \"hi\"}" }; }
+    generateContentStream.mockResolvedValue(chunks());
+    const seen: string[] = [];
+    expect(await streamingCaller("gemini-3.1-pro-preview")(args, (t) => seen.push(t))).toEqual({ reply: "hi" });
+    expect(seen).toEqual(["{\"reply\":", "{\"reply\": \"hi\"}"]);
+  });
+
+  it("falls back to one call for an OpenAI model, reporting the whole text once", async () => {
+    parse.mockResolvedValue({ output_parsed: { reply: "hi" } });
+    const seen: string[] = [];
+    expect(await streamingCaller("gpt-5.4-mini")(args, (t) => seen.push(t))).toEqual({ reply: "hi" });
+    expect(seen).toEqual([JSON.stringify({ reply: "hi" })]);
   });
 });

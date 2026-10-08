@@ -95,8 +95,7 @@ export function parsePartialDraft(text: string): PartialDraft | null {
   const listClosed = shotsAt >= 0 && /"summary"\s*:/.test(text.slice(shotsAt));
   const shots = (listClosed ? rawShots : rawShots.slice(0, -1))
     .map((s) => shotFieldsSchema.safeParse(s))
-    .filter((r) => r.success)
-    .map((r) => r.data);
+    .flatMap((r) => (r.success ? [r.data] : []));
 
   if (Object.keys(header).length === 0 && cast.length === 0 && shots.length === 0) return null;
   return { header, context, cast, shots };

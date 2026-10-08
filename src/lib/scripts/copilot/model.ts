@@ -37,3 +37,37 @@ export function structuredCaller(model: string, opts: { thinking?: "low" } = {})
     return args.schema.parse(response.output_parsed);
   };
 }
+
+export type StreamingCall = <S extends z.ZodType>(
+  args: { name: string; system: string; user: string; schema: S },
+  onText: (textSoFar: string) => void,
+) => Promise<z.infer<S>>;
+
+/** As structuredCaller, but reports the answer's text as it arrives (Gemini streams it), so the first
+ *  draft can be shown while it is written (D336, refined). The whole answer is validated at the end.
+ *  An OpenAI model answers in one piece: its text is reported once. */
+export function streamingCaller(model: string): StreamingCall {
+  return async (args, onText) => {
+    if (!model.startsWith("gemini-")) {
+      const result = await structuredCaller(model)(args);
+      onText(JSON.stringify(result));
+      return result;
+    }
+    const stream = await createGemini().models.generateContentStream({
+      model,
+      contents: [{ role: "user", parts: [{ text: args.user }] }],
+      config: {
+        systemInstruction: args.system,
+        responseMimeType: "application/json",
+        responseJsonSchema: z.toJSONSchema(args.schema),
+      },
+    });
+    let text = "";
+    for await (const chunk of stream) {
+      text += chunk.text ?? "";
+      onText(text);
+    }
+    if (!text) throw new Error(`${model} returned no content`);
+    return args.schema.parse(JSON.parse(text));
+  };
+}
