@@ -52,7 +52,7 @@ describe("collectVisuals", () => {
     vi.mocked(getPickedPanels).mockResolvedValue({ s01: { takeId: "t1", url: "u1" }, ghost: { takeId: "t9", url: "u9" } });
     const visuals = await collectVisuals("c1", script(), "panels");
     expect(visuals.panels).toEqual({ s01: { takeId: "t1", url: "u1" } });
-    expect(getPickedPanels).toHaveBeenCalledWith("c1", SCRIPT_ID);
+    expect(getPickedPanels).toHaveBeenCalledWith(SCRIPT_ID);
   });
 });
 

@@ -33,7 +33,7 @@ export async function collectVisuals(clientId: string, script: Script, scope: Sh
   }
   if (scopeIncludes(scope, "panels")) {
     const shotIds = new Set(script.doc.shots.map((s) => s.id));
-    for (const [shotId, panel] of Object.entries(await getPickedPanels(clientId, script.id))) {
+    for (const [shotId, panel] of Object.entries(await getPickedPanels(script.id))) {
       if (shotIds.has(shotId)) visuals.panels[shotId] = panel;
     }
   }
