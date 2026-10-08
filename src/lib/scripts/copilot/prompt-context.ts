@@ -20,11 +20,15 @@ export function renderKbText(kb: TraceableBrandKB | null): string {
 
 export type LibraryFormat = { format: string; beats: string[]; reels: string[] };
 
+/** Only finished scripts teach the copilot: a script still at Generate (an unfinished draft, or the
+ *  one being edited) is never used as a format or an example. */
+const finished = (scripts: Script[]) => scripts.filter((s) => s.stage !== "generate");
+
 /** The formats seen in the client's scripts (spec 2 §4.3), each with the beat sequence of its first
  *  script. Formats are the client's own words (D325). */
 export function libraryFormats(scripts: Script[]): LibraryFormat[] {
   const byFormat = new Map<string, LibraryFormat>();
-  for (const s of scripts) {
+  for (const s of finished(scripts)) {
     const format = s.doc.header.format.trim();
     if (!format) continue;
     const label = reelLabel(s.doc.header.reelNumber) ?? s.doc.header.title;
@@ -38,10 +42,11 @@ export function libraryFormats(scripts: Script[]): LibraryFormat[] {
 /** Up to two scripts of the same format; with no match, one script of each format (up to three). */
 export function pickExamples(scripts: Script[], format: string): Script[] {
   const f = format.trim().toLowerCase();
-  const same = f ? scripts.filter((s) => s.doc.header.format.trim().toLowerCase() === f) : [];
+  const pool = finished(scripts);
+  const same = f ? pool.filter((s) => s.doc.header.format.trim().toLowerCase() === f) : [];
   if (same.length > 0) return same.slice(0, 2);
   const seen = new Set<string>();
-  return scripts.filter((s) => {
+  return pool.filter((s) => {
     const k = s.doc.header.format.trim().toLowerCase();
     if (seen.has(k)) return false;
     seen.add(k);
@@ -50,7 +55,7 @@ export function pickExamples(scripts: Script[], format: string): Script[] {
 }
 
 export function renderLibrary(scripts: Script[], format: string): string {
-  if (scripts.length === 0) return "This client has no scripts yet. Take the format from the person's description and the house rules.";
+  if (finished(scripts).length === 0) return "This client has no scripts yet. Take the format from the person's description and the house rules.";
   const formats = libraryFormats(scripts).map((f) => `- ${f.format}: ${f.beats.join(" › ")} (${f.reels.join(", ")})`).join("\n");
   const examples = pickExamples(scripts, format).map((s) => printScript(s.doc)).join("\n\n---\n\n");
   return `Formats seen in this client's scripts, with their beats:\n${formats}\n\nExample scripts in this client's layout (one table row per shot):\n\n${examples}`;

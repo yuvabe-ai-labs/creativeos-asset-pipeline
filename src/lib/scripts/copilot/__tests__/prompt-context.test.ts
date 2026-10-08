@@ -40,6 +40,14 @@ describe("the library", () => {
     expect(renderLibrary([], "")).toMatch(/no scripts yet/);
   });
 
+  it("never learns from a script still at Generate, such as the draft being edited (final review)", () => {
+    const draft: Script = { ...script(reel06, "draft"), stage: "generate" };
+    draft.doc = { ...draft.doc, header: { ...draft.doc.header, format: "Founder-led", reelNumber: 12 } };
+    expect(pickExamples([...library, draft], "Founder-led").map((s) => s.id)).toEqual(["b"]);
+    expect(libraryFormats([draft]).length).toBe(0);
+    expect(nextReelNumber([...library, draft])).toBe(13); // its reel number is still taken
+  });
+
   it("gives the next free reel number", () => {
     expect(nextReelNumber(library)).toBe(9);
     expect(nextReelNumber([])).toBe(1);
