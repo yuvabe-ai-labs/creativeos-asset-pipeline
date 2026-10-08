@@ -984,9 +984,14 @@ describe("readField / writeField", () => {
     expect(write("header.reelNumber", "four")).toEqual({ error: "The reel number is a whole number." });
   });
 
-  it("removes a watch-out typed empty, and refuses an index past the end", () => {
+  it("removes a watch-out typed empty, appends one typed at the end, and refuses an index past it", () => {
     const out = write("context.watchOuts.0", "");
     expect("doc" in out && out.doc!.context.watchOuts).toEqual(doc.context.watchOuts.slice(1));
+    const n = doc.context.watchOuts.length;
+    const added = write(`context.watchOuts.${n}`, "New watch-out.");
+    expect("doc" in added && added.doc!.context.watchOuts).toEqual([...doc.context.watchOuts, "New watch-out."]);
+    const empty = write(`context.watchOuts.${n}`, " ");
+    expect("doc" in empty && empty.doc!.context.watchOuts).toEqual(doc.context.watchOuts);
     expect(write("context.watchOuts.9", "x")).toEqual({ error: "That watch-out is gone." });
   });
 
@@ -1120,10 +1125,15 @@ export function writeField(doc: ScriptDoc | null, notes: ScriptNotes, t: FieldTa
       next = { ...doc, context: { ...doc.context, [t.field]: value } };
       break;
     case "watchOut": {
-      if (t.index >= doc.context.watchOuts.length) return { error: "That watch-out is gone." };
-      const watchOuts = value.trim() === ""
-        ? doc.context.watchOuts.filter((_, i) => i !== t.index)
-        : doc.context.watchOuts.map((w, i) => (i === t.index ? value : w));
+      const count = doc.context.watchOuts.length;
+      if (t.index > count) return { error: "That watch-out is gone." };
+      // Index `count` is the "Add a watch-out" slot: a typed value appends, an empty one is a no-op.
+      if (t.index === count && value.trim() === "") return { doc, notes };
+      const watchOuts = t.index === count
+        ? [...doc.context.watchOuts, value]
+        : value.trim() === ""
+          ? doc.context.watchOuts.filter((_, i) => i !== t.index)
+          : doc.context.watchOuts.map((w, i) => (i === t.index ? value : w));
       next = { ...doc, context: { ...doc.context, watchOuts } };
       break;
     }
