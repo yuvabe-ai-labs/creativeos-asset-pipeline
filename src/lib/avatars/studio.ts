@@ -1,8 +1,22 @@
 import { PERSON_TYPE_LABELS } from "./constants";
-import { needsLikenessConsent } from "./utils";
+import { hasFourViews, needsLikenessConsent, sheetKind } from "./utils";
 import { isVoicePreviewStale } from "./voice-preview";
 import { avatarVoiceLabel } from "./voice";
 import type { Avatar, AvatarVoice, VoicePreview } from "./schema";
+
+/** D339 — the sheet's state in one word, for the stepper and the summary card. */
+export function sheetStatusLabel(
+  avatar: Pick<Avatar, "sheet" | "sheetViews" | "sheetStale"> | null,
+  optional: string,
+): string {
+  if (!avatar) return optional;
+  const kind = sheetKind(avatar);
+  if (kind === "none") return optional;
+  if (avatar.sheetStale) return "Out of date";
+  if (kind === "four-view") return hasFourViews(avatar) ? "Four views" : "Missing a view";
+  if (kind === "three-view") return "Three views";
+  return "Older sheet"; // an upload from before D339 ended sheet uploads
+}
 
 /** D301 — the Voice step's three cards. */
 export type VoiceChoice = "auto" | "library" | "custom";
@@ -45,7 +59,7 @@ export const STUDIO_STEPS: readonly StudioStep[] = [
   },
   {
     id: "sheet", title: "Profile sheet", heading: "Profile sheet", optional: true,
-    lede: "Front, side and back, head to toe, in one wide image. It is for the people working on this avatar; no video model waits on it.",
+    lede: "Front, left, right and back, head to toe, each made from the front image. It keeps the face the same in every storyboard panel.",
   },
   {
     id: "voice", title: "Voice", heading: "Voice", optional: true,
@@ -59,7 +73,7 @@ export const STUDIO_STEPS: readonly StudioStep[] = [
 
 type StudioAvatar = Pick<
   Avatar,
-  "name" | "front" | "likenessConsentAt" | "sheet" | "sheetStale" | "voice" | "voiceSample" | "status"
+  "name" | "front" | "likenessConsentAt" | "sheet" | "sheetViews" | "sheetStale" | "voice" | "voiceSample" | "status"
 >;
 
 /** Everything the rules read. `name` is the one being typed, which runs ahead of the stored one;
@@ -134,8 +148,7 @@ export function stepStatusLine(id: StudioStepId, snap: StudioSnapshot): string {
     }
     case "sheet":
       if (snap.sheetGenerating) return "Generating…";
-      if (a?.sheet) return a.sheetStale ? "Out of date" : "Added";
-      return optional;
+      return sheetStatusLabel(a, optional);
     case "voice":
       return avatarVoiceLabel(a?.voice ?? null) ?? optional;
     case "preview": {

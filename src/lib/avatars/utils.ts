@@ -73,10 +73,6 @@ export function frontChangePatch(current: Avatar, image: AvatarImage): AvatarPat
   };
 }
 
-export function sheetChangePatch(image: AvatarImage): AvatarPatch {
-  return { sheet: image, sheetStale: false };
-}
-
 /** D339 — a current four-view sheet: every view made, from the front image the avatar has now. */
 export function hasFourViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">): boolean {
   const views = avatar.sheetViews;

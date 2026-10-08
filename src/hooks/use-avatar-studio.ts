@@ -150,8 +150,9 @@ export function useAvatarStudio({
     }
   }, [clientId, replaceAvatar]);
 
-  const uploadImage = useCallback(async (slot: AvatarImageSlot, file: File) => {
-    // Two quick drops (or a front and a sheet drop together) must not both start: they'd
+  // D339 — only the front is uploaded; sheets are four generated views.
+  const uploadImage = useCallback(async (slot: "front", file: File) => {
+    // Two quick drops must not both start: they'd
     // create two drafts, or race to clear each other's placeholder.
     if (uploadingRef.current) return;
     const invalid = validateAvatarImageFile(file);

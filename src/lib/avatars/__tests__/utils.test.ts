@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   avatarImageContentType, avatarReadinessGaps, errorMessage, isAvatarReady, frontChangePatch,
-  sheetChangePatch, withStatus, planAvatarUpdate, validateAvatarImageFile, isUuid,
+  withStatus, planAvatarUpdate, validateAvatarImageFile, isUuid,
   hasFourViews, missingViews, sheetKind, sheetViewsPatch, viewsToMake,
 } from "../utils";
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
@@ -71,12 +71,6 @@ describe("frontChangePatch", () => {
     expect(frontChangePatch(makeAvatar(), makeImage(GENERATED))).toMatchObject({
       likenessConsentBy: null, likenessConsentAt: null,
     });
-  });
-});
-
-describe("sheetChangePatch", () => {
-  it("a new sheet is never stale", () => {
-    expect(sheetChangePatch(makeImage())).toMatchObject({ sheetStale: false });
   });
 });
 

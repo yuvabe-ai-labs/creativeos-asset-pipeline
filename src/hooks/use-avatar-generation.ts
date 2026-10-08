@@ -7,8 +7,9 @@ import { mergeCandidates, type PendingCandidate } from "@/lib/avatars/generation
 import { errorMessage } from "@/lib/avatars/utils";
 import {
   AVATAR_BATCH_DEFAULT, AVATAR_DEFAULT_FRONT_MODEL_ID, AVATAR_DEFAULT_SHEET_MODEL_ID, AVATAR_STYLES,
+  AVATAR_VIEWS,
 } from "@/lib/avatars/constants";
-import type { Avatar, AvatarCandidate, GenerateFrontInput } from "@/lib/avatars/schema";
+import type { Avatar, AvatarCandidate, AvatarViewId, GenerateFrontInput } from "@/lib/avatars/schema";
 
 const DEFAULT_COMPOSER: GenerateFrontInput = {
   description: "", attributes: {}, styleId: AVATAR_STYLES[0].id,
@@ -37,7 +38,8 @@ export function useAvatarGeneration({
   const [pending, setPending] = useState<PendingCandidate[]>([]);
   const [spentCredits, setSpentCredits] = useState(() => initial?.spentCredits ?? 0);
   const [picking, setPicking] = useState<string | null>(null);
-  const [generatingSheet, setGeneratingSheet] = useState(false);
+  const [generatingViews, setGeneratingViews] = useState<AvatarViewId[]>([]);
+  const generatingSheet = generatingViews.length > 0;
   const [composer, setComposerState] = useState<GenerateFrontInput>(DEFAULT_COMPOSER);
   const [sheetModelId, setSheetModelId] = useState(AVATAR_DEFAULT_SHEET_MODEL_ID);
   // Seeded from the server, the first avatar is already loaded.
@@ -143,26 +145,26 @@ export function useAvatarGeneration({
     }
   }, [clientId, avatarId, picking, generatingSheet, onAvatar]);
 
-  const generateSheet = useCallback(async (modelId: string) => {
+  const generateSheet = useCallback(async (modelId: string, views?: AvatarViewId[]) => {
     if (!avatarId || generatingSheet) return;
-    setGeneratingSheet(true);
+    setGeneratingViews(views ?? [...AVATAR_VIEWS]);
     try {
-      const { avatar, spentCredits: total } = await avatarsService.generateSheet(clientId, avatarId, modelId);
+      const { avatar, spentCredits: total, failed } = await avatarsService.generateSheet(clientId, avatarId, modelId, views);
       onAvatar(avatar);
+      for (const f of failed) toast.error(`The ${f.label} view failed: ${f.error}`);
       if (total === null) void refreshSpentCredits(avatarId);
       else applySpent(total);
     } catch (e) {
       toast.error(errorMessage(e, "Could not generate the profile sheet"));
-      // A 409 here (the front changed mid-generation) has already charged credits for the
-      // image the server made — refetch so the total on screen includes it.
+      // A 409 (the front changed mid-generation) has already charged for what the server made.
       await refreshSpentCredits(avatarId);
     } finally {
-      setGeneratingSheet(false);
+      setGeneratingViews([]);
     }
   }, [clientId, avatarId, generatingSheet, onAvatar, refreshSpentCredits, applySpent]);
 
   return {
-    candidates, pending, spentCredits, picking, generatingSheet,
+    candidates, pending, spentCredits, picking, generatingSheet, generatingViews,
     composer, setComposer, sheetModelId, setSheetModelId,
     generate, pickFront, generateSheet, refreshSpentCredits,
   };
