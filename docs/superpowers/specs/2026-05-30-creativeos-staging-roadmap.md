@@ -6658,6 +6658,34 @@ and write is milliseconds). Carrying document-module reviews over a re-extract (
 dialog says those reviews start over, since documents changed).
 
 **Refines →** D312. **Originated →** `2026-10-07-kb-image-analysis-design.md` §5.
+
+### D319 — Every multishot reference gets a role, stated or inferred, and its role is written out in full *(recorded 2026-10-08)*
+
+**Decision.** The multishot writers (Omni, Kling, Seedance) no longer treat references as
+identity-only by default. Each attached image gets a role: background, storyboard, character,
+product, brand mark or style. The operator's Direction or a shot instruction sets it when it names
+one; otherwise the writer infers it from the image (an empty place is a background, a panel grid a
+storyboard, a person a character). Each role is written out in full: a background's space, surfaces,
+props and light go into the look and into every beat set there; storyboard panels map onto the shots
+in order (framing, angle, placement, action, never the sketch style); a character's every wardrobe
+item and accessory is repeated in each beat; a product's components are all named. An attached
+background or style reference counts as stated look direction (relaxes D262/D281 for those roles
+only). Character and product references still never lend their backdrop or studio light (D281's
+guard stands). All three plan schemas gain a scratch `references` array, first in property order, so
+the writer inventories each image before writing; `parsePlan` and the refine merge drop it. Labelled
+writer images go at `detail: "high"`. Prompt ids: generate@11, kling@8, seedance@7.
+
+**Why.** Operators attached backgrounds, storyboards and character refs, with or without citing them
+in the Direction, and the plan named them in passing or not at all. Omni gets the picture, but it
+only reproduces the elements the prompt names, so most of each reference was dropped. "Auto" detail
+could also downsample a storyboard past legibility.
+
+**Rejected.** A separate vision pass that writes a reference brief before the writer (one more call
+and more latency for what an in-schema reading gets in the same call). Per-reference role pickers
+(D281's rejection still holds; inference covers the uncited case). Storing the reading on the plan
+(not needed yet; revisit if the focus view should show it).
+
+**Refines →** D281, D262, D233.
 ### D312 — The Composite node: references in, an instruction typed on the node, one image out; an avatar wires straight into it *(recorded 2026-10-06; refines D298, D290, D308)*
 
 **Decision.** A new **Composite** node (`type: "composite"`, mnemonic **C**) makes a shot's

@@ -39,9 +39,11 @@ export type PublicReview = {
   comments: ReviewComment[];
 };
 
-// Team payload for the canvas node + focus view.
+// Team payload for the canvas node + focus view. The share CODE, not a finished link: the link
+// carries the node's title (D311), and only the client knows the title the operator is looking
+// at right now. A server-built link went stale on rename until the page reloaded.
 export type NodeClientReview = {
-  review: { videoUrl: string; sharePath: string } | null;
+  review: { videoUrl: string; shareToken: string } | null;
   comments: ReviewComment[];
 };
 

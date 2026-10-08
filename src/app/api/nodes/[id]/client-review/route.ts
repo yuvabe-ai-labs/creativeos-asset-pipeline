@@ -1,6 +1,5 @@
 import { logClientReviewErrors } from "@/lib/client-review/log";
 import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers";
-import { sharePathFor } from "@/lib/client-review/paths";
 import { MAX_CODE_EXTRA, shareCodeFor } from "@/lib/client-review/token";
 import { isCutPathFor } from "@/lib/client-review/validate";
 import { toReviewComment, type CanvasReviewRow, type NodeClientReview } from "@/lib/client-review/wire";
@@ -14,19 +13,15 @@ import {
 import { publicUrlFor } from "@/lib/storage";
 import { clientReviewPrefix } from "@/lib/storage/paths";
 
-// The link carries the node's CURRENT title (D311), so a rename shows up in Copy link at once;
-// older links keep working because lookups ignore the title part.
-function nodeTitle(data: Record<string, unknown>): string {
-  return typeof data.title === "string" ? data.title : "";
-}
-
-async function payload(review: CanvasReviewRow | null, title: string): Promise<NodeClientReview> {
+// The share code only. The drawer builds the link from the node's live title (sharePathFor,
+// D311), so a rename shows up in Copy link at once; lookups ignore the title part.
+async function payload(review: CanvasReviewRow | null): Promise<NodeClientReview> {
   if (!review) return { review: null, comments: [] };
   const rows = await listComments(review.id);
   return {
     review: {
       videoUrl: publicUrlFor(review.video_path),
-      sharePath: sharePathFor(review.share_token, title),
+      shareToken: review.share_token,
     },
     comments: rows.map(toReviewComment),
   };
@@ -37,7 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   return withTryCatch("Could not load the review.", () =>
     logClientReviewErrors("read", req, () => withNode(req, params, async (nodeId, node) => {
       if (node.type !== "client-review") return apiError("Node not found.", 404);
-      return apiOk(await payload(await getReviewByNodeId(nodeId), nodeTitle(node.data)));
+      return apiOk(await payload(await getReviewByNodeId(nodeId)));
     })),
   );
 }
@@ -68,7 +63,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             shareToken: shareCodeFor(nodeId, extra),
             createdBy: caller.userId,
           });
-          return apiOk(await payload(review, nodeTitle(node.data)), 201);
+          return apiOk(await payload(review), 201);
         } catch (e) {
           if (e instanceof ShareCodeTakenError) continue;
           if (e instanceof ReviewExistsError) return apiError(e.message, 409);

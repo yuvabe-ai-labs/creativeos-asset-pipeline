@@ -34,9 +34,11 @@ describe("multishotPromptGenerate", () => {
 
   // The schema is the contract parsePlan validates against. If they disagree, every generation
   // is rejected at full price.
-  it("asks for a look and beats keyed by cutId, and nothing else", () => {
+  // D319 — `references` is scratch work parsePlan drops; it must come FIRST, because strict
+  // structured output generates in schema order and the point is to read the images before writing.
+  it("asks for a reference reading, then a look and beats keyed by cutId, and nothing else", () => {
     const props = spec.schema.properties;
-    expect(Object.keys(props).sort()).toEqual(["beats", "look"]);
+    expect(Object.keys(props)).toEqual(["references", "look", "beats"]);
 
     const beat = props.beats.items;
     expect(Object.keys(beat.properties).sort()).toEqual(["cutId", "text"]);
@@ -52,11 +54,15 @@ describe("multishotPromptGenerate", () => {
   it("is a valid strict-mode schema at both the root and the beat item", () => {
     const root = spec.schema;
     expect(root.additionalProperties).toBe(false);
-    expect([...root.required].sort()).toEqual(["beats", "look"]);
+    expect([...root.required].sort()).toEqual(["beats", "look", "references"]);
 
     const beat = root.properties.beats.items;
     expect(beat.additionalProperties).toBe(false);
     expect([...beat.required].sort()).toEqual(["cutId", "text"]);
+
+    const reading = root.properties.references.items;
+    expect(reading.additionalProperties).toBe(false);
+    expect([...reading.required].sort()).toEqual(Object.keys(reading.properties).sort());
   });
 
   it("reuses the canonical reference-identification block rather than a copy", () => {
@@ -133,16 +139,17 @@ describe("multishotPromptGenerate", () => {
 });
 
 describe("narrow refine schemas", () => {
+  // D319 — plus the scratch reference reading, first; mergeRefinedPlan reads only look / text.
   it("the look schema asks for the look alone", () => {
-    expect(MULTISHOT_LOOK_SCHEMA.required).toEqual(["look"]);
+    expect(MULTISHOT_LOOK_SCHEMA.required).toEqual(["references", "look"]);
     expect(MULTISHOT_LOOK_SCHEMA.additionalProperties).toBe(false);
-    expect(Object.keys(MULTISHOT_LOOK_SCHEMA.properties)).toEqual(["look"]);
+    expect(Object.keys(MULTISHOT_LOOK_SCHEMA.properties)).toEqual(["references", "look"]);
   });
 
   it("the beat schema asks for the text alone", () => {
-    expect(MULTISHOT_BEAT_SCHEMA.required).toEqual(["text"]);
+    expect(MULTISHOT_BEAT_SCHEMA.required).toEqual(["references", "text"]);
     expect(MULTISHOT_BEAT_SCHEMA.additionalProperties).toBe(false);
-    expect(Object.keys(MULTISHOT_BEAT_SCHEMA.properties)).toEqual(["text"]);
+    expect(Object.keys(MULTISHOT_BEAT_SCHEMA.properties)).toEqual(["references", "text"]);
   });
 });
 
@@ -289,7 +296,9 @@ describe("planSchemaForCuts", () => {
       };
     };
     expect(schema.additionalProperties).toBe(false);
-    expect([...schema.required].sort()).toEqual(["beats", "look"]);
+    expect([...schema.required].sort()).toEqual(["beats", "look", "references"]);
+    // The reading must stay first even after the spread rebuilds `properties`.
+    expect(Object.keys(schema.properties)).toEqual(["references", "look", "beats"]);
 
     const beat = schema.properties.beats.items;
     expect(beat.additionalProperties).toBe(false);
@@ -384,30 +393,48 @@ describe("voiceover performance rules", () => {
 });
 
 // D281 — an operator attached a three-angle character turnaround on a grey seamless, and the
-// writer put a light studio backdrop into the look. Both writers share this rule.
-describe("references are identity-only (D281)", () => {
+// writer put a light studio backdrop into the look. That guard survives D319: a character or
+// product reference still never lends its backdrop.
+//
+// D319 — background images, storyboards and character refs were attached (cited in the Direction
+// or not) and the plan named them in passing, so the video model dropped most of what they showed.
+// Every reference now gets a role, stated or inferred, and its role is written out in full.
+describe("references get a role and are honoured in full (D281, D319)", () => {
   const writers = [
     ["Omni", multishotPromptGenerate().system],
     ["Kling", multishotPromptKling().system],
+    ["Seedance", multishotPromptFor(SEEDANCE_MODEL_ID).system],
   ] as const;
 
-  it.each(writers)("%s: a reference carries identity, never its backdrop or light", (_, system) => {
-    expect(system).toMatch(/A REFERENCE IS IDENTITY ONLY/);
+  it.each(writers)("%s: a character or product reference never lends its backdrop", (_, system) => {
     expect(system).toMatch(/backdrop, studio lighting/i);
     expect(system).toMatch(/identity sheet, never a location/i);
   });
 
-  it.each(writers)("%s: takes look from a reference only when the direction says so", (_, system) => {
-    expect(system).toMatch(/unless the operator's direction/i);
-    expect(system).toMatch(/names a reference as the source of the look/i);
+  it.each(writers)("%s: infers a role when the direction gives none", (_, system) => {
+    expect(system).toMatch(/EVERY REFERENCE HAS A ROLE/);
+    expect(system).toMatch(/When it does NOT, infer the role from the image itself/);
+    expect(system).toMatch(/A direction that states a role always wins/);
+  });
+
+  it.each(writers)("%s: inventories backgrounds, storyboards and characters", (_, system) => {
+    expect(system).toMatch(/reproduces only the elements the prompt NAMES/);
+    expect(system).toMatch(/BACKGROUND \/ LOCATION/);
+    expect(system).toMatch(/read the panels in order/i);
+    expect(system).toMatch(/EVERY visible wardrobe item/);
+  });
+
+  it.each(writers)("%s: an attached background may set the look", (_, system) => {
+    expect(system).toMatch(/An attached background IS stated direction/);
   });
 
   it.each(writers)("%s: still forbids writing the reference numbers into beats", (_, system) => {
     expect(system).toMatch(/"reference image 2"/);
   });
 
-  it("bumps both prompt ids", () => {
-    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@10");
-    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@7");
+  it("bumps every prompt id", () => {
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@11");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@8");
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@7");
   });
 });

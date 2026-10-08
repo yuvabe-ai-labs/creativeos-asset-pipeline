@@ -52,7 +52,13 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   return (
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
       <div
-        onClick={() => openFeedback(id)}
+        onClick={(e) => {
+          // A click on a control inside the card (the inline title, the ref handle) is that
+          // control's own action. Without this, clicking the title to rename it bubbled up
+          // here and opened the drawer on top of the edit.
+          if ((e.target as HTMLElement).closest("button, input, textarea, a")) return;
+          openFeedback(id);
+        }}
         className={cn(
           // D310: the client accent — amber border + a pale amber header band — so client-facing
           // work reads apart from generation nodes. Selection keeps the purple ring (brand focus).

@@ -29,7 +29,8 @@ import {
 // @6 (D267, Task 5): the writer no longer writes the spoken words — shares VO_PERFORMANCE_RULES
 //     instead of `voiceoverRules`; renderPlan appends the actual line afterwards.
 // @7 (D281): shares the identity-only reference rule and the numbered-reference direction.
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@7";
+// @8 (D319): shares the role-aware reference reading and the `references` scratch field.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@8";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 

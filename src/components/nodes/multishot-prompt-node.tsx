@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { ListVideo } from "lucide-react";
+import { ListVideo, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -115,6 +115,7 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
   const plan = (d.parsed ?? null) as MultishotPlan | null;
   const status = plan ? `${plan.beats.length} beats` : "Not written yet";
   const lookFirstLine = plan?.look.split("\n")[0]?.trim();
+  const voText = (sequenceVoiceover ?? []).map((l) => l.text.trim()).filter(Boolean).join(" ");
   const totalCredits = useNodeCost(id);
   const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
   const [focusOpen, setFocusOpen] = useState(false);
@@ -177,6 +178,13 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
           {lookFirstLine && (
             <p className="mt-1.5 truncate text-xs text-foreground" title={lookFirstLine}>
               {lookFirstLine}
+            </p>
+          )}
+          {/* The sequence voiceover rides along with this plan (renderPlan), so the card says so. */}
+          {voText && (
+            <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground" title={voText}>
+              <Mic className="size-3 shrink-0" strokeWidth={1.5} />
+              <span className="truncate">{voText}</span>
             </p>
           )}
           <Button
