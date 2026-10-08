@@ -154,8 +154,14 @@ describe("canConnect", () => {
     for (const source of ["file", "draw", "image-gen", "composite", "avatar"]) {
       expect(canConnect(source, "composite")).toBe(true);
     }
-    for (const source of ["text", "prompt", "script", "video-gen"]) {
+    for (const source of ["text", "prompt", "video-gen"]) {
       expect(canConnect(source, "composite")).toBe(false);
+    }
+  });
+
+  it("D320 — a script, shot or multishot feeds a composite as context", () => {
+    for (const source of ["script", "shot", "multishot"]) {
+      expect(canConnect(source, "composite")).toBe(true);
     }
   });
 

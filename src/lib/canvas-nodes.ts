@@ -294,11 +294,13 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   // through that script (part 2, D299), not through edges of their own.
   // D312 — and is placed into a composite: the wire says "this picture contains this person".
   avatar:             ["script", "composite"],
-  script:             ["prompt"],
-  shot:               ["prompt", "video-prompt"],
+  // D320 — a script, shot or multishot also feeds a composite as CONTEXT: which moment of the
+  // video the picture is a still for. It adds no image; the composite's prompt reads its shots.
+  script:             ["prompt", "composite"],
+  shot:               ["prompt", "video-prompt", "composite"],
   // The multishot lane skips the still entirely: a start frame fixes ONE composition and
-  // this node is a sequence of several.
-  multishot:          ["multishot-prompt"],
+  // this node is a sequence of several. A composite made for one of its shots is the exception.
+  multishot:          ["multishot-prompt", "composite"],
   file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
   draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
   text:               ["prompt", "video-prompt", "multishot-prompt"],

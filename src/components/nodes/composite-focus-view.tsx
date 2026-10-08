@@ -20,7 +20,9 @@ import {
   compositeModelNote,
   compositePickerModelId,
 } from "@/lib/composite/model";
-import { compositeMentionUpstream, compositeMentionables } from "@/lib/composite/upstream-items";
+import { compositeMentionUpstream, compositeMentionables, compositePreviewOf } from "@/lib/composite/upstream-items";
+import { ConnectedDetailView } from "./connected-inputs-card";
+import type { CompositeRailSelection } from "./composite-focus-rail";
 import { useCompositeUpstream } from "@/hooks/use-composite-upstream";
 import { useCompositeVersions } from "@/hooks/use-composite-versions";
 import { CompositeEditSection } from "./composite-edit-section";
@@ -59,7 +61,9 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   const model = imageGenClientModelMap[compositePickerModelId(modelId)];
   const modelNote = compositeModelNote(model.id, hasAvatar);
   const [draft, setDraft] = useState(instruction);
-  const [selected, setSelected] = useState<"compose" | "history">("compose");
+  const [selected, setSelected] = useState<CompositeRailSelection>("compose");
+  // A wired input picked in the rail: its read-only preview takes the middle column.
+  const previewItem = upstream.find((u) => u.id === selected);
   // D312 — Edit acts on the current picture, so it exists only once there is one.
   const [editMode, setEditMode] = useState(false);
   const values = useMemo(
@@ -118,7 +122,9 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
 
           <div className="flex min-h-0 flex-1">
             <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
-              {selected === "compose" ? (
+              {previewItem ? (
+                <ConnectedDetailView node={compositePreviewOf(previewItem)} />
+              ) : selected !== "history" ? (
                 <div className="flex flex-col gap-6 px-6 py-5">
                   {editing && imageUrl && activeVersionId ? (
                     <CompositeEditSection
@@ -142,9 +148,9 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                     <MentionInstructionEditor
                       value={draft}
                       onChange={(v) => { setDraft(v); onPatch({ instruction: v }); }}
-                      placeholder="e.g. @Riya at her desk holding @Sandals, in a bright open-plan office. A 2×2 sheet, four angles, warm window light."
+                      placeholder="e.g. @Riya at her desk holding @Sandals, in a bright open-plan office, for @Shot 2. Wire a Script or Multishot node to mention its shots."
                       upstream={mentionUpstream}
-                      mentionables={compositeMentionables(mentionUpstream)}
+                      mentionables={compositeMentionables(mentionUpstream, upstream)}
                       disabled={!editable || generating}
                       className="min-h-24"
                     />

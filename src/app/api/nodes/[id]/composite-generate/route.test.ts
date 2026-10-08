@@ -86,7 +86,7 @@ const sent = () => generate.mock.calls[0][0] as { prompt: string; referenceUrls:
 beforeEach(() => {
   vi.clearAllMocks();
   stored.instruction = "";
-  loadCompositeInputs.mockResolvedValue({ ok: true, refs: [AVATAR_REF, SHEET_REF, FILE_REF], avatarIds: ["av-1"] });
+  loadCompositeInputs.mockResolvedValue({ ok: true, refs: [AVATAR_REF, SHEET_REF, FILE_REF], avatarIds: ["av-1"], contexts: [] });
   generate.mockResolvedValue({ imageBase64: Buffer.from("png").toString("base64"), mimeType: "image/png", costUsd: 0.03 });
 });
 
@@ -136,20 +136,20 @@ describe("POST composite-generate (D312)", () => {
   });
 
   it("allows any model when no avatar is wired", async () => {
-    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF], avatarIds: [] });
+    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF], avatarIds: [], contexts: [] });
     const res = await post({ instruction: "on a desk", modelId: "gemini:gemini-3-pro-image" });
     expect(res.status).toBe(200);
   });
 
   it("generates with zero references — a background from text alone", async () => {
-    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [], avatarIds: [] });
+    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [], avatarIds: [], contexts: [] });
     const res = await post({ instruction: "an empty bedroom, four angles" });
     expect(res.status).toBe(200);
     expect(sent().referenceUrls).toEqual([]);
   });
 
   it("refuses more images than the model takes, without slicing", async () => {
-    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF, { ...FILE_REF, nodeId: "b", position: 2 }, { ...FILE_REF, nodeId: "c", position: 3 }], avatarIds: [] });
+    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF, { ...FILE_REF, nodeId: "b", position: 2 }, { ...FILE_REF, nodeId: "c", position: 3 }], avatarIds: [], contexts: [] });
     const res = await post({ instruction: "x", modelId: "tiny:two" });
     expect(res.status).toBe(422);
     expect((await res.json()).error).toContain("3 reference images");
@@ -161,6 +161,33 @@ describe("POST composite-generate (D312)", () => {
     const call = sent();
     expect(call.referenceUrls).toEqual(["https://cdn/front.png", "https://cdn/sheet.png", "https://cdn/sandals.png"]);
     expect(call.prompt).toContain("Riya (image 1) holding Sandals.png (image 3)");
+  });
+
+  // D320 — a shot chip carries no image, so it must not read as dangling; its text reaches the prompt.
+  it("reads a mentioned shot from a wired script as context", async () => {
+    loadCompositeInputs.mockResolvedValue({
+      ok: true,
+      refs: [FILE_REF],
+      avatarIds: [],
+      contexts: [
+        {
+          nodeId: "s",
+          type: "script",
+          title: "Launch reel",
+          notes: "",
+          shots: [
+            { id: "s:shot:1", label: "Shot 1", text: "Opens the box." },
+            { id: "s:shot:2", label: "Shot 2", text: "Sandals on the floor.", seconds: 2 },
+          ],
+        },
+      ],
+    });
+    const res = await post({ instruction: "@[File: Sandals.png](n-file) for @[Shot: Launch reel · Shot 2](s:shot:2)" });
+    expect(res.status).toBe(200);
+    const { prompt } = sent();
+    expect(prompt).toContain("for Shot 2 of Launch reel (see the shot context)");
+    expect(prompt).toContain("Shot 2 (2s): Sandals on the floor.");
+    expect(prompt).not.toContain("Opens the box.");
   });
 
   it("reserves, then settles, and records the avatar on the version", async () => {

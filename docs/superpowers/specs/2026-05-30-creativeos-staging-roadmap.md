@@ -6686,6 +6686,34 @@ and more latency for what an in-schema reading gets in the same call). Per-refer
 (not needed yet; revisit if the focus view should show it).
 
 **Refines →** D281, D262, D233.
+
+### D320 — A Script, Shot or Multishot node feeds a composite as context, mentionable shot by shot *(recorded 2026-10-08)*
+
+**Decision.** `script`, `shot` and `multishot` may connect to `composite`. They add no image: the
+route collects them apart from the reference roster (`compositeContextOf`,
+`src/lib/composite/context.ts`) and the prompt gains a "Shot context" block before the instruction.
+The description decides what the picture is and the shot only fills in what it asks for: a
+background, location or empty set takes the shot's place with no person in it; a person, product or
+full moment takes who is in frame and the framing. It is one frozen frame, and none of the script's
+words may be lettered into the image. (A first version took "who is in frame" unconditionally, and "a
+background for @Shot 1" came back with the presenter standing in it.) The `@` menu offers each wired node whole
+and each of its shots (`${nodeId}:shot:${key}`: cut id for a Multishot, the script's 1-based shot
+number for a Script or Shot). A mentioned shot sends only that shot; a node mentioned whole, or wired
+and not mentioned, sends every shot. The script's production notes ride along. The block is capped at
+2,000 characters. Only shot descriptions and notes are sent, never voiceover or on-screen text.
+Edits do not get the block; a context chip there resolves to its plain name. Prompt id
+`composite-generate-v4`.
+
+**Why.** A composite is made for one shot of a video, but the operator had to retype that shot's
+content into the instruction for the image model to know who, where and what. Pointing at the shot
+is faster and cannot drift from the script.
+
+**Rejected.** An LLM pass that rewrites the shot into an image prompt (more cost and latency; the
+image models read a plain shot description well enough, and the operator's instruction still leads).
+Sending voiceover or on-screen copy (image models letter quoted words into the picture). Sending the
+whole script when one shot is named (dilutes the moment the picture is for).
+
+**Refines →** D312.
 ### D312 — The Composite node: references in, an instruction typed on the node, one image out; an avatar wires straight into it *(recorded 2026-10-06; refines D298, D290, D308)*
 
 **Decision.** A new **Composite** node (`type: "composite"`, mnemonic **C**) makes a shot's

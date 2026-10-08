@@ -3,6 +3,7 @@ import type { AppNode } from "@/lib/canvas-nodes";
 import type { Avatar } from "@/lib/avatars/schema";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { avatarSheetId } from "@/lib/video-gen/select-references";
+import { compositeContextOf, contextMentionables, type CompositeContext } from "./context";
 
 // D312 — the browser's view of what is wired into a composite: the focus view's rail (one row per
 // wired node) and what `@` offers. Nothing is mandatory, but everything wired must be mentionable
@@ -18,6 +19,8 @@ export type CompositeUpstreamItem = {
   fileKind?: string;
   /** An avatar's profile sheet, when it has one that is not out of date. */
   sheetUrl?: string;
+  /** D320 — a wired Script, Shot or Multishot: its shots, read as context. */
+  context?: CompositeContext;
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -26,6 +29,9 @@ const TYPE_LABEL: Record<string, string> = {
   draw: "Sketch",
   "image-gen": "Image",
   composite: "Composite",
+  script: "Script",
+  shot: "Shot",
+  multishot: "Multishot",
 };
 
 function str(v: unknown): string | undefined {
@@ -44,6 +50,9 @@ function itemOf(n: AppNode, avatars: Avatar[]): CompositeUpstreamItem {
   if (isGeneratedImageType(type)) {
     return { id: n.id, type, label: str(d.title) ?? fallback, fileUrl: str(d.parsed), fileKind: "image" };
   }
+  // A Script's parse is display-hydrated onto `data.parsed` (D19), the server's activeOutput.
+  const context = compositeContextOf(n.id, type, d, d.parsed);
+  if (context) return { id: n.id, type, label: context.title, context };
   return {
     id: n.id,
     type,
@@ -80,13 +89,28 @@ export function compositeMentionUpstream(items: CompositeUpstreamItem[]): Compos
     );
 }
 
-/** What `@` offers: every entry, labelled "Type: Name" as the Instruction stores it. */
-export function compositeMentionables(items: CompositeUpstreamItem[]) {
-  return items.map((i) => ({
+/** A wired input as the shared read-only preview panel shows it (ConnectedDetailView): its image,
+ *  or — for a script or shot — the shots and notes the composite actually reads (D320). */
+export function compositePreviewOf(item: CompositeUpstreamItem) {
+  const text = item.context
+    ? [
+        ...item.context.shots.map((s) => `${s.label}${typeof s.seconds === "number" ? ` (${s.seconds}s)` : ""}: ${s.text}`),
+        ...(item.context.notes ? ["", `Production notes: ${item.context.notes}`] : []),
+      ].join("\n")
+    : "";
+  return { nodeId: item.id, label: item.label, type: item.type, text, fileUrl: item.fileUrl, fileKind: item.fileKind };
+}
+
+/** What `@` offers: every image entry, labelled "Type: Name" as the Instruction stores it, then
+ *  (D320) each wired script or shot and its shots — pass the full `items` as `all` for those. */
+export function compositeMentionables(items: CompositeUpstreamItem[], all: CompositeUpstreamItem[] = []) {
+  const images = items.map((i) => ({
     id: i.id,
     label: `${TYPE_LABEL[i.type] ?? i.type}: ${i.label}`,
     type: i.type,
     fileUrl: i.fileUrl,
     fileKind: i.fileKind,
   }));
+  const contexts = all.flatMap((i) => (i.context ? [i.context] : []));
+  return [...images, ...contextMentionables(contexts)];
 }
