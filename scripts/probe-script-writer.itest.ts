@@ -5,6 +5,7 @@
 // Env: PROBE_MODELS=gpt-5.4-mini,gemini-3.8-flash (default: SCRIPT_WRITER_CANDIDATES),
 //      PROBE_RUNS=3 (repeat each draft, for the parse round trip on repeated runs),
 //      PROBE_OUTLINES=<path to the Jackfruit365 outline .md> (default: the main repo's copy).
+//      PROBE_THINKING=low (ask Gemini to think less, for speed).
 // Writes each printed draft and REPORT.md to <os tmpdir>/script-writer-probe; nothing in the repo.
 import { describe, it, beforeAll } from "vitest";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -115,7 +116,7 @@ describe("script writer probe", () => {
 
     const report: string[] = ["# Script writer probe", "", `Outlines: ${OUTLINES}`, `Models: ${models.join(", ")}`, ""];
     for (const model of models) {
-      const call = structuredCaller(model);
+      const call = structuredCaller(model, process.env.PROBE_THINKING === "low" ? { thinking: "low" } : {});
       for (const run of RUNS) {
         for (let n = 1; n <= repeats; n++) {
           // The Founder-led run is written with no Founder-led example (spec 2 §4.3).

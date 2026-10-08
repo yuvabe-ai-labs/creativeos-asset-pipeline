@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { ThinkingLevel } from "@google/genai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { createOpenAI } from "@/lib/openai/server";
 import { createGemini } from "@/lib/gemini/server";
@@ -9,7 +10,8 @@ import { createGemini } from "@/lib/gemini/server";
 
 export type StructuredCall = <S extends z.ZodType>(args: { name: string; system: string; user: string; schema: S }) => Promise<z.infer<S>>;
 
-export function structuredCaller(model: string): StructuredCall {
+/** `thinking: "low"` asks a Gemini model to reason less, which is much faster; ignored for OpenAI. */
+export function structuredCaller(model: string, opts: { thinking?: "low" } = {}): StructuredCall {
   return async (args) => {
     if (model.startsWith("gemini-")) {
       const response = await createGemini().models.generateContent({
@@ -19,6 +21,7 @@ export function structuredCaller(model: string): StructuredCall {
           systemInstruction: args.system,
           responseMimeType: "application/json",
           responseJsonSchema: z.toJSONSchema(args.schema),
+          ...(opts.thinking === "low" ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
         },
       });
       const raw = response.text ?? "";

@@ -35,6 +35,14 @@ describe("structuredCaller", () => {
     expect(call.config.responseJsonSchema).toBeTruthy();
   });
 
+  it("asks Gemini to think less when told to, and leaves the default otherwise", async () => {
+    generateContent.mockResolvedValue({ text: JSON.stringify({ reply: "hi" }) });
+    await structuredCaller("gemini-3.1-pro-preview", { thinking: "low" })(args);
+    expect(generateContent.mock.calls[0][0].config.thinkingConfig).toEqual({ thinkingLevel: "LOW" });
+    await structuredCaller("gemini-3.1-pro-preview")(args);
+    expect(generateContent.mock.calls[1][0].config.thinkingConfig).toBeUndefined();
+  });
+
   it("fails loudly on an empty or malformed answer", async () => {
     parse.mockResolvedValue({ output_parsed: null });
     await expect(structuredCaller("gpt-5.4-mini")(args)).rejects.toThrow("returned no content");
