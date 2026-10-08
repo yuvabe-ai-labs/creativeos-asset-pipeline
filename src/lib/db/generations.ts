@@ -56,7 +56,8 @@ export async function insertGeneration(input: {
     .insert({
       node_id: input.nodeId ?? null,
       avatar_id: input.avatarId ?? null,
-      script_id: input.scriptId ?? null,
+      // Only when set: every other generation keeps working on a database without migration 0053.
+      ...(input.scriptId ? { script_id: input.scriptId } : {}),
       org_id: input.orgId,
       client_id: input.clientId ?? null,
       user_id: input.userId ?? null,

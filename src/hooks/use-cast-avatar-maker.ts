@@ -47,8 +47,8 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar }: {
       return { generationId: candidate.generationId };
     },
     pickFront: (avatarId, generationId) => avatarsService.pickFront(clientId, avatarId, generationId),
-    generateViews: async (avatarId) => {
-      const { avatar: updated, failed } = await avatarsService.generateSheet(clientId, avatarId, AVATAR_DEFAULT_SHEET_MODEL_ID);
+    generateViews: async (avatarId, views) => {
+      const { avatar: updated, failed } = await avatarsService.generateSheet(clientId, avatarId, AVATAR_DEFAULT_SHEET_MODEL_ID, views);
       for (const f of failed) toast.error(`The ${f.label} view failed: ${f.error}`);
       return updated;
     },

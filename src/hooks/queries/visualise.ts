@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { visualiseService } from "@/services/visualise.service";
 import type { Script } from "@/lib/scripts/schema";
 import type { VisualiseBoard } from "@/lib/scripts/visualise/schema";
+import { hasLiveDraw } from "@/lib/scripts/visualise/state";
 import { avatarKeys } from "./avatars";
 
 // Spec 3 — the Visualise board through TanStack Query (D300). Keys are built here only.
@@ -22,7 +23,7 @@ export function useVisualiseBoard(clientId: string, scriptId: string, initial: B
     queryKey: visualiseKeys.board(clientId, scriptId),
     queryFn: () => visualiseService.board(clientId, scriptId),
     initialData: initial,
-    refetchInterval: (query) => (query.state.data?.board.takes.some((t) => t.status === "running") ? POLL_MS : false),
+    refetchInterval: (query) => (hasLiveDraw(query.state.data?.board.takes ?? [], Date.now()) ? POLL_MS : false),
   });
 }
 

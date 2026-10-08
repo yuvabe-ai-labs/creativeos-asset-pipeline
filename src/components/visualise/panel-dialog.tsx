@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PanelInputs } from "@/lib/scripts/visualise/panel-inputs";
 import type { DrawBody } from "@/lib/scripts/visualise/schema";
-import type { PanelView } from "@/lib/scripts/visualise/state";
+import { promptBoxStart, type PanelView } from "@/lib/scripts/visualise/state";
 import { PanelPromptBox } from "./panel-prompt-box";
 import { PanelTakes } from "./panel-takes";
 
@@ -44,7 +44,7 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
           <div className="flex min-w-0 flex-col gap-4">
             <PanelTakes takes={view.takes} pickId={view.pick?.id ?? null} disabled={picking || busy} onPick={onPick} />
             <PanelPromptBox
-              prompt={view.pick?.prompt ?? inputs.prompt}
+              prompt={promptBoxStart(view.pick, inputs)}
               builtPrompt={inputs.prompt}
               credits={credits}
               busy={busy || !view.canGenerate}

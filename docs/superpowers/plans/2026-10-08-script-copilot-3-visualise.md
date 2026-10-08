@@ -5521,8 +5521,8 @@ export type MakerDeps = {
   createAndLink: (fields: { name: string; story: string }) => Promise<Avatar>;
   generateFront: (avatarId: string, description: string) => Promise<{ generationId: string }>;
   pickFront: (avatarId: string, generationId: string) => Promise<Avatar>;
-  /** Makes the missing views (all four for a new face). */
-  generateViews: (avatarId: string) => Promise<Avatar>;
+  /** Makes these views; the sheet route makes all four anyway when the views show an older front. */
+  generateViews: (avatarId: string, views: AvatarViewId[]) => Promise<Avatar>;
   markReady: (avatarId: string) => Promise<Avatar>;
   onStep: (step: MakerStep) => void;
 };
@@ -5563,7 +5563,7 @@ export async function finishAvatar(d: MakerDeps, avatar: Avatar): Promise<Avatar
   let current = avatar;
   if (!hasFourViews(current)) {
     d.onStep("views");
-    current = await d.generateViews(current.id);
+    current = await d.generateViews(current.id, missingViews(current)); // only the gaps: priced and made alike
     if (!hasFourViews(current)) throw new Error("A view is still missing. Make the four views again.");
   }
   if (current.status !== "ready") {
@@ -5687,8 +5687,8 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar }: {
       return { generationId: candidate.generationId };
     },
     pickFront: (avatarId, generationId) => avatarsService.pickFront(clientId, avatarId, generationId),
-    generateViews: async (avatarId) => {
-      const { avatar: updated, failed } = await avatarsService.generateSheet(clientId, avatarId, AVATAR_DEFAULT_SHEET_MODEL_ID);
+    generateViews: async (avatarId, views) => {
+      const { avatar: updated, failed } = await avatarsService.generateSheet(clientId, avatarId, AVATAR_DEFAULT_SHEET_MODEL_ID, views);
       for (const f of failed) toast.error(`The ${f.label} view failed: ${f.error}`);
       return updated;
     },

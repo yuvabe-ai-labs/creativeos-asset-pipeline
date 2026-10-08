@@ -96,6 +96,19 @@ export function promptForDraw(
   return { ok: true, prompt: inputs.prompt, edited: false };
 }
 
+/** A take still drawing within the timeout. Polling stops on an orphaned "running" take, which
+ *  panelView already shows as failed. */
+export function hasLiveDraw(takes: Pick<PanelTake, "status" | "createdAt">[], now: number): boolean {
+  return takes.some((t) => t.status === "running" && now - Date.parse(t.createdAt) <= PANEL_RUNNING_TIMEOUT_MS);
+}
+
+/** D344, spec §8.1 — what the prompt box starts from: the picked take's exact prompt while the
+ *  shot is unchanged; once the shot changed, the fresh prompt built from the new text (a
+ *  hand-edited prompt stays with its old take), so a panel never redraws the old story. */
+export function promptBoxStart(pick: Pick<PanelTake, "prompt" | "shotKey"> | null, inputs: Pick<PanelInputs, "prompt" | "shotKey">): string {
+  return pick && pick.shotKey === inputs.shotKey ? pick.prompt : inputs.prompt;
+}
+
 export function waitingMessage(names: string[]): string {
   return `${listSentence(names)} need${names.length === 1 ? "s" : ""} an avatar with its four views first.`;
 }

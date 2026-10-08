@@ -97,3 +97,17 @@ describe("the slot's rules", () => {
     expect(castSlotLine(makeAvatar({ archivedAt: "2026-10-08T00:00:00.000Z" }))).toBe("This avatar was archived. Change it to go on.");
   });
 });
+
+describe("finishAvatar asks only for the missing views (review finding 1)", () => {
+  it("retries just the view that failed, so it costs what the button shows and keeps the good views", async () => {
+    const d = deps([]);
+    await finishAvatar(d, draft({ front: makeImage(GENERATED), sheetViews: { ...makeViews(), back: null } }));
+    expect(d.generateViews).toHaveBeenCalledWith("new", ["back"]);
+  });
+
+  it("asks for all four for a face with no views yet", async () => {
+    const d = deps([]);
+    await finishAvatar(d, draft({ front: makeImage(GENERATED) }));
+    expect(d.generateViews).toHaveBeenCalledWith("new", ["front", "left", "right", "back"]);
+  });
+});

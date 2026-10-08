@@ -3,8 +3,8 @@ import {
   AVATAR_FRONT_ASPECT, AVATAR_NAME_MAX, AVATAR_STORY_MAX,
 } from "@/lib/avatars/constants";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
-import { hasFourViews, needsLikenessConsent } from "@/lib/avatars/utils";
-import type { Avatar } from "@/lib/avatars/schema";
+import { hasFourViews, missingViews, needsLikenessConsent } from "@/lib/avatars/utils";
+import type { Avatar, AvatarViewId } from "@/lib/avatars/schema";
 import { formatDate } from "@/lib/kb/utils";
 import type { CastMember } from "@/lib/scripts/schema";
 
@@ -19,8 +19,8 @@ export type MakerDeps = {
   createAndLink: (fields: { name: string; story: string }) => Promise<Avatar>;
   generateFront: (avatarId: string, description: string) => Promise<{ generationId: string }>;
   pickFront: (avatarId: string, generationId: string) => Promise<Avatar>;
-  /** Makes the missing views (all four for a new face). */
-  generateViews: (avatarId: string) => Promise<Avatar>;
+  /** Makes these views; the sheet route makes all four anyway when the views show an older front. */
+  generateViews: (avatarId: string, views: AvatarViewId[]) => Promise<Avatar>;
   markReady: (avatarId: string) => Promise<Avatar>;
   onStep: (step: MakerStep) => void;
 };
@@ -61,7 +61,9 @@ export async function finishAvatar(d: MakerDeps, avatar: Avatar): Promise<Avatar
   let current = avatar;
   if (!hasFourViews(current)) {
     d.onStep("views");
-    current = await d.generateViews(current.id);
+    // Only the gaps: a retry after one failed view costs one view, as the button says, and keeps
+    // the three good ones (review of D339).
+    current = await d.generateViews(current.id, missingViews(current));
     if (!hasFourViews(current)) throw new Error("A view is still missing. Make the four views again.");
   }
   if (current.status !== "ready") {

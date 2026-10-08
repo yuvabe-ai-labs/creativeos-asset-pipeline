@@ -4,7 +4,8 @@ import { makeViews } from "@/lib/avatars/__tests__/fixtures";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import { panelInputs, panelReferenceCap, type PanelInputs } from "../panel-inputs";
 import {
-  generateAllLabel, generateAllPlan, panelView, promptForDraw, visualiseReadiness, waitingMessage,
+  generateAllLabel, generateAllPlan, hasLiveDraw, panelView, promptBoxStart, promptForDraw, visualiseReadiness,
+  waitingMessage,
   type PanelView,
 } from "../state";
 import type { PanelTake } from "../schema";
@@ -176,5 +177,26 @@ describe("readiness and Generate all (spec §6.5, §7)", () => {
   it("words the wait for avatars", () => {
     expect(waitingMessage(["Meenakshi"])).toBe("Meenakshi needs an avatar with its four views first.");
     expect(waitingMessage(["Meenakshi", "Meenakshi's husband"])).toBe("Meenakshi and Meenakshi's husband need an avatar with its four views first.");
+  });
+});
+
+describe("hasLiveDraw (review finding 3)", () => {
+  it("is true only for a take still running within the timeout, so an orphaned take stops the polling", () => {
+    expect(hasLiveDraw([makeTake({ status: "running", createdAt: "2026-10-08T11:59:00.000Z" })], NOW)).toBe(true);
+    expect(hasLiveDraw([makeTake({ status: "running", createdAt: "2026-10-08T11:40:00.000Z" })], NOW)).toBe(false);
+    expect(hasLiveDraw([makeTake()], NOW)).toBe(false);
+  });
+});
+
+describe("promptBoxStart (review finding 5, spec §8.1)", () => {
+  const i = { prompt: "fresh from the new text", shotKey: "now" };
+
+  it("starts from the picked take's exact prompt while the shot is unchanged", () => {
+    expect(promptBoxStart(makeTake({ prompt: "closer on the tawa", promptEdited: true, shotKey: "now" }), i)).toBe("closer on the tawa");
+  });
+
+  it("starts from the fresh prompt once the shot changed, even when the old one was hand-edited", () => {
+    expect(promptBoxStart(makeTake({ prompt: "closer on the tawa", promptEdited: true, shotKey: "before" }), i)).toBe("fresh from the new text");
+    expect(promptBoxStart(null, i)).toBe("fresh from the new text");
   });
 });
