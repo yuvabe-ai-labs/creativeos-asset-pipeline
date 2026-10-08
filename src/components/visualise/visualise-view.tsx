@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ScriptBoardFrame } from "@/components/scripts/script-board-frame";
 import { ScriptView } from "@/components/scripts/script-view";
+import type { AvatarViewId } from "@/lib/avatars/schema";
 import { usePickTake, useReopenScript, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
 import { usePanelDraws } from "@/hooks/use-panel-draws";
 import { useVisualiseModel } from "@/hooks/use-visualise-model";
@@ -23,8 +25,23 @@ import { VisualiseReadiness } from "./visualise-readiness";
 
 // Spec 3 §4, laid out as the Visualise board: the readiness line across the top; the script,
 // read-only, in a narrow left pane; the Visuals pane on the right with a cast card per person
-// (Task 13) and the Storyboard grid (Task 12). Below `lg` the panes stack, script first.
-export function VisualiseView({ clientId, initial }: { clientId: string; initial: BoardData }) {
+// (Task 13) and the Storyboard grid (Task 12). Below `lg` the panes stack, script first. Spec 4 adds
+// its review through `review` (MP4).
+
+/** Spec 4's layer on the board (merge point MP4): its actions on the readiness line, a comment
+ *  marker on each part, and the Comments column. Left out, the view is exactly spec 3's. */
+export type VisualiseReview = {
+  actions: ReactNode;
+  contextMarker: ReactNode;
+  shotMarker: (shotId: string) => ReactNode;
+  castMarker: (castId: string) => ReactNode;
+  viewMarker: (castId: string, view: AvatarViewId) => ReactNode;
+  panelMarker: (shotId: string) => ReactNode;
+  /** Absent until something has been shared, so the board keeps its two panes. */
+  column?: ReactNode;
+};
+
+export function VisualiseView({ clientId, initial, review }: { clientId: string; initial: BoardData; review?: VisualiseReview }) {
   const router = useRouter();
   const query = useVisualiseBoard(clientId, initial.script.id, initial);
   const { script, board } = query.data;
@@ -57,59 +74,77 @@ export function VisualiseView({ clientId, initial }: { clientId: string; initial
         reopening={reopen.isPending}
         onGenerateAll={() => void draws.drawAll(model.plan.shotIds)}
         onReopen={() => void onReopen()}
+        extra={review?.actions}
       />
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <ScriptView
-          script={script}
-          avatarFaces={model.avatarFaces}
-          compact
-          cast={null}
-          shotState={(t) => {
-            const v = model.views.get(t.shot.id)!;
-            return { drawing: v.status === "generating", onOpen: v.pick ? () => setOpenShot(t.shot.id) : undefined };
-          }}
-          shotAside={(t) => (
-            <PanelShotStatus
-              view={model.views.get(t.shot.id)!}
-              credits={model.credits.get(t.shot.id) ?? null}
-              onDraw={() => void draws.draw(t.shot.id)}
+      <ScriptBoardFrame
+        script={
+          <ScriptView
+            script={script}
+            avatarFaces={model.avatarFaces}
+            compact
+            cast={null}
+            slots={review ? { context: review.contextMarker } : undefined}
+            shotState={(t) => {
+              const v = model.views.get(t.shot.id)!;
+              return { drawing: v.status === "generating", onOpen: v.pick ? () => setOpenShot(t.shot.id) : undefined };
+            }}
+            shotAside={(t) => (
+              <span className="flex flex-col items-end gap-1">
+                <PanelShotStatus
+                  view={model.views.get(t.shot.id)!}
+                  credits={model.credits.get(t.shot.id) ?? null}
+                  onDraw={() => void draws.draw(t.shot.id)}
+                />
+                {review?.shotMarker(t.shot.id)}
+              </span>
+            )}
+          />
+        }
+        visuals={
+          <>
+            <CastSlots
+              clientId={clientId}
+              scriptId={script.id}
+              doc={script.doc}
+              avatars={model.avatars}
+              castMarker={review?.castMarker}
+              viewMarker={review?.viewMarker}
             />
-          )}
-        />
-        <section aria-label="Visuals" className="flex min-w-0 flex-col gap-6 rounded-2xl bg-muted/40 p-4">
-          <CastSlots clientId={clientId} scriptId={script.id} doc={script.doc} avatars={model.avatars} />
-          <StoryboardGrid
-            settings={
-              <AvatarAdvancedSettings className="max-w-sm">
-                <Label htmlFor="panel-model" className="text-xs text-muted-foreground">Image model for panels</Label>
-                <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={PANEL_MODEL_IDS} />
-              </AvatarAdvancedSettings>
-            }
-            action={
-              <GenerateAllDialog
-                variant="outline"
-                plan={model.plan}
-                busy={draws.drawingAll}
-                onConfirm={() => void draws.drawAll(model.plan.shotIds)}
-              />
-            }
-          >
-            {timed.map((t) => (
-              <PanelTile
-                key={t.shot.id}
-                label={`S${t.index + 1}`}
-                time={formatRange(t.start, t.end)}
-                description={t.shot.visual}
-                view={model.views.get(t.shot.id)!}
-                aspect={model.aspect}
-                credits={model.credits.get(t.shot.id) ?? null}
-                onDraw={() => void draws.draw(t.shot.id)}
-                onOpen={() => setOpenShot(t.shot.id)}
-              />
-            ))}
-          </StoryboardGrid>
-        </section>
-      </div>
+            <StoryboardGrid
+              settings={
+                <AvatarAdvancedSettings className="max-w-sm">
+                  <Label htmlFor="panel-model" className="text-xs text-muted-foreground">Image model for panels</Label>
+                  <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={PANEL_MODEL_IDS} />
+                </AvatarAdvancedSettings>
+              }
+              action={
+                <GenerateAllDialog
+                  variant="outline"
+                  plan={model.plan}
+                  busy={draws.drawingAll}
+                  onConfirm={() => void draws.drawAll(model.plan.shotIds)}
+                />
+              }
+            >
+              {timed.map((t) => (
+                <PanelTile
+                  key={t.shot.id}
+                  label={`S${t.index + 1}`}
+                  time={formatRange(t.start, t.end)}
+                  description={t.shot.visual}
+                  view={model.views.get(t.shot.id)!}
+                  aspect={model.aspect}
+                  credits={model.credits.get(t.shot.id) ?? null}
+                  onDraw={() => void draws.draw(t.shot.id)}
+                  onOpen={() => setOpenShot(t.shot.id)}
+                  marker={review?.panelMarker(t.shot.id)}
+                />
+              ))}
+            </StoryboardGrid>
+          </>
+        }
+        column={review?.column}
+      />
       {openShot && model.views.get(openShot) && (
         <PanelDialog
           open

@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
 import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
 import { VISUALISE_AVATAR_MODEL_ID } from "@/lib/scripts/visualise/constants";
+import { castAnchor } from "@/lib/scripts/anchors";
 
 type Mode = "ai" | "photo";
 
@@ -30,7 +31,7 @@ const STEP_COPY = {
 } as const;
 
 // Spec §5.2 — one person in the cast: a full avatar maker, inline, as on the Visualise board.
-export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker }: {
+export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker, headerExtra }: {
   clientId: string;
   scriptId: string;
   member: CastMember;
@@ -40,6 +41,8 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
   takenIds: string[];
   /** Spec 4 merge point: comment markers per view, given the view id. */
   marker?: (view: (typeof AVATAR_VIEWS)[number]) => ReactNode;
+  /** Spec 4 merge point: the comment marker on the person. */
+  headerExtra?: ReactNode;
 }) {
   const [modelId, setModelId] = useState(VISUALISE_AVATAR_MODEL_ID);
   const maker = useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId });
@@ -51,12 +54,13 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, marker 
     : maker.step === "face" ? [...AVATAR_VIEWS] : [];
 
   return (
-    <Card className="flex flex-col gap-3 p-4 shadow-card">
+    <Card id={castAnchor(member.id)} className="flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:border-client/40">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
           <div className="flex items-center gap-2">
             <h3 className="font-display text-lg font-medium">{member.name}</h3>
             {member.isLead && <Badge variant="outline">Lead</Badge>}
+            {headerExtra}
           </div>
           <p className="text-sm text-muted-foreground">{member.description}</p>
         </div>
