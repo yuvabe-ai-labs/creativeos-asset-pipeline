@@ -189,8 +189,10 @@ export function pathForAvatarGenerated(args: {
   avatarId: string;
   slot: AvatarImageSlot;
   ext: string;
+  /** D339 — "view-left", "strip": four views upload at once, so each gets its own name. */
+  name?: string;
 }): string {
-  const name = buildStoredName(undefined, { slug: "output", ext: args.ext });
+  const name = buildStoredName(undefined, { slug: args.name ?? "output", ext: args.ext });
   return `clients/${args.clientId}/avatars/${args.avatarId}/generated/${args.slot}/${name}`;
 }
 

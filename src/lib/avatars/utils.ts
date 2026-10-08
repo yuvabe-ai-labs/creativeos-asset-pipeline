@@ -3,7 +3,7 @@ import {
   AVATAR_IMAGE_MAX_BYTES, AVATAR_IMAGE_MAX_LABEL, AVATAR_NAME_MAX, AVATAR_STORY_MAX,
   AVATAR_VIEWS, LIKENESS_CONSENT_CHANGED_ERROR, READINESS_GAP_LABELS,
 } from "./constants";
-import type { Avatar, AvatarImage, AvatarViewId } from "./schema";
+import type { Avatar, AvatarImage, AvatarSheetViews, AvatarViewId } from "./schema";
 import { voiceAfterFrontChange } from "./voice";
 
 export type ReadinessGap = keyof typeof READINESS_GAP_LABELS;
@@ -99,6 +99,33 @@ export function missingViews(avatar: Pick<Avatar, "sheetViews" | "sheetStale">):
   const views = avatar.sheetViews;
   if (!views || avatar.sheetStale) return [...AVATAR_VIEWS];
   return AVATAR_VIEWS.filter((v) => views[v] === null);
+}
+
+/** D339 — the views a sheet request makes. Only the ones asked for when the sheet is current;
+ *  all four when there are none or they show an older front, so views of two faces never mix. */
+export function viewsToMake(
+  current: Pick<Avatar, "sheetViews" | "sheetStale">,
+  requested?: readonly AvatarViewId[],
+): AvatarViewId[] {
+  if (!requested || !current.sheetViews || current.sheetStale) return [...AVATAR_VIEWS];
+  return AVATAR_VIEWS.filter((v) => requested.includes(v));
+}
+
+const NO_VIEWS: AvatarSheetViews = { front: null, left: null, right: null, back: null };
+
+/** New views laid over the ones already made from this front (none, when they are out of date).
+ *  `complete` is the full set once all four exist. `sheet` is cleared here: the caller composes
+ *  the strip from `complete`, so video never gets an older strip beside newer views. */
+export function sheetViewsPatch(
+  current: Pick<Avatar, "sheetViews" | "sheetStale">,
+  made: Partial<Record<AvatarViewId, AvatarImage>>,
+): { patch: AvatarPatch; complete: Record<AvatarViewId, AvatarImage> | null } {
+  const base = current.sheetViews && !current.sheetStale ? current.sheetViews : NO_VIEWS;
+  const views: AvatarSheetViews = { ...base, ...made };
+  const complete = AVATAR_VIEWS.every((v) => views[v] !== null)
+    ? (views as Record<AvatarViewId, AvatarImage>)
+    : null;
+  return { patch: { sheetViews: views, sheetStale: false, sheet: null }, complete };
 }
 
 /** States `status: "draft"` whenever the merged avatar (`current` with `patch` applied) is

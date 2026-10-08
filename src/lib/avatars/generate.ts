@@ -10,7 +10,7 @@ import {
 import { uploadAvatarGenerated } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
 import type { GenerationRow } from "@/lib/db/types";
-import type { AvatarImageSlot } from "./schema";
+import type { AvatarImageSlot, AvatarViewId } from "./schema";
 import { avatarImageParams, estimateAvatarImageCostUsd } from "./generation";
 
 export type AvatarGenerationArgs = {
@@ -20,6 +20,8 @@ export type AvatarGenerationArgs = {
   userId: string;
   userEmail: string | null;
   slot: AvatarImageSlot;
+  /** D339 — which of the sheet's four views this image is. */
+  view?: AvatarViewId;
   modelId: string;
   aspect: string;
   prompt: string;
@@ -43,6 +45,7 @@ export async function runAvatarGeneration(
 
   const inputsSnapshot = {
     slot: args.slot,
+    ...(args.view ? { view: args.view } : {}),
     prompt: args.prompt,
     batchId: args.batchId,
     referenceUrls: args.referenceUrls,
@@ -83,6 +86,7 @@ export async function runAvatarGeneration(
       clientId: args.clientId,
       avatarId: args.avatarId,
       slot: args.slot,
+      name: args.view ? `view-${args.view}` : undefined,
       ext: extForContentType(result.mimeType),
       body: bytes,
       contentType: result.mimeType,

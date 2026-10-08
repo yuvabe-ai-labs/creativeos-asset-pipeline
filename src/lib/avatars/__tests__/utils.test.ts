@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   avatarImageContentType, avatarReadinessGaps, errorMessage, isAvatarReady, frontChangePatch,
   sheetChangePatch, withStatus, planAvatarUpdate, validateAvatarImageFile, isUuid,
-  hasFourViews, missingViews, sheetKind,
+  hasFourViews, missingViews, sheetKind, sheetViewsPatch, viewsToMake,
 } from "../utils";
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
 import { GENERATED, makeAvatar, makeImage, makeViews } from "./fixtures";
@@ -261,5 +261,43 @@ describe("missingViews (D339)", () => {
     const all = ["front", "left", "right", "back"];
     expect(missingViews(makeAvatar({ sheetViews: null }))).toEqual(all);
     expect(missingViews(makeAvatar({ sheetViews: { ...makeViews(), back: null }, sheetStale: true }))).toEqual(all);
+  });
+});
+
+describe("viewsToMake (D339)", () => {
+  it("makes only the views asked for when the sheet is current", () => {
+    expect(viewsToMake(makeAvatar({ sheetViews: makeViews() }), ["left"])).toEqual(["left"]);
+  });
+
+  it("makes all four when there are none, or they show an older front, whatever was asked", () => {
+    const all = ["front", "left", "right", "back"];
+    expect(viewsToMake(makeAvatar({ sheetViews: null }), ["left"])).toEqual(all);
+    expect(viewsToMake(makeAvatar({ sheetViews: makeViews(), sheetStale: true }), ["left"])).toEqual(all);
+    expect(viewsToMake(makeAvatar({ sheetViews: makeViews() }))).toEqual(all);
+  });
+});
+
+describe("sheetViewsPatch (D339)", () => {
+  it("lays new views over a current sheet and reports the full set", () => {
+    const fresh = makeViews("new");
+    const { patch, complete } = sheetViewsPatch(makeAvatar({ sheetViews: makeViews() }), { left: fresh.left! });
+    expect(patch.sheetViews?.left).toEqual(fresh.left);
+    expect(patch.sheetViews?.front).toEqual(makeViews().front);
+    expect(patch.sheetStale).toBe(false);
+    expect(complete?.left).toEqual(fresh.left);
+  });
+
+  it("starts from nothing when the old views show an older front, so a gap stays a gap", () => {
+    const fresh = makeViews("new");
+    const { patch, complete } = sheetViewsPatch(
+      makeAvatar({ sheetViews: makeViews(), sheetStale: true }),
+      { front: fresh.front!, left: fresh.left!, right: fresh.right! },
+    );
+    expect(patch.sheetViews?.back).toBeNull();
+    expect(complete).toBeNull();
+  });
+
+  it("clears the composed strip until the caller composes a new one", () => {
+    expect(sheetViewsPatch(makeAvatar({ sheetViews: makeViews() }), {}).patch.sheet).toBeNull();
   });
 });

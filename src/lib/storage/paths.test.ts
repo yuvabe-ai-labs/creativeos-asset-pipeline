@@ -238,6 +238,11 @@ describe("pathForAvatarGenerated", () => {
     expect(pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "jpg" }))
       .toContain("/generated/sheet/");
   });
+
+  it("names a view's file after the view, so four parallel uploads never share a name", () => {
+    const path = pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "png", name: "view-left" });
+    expect(path).toMatch(/\/generated\/sheet\/view-left__.+\.png$/);
+  });
 });
 
 describe("pathForClientReviewCut", () => {

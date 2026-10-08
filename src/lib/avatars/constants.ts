@@ -61,6 +61,16 @@ export const AVATAR_VIEW_LABELS: Record<AvatarViewId, string> = {
 };
 export const AVATAR_VIEW_ASPECT = "3:4";
 
+// D339 — the dry run (parent spec §11.1): asked for a left and a right profile together, the
+// model returned two views facing the same way. Naming the edge of the frame the nose points
+// to fixed it, so every view states its direction.
+export const AVATAR_VIEW_DIRECTIONS: Record<AvatarViewId, string> = {
+  front: "Front view: facing the camera straight on.",
+  left: "Left profile: turned 90 degrees so the nose points to the LEFT edge of the image; only one side of the face is visible.",
+  right: "Right profile: turned 90 degrees so the nose points to the RIGHT edge of the image; only one side of the face is visible.",
+  back: "Back view: facing directly away from the camera; the face is not visible.",
+};
+
 // Two, not four: enough to compare, and half the credits on a first try (operator, 2026-10-01).
 export const AVATAR_BATCH_DEFAULT = 4;
 export const AVATAR_BATCH_MAX = 8;

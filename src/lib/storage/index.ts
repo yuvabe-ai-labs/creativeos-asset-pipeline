@@ -272,6 +272,8 @@ export async function uploadAvatarGenerated(args: {
   avatarId: string;
   slot: AvatarImageSlot;
   ext: string;
+  /** D339 — the stored name's stem ("view-left", "strip"), so parallel uploads never share one. */
+  name?: string;
   body: Buffer | ArrayBuffer | Uint8Array;
   contentType: string;
 }): Promise<UploadResult> {
@@ -280,6 +282,7 @@ export async function uploadAvatarGenerated(args: {
     avatarId: args.avatarId,
     slot: args.slot,
     ext: args.ext,
+    name: args.name,
   });
   return _upload(path, args.body, args.contentType);
 }
