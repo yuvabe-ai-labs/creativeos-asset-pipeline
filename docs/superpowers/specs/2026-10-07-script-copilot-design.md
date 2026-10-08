@@ -274,5 +274,6 @@ Carried into the later specs: the panel prompt composition (spec 3) and the per-
 2. Is there a **series or campaign level** between the client and its scripts (a reel plan, a
    calendar, shared rules per campaign)?
 3. Where should the **cast** eventually live: the client, a series, or the script?
-4. In the client's documents "Avatar" names a reel **format** (the founder speaking) as well as
-   the **person on screen**. Which word does the product use for each?
+4. ~~Which word does the product use for the "Avatar" format and the person on screen?~~
+   **Answered 8 Oct:** an avatar is the asset, the person on screen. The format is
+   **Founder-led** *(spec 1 §2.1)*.

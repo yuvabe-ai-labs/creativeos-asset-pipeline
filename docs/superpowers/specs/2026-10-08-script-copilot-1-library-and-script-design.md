@@ -56,9 +56,28 @@ A script has four parts.
 
 ### 2.1 The header
 
-Title, reel number, format (such as "UGC · Review" or "Avatar (James)"), region, post date and
-occasion, theme, aspect and target length. These are the fields of the outlines' header line. The
-library card shows them.
+Title, reel number, format, region, post date and occasion, theme, aspect and target length. These
+are the fields of the outlines' header line. The library card shows them.
+
+**Formats are inferred from the client's existing scripts, not picked from a product list,** and so
+are the people's names (§2.3). The Jackfruit365 plan uses five:
+
+| Format | Reels |
+|---|---|
+| UGC | 1, 4, 5, 12, 16, 19, 21, 25 |
+| UGC, review first | 8, 10, 11, 17, 18, 26, 27 |
+| UGC (option) | 3, 7, 15, 22, 24 |
+| Founder-led | 2, 6, 9, 14, 20, 23, 28 |
+| Founder-led (option) | 13 |
+
+That is two formats and two modifiers. UGC reels are built around a persona and a real Amazon
+review. Founder-led reels are James, the founder, speaking as an AI avatar. "Review first" puts the
+review card right after the hook. "Option" marks the one optional reel a month. Another client's
+scripts would give other formats.
+
+**"Avatar" is never a format name.** In CreativeOS an avatar is the asset: a person in the
+client's Avatars library. The outlines call the founder format "Avatar"; the product calls it
+**Founder-led**, the outlines' own description of those reels ("James' avatar, founder-led").
 
 ### 2.2 The context card
 
@@ -296,11 +315,11 @@ Spec 1 is done when, for the Jackfruit365 client:
 
 ## 12. Open questions
 
-From the parent spec, still open:
+From the parent spec, still open (its question 4, on the word "Avatar", is answered: see below):
 
 1. Is there a **series or campaign level** between the client and its scripts?
 2. Where should the **cast** eventually live: the client, a series, or the script? (This spec puts
    the people in the client's Avatars library and the cast list on the script.)
-3. "Avatar" names both a reel **format** (founder-led, such as "Avatar (James)") and the **person
-   on screen**. This work calls the person on screen the avatar everywhere; the format's name is
-   still open.
+
+**Answered 8 Oct: the word "Avatar".** An avatar is the asset, the person in the client's Avatars
+library, every time. The format the outlines call "Avatar" is named **Founder-led** (§2.1).
