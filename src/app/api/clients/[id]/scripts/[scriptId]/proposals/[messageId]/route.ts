@@ -1,6 +1,6 @@
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import {
-  changeGenerateScript, insertScriptMessages, listCopilotAvatars, listScriptMessages, loadGenerateState, setMessageCard,
+  changeGenerateScript, claimProposalCard, insertScriptMessages, listCopilotAvatars, listScriptMessages, loadGenerateState, setMessageCard,
 } from "@/lib/db/script-generate";
 import { acceptProposal } from "@/lib/scripts/copilot/turn";
 import { newShotId } from "@/lib/scripts/copilot/draft";
@@ -23,14 +23,21 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!card) return apiError("That change is not on this script.", 404);
       if (card.status !== "pending") return apiError("That change was already settled.", 409);
 
+      // Claim the card first: only one decision can settle it, so two accepts never apply it twice.
+      const claimed = await claimProposalCard(clientId, scriptId, messageId, { ...card, status: decision === "accept" ? "accepted" : "rejected" });
+      if (!claimed) return apiError("That change was already settled.", 409);
+
       if (decision === "reject") {
-        await setMessageCard(clientId, scriptId, messageId, { ...card, status: "rejected" });
         await insertScriptMessages(clientId, scriptId, null, [{ role: "assistant", content: "Left the script as it was.", card: null }]);
       } else {
         const avatarIds = new Set((await listCopilotAvatars(clientId)).map((a) => a.id));
         const outcome = await changeGenerateScript(clientId, scriptId, (current) => acceptProposal(current, card, { newShotId, avatarIds }));
-        if ("error" in outcome) return apiError(outcome.error, outcome.status);
-        await setMessageCard(clientId, scriptId, messageId, outcome.result.card);
+        if ("error" in outcome) {
+          // Nothing was applied: put the card back so it can be tried again.
+          await setMessageCard(clientId, scriptId, messageId, card);
+          return apiError(outcome.error, outcome.status);
+        }
+        if (outcome.result.card.status !== "accepted") await setMessageCard(clientId, scriptId, messageId, outcome.result.card);
         await insertScriptMessages(clientId, scriptId, null, [{ role: "assistant", content: outcome.result.reply, card: null }]);
       }
       const state = await loadGenerateState(clientId, scriptId);
