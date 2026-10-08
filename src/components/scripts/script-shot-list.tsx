@@ -1,15 +1,22 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { CastMember, Shot } from "@/lib/scripts/schema";
-import { formatRange, groupByBeat, timeShots } from "@/lib/scripts/timeline";
+import { formatRange, groupByBeat, timeShots, type TimedShot } from "@/lib/scripts/timeline";
 import { SHOT_GRID, ScriptShotRow } from "./script-shot-row";
 
 const COLUMNS = ["Time", "Visual", "VO", "On-screen text", "On screen"];
 
-export function ScriptShotList({ shots, cast }: { shots: Shot[]; cast: CastMember[] }) {
+export function ScriptShotList({ shots, cast, compact = false, aside }: {
+  shots: Shot[];
+  cast: CastMember[];
+  /** Stacked rows for a narrow pane (Visualise), with no column header. */
+  compact?: boolean;
+  /** Drawn beside each compact row (Visualise: the panel status). */
+  aside?: (t: TimedShot) => ReactNode;
+}) {
   const [grouped, setGrouped] = useState(true);
   const switchId = useId();
   const timed = timeShots(shots);
@@ -24,9 +31,11 @@ export function ScriptShotList({ shots, cast }: { shots: Shot[]; cast: CastMembe
         </div>
       </div>
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className={`hidden gap-3 border-b border-border bg-muted/50 px-4 py-2 md:grid ${SHOT_GRID}`}>
-          {COLUMNS.map((c) => <span key={c} className="text-eyebrow">{c}</span>)}
-        </div>
+        {!compact && (
+          <div className={`hidden gap-3 border-b border-border bg-muted/50 px-4 py-2 md:grid ${SHOT_GRID}`}>
+            {COLUMNS.map((c) => <span key={c} className="text-eyebrow">{c}</span>)}
+          </div>
+        )}
         {grouped ? (
           groupByBeat(timed).map((g, i) => (
             <div key={`${g.beat}-${i}`}>
@@ -34,11 +43,11 @@ export function ScriptShotList({ shots, cast }: { shots: Shot[]; cast: CastMembe
                 <span className="text-eyebrow">{g.beat || "No beat"}</span>
                 <span className="text-xs tabular-nums text-muted-foreground">{formatRange(g.start, g.end)}</span>
               </div>
-              <ul>{g.shots.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} />)}</ul>
+              <ul>{g.shots.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} compact={compact} aside={aside ? aside(t) : undefined} />)}</ul>
             </div>
           ))
         ) : (
-          <ul>{timed.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} />)}</ul>
+          <ul>{timed.map((t) => <ScriptShotRow key={t.shot.id} timed={t} cast={cast} compact={compact} aside={aside ? aside(t) : undefined} />)}</ul>
         )}
       </div>
     </section>
