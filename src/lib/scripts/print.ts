@@ -30,7 +30,7 @@ export function printScript(doc: ScriptDoc): string {
   lines.push(`**${label ? `${label}  ` : ""}${header.title}**`, "");
 
   const aspectLength = [header.aspect, header.targetLength].filter((p) => p.trim()).join(", ");
-  const facts = [header.region, header.postDate, header.theme, aspectLength].filter((p) => p.trim());
+  const facts = [header.region, header.postDate, header.theme, aspectLength, header.production].filter((p) => p.trim());
   lines.push(`| ${cell(header.format)} | ${facts.map(cell).join(HEADER_SEP)} |`, "| :---- | :---- |", "");
 
   if (context.purpose.trim()) lines.push(`**Purpose.**  ${context.purpose.trim()}`, "");

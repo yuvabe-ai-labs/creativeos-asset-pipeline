@@ -18,6 +18,10 @@ describe("scriptDocSchema", () => {
     expect(doc.header.format).toBe("UGC");
   });
 
+  it("Reel 01's header carries the production line every outline ends with", () => {
+    expect(scriptDocSchema.parse(reel01).header.production).toBe("AI-generated");
+  });
+
   it("rejects a cast with no lead", () => {
     const doc = clone();
     doc.cast = doc.cast.map((c) => ({ ...c, isLead: false }));

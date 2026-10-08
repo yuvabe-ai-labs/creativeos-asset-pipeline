@@ -15,6 +15,8 @@ export const scriptHeaderSchema = z.object({
   theme: z.string().trim().max(120),
   aspect: z.string().trim().max(20),
   targetLength: z.string().trim().max(40),
+  /** How the reel is made, as the outlines' header line ends: "AI-generated" in all 28. */
+  production: z.string().trim().max(40),
 });
 
 export const contextCardSchema = z.object({

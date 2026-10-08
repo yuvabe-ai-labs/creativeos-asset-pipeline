@@ -14,7 +14,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 
 export function ScriptContextCard({ doc, stage }: { doc: ScriptDoc; stage: ScriptStage }) {
   const { header, context } = doc;
-  const facts = [headerLine(header), header.theme, [header.aspect, header.targetLength].filter(Boolean).join(", ")]
+  const facts = [headerLine(header), header.theme, [header.aspect, header.targetLength].filter(Boolean).join(", "), header.production]
     .filter(Boolean)
     .join(" · ");
   return (

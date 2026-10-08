@@ -56,8 +56,9 @@ A script has four parts.
 
 ### 2.1 The header
 
-Title, reel number, format, region, post date and occasion, theme, aspect and target length. These
-are the fields of the outlines' header line. The library card shows them.
+Title, reel number, format, region, post date and occasion, theme, aspect, target length and
+production ("AI-generated", which ends all 28 header lines; added 8 Oct). These are the fields of
+the outlines' header line. The library card shows them.
 
 **Formats are inferred from the client's existing scripts, not picked from a product list,** and so
 are the people's names (§2.3). The Jackfruit365 plan uses five:

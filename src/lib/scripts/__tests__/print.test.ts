@@ -13,7 +13,7 @@ describe("printScript", () => {
   it("opens with the reel's title line and header row", () => {
     expect(text.startsWith("**Reel 01  Golu starts today**\n")).toBe(true);
     expect(text).toContain(
-      "| UGC | South   ·   Sun 11 Oct (first day of Navratri)   ·   Navratri / Golu   ·   9:16, 45 to 55 sec |",
+      "| UGC | South   ·   Sun 11 Oct (first day of Navratri)   ·   Navratri / Golu   ·   9:16, 45 to 55 sec   ·   AI-generated |",
     );
   });
 
