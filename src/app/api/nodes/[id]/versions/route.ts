@@ -118,5 +118,11 @@ export async function GET(
         creditsCharged: creditsByVersion.get(v.id) ?? null,
       })),
     });
-  });
+  },
+  // A node the client just added isn't in the DB until autosave persists it, and a focus view
+  // reads its versions the moment it opens — the guided buttons open one on a brand-new node.
+  // No row means no versions, the same result as an empty list; the org-mismatch 404 in
+  // withNode is untouched (that's an access check, not a lookup miss).
+  { onNotFound: () => apiOk({ activeVersionId: null, versions: [] }) },
+  );
 }

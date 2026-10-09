@@ -49,7 +49,7 @@ import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
-import { usePrefetchNodeVersions } from "@/hooks/queries/node-versions";
+import { usePrefetchNodeVersions, useNodeVersionsLiveSync } from "@/hooks/queries/node-versions";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
@@ -94,6 +94,8 @@ const VERSIONED_NODE_TYPES = new Set([
   "video-prompt",
   "video-gen",
 ]);
+// How long the pointer must rest on a node before its versions are prefetched.
+const HOVER_PREFETCH_DELAY_MS = 200;
 
 export function Canvas({
   canvasId,
@@ -186,22 +188,45 @@ export function Canvas({
     nodesRef.current = nodes;
   }, [nodes]);
 
-  // Hovering a node starts loading its version history, so its focus view usually opens on
+  // Cached version lists stay honest while their views are closed: one that the live channel
+  // says has changed is dropped, so the next open reads it fresh.
+  useNodeVersionsLiveSync({
+    isOnCanvas: (nodeId) => storeApi.getState().nodes.some((n) => n.id === nodeId),
+    openFocusViewIds: () => storeApi.getState().openFocusViewIds,
+  });
+
+  // Resting on a node starts loading its version history, so its focus view usually opens on
   // data that is already there. An Image Gen view also shows its connected Prompt's text, so
-  // that prompt's versions come along. A no-op for anything already freshly cached.
+  // that prompt's versions come along. Only after the pointer settles — sweeping across a
+  // canvas must not fire a read per node passed over — and a no-op for anything freshly cached.
   const prefetchNodeVersions = usePrefetchNodeVersions();
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onNodeMouseEnter = useCallback<NodeMouseHandler<AppNode>>(
     (_event, node) => {
       if (!node.type || !VERSIONED_NODE_TYPES.has(node.type)) return;
-      void prefetchNodeVersions(node.id);
-      if (node.type !== "image-gen") return;
-      const { nodes: all, edges: wires } = storeApi.getState();
-      const prompt = all.find(
-        (n) => n.type === "prompt" && wires.some((e) => e.source === n.id && e.target === node.id),
-      );
-      if (prompt) void prefetchNodeVersions(prompt.id);
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      hoverTimer.current = setTimeout(() => {
+        hoverTimer.current = null;
+        void prefetchNodeVersions(node.id);
+        if (node.type !== "image-gen") return;
+        const { nodes: all, edges: wires } = storeApi.getState();
+        const prompt = all.find(
+          (n) => n.type === "prompt" && wires.some((e) => e.source === n.id && e.target === node.id),
+        );
+        if (prompt) void prefetchNodeVersions(prompt.id);
+      }, HOVER_PREFETCH_DELAY_MS);
     },
     [prefetchNodeVersions, storeApi],
+  );
+  const onNodeMouseLeave = useCallback(() => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+  }, []);
+  useEffect(
+    () => () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    },
+    [],
   );
 
   const rfRef = useRef<{
@@ -468,6 +493,7 @@ export function Canvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeMouseEnter={onNodeMouseEnter}
+        onNodeMouseLeave={onNodeMouseLeave}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}

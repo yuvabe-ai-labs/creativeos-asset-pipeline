@@ -362,7 +362,12 @@ export function MultishotPromptFocusView({
   // draft, and a background update must not discard what they are typing.
   if (open && versionsQuery.data && versionsQuery.data !== seededVersions) {
     setSeededVersions(versionsQuery.data);
-    applyVersions(versionsQuery.data, { preserveEvalDraft: seededVersions !== undefined });
+    applyVersions(versionsQuery.data, {
+      // A draft belongs to the version it was typed on: a different active version re-seeds it.
+      preserveEvalDraft:
+        seededVersions !== undefined &&
+        seededVersions.activeVersionId === versionsQuery.data.activeVersionId,
+    });
   }
 
   // Same flush-then-fetch sequencing as video-prompt-focus-view: a node reached straight from

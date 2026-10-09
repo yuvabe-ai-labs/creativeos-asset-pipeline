@@ -283,7 +283,12 @@ export function PromptFocusView({
   // draft (saved on blur), and a background update must not discard what they are typing.
   if (open && versionsQuery.data && versionsQuery.data !== seededVersions) {
     setSeededVersions(versionsQuery.data);
-    applyVersions(versionsQuery.data, { preserveEvalDraft: seededVersions !== undefined });
+    applyVersions(versionsQuery.data, {
+      // A draft belongs to the version it was typed on: a different active version re-seeds it.
+      preserveEvalDraft:
+        seededVersions !== undefined &&
+        seededVersions.activeVersionId === versionsQuery.data.activeVersionId,
+    });
   }
 
   // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates

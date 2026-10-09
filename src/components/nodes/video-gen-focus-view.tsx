@@ -778,15 +778,20 @@ export function VideoGenFocusView({
   // call site. Covers the first read, restore (which refetches) and the D179 live path at once:
   // the badge follows whichever version is active. TC-106. updateNodeData skips a patch that
   // changes nothing, so a refresh that finds the same active version writes nothing.
+  //
+  // Held while a read is in flight: a reopen renders the cached list while it re-checks, and
+  // that list can predate a version finished while the view was closed — mirroring it would
+  // put the older clip back on the card until the read lands.
+  const versionsFetching = versionsQuery.isFetching;
   useEffect(() => {
     const data = versionsQuery.data;
-    if (!open || !data) return;
+    if (!open || !data || versionsFetching) return;
     const active = data.versions.find((v) => v.id === data.activeVersionId);
     onPatchRef.current({
       ...(active?.output ? { parsed: active.output } : {}),
       approvalStatus: active?.approvalStatus ?? "pending",
     });
-  }, [open, versionsQuery.data]);
+  }, [open, versionsQuery.data, versionsFetching]);
 
   // D179: keep this panel live while it is open. Someone else approving, rejecting or
   // regenerating THIS node refreshes it in place — the decision thread, the status icons

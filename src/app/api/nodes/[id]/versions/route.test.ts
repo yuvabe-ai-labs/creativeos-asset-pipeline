@@ -18,13 +18,16 @@ vi.mock("@/lib/auth/impersonation", () => ({
 }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn(async () => undefined) }));
 
+// A node the client just added exists only in its store until autosave persists it, and the
+// focus view reads its versions as it opens — so the row can be missing. `exists` toggles that.
+const { nodeRow } = vi.hoisted(() => ({ nodeRow: { exists: true } }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: () => ({
       select: () => ({
         eq: () => ({
           maybeSingle: async () => ({
-            data: {
+            data: !nodeRow.exists ? null : {
               id: "node-1",
               canvas_id: "canvas-1",
               type: "image-gen",
@@ -111,6 +114,7 @@ function get() {
 describe("GET /api/nodes/[id]/versions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    nodeRow.exists = true;
     db.listVersions.mockResolvedValue([version]);
     db.getCreditsChargedByVersionIds.mockResolvedValue(new Map([["v1", 12]]));
     db.getDecisionsByVersionIds.mockResolvedValue(new Map([["v1", [decision]]]));
@@ -141,6 +145,14 @@ describe("GET /api/nodes/[id]/versions", () => {
         },
       ],
     });
+  });
+
+  it("returns no versions (not a 404) for a node not yet persisted", async () => {
+    nodeRow.exists = false;
+    const res = await get();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ activeVersionId: null, versions: [] });
+    expect(db.listVersions).not.toHaveBeenCalled();
   });
 
   it("reads credits and decisions side by side, then names and annotations side by side", async () => {
