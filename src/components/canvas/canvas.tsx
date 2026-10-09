@@ -12,6 +12,7 @@ import {
   SelectionMode,
   type Connection,
   type Edge,
+  type NodeMouseHandler,
   type NodeTypes,
   type OnBeforeDelete,
   type XYPosition,
@@ -48,6 +49,7 @@ import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
+import { usePrefetchNodeVersions } from "@/hooks/queries/node-versions";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
@@ -82,6 +84,16 @@ const nodeTypes: NodeTypes = {
   post: PostNode,
   "client-review": ClientReviewNode,
 };
+
+// The node types whose focus view opens on a version history — what hovering one prefetches.
+const VERSIONED_NODE_TYPES = new Set([
+  "prompt",
+  "multishot-prompt",
+  "image-gen",
+  "composite",
+  "video-prompt",
+  "video-gen",
+]);
 
 export function Canvas({
   canvasId,
@@ -173,6 +185,24 @@ export function Canvas({
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  // Hovering a node starts loading its version history, so its focus view usually opens on
+  // data that is already there. An Image Gen view also shows its connected Prompt's text, so
+  // that prompt's versions come along. A no-op for anything already freshly cached.
+  const prefetchNodeVersions = usePrefetchNodeVersions();
+  const onNodeMouseEnter = useCallback<NodeMouseHandler<AppNode>>(
+    (_event, node) => {
+      if (!node.type || !VERSIONED_NODE_TYPES.has(node.type)) return;
+      void prefetchNodeVersions(node.id);
+      if (node.type !== "image-gen") return;
+      const { nodes: all, edges: wires } = storeApi.getState();
+      const prompt = all.find(
+        (n) => n.type === "prompt" && wires.some((e) => e.source === n.id && e.target === node.id),
+      );
+      if (prompt) void prefetchNodeVersions(prompt.id);
+    },
+    [prefetchNodeVersions, storeApi],
+  );
 
   const rfRef = useRef<{
     screenToFlowPosition: (pos: { x: number; y: number }) => XYPosition;
@@ -437,6 +467,7 @@ export function Canvas({
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeMouseEnter={onNodeMouseEnter}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
