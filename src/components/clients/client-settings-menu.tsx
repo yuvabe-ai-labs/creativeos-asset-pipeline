@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, FileText, Globe, Images, Settings, UserRound } from "lucide-react";
+import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CLIENT_SECTIONS } from "@/components/clients/client-sections";
 
 /**
  * Entry point to the client's surfaces beside its canvases: its scripts, its knowledge (Brand KB,
@@ -12,39 +13,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
  * change doesn't deliver.
  */
 export function ClientSettingsMenu({ slug }: { slug: string }) {
-  const items = [
-    {
-      href: `/clients/${slug}/scripts`,
-      icon: FileText,
-      label: "Scripts",
-      hint: "Reel scripts, draft to sign-off",
-    },
-    {
-      href: `/clients/${slug}/kb`,
-      icon: BookOpen,
-      label: "Brand KB",
-      hint: "Positioning, products, audience",
-    },
-    {
-      href: `/clients/${slug}/brand-assets`,
-      icon: Images,
-      label: "Brand assets",
-      hint: "Imported from website and socials",
-    },
-    {
-      href: `/clients/${slug}/market`,
-      icon: Globe,
-      label: "Market",
-      hint: "Direct, Adjacent and Signals",
-    },
-    {
-      href: `/clients/${slug}/avatars`,
-      icon: UserRound,
-      label: "Avatars",
-      hint: "Reusable characters and voices",
-    },
-  ];
-
   return (
     <Popover>
       <PopoverTrigger
@@ -56,14 +24,14 @@ export function ClientSettingsMenu({ slug }: { slug: string }) {
         }
       />
       <PopoverContent align="end" className="w-60 p-1">
-        {items.map((item) => (
+        {CLIENT_SECTIONS.map((item) => (
           <Button
-            key={item.href}
+            key={item.label}
             variant="ghost"
             nativeButton={false}
             className="h-auto w-full justify-start gap-2.5 rounded-md px-2 py-2 font-normal"
             render={
-              <Link href={item.href}>
+              <Link href={item.href(slug)}>
                 <item.icon
                   className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                   strokeWidth={1.5}
