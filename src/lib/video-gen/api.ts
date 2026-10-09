@@ -1,6 +1,7 @@
 // Client-safe API wrappers for video-gen routes.
 // All functions throw on non-OK responses so callers can catch and toast.
-// A node's versions are read through the shared versions cache (hooks/queries/node-versions).
+// A node's versions and a Video Gen node's upstream are read through their shared caches
+// (hooks/queries/node-versions, hooks/queries/node-upstream); the types below are theirs.
 
 export type UpstreamImage = {
   id: string;
@@ -45,17 +46,6 @@ async function parseError(res: Response, fallback: string): Promise<never> {
 }
 
 export const videoGenApi = {
-  async fetchUpstreamImages(nodeId: string): Promise<{ images: UpstreamImage[]; promptNode: UpstreamPromptNode | null }> {
-    try {
-      const res = await fetch(`/api/nodes/${nodeId}/upstream-images`);
-      if (!res.ok) return { images: [], promptNode: null };
-      const json = await res.json() as { images: UpstreamImage[]; promptNode: UpstreamPromptNode | null };
-      return { images: json.images ?? [], promptNode: json.promptNode ?? null };
-    } catch {
-      return { images: [], promptNode: null };
-    }
-  },
-
   async startGeneration(
     nodeId: string,
     payload: StartGenerationPayload,

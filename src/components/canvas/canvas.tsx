@@ -50,6 +50,7 @@ import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
 import { usePrefetchNodeVersions, useNodeVersionsLiveSync } from "@/hooks/queries/node-versions";
+import { usePrefetchNodeUpstream } from "@/hooks/queries/node-upstream";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
@@ -200,6 +201,7 @@ export function Canvas({
   // that prompt's versions come along. Only after the pointer settles — sweeping across a
   // canvas must not fire a read per node passed over — and a no-op for anything freshly cached.
   const prefetchNodeVersions = usePrefetchNodeVersions();
+  const prefetchNodeUpstream = usePrefetchNodeUpstream();
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onNodeMouseEnter = useCallback<NodeMouseHandler<AppNode>>(
     (_event, node) => {
@@ -208,6 +210,9 @@ export function Canvas({
       hoverTimer.current = setTimeout(() => {
         hoverTimer.current = null;
         void prefetchNodeVersions(node.id);
+        // A Video Gen view also opens on its connected inputs. Shown only until its own
+        // post-flush read confirms them (see useNodeUpstream).
+        if (node.type === "video-gen") void prefetchNodeUpstream(node.id);
         if (node.type !== "image-gen") return;
         const { nodes: all, edges: wires } = storeApi.getState();
         const prompt = all.find(
@@ -216,7 +221,7 @@ export function Canvas({
         if (prompt) void prefetchNodeVersions(prompt.id);
       }, HOVER_PREFETCH_DELAY_MS);
     },
-    [prefetchNodeVersions, storeApi],
+    [prefetchNodeVersions, prefetchNodeUpstream, storeApi],
   );
   const onNodeMouseLeave = useCallback(() => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);

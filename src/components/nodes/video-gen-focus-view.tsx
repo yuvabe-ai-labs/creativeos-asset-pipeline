@@ -72,6 +72,7 @@ import {
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
 import type { NodeVersionsResponse } from "@/services/node-versions.service";
+import { useNodeUpstream, useRefreshNodeUpstream } from "@/hooks/queries/node-upstream";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
 import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
@@ -511,8 +512,16 @@ export function VideoGenFocusView({
   const [params, setParams] = useState<Record<string, unknown>>(
     () => paramsProp ?? defaultsForVideoModel(initialModelId),
   );
-  const [upstreamImages, setUpstreamImages] = useState<UpstreamImage[]>([]);
-  const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
+  // What this node is fed, from the shared cache: a reopen (or a hover before it) shows the last
+  // known inputs at once. Shown only — every write and Generate wait for `loadingConnected` to
+  // clear, which happens after the post-flush re-read confirms the inputs (see persistThenRefresh).
+  const upstreamQuery = useNodeUpstream(nodeId);
+  const refreshUpstreamQuery = useRefreshNodeUpstream(nodeId);
+  const upstreamImages = useMemo<UpstreamImage[]>(
+    () => upstreamQuery.data?.images ?? [],
+    [upstreamQuery.data],
+  );
+  const promptNode: UpstreamPromptNode | null = upstreamQuery.data?.promptNode ?? null;
   // D299 — the script's presenter, when it is in this shot.
   const shotPresenter = useShotPresenter(promptNode?.id);
   const presenterAvatar = shotPresenter?.inShot ? shotPresenter.avatar : null;
@@ -578,7 +587,12 @@ export function VideoGenFocusView({
   // and setFocusedNodeId land in the same batch, so the card mounts with its focus view open,
   // and the rail rendered "No inputs connected." instead of a skeleton. (`loadingVersions`,
   // above, is derived from the versions cache and cannot hit this.)
+  //
+  // True until this open's post-flush read of the inputs has landed: every write that depends on
+  // them (role auto-assign and pruning, the multishot model) and Generate wait for it. The rail
+  // only shows a skeleton while there is also nothing cached to show (`showConnectedSkeleton`).
   const [loadingConnected, setLoadingConnected] = useState(open);
+  const showConnectedSkeleton = loadingConnected && !upstreamQuery.data;
 
   const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -803,16 +817,14 @@ export function VideoGenFocusView({
   // so anything that rewires the canvas has to refetch to be seen here.
   // Promise-chain (not async/await) so the setState calls sit inside a .then callback —
   // react-hooks/set-state-in-effect reads an awaited setState as a synchronous one.
+  // A failed read keeps the last known inputs (or none, on a first open) rather than answering
+  // "nothing connected", which would prune every image role.
   const refreshUpstream = useCallback(
     () =>
-      videoGenApi
-        .fetchUpstreamImages(nodeId)
-        .then(({ images, promptNode: pn }) => {
-          setUpstreamImages(images);
-          setPromptNode(pn);
-        })
-        .catch(() => {}),
-    [nodeId],
+      refreshUpstreamQuery()
+        .then(() => undefined)
+        .catch(() => undefined),
+    [refreshUpstreamQuery],
   );
 
   // Wiring only writes the edge into the client store. Autosave persists it on a 600ms debounce,
@@ -1314,9 +1326,14 @@ export function VideoGenFocusView({
   const overCapReason = referenceSelection.overCap > 0
     ? `${currentModel?.label ?? modelId} takes ${imageInputs.maxReferenceImages} references; ${imageInputs.maxReferenceImages + referenceSelection.overCap} are selected. Turn some off.`
     : null;
+  // `loadingConnected`: the inputs on screen may be the cached copy, not yet confirmed by this
+  // open's re-read — never generate (and post roles) from those.
   const disableGenerate =
+    loadingConnected ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
-  const disableGenerateReason = constraints.disableGenerate
+  const disableGenerateReason = loadingConnected
+    ? "Loading connected inputs…"
+    : constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
       ? ladderCheck.reason
@@ -1505,7 +1522,7 @@ export function VideoGenFocusView({
                 onConnected={() => void persistThenRefresh()}
               />
             </div>
-            {loadingConnected ? (
+            {showConnectedSkeleton ? (
               <div className="space-y-1.5 px-1 pt-1">
                 {Array.from({ length: 2 }).map((_, i) => (
                   <div key={i} className="h-7 animate-pulse rounded-md bg-muted-foreground/15" />
@@ -1786,7 +1803,7 @@ export function VideoGenFocusView({
                 ) : (
                   <div className="flex h-full items-center justify-center px-6 py-6">
                     <p className="text-sm text-muted-foreground">
-                      {loadingConnected ? "Loading…" : "This input has no preview yet."}
+                      {showConnectedSkeleton ? "Loading…" : "This input has no preview yet."}
                     </p>
                   </div>
                 ))}
