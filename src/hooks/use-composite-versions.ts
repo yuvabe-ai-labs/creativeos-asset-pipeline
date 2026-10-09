@@ -1,9 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import type { ImageGenVersionSummary } from "@/components/nodes/image-gen-version-history";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
+import {
+  useNodeVersions,
+  useRefreshNodeVersions,
+  useSetActiveNodeVersion,
+} from "@/hooks/queries/node-versions";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 
@@ -13,28 +18,22 @@ type Patch = (patch: Record<string, unknown>) => void;
  *  versions and restore; generation goes to composite-generate with the instruction in the body
  *  (the canvas autosaves on a delay, so the stored copy can lag). */
 export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Patch) {
-  const [versions, setVersions] = useState<ImageGenVersionSummary[]>([]);
-  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(open);
+  // Read through the shared versions cache: reopening shows the list at once and re-checks behind it.
+  const { data, isPending } = useNodeVersions<ImageGenVersionSummary>(nodeId, open);
+  const refreshVersions = useRefreshNodeVersions<ImageGenVersionSummary>(nodeId);
+  const setActiveVersionId = useSetActiveNodeVersion(nodeId);
+  const versions = data?.versions ?? [];
+  const activeVersionId = data?.activeVersionId ?? null;
+  const loading = open && isPending;
   const [generating, setGenerating] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
 
+  // Best-effort, like the read it replaces: a failed refresh leaves the cached list on screen.
   const fetchVersions = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/nodes/${nodeId}/versions`);
-      if (!res.ok) return;
-      const json = (await res.json()) as { activeVersionId: string | null; versions: ImageGenVersionSummary[] };
-      setVersions(json.versions ?? []);
-      setActiveVersionId(json.activeVersionId ?? null);
-    } finally {
-      setLoading(false);
-    }
-  }, [nodeId]);
+    await refreshVersions().catch(() => undefined);
+  }, [refreshVersions]);
 
-  useEffect(() => {
-    if (open) void fetchVersions();
-  }, [open, fetchVersions]);
   useNodeVersionUpdates(nodeId, open, () => void fetchVersions());
 
   async function generate(body: {
