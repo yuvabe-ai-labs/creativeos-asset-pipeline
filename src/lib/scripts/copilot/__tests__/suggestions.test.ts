@@ -13,21 +13,33 @@ const state = (over: { brief?: Brief; doc?: unknown; notes?: GenerateState["scri
   return {
     script: { id: "s1", clientId: "c1", stage: over.stage ?? "generate", doc, brief: over.brief ?? EMPTY_BRIEF, notes, docVersion: 1, createdAt: "t", updatedAt: "t" },
     messages: [], openItems: fillToFinal(doc, notes),
-    avatars: [{ id: "a1", name: "Meenakshi", story: "", front: null }, { id: "a2", name: "James", story: "", front: null }],
+    avatars: [
+      { id: "a1", name: "Meenakshi", story: "", front: null, specific: false },
+      { id: "a2", name: "James", story: "", front: null, specific: false },
+      { id: "a3", name: "James", story: "", front: null, specific: true },
+    ],
+    formats: ["UGC", "Founder-led", "UGC, review first"],
   };
 };
 const labels = (s: GenerateState) => suggestionsFor(s).map((x) => x.label);
 const angle = { id: "A", hook: "h", situation: "s", mealMoment: "", supportingCast: "", reviewTheme: "", proofEmphasis: "", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "" } as Angle;
 
 describe("suggestionsFor", () => {
-  it("offers demo starters and 'take it from here' when the copilot asks the format", () => {
-    expect(labels(state())).toEqual(["Reel 04, Kerala Piravi, UGC, Saraswathi", "World Diabetes Day, from James, Founder-led", "Take it from here"]);
+  it("offers the library's formats and 'take it from here' when the copilot asks the format", () => {
+    expect(labels(state())).toEqual(["UGC", "Founder-led", "UGC, review first", "Take it from here"]);
     expect(suggestionsFor(state()).every((s) => s.send)).toBe(true);
   });
 
   it("offers an occasion, then the client's avatars as leads", () => {
     expect(labels(state({ brief: { ...EMPTY_BRIEF, format: given("UGC") } }))).toEqual(["Kerala Piravi, Sun 1 Nov", "You pick"]);
-    expect(labels(state({ brief: { ...EMPTY_BRIEF, format: given("UGC"), occasion: given("Onam") } }))).toEqual(["Meenakshi", "James", "Cast it for me"]);
+    expect(labels(state({ brief: { ...EMPTY_BRIEF, format: given("UGC"), occasion: given("Onam") } }))).toEqual(["Meenakshi", "James · AI", "James · Specific", "Cast it for me"]);
+  });
+
+  it("puts Specific avatars first for a Founder-led reel, and each lead chip carries its avatar", () => {
+    const s = suggestionsFor(state({ brief: { ...EMPTY_BRIEF, format: given("Founder-led"), occasion: given("Navratri") } }));
+    expect(s.map((x) => x.label)).toEqual(["James · Specific", "Meenakshi", "James · AI", "Cast it for me"]);
+    expect(s[0]).toEqual({ label: "James · Specific", text: "James", send: true, leadAvatarId: "a3" });
+    expect(s[3].leadAvatarId).toBeUndefined();
   });
 
   it("offers a blend or new angles while angles are showing, and Write it on the card", () => {

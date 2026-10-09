@@ -75,7 +75,7 @@ export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwr
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
               {shownUnwritten.map((u) => (
-                <ScriptUnwrittenCard key={u.id} script={u} href={`/clients/${clientSlug}/scripts/${u.id}`} />
+                <ScriptUnwrittenCard key={u.id} clientId={clientId} script={u} href={`/clients/${clientSlug}/scripts/${u.id}`} />
               ))}
               {shown.map((s) => (
                 <ScriptCard key={s.id} script={s} href={`/clients/${clientSlug}/scripts/${s.id}`} feedbackCount={feedback?.[s.id] ?? 0} />

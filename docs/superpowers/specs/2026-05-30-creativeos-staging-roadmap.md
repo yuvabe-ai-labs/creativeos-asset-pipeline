@@ -7168,3 +7168,33 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Keeping per-view comments beside the avatar box. Migrating comments already made on a view to the person (user: "don't worry about existing comments").
 
 **Refines →** D352, D357, D358. **Originated →** `2026-10-08-script-copilot-4-client-review-design.md` §5, §6, §11 criterion 3; decision 4.12 (amended 9 Oct).
+
+### D360 — Delete in the library is for unwritten scripts only, and archives *(recorded 2026-10-09)*
+
+**Decision.** A script the copilot has not written yet (at Generate, no draft) can be deleted from its card in the Scripts library, behind a confirm. Delete sets `archived_at`, which every script query already filters, in one conditional update that matches only an undrafted Generate script, so a draft landing at the same moment wins. The route refuses a drafted script (409) and gives a 404 for a missing or another client's one. No row is removed.
+
+**Why.** User, 9 Oct: stale unwritten scripts made while trying the copilot clutter the library and keep their old opening. An unwritten script owns nothing beyond its brief and conversation, so deleting it needs no further rules.
+
+**Rejected.** Delete at every stage: a drafted script owns storyboard generations, a client review link and the append-only activity log (spec 4 §7), so deleting it needs product rules (a live review link, an approved script) not yet decided. A hard `DELETE`: it cascades through those tables and can't be undone.
+
+**Originated →** this conversation; no spec section.
+
+### D361 — The copilot's questions never repeat their chips *(recorded 2026-10-09)*
+
+**Decision.** When the copilot asks for a piece of the brief, the one-tap chips under the message carry the options and the skip; the message only asks, plus what no chip can do ("describe your own", "name someone new"). The format question offers the formats in the client's finished scripts as chips (carried in the Generate state while there is no draft), and the lead question offers every saved avatar, not the first three. The opening is three short lines: what the copilot works from, the four pieces, the format question. The Jackfruit-only "option" hint and the two demo starters are gone.
+
+**Why.** User, 9 Oct: the opening was "a block of paragraph", the format question should "give you options as chips", and "if the chips provide options remove it from prose". The library's formats repeated twice, and "UGC, review first" read as two items in a comma list.
+
+**Rejected.** Listing the formats as bullets in the message (repeats the chips). Keeping the demo starters beside the format chips (crowds the row).
+
+**Refines →** spec 2 interaction model §3.0 (the copilot's wording). **Originated →** this conversation.
+
+### D362 — "Who leads?" is asked for every format; a lead chip links that exact avatar *(recorded 2026-10-09)*
+
+**Decision.** The copilot asks who leads for every format, Founder-led included, with the client's saved avatars as chips. For a Founder-led reel the Specific avatars (an uploaded photo of a real person) come first. When two avatars share a name, a chip names its kind: "James · Specific", "James · AI". A lead chip sends its avatar id with the message, and the turn sets the lead from it in code; the model's reading of the name cannot override it. The card and the first draft put that avatar on the lead. The confirmation card's cast shows each linked avatar's face and label, and "Lead" once.
+
+**Why.** User, 9 Oct: a Founder-led card came back with Meenakshi as the lead ("founder lead needed to be James", "as specific avatar"). Skipping the question left the lead to the model, which followed the conversation, and the client has two ready avatars named James, so even a right name could link the wrong one.
+
+**Rejected.** Keeping the skip and filling in the client's Specific avatar: it only works while a client has exactly one, and breaks silently when a second is added. Picking only after the draft (the cast list already allows it): the angles, card and draft are all written around the lead, so it has to be settled first.
+
+**Supersedes →** spec 2 interaction model §3.0 "Founder-led skips it: the cast is James". **Originated →** this conversation.

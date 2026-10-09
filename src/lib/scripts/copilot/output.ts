@@ -63,7 +63,7 @@ export const angleOutputSchema = z.object({
   signalIds: z.array(z.string()),
   fromSignals: z.string(),
 });
-export const anglesOutputSchema = z.object({ angles: z.array(angleOutputSchema), researchNote: z.string() });
+export const anglesOutputSchema = z.object({ angles: z.array(angleOutputSchema) });
 
 export const cardOutputSchema = z.object({
   title: z.string(),

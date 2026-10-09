@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { scriptGenerateService } from "@/services/script-generate.service";
+import { scriptGenerateService, type TurnMessage } from "@/services/script-generate.service";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
 import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 import { scriptKeys } from "./scripts";
@@ -32,8 +32,8 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
   const queryClient = useQueryClient();
   const key = scriptKeys.generate(clientId, scriptId);
   return useMutation({
-    mutationFn: (text: string) => scriptGenerateService.turn(clientId, scriptId, text, onDraft),
-    onMutate: async (text) => {
+    mutationFn: (message: TurnMessage) => scriptGenerateService.turn(clientId, scriptId, message, onDraft),
+    onMutate: async ({ text }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<GenerateState>(key);
       if (previous) {
@@ -80,6 +80,15 @@ export function useMarkFinal(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => scriptGenerateService.markFinal(clientId, scriptId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: scriptKeys.all(clientId) }),
+  });
+}
+
+/** Delete an unwritten script. Every script list for the client changes with it. */
+export function useDeleteScript(clientId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (scriptId: string) => scriptGenerateService.remove(clientId, scriptId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: scriptKeys.all(clientId) }),
   });
 }

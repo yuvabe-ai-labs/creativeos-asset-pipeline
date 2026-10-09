@@ -4,7 +4,10 @@ import type { Script } from "../schema";
 import { printScript } from "../print";
 import { groupByBeat, timeShots } from "../timeline";
 import { reelLabel } from "../utils";
+import type { SignalWithItems } from "@/lib/db/signals";
+import { buildSignalBrief } from "@/lib/market/signal-brief";
 import type { CopilotAvatar } from "./schema";
+import { signalHandle } from "./brief";
 
 // Spec 2 §4 — what the copilot knows without asking, as text for the system message (D334).
 
@@ -66,10 +69,16 @@ export function renderLibrary(scripts: Script[], format: string): string {
 
 export function renderAvatars(avatars: CopilotAvatar[]): string {
   if (avatars.length === 0) return "The client has no saved avatars yet; describe every person in words.";
-  return avatars.map((a) => `- ${a.name} (avatar id ${a.id}): ${a.story.trim() || "no description"}`).join("\n");
+  return avatars.map((a) => `- ${a.name} (avatar id ${a.id}${a.specific ? ", a real person's photo" : ""}): ${a.story.trim() || "no description"}`).join("\n");
 }
 
 /** "The reel number is the slot the person named, else the next free one" (spec 2 §5). */
 export function nextReelNumber(scripts: Script[]): number {
   return Math.max(0, ...scripts.map((s) => s.doc.header.reelNumber ?? 0)) + 1;
+}
+
+/** The market signals for the angles prompt, each labelled with the handle the model answers with
+ *  ([S1], [S2]…), in the order normalizeAngles reads them back. */
+export function renderSignalBrief(signals: SignalWithItems[]): string {
+  return signals.map((s, i) => `[${signalHandle(i)}] ${buildSignalBrief([s])}`).join("\n\n");
 }

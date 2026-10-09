@@ -15,7 +15,7 @@ export function generateScript(over: Partial<GenerateScript> = {}): GenerateScri
 }
 
 export function stateOf(script: GenerateScript): GenerateState {
-  return { script, messages: [], openItems: [], avatars: [] };
+  return { script, messages: [], openItems: [], avatars: [], formats: [] };
 }
 
 /** A stand-in for changeGenerateScript that runs the change once against `current`. */

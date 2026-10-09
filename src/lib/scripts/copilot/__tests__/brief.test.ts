@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  applyAngle, cardToNotes, isFounderLed, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
+  angleText, applyAngle, cardToNotes, isFounderLed, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
   openingMessage, openItemsLine, questionFor,
 } from "../brief";
 import { EMPTY_BRIEF, type Angle, type Brief } from "../schema";
@@ -48,9 +48,9 @@ describe("nextStep: a fixed order, skipping anything already given", () => {
     expect(b.postDate).toBe("Sun 1 Nov");
   });
 
-  it("never asks who leads a Founder-led reel", () => {
+  it("asks who leads every format, Founder-led too (D362: the founder is picked as a saved avatar)", () => {
     const b = { ...EMPTY_BRIEF, format: given("Founder-led"), occasion: given("World Diabetes Day") };
-    expect(nextStep(b, false)).toEqual({ kind: "angles" });
+    expect(nextStep(b, false)).toEqual({ kind: "ask", piece: "lead" });
     expect(isFounderLed("Founder-led option")).toBe(true);
     expect(isFounderLed("UGC, review first")).toBe(false);
   });
@@ -101,15 +101,31 @@ describe("mergeExtraction", () => {
   });
 });
 
+describe("re-reading a pick", () => {
+  it("counts picking the angle that is already the narrative as no change, and a new pick as one", () => {
+    const a = angle("A");
+    const b: Brief = { ...EMPTY_BRIEF, angles: [a, angle("B")], narrative: { value: angleText(a), status: "given" } };
+    const again = mergeExtraction(b, ex({ narrative: { action: "given", value: "", angleId: "A" } }), new Set());
+    expect(again.changed).toBe(false);
+    const other = mergeExtraction(b, ex({ narrative: { action: "given", value: "", angleId: "B" } }), new Set());
+    expect(other.changed).toBe(true);
+    expect(other.brief.narrative.value).toBe(angleText(angle("B")));
+  });
+});
+
 describe("normalising what the model proposed", () => {
-  it("keeps three angles lettered A to C, and drops signal and avatar ids that are not real", () => {
+  it("keeps three angles lettered A to C, and drops avatar ids that are not real", () => {
     const out = normalizeAngles(
-      [angle("x", { signalIds: ["sig-1", "ghost"], leadAvatarId: "nope" }), angle("y"), angle("z"), angle("w")],
-      new Set(["sig-1"]), new Set([AVATAR]),
+      [angle("x", { leadAvatarId: "nope" }), angle("y"), angle("z"), angle("w")],
+      [{ id: "sig-1" }], new Set([AVATAR]),
     );
     expect(out.map((a) => a.id)).toEqual(["A", "B", "C"]);
-    expect(out[0].signalIds).toEqual(["sig-1"]);
     expect(out[0].leadAvatarId).toBeNull();
+  });
+
+  it("reads the signal handles the prompt gave (S1, S2…) back into real signal ids, once each", () => {
+    const [a] = normalizeAngles([angle("x", { signalIds: ["S2", "s1", "S9", "ghost", "S2", "S0"] })], [{ id: "sig-1" }, { id: "sig-2" }], new Set());
+    expect(a.signalIds).toEqual(["sig-2", "sig-1"]);
   });
 
   it("gives the card exactly one lead, the app's reel number, and real avatar ids only", () => {
@@ -126,19 +142,35 @@ describe("normalising what the model proposed", () => {
     expect(card.title).toBe("Untitled reel");
     expect(card.toConfirm).toEqual(["a"]);
   });
+
+  it("puts the avatar the person picked on the card's lead, whatever the model wrote", () => {
+    const card = normalizeCard(
+      { title: "t", reelNumber: 1, lines: [], toConfirm: [], cast: [{ name: "Meenakshi", role: "lead", isLead: true, avatarId: null }] },
+      { reelNumber: 10, avatarIds: new Set([AVATAR]), lead: { avatarId: AVATAR, name: "James" } },
+    );
+    expect(card.cast[0]).toMatchObject({ name: "James", avatarId: AVATAR, isLead: true });
+  });
 });
 
 describe("the copilot's own words", () => {
   it("opens by saying what it works from and asks for the format", () => {
     const text = openingMessage({ clientName: "Jackfruit365", formats: ["UGC", "Founder-led"], hasKb: true });
     expect(text).toContain("Jackfruit365's brand KB");
-    expect(text).toContain("UGC and Founder-led");
-    expect(text).toMatch(/What format is this reel\?/);
+    expect(text).toMatch(/What format is this reel\? Pick one below/);
+    // The formats are chips, not prose: a label like "UGC, review first" breaks a comma list.
+    expect(text).not.toContain("UGC");
     expect(text).not.toMatch(/region/i);
   });
 
-  it("offers the client's avatars when asking who leads", () => {
-    expect(questionFor("lead", { formats: [], avatars: [{ id: "a", name: "Meenakshi", story: "", front: null }] })).toContain("Meenakshi");
+  it("asks for a described format when the library has none", () => {
+    const text = openingMessage({ clientName: "Jackfruit365", formats: [], hasKb: false });
+    expect(text).toContain("Jackfruit365 has no brand KB yet");
+    expect(text).not.toContain("Pick one below");
+  });
+
+  it("points at the avatar chips when asking who leads, without naming them again", () => {
+    const text = questionFor("lead", { formats: [], avatars: [{ id: "a", name: "Meenakshi", story: "", front: null, specific: false }] });
+    expect(text).toBe("Who leads? Pick an avatar below or name someone new.");
   });
 
   it("turns the confirmed card into the reel's notes, with each item to confirm", () => {

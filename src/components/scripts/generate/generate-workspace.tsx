@@ -21,13 +21,13 @@ export function GenerateWorkspace({ clientId, initialState }: { clientId: string
 
   const actions = {
     busy: turn.isPending || proposal.isPending,
-    send: (text: string) => turn.mutate(text, { onError: fail, onSettled: () => setDraft(null) }),
+    send: (text: string, leadAvatarId?: string) => turn.mutate({ text, leadAvatarId }, { onError: fail, onSettled: () => setDraft(null) }),
     resolve: (messageId: string, decision: "accept" | "reject") => proposal.mutate({ messageId, decision }, { onError: fail }),
   };
 
   return (
-    <div className="grid min-h-0 flex-1 items-start gap-6 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
-      <CopilotChat messages={state.messages} actions={actions} suggestions={suggestionsFor(state)} />
+    <div className="grid min-h-0 flex-1 items-start gap-6 lg:grid-cols-[auto_minmax(0,1fr)]">
+      <CopilotChat scriptId={scriptId} messages={state.messages} actions={actions} suggestions={suggestionsFor(state)} avatars={state.avatars} />
       <GenerateScriptPane clientId={clientId} state={state} chatBusy={actions.busy} draft={draft} />
     </div>
   );

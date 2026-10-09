@@ -33,7 +33,8 @@ export type TurnDeps = {
   loadSignals: () => Promise<{ brief: string; signals: { id: string; name: string }[] }>;
   newShotId?: (taken: Set<string>) => string;
 };
-export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; lastAssistant: string };
+/** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362). */
+export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; lastAssistant: string; leadAvatarId?: string | null };
 type Apply = (current: GenerateScript) => Change<Reply[]>;
 
 function baseFor(ctx: CopilotContext, format: string): CopilotBase {
@@ -56,6 +57,15 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
   const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, lastAssistant, text }), schema: extractionSchema });
   const merged = mergeExtraction(script.brief, ex, avatarIds);
   let brief: Brief = merged.brief;
+  let changed = merged.changed;
+  // A picked lead chip is the lead, whatever the model made of the name (two avatars can share one).
+  const picked = input.leadAvatarId ? ctx.avatars.find((a) => a.id === input.leadAvatarId) : undefined;
+  if (picked) {
+    if (brief.leadAvatarId !== picked.id) changed = true;
+    brief = { ...brief, lead: { value: picked.name, status: "given" }, leadAvatarId: picked.id };
+  }
+  const leadAvatar = ctx.avatars.find((a) => a.id === brief.leadAvatarId);
+  const lead = leadAvatar ? { avatarId: leadAvatar.id, name: leadAvatar.name } : null;
   let doc: ScriptDoc | null = null;
   let notes: ScriptNotes | null = null;
   const replies: Reply[] = [];
@@ -68,7 +78,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
   };
 
   // A card that is showing is rebuilt when the person changed a piece or a line of it.
-  let step: Step = brief.card && (merged.changed || merged.cardChange) ? { kind: "card" } : nextStep(brief, false);
+  let step: Step = brief.card && (changed || merged.cardChange) ? { kind: "card" } : nextStep(brief, false);
   for (let guard = 0; guard < 3; guard++) {
     if (step.kind === "ask") {
       say(withAck(questionFor(step.piece, { formats, avatars: ctx.avatars })));
@@ -77,14 +87,14 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     if (step.kind === "angles") {
       const research = await deps.loadSignals();
       const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, text }), schema: anglesOutputSchema });
-      const angles = normalizeAngles(out.angles, new Set(research.signals.map((s) => s.id)), avatarIds);
+      const angles = normalizeAngles(out.angles, research.signals, avatarIds);
       if (angles.length === 0) throw new Error("The copilot proposed no angles.");
       brief = { ...brief, angles };
-      const n = research.signals.length;
-      say(withAck(`I read the client's ${n} market signal${n === 1 ? "" : "s"} for where and when.${out.researchNote.trim() ? ` ${out.researchNote.trim()}` : ""}`), {
+      // The card is the message: which signals each angle used, nothing explaining it.
+      say(withAck(""), {
         kind: "research",
         signals: research.signals,
-        perAngle: angles.map((a) => ({ angleId: a.id, signalIds: a.signalIds, note: a.fromSignals })),
+        perAngle: angles.map((a) => ({ angleId: a.id, signalIds: a.signalIds })),
       });
       say("Here are three angles. Pick one, blend two, or write your own.", { kind: "angles", angles });
       if (brief.narrative.status !== "skipped") break;
@@ -96,7 +106,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     if (step.kind === "card") {
       const angle = brief.angles.find((a) => angleText(a) === brief.narrative.value) ?? null;
       const out = await quick({ name: "script_card", ...cardPrompt(base, { brief, angle, cardChange: merged.cardChange, nextReel }), schema: cardOutputSchema });
-      const card = normalizeCard(out, { reelNumber: brief.reelNumber ?? nextReel, avatarIds });
+      const card = normalizeCard(out, { reelNumber: brief.reelNumber ?? nextReel, avatarIds, lead });
       brief = { ...brief, card, phase: "confirm" };
       say(withAck(`Here's the brief I'll write from. Say "write it", or tell me which line to change.`), { kind: "confirmation", card });
       break;
@@ -120,7 +130,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
           deps.onDraft?.(partial);
         })
         : await deps.call(draftArgs);
-      doc = toScriptDoc(out, { reelNumber: card.reelNumber, avatarIds });
+      doc = toScriptDoc(out, { reelNumber: card.reelNumber, avatarIds, leadAvatarId: lead?.avatarId ?? null });
       notes = cardToNotes(card);
       brief = { ...brief, phase: "written" };
       say(`The first draft is in: ${shotSummary(doc)}. ${out.summary.trim()}\n\n${openItemsLine(fillToFinal(doc, notes))}`);

@@ -59,7 +59,8 @@ export function toShot(id: string, f: ShotFields, resolve: (ref: string) => stri
   };
 }
 
-export function toScriptDoc(draft: DraftOutput, opts: { reelNumber: number | null; avatarIds: ReadonlySet<string> }): ScriptDoc {
+/** `leadAvatarId`, when the person picked the lead's avatar, is linked on the lead (D362). */
+export function toScriptDoc(draft: DraftOutput, opts: { reelNumber: number | null; avatarIds: ReadonlySet<string>; leadAvatarId?: string | null }): ScriptDoc {
   if (draft.cast.length === 0) throw new Error("The draft came back with no cast.");
   if (draft.shots.length === 0) throw new Error("The draft came back with no shots.");
 
@@ -76,7 +77,7 @@ export function toScriptDoc(draft: DraftOutput, opts: { reelNumber: number | nul
       id,
       name,
       description: cut(c.description, 2000),
-      avatarId: c.avatarId && opts.avatarIds.has(c.avatarId) ? c.avatarId : null,
+      avatarId: i === leadIndex && opts.leadAvatarId ? opts.leadAvatarId : c.avatarId && opts.avatarIds.has(c.avatarId) ? c.avatarId : null,
       isLead: i === leadIndex,
     };
   });

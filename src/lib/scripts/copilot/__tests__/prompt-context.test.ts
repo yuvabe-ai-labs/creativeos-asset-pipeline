@@ -3,7 +3,7 @@ import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import reel06 from "@/lib/scripts/fixtures/reel-06.json";
 import reel08 from "@/lib/scripts/fixtures/reel-08.json";
 import { scriptDocSchema, type Script } from "@/lib/scripts/schema";
-import { libraryFormats, nextReelNumber, pickExamples, renderAvatars, renderKbText, renderLibrary } from "../prompt-context";
+import { libraryFormats, nextReelNumber, pickExamples, renderAvatars, renderKbText, renderLibrary, renderSignalBrief } from "../prompt-context";
 
 const script = (json: unknown, id: string): Script =>
   ({ id, clientId: "c1", stage: "approved", doc: scriptDocSchema.parse(json), approvedAt: null, createdAt: "t", updatedAt: "t" });
@@ -61,7 +61,17 @@ describe("the library", () => {
 
 describe("renderAvatars", () => {
   it("names each avatar with its id and story", () => {
-    expect(renderAvatars([{ id: "a1", name: "James", story: "The founder.", front: null }])).toBe("- James (avatar id a1): The founder.");
+    expect(renderAvatars([{ id: "a1", name: "James", story: "The founder.", front: null, specific: false }])).toBe("- James (avatar id a1): The founder.");
+    // The model is told which avatar is a real person's photo, so it can tell two Jameses apart too.
+    expect(renderAvatars([{ id: "a2", name: "James", story: "The founder.", front: null, specific: true }])).toBe("- James (avatar id a2, a real person's photo): The founder.");
     expect(renderAvatars([])).toMatch(/no saved avatars/);
+  });
+});
+
+describe("renderSignalBrief", () => {
+  it("labels each signal with the handle the model answers with, in order", () => {
+    const signal = (id: string, name: string) => ({ id, name, tags: [], description: "", items: [] }) as never;
+    const text = renderSignalBrief([signal("sig-1", "Onam lunches"), signal("sig-2", "Dabba prep")]);
+    expect(text).toBe("[S1] Market signal: Onam lunches\n\n[S2] Market signal: Dabba prep");
   });
 });

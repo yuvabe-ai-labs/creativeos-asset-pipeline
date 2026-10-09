@@ -21,7 +21,8 @@ export function nextStep(brief: Brief, hasDoc: boolean): Step {
   if (hasDoc || brief.phase === "written") return { kind: "edit" };
   if (brief.format.status === null) return { kind: "ask", piece: "format" };
   if (brief.occasion.status === null) return { kind: "ask", piece: "occasion" };
-  if (!isFounderLed(brief.format.value) && brief.lead.status === null) return { kind: "ask", piece: "lead" };
+  // Every format asks: a Founder-led reel's founder is a saved avatar too, picked, not guessed (D362).
+  if (brief.lead.status === null) return { kind: "ask", piece: "lead" };
   // A skipped narrative still gets three proposed angles (and the copilot picks one).
   if (!brief.narrative.value.trim()) return { kind: "angles" };
   if (!brief.card) return { kind: "card" };
@@ -70,8 +71,13 @@ export function mergeExtraction(brief: Brief, ex: Extraction, avatarIds: Readonl
   const letter = ex.narrative.angleId?.trim().toUpperCase();
   const picked = letter ? brief.angles.find((a) => a.id.toUpperCase() === letter) : undefined;
   if (picked) {
-    next = applyAngle(next, picked, "given");
-    changed = true;
+    // The reader often names the chosen angle again on a later message ("write it" read back as
+    // "angle A"). Picking the angle that is already the narrative changes nothing; counting it as a
+    // change rebuilt the card on every "write it", so the draft was never written.
+    if (brief.narrative.value !== angleText(picked)) {
+      next = applyAngle(next, picked, "given");
+      changed = true;
+    }
   } else {
     next = { ...next, narrative: take(next.narrative, ex.narrative) };
   }
@@ -88,47 +94,63 @@ export function mergeExtraction(brief: Brief, ex: Extraction, avatarIds: Readonl
   return { brief: next, changed, cardChange: ex.cardChange.trim() };
 }
 
-/** Three angles, lettered A to C, citing only signals and avatars that exist (Review Focus 3). */
-export function normalizeAngles(raw: Angle[], signalIds: ReadonlySet<string>, avatarIds: ReadonlySet<string>): Angle[] {
+/** The short name a signal goes by in the angles prompt: S1 for the first, S2 for the second. The
+ *  model answers with these, never the uuids, which it would have to copy exactly. */
+export const signalHandle = (index: number) => `S${index + 1}`;
+
+/** Three angles, lettered A to C, citing only signals and avatars that exist (Review Focus 3). Each
+ *  signal handle the model gave is read back into that signal's id; anything else is dropped. */
+export function normalizeAngles(raw: Angle[], signals: readonly { id: string }[], avatarIds: ReadonlySet<string>): Angle[] {
+  const byHandle = new Map(signals.map((s, i) => [signalHandle(i), s.id]));
+  const resolve = (handle: string) => byHandle.get(handle.trim().toUpperCase());
   return raw.slice(0, 3).map((a, i) => ({
     ...a,
     id: "ABC"[i],
-    signalIds: [...new Set(a.signalIds.filter((id) => signalIds.has(id)))],
+    signalIds: [...new Set(a.signalIds.map(resolve).filter((id): id is string => id !== undefined))],
     leadAvatarId: a.leadAvatarId && avatarIds.has(a.leadAvatarId) ? a.leadAvatarId : null,
   }));
 }
 
-export function normalizeCard(raw: ConfirmationCard, opts: { reelNumber: number; avatarIds: ReadonlySet<string> }): ConfirmationCard {
+/** `lead`, when the person picked the lead's avatar, overrides whoever the model put first: the
+ *  card leads with that avatar, by its name (D362). */
+export function normalizeCard(
+  raw: ConfirmationCard,
+  opts: { reelNumber: number; avatarIds: ReadonlySet<string>; lead?: { avatarId: string; name: string } | null },
+): ConfirmationCard {
   const marked = raw.cast.findIndex((c) => c.isLead);
   const lead = marked >= 0 ? marked : 0;
   return {
     title: raw.title.trim().slice(0, 120) || "Untitled reel",
     reelNumber: opts.reelNumber,
     lines: raw.lines.filter((l) => l.label.trim() && l.value.trim()),
-    cast: raw.cast.map((c, i) => ({ ...c, isLead: i === lead, avatarId: c.avatarId && opts.avatarIds.has(c.avatarId) ? c.avatarId : null })),
+    cast: raw.cast.map((c, i) => {
+      const member = { ...c, isLead: i === lead, avatarId: c.avatarId && opts.avatarIds.has(c.avatarId) ? c.avatarId : null };
+      return i === lead && opts.lead ? { ...member, name: opts.lead.name, avatarId: opts.lead.avatarId } : member;
+    }),
     toConfirm: raw.toConfirm.map((t) => t.trim()).filter(Boolean),
   };
 }
 
-const list = (items: string[]) =>
-  items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
-
 export function questionFor(piece: "format" | "occasion" | "lead", ctx: { formats: string[]; avatars: CopilotAvatar[] }): string {
   switch (piece) {
+    // The options and the skip are chips under the message (suggestions.ts), so the prose never
+    // repeats them: it asks, and says only what a chip can't (describe your own, name someone new).
     case "format":
-      return `What format is this reel?${ctx.formats.length ? ` The library has ${list(ctx.formats)}.` : ""} Add "option" for the monthly away-from-home or younger reel, or describe a new format in your own words. Or skip it and I'll infer it from the narrative.`;
+      return ctx.formats.length ? "What format is this reel? Pick one below or describe your own." : "What format is this reel? Describe it in a few words.";
     case "occasion":
-      return "What's the occasion or theme, and the post date if you have one? Skip it and I'll propose one from the season.";
+      return "What's the occasion or theme, and the post date if you have one?";
     case "lead":
-      return `Who leads? ${ctx.avatars.length ? `From the client's avatars: ${list(ctx.avatars.map((a) => a.name))}. ` : ""}Or name someone new, or skip it and I'll cast it.`;
+      return ctx.avatars.length ? "Who leads? Pick an avatar below or name someone new." : "Who leads? Name someone.";
   }
 }
 
 export function openingMessage(ctx: { clientName: string; formats: string[]; hasKb: boolean }): string {
-  const kb = ctx.hasKb ? `${ctx.clientName}'s brand KB, house rules included` : `what you tell me (${ctx.clientName} has no brand KB yet)`;
-  const formats = ctx.formats.length ? `, and the formats in its scripts: ${list(ctx.formats)}` : "";
+  const source = ctx.hasKb
+    ? `Working from ${ctx.clientName}'s brand KB, house rules included.`
+    : `${ctx.clientName} has no brand KB yet, so I'm working from what you tell me.`;
   return [
-    `I'm working from ${kb}${formats}. Before I write, I need four things, in this order: the format, the occasion or theme, who leads, and the angle. Skip any of them, or say "take it from here", and I'll propose the rest.`,
+    source,
+    "Four things before I write: format, occasion, who leads, angle.",
     questionFor("format", { formats: ctx.formats, avatars: [] }),
   ].join("\n\n");
 }

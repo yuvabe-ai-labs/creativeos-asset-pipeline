@@ -2,6 +2,8 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/avatars/utils";
 import { listAvatars } from "@/lib/db/avatars";
+import { listScripts } from "@/lib/db/scripts";
+import { libraryFormats } from "@/lib/scripts/copilot/prompt-context";
 import { changeWithRetry, type Change, type ChangeOutcome } from "@/lib/scripts/copilot/change";
 import { rowToGenerateScript, rowToMessage, type GenerateScriptRow, type ScriptMessageRow } from "@/lib/scripts/copilot/rows";
 import { fillToFinal } from "@/lib/scripts/copilot/fill-to-final";
@@ -129,6 +131,24 @@ export async function listUnwrittenScripts(clientId: string): Promise<UnwrittenS
   });
 }
 
+/** Delete from the library: archives a script the copilot has not written yet. One conditional
+ *  update, so a draft landing at the same moment wins and nothing is archived. A drafted script
+ *  owns storyboards, a review link and an append-only activity log, so it is never deleted here.
+ *  False when nothing matched. */
+export async function archiveUnwrittenScript(clientId: string, scriptId: string): Promise<boolean> {
+  if (!isUuid(scriptId)) return false;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_scripts")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", scriptId).eq("client_id", clientId).eq("stage", "generate")
+    .is("doc", null).is("archived_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
 /** Generate → Visualise (spec 2 §10), only for a drafted script still at Generate on the version the
  *  fill-to-final check just passed. False when anything moved on. */
 export async function markScriptFinal(clientId: string, scriptId: string, checkedVersion: number): Promise<boolean> {
@@ -150,7 +170,7 @@ export async function listCopilotAvatars(clientId: string): Promise<CopilotAvata
   const avatars = await listAvatars(clientId);
   return avatars
     .filter((a) => a.status === "ready" && !a.archivedAt)
-    .map((a) => ({ id: a.id, name: a.name, story: a.story ?? "", front: a.front?.url ?? null }));
+    .map((a) => ({ id: a.id, name: a.name, story: a.story ?? "", front: a.front?.url ?? null, specific: a.personType === "specific" }));
 }
 
 /** Everything the Generate workspace shows. Every Generate route returns this, so the browser's
@@ -158,6 +178,11 @@ export async function listCopilotAvatars(clientId: string): Promise<CopilotAvata
 export async function loadGenerateState(clientId: string, scriptId: string): Promise<GenerateState | null> {
   const script = await getGenerateScript(clientId, scriptId);
   if (!script) return null;
-  const [messages, avatars] = await Promise.all([listScriptMessages(clientId, scriptId), listCopilotAvatars(clientId)]);
-  return { script, messages, avatars, openItems: fillToFinal(script.doc, script.notes) };
+  const [messages, avatars, library] = await Promise.all([
+    listScriptMessages(clientId, scriptId),
+    listCopilotAvatars(clientId),
+    script.doc ? [] : listScripts(clientId),
+  ]);
+  const formats = libraryFormats(library).map((f) => f.format);
+  return { script, messages, avatars, formats, openItems: fillToFinal(script.doc, script.notes) };
 }

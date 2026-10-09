@@ -39,11 +39,19 @@ const angles = `Propose exactly three angles for this reel, with ids "A", "B" an
 Each angle commits to: situation (one or two sentences: a human moment at the occasion for UGC; a topic type for Founder-led), mealMoment (the meal and the product use, only uses the KB names, by its region and meal-timing rules), supportingCast (who else is there and what they do at the payoff; "B-roll hands only" or "" for Founder-led), reviewTheme (the kind of real review to find; "" for Founder-led), proofEmphasis (whether the study is named, whether an origin line applies), and hook (the opening line, which becomes the title).
 The three differ in situation, and in meal moment where the region allows.
 For each piece the brief leaves empty or skipped, every angle proposes it: format, occasion, postDate, lead (and leadAvatarId when the lead is one of the client's saved avatars, else null). Leave a piece "" when the brief already has it.
-signalIds lists the ids of the market signals the angle actually drew on (an empty list is fine); fromSignals says in a few words what it took from them, where and when only.
-researchNote is one line on what the signals said overall about where and when.`;
+signalIds lists the handles (S1, S2…) of the market signals the angle actually drew on (an empty list is fine); fromSignals says in a few words what it took from them, where and when only.`;
+
+/** Shared by the card and the draft: the house spec's shorthand (D1, D2…) means nothing to the
+ *  person reading either. */
+const disclaimerNames = `Name each disclaimer by what it says, in a few words (for example "not a substitute for medication"), never by a code such as "D1", even when the KB uses one.`;
 
 const card = `Write the confirmation card: the brief you will write from, as short lines. Nothing on it is a new question.
-lines, in this order where they apply: Format; Post date; Occasion or theme; Region; Home and kit; Meal moment and product use (with the spoon count when the flour goes into batter); Review theme and placement (UGC only); Proof lines (which locked and cleared lines you will use); Disclaimers (which apply, and why). Mark each "given" when the person said it and "proposed" when you filled it.
+lines: Use exactly these labels, in this order where they apply: "Format", "Post date", "Occasion", "Region", "Home and kit", "Meal and product use", "Review", "Proof lines", "Disclaimers". A label is only the label; what goes in each value:
+- Meal and product use: the meal moment and how the product is used, with the spoon count when the flour goes into batter.
+- Review: the review theme and where it sits (UGC only).
+- Proof lines: which locked and cleared lines you will use.
+- Disclaimers: which apply, and why. ${disclaimerNames}
+Mark each "given" when the person said it and "proposed" when you filled it.
 cast: every person, their role in the reel, exactly one lead, and avatarId when they are one of the client's saved avatars (else null).
 toConfirm: each thing only the person can confirm before the script is final: a post date or festival day you proposed, and each occasion custom you proposed (for example "onion and garlic stay off screen"). Do not list the review; the draft holds a placeholder for it.
 title: from the angle's hook. reelNumber: the brief's, else the next free number given below.
@@ -51,7 +59,7 @@ If the person asked for a change, apply it and keep every other line as it was.`
 
 const draft = `Write the full first draft from the confirmed card, in the client's layout and the client's words.
 header: title; format (the client's word for it); region; postDate as written, with the occasion ("Sun 1 Nov (Kerala Piravi)"); theme; aspect, targetLength and production as the KB says.
-context: purpose (what the reel is for); settingAndCamera (the home and its kit, occasion props, light, camera); disclaimers (which apply and why, or "None apply." when none does, never blank); watchOuts (at least one, including every item still to confirm).
+context: purpose (what the reel is for); settingAndCamera (the home and its kit, occasion props, light, camera); disclaimers (which apply and why, or "None apply." when none does, never blank; ${disclaimerNames}); watchOuts (at least one, including every item still to confirm).
 cast: for each person a short key, the name, and a description in words (age, place, clothing, identity markers, voice). For a client avatar reuse its story and add this reel's styling, and give its avatarId; else null. Exactly one lead.
 shots, in order: beat label, lengthSeconds, visual, vo, onScreenText, and onScreen as the cast keys of who is on screen (empty for B-roll).
 Follow the format's structure from the examples. UGC and UGC review first keep their nine beats in their order. Founder-led keeps HOOK, INTRO, PROOF and OUTRO and labels five topic beats for this reel's topic, with no review and no payoff.
@@ -82,7 +90,7 @@ summary: one short line saying what you changed.`;
 
 export const scriptCopilotPrompt = {
   id: "script-copilot",
-  version: 1,
+  version: 2,
   rules,
   tasks: { extract, angles, card, draft, edit, inline },
 } as const;

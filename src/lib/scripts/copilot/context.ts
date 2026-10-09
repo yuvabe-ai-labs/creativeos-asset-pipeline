@@ -4,10 +4,9 @@ import { getActiveKBVersion } from "@/lib/db/kb";
 import { listScripts } from "@/lib/db/scripts";
 import { listCopilotAvatars } from "@/lib/db/script-generate";
 import { listSignalsWithItems } from "@/lib/db/signals";
-import { buildSignalBrief } from "@/lib/market/signal-brief";
 import type { Script } from "../schema";
 import type { CopilotAvatar } from "./schema";
-import { renderKbText } from "./prompt-context";
+import { renderKbText, renderSignalBrief } from "./prompt-context";
 
 export type CopilotContext = { clientName: string; kbText: string; hasKb: boolean; library: Script[]; avatars: CopilotAvatar[] };
 
@@ -26,5 +25,5 @@ export async function loadCopilotContext(client: { id: string; name: string }): 
 /** Market Research (spec 2 §6): every signal the client has, every time angles are proposed. */
 export async function loadSignals(clientId: string): Promise<{ brief: string; signals: { id: string; name: string }[] }> {
   const signals = await listSignalsWithItems(clientId);
-  return { brief: buildSignalBrief(signals), signals: signals.map((s) => ({ id: s.id, name: s.name })) };
+  return { brief: renderSignalBrief(signals), signals: signals.map((s) => ({ id: s.id, name: s.name })) };
 }

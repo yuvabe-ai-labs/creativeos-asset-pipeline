@@ -71,7 +71,7 @@ export const messageCardSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("research"),
     signals: z.array(z.object({ id: z.string(), name: z.string() })),
-    perAngle: z.array(z.object({ angleId: z.string(), signalIds: z.array(z.string()), note: z.string() })),
+    perAngle: z.array(z.object({ angleId: z.string(), signalIds: z.array(z.string()) })),
   }),
   z.object({ kind: z.literal("confirmation"), card: confirmationCardSchema }),
   proposalCardSchema,
@@ -90,8 +90,9 @@ export type ScriptMessage = {
  *  fix when there is one (fields.ts). */
 export type OpenItem = { id: string; label: string; question: string; path: string | null };
 
-/** A client avatar the copilot may cast: saved (ready) and not archived. */
-export type CopilotAvatar = { id: string; name: string; story: string; front: string | null };
+/** A client avatar the copilot may cast: saved (ready) and not archived. `specific` when its front
+ *  is an uploaded photo of a real person (a founder), not a generated face. */
+export type CopilotAvatar = { id: string; name: string; story: string; front: string | null; specific: boolean };
 
 export type GenerateScript = {
   id: string;
@@ -114,6 +115,9 @@ export type GenerateState = {
   messages: ScriptMessage[];
   openItems: OpenItem[];
   avatars: CopilotAvatar[];
+  /** The formats in the client's finished scripts, offered as chips when the copilot asks the
+   *  format. Empty once there is a draft: nothing asks the format after that. */
+  formats: string[];
 };
 
 /** A script with no draft yet, as the library lists it. */

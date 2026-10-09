@@ -17,7 +17,7 @@ import { changeGenerateScript, getGenerateScript, insertScriptMessages, listScri
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { prepareTurn } from "@/lib/scripts/copilot/turn";
 import { structuredCaller } from "@/lib/scripts/copilot/model";
-import { allowClient, generateScript, jsonRequest, runChangeAgainst, SCRIPT_ID, stateOf } from "@/lib/scripts/copilot/__tests__/route-mocks";
+import { allowClient, AVATAR_ID, generateScript, jsonRequest, runChangeAgainst, SCRIPT_ID, stateOf } from "@/lib/scripts/copilot/__tests__/route-mocks";
 
 const params = Promise.resolve({ id: "c1", scriptId: SCRIPT_ID });
 /** The turn answers as newline-delimited JSON: draft previews, then the final state. */
@@ -48,6 +48,15 @@ describe("POST .../turn", () => {
     expect(out.at(-1)).toMatchObject({ type: "state", state: { script: { id: SCRIPT_ID } } });
     // The writer for the draft and edits, a quicker model for reading, angles and the card.
     expect(vi.mocked(structuredCaller).mock.calls.map((c) => c[0]).sort()).toEqual(["gemini-3.1-pro-preview", "gpt-5.4-mini"]);
+  });
+
+  it("passes a lead chip's avatar on to the turn, and drops one that is not an id", async () => {
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
+    const { POST } = await import("./route");
+    await lines(await POST(send({ text: "James", leadAvatarId: AVATAR_ID }) as never, { params }));
+    expect(vi.mocked(prepareTurn).mock.calls[0][0]).toMatchObject({ text: "James", leadAvatarId: AVATAR_ID });
+    await lines(await POST(send({ text: "James", leadAvatarId: "nope" }) as never, { params }));
+    expect(vi.mocked(prepareTurn).mock.calls[1][0]).toMatchObject({ leadAvatarId: null });
   });
 
   it("streams draft previews before the final state", async () => {

@@ -13,10 +13,19 @@ const send = (url: string, method: string, body?: unknown) =>
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
+/** One chat message; `leadAvatarId` when a lead chip sent it (D362). */
+export type TurnMessage = { text: string; leadAvatarId?: string };
+
 class ScriptGenerateService {
   async create(clientId: string): Promise<string> {
     const res = await send(`/api/clients/${clientId}/scripts`, "POST");
     return (await readJson<{ scriptId: string }>(res, "Could not start a new script.")).scriptId;
+  }
+
+  /** Delete from the library: only a script the copilot has not written yet (the route refuses the rest). */
+  async remove(clientId: string, scriptId: string): Promise<void> {
+    const res = await send(scriptUrl(clientId, scriptId), "DELETE");
+    await readJson<{ ok: true }>(res, "Could not delete the script.");
   }
 
   async state(clientId: string, scriptId: string): Promise<GenerateState> {
@@ -26,8 +35,8 @@ class ScriptGenerateService {
 
   /** One chat message. The answer streams as newline-delimited JSON (D337, refined): draft previews
    *  go to `onDraft` as they arrive; the final line is the whole workspace state. */
-  async turn(clientId: string, scriptId: string, text: string, onDraft?: (draft: PartialDraft) => void): Promise<GenerateState> {
-    const res = await send(`${scriptUrl(clientId, scriptId)}/turn`, "POST", { text });
+  async turn(clientId: string, scriptId: string, message: TurnMessage, onDraft?: (draft: PartialDraft) => void): Promise<GenerateState> {
+    const res = await send(`${scriptUrl(clientId, scriptId)}/turn`, "POST", message);
     if (!res.ok || !res.body) return (await readJson<{ state: GenerateState }>(res, "The copilot could not answer.")).state;
     let state: GenerateState | null = null;
     const handle = (line: string) => {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
 import { acceptProposal, prepareInline, prepareTurn, spliceSelection, type TurnDeps } from "../turn";
+import { angleText } from "../brief";
 import { EMPTY_BRIEF, EMPTY_NOTES, type Brief, type GenerateScript, type ProposalCard } from "../schema";
 import type { CopilotContext } from "../context";
 import type { EditOp, Extraction } from "../output";
@@ -66,7 +67,7 @@ describe("before the draft", () => {
     const m = fakeModel({ script_brief_read: [extraction({ format: { action: "given", value: "UGC" }, ack: "UGC it is." })] });
     const out = ok(await run(script(), "A UGC reel", deps(m.call)));
     expect(m.calls).toEqual(["script_brief_read"]);
-    expect(out.result[0].content).toBe("UGC it is.\n\nWhat's the occasion or theme, and the post date if you have one? Skip it and I'll propose one from the season.");
+    expect(out.result[0].content).toBe("UGC it is.\n\nWhat's the occasion or theme, and the post date if you have one?");
     expect(out.patch?.brief?.format).toEqual({ value: "UGC", status: "given" });
   });
 
@@ -76,17 +77,19 @@ describe("before the draft", () => {
         format: { action: "given", value: "UGC" }, occasion: { action: "given", value: "Kerala Piravi", postDate: "Sun 1 Nov" },
         lead: { action: "given", value: "Saraswathi", avatarId: null }, reelNumber: 4,
       })],
-      script_angles: [{ angles: [angle("A", ["sig-1", "ghost"]), angle("B"), angle("C")], researchNote: "Lunch at home is what people post." }],
+      script_angles: [{ angles: [angle("A", ["S1", "ghost"]), angle("B"), angle("C")] }],
     });
     const d = deps(m.call);
     const out = ok(await run(script(), "Reel 04, Kerala Piravi, UGC, Saraswathi", d));
     expect(m.calls).toEqual(["script_brief_read", "script_angles"]);
     expect(d.loadSignals).toHaveBeenCalledTimes(1);
     const [research, angles] = out.result;
+    // The card is the whole message: no prose explaining what signals are for.
+    expect(research.content).toBe("");
     expect(research.card).toEqual({ kind: "research", signals: [{ id: "sig-1", name: "Onam lunches" }], perAngle: [
-      { angleId: "A", signalIds: ["sig-1"], note: "lunch at home" },
-      { angleId: "B", signalIds: [], note: "lunch at home" },
-      { angleId: "C", signalIds: [], note: "lunch at home" },
+      { angleId: "A", signalIds: ["sig-1"] },
+      { angleId: "B", signalIds: [] },
+      { angleId: "C", signalIds: [] },
     ] });
     expect(angles.card?.kind).toBe("angles");
     expect(out.patch?.brief?.angles.map((a) => a.id)).toEqual(["A", "B", "C"]);
@@ -96,7 +99,7 @@ describe("before the draft", () => {
   it("skipping all four still reaches a confirmation card: three angles, one picked, then the card", async () => {
     const m = fakeModel({
       script_brief_read: [extraction({ skipAll: true })],
-      script_angles: [{ angles: [angle("A"), angle("B"), angle("C")], researchNote: "" }],
+      script_angles: [{ angles: [angle("A"), angle("B"), angle("C")] }],
       script_card: [CARD],
     });
     const out = ok(await run(script(), "take it from here", deps(m.call)));
@@ -144,7 +147,7 @@ describe("before the draft", () => {
   });
 
   it("uses the quick model to read, propose angles and build the card, and the writer only for the draft", async () => {
-    const quick = fakeModel({ script_brief_read: [extraction({ skipAll: true }), extraction({ confirm: true })], script_angles: [{ angles: [angle("A"), angle("B"), angle("C")], researchNote: "" }], script_card: [CARD] });
+    const quick = fakeModel({ script_brief_read: [extraction({ skipAll: true }), extraction({ confirm: true })], script_angles: [{ angles: [angle("A"), angle("B"), angle("C")] }], script_card: [CARD] });
     const writer = fakeModel({ script_draft: [DRAFT] });
     const d = { ...deps(writer.call), quick: quick.call };
     const first = ok(await run(script(), "take it from here", d));
@@ -152,6 +155,34 @@ describe("before the draft", () => {
     expect(writer.calls).toEqual([]);
     ok(await run(script({ brief: first.patch!.brief! }), "write it", d));
     expect(writer.calls).toEqual(["script_draft"]);
+  });
+
+  it("sets the lead from a picked avatar chip itself, not from the model's reading of the name", async () => {
+    const JAMES = "7a2d3c4e-0000-4000-8000-0000000000aa";
+    const avatars = [{ id: JAMES, name: "James", story: "", front: null, specific: true }];
+    const brief: Brief = { ...EMPTY_BRIEF, format: { value: "Founder-led", status: "given" }, occasion: { value: "Navratri", status: "given" } };
+    // The model misreads the name; the chip's avatar still wins.
+    const m = fakeModel({
+      script_brief_read: [extraction({ lead: { action: "given", value: "Meenakshi", avatarId: null } })],
+      script_angles: [{ angles: [angle("A"), angle("B"), angle("C")] }],
+    });
+    const apply = await prepareTurn({ script: script({ brief }), ctx: { ...ctx, avatars }, text: "James", lastAssistant: "", leadAvatarId: JAMES }, deps(m.call));
+    const out = ok(apply(script({ brief })));
+    expect(out.patch?.brief?.lead).toEqual({ value: "James", status: "given" });
+    expect(out.patch?.brief?.leadAvatarId).toBe(JAMES);
+  });
+
+  it("writes on 'write it' even when the model re-reports the angle already picked (the confirm loop)", async () => {
+    const a = angle("A");
+    const brief: Brief = {
+      ...EMPTY_BRIEF, phase: "confirm", format: { value: "UGC", status: "given" }, occasion: { value: "Kerala Piravi", status: "given" },
+      lead: { value: "Saraswathi", status: "given" }, angles: [a, angle("B"), angle("C")], narrative: { value: angleText(a), status: "given" }, card: CARD,
+    };
+    // What the staging conversation showed: "Write it." read back as angle A, again, plus confirm.
+    const m = fakeModel({ script_brief_read: [extraction({ confirm: true, narrative: { action: "given", value: "", angleId: "A" } })], script_draft: [DRAFT] });
+    const out = ok(await run(script({ brief }), "Write it.", deps(m.call)));
+    expect(m.calls).toEqual(["script_brief_read", "script_draft"]);
+    expect(out.patch?.doc?.header.title).toBe("Kerala Piravi at our table");
   });
 
   it("refuses to save over a brief that changed during the turn", async () => {

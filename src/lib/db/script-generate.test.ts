@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: () => ({ from: mockFrom }) }));
 vi.mock("@/lib/db/avatars", () => ({ listAvatars: vi.fn() }));
 
-import { saveGenerateScript, markScriptFinal, claimProposalCard } from "./script-generate";
+import { saveGenerateScript, markScriptFinal, claimProposalCard, archiveUnwrittenScript } from "./script-generate";
 
 const SCRIPT_ID = "6f1c2b1e-0000-4000-8000-000000000001";
 
@@ -75,5 +75,29 @@ describe("claimProposalCard", () => {
   it("reports false when the card was already settled", async () => {
     mockFrom.mockReturnValue(chain({ data: null, error: null }).c);
     expect(await claimProposalCard("c1", SCRIPT_ID, MSG, card)).toBe(false);
+  });
+});
+
+describe("archiveUnwrittenScript", () => {
+  it("archives only this client's script while it is still at Generate with no draft", async () => {
+    const { c, calls } = chain({ data: { id: SCRIPT_ID }, error: null });
+    mockFrom.mockReturnValue(c);
+    expect(await archiveUnwrittenScript("c1", SCRIPT_ID)).toBe(true);
+    expect(calls.find(([m]) => m === "update")![1]).toHaveProperty("archived_at");
+    expect(calls).toContainEqual(["eq", "id", SCRIPT_ID]);
+    expect(calls).toContainEqual(["eq", "client_id", "c1"]);
+    expect(calls).toContainEqual(["eq", "stage", "generate"]);
+    expect(calls).toContainEqual(["is", "doc", null]);
+    expect(calls).toContainEqual(["is", "archived_at", null]);
+  });
+
+  it("reports false when nothing matched (drafted, moved on, or already gone)", async () => {
+    mockFrom.mockReturnValue(chain({ data: null, error: null }).c);
+    expect(await archiveUnwrittenScript("c1", SCRIPT_ID)).toBe(false);
+  });
+
+  it("never queries with a malformed id", async () => {
+    expect(await archiveUnwrittenScript("c1", "not-a-uuid")).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });
