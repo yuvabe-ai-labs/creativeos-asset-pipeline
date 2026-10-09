@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n next,trigger -c cyan,magenta \"npm:dev:next\" \"npm:dev:trigger\"",
-    "dev:next": "next dev",
-    "dev:trigger": "trigger dev",
+    "dev:next": "cross-env NODE_OPTIONS=--disable-warning=DEP0040 next dev",
+    "dev:trigger": "cross-env NODE_OPTIONS=--disable-warning=DEP0040 trigger dev",
     "build": "next build",
     "start": "next start",
     "deploy:trigger": "trigger deploy --native-build-server",
@@ -13,8 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "env:check": "node scripts/check-env.mjs",
-    "env:staging": "node scripts/check-env.mjs .env.staging && node scripts/use-env.mjs staging && next dev",
-    "env:prod": "node scripts/check-env.mjs .env.production && node scripts/use-env.mjs production && next dev",
+    "env:staging": "node scripts/check-env.mjs .env.staging && node scripts/use-env.mjs staging && npm run dev:next",
+    "env:prod": "node scripts/check-env.mjs .env.production && node scripts/use-env.mjs production && npm run dev:next",
     "report:client": "node scripts/client-canvas-report.mjs"
   },
   "dependencies": {
@@ -63,6 +63,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^10.0.4",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
