@@ -4,6 +4,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   useRef,
   type ReactNode,
 } from "react";
@@ -65,6 +66,12 @@ import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-st
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
+import {
+  useNodeVersions,
+  useRefreshNodeVersions,
+  useSetActiveNodeVersion,
+} from "@/hooks/queries/node-versions";
+import type { NodeVersionsResponse } from "@/services/node-versions.service";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
 import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
@@ -509,8 +516,18 @@ export function VideoGenFocusView({
   // D299 — the script's presenter, when it is in this shot.
   const shotPresenter = useShotPresenter(promptNode?.id);
   const presenterAvatar = shotPresenter?.inShot ? shotPresenter.avatar : null;
-  const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
-  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // This node's versions, from the shared cache: a reopen renders the cached list at once and
+  // re-checks behind it.
+  const versionsQuery = useNodeVersions<VideoGenVersionSummary>(nodeId, open);
+  const refreshVersions = useRefreshNodeVersions<VideoGenVersionSummary>(nodeId);
+  const setActiveVersionId = useSetActiveNodeVersion(nodeId);
+  const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
+  const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
+  const loadingVersions = open && versionsQuery.isPending;
+  // The versions the approval fields below were last seeded from.
+  const [seededVersions, setSeededVersions] = useState<
+    NodeVersionsResponse<VideoGenVersionSummary> | undefined
+  >(undefined);
   // ── D243 review annotations (video): paint on a PAUSED FRAME, not the player ──
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoPaused, setVideoPaused] = useState(true);
@@ -556,15 +573,11 @@ export function VideoGenFocusView({
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
 
-  // Seeded from `open`, not `false`. The seed block below re-arms these on the false → true
-  // TRANSITION, which any path that mounts the view ALREADY open never has.
-  //
-  // Both branches hit this independently. Guided creation: guidedCreateNext and
-  // setFocusedNodeId land in the same batch, so the card mounts with its focus view open
-  // and the rail rendered "No inputs connected." instead of a skeleton. Review: a
-  // navbar-inbox link does the same, and the Review section asserted "Generate a video
-  // first…" before snapping to the approval control. One bug, two symptoms.
-  const [loadingVersions, setLoadingVersions] = useState(open);
+  // Seeded from `open`, not `false`. The seed block below re-arms this on the false → true
+  // TRANSITION, which any path that mounts the view ALREADY open never has: guidedCreateNext
+  // and setFocusedNodeId land in the same batch, so the card mounts with its focus view open,
+  // and the rail rendered "No inputs connected." instead of a skeleton. (`loadingVersions`,
+  // above, is derived from the versions cache and cannot hit this.)
   const [loadingConnected, setLoadingConnected] = useState(open);
 
   const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
@@ -584,9 +597,24 @@ export function VideoGenFocusView({
       // D284 — reopening while a voice change runs lands back in Edit voice, where it was
       // started; otherwise on the generate settings.
       setChangeVoiceOpen(isChangingVoice && !requested);
-      setLoadingVersions(true);
       setLoadingConnected(true);
+      // Re-seed the approval fields from the versions on every open (see the block below).
+      setSeededVersions(undefined);
     }
+  }
+
+  // Whenever the cached versions change while open — the first read, the re-check behind a
+  // reopen, a live update, a refresh after our own action — re-seed the approval fields from
+  // the active version. (The canvas-store mirror of the same data is an effect further down:
+  // a store write may not happen during render.)
+  if (open && versionsQuery.data && versionsQuery.data !== seededVersions) {
+    setSeededVersions(versionsQuery.data);
+    const { versions: vs, activeVersionId: activeId } = versionsQuery.data;
+    const active = vs.find((v) => v.id === activeId);
+    setApprovalStatus(active?.approvalStatus ?? "pending");
+    setApprovalNote(active?.note ?? "");
+    setApprovedByName(active?.approvedByName ?? null);
+    setApprovedAt(active?.approvedAt ?? null);
   }
 
   // D284 — a voice change that becomes known while the view is open (the running-job lookup
@@ -739,28 +767,26 @@ export function VideoGenFocusView({
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
+  // Re-read the versions into the cache; the seed block above and the mirror below pick the
+  // result up. Best-effort: a failed refresh leaves the cached list on screen.
   const fetchVersions = useCallback(async () => {
-    try {
-      const data = await videoGenApi.fetchVersions(nodeId);
-      setVersions(data.versions);
-      setActiveVersionId(data.activeVersionId);
-      const active = data.versions.find((v) => v.id === data.activeVersionId);
-      // Unlike the other focus views, this one already mirrors the active version into the
-      // store on every refresh — so the badge's status rides along here rather than at the
-      // restore call site. Covers restore (which refetches) and the D179 live path at once:
-      // the badge follows whichever version is active. TC-106.
-      onPatchRef.current({
-        ...(active?.output ? { parsed: active.output } : {}),
-        approvalStatus: active?.approvalStatus ?? "pending",
-      });
-      setApprovalStatus(active?.approvalStatus ?? "pending");
-      setApprovalNote(active?.note ?? "");
-      setApprovedByName(active?.approvedByName ?? null);
-      setApprovedAt(active?.approvedAt ?? null);
-    } catch {
-      /* best-effort */
-    }
-  }, [nodeId]);
+    await refreshVersions().catch(() => undefined);
+  }, [refreshVersions]);
+
+  // Unlike the other focus views, this one mirrors the active version into the store whenever
+  // the versions change — so the badge's status rides along here rather than at the restore
+  // call site. Covers the first read, restore (which refetches) and the D179 live path at once:
+  // the badge follows whichever version is active. TC-106. updateNodeData skips a patch that
+  // changes nothing, so a refresh that finds the same active version writes nothing.
+  useEffect(() => {
+    const data = versionsQuery.data;
+    if (!open || !data) return;
+    const active = data.versions.find((v) => v.id === data.activeVersionId);
+    onPatchRef.current({
+      ...(active?.output ? { parsed: active.output } : {}),
+      approvalStatus: active?.approvalStatus ?? "pending",
+    });
+  }, [open, versionsQuery.data]);
 
   // D179: keep this panel live while it is open. Someone else approving, rejecting or
   // regenerating THIS node refreshes it in place — the decision thread, the status icons
@@ -839,20 +865,7 @@ export function VideoGenFocusView({
           );
         }
       });
-    videoGenApi
-      .fetchVersions(nodeId)
-      .then((data) => {
-        setVersions(data.versions);
-        setActiveVersionId(data.activeVersionId);
-        const active = data.versions.find((v) => v.id === data.activeVersionId);
-        if (active?.output) onPatchRef.current({ parsed: active.output });
-        setApprovalStatus(active?.approvalStatus ?? "pending");
-        setApprovalNote(active?.note ?? "");
-        setApprovedByName(active?.approvedByName ?? null);
-        setApprovedAt(active?.approvedAt ?? null);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingVersions(false));
+    // Versions arrive through the shared cache (useNodeVersions above), not a fetch here.
     // persistThenRefresh, not refreshUpstream: a node reached straight from the guided
     // "Create video generation" button exists only in the client store at this point, and the
     // upstream-images route walks PERSISTED edges — so fetching first beat autosave's 600ms

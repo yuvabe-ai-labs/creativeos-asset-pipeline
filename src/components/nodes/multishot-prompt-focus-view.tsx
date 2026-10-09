@@ -45,6 +45,12 @@ import { GeneratedPromptBody } from "./generated-prompt-body";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import {
+  useNodeVersions,
+  useRefreshNodeVersions,
+  useSetActiveNodeVersion,
+} from "@/hooks/queries/node-versions";
+import type { NodeVersionsResponse } from "@/services/node-versions.service";
 import { MultishotBeatCard } from "./multishot-beat-card";
 import { VoLinesEditor } from "./vo-lines-editor";
 import { RefineWithAI } from "./refine-with-ai";
@@ -165,8 +171,18 @@ export function MultishotPromptFocusView({
     null,
   );
   const [seed, setSeed] = useState<{ open: boolean; nodeId: string }>({ open, nodeId });
-  const [versions, setVersions] = useState<VersionSummary[]>([]);
-  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // This node's versions, from the shared cache: a reopen renders the cached list at once and
+  // re-checks behind it. Versions don't depend on the node's edges, so unlike the preview
+  // below they never wait for the autosave flush.
+  const versionsQuery = useNodeVersions<VersionSummary>(nodeId, open);
+  const refreshVersions = useRefreshNodeVersions<VersionSummary>(nodeId);
+  const setActiveVersionId = useSetActiveNodeVersion(nodeId);
+  const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
+  const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
+  // The versions the review fields below were last seeded from — see applyVersions.
+  const [seededVersions, setSeededVersions] = useState<
+    NodeVersionsResponse<VersionSummary> | undefined
+  >(undefined);
   const [restoring, setRestoring] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(open);
   const [inputsPersisted, setInputsPersisted] = useState(false);
@@ -200,6 +216,12 @@ export function MultishotPromptFocusView({
       setPlanDraft(plan);
       setLoadingPreview(true);
       setInputsPersisted(false);
+    }
+    if (opening) {
+      // A reopen seeds the review fields from the cached versions straight away; with nothing
+      // cached yet, the first read to arrive seeds them in full (the block below).
+      setSeededVersions(versionsQuery.data);
+      if (versionsQuery.data) applyVersions(versionsQuery.data);
     }
   }
 
@@ -313,23 +335,34 @@ export function MultishotPromptFocusView({
 
   async function fetchVersions(opts?: { preserveEvalDraft?: boolean }) {
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/versions`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const vs: VersionSummary[] = json.versions ?? [];
-      const activeVid: string | null = json.activeVersionId ?? null;
-      setVersions(vs);
-      setActiveVersionId(activeVid);
-      const active = vs.find((v) => v.id === activeVid);
-      setEvalDecision(active?.decision ?? null);
-      if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
-      setApprovalStatus(active?.approvalStatus ?? "pending");
-      setApprovalNote(active?.note ?? "");
-      setApprovedByName(active?.approvedByName ?? null);
-      setApprovedAt(active?.approvedAt ?? null);
+      applyVersions(await refreshVersions(), opts);
     } catch {
       /* best-effort */
     }
+  }
+
+  // Copies the ACTIVE version's review state into the fields the eval and approval controls
+  // edit. `preserveEvalDraft` leaves the eval note — the viewer's unsaved draft — alone.
+  function applyVersions(
+    data: NodeVersionsResponse<VersionSummary>,
+    opts?: { preserveEvalDraft?: boolean },
+  ) {
+    const active = data.versions.find((v) => v.id === data.activeVersionId);
+    setEvalDecision(active?.decision ?? null);
+    if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
+    setApprovalStatus(active?.approvalStatus ?? "pending");
+    setApprovalNote(active?.note ?? "");
+    setApprovedByName(active?.approvedByName ?? null);
+    setApprovedAt(active?.approvedAt ?? null);
+  }
+
+  // Whenever the cached versions change while open — the first read, the re-check behind a
+  // reopen, a live update, a refresh after our own action — re-seed the review fields from
+  // them. Only the FIRST seed of an open replaces the eval note: after that it is the viewer's
+  // draft, and a background update must not discard what they are typing.
+  if (open && versionsQuery.data && versionsQuery.data !== seededVersions) {
+    setSeededVersions(versionsQuery.data);
+    applyVersions(versionsQuery.data, { preserveEvalDraft: seededVersions !== undefined });
   }
 
   // Same flush-then-fetch sequencing as video-prompt-focus-view: a node reached straight from
@@ -354,26 +387,6 @@ export function MultishotPromptFocusView({
   useEffect(() => {
     if (!open || !inputsPersisted) return;
     let cancelled = false;
-
-    void (async () => {
-      try {
-        const res = await fetch(`/api/nodes/${nodeId}/versions`);
-        if (!cancelled && res.ok) {
-          const json = await res.json();
-          const vs: VersionSummary[] = json.versions ?? [];
-          const activeVid: string | null = json.activeVersionId ?? null;
-          setVersions(vs);
-          setActiveVersionId(activeVid);
-          const active = vs.find((v) => v.id === activeVid);
-          setEvalDecision(active?.decision ?? null);
-          setEvalNote(active?.note ?? "");
-          setApprovalStatus(active?.approvalStatus ?? "pending");
-          setApprovalNote(active?.note ?? "");
-        }
-      } catch {
-        /* best-effort */
-      }
-    })();
 
     const t = setTimeout(async () => {
       try {

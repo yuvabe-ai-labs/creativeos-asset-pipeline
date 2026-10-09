@@ -1,12 +1,6 @@
 // Client-safe API wrappers for video-gen routes.
 // All functions throw on non-OK responses so callers can catch and toast.
-
-// TODO: Move VideoGenVersionSummary to lib/types in a future refactor to remove
-// this dependency-inversion (lib importing from UI components).
-import type {
-  VideoGenVersionSummary,
-  VideoGenVersionInputs,
-} from "@/components/nodes/video-gen-version-history";
+// A node's versions are read through the shared versions cache (hooks/queries/node-versions).
 
 export type UpstreamImage = {
   id: string;
@@ -51,59 +45,6 @@ async function parseError(res: Response, fallback: string): Promise<never> {
 }
 
 export const videoGenApi = {
-  async fetchVersions(nodeId: string): Promise<{
-    activeVersionId: string | null;
-    versions: VideoGenVersionSummary[];
-  }> {
-    const res = await fetch(`/api/nodes/${nodeId}/versions`);
-    if (!res.ok) await parseError(res, "Failed to load versions");
-    const json = await res.json() as {
-      activeVersionId: string | null;
-      versions: Array<{
-        id: string;
-        output: string | null;
-        error: string | null;
-        modelUsed: string | null;
-        paramsUsed: Record<string, unknown>;
-        inputsUsed?: VideoGenVersionInputs;
-        createdAt: string;
-        creditsCharged?: number | null;
-        approvalStatus?: "pending" | "approved" | "changes_requested";
-        note?: string | null;
-        makerName?: string | null;
-        approvedByName?: string | null;
-        approvedAt?: string | null;
-        decisions?: Array<{
-          id: string;
-          status: "approved" | "changes_requested";
-          note: string | null;
-          reviewerName: string | null;
-          decidedAt: string;
-        }>;
-      }>;
-    };
-    return {
-      activeVersionId: json.activeVersionId ?? null,
-      versions: (json.versions ?? []).map((v) => ({
-        id: v.id,
-        output: v.output ?? null,
-        error: v.error ?? null,
-        modelUsed: v.modelUsed ?? null,
-        paramsUsed: v.paramsUsed ?? {},
-        // The prompt and image roles behind the version — what the "Sent to model" pane reads.
-        inputsUsed: v.inputsUsed ?? {},
-        createdAt: v.createdAt,
-        creditsCharged: v.creditsCharged ?? null,
-        approvalStatus: v.approvalStatus,
-        note: v.note ?? null,
-        makerName: v.makerName ?? null,
-        approvedByName: v.approvedByName ?? null,
-        approvedAt: v.approvedAt ?? null,
-        decisions: v.decisions ?? [],
-      })),
-    };
-  },
-
   async fetchUpstreamImages(nodeId: string): Promise<{ images: UpstreamImage[]; promptNode: UpstreamPromptNode | null }> {
     try {
       const res = await fetch(`/api/nodes/${nodeId}/upstream-images`);
