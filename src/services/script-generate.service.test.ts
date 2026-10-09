@@ -60,7 +60,7 @@ describe("scriptGenerateService", () => {
   });
 
   it("throws the server's message", async () => {
-    reply({ error: "Not final yet: 1 item is still open (REVIEW (S8): placeholder)." }, 409);
-    await expect(scriptGenerateService.markFinal("c1", "s1")).rejects.toThrow("Not final yet");
+    reply({ error: "There's no draft to mark final yet." }, 409);
+    await expect(scriptGenerateService.markFinal("c1", "s1")).rejects.toThrow("no draft to mark final");
   });
 });

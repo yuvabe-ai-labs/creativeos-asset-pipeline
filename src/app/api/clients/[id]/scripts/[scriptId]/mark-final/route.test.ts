@@ -29,19 +29,25 @@ describe("POST .../mark-final", () => {
     expect(markScriptFinal).toHaveBeenCalledWith("c1", SCRIPT_ID, 7);
   });
 
-  it("refuses while anything is open, naming it, even if the browser offered the button (Review Focus 5)", async () => {
-    vi.mocked(getGenerateScript).mockResolvedValue(generateScript({ doc: reel01Doc() })); // still holds the review placeholder
+  it("moves a drafted script with items still open: the browser asked the person first (D363)", async () => {
+    vi.mocked(getGenerateScript).mockResolvedValue({
+      ...generateScript({ doc: reel01Doc(), docVersion: 3 }), // still holds the review placeholder
+      notes: { brief: "", confirmations: [{ id: "c1", text: "Sat 14 Nov", confirmed: false }] },
+    });
+    vi.mocked(markScriptFinal).mockResolvedValue(true);
+    const { POST } = await import("./route");
+    const res = await POST(post() as never, { params });
+    expect(res.status).toBe(200);
+    expect(markScriptFinal).toHaveBeenCalledWith("c1", SCRIPT_ID, 3);
+  });
+
+  it("refuses a script with no draft yet", async () => {
+    vi.mocked(getGenerateScript).mockResolvedValue(generateScript({ doc: null }));
     const { POST } = await import("./route");
     const res = await POST(post() as never, { params });
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/^Not final yet: 1 item is still open \(REVIEW \(S\d+\): placeholder\)\.$/);
+    expect((await res.json()).error).toBe("There's no draft to mark final yet.");
     expect(markScriptFinal).not.toHaveBeenCalled();
-  });
-
-  it("refuses an unconfirmed item to confirm", async () => {
-    vi.mocked(getGenerateScript).mockResolvedValue({ ...ready(), notes: { brief: "", confirmations: [{ id: "c1", text: "Sat 14 Nov", confirmed: false }] } });
-    const { POST } = await import("./route");
-    expect((await POST(post() as never, { params })).status).toBe(409);
   });
 
   it("refuses when the script moved on between the check and the move, and when it is not at Generate", async () => {

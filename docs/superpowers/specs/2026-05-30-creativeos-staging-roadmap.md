@@ -7198,3 +7198,13 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Keeping the skip and filling in the client's Specific avatar: it only works while a client has exactly one, and breaks silently when a second is added. Picking only after the draft (the cast list already allows it): the angles, card and draft are all written around the lead, so it has to be settled first.
 
 **Supersedes →** spec 2 interaction model §3.0 "Founder-led skips it: the cast is James". **Originated →** this conversation.
+
+### D363 — Mark final is there once a draft exists; open items ask first, they no longer block *(recorded 2026-10-09)*
+
+**Decision.** On Generate, Mark final is enabled as soon as the script has a first draft (and the copilot is not mid-reply). When the fill-to-final list (spec 2 §8) still holds items, clicking it opens a confirm that names them (a confirmation by what to confirm, anything else by its label; the first four, then "and N more"); "Mark final" moves the script to Visualise, Cancel keeps it. With nothing open it moves at once, as before. The route moves any drafted script on the version it read; it refuses only a script with no draft, one not at Generate, or one edited meanwhile. Open items, unticked confirmations included, stay in the script's notes.
+
+**Why.** User, 9 Oct: after "write it", Mark final sat disabled waiting on the post date and the To-confirm checkboxes at the bottom, which the team often settles later with the brand. The script reaches the client only when someone shares it from In review (D348–D358), so a human step still stands between an open item and the client.
+
+**Rejected.** Keeping `[placeholders]` blocking while letting confirmations through: the user chose the confirm-for-everything version. Removing the check entirely (no confirm): the list is the only reminder before the script moves on.
+
+**Revises →** D333 (the route's "only when the fill-to-final list is empty" check). **Originated →** this conversation.
