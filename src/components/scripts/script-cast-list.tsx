@@ -30,7 +30,7 @@ export function ScriptCastList({
               <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
                 {face ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={face} alt={`${c.name}, avatar`} className="size-full object-cover" />
+                  <img src={face} alt={`${c.name}, avatar`} className="size-full object-cover object-top" />
                 ) : (
                   <UserRound className="absolute inset-0 m-auto size-6 text-muted-foreground/50" strokeWidth={1.5} aria-hidden />
                 )}

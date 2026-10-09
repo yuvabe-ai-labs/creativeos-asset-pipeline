@@ -82,7 +82,7 @@ export function AvatarNode({ id, data, selected }: NodeProps) {
                 <div className="relative aspect-[3/4] overflow-hidden rounded-md bg-muted">
                   {avatar.front ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatar.front.url} alt="" className="size-full object-cover" />
+                    <img src={avatar.front.url} alt="" className="size-full object-cover object-top" />
                   ) : (
                     <UserRound className="absolute inset-0 m-auto size-8 text-muted-foreground/40" strokeWidth={1.5} />
                   )}

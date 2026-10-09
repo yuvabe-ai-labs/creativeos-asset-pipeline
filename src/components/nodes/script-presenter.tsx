@@ -31,7 +31,7 @@ function Face({ avatar, size }: { avatar: Avatar; size: "sm" | "md" }) {
     <span className={cn("grid shrink-0 place-items-center overflow-hidden rounded-full bg-muted", size === "sm" ? "size-5" : "size-10")}>
       {avatar.front ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={avatar.front.url} alt="" className="size-full object-cover" />
+        <img src={avatar.front.url} alt="" className="size-full object-cover object-top" />
       ) : (
         <UserRound className="size-3/5 text-muted-foreground/50" strokeWidth={1.5} />
       )}

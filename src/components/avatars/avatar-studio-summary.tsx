@@ -29,7 +29,7 @@ export function AvatarStudioSummary({ avatar, name }: { avatar: Avatar | null; n
             onClick={() => setZoomed(true)}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={avatar.front.url} alt="" className="size-full object-cover" />
+            <img src={avatar.front.url} alt="" className="size-full object-cover object-top" />
           </Button>
         ) : (
           <UserRound className="size-10 text-muted-foreground/40" strokeWidth={1.5} />

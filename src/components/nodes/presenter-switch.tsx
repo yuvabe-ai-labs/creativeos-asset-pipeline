@@ -21,7 +21,7 @@ export function PresenterSwitch({ promptNodeId }: { promptNodeId: string }) {
     <div className="mx-2.5 mt-3 flex items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2">
       {avatar.front ? (
         // eslint-disable-next-line @next/next/no-img-element -- a storage URL, sized by CSS
-        <img src={avatar.front.url} alt="" className="size-8 shrink-0 rounded-md object-cover" />
+        <img src={avatar.front.url} alt="" className="size-8 shrink-0 rounded-md object-cover object-top" />
       ) : null}
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium text-foreground">Avatar: {avatar.name || "Unnamed"}</p>
