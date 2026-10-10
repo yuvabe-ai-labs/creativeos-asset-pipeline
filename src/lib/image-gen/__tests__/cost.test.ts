@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { computeImageCost, estimateImageOutputCost, estimateImageInputCost, estimateGeminiInputTokens, estimateOpenAIInputTokens, seedreamImageCostUsd, seedreamReferenceCostUsd } from "../cost";
+import { aspectRatioToOpenAISize, computeImageCost, estimateImageOutputCost, estimateImageInputCost, estimateGeminiInputTokens, estimateOpenAIInputTokens, seedreamImageCostUsd, seedreamReferenceCostUsd } from "../cost";
+import { imageGenClientModels } from "../client-models";
 
 describe("computeImageCost", () => {
   it("returns null for unknown model", () => {
@@ -42,6 +43,28 @@ describe("computeImageCost", () => {
   });
 });
 
+// A model the cost tables don't know settles at 0 credits (billed-run.ts and the image routes
+// treat a null cost as free), so every model the picker offers must be priced at every option.
+describe("every offered image model is priced", () => {
+  for (const model of imageGenClientModels) {
+    it(model.id, () => {
+      const options = (name: string) => {
+        const p = model.params.find((x) => x.name === name);
+        return p?.constraints.type === "select" ? (p.constraints.options as string[]) : [undefined];
+      };
+      const tokens = { text_input_tokens: 1, image_input_tokens: 1, image_output_tokens: 1, total_tokens: 3 };
+      if (model.provider !== "seedream") expect(computeImageCost(model.id, tokens)).not.toBeNull();
+      for (const quality of options("quality")) {
+        for (const size of model.provider === "openai"
+          ? options("aspect_ratio").map((r) => aspectRatioToOpenAISize(r!))
+          : options("image_size")) {
+          expect(estimateImageOutputCost(model.id, quality, size!), `${quality} @ ${size}`).not.toBeNull();
+        }
+      }
+    });
+  }
+});
+
 describe("estimateImageOutputCost", () => {
   it("returns null for an unknown model", () => {
     expect(estimateImageOutputCost("unknown:model", "medium", "1024x1024")).toBeNull();
@@ -72,6 +95,19 @@ describe("estimateImageOutputCost", () => {
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "1K")).toBeCloseTo(0.134, 4);
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "2K")).toBeCloseTo(0.134, 4);
     expect(estimateImageOutputCost("gemini:gemini-3-pro-image", undefined, "4K")).toBeCloseTo(0.24, 4);
+  });
+
+  it("prices GPT Image 2.5 from the measured table, xhigh and max included, both models alike", () => {
+    expect(estimateImageOutputCost("openai:gpt-image-2.5-flare", "xhigh", "1024x1024")).toBeCloseTo(0.0937, 4);
+    expect(estimateImageOutputCost("openai:gpt-image-2.5-sunburst", "max", "1024x1536")).toBeCloseTo(0.1646, 4);
+    expect(estimateImageOutputCost("openai:gpt-image-2.5-flare", "auto", "1024x1024")).toBeCloseTo(0.0527, 4);
+  });
+
+  it("prices Nano Banana 2.1 at Google's published per-image rates, with no 512 tier", () => {
+    expect(estimateImageOutputCost("gemini:gemini-nano-banana-2.1", undefined, "1K")).toBeCloseTo(0.0336, 4);
+    expect(estimateImageOutputCost("gemini:gemini-nano-banana-2.1", undefined, "2K")).toBeCloseTo(0.0504, 4);
+    expect(estimateImageOutputCost("gemini:gemini-nano-banana-2.1", undefined, "4K")).toBeCloseTo(0.113, 4);
+    expect(estimateImageOutputCost("gemini:gemini-nano-banana-2.1", undefined, "512")).toBeNull();
   });
 
   it("prices Seedream per image: Lite flat, Pro by pixel tier", () => {

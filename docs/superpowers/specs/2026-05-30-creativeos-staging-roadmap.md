@@ -7208,3 +7208,23 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Keeping `[placeholders]` blocking while letting confirmations through: the user chose the confirm-for-everything version. Removing the check entirely (no confirm): the list is the only reminder before the script moves on.
 
 **Revises →** D333 (the route's "only when the fill-to-final list is empty" check). **Originated →** this conversation.
+
+### D364 — Nano Banana 2.1 goes through the Interactions API; the older Gemini image models stay on generateContent *(recorded 2026-10-10)*
+
+**Decision.** `gemini:gemini-nano-banana-2.1` is a new image model whose provider path calls `ai.interactions.create` (`@google/genai` ≥ 2.28): reference images first, prompt text last, `response_format: { type: "image", aspect_ratio, image_size }`, `store: false`, image read from `output_image`, input tokens from `usage.total_input_tokens`, image output tokens from the `image` entry of `output_tokens_by_modality` (`total_output_tokens` also counts the model's text: measured 1411 against 1120 for the image). It offers 1:1, 16:9, 9:16, 4:3, 3:4 and 21:9 at 1K/2K/4K, priced at Google's published $0.0336 / $0.0504 / $0.113 per image. Nano Banana, 2 and Pro keep their `generateContent` path unchanged. The same change moves `openai` to v7 (whose only breaking change is a Node 22 floor; Trigger.dev defaults to node-24).
+
+**Why.** Google's image-generation docs serve this model through the Interactions API only. Its pricing page lists no 512 price, so 512 is not offered; 4:1/1:4 are not in its documented ratio list.
+
+**Rejected.** Moving the older Gemini models onto Interactions in the same change: they work on generateContent and nothing requires the move.
+
+**Originated →** this conversation.
+
+### D365 — GPT Image 2.5 Flare and Sunburst are priced from a measured table until real usage refines it *(recorded 2026-10-10)*
+
+**Decision.** `openai:gpt-image-2.5-flare` and `openai:gpt-image-2.5-sunburst` join the OpenAI image models on the existing Image API path, with one shared param spec: quality low/medium/high/xhigh/max/auto, background auto/opaque/transparent. Their token rates are OpenAI's published $5 text in / $8 image in / $30 image out. The per-image reservation table is measured: one live generation per quality × size on 2026-10-10 (both models returned identical token counts in every cell; max at 1024×1024 is 7024 tokens, $0.21). Reference images reserve at gpt-image-2's 1550 tokens each (measured 1024 for a 1024×1024 reference).
+
+**Why.** OpenAI publishes no per-image table for 2.5, and states the GPT Image 2 calculator does not estimate its token use, so copying gpt-image-2's table would be a guess, with nothing at all for xhigh/max.
+
+**Rejected.** Reusing gpt-image-2's per-image table: different consumption, and no xhigh/max rows.
+
+**Originated →** this conversation.

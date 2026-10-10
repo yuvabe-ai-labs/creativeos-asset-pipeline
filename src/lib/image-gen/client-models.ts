@@ -1,8 +1,8 @@
 // Client-safe model metadata. No generate functions — safe to import from React components.
 // Params are imported from providers (single source of truth, no Zod duplication).
 
-import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "./params/openai";
-import { gemini25FlashParams, geminiFlash2Params, geminiProParams } from "./params/gemini";
+import { gptImage25Params, gptImage2Params, gptImage1Params, gptImage1MiniParams } from "./params/openai";
+import { gemini25FlashParams, geminiFlash2Params, geminiNanoBanana21Params, geminiProParams } from "./params/gemini";
 import { seedreamLiteParams, seedreamProParams } from "./params/seedream";
 import { buildZodFromParams } from "./schema-builder";
 import type { ClientModelSpec, ParamSpec } from "./types";
@@ -14,6 +14,30 @@ export type ImageGenClientModel = ClientModelSpec;
 // ── Client model list ─────────────────────────────────────────────────────────
 
 export const imageGenClientModels: ClientModelSpec[] = [
+  {
+    id: "openai:gpt-image-2.5-sunburst",
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 2.5 Sunburst", providerLabel: "OpenAI",
+    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxImageEdgePx: 3840,
+    maxAspectRatio: 3.0,
+    minDimensionMultiple: 16,
+    supportsMask: true,
+    params: gptImage25Params,
+    schema: buildZodFromParams(gptImage25Params),
+  },
+  {
+    id: "openai:gpt-image-2.5-flare",
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 2.5 Flare", providerLabel: "OpenAI",
+    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxImageEdgePx: 3840,
+    maxAspectRatio: 3.0,
+    minDimensionMultiple: 16,
+    supportsMask: true,
+    params: gptImage25Params,
+    schema: buildZodFromParams(gptImage25Params),
+  },
   {
     id: "openai:gpt-image-2",
     provider: "openai", mediaType: "image",
@@ -67,6 +91,15 @@ export const imageGenClientModels: ClientModelSpec[] = [
     maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
     params: geminiFlash2Params,
     schema: buildZodFromParams(geminiFlash2Params),
+  },
+  {
+    id: "gemini:gemini-nano-banana-2.1",
+    provider: "gemini", mediaType: "image",
+    label: "Nano Banana 2.1", providerLabel: "Gemini",
+    maxReferenceImages: 14, maxReferenceSizeBytes: 0,
+    maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
+    params: geminiNanoBanana21Params,
+    schema: buildZodFromParams(geminiNanoBanana21Params),
   },
   {
     id: "gemini:gemini-3-pro-image",
