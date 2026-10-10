@@ -5,7 +5,12 @@ import { toast } from "sonner";
 import { flowToPersisted } from "@/lib/canvas-nodes";
 import { saveCanvasAction } from "@/lib/actions/nodes";
 import { useCanvasStoreApi } from "./canvas-store-provider";
-import { runAutosaveFlush } from "./autosave-flush";
+import {
+  runAutosaveFlush,
+  hasUnsavedChanges,
+  savedBaseline,
+  type SavedBaseline,
+} from "./autosave-flush";
 import { useRegisterAutosaveFlush } from "./autosave-flush-context";
 
 // Debounced, server-enforced autosave. Only runs while this session holds the lock
@@ -29,8 +34,22 @@ export function CanvasAutosave({
   // One toast per failure streak — autosave retries every debounce tick, and a
   // toast per retry would spam. Reset on the next successful save.
   const saveFailedRef = useRef(false);
+  // What the server last confirmed, so a flush with nothing new is a no-op (see
+  // hasUnsavedChanges). Null until the effect below seeds it.
+  const savedRef = useRef<SavedBaseline | null>(null);
+  // The save currently running. Saves are serialised: a second flush waits for this one,
+  // then persists only what it missed, instead of racing it with a duplicate request.
+  const inFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
+    // The store is built from the server's rows, so its state when autosave first mounts
+    // IS the saved state. Seeded once only: this effect re-runs when its deps change, and
+    // re-seeding then would mark unsaved edits as saved.
+    if (!savedRef.current) {
+      const initial = storeApi.getState();
+      savedRef.current = savedBaseline(initial.nodes, initial.edges);
+    }
+
     // Imperative flush: cancel pending debounce and persist current state immediately.
     async function flush() {
       if (!canEditRef.current) return;
@@ -38,7 +57,24 @@ export function CanvasAutosave({
         clearTimeout(timer.current);
         timer.current = null;
       }
+      while (inFlightRef.current) await inFlightRef.current;
       const s = storeApi.getState();
+      if (!hasUnsavedChanges(s, savedRef.current)) {
+        // Same content in new arrays (a selection, a measured size): adopt them, so the next
+        // check short-circuits on reference equality instead of re-fingerprinting.
+        if (savedRef.current) savedRef.current = { ...savedRef.current, nodes: s.nodes, edges: s.edges };
+        return;
+      }
+      const run = persist(s);
+      inFlightRef.current = run;
+      try {
+        await run;
+      } finally {
+        inFlightRef.current = null;
+      }
+    }
+
+    async function persist(s: ReturnType<typeof storeApi.getState>) {
       const outcome = await runAutosaveFlush({
         canvasId,
         snapshot: {
@@ -52,6 +88,9 @@ export function CanvasAutosave({
         onLockLost,
       });
       if (outcome === "saved") {
+        // The arrays as they were SENT, not as they are now: an edit made while this save
+        // was in flight is a new array, so it still reads as unsaved.
+        savedRef.current = savedBaseline(s.nodes, s.edges);
         if (saveFailedRef.current) {
           saveFailedRef.current = false;
           toast.success("Canvas saved.");

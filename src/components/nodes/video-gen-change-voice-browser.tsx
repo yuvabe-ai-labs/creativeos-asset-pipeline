@@ -7,15 +7,20 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { hasActiveFilters } from "@/lib/elevenlabs/voice-filters";
 import type { PickerVoice } from "@/lib/elevenlabs/voice-catalog";
 import { useVoiceBrowser, type VoiceTab } from "@/hooks/use-voice-browser";
+import { useClientVoiceRemoval } from "@/hooks/use-client-voice-removal";
 import { VideoGenVoicePickerFilters } from "./video-gen-voice-picker-filters";
 import { VideoGenVoicePickerList } from "./video-gen-voice-picker-list";
 import { VideoGenVoicePickerSort } from "./video-gen-voice-picker-sort";
 
 // D284 — the voice picker dialog's body, laid out like ElevenLabs' voice library: filter sidebar on
 // the left; tabs, search and the voice list on the right. Fills the dialog's fixed height; each
-// pane scrolls on its own.
-export function VideoGenChangeVoiceBrowser({ selectedId, onSelect }: { selectedId: string | null; onSelect: (v: PickerVoice) => void }) {
-  const b = useVoiceBrowser(true);
+// pane scrolls on its own. D292 — with a `clientId` the first tab is "This client": that client's
+// voices plus the stock ones, each of the client's own removable.
+export function VideoGenChangeVoiceBrowser({
+  selectedId, clientId, onSelect,
+}: { selectedId: string | null; clientId?: string; onSelect: (v: PickerVoice) => void }) {
+  const b = useVoiceBrowser(true, clientId);
+  const remove = useClientVoiceRemoval(clientId, b.reloadAccount);
   const lib = b.tab === "library";
   return (
     <div className="grid h-full min-h-0 grid-cols-[15rem_minmax(0,1fr)]">
@@ -29,7 +34,7 @@ export function VideoGenChangeVoiceBrowser({ selectedId, onSelect }: { selectedI
         <div className="flex items-center gap-3">
           <Tabs value={b.tab} onValueChange={(t) => b.setTab(t as VoiceTab)}>
             <TabsList>
-              <TabsTrigger value="account">My voices</TabsTrigger>
+              <TabsTrigger value="account">{clientId ? "This client" : "My voices"}</TabsTrigger>
               <TabsTrigger value="library">Voice Library</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -40,7 +45,7 @@ export function VideoGenChangeVoiceBrowser({ selectedId, onSelect }: { selectedI
             <InputGroupInput
               id="voice-picker-search"
               aria-label="Search voices"
-              placeholder={lib ? "Search 18,000+ voices…" : "Search your voices…"}
+              placeholder={lib ? "Search 18,000+ voices…" : clientId ? "Search this client's voices…" : "Search your voices…"}
               value={b.filters.search}
               onChange={(e) => b.setFilter("search", e.target.value)}
             />
@@ -65,6 +70,7 @@ export function VideoGenChangeVoiceBrowser({ selectedId, onSelect }: { selectedI
           infinite={lib ? { hasMore: b.library.hasMore, onMore: b.library.loadMore } : null}
           playingId={b.preview.playingId}
           onSelect={onSelect}
+          onRemove={!lib && clientId ? remove : undefined}
           onTogglePreview={b.preview.toggle}
           onRetry={b.retry}
           onClearFilters={b.clearFilters}

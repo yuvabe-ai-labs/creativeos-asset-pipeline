@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { voiceoverMappingIssue, renderVoiceover, joinVoLines } from "../voiceover";
+import { voiceoverMappingIssue, renderVoiceover, joinVoLines, multishotVoiceover, foldMultishotVoiceover } from "../voiceover";
 import type { ReelScript } from "../reel-script";
 
 const script = (voiceover: string, lines: string[][] | null): ReelScript => ({
@@ -264,5 +264,39 @@ describe("joinVoLines", () => {
     expect(
       voiceoverMappingIssue({ voiceover: joinVoLines(shots), visual_script: { shots } }),
     ).toBeNull();
+  });
+});
+
+describe("multishotVoiceover / foldMultishotVoiceover (D307)", () => {
+  const line = (text: string, speaker = "narrator") => ({ text, speaker });
+
+  it("is the sequence's lines, then any left on cuts by an older node, cut by cut", () => {
+    const data = {
+      sequenceVoiceover: [line("Made by hand.")],
+      cuts: [
+        { id: "a", text: "", seconds: 2, voiceover: [line("One.", "creator")] },
+        { id: "b", text: "", seconds: 2 },
+        { id: "c", text: "", seconds: 2, voiceover: [line("Two.", "creator")] },
+      ],
+    };
+    expect(multishotVoiceover(data)?.map((l) => l.text)).toEqual(["Made by hand.", "One.", "Two."]);
+  });
+
+  it("is undefined when nothing is spoken anywhere", () => {
+    expect(multishotVoiceover({ cuts: [{ id: "a", text: "", seconds: 2 }] })).toBeUndefined();
+    expect(multishotVoiceover({})).toBeUndefined();
+  });
+
+  it("folds cut lines into the sequence and takes them off the cuts", () => {
+    const folded = foldMultishotVoiceover({
+      cuts: [{ id: "a", text: "x", seconds: 2, voiceover: [line("One.", "creator")] }],
+    });
+    expect(folded.sequenceVoiceover?.map((l) => l.text)).toEqual(["One."]);
+    expect(folded.cuts?.[0]).toEqual({ id: "a", text: "x", seconds: 2 });
+  });
+
+  it("leaves data with nothing on its cuts as it is", () => {
+    const data = { cuts: [{ id: "a", text: "x", seconds: 2 }], sequenceVoiceover: [line("Hi.")] };
+    expect(foldMultishotVoiceover(data)).toBe(data);
   });
 });

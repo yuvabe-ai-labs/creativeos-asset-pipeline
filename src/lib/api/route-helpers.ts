@@ -6,6 +6,10 @@ import { resolveOrgId, resolveCallerContext, type CallerContext } from "@/lib/da
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
+import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
+import { toCanonicalShareToken } from "@/lib/client-review/token";
+import { getScriptReviewByToken } from "@/lib/db/script-reviews";
+import type { ScriptReviewByToken } from "@/lib/script-review/wire";
 
 // PostgREST may surface an embedded to-one relation as an object or a single-element
 // array, depending on schema-cache heuristics (same ambiguity handled in
@@ -165,18 +169,31 @@ export async function withNode(
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("nodes")
-    .select("*, canvases!inner(client_id, clients!inner(org_id))")
-    .eq("id", nodeId)
-    .maybeSingle();
+  // The node lookup, the caller (an Auth-server session check plus a membership read) and
+  // the impersonation cookie don't depend on each other, so they run side by side — this
+  // wrapper fronts every node route, the focus views' reads included.
+  //
+  // The caller is resolved ONCE and the effective org derived from it here, rather than via
+  // resolveOrgId(): React's cache() does not dedupe inside route handlers, so calling both
+  // ran the Auth check and membership read twice per request, back to back.
+  const [{ data, error }, caller, impersonation] = await Promise.all([
+    supabase
+      .from("nodes")
+      .select("*, canvases!inner(client_id, clients!inner(org_id))")
+      .eq("id", nodeId)
+      .maybeSingle(),
+    resolveCallerContext(),
+    resolveImpersonationState(),
+  ]);
   if (error) throw error;
   if (!data) return options?.onNotFound?.() ?? apiError("Node not found.", 404);
+  // Same rule as resolveOrgId(): the impersonation target while a live session is active
+  // (D81), else the caller's own org.
+  const effectiveOrgId = impersonation.isImpersonating ? impersonation.targetOrgId : caller.orgId;
 
   const row = data as unknown as NodeWithOrgChain;
   const canvas = unwrapEmbed(row.canvases);
   const client = canvas ? unwrapEmbed(canvas.clients) : null;
-  const effectiveOrgId = await resolveOrgId();
   if (!canvas || !client || client.org_id !== effectiveOrgId) {
     return apiError("Node not found.", 404);
   }
@@ -184,7 +201,6 @@ export async function withNode(
   const blocked = await assertImpersonationWriteAllowed(req);
   if (blocked) return blocked;
 
-  const caller = await resolveCallerContext();
   const { canvases: _canvases, ...node } = row;
   return handler(nodeId, node as NodeRow, caller, canvas.client_id, effectiveOrgId);
 }
@@ -228,6 +244,40 @@ export async function withMoodboard(
   return handler(moodboardId, caller);
 }
 
+// ── Share-token resolution (D309) ─────────────────────────────────────────────
+
+// The ONE unauthenticated entry point in the app: /api/r/[token]/* (exempted in
+// src/proxy.ts). The token is the capability — no session, no org check, no
+// impersonation gate (there is no operator here). Unknown → 404, like every other
+// resolver; a malformed token never reaches the database.
+export async function withShareToken(
+  params: Promise<{ token: string }>,
+  handler: (review: ReviewByToken) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { token: raw } = await params;
+  // D311: a link is `<title-slug>-<code>`; only the code finds the review.
+  const token = toCanonicalShareToken(raw);
+  if (!token) return apiError("Review not found.", 404);
+  const review = await getReviewByToken(token);
+  if (!review) return apiError("Review not found.", 404);
+  return handler(review);
+}
+
+// D356: the second named token resolver, for /api/r/s/[token]/* (script reviews). Same rules as
+// withShareToken — under the same proxy exemption, no session, no org check, no impersonation
+// gate — and the same link parsing (D311): only the code at the end finds the review.
+export async function withScriptShareToken(
+  params: Promise<{ token: string }>,
+  handler: (review: ScriptReviewByToken) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { token: raw } = await params;
+  const token = toCanonicalShareToken(raw);
+  if (!token) return apiError("Review not found.", 404);
+  const review = await getScriptReviewByToken(token);
+  if (!review) return apiError("Review not found.", 404);
+  return handler(review);
+}
+
 // ── Webhook auth ──────────────────────────────────────────────────────────────
 
 // Shared-secret check for server-to-server webhooks (Trigger.dev tasks calling back
@@ -254,6 +304,24 @@ export async function withTryCatch(
   } catch (e) {
     const message = e instanceof Error ? e.message : fallbackMessage;
     return apiError(message, 500);
+  }
+}
+
+/**
+ * Like withTryCatch, but an unexpected error never reaches the browser: its message (a database
+ * error, a provider's wording) goes to the server log and the caller gets only `fallbackMessage`.
+ * For routes whose errors are shown to people as-is. Deliberate 4xx answers from the handler
+ * (apiError) still pass through unchanged.
+ */
+export async function withQuietErrors(
+  fallbackMessage: string,
+  handler: () => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  try {
+    return await handler();
+  } catch (e) {
+    console.error(`[api] ${fallbackMessage}`, e);
+    return apiError(fallbackMessage, 500);
   }
 }
 

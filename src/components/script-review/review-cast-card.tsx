@@ -1,0 +1,54 @@
+// src/components/script-review/review-cast-card.tsx
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { AvatarSheetViews } from "@/components/avatars/avatar-sheet-views";
+import { castAnchor } from "@/lib/scripts/anchors";
+import type { CastMember } from "@/lib/scripts/schema";
+import type { AvatarSnapshot } from "@/lib/script-review/types";
+import { snapshotViewImages } from "@/lib/script-review/utils";
+import { AvatarCommentBox } from "./avatar-comment-box";
+import { PartMarker } from "./part-marker";
+import { VoiceSampleButton } from "./voice-sample-button";
+
+/** Spec 4 §4 (review board): a cast member as the client sees them — spec 3's cast card with every
+ *  making control taken out. The four-view sheet and the voice show on a share with avatars, with one
+ *  comment box beside them for the whole avatar, never one per view, in place of the header's comment
+ *  button (D359). A script-only share has no box, so its header keeps the button. */
+export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMember; avatar?: AvatarSnapshot; showAvatar: boolean }) {
+  // Where the avatar shows, its box is the card's one way to comment; the header keeps the count.
+  const boxed = showAvatar && Boolean(avatar);
+  return (
+    <Card id={castAnchor(member.id)} className="flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40">
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <h3 className="font-display text-lg font-medium">{member.name}</h3>
+            {member.isLead && <Badge variant="outline">Lead</Badge>}
+          </div>
+          <p className="text-sm text-muted-foreground">{member.description}</p>
+        </div>
+        <PartMarker part={{ kind: "cast", castId: member.id }} action={!boxed} className="shrink-0" />
+      </header>
+      {showAvatar &&
+        (avatar ? (
+          <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+            <AvatarSheetViews columns={2} name={member.name} views={snapshotViewImages(avatar.views)} generating={[]} />
+            <div className="flex min-w-0 flex-col gap-4">
+              {avatar.voice && (
+                <div className="flex flex-col gap-1.5 text-sm">
+                  <span className="text-xs text-muted-foreground">Voice</span>
+                  {avatar.voice.name && <span>{avatar.voice.name}</span>}
+                  {avatar.voice.sampleUrl && <VoiceSampleButton url={avatar.voice.sampleUrl} />}
+                </div>
+              )}
+              <AvatarCommentBox castId={member.id} name={member.name} />
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No avatar in this version.</p>
+        ))}
+    </Card>
+  );
+}

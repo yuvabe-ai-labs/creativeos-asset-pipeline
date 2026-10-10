@@ -6,7 +6,13 @@ const MOCK_DURATION_SECONDS = 8;
 
 export const videoGenerateTask = task({
   id: "video-generate",
-  maxDuration: 600,
+  // Must outlast the providers' own poll deadlines: Seedance waits up to 30 minutes
+  // (POLL_DEADLINE_MS, matching the 30-minute timeout in BytePlus's own samples), and this
+  // limit counts compute time, which that in-process polling uses. At 600 a long Seedance job
+  // was killed mid-poll with MAX_DURATION_EXCEEDED, which Trigger never retries and which skips
+  // the catch below, so no failure webhook was sent and the paid-for video was never collected.
+  // 40 minutes = the 30-minute poll plus room to download, store and report the result.
+  maxDuration: 2400,
   run: async (payload: {
     generationId: string;
     modelId: string;
@@ -14,6 +20,8 @@ export const videoGenerateTask = task({
     startFrameUrl?: string;
     endFrameUrl?: string;
     referenceUrls: string[];
+    /** D299 — the presenter's voice, on Seedance. Other providers ignore it. */
+    referenceAudioUrl?: string;
     params: Record<string, unknown>;
     mockMode?: boolean;
   }) => {
@@ -57,6 +65,7 @@ export const videoGenerateTask = task({
         startFrameUrl: payload.startFrameUrl,
         endFrameUrl: payload.endFrameUrl,
         referenceUrls: payload.referenceUrls ?? [],
+        referenceAudioUrl: payload.referenceAudioUrl,
         params: payload.params,
       });
 

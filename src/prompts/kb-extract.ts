@@ -33,10 +33,13 @@ BRAND_PROFILE
                      e.g. "beauty", "wellness", "F&B", "fashion", "tech"
 
 VISUAL_IDENTITY
-  colour_palette   → ALWAYS include hex codes where available.
+  colour_palette   → EVERY colour MUST be "<name> #RRGGBB" — a name and a 6-digit hex code.
                      primary: ["turmeric gold #C8A000", "warm cream #F5EDD6"]
-                     Use the exact hex from the document; if only names are given, use names.
-                     avoid: list colours explicitly prohibited in the document.
+                     Use the exact hex from the source when it gives one. When it only names a
+                     colour, give the closest standard hex for that name (e.g. "navy #000080")
+                     and mark the field's evidence_type as "inferred". Never output a colour
+                     without a hex code.
+                     avoid: list colours explicitly prohibited in the document, same format.
   surface_palette  → physical materials and textures used as props or backgrounds.
                      e.g. ["aged linen", "pale marble", "dark slate", "raw terracotta"]
                      NOT abstract mood words — actual tactile surfaces.

@@ -14,11 +14,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   return withNode(req, params, async (nodeId, node, _caller, _clientId, effectiveOrgId) => {
+    // Three stages, not six: each stage's lookups depend only on the stage before, so the
+    // ones within a stage run side by side. Every focus view opens on this route.
     const rows = await listVersions(nodeId);
     const versionIds = rows.map((v) => v.id);
-    const creditsByVersion = await getCreditsChargedByVersionIds(versionIds);
     // D173: the full decision log for every version on this node, one batched query.
-    const decisionsByVersion = await getDecisionsByVersionIds(versionIds);
+    const [creditsByVersion, decisionsByVersion] = await Promise.all([
+      getCreditsChargedByVersionIds(versionIds),
+      getDecisionsByVersionIds(versionIds),
+    ]);
 
     // D168: resolve maker and reviewer to CURRENT display names in one round trip,
     // reusing the same helper review/queue.ts already uses for the navbar inbox — never
@@ -32,13 +36,15 @@ export async function GET(
       ...rows.flatMap((v) => [v.operator_user_id, v.approved_by_user_id]),
       ...decisionReviewerIds,
     ].filter((id): id is string => !!id);
-    const names = await resolveDisplayNames(effectiveOrgId, userIds);
 
     // D243/D244: every annotation on every decision of this node, one batched query —
     // the sibling of the decisions fetch above, never a per-decision round trip. Asset
     // URLs are a pure path→URL map (D247), so this adds no round trips at all.
     const allDecisionIds = [...decisionsByVersion.values()].flat().map((d) => d.id);
-    const annotationsByDecision = await getAnnotationsByDecisionIds(allDecisionIds);
+    const [names, annotationsByDecision] = await Promise.all([
+      resolveDisplayNames(effectiveOrgId, userIds),
+      getAnnotationsByDecisionIds(allDecisionIds),
+    ]);
     const urlsByAnnotation = annotationAssetUrls(
       [...annotationsByDecision.values()].flat(),
     );
@@ -112,5 +118,11 @@ export async function GET(
         creditsCharged: creditsByVersion.get(v.id) ?? null,
       })),
     });
-  });
+  },
+  // A node the client just added isn't in the DB until autosave persists it, and a focus view
+  // reads its versions the moment it opens — the guided buttons open one on a brand-new node.
+  // No row means no versions, the same result as an empty list; the org-mismatch 404 in
+  // withNode is untouched (that's an access check, not a lookup miss).
+  { onNotFound: () => apiOk({ activeVersionId: null, versions: [] }) },
+  );
 }

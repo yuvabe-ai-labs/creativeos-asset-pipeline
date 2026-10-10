@@ -7,7 +7,7 @@
 
 const bar = "animate-pulse rounded bg-muted";
 
-// One section row matching KBFieldRow's gutter: purple kicker + label/confidence
+// One section row matching KBFieldRow's gutter: purple kicker + label
 // in the left column, value bars on the right.
 function SkeletonSection({ lines = 1 }: { lines?: number }) {
   return (
@@ -15,7 +15,6 @@ function SkeletonSection({ lines = 1 }: { lines?: number }) {
       <div className="self-start">
         <div className="mb-2 h-0.5 w-6 rounded-full bg-primary/40" aria-hidden />
         <div className={`h-3 w-20 ${bar} bg-muted/70`} />
-        <div className={`mt-1.5 h-4 w-10 rounded-full ${bar} bg-muted/70`} />
       </div>
       <div className="grid gap-2">
         <div className={`h-4 w-full ${bar}`} />

@@ -9,6 +9,8 @@ import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 import { readVoiceChange } from "@/lib/voice-change/source";
+import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
+import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
 
 // Every failure path in this file needs the same two calls in the same order — a small
 // local helper keeps that from drifting out of sync across the 3 sites that need it.
@@ -45,6 +47,29 @@ export async function completeGeneration(
   // Idempotency: skip if already resolved (duplicate webhook delivery)
   if (generation.status !== "running") return;
 
+  // An avatar-owned row (node_id null) has no node to attach a version to. The one kind that
+  // completes through this webhook is the avatar's voice preview (D294), which has its own
+  // settlement. The Studio's images (D291) finish inside their own request and never arrive
+  // here, so anything else is dropped the same defensive way as the org-mismatch backstop below.
+  if (!generation.node_id) {
+    if (isVoicePreviewGeneration(generation)) {
+      await completeAvatarVoicePreview(generation, input);
+      return;
+    }
+    console.error("[completeGeneration] generation has no node_id — dropping", {
+      generationId: input.generationId,
+    });
+    await failAndRefund(
+      input.generationId,
+      generation.org_id,
+      "Dropped: generation has no node to attach output to",
+    ).catch((e) => {
+      console.error("[completeGeneration] failAndRefund failed on missing-node path", { error: e });
+    });
+    return;
+  }
+  const nodeId = generation.node_id;
+
   // D79: the org recorded on the job at creation must still match the current org of
   // the node it targets. Should be impossible in practice (nothing in this app moves a
   // client between orgs) — this is a backstop against exactly the class of bug this
@@ -52,7 +77,7 @@ export async function completeGeneration(
   const { data: currentChain, error: chainError } = await createServerSupabase()
     .from("nodes")
     .select("canvases!inner(clients!inner(org_id))")
-    .eq("id", generation.node_id)
+    .eq("id", nodeId)
     .maybeSingle();
   if (chainError) throw chainError;
   const canvas = currentChain
@@ -115,7 +140,7 @@ export async function completeGeneration(
     const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
     try {
       const result = await uploadVideoGen({
-        nodeId: generation.node_id,
+        nodeId,
         body: videoBuffer,
         contentType: "video/mp4",
       });
@@ -140,7 +165,7 @@ export async function completeGeneration(
 
   // 2. INSERT node_versions
   const version = await insertVersion({
-    nodeId: generation.node_id,
+    nodeId,
     // R11.1. There is no session at this boundary — this runs from the Trigger.dev
     // webhook, so resolveCallerContext() has nothing to resolve. generations.user_id is
     // who kicked the job off, captured at insertGeneration and (per db/generations.ts)
@@ -158,7 +183,7 @@ export async function completeGeneration(
   });
 
   // 3. Move active pointer
-  await setActiveVersion(generation.node_id, version.id);
+  await setActiveVersion(nodeId, version.id);
 
   // 4. Compute cost and mark succeeded
   const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);

@@ -583,3 +583,275 @@ select tablename from pg_publication_tables
 
 Application code that depends on this: `src/lib/realtime/org-market-updates.ts` (filters on
 `org_id`) and `src/hooks/use-market-updates.ts`.
+
+## Migration 0041 — `client_avatars` (2026-09-30)
+
+`supabase/migrations/0041_client_avatars.sql`. Paste into the Supabase SQL editor → Run.
+Same manual dashboard process as every other migration in this doc.
+
+Creates `client_avatars` (D287, D288): one row per avatar, owned by a client, with its front
+image and profile sheet as JSON that records each image's source. RLS is enabled with zero
+policies (default-deny, as `0027`); the app reads and writes through the service role. The table
+also records likeness consent (D289) — who confirmed and when — for an uploaded front image.
+
+**Purely additive** — one new table, no existing table altered, no backfill.
+
+**Not safe to re-run:** `create table` fails if the table exists. That failure is harmless.
+
+**Ordering:** apply before deploying the app code. The Avatars page fails with
+`relation "client_avatars" does not exist` until it lands.
+
+**Verify after running:**
+
+```sql
+-- expect 1 row, rowsecurity = true
+select relname, relrowsecurity from pg_class where relname = 'client_avatars';
+
+-- expect 0 rows (no policies by design)
+select policyname from pg_policies where tablename = 'client_avatars';
+
+-- expect 2 rows
+select column_name from information_schema.columns
+where table_name = 'client_avatars' and column_name like 'likeness%';
+```
+
+## Migration 0042 — a generation can belong to an avatar (2026-09-30)
+
+`supabase/migrations/0042_generations_avatar.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0041** (`client_avatars`).
+
+Makes `generations.node_id` nullable, adds `avatar_id` (cascade) with an index, and adds a
+check that every row has a node or an avatar (D291). This is what lets Avatar Studio images use
+the existing credit ledger.
+
+**Existing rows are untouched** — each already has a `node_id`, so the check passes.
+
+**Safe to re-run.** `add column if not exists`, `create index if not exists`, and the constraint
+is dropped before it is added.
+
+**Ordering:** apply before deploying the app code. Until it lands, generating in the Avatar
+Studio fails with `null value in column "node_id"`.
+
+**Verify after running:**
+
+```sql
+-- expect: is_nullable = YES
+select is_nullable from information_schema.columns
+where table_name = 'generations' and column_name = 'node_id';
+
+-- expect 1 row
+select conname from pg_constraint where conname = 'generations_owner_check';
+
+-- expect 0 — no row is owned by nothing
+select count(*) from generations where node_id is null and avatar_id is null;
+```
+
+## Migration 0043 — `client_voices` (2026-09-30)
+
+`supabase/migrations/0043_client_voices.sql`. Paste into the Supabase SQL editor → Run.
+
+Creates `client_voices` (D292): which ElevenLabs account voices belong to which client — one
+row per voice cloned for the client or saved from the Voice Library for it. One ElevenLabs
+account serves every client, so this is what keeps one client's clone out of another's picker.
+RLS is enabled with zero policies (default-deny, as `0041`).
+
+**Purely additive** — one new table, no existing table altered, no backfill. Voices already on
+the ElevenLabs account (anything picked in Change voice before this, or cloned by hand) are not
+recorded for any client and do not appear under "This client" in the Avatar Studio; Change voice
+on Video Gen still lists the whole account and is unaffected.
+
+**Not safe to re-run:** `create table` fails if the table exists. That failure is harmless.
+
+**Ordering:** apply before deploying the app code. Until it lands, the Avatar Studio's voice
+picker fails to load with `relation "client_voices" does not exist`.
+
+**Verify after running:**
+
+```sql
+-- expect 1 row, rowsecurity = true
+select relname, relrowsecurity from pg_class where relname = 'client_voices';
+
+-- expect 1 row: the (client_id, elevenlabs_voice_id) uniqueness
+select conname from pg_constraint
+where conrelid = 'client_voices'::regclass and contype = 'u';
+```
+
+## Migration 0044 — `background_jobs` + Brand Images sources (2026-10-05)
+
+`supabase/migrations/0044_background_jobs_and_brand_image_sources.sql`. Paste into the Supabase
+SQL editor → Run.
+
+Two parts:
+
+- **`client_brand_images` gains six columns** (D303): `source` (`upload | website | instagram |
+  facebook`, default `upload`), `media_type` (`image | video`, default `image`), `thumbnail_url`,
+  `source_url`, `posted_at`, `source_ref`, plus a partial unique index on
+  `(client_id, source_ref)`. Every existing row becomes `source = 'upload'`, `media_type = 'image'`
+  through the defaults — which is what they are.
+- **`background_jobs`** (D306): the generic lifecycle table for long-running jobs, first used by
+  the brand asset import (D302). RLS enabled with zero policies (default-deny, as `0041`).
+
+**Not safe to re-run:** `add column` / `create table` fail if they exist. That failure is harmless.
+
+**Ordering:** apply **before** deploying the app code. The KB page and KB builds read
+`client_brand_images.source`; until the column exists they fail with
+`column client_brand_images.source does not exist`.
+
+**Also required, same window:** `APIFY_TOKEN` must be set in the **Trigger.dev** production
+environment (the `asset-import` task calls Apify directly), and the `asset-import` task must be
+deployed with the rest of `trigger/`.
+
+**Verify after running:**
+
+```sql
+-- expect 0 — every existing image is an upload
+select count(*) from client_brand_images where source <> 'upload';
+
+-- expect 2 rows: client_brand_images_source_ref_idx, background_jobs_one_live_idx
+select indexname from pg_indexes
+where indexname in ('client_brand_images_source_ref_idx', 'background_jobs_one_live_idx');
+
+-- expect 1 row, rowsecurity = true; and 0 policies
+select relname, relrowsecurity from pg_class where relname = 'background_jobs';
+select policyname from pg_policies where tablename = 'background_jobs';
+```
+
+## Migration 0045 — `client_brand_images.sort_at` (2026-10-05)
+
+`supabase/migrations/0045_brand_images_sort_at.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0044.**
+
+Adds a stored generated column `sort_at = coalesce(posted_at, created_at)` and the partial index
+`client_brand_images_imported_page_idx` the Brand assets grid pages on (keyset pagination, newest
+post first). Existing rows fill themselves.
+
+**Not safe to re-run:** `add column` fails if it exists. That failure is harmless.
+
+**Ordering:** apply before deploying the app code. Until it lands, the Brand assets tab shows
+"Couldn't load the brand assets" (`column client_brand_images.sort_at does not exist`).
+
+**Verify after running:**
+
+```sql
+-- expect 0 — every row has a sort key
+select count(*) from client_brand_images where sort_at is null;
+
+-- expect 1 row
+select indexname from pg_indexes where indexname = 'client_brand_images_imported_page_idx';
+```
+
+## Migration 0046 — `client_brand_images.width` / `height` (2026-10-05)
+
+`supabase/migrations/0046_brand_images_dimensions.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0044.**
+
+Adds nullable `width` and `height` (positive integers): each imported asset's displayed pixel size,
+recorded at import so the Brand assets masonry knows every tile's aspect ratio before the image
+loads. Existing rows stay null; the browser measures those.
+
+**Not safe to re-run:** `add column` fails if it exists. That failure is harmless.
+
+**Ordering:** apply **before** deploying the `asset-import` Trigger task. The task writes these
+columns; until they exist **every imported asset fails to save** (the import reports them as
+failed and the job still succeeds with 0 new).
+
+**Verify after running:**
+
+```sql
+-- expect 2 rows
+select column_name from information_schema.columns
+where table_name = 'client_brand_images' and column_name in ('width', 'height');
+```
+
+## Migration 0048 — `client_brand_image_cards` + `set_kb_image_analysis` (2026-10-07)
+
+`supabase/migrations/0048_brand_image_cards.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0044.**
+
+Creates `client_brand_image_cards` (one card per brand image, cascades with the image and the client)
+and the function `set_kb_image_analysis(p_version_id, p_value)`, which replaces only the
+`image_analysis` section of a KB version's output (D312). RLS enabled with zero policies
+(default-deny, as `0041`).
+
+**Not safe to re-run:** `create table` fails if it exists (harmless); the function uses
+`create or replace`.
+
+**Ordering:** apply **before** deploying the app code and the `image-analysis` Trigger task. Until it
+lands, image analysis runs fail ("The image analysis didn't finish") and the tab shows no result.
+
+**Also required, same window:** `GOOGLE_GENAI_API_KEY` must be set in the **Trigger.dev** environment
+(the `image-analysis` task calls Gemini), and the task must be deployed with the rest of `trigger/`.
+
+**Verify after running:**
+
+```sql
+-- expect 1 row, rowsecurity = true; and 0 policies
+select relname, relrowsecurity from pg_class where relname = 'client_brand_image_cards';
+select policyname from pg_policies where tablename = 'client_brand_image_cards';
+
+-- expect 1 row
+select proname from pg_proc where proname = 'set_kb_image_analysis';
+```
+
+## Migration 0049 — image cards on two axes, format + purpose (2026-10-07)
+
+`supabase/migrations/0049_brand_image_cards_two_axis.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0048.**
+
+Renames `client_brand_image_cards.category` → `format`, adds `purpose`, and indexes both by client
+(D314).
+
+**Not safe to re-run:** the rename fails once applied (harmless).
+
+**Ordering:** apply **before** deploying the app code and the `image-analysis` Trigger task: the new
+code writes `format` and `purpose`, so every card save fails until it lands.
+
+**Verify after running:**
+
+```sql
+-- expect 2 rows: format, purpose (and no category)
+select column_name from information_schema.columns
+where table_name = 'client_brand_image_cards' and column_name in ('category', 'format', 'purpose');
+```
+
+## Migration 0050 — KB writes that keep Image Analysis (2026-10-07)
+
+`supabase/migrations/0050_kb_safe_writes.sql`. Paste into the Supabase SQL editor → Run.
+**Depends on 0048.**
+
+Adds two functions (D318): `save_kb_output_keep_image_analysis(p_version_id, p_output)` (the review
+screen's Save: every section but Image Analysis) and `set_kb_field(p_version_id, p_path, p_value)`
+(one field, for field re-analysis). Neither touches existing data.
+
+**Safe to re-run:** both use `create or replace`.
+
+**Ordering:** apply **before** deploying the app code: until it lands, saving the KB review screen
+and re-analysing a single field fail.
+
+**Verify after running:**
+
+```sql
+-- expect 2 rows
+select proname from pg_proc where proname in ('save_kb_output_keep_image_analysis', 'set_kb_field');
+```
+
+## Migration 0055 — stuck-reservation sweep waits 50 minutes (2026-10-10)
+
+`supabase/migrations/0055_stuck_reservations_threshold.sql`. Paste into the Supabase SQL editor → Run.
+
+Moves the `stuck_reservations` view's threshold from 15 to 50 minutes, to follow the
+`video-generate` task's `maxDuration` going from 600s to 2400s (Seedance and Kling poll for up to
+30 minutes). No data changes.
+
+**Safe to re-run:** `create or replace view`.
+
+**Ordering:** apply **before or with** the deploy that raises `maxDuration` (both Trigger.dev and
+the app). Deploying the new limit first leaves a window where the 15-minute sweep fails and refunds
+jobs that are still running, and their finished videos are then dropped.
+
+**Verify after running:**
+
+```sql
+-- expect the definition to contain '00:50:00'
+select pg_get_viewdef('stuck_reservations');
+```

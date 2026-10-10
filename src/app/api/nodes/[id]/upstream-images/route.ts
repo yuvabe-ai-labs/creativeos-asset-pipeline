@@ -1,10 +1,13 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
-import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
-import { readVoLines } from "@/lib/nodes/voiceover";
+import { getPromptUpstream, withStillPresenter } from "@/lib/avatars/presenter-server";
+import { planCitedRefIds, renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { multishotVoiceover } from "@/lib/nodes/voiceover";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
 import {
+  citedRefIds,
   refEntriesOf,
   renderRefs,
   singleTakeRefDialect,
@@ -12,6 +15,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { videoGenClientModelMap, resolveVideoModelId } from "@/lib/video-gen/client-models";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 export async function GET(
   req: Request,
@@ -19,7 +23,9 @@ export async function GET(
 ) {
   return withNode(req, params, async (nodeId, node) => {
     try {
-      const direct = await getUpstreamOutputs(nodeId);
+      // D299 — a still sees its Prompt's presenter as a connected image, as image-generate does.
+      const nodeUpstream = await getUpstreamOutputs(nodeId);
+      const direct = node.type === "image-gen" ? await withStillPresenter(nodeUpstream) : nodeUpstream;
 
       // Also collect upstream of any prompt nodes (2-level traversal) — video-prompt OR
       // multishot-prompt. Surfaces file/draw nodes in pattern: node → prompt-node → video-gen.
@@ -27,7 +33,7 @@ export async function GET(
         (u) => u.type === "video-prompt" || u.type === "multishot-prompt",
       );
       const promptUpstreamBatches = await Promise.all(
-        promptNodes.map((u) => getUpstreamOutputs(u.nodeId)),
+        promptNodes.map((u) => getPromptUpstream(u.nodeId)),
       );
 
       // Merge and deduplicate; direct edges take precedence.
@@ -61,7 +67,7 @@ export async function GET(
             return d.fileKind === "image" && typeof d.fileUrl === "string";
           }
           if (
-            u.type === "image-gen" &&
+            isGeneratedImageType(u.type) &&
             (directIds.has(u.nodeId) || multishotPromptUpstreamIds.has(u.nodeId))
           ) {
             return typeof u.activeOutput === "string";
@@ -73,7 +79,7 @@ export async function GET(
           return {
             id: u.nodeId,
             type: u.type,
-            imageUrl: u.type === "image-gen"
+            imageUrl: isGeneratedImageType(u.type)
               ? (u.activeOutput as string)
               : (d.fileUrl as string),
             filename: typeof d.filename === "string" ? d.filename : undefined,
@@ -99,6 +105,9 @@ export async function GET(
       const refIds = refEntriesOf(ownUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id);
 
       let promptText: string | null = null;
+      // D308 — what Video Gen needs to show which references go: the images the prompt cites
+      // (second in priority) and the avatar's front and sheet, as the route will see them.
+      let citedIds: string[] = [];
       if (connectedPromptNode?.type === "video-prompt") {
         const stored =
           typeof connectedPromptNode.activeOutput === "string" ? connectedPromptNode.activeOutput : null;
@@ -110,6 +119,7 @@ export async function GET(
           refIds,
         );
         promptText = stored !== null && dialect ? renderRefs(stored, dialect).text : stored;
+        if (stored !== null) citedIds = citedRefIds(stored, dialect ?? imageRefDialect(refIds));
       } else if (connectedPromptNode?.type === "multishot-prompt") {
         const plan = connectedPromptNode.activeOutput as MultishotPlan | null | undefined;
         const multishotNode = ownUpstream.find((u) => u.type === "multishot");
@@ -129,13 +139,21 @@ export async function GET(
             cuts,
             multishotCapabilityFor(plan.targetModel),
             refIds,
-            readVoLines(multishotNode?.data.sequenceVoiceover),
+            multishotNode ? multishotVoiceover(multishotNode.data) : undefined,
           );
+          citedIds = [...planCitedRefIds(plan, multishotCapabilityFor(plan.targetModel), refIds)];
         }
       }
 
       const promptNode = connectedPromptNode
-        ? { id: connectedPromptNode.nodeId, type: connectedPromptNode.type, text: promptText }
+        ? {
+            id: connectedPromptNode.nodeId,
+            type: connectedPromptNode.type,
+            text: promptText,
+            citedIds,
+            avatarFrontId: ownUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null,
+            avatarSheetId: ownUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null,
+          }
         : null;
 
       return apiOk({ images, promptNode });

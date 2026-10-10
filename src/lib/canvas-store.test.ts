@@ -23,6 +23,35 @@ const nodes: AppNode[] = [
   { id: "b", type: "prompt", position: { x: 0, y: 0 }, data: { title: "" } },
 ] as AppNode[];
 
+describe("updateNodeData", () => {
+  it("leaves the nodes array untouched when every patched value is already set", () => {
+    // Autosave watches the nodes array by reference: a no-op patch that still replaced it
+    // queued a full-canvas save. Focus views re-patch values they just read back.
+    const store = createCanvasStore(
+      [{ id: "v", type: "video-gen", position: { x: 0, y: 0 }, data: { parsed: "u.mp4", approvalStatus: "pending" } }] as unknown as AppNode[],
+      [],
+    );
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("v", { parsed: "u.mp4", approvalStatus: "pending" });
+    expect(store.getState().nodes).toBe(before);
+  });
+
+  it("still applies a patch that changes a value", () => {
+    const store = createCanvasStore(nodes, []);
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("b", { title: "Hero shot" });
+    expect(store.getState().nodes).not.toBe(before);
+    expect(store.getState().nodes.find((n) => n.id === "b")?.data).toMatchObject({ title: "Hero shot" });
+  });
+
+  it("is a no-op for a node id that isn't on the canvas", () => {
+    const store = createCanvasStore(nodes, []);
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("missing", { title: "x" });
+    expect(store.getState().nodes).toBe(before);
+  });
+});
+
 describe("onConnect", () => {
   it("assigns a UUID id to the new edge (the DB edges.id column is uuid)", () => {
     const store = createCanvasStore(nodes, []);
@@ -38,6 +67,31 @@ describe("onConnect", () => {
     // React Flow's default id would be `xy-edge__a-b` — not a uuid, which the
     // edges.id column rejects. onConnect must mint a real uuid.
     expect(UUID_RE.test(edges[0].id)).toBe(true);
+  });
+
+  // D298 — one presenter per script.
+  it("a second avatar connected to a script replaces the first, and says so once", () => {
+    const store = createCanvasStore([
+      { id: "s", type: "script", position: { x: 0, y: 0 }, data: {} },
+      { id: "v1", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a1" } },
+      { id: "v2", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a2" } },
+    ] as AppNode[], [{ id: "e1", source: "v1", target: "s" } as Edge]);
+    vi.mocked(toast).mockClear();
+    store.getState().onConnect({ source: "v2", target: "s", sourceHandle: null, targetHandle: null });
+    expect(store.getState().edges.map((e) => e.source)).toEqual(["v2"]);
+    expect(store.getState().removedEdgeIds).toContain("e1");
+    expect(toast).toHaveBeenCalledTimes(1);
+  });
+
+  it("connectNodes keeps one presenter too — the gallery path", () => {
+    const store = createCanvasStore([
+      { id: "s", type: "script", position: { x: 0, y: 0 }, data: {} },
+      { id: "v1", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a1" } },
+      { id: "v2", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a2" } },
+    ] as AppNode[], [{ id: "e1", source: "v1", target: "s" } as Edge]);
+    store.getState().connectNodes("v2", "s");
+    expect(store.getState().edges.map((e) => e.source)).toEqual(["v2"]);
+    expect(store.getState().removedEdgeIds).toContain("e1");
   });
 
   it("still rejects a loop-creating edge", () => {
@@ -226,7 +280,8 @@ describe("fanOutShots", () => {
     expect(first.script?.visual_script?.shots?.[0].voiceover).toEqual(vo);
   });
 
-  it("carries a shot's voiceover onto the multishot node's first cut", () => {
+  // D307 — a Multishot speaks over the whole sequence: the shot's lines join the sequence.
+  it("carries a shot's voiceover onto the multishot node's sequence, not its cut", () => {
     const vo = [{ text: "Hi.", speaker: "narrator" }];
     const reelB: AppNode = {
       id: "script-b",
@@ -253,8 +308,9 @@ describe("fanOutShots", () => {
     store.getState().fanOutShots("script-b");
     const multishots = store.getState().nodes.filter((n) => n.type === "multishot");
 
-    const cuts = (multishots[0].data as { cuts?: { voiceover?: unknown }[] }).cuts;
-    expect(cuts?.[0].voiceover).toEqual(vo);
+    const data = multishots[0].data as { cuts?: { voiceover?: unknown }[]; sequenceVoiceover?: unknown };
+    expect(data.sequenceVoiceover).toEqual(vo);
+    expect(data.cuts?.every((c) => c.voiceover === undefined)).toBe(true);
   });
 });
 
@@ -460,7 +516,7 @@ describe("canvas store — tombstones", () => {
 
 const genRow = (over: Partial<GenerationRow>): GenerationRow =>
   ({
-    id: "j", node_id: "g", org_id: "org-1", client_id: null, type: "image", status: "running",
+    id: "j", node_id: "g", avatar_id: null, org_id: "org-1", client_id: null, type: "image", status: "running",
     provider_job_id: null, model_used: null, params_snapshot: null,
     inputs_snapshot: null, output_snapshot: null, tokens_used: null, cost_usd: null, credits_charged: null,
     version_id: null, user_id: null, error: null, meta: null,
@@ -922,7 +978,7 @@ describe("scene beats become cuts (D286)", () => {
     store.getState().fanOutShots("sc");
     store.getState().setGenerationMode("sc", "0", true);
     const data = multishotData(store);
-    expect(data.cuts.every((c) => c.voiceover?.length === 0)).toBe(true);
+    expect(data.cuts.every((c) => c.voiceover === undefined)).toBe(true);
     expect(data.sequenceVoiceover?.map((l) => l.text)).toEqual(["Meet the jar.", "Made by hand."]);
   });
 
@@ -933,13 +989,13 @@ describe("scene beats become cuts (D286)", () => {
     expect(multishotData(store).sequenceVoiceover).toHaveLength(2);
   });
 
-  it("uses one cut, with every line on it, when the beats are stale", () => {
+  it("uses one cut, with every line on the sequence, when the beats are stale", () => {
     const store = createCanvasStore([v3Script({ ...stampedRow, description: "Edited" })], []);
     store.getState().fanOutShots("sc");
     store.getState().setGenerationMode("sc", "0", true);
     expect(cutsOf(store)).toEqual([["Edited", 6]]);
-    expect(multishotData(store).cuts[0].voiceover).toHaveLength(2);
-    expect(multishotData(store)).not.toHaveProperty("sequenceVoiceover");
+    expect(multishotData(store).cuts[0].voiceover).toBeUndefined();
+    expect(multishotData(store).sequenceVoiceover).toHaveLength(2);
   });
 
   it("uses cached beats written by cacheSceneBeats", () => {

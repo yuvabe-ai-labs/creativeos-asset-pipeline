@@ -12,6 +12,7 @@ import {
   SelectionMode,
   type Connection,
   type Edge,
+  type NodeMouseHandler,
   type NodeTypes,
   type OnBeforeDelete,
   type XYPosition,
@@ -22,6 +23,7 @@ import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { fileNodeService } from "@/services/file-node.service";
+import { AvatarNode } from "@/components/nodes/avatar-node";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -30,8 +32,11 @@ import { PromptNode } from "@/components/nodes/prompt-node";
 import { ShotNode } from "@/components/nodes/shot-node";
 import { MultishotNode } from "@/components/nodes/multishot-node";
 import { MultishotPromptNode } from "@/components/nodes/multishot-prompt-node";
+import { ClientReviewNode } from "@/components/nodes/client-review-node";
+import { ClientFeedbackDrawer } from "@/components/canvas/client-feedback-drawer/client-feedback-drawer";
 import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
+import { CompositeNode } from "@/components/nodes/composite-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { PostNode } from "@/components/nodes/post-node";
@@ -43,10 +48,13 @@ import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
+import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
+import { usePrefetchNodeVersions, useNodeVersionsLiveSync } from "@/hooks/queries/node-versions";
+import { usePrefetchNodeUpstream } from "@/hooks/queries/node-upstream";
 import { CanvasEditableProvider } from "./canvas-editable-context";
 import { AutosaveFlushProvider } from "./autosave-flush-context";
 import { CanvasIdProvider } from "./canvas-id-context";
-import { ClientIdProvider } from "./client-id-context";
+import { ClientIdProvider, ClientSlugProvider } from "./client-id-context";
 import { GenerationTray } from "./generation-tray";
 import { CopilotPanel } from "./copilot-panel";
 import { LockBanner } from "./lock-banner";
@@ -62,6 +70,7 @@ import type { ClientKBJobRow } from "@/lib/db/types";
 const nodeTypes: NodeTypes = {
   script: ScriptNode,
   kb: KBNode,
+  avatar: AvatarNode,
   file: FileNode,
   text: TextNode,
   prompt: PromptNode,
@@ -70,20 +79,36 @@ const nodeTypes: NodeTypes = {
   "multishot-prompt": MultishotPromptNode,
   draw: DrawNode,
   "image-gen": ImageGenNode,
+  composite: CompositeNode,
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
   post: PostNode,
+  "client-review": ClientReviewNode,
 };
+
+// The node types whose focus view opens on a version history — what hovering one prefetches.
+const VERSIONED_NODE_TYPES = new Set([
+  "prompt",
+  "multishot-prompt",
+  "image-gen",
+  "composite",
+  "video-prompt",
+  "video-gen",
+]);
+// How long the pointer must rest on a node before its versions are prefetched.
+const HOVER_PREFETCH_DELAY_MS = 200;
 
 export function Canvas({
   canvasId,
   clientId,
+  clientSlug,
   initialKBJob,
   hasActiveKB,
   initialDriveRootFolder,
 }: {
   canvasId: string;
   clientId: string;
+  clientSlug: string;
   initialKBJob: ClientKBJobRow | null;
   hasActiveKB: boolean;
   initialDriveRootFolder: { id: string; name: string } | null;
@@ -138,6 +163,10 @@ export function Canvas({
   // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a senior's
   // decision made elsewhere lands here without a reload.
   useCanvasApprovalSync(canvasId);
+  // Every cost figure on the canvas reads one shared query; this is its one live refresh.
+  useCanvasCostLiveUpdates(canvasId, (nodeId) =>
+    storeApi.getState().nodes.some((n) => n.id === nodeId),
+  );
   // Read the latest canEdit from event handlers/closures without re-subscribing them.
   const canEditRef = useRef(canEdit);
   useLayoutEffect(() => {
@@ -159,6 +188,51 @@ export function Canvas({
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  // Cached version lists stay honest while their views are closed: one that the live channel
+  // says has changed is dropped, so the next open reads it fresh.
+  useNodeVersionsLiveSync({
+    isOnCanvas: (nodeId) => storeApi.getState().nodes.some((n) => n.id === nodeId),
+    openFocusViewIds: () => storeApi.getState().openFocusViewIds,
+  });
+
+  // Resting on a node starts loading its version history, so its focus view usually opens on
+  // data that is already there. An Image Gen view also shows its connected Prompt's text, so
+  // that prompt's versions come along. Only after the pointer settles — sweeping across a
+  // canvas must not fire a read per node passed over — and a no-op for anything freshly cached.
+  const prefetchNodeVersions = usePrefetchNodeVersions();
+  const prefetchNodeUpstream = usePrefetchNodeUpstream();
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onNodeMouseEnter = useCallback<NodeMouseHandler<AppNode>>(
+    (_event, node) => {
+      if (!node.type || !VERSIONED_NODE_TYPES.has(node.type)) return;
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      hoverTimer.current = setTimeout(() => {
+        hoverTimer.current = null;
+        void prefetchNodeVersions(node.id);
+        // A Video Gen view also opens on its connected inputs. Shown only until its own
+        // post-flush read confirms them (see useNodeUpstream).
+        if (node.type === "video-gen") void prefetchNodeUpstream(node.id);
+        if (node.type !== "image-gen") return;
+        const { nodes: all, edges: wires } = storeApi.getState();
+        const prompt = all.find(
+          (n) => n.type === "prompt" && wires.some((e) => e.source === n.id && e.target === node.id),
+        );
+        if (prompt) void prefetchNodeVersions(prompt.id);
+      }, HOVER_PREFETCH_DELAY_MS);
+    },
+    [prefetchNodeVersions, prefetchNodeUpstream, storeApi],
+  );
+  const onNodeMouseLeave = useCallback(() => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+  }, []);
+  useEffect(
+    () => () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    },
+    [],
+  );
 
   const rfRef = useRef<{
     screenToFlowPosition: (pos: { x: number; y: number }) => XYPosition;
@@ -361,6 +435,7 @@ export function Canvas({
   return (
     <ReactFlowProvider>
     <ClientIdProvider value={clientId}>
+    <ClientSlugProvider value={clientSlug}>
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
@@ -395,6 +470,10 @@ export function Canvas({
           tray performs. Non-modal, so it stays put under a focus view (R6.11). */}
       <ReviewDrawer canvasId={canvasId} />
 
+      {/* D309: client feedback drawer — opened by clicking a Client review node. Non-modal
+          and right-side like the review drawer, so feedback and the canvas share the screen. */}
+      <ClientFeedbackDrawer />
+
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
       )}
@@ -418,6 +497,8 @@ export function Canvas({
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeMouseEnter={onNodeMouseEnter}
+        onNodeMouseLeave={onNodeMouseLeave}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
@@ -503,6 +584,7 @@ export function Canvas({
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>
+    </ClientSlugProvider>
     </ClientIdProvider>
     </ReactFlowProvider>
   );

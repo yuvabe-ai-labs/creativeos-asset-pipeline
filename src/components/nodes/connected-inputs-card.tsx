@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, ImageIcon, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft } from "lucide-react";
+import { Combine, FileText, ImageIcon, ListVideo, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getShotRole } from "@/lib/nodes/shot-roles";
 import { Button } from "@/components/ui/button";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 export type UpstreamNode = {
   id: string;
@@ -75,7 +76,7 @@ export function ConnectedInputsCard({ upstream, preview, onOpenDetail, imageOnly
         const isExpanded = expanded.has(u.id);
         const isImage =
           !!fileUrl &&
-          (u.type === "image-gen" ||
+          (isGeneratedImageType(u.type) ||
             ((u.type === "file" || u.type === "draw") && fileKind === "image"));
         // A DOC/text file connected to an image-consuming node (e.g. Image Gen) is a
         // type mismatch — show a clear message instead of the raw extracted text.
@@ -194,9 +195,11 @@ export function ConnectedDetailView({
   // rail), omit this and no back button renders.
   onBack?: () => void;
 }) {
+  // An avatar's preview is its front image (the Composite rail, D312).
   const isImage =
     !!node.fileUrl &&
-    (node.type === "image-gen" ||
+    (isGeneratedImageType(node.type) ||
+      node.type === "avatar" ||
       ((node.type === "file" || node.type === "draw") && node.fileKind === "image"));
 
   return (
@@ -245,7 +248,10 @@ export function NodeIcon({ type }: { type: string }) {
   if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;
   if (type === "draw") return <Pencil className="size-3 shrink-0 text-primary" />;
   if (type === "prompt") return <Sparkles className="size-3 shrink-0 text-primary" />;
+  if (type === "composite") return <Combine className="size-3 shrink-0 text-primary" strokeWidth={1.5} />;
   if (type === "image-gen") return <ImageIcon className="size-3 shrink-0 text-primary" />;
+  if (type === "multishot") return <ListVideo className="size-3 shrink-0 text-primary" strokeWidth={1.5} />;
+  if (type === "avatar") return <UserRound className="size-3 shrink-0 text-primary" strokeWidth={1.5} />;
   return <FileText className="size-3 shrink-0 text-muted-foreground" />;
 }
 

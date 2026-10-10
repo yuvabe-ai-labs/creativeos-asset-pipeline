@@ -1,16 +1,18 @@
 import type { UpstreamOutput } from "@/lib/db/nodes";
-import { renderPlan, planMissingRefs, type MultishotPlan } from "@/lib/nodes/multishot-plan";
+import { renderPlan, planCitedRefIds, planMissingRefs, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
-import { readVoLines } from "@/lib/nodes/voiceover";
+import { multishotVoiceover } from "@/lib/nodes/voiceover";
 import type { VoLine } from "@/lib/nodes/reel-script";
 import {
+  citedRefIds,
   refEntriesOf,
   renderRefs,
   singleTakeRefDialect,
   type RefEntry,
 } from "@/lib/nodes/ref-binding";
+import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
 //   shot      -> video-prompt      -> video-gen   (activeOutput is a STRING)
@@ -152,7 +154,8 @@ export async function resolveVideoGenPrompt(
   const targetModel = typeof plan.targetModel === "string" ? plan.targetModel : null;
   const cap = multishotCapabilityFor(targetModel);
   const refIds = refIdsOf(promptUpstream);
-  const sequenceVoiceover = readVoLines(multishotNode.data.sequenceVoiceover);
+  // D307 — one list for the sequence, with any lines an older node left on its cuts.
+  const sequenceVoiceover = multishotVoiceover(multishotNode.data);
 
   return {
     ok: true,
@@ -166,3 +169,41 @@ export async function resolveVideoGenPrompt(
   };
 }
 
+
+/**
+ * D308 — the images the resolved prompt cites, by id: second in reference priority, after the
+ * avatar's front (selectReferences). Reads both stored ids and legacy positions.
+ */
+export function citedIdsOfResolved(
+  resolved: Extract<ResolvedPrompt, { ok: true }>,
+  singleTakeTarget?: string,
+): Set<string> {
+  const refIds = refIdsOf(resolved.promptUpstream);
+  if (resolved.cuts) {
+    const plan = resolved.promptNode.activeOutput as MultishotPlan;
+    return planCitedRefIds(plan, multishotCapabilityFor(resolved.targetModel), refIds);
+  }
+  const text = String(resolved.promptNode.activeOutput ?? "");
+  // Providers with no token dialect still store citations as ids; any dialect reads those.
+  const dialect = singleTakeRefDialect(singleTakeTarget, refIds) ?? imageRefDialect(refIds);
+  return new Set(citedRefIds(text, dialect));
+}
+
+/**
+ * D308 — the prompt as sent: its image tokens numbered over `refOrder`, the references the request
+ * actually carries, not over every image the prompt node can see. A citation of an image left out
+ * is written as its name rather than a number pointing at the wrong picture (renderRefs).
+ */
+export function renderResolvedPrompt(
+  resolved: Extract<ResolvedPrompt, { ok: true }>,
+  refOrder: string[],
+  singleTakeTarget?: string,
+): string {
+  if (resolved.cuts) {
+    const plan = resolved.promptNode.activeOutput as MultishotPlan;
+    return renderPlan(plan, resolved.cuts, multishotCapabilityFor(resolved.targetModel), refOrder, resolved.sequenceVoiceover);
+  }
+  const text = String(resolved.promptNode.activeOutput ?? "");
+  const dialect = singleTakeRefDialect(singleTakeTarget, refOrder);
+  return dialect ? renderRefs(text, dialect).text : text;
+}

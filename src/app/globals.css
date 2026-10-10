@@ -39,6 +39,10 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-text: var(--warning-text);
+  --color-client: var(--client);
+  --color-client-text: var(--client-text);
+  --color-scrim: var(--scrim);
+  --color-on-scrim: var(--on-scrim);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-info-text: var(--info-text);
@@ -177,6 +181,15 @@
   --warning: var(--yellow-500);
   --warning-foreground: var(--neutral-900); /* 11.61:1 */
   --warning-text: var(--yellow-700);
+  /* D310: the Client review node's own accent — the one sanctioned non-purple node colour,
+     so client-facing work reads apart from generation nodes. Fill/border use the brand
+     yellow; text and icons use yellow-700 (4.57:1), never yellow-500 (1.53:1). */
+  --client: var(--yellow-500);
+  --client-text: var(--yellow-700);
+  /* Text over imagery (a storyboard tile's shot line): white on a dark scrim in both themes, so it
+     reads over a white sketch, the brightest frame. Defined once here; .dark does not flip it. */
+  --scrim: var(--neutral-900);
+  --on-scrim: var(--neutral-0);
   --info: var(--cyan-500);
   --info-foreground: var(--neutral-900); /* 7.35:1 */
   --info-text: var(--cyan-700);
@@ -232,6 +245,8 @@
   --success-foreground: #160f2e;
   --success-text: #90c645;
   --warning: #ffca2d;
+  --client: #ffca2d;
+  --client-text: #ffca2d;
   --warning-foreground: #160f2e;
   --warning-text: #ffca2d;
   --info: #2bb7c7;
@@ -282,6 +297,13 @@
 }
 
 /* ─── Yuvabe utilities ──────────────────────────────────────────────── */
+
+/* Text on a scrim over imagery: the on-scrim colour with a soft shadow in the scrim's colour, so a
+   bright patch of the image under a letter never swallows it. */
+.scrim-text {
+  color: var(--on-scrim);
+  text-shadow: 0 1px 2px color-mix(in oklab, var(--scrim) 60%, transparent);
+}
 
 /* Eyebrow — widely-tracked small caps above headings (replaces mono labels) */
 .text-eyebrow {
@@ -345,6 +367,80 @@
 
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer {
+    animation: none;
+  }
+}
+
+/* Thinking line — the copilot's "working" state, after Claude Code's: a cycling glyph, a verb,
+   a shimmer through the letters, and a seconds counter (copilot-thinking.tsx). Unlike the rest
+   of the system it is deliberately loud and brand-coloured: it is the one place the tool shows
+   it is busy. The text stops are the 700s, so every point of the sweep stays readable on the
+   pale fill (the 500s fall to 1.5–2.4:1 on white). The flows are linear: a looping gradient
+   eased per pass would visibly stall at each seam. */
+/* No outline: a faint brand wash behind the words, so the colour lives in the text itself. */
+.thinking-pill {
+  --thinking-ink-1: var(--purple-500);
+  --thinking-ink-2: var(--red-orange-700);
+  --thinking-ink-3: var(--yellow-700);
+  --thinking-ink-4: var(--cyan-700);
+  background: linear-gradient(
+    110deg,
+    color-mix(in oklab, var(--purple-500) 5%, transparent),
+    color-mix(in oklab, var(--yellow-500) 9%, transparent),
+    color-mix(in oklab, var(--cyan-500) 6%, transparent),
+    color-mix(in oklab, var(--purple-500) 5%, transparent)
+  );
+  background-size: 300% 100%;
+  animation: thinking-flow-pill 4s linear infinite reverse;
+}
+.dark .thinking-pill {
+  --thinking-ink-1: var(--lavender-200);
+  --thinking-ink-2: var(--red-orange-500);
+  --thinking-ink-3: var(--yellow-500);
+  --thinking-ink-4: var(--cyan-500);
+}
+/* A repeating gradient loops seamlessly only when it moves by exactly one tile: at a size of
+   N×100%, that is a position of 100%·N/(N−1) — 150% for the 300% pill, 200% for the 200% text.
+   Played in reverse, the colours travel left to right. */
+@keyframes thinking-flow-pill {
+  from { background-position: 0% 0; }
+  to   { background-position: 150% 0; }
+}
+@keyframes thinking-flow-text {
+  from { background-position: 0% 0; }
+  to   { background-position: 200% 0; }
+}
+
+/* The verb: the brand gradient travels across the letters, left to right, once every 2.4s. */
+.text-shimmer-brand {
+  background-image: linear-gradient(
+    90deg,
+    var(--thinking-ink-1),
+    var(--thinking-ink-2),
+    var(--thinking-ink-3),
+    var(--thinking-ink-4),
+    var(--thinking-ink-1)
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-flow-text 2.4s linear infinite reverse;
+}
+
+/* Each new verb rises in (house easing). */
+@keyframes thinking-verb-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.thinking-verb-in {
+  animation: thinking-verb-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-pill,
+  .text-shimmer-brand,
+  .thinking-verb-in {
     animation: none;
   }
 }

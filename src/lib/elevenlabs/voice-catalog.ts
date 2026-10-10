@@ -160,6 +160,45 @@ export async function listLibraryVoices(
   return { voices: mapAll(json.voices, mapLibraryVoice), hasMore: json.has_more === true };
 }
 
+/** Instant Voice Clone (D292): the speaker's audio in, a new account voice_id out. */
+export async function cloneVoice(
+  args: {
+    name: string;
+    description?: string;
+    removeBackgroundNoise: boolean;
+    files: { name: string; type: string; bytes: ArrayBuffer }[];
+  },
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  const form = new FormData();
+  form.append("name", args.name);
+  if (args.description) form.append("description", args.description);
+  form.append("remove_background_noise", String(args.removeBackgroundNoise));
+  for (const file of args.files) {
+    form.append("files", new Blob([file.bytes], { type: file.type || "audio/mpeg" }), file.name);
+  }
+  const res = await fetchImpl(`${ELEVENLABS_API_BASE}/v1/voices/add`, {
+    method: "POST",
+    headers: { "xi-api-key": elevenLabsKey() },
+    body: form,
+  });
+  if (!res.ok) throw new ElevenLabsHttpError(res.status, await res.text().catch(() => ""), "voice clone");
+  const json = (await res.json()) as { voice_id?: unknown };
+  if (typeof json.voice_id !== "string") throw new Error("ElevenLabs voice clone returned no voice_id");
+  return json.voice_id;
+}
+
+/** Remove a voice from the account, freeing its slot. A voice already gone is not an error. */
+export async function deleteVoice(voiceId: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  const res = await fetchImpl(`${ELEVENLABS_API_BASE}/v1/voices/${encodeURIComponent(voiceId)}`, {
+    method: "DELETE",
+    headers: { "xi-api-key": elevenLabsKey() },
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new ElevenLabsHttpError(res.status, await res.text().catch(() => ""), "voice removal");
+  }
+}
+
 /** Save a Library voice to the account; returns the account voice_id to use from now on. */
 export async function saveLibraryVoice(
   args: { publicOwnerId: string; voiceId: string; name: string },

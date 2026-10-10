@@ -13,6 +13,11 @@ import {
   pathForMarketThumb,
   pathForMarketMedia,
   extForContentType,
+  pathForClientReviewCut,
+  clientReviewPrefix,
+  pathForAvatarImage,
+  pathForAvatarGenerated,
+  pathForScriptPanel,
 } from "./paths";
 
 describe("sanitizeSlug", () => {
@@ -209,5 +214,57 @@ describe("extForContentType", () => {
   // archive is best-effort and a weird content-type is not worth losing the bytes.
   it("falls back to bin for anything unrecognised", () => {
     expect(extForContentType("application/x-unknown")).toBe("bin");
+  });
+});
+
+describe("pathForAvatarImage", () => {
+  const args = { clientId: "c1", avatarId: "a1", filename: "My Face.PNG" };
+
+  it("nests under the client, the avatar and the slot", () => {
+    const path = pathForAvatarImage({ ...args, slot: "front" });
+    expect(path.startsWith("clients/c1/avatars/a1/front/")).toBe(true);
+    expect(path.endsWith(".png")).toBe(true);
+  });
+
+  it("keeps the two slots apart", () => {
+    expect(pathForAvatarImage({ ...args, slot: "sheet" })).toContain("/avatars/a1/sheet/");
+  });
+});
+
+describe("pathForAvatarGenerated", () => {
+  it("keeps generated images apart from uploads, per slot", () => {
+    const path = pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "front", ext: "png" });
+    expect(path.startsWith("clients/c1/avatars/a1/generated/front/")).toBe(true);
+    expect(path.endsWith(".png")).toBe(true);
+    expect(pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "jpg" }))
+      .toContain("/generated/sheet/");
+  });
+
+  it("names a view's file after the view, so four parallel uploads never share a name", () => {
+    const path = pathForAvatarGenerated({ clientId: "c1", avatarId: "a1", slot: "sheet", ext: "png", name: "view-left" });
+    expect(path).toMatch(/\/generated\/sheet\/view-left__.+\.png$/);
+  });
+});
+
+describe("pathForClientReviewCut", () => {
+  it("stores the cut under the node's client-review folder", () => {
+    const p = pathForClientReviewCut({ clientId: "c", canvasId: "cv", nodeId: "n", ext: "mp4" });
+    expect(p.startsWith("clients/c/canvases/cv/nodes/n/client-review/cut__")).toBe(true);
+    expect(p.endsWith(".mp4")).toBe(true);
+  });
+  it("prefix is what the finalize route checks against", () => {
+    const args = { clientId: "c", canvasId: "cv", nodeId: "n" };
+    expect(pathForClientReviewCut({ ...args, ext: "mov" }).startsWith(clientReviewPrefix(args))).toBe(true);
+  });
+});
+
+describe("pathForScriptPanel", () => {
+  it("keeps a script's panels under the script, one folder per shot", () => {
+    const path = pathForScriptPanel({ clientId: "c1", scriptId: "s1", shotId: "s01", ext: "png" });
+    expect(path).toMatch(/^clients\/c1\/scripts\/s1\/panels\/s01\/panel__.+\.png$/);
+  });
+
+  it("never lets a shot id leave its folder", () => {
+    expect(pathForScriptPanel({ clientId: "c1", scriptId: "s1", shotId: "../x", ext: "png" })).toContain("/panels/x/");
   });
 });

@@ -13,11 +13,14 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
+import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
 import {
   multishotSeedFor,
   pruneBeatCache,
@@ -117,6 +120,9 @@ function defaultData(type: string): AppNode["data"] {
   switch (type) {
     case "file":
       return { title: "" };
+    case "avatar":
+      // Filled by whoever adds the node (the gallery) — an Avatar node is never added bare.
+      return { avatarId: "" };
     case "text":
       return {};
     case "shot":
@@ -127,6 +133,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "" };
     case "image-gen":
       return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
+    case "composite":
+      return { title: "", modelId: COMPOSITE_DEFAULT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
     case "post":
@@ -236,7 +244,14 @@ export function createCanvasStore(
 
       // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
       // which the edges.id uuid column rejects (failing the whole save batch).
-      set({ edges: addEdge({ ...connection, id: crypto.randomUUID() }, get().edges) });
+      // D298 — a script has one presenter: another avatar's edge into it is replaced.
+      const replaced = source && target ? replacedPresenterEdges(get().nodes, get().edges, source, target) : [];
+      const kept = replaced.length ? get().edges.filter((e) => !replaced.includes(e)) : get().edges;
+      set({
+        edges: addEdge({ ...connection, id: crypto.randomUUID() }, kept),
+        ...(replaced.length && { removedEdgeIds: [...get().removedEdgeIds, ...replaced.map((e) => e.id)] }),
+      });
+      if (replaced.length) toast(PRESENTER_REPLACED_MESSAGE);
     },
     addNode: (type, position, id) =>
       set({
@@ -250,21 +265,33 @@ export function createCanvasStore(
           } as AppNode,
         ],
       }),
-    updateNodeData: (id, data) =>
+    updateNodeData: (id, data) => {
+      // A patch that changes nothing must not replace the nodes array: autosave watches it
+      // by reference, and focus views routinely re-patch values they just read back (the
+      // active version's output, its approval status), each of which queued a full-canvas
+      // save. Shallow on purpose — a fresh object for a nested value still counts as a change.
+      const target = get().nodes.find((n) => n.id === id);
+      if (!target) return;
+      const current = target.data as Record<string, unknown>;
+      if (Object.entries(data).every(([k, v]) => Object.is(current[k], v))) return;
       set({
         nodes: get().nodes.map((n) =>
           n.id === id
             ? ({ ...n, data: { ...n.data, ...data } } as AppNode)
             : n,
         ),
-      }),
-    connectNodes: (sourceId, targetId) =>
+      });
+    },
+    connectNodes: (sourceId, targetId) => {
+      // D298 — the gallery's path keeps one presenter per script too, announced once, here.
+      const replaced = replacedPresenterEdges(get().nodes, get().edges, sourceId, targetId);
+      const kept = replaced.length ? get().edges.filter((e) => !replaced.includes(e)) : get().edges;
       set({
-        edges: addEdge(
-          { source: sourceId, target: targetId, id: crypto.randomUUID() },
-          get().edges,
-        ),
-      }),
+        edges: addEdge({ source: sourceId, target: targetId, id: crypto.randomUUID() }, kept),
+        ...(replaced.length && { removedEdgeIds: [...get().removedEdgeIds, ...replaced.map((e) => e.id)] }),
+      });
+      if (replaced.length) toast(PRESENTER_REPLACED_MESSAGE);
+    },
     // The counterpart to connectNodes: drop the wire, keep both nodes. Dropped edge ids MUST
     // land in removedEdgeIds — autosave sends that list as the delete set, so an edge removed
     // from `edges` alone is only gone in memory and resurrects on the next load. Same cascade
@@ -525,7 +552,8 @@ export function createCanvasStore(
             id: crypto.randomUUID(),
             type: "multishot",
             position,
-            data: {
+            // D307 — each shot's lines join the sequence's: a Multishot speaks over the whole sequence.
+            data: foldMultishotVoiceover({
               // The envelope only — `cuts` is the sole shot list on this node type.
               script: { ...parsed, visual_script: { ...parsed?.visual_script, shots: undefined } },
               order: generation.index + 1,
@@ -535,7 +563,7 @@ export function createCanvasStore(
               targetModel: bestFitMultishotModel(cuts),
               ...(seed.sequenceVoiceover ? { sequenceVoiceover: seed.sequenceVoiceover } : {}),
               seededFrom,
-            },
+            }),
           };
         }
 
@@ -740,6 +768,7 @@ export function createCanvasStore(
 
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),
+
 
     focusSection: null,
     setFocusSection: (section) => set({ focusSection: section }),

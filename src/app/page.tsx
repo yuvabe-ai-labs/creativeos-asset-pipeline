@@ -19,7 +19,7 @@ export default async function ClientsPage() {
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-14">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <ClientsHomeTabs
         clients={clients}
         archivedClients={archivedClients}

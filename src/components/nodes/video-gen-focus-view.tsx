@@ -4,6 +4,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   useRef,
   type ReactNode,
 } from "react";
@@ -65,6 +66,13 @@ import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-st
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
+import {
+  useNodeVersions,
+  useRefreshNodeVersions,
+  useSetActiveNodeVersion,
+} from "@/hooks/queries/node-versions";
+import type { NodeVersionsResponse } from "@/services/node-versions.service";
+import { useNodeUpstream, useRefreshNodeUpstream } from "@/hooks/queries/node-upstream";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
 import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
@@ -102,6 +110,9 @@ import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
+import { VideoGenPresenterNotes } from "./video-gen-presenter-notes";
+import { useShotPresenter } from "@/hooks/use-shot-presenter";
+import { presenterDefaultVoiceId, presenterVideoNotes, unavailableModelsFor } from "@/lib/avatars/presenter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoGenParamsPanel, hasParamsInGroup } from "./video-gen-params-panel";
 import {
@@ -132,7 +143,8 @@ import { readVoiceMeta } from "@/lib/voice-change/meta";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
+import { selectReferences } from "@/lib/video-gen/select-references";
 
 type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
 
@@ -500,10 +512,31 @@ export function VideoGenFocusView({
   const [params, setParams] = useState<Record<string, unknown>>(
     () => paramsProp ?? defaultsForVideoModel(initialModelId),
   );
-  const [upstreamImages, setUpstreamImages] = useState<UpstreamImage[]>([]);
-  const [promptNode, setPromptNode] = useState<UpstreamPromptNode | null>(null);
-  const [versions, setVersions] = useState<VideoGenVersionSummary[]>([]);
-  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // What this node is fed, from the shared cache: a reopen (or a hover before it) shows the last
+  // known inputs at once. Shown only — every write and Generate wait for `loadingConnected` to
+  // clear, which happens after the post-flush re-read confirms the inputs (see persistThenRefresh).
+  const upstreamQuery = useNodeUpstream(nodeId);
+  const refreshUpstreamQuery = useRefreshNodeUpstream(nodeId);
+  const upstreamImages = useMemo<UpstreamImage[]>(
+    () => upstreamQuery.data?.images ?? [],
+    [upstreamQuery.data],
+  );
+  const promptNode: UpstreamPromptNode | null = upstreamQuery.data?.promptNode ?? null;
+  // D299 — the script's presenter, when it is in this shot.
+  const shotPresenter = useShotPresenter(promptNode?.id);
+  const presenterAvatar = shotPresenter?.inShot ? shotPresenter.avatar : null;
+  // This node's versions, from the shared cache: a reopen renders the cached list at once and
+  // re-checks behind it.
+  const versionsQuery = useNodeVersions<VideoGenVersionSummary>(nodeId, open);
+  const refreshVersions = useRefreshNodeVersions<VideoGenVersionSummary>(nodeId);
+  const setActiveVersionId = useSetActiveNodeVersion(nodeId);
+  const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
+  const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
+  const loadingVersions = open && versionsQuery.isPending;
+  // The versions the approval fields below were last seeded from.
+  const [seededVersions, setSeededVersions] = useState<
+    NodeVersionsResponse<VideoGenVersionSummary> | undefined
+  >(undefined);
   // ── D243 review annotations (video): paint on a PAUSED FRAME, not the player ──
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoPaused, setVideoPaused] = useState(true);
@@ -549,16 +582,17 @@ export function VideoGenFocusView({
   // Output settings are always expanded. Defaults closed so the panel opens uncluttered.
   const [pendingDialog, setPendingDialog] = useState<DialogState>(null);
 
-  // Seeded from `open`, not `false`. The seed block below re-arms these on the false → true
-  // TRANSITION, which any path that mounts the view ALREADY open never has.
+  // Seeded from `open`, not `false`. The seed block below re-arms this on the false → true
+  // TRANSITION, which any path that mounts the view ALREADY open never has: guidedCreateNext
+  // and setFocusedNodeId land in the same batch, so the card mounts with its focus view open,
+  // and the rail rendered "No inputs connected." instead of a skeleton. (`loadingVersions`,
+  // above, is derived from the versions cache and cannot hit this.)
   //
-  // Both branches hit this independently. Guided creation: guidedCreateNext and
-  // setFocusedNodeId land in the same batch, so the card mounts with its focus view open
-  // and the rail rendered "No inputs connected." instead of a skeleton. Review: a
-  // navbar-inbox link does the same, and the Review section asserted "Generate a video
-  // first…" before snapping to the approval control. One bug, two symptoms.
-  const [loadingVersions, setLoadingVersions] = useState(open);
+  // True until this open's post-flush read of the inputs has landed: every write that depends on
+  // them (role auto-assign and pruning, the multishot model) and Generate wait for it. The rail
+  // only shows a skeleton while there is also nothing cached to show (`showConnectedSkeleton`).
   const [loadingConnected, setLoadingConnected] = useState(open);
+  const showConnectedSkeleton = loadingConnected && !upstreamQuery.data;
 
   const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
     useVideoGenStatus(nodeId);
@@ -577,9 +611,24 @@ export function VideoGenFocusView({
       // D284 — reopening while a voice change runs lands back in Edit voice, where it was
       // started; otherwise on the generate settings.
       setChangeVoiceOpen(isChangingVoice && !requested);
-      setLoadingVersions(true);
       setLoadingConnected(true);
+      // Re-seed the approval fields from the versions on every open (see the block below).
+      setSeededVersions(undefined);
     }
+  }
+
+  // Whenever the cached versions change while open — the first read, the re-check behind a
+  // reopen, a live update, a refresh after our own action — re-seed the approval fields from
+  // the active version. (The canvas-store mirror of the same data is an effect further down:
+  // a store write may not happen during render.)
+  if (open && versionsQuery.data && versionsQuery.data !== seededVersions) {
+    setSeededVersions(versionsQuery.data);
+    const { versions: vs, activeVersionId: activeId } = versionsQuery.data;
+    const active = vs.find((v) => v.id === activeId);
+    setApprovalStatus(active?.approvalStatus ?? "pending");
+    setApprovalNote(active?.note ?? "");
+    setApprovedByName(active?.approvedByName ?? null);
+    setApprovedAt(active?.approvedAt ?? null);
   }
 
   // D284 — a voice change that becomes known while the view is open (the running-job lookup
@@ -732,28 +781,31 @@ export function VideoGenFocusView({
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
+  // Re-read the versions into the cache; the seed block above and the mirror below pick the
+  // result up. Best-effort: a failed refresh leaves the cached list on screen.
   const fetchVersions = useCallback(async () => {
-    try {
-      const data = await videoGenApi.fetchVersions(nodeId);
-      setVersions(data.versions);
-      setActiveVersionId(data.activeVersionId);
-      const active = data.versions.find((v) => v.id === data.activeVersionId);
-      // Unlike the other focus views, this one already mirrors the active version into the
-      // store on every refresh — so the badge's status rides along here rather than at the
-      // restore call site. Covers restore (which refetches) and the D179 live path at once:
-      // the badge follows whichever version is active. TC-106.
-      onPatchRef.current({
-        ...(active?.output ? { parsed: active.output } : {}),
-        approvalStatus: active?.approvalStatus ?? "pending",
-      });
-      setApprovalStatus(active?.approvalStatus ?? "pending");
-      setApprovalNote(active?.note ?? "");
-      setApprovedByName(active?.approvedByName ?? null);
-      setApprovedAt(active?.approvedAt ?? null);
-    } catch {
-      /* best-effort */
-    }
-  }, [nodeId]);
+    await refreshVersions().catch(() => undefined);
+  }, [refreshVersions]);
+
+  // Unlike the other focus views, this one mirrors the active version into the store whenever
+  // the versions change — so the badge's status rides along here rather than at the restore
+  // call site. Covers the first read, restore (which refetches) and the D179 live path at once:
+  // the badge follows whichever version is active. TC-106. updateNodeData skips a patch that
+  // changes nothing, so a refresh that finds the same active version writes nothing.
+  //
+  // Held while a read is in flight: a reopen renders the cached list while it re-checks, and
+  // that list can predate a version finished while the view was closed — mirroring it would
+  // put the older clip back on the card until the read lands.
+  const versionsFetching = versionsQuery.isFetching;
+  useEffect(() => {
+    const data = versionsQuery.data;
+    if (!open || !data || versionsFetching) return;
+    const active = data.versions.find((v) => v.id === data.activeVersionId);
+    onPatchRef.current({
+      ...(active?.output ? { parsed: active.output } : {}),
+      approvalStatus: active?.approvalStatus ?? "pending",
+    });
+  }, [open, versionsQuery.data, versionsFetching]);
 
   // D179: keep this panel live while it is open. Someone else approving, rejecting or
   // regenerating THIS node refreshes it in place — the decision thread, the status icons
@@ -765,16 +817,14 @@ export function VideoGenFocusView({
   // so anything that rewires the canvas has to refetch to be seen here.
   // Promise-chain (not async/await) so the setState calls sit inside a .then callback —
   // react-hooks/set-state-in-effect reads an awaited setState as a synchronous one.
+  // A failed read keeps the last known inputs (or none, on a first open) rather than answering
+  // "nothing connected", which would prune every image role.
   const refreshUpstream = useCallback(
     () =>
-      videoGenApi
-        .fetchUpstreamImages(nodeId)
-        .then(({ images, promptNode: pn }) => {
-          setUpstreamImages(images);
-          setPromptNode(pn);
-        })
-        .catch(() => {}),
-    [nodeId],
+      refreshUpstreamQuery()
+        .then(() => undefined)
+        .catch(() => undefined),
+    [refreshUpstreamQuery],
   );
 
   // Wiring only writes the edge into the client store. Autosave persists it on a 600ms debounce,
@@ -832,20 +882,7 @@ export function VideoGenFocusView({
           );
         }
       });
-    videoGenApi
-      .fetchVersions(nodeId)
-      .then((data) => {
-        setVersions(data.versions);
-        setActiveVersionId(data.activeVersionId);
-        const active = data.versions.find((v) => v.id === data.activeVersionId);
-        if (active?.output) onPatchRef.current({ parsed: active.output });
-        setApprovalStatus(active?.approvalStatus ?? "pending");
-        setApprovalNote(active?.note ?? "");
-        setApprovedByName(active?.approvedByName ?? null);
-        setApprovedAt(active?.approvedAt ?? null);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingVersions(false));
+    // Versions arrive through the shared cache (useNodeVersions above), not a fetch here.
     // persistThenRefresh, not refreshUpstream: a node reached straight from the guided
     // "Create video generation" button exists only in the client store at this point, and the
     // upstream-images route walks PERSISTED edges — so fetching first beat autosave's 600ms
@@ -913,12 +950,13 @@ export function VideoGenFocusView({
   }
 
   function handleRoleChange(imageId: string, newRole: ImageRole) {
-    const updated = { ...effectiveImageRoles };
+    const updated = { ...imageRolesProp };
 
-    // Toggle: clicking the role already assigned to this image clears it
-    if (updated[imageId] === newRole) {
-      delete updated[imageId];
-      onPatch({ imageRoles: updated });
+    // Toggle: clicking the role an image already plays turns it off (D308). Stored as "off", not
+    // deleted: a deleted role read as unassigned, and the default fill put it straight back.
+    if (effectiveImageRoles[imageId] === newRole) {
+      const next = { ...imageRolesProp, [imageId]: "off" as const };
+      onPatch({ imageRoles: next });
       return;
     }
 
@@ -1012,7 +1050,8 @@ export function VideoGenFocusView({
         modelId,
         // D98: post the reconciled values, never the possibly-stale `params` state.
         params: effectiveParams,
-        imageRoles: effectiveImageRoles,
+        // D308 — the stored roles, "off" included; the server runs the same selectReferences.
+        imageRoles: supportedImageRoles,
       });
       // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
     } catch (e) {
@@ -1147,8 +1186,13 @@ export function VideoGenFocusView({
   // the same rule the server applies. Persisted, not merely displayed — the constraint state below
   // is computed from these roles, and a client that showed a default it never saved was exactly
   // the divergence that let Generate run on a state the request would then reject.
+  // D308 — only on a model that takes no references: there the default is a start frame, which
+  // must be stored. On a model that takes references, unassigned images are placed by
+  // selectReferences (below, and identically on the server) — saving "reference" on all of them
+  // used to put a node over the model's cap.
   useEffect(() => {
     if (loadingConnected || upstreamImages.length === 0) return;
+    if (imageInputs.maxReferenceImages > 0) return;
     const filled = autoAssignImageRoles(
       upstreamImages.map((img) => ({ nodeId: img.id, url: img.imageUrl, type: img.type })),
       imageRolesProp,
@@ -1191,9 +1235,30 @@ export function VideoGenFocusView({
   // have a rule forbidding them together. Reconciling here (rather than only on model change)
   // also heals nodes already persisted in the contradictory state, which would otherwise stay
   // stuck failing at generate with no way for the operator to see why.
+  // D308 — which references go, by the rule the server applies: the stored choices, then the
+  // avatar's front, cited images, the avatar's sheet and the rest within the cap.
+  const referenceSelection = selectReferences({
+    images: upstreamImages.map((img) => ({ id: img.id })),
+    roles: supportedImageRoles,
+    cap: imageInputs.maxReferenceImages,
+    modelLabel: currentModel?.label ?? modelId,
+    citedIds: new Set(promptNode?.citedIds ?? []),
+    avatarFrontId: promptNode?.avatarFrontId ?? null,
+    avatarSheetId: promptNode?.avatarSheetId ?? null,
+    framesExcludeReferences: areFramesAndRefsExclusive(currentModel?.rules),
+    unusable: currentModel?.provider === "seedance" && promptNode?.avatarSheetId
+      ? new Map([[promptNode.avatarSheetId, "Seedance can't use the profile sheet"]])
+      : undefined,
+  });
+  const leftOutReason = new Map(referenceSelection.leftOut.map((l) => [l.id, l.reason]));
+  // The roles as the request will use them: stored frames, plus "reference" on what is sent.
+  const selectedRoles: Record<string, ImageRole> = Object.fromEntries([
+    ...Object.entries(supportedImageRoles).filter(([, r]) => r === "start_frame" || r === "end_frame"),
+    ...referenceSelection.sent.map((id) => [id, "reference" as const]),
+  ]);
   const effectiveImageRoles = reconcileRolesWithRules(
     currentModel?.rules,
-    supportedImageRoles,
+    selectedRoles,
     params,
   );
   const constraintState = buildConstraintState(
@@ -1245,12 +1310,36 @@ export function VideoGenFocusView({
     isMultishotPromptConnected && upstreamMultishotCuts
       ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
       : null;
-  const disableGenerate = constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok);
-  const disableGenerateReason = constraints.disableGenerate
+  // D299 — models the presenter's face rules out; a node already on one can't generate with it.
+  const presenterUnavailable = presenterAvatar ? unavailableModelsFor(presenterAvatar) : undefined;
+  const presenterBlock = presenterUnavailable?.[modelId];
+  const presenterNotes = presenterAvatar
+    ? presenterVideoNotes({
+        avatar: presenterAvatar,
+        provider: currentModel?.provider,
+        hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
+      })
+    : [];
+  const presenterVoiceId = presenterAvatar ? presenterDefaultVoiceId(presenterAvatar) : null;
+  // D308 — references saved beyond the cap (a node from before, or a model switch): the server
+  // refuses them rather than cutting, so Generate says so first, in the same words.
+  const overCapReason = referenceSelection.overCap > 0
+    ? `${currentModel?.label ?? modelId} takes ${imageInputs.maxReferenceImages} references; ${imageInputs.maxReferenceImages + referenceSelection.overCap} are selected. Turn some off.`
+    : null;
+  // `loadingConnected`: the inputs on screen may be the cached copy, not yet confirmed by this
+  // open's re-read — never generate (and post roles) from those.
+  const disableGenerate =
+    loadingConnected ||
+    constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
+  const disableGenerateReason = loadingConnected
+    ? "Loading connected inputs…"
+    : constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
       ? ladderCheck.reason
-      : constraints.disableGenerateReason;
+      : presenterBlock
+        ? presenterBlock
+        : overCapReason ?? constraints.disableGenerateReason;
 
   // D95: the duration label the current combination actually yields — read off the model's own
   // param spec so it stays correct when a spec changes (e.g. O1's 5/10 select), but a rule-locked
@@ -1433,7 +1522,7 @@ export function VideoGenFocusView({
                 onConnected={() => void persistThenRefresh()}
               />
             </div>
-            {loadingConnected ? (
+            {showConnectedSkeleton ? (
               <div className="space-y-1.5 px-1 pt-1">
                 {Array.from({ length: 2 }).map((_, i) => (
                   <div key={i} className="h-7 animate-pulse rounded-md bg-muted-foreground/15" />
@@ -1444,6 +1533,7 @@ export function VideoGenFocusView({
             ) : (
               connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
+                const outReason = c.type === "image" ? leftOutReason.get(c.id) : undefined;
                 const remove = editable ? removeFor(c.id, c.label) : null;
                 return (
                   <RailItem
@@ -1459,7 +1549,11 @@ export function VideoGenFocusView({
                     active={selected === c.id}
                     onClick={() => setSelected(c.id)}
                     badge={
-                      role ? (
+                      outReason ? (
+                        <span title={outReason} className="shrink-0 rounded-full border border-dashed border-border px-1.5 py-0.5 text-[0.6rem] font-semibold text-muted-foreground">
+                          Out
+                        </span>
+                      ) : role ? (
                         <span
                           className={cn(
                             "shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold",
@@ -1534,6 +1628,7 @@ export function VideoGenFocusView({
                     running={isGenerating}
                     changing={isChangingVoice}
                     value={voiceChangeProp}
+                    defaultVoiceId={presenterVoiceId}
                     onChange={(next) => onPatch({ voiceChange: next })}
                     // Stays open, like Image Gen's Edit: the video on the right shows the
                     // change in progress. Marked now rather than on the Realtime insert, so
@@ -1559,6 +1654,7 @@ export function VideoGenFocusView({
                     modelId={modelId}
                     onModelChange={handleModelChange}
                     loading={loadingConnected}
+                    unavailable={presenterUnavailable}
                     lockedToModelId={multishotTargetModel}
                     restrictionReason={
                       isMultishotPromptConnected
@@ -1624,6 +1720,9 @@ export function VideoGenFocusView({
                       </Accordion>
                     )}
                   </VideoGenModelPicker>
+                  {presenterAvatar && (
+                    <VideoGenPresenterNotes name={presenterAvatar.name} notes={presenterNotes} />
+                  )}
                   {(() => {
                     return (
                       <>
@@ -1641,6 +1740,7 @@ export function VideoGenFocusView({
                               imageInputs={imageInputs}
                               onRoleChange={handleRoleChange}
                               onOpenDetail={(id) => setSelected(id)}
+                              leftOut={leftOutReason}
                               disableFrameInputs={constraints.disableFrameInputs}
                               disableRefs={constraints.disableRefs}
                               onReset={handleReset}
@@ -1703,7 +1803,7 @@ export function VideoGenFocusView({
                 ) : (
                   <div className="flex h-full items-center justify-center px-6 py-6">
                     <p className="text-sm text-muted-foreground">
-                      {loadingConnected ? "Loading…" : "This input has no preview yet."}
+                      {showConnectedSkeleton ? "Loading…" : "This input has no preview yet."}
                     </p>
                   </div>
                 ))}

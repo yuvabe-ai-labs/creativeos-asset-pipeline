@@ -16,6 +16,7 @@ import {
   type ResolvedUpstream,
 } from "@/lib/eval/node-traces";
 import { getNodeOutput } from "@/lib/nodes/node-output";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 export type { EvalTrace } from "@/lib/eval/map-traces";
 export type { NodeTrace } from "@/lib/eval/node-traces";
@@ -76,7 +77,7 @@ export async function listNodeTraces(canvasId: string): Promise<NodeTrace[]> {
 
 // An image source contributes its URL to `images`; everything else renders to `text`.
 function upstreamImageUrl(type: string, data: Record<string, unknown>, activeOutput: unknown): string | undefined {
-  if (type === "image-gen" && typeof activeOutput === "string") return activeOutput;
+  if (isGeneratedImageType(type) && typeof activeOutput === "string") return activeOutput;
   const fileUrl = typeof data.fileUrl === "string" ? data.fileUrl : undefined;
   if (type === "draw" && fileUrl) return fileUrl;
   if (type === "file" && data.fileKind === "image" && fileUrl) return fileUrl;

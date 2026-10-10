@@ -2,7 +2,7 @@ import "server-only";
 import sharp from "sharp";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildZodFromParams } from "../schema-builder";
-import { gptImage2Params, gptImage1Params, gptImage1MiniParams } from "../params/openai";
+import { gptImage25Params, gptImage2Params, gptImage1Params, gptImage1MiniParams } from "../params/openai";
 import { aspectRatioToOpenAISize } from "../cost";
 import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
 
@@ -281,6 +281,32 @@ export async function generateWithOpenAI(
 // ── Model configs ─────────────────────────────────────────────────────────────
 
 export const openaiModels: MediaGenModelSpec[] = [
+  {
+    id: "openai:gpt-image-2.5-sunburst",
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 2.5 Sunburst", providerLabel: "OpenAI",
+    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxImageEdgePx: 3840,
+    maxAspectRatio: 3.0,
+    minDimensionMultiple: 16,
+    supportsMask: true,
+    params: gptImage25Params,
+    schema: buildZodFromParams(gptImage25Params),
+    generate: (input) => generateWithOpenAI("gpt-image-2.5-sunburst", input),
+  },
+  {
+    id: "openai:gpt-image-2.5-flare",
+    provider: "openai", mediaType: "image",
+    label: "GPT Image 2.5 Flare", providerLabel: "OpenAI",
+    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
+    maxImageEdgePx: 3840,
+    maxAspectRatio: 3.0,
+    minDimensionMultiple: 16,
+    supportsMask: true,
+    params: gptImage25Params,
+    schema: buildZodFromParams(gptImage25Params),
+    generate: (input) => generateWithOpenAI("gpt-image-2.5-flare", input),
+  },
   {
     id: "openai:gpt-image-2",
     provider: "openai", mediaType: "image",

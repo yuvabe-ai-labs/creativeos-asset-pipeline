@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
@@ -9,6 +10,7 @@ import {
   CheckCircle2Icon,
   CheckIcon,
   ImageIcon,
+  ImagesIcon,
   FolderPenIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,11 @@ import {
 } from "@/components/ui/tooltip";
 import { getModuleStatus } from "@/components/kb/kb-module-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClientIdentity } from "@/components/clients/client-identity";
+import { isImportLive, useAssetImports } from "@/hooks/queries/asset-imports";
+import { useImageAnalysisStatus } from "@/hooks/queries/image-analysis";
+import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
+import { KBImageAnalysisStatus } from "@/components/kb/kb-image-analysis-status";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
 import { KBSkeleton } from "@/components/kb/kb-skeleton";
@@ -52,13 +59,22 @@ import {
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import type { ModuleKey, FieldPath, StagedChanges } from "@/lib/kb/types";
-import { MODULES, FIELD_LABELS, DOC_EXTENSIONS, IMG_EXTENSIONS } from "@/lib/kb/constants";
+import {
+  MODULES,
+  FIELD_LABELS,
+  DOC_EXTENSIONS,
+  IMG_EXTENSIONS,
+} from "@/lib/kb/constants";
 import {
   getModuleFields,
   getFieldPath,
   buildChangeSummary,
   findNextModuleNeedingReview,
 } from "@/lib/kb/utils";
+
+/** The header's quiet card-style buttons (Brand assets, Source files). */
+const HEADER_BUTTON =
+  "h-auto gap-2 border-border bg-card px-3 py-2 text-muted-foreground shadow-card hover:bg-card hover:text-foreground dark:hover:bg-card";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -72,6 +88,8 @@ type Props = {
   initialImages?: ClientBrandImageRow[];
   initialWebsiteUrl?: string | null;
   docIdsAtExtraction?: string[];
+  clientName: string;
+  clientLogoUrl: string | null;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -86,6 +104,8 @@ export function KBOnboardingReviewStep({
   initialImages = [],
   initialWebsiteUrl = null,
   docIdsAtExtraction = [],
+  clientName,
+  clientLogoUrl,
 }: Props) {
   const router = useRouter();
 
@@ -97,6 +117,10 @@ export function KBOnboardingReviewStep({
   const [savedKB, setSavedKB] = useState<TraceableBrandKB>(initialKB);
   const [saving, setSaving] = useState(false);
   const [selectedModule, setSelectedModule] = useState<ModuleKey>("brand_voice");
+  // Brand assets (D302) live on their own page; the header links there with a live count.
+  const { data: importStatus } = useAssetImports(clientId);
+  const importing = (importStatus?.imports ?? []).some(isImportLive);
+  const assetTotal = importStatus?.counts.total ?? 0;
   const [reanalyzingFields, setReanalyzingFields] = useState<Set<string>>(new Set());
   const [markingReady, setMarkingReady] = useState(false);
   const [reExtracting, setReExtracting] = useState(false);
@@ -116,6 +140,24 @@ export function KBOnboardingReviewStep({
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [savingChanges, setSavingChanges] = useState(false);
   const [cancelingChanges, setCancelingChanges] = useState(false);
+
+  // Image Analysis is written by a background run (D312). When the stored section changes, take
+  // it into the saved baseline, and into the draft over any unsaved reviews (D318), so it shows
+  // without a reload. Other unsaved edits are left as they are. Saving never puts back an older
+  // section either: the save action keeps the stored one (see saveKBOutputAction).
+  const { data: imageAnalysisState } = useImageAnalysisStatus(clientId);
+  const storedImageAnalysis = imageAnalysisState?.versionId === versionId ? imageAnalysisState.imageAnalysis : null;
+  const storedKey = storedImageAnalysis ? JSON.stringify(storedImageAnalysis) : null;
+  const [appliedImageAnalysis, setAppliedImageAnalysis] = useState<string | null>(null);
+  // Adjusting state while rendering, on a change of the stored section (react.dev, "You might not
+  // need an effect"): the poll returns the same section every time, so this runs once per change.
+  if (storedImageAnalysis && storedKey !== appliedImageAnalysis) {
+    setAppliedImageAnalysis(storedKey);
+    if (JSON.stringify(savedKB.image_analysis) !== storedKey) {
+      setSavedKB((prev) => ({ ...prev, image_analysis: storedImageAnalysis }));
+      setKB((prev) => ({ ...prev, image_analysis: mergeImageAnalysis(prev.image_analysis, storedImageAnalysis) }));
+    }
+  }
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -427,8 +469,9 @@ export function KBOnboardingReviewStep({
           <DialogHeader>
             <DialogTitle>Save & Re-analyze KB?</DialogTitle>
             <DialogDescription>
-              {buildChangeSummary(staged)}. The AI will reprocess all sources and rebuild
-              the knowledge base. Any existing review progress will be reset.
+              {buildChangeSummary(staged)}. The documents are read again and the knowledge
+              base is rebuilt from them, so review progress on those sections starts over.
+              Image Analysis keeps your reviews and updates from the images.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -449,29 +492,45 @@ export function KBOnboardingReviewStep({
 
       {/* Title + source-files drawer trigger */}
       <header className="mb-5 mt-2 flex shrink-0 items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">
-            Brand Knowledge Base
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
+        <div className="min-w-0">
+          <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
+          <ClientIdentity clientId={clientId} name={clientName} logoUrl={clientLogoUrl} size="md" />
+          <p className="mt-3 text-sm text-muted-foreground">
             {isEditMode
               ? "Your brand KB is live. Add or remove source documents and re-extract, or edit fields directly."
               : "Review the extracted brand knowledge and approve, edit, or reject each field."}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => setSourceDrawerOpen(true)}
-          title="Edit source documents & images"
-          className="relative mt-1 h-auto gap-2 border-border bg-card px-3 py-2 text-muted-foreground shadow-card hover:bg-card hover:text-foreground dark:hover:bg-card"
-        >
-          <FolderPenIcon className="size-4" />
-          <span className="hidden sm:inline">Source files</span>
-          {showChangeIndicator && (
-            <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-background" />
-          )}
-        </Button>
+        <div className="mt-1 flex shrink-0 items-center gap-2">
+          <Button
+            variant="ghost"
+            nativeButton={false}
+            title="Images and videos imported from the website and socials"
+            className={HEADER_BUTTON}
+            render={<Link href={`/clients/${clientSlug}/brand-assets`} />}
+          >
+            <ImagesIcon className="size-4" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Brand assets</span>
+            {importing ? (
+              <span className="size-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+            ) : assetTotal > 0 ? (
+              <span className="rounded-full bg-muted px-1.5 text-[0.65rem] tabular-nums">{assetTotal}</span>
+            ) : null}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setSourceDrawerOpen(true)}
+            title="Edit source documents & images"
+            className={cn("relative", HEADER_BUTTON)}
+          >
+            <FolderPenIcon className="size-4" />
+            <span className="hidden sm:inline">Source files</span>
+            {showChangeIndicator && (
+              <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-background" />
+            )}
+          </Button>
+        </div>
       </header>
 
       {/* Source documents & images — side drawer */}
@@ -536,7 +595,7 @@ export function KBOnboardingReviewStep({
         >
           <TabsList
             variant="line"
-            className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
+            className="scrollbar-thin h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
           >
             {MODULES.map(({ key, label }) => {
               const ready = getModuleStatus(getModuleFields(kb, key)) === "ready";
@@ -603,15 +662,18 @@ export function KBOnboardingReviewStep({
             )}
           </div>
 
+          {selectedModule === "image_analysis" && <KBImageAnalysisStatus clientId={clientId} />}
+
           {allImageAnalysisNull ? (
             <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-10 text-center">
               <ImageIcon className="size-8 text-muted-foreground/40" />
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  No images were uploaded
+                  No image analysis yet
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Upload images in the Source Documents &amp; Images drawer.
+                  It fills in from the brand&apos;s uploaded images and the ones brought in from its
+                  website and social accounts.
                 </p>
               </div>
               {hasNeedsReview && (

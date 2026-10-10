@@ -1,4 +1,5 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
+import { withStillPresenter } from "@/lib/avatars/presenter-server";
 import { insertVersion, setActiveVersion, getVersionById } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
@@ -8,7 +9,7 @@ import {
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
-import { withProductDetailSuffix } from "@/lib/image-gen/utils";
+import { withProductDetailSuffix, mimeToExt } from "@/lib/image-gen/utils";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -23,12 +24,6 @@ import { uploadImageGen } from "@/lib/storage";
 import sharp from "sharp";
 import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
 import { createServerSupabase } from "@/lib/supabase/server";
-
-function mimeToExt(mimeType: string): string {
-  if (mimeType === "image/jpeg") return "jpg";
-  if (mimeType === "image/webp") return "webp";
-  return "png";
-}
 
 const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "modify", "freeform"];
 function asIntent(v: unknown): EditIntent | undefined {
@@ -70,7 +65,9 @@ export async function POST(
     const validatedParams = parseResult.data as Record<string, unknown>;
 
     // Resolve upstream nodes
-    const upstream = await getUpstreamOutputs(nodeId);
+    // D299 — when the Prompt feeding this still has the presenter in the shot, the face joins
+    // the connected images.
+    const upstream = await withStillPresenter(await getUpstreamOutputs(nodeId));
 
     // All connected image URLs (File images, Draw sketches, other Image Gen outputs).
     const connectedImageUrls = upstream

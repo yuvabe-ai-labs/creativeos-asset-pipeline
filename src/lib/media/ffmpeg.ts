@@ -92,3 +92,35 @@ export async function replaceAudio(video: Buffer, audio: Buffer): Promise<Buffer
     return readFile(output);
   });
 }
+
+/**
+ * D296 — the clip's voice as a mono mp3, the shape Seedance accepts as `reference_audio`
+ * (mp3 or wav, 2–30 s).
+ *
+ * The flags are the UGC bench's (`src/lib/ugc/voice.ts`), which is where this shape was proven
+ * against the vendor: mono, 24 kHz, 96 kbps, truncated to the vendor's ceiling. What differs is
+ * only the runner — `FFMPEG_PATH` as everywhere else in this file, rather than the bench's
+ * `ffmpeg-static`, because this runs inside a Trigger.dev task.
+ *
+ * Deliberately NOT merged with `extractAudio` above: that one preserves the source's channels
+ * and rate because its output is put straight back onto the same picture, where re-sampling to
+ * mono would be a loss for no reason.
+ */
+export async function extractVoiceReference(video: Buffer, maxSeconds: number): Promise<Buffer> {
+  return inTempDir(async (dir) => {
+    const input = path.join(dir, "in.mp4");
+    const output = path.join(dir, "voice.mp3");
+    await writeFile(input, video);
+    await run([
+      "-i", input,
+      "-map", "0:a:0",
+      "-vn",
+      "-ac", "1",
+      "-ar", "24000",
+      "-b:a", "96k",
+      "-t", String(maxSeconds),
+      output,
+    ]);
+    return readFile(output);
+  });
+}
