@@ -834,3 +834,24 @@ and re-analysing a single field fail.
 -- expect 2 rows
 select proname from pg_proc where proname in ('save_kb_output_keep_image_analysis', 'set_kb_field');
 ```
+
+## Migration 0055 — stuck-reservation sweep waits 50 minutes (2026-10-10)
+
+`supabase/migrations/0055_stuck_reservations_threshold.sql`. Paste into the Supabase SQL editor → Run.
+
+Moves the `stuck_reservations` view's threshold from 15 to 50 minutes, to follow the
+`video-generate` task's `maxDuration` going from 600s to 2400s (Seedance and Kling poll for up to
+30 minutes). No data changes.
+
+**Safe to re-run:** `create or replace view`.
+
+**Ordering:** apply **before or with** the deploy that raises `maxDuration` (both Trigger.dev and
+the app). Deploying the new limit first leaves a window where the 15-minute sweep fails and refunds
+jobs that are still running, and their finished videos are then dropped.
+
+**Verify after running:**
+
+```sql
+-- expect the definition to contain '00:50:00'
+select pg_get_viewdef('stuck_reservations');
+```
