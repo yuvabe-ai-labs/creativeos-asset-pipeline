@@ -42,7 +42,7 @@ Everything below follows from this rule.
 **When the script already has a draft**, pasting a whole script does not change anything on its
 own. The copilot answers with a card offering to replace the current draft with the pasted script.
 Nothing changes until the person accepts. Rejecting keeps the current draft.
-*Open question for the user: §8, Q1.*
+*Answered (§8, Q1): the paste is parsed first, so the card shows what it contains.*
 
 ## 4. Accuracy
 
@@ -127,7 +127,9 @@ chat and the reply says what went wrong and what to try (for example, paste the 
    8, 6, 5, 5, 5 seconds).
 2. The header carries the outline's own text: UGC · REVIEW · OPTION, Pan-India, Thu 19 Nov, Diabetes Awareness Month, 9:16,
    45 to 55 sec and AI-generated; Rhea is the lead with her description; the four watch-outs and
-   D1, D2 and D4 are there word for word.
+   D1, D2 and D4 are there word for word. (Reel 07 has no disclaimers of its own: the outline document
+   lists D1–D4 once, before the reels. This check pastes that block with the reel; pasted without it,
+   Disclaimers is left empty and is an open item, by the rule.)
 3. The REVIEW shot keeps `[real review, verbatim]`; the reply asks for the real review, and it is an
    open item.
 4. The reply asks who plays Rhea, with avatar chips.
@@ -141,16 +143,13 @@ chat and the reply says what went wrong and what to try (for example, paste the 
    reply says so.
 10. A pasted shot whose voiceover the import changed is named in the reply and listed as open.
 
-## 8. Open questions for the user
+## 8. Decisions (answered 12 October 2026: "all as recommended")
 
-**Q1. The replace card.** When a draft exists, should the copilot
-(a) parse the paste first and then show the card, with a real summary ("9 shots · 50 s, replacing
-13 shots · 62 s"), so accepting is instant, at the cost of one parse even if the person rejects; or
-(b) show the card first and parse only after the person accepts, so nothing is wasted but the card
-cannot say what the import contains?
-*Recommendation: (a).*
+**Q1. The replace card: (a).** When a draft exists, the copilot parses the paste first and then shows
+the card with a real summary ("9 shots · 50 s, replacing 13 shots · 62 s"), so accepting is instant.
+The cost is one parse when the person rejects.
 
-**Assumptions to confirm** (written into §4–§6 above; say if any is wrong):
+**Assumptions, all confirmed:**
 
 - A2. Each guess stays an open item until answered or edited (§4.3), so Mark final names it.
 - A3. A few pasted shots while a draft exists are a chat edit, not an import (§5.2).
