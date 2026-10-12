@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
+import { acceptImport } from "../import-turn";
+import { buildImport } from "../import";
+import { shotSummary } from "@/lib/scripts/utils";
 import { acceptProposal, prepareInline, prepareTurn, spliceSelection, type TurnDeps } from "../turn";
 import { angleText } from "../brief";
-import { EMPTY_BRIEF, EMPTY_NOTES, type Brief, type GenerateScript, type ProposalCard } from "../schema";
+import { EMPTY_BRIEF, EMPTY_NOTES, type Brief, type GenerateScript, type ImportCard, type ProposalCard } from "../schema";
 import type { CopilotContext } from "../context";
 import type { EditOp, Extraction } from "../output";
 import type { StructuredCall } from "../model";
@@ -389,5 +392,43 @@ describe("pasting a whole script (paste-a-script spec)", () => {
     const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
     const apply = await prepareTurn({ script: script(), ctx, text: REEL_07_PASTE, lastAssistant: "" }, deps(m.call));
     expect(apply(script({ doc, docVersion: 2 }))).toEqual({ error: "The script changed while I was working. Send that again.", status: 409 });
+  });
+});
+
+describe("pasting a whole script over a draft (spec §3, Q1)", () => {
+  it("reads the paste first, then asks with a replace card; nothing changes and nothing streams", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
+    const onDraft = vi.fn();
+    const out = ok(await run(script({ doc }), REEL_07_PASTE, { ...deps(m.call), onDraft }));
+    expect(m.calls).toEqual(["script_detect", "script_import"]);
+    expect(out.patch).toBeNull();
+    expect(onDraft).not.toHaveBeenCalled();
+    expect(out.result[0].content).toBe("Replace the current draft with this script? Nothing changes until you choose.");
+    expect(out.result[0].card).toMatchObject({ kind: "import", status: "pending", summary: "Reel 07 · 9 shots · 50s", replacing: shotSummary(doc) });
+  });
+
+  it("a few pasted rows the detector calls an edit go to the editor, not the importer (A3)", async () => {
+    const rows = REEL_07_PASTE.split("\n").filter((l) => l.startsWith("| **")).slice(0, 6).join("\n");
+    const m = fakeModel({ script_detect: [{ wholeScript: false }], script_edit: [{ ops: [], reply: "Which shots should these go after?" }] });
+    const out = ok(await run(script({ doc }), `Add these after the hook:\n${rows}`, deps(m.call)));
+    expect(m.calls).toEqual(["script_detect", "script_edit"]);
+    expect(out.result[0].content).toBe("Which shots should these go after?");
+  });
+});
+
+describe("acceptImport", () => {
+  const built = buildImport(REEL_07_IMPORT, { paste: REEL_07_PASTE, reelNumber: 7, takenReel: null, avatars: [] });
+  if ("error" in built) throw new Error(built.error);
+  const card: ImportCard = { kind: "import", status: "pending", summary: "Reel 07 · 9 shots · 50s", replacing: shotSummary(doc), doc: built.doc, notes: built.notes, reply: built.reply };
+
+  it("replaces the draft and its notes whole, and keeps the import's guesses open", () => {
+    expect(acceptImport(script({ doc }), card)).toEqual({
+      patch: { doc: built.doc, notes: built.notes, brief: expect.objectContaining({ phase: "written", imported: true, reelNumber: 7, card: null }) },
+      result: { reply: built.reply },
+      replaces: true,
+    });
+  });
+  it("refuses a card that was already settled", () => {
+    expect(acceptImport(script({ doc }), { ...card, status: "rejected" })).toEqual({ error: "That was already settled.", status: 409 });
   });
 });

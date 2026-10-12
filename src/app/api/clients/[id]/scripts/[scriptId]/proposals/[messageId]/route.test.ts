@@ -14,7 +14,7 @@ import {
   changeGenerateScript, claimProposalCard, getGenerateScript, insertScriptMessages, listCopilotAvatars, listScriptMessages, loadGenerateState, setMessageCard,
 } from "@/lib/db/script-generate";
 import { allowClient, generateScript, jsonRequest, reel01Doc, runChangeAgainst, SCRIPT_ID, stateOf } from "@/lib/scripts/copilot/__tests__/route-mocks";
-import type { ProposalCard } from "@/lib/scripts/copilot/schema";
+import type { ImportCard, ProposalCard } from "@/lib/scripts/copilot/schema";
 
 const MSG = "8b3e4d5f-0000-4000-8000-000000000003";
 const params = Promise.resolve({ id: "c1", scriptId: SCRIPT_ID, messageId: MSG });
@@ -80,5 +80,34 @@ describe("POST .../proposals/:messageId", () => {
     expect((await POST(decide("maybe") as never, { params })).status).toBe(400);
     vi.mocked(listScriptMessages).mockResolvedValue([]);
     expect((await POST(decide("accept") as never, { params })).status).toBe(404);
+  });
+});
+
+describe("POST .../proposals/:messageId — a pasted script's replace card", () => {
+  const importCard = (): ImportCard => ({
+    kind: "import", status: "pending", summary: "Reel 07 · 9 shots · 50s", replacing: "13 shots · 62s",
+    doc: reel01Doc(), notes: { brief: "From the pasted script:\n\nmusic cue", confirmations: [] }, reply: "Imported Reel 01 · 9 shots · 50s.",
+  });
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    await allowClient();
+    vi.mocked(claimProposalCard).mockResolvedValue(true);
+    vi.mocked(listScriptMessages).mockResolvedValue([{ id: MSG, role: "assistant", content: "x", card: importCard(), createdAt: "t" }]);
+    vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
+  });
+
+  it("accepting replaces the draft and posts the import's reply", async () => {
+    vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(generateScript({ doc: reel01Doc() })) as never);
+    const { POST } = await import("./route");
+    expect((await POST(decide("accept") as never, { params })).status).toBe(200);
+    expect(vi.mocked(claimProposalCard).mock.calls[0][3]).toMatchObject({ kind: "import", status: "accepted" });
+    expect(vi.mocked(insertScriptMessages).mock.calls[0][3]).toEqual([{ role: "assistant", content: "Imported Reel 01 · 9 shots · 50s.", card: null }]);
+  });
+
+  it("rejecting keeps the draft and says so", async () => {
+    const { POST } = await import("./route");
+    expect((await POST(decide("reject") as never, { params })).status).toBe(200);
+    expect(changeGenerateScript).not.toHaveBeenCalled();
+    expect(vi.mocked(insertScriptMessages).mock.calls[0][3]).toEqual([{ role: "assistant", content: "Kept the current draft.", card: null }]);
   });
 });

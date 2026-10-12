@@ -9,7 +9,7 @@ import { rowToGenerateScript, rowToMessage, type GenerateScriptRow, type ScriptM
 import { fillToFinal } from "@/lib/scripts/copilot/fill-to-final";
 import {
   briefSchema, type Brief, type CopilotAvatar, type GenerateScript, type GenerateState, type MessageCard,
-  type ProposalCard, type ScriptMessage, type ScriptNotes, type ScriptPatch, type UnwrittenScript,
+  type ImportCard, type ProposalCard, type ScriptMessage, type ScriptNotes, type ScriptPatch, type UnwrittenScript,
 } from "@/lib/scripts/copilot/schema";
 
 // Spec 2 (Generate). Every query filters on client_id as well as the script id: withClient
@@ -102,9 +102,9 @@ export async function setMessageCard(clientId: string, scriptId: string, message
   if (error) throw error;
 }
 
-/** Settles a before-and-after card (accepted or rejected) only while it is still pending, so two
+/** Settles a before-and-after or replace card (accepted or rejected) only while it is still pending, so two
  *  accepts racing (two tabs, a retry) cannot both apply it. False when it was already settled. */
-export async function claimProposalCard(clientId: string, scriptId: string, messageId: string, card: ProposalCard): Promise<boolean> {
+export async function claimProposalCard(clientId: string, scriptId: string, messageId: string, card: ProposalCard | ImportCard): Promise<boolean> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("client_script_messages").update({ card })

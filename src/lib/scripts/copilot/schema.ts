@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { shotSchema, type ScriptDoc } from "../schema";
+import { scriptDocSchema, shotSchema, type ScriptDoc } from "../schema";
 import type { ScriptStage } from "../constants";
 import { angleOutputSchema, cardOutputSchema, editOpSchema } from "./output";
 
@@ -71,6 +71,22 @@ export const proposalCardSchema = z.object({
 });
 export type ProposalCard = z.infer<typeof proposalCardSchema>;
 
+/** Paste-a-script spec §3 — a whole script pasted over a draft. It is read first (§8 Q1), so the card
+ *  can say what it holds and accepting is instant; it keeps the read script until the person decides. */
+export const importCardSchema = z.object({
+  kind: z.literal("import"),
+  status: z.enum(["pending", "accepted", "rejected"]),
+  /** "Reel 07 · 9 shots · 50s" */
+  summary: z.string(),
+  /** The draft it would replace: "13 shots · 62s". */
+  replacing: z.string(),
+  doc: scriptDocSchema,
+  notes: scriptNotesSchema,
+  /** The import's reply, posted when the person accepts. */
+  reply: z.string(),
+});
+export type ImportCard = z.infer<typeof importCardSchema>;
+
 export const messageCardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("angles"), angles: z.array(angleSchema) }),
   z.object({
@@ -80,6 +96,7 @@ export const messageCardSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("confirmation"), card: confirmationCardSchema }),
   proposalCardSchema,
+  importCardSchema,
 ]);
 export type MessageCard = z.infer<typeof messageCardSchema>;
 

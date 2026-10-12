@@ -50,9 +50,9 @@ export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<App
   const base = baseFor(input.ctx, format);
   // A whole pasted script is imported, wherever the brief is (paste-a-script spec §3). The quick
   // model is asked only for long, many-line messages; chips and ordinary replies never pay for it.
-  if (!input.script.doc && mightBeScript(input.text)) {
+  if (mightBeScript(input.text)) {
     const quick = deps.quick ?? deps.call;
-    const seen = await quick({ name: "script_detect", ...detectPrompt(base, { hasDraft: false, text: input.text }), schema: detectOutputSchema });
+    const seen = await quick({ name: "script_detect", ...detectPrompt(base, { hasDraft: input.script.doc !== null, text: input.text }), schema: detectOutputSchema });
     if (seen.wholeScript) return prepareImport(input, deps, base);
   }
   // Up to MAX_PASTE_CHARS is let in for a pasted script; anything else keeps the message limit.
