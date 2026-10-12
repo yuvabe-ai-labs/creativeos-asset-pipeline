@@ -7246,3 +7246,51 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Refines →** D337 (the first draft streams into the right pane).
 
 **Originated →** this conversation.
+
+### D367 — A pasted script is imported, not written *(recorded 2026-10-12)*
+
+**Decision.** A long, many-line message goes to the quick model's `script_detect`, and a whole script goes to the writer's `script_import`, which reads the paste in the draft's shape and streams it into the pane. Plain code (`buildImport`, with `NARRATOR` exported from `import.ts`) cleans the markdown, estimates missing lengths, resolves the reel number, keeps leftovers in the notes under "From the pasted script", and writes the reply. All word-for-word mismatches are grouped into ONE open item carrying every mismatched field path. When the kept text exceeds the 8,000-character notes cap, the reply says so and an open item is added. After an import, avatar chips ask who plays each character; they link via the existing cast PATCH route, and only on a tap.
+
+**Why.** Agencies already have scripts, and the rule "use it exactly, else guess and ask" is only trustworthy where it can be checked.
+
+**Rejected.** The brief reader also classifying (it doesn't run once a draft exists); letting the model estimate lengths (code is repeatable and testable); a heuristic-only detector (it can't tell "add these two shots" from a script).
+
+**Refines →** D337, D366.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
+
+### D368 — Every imported VO and card is checked against the paste *(recorded 2026-10-12)*
+
+**Decision.** `unmatchedShots` compares every imported VO and card with the paste, ignoring spacing, quote style and markdown formatting only. Mismatches are named in the reply and become one open item listing every mismatched field path.
+
+**Why.** "Word for word" is shown, not trusted.
+
+**Rejected.** Fuzzy matching (it would hide a changed word).
+
+**Refines →** D367.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
+
+### D369 — A guess is an item to confirm with the fields it filled *(recorded 2026-10-12)*
+
+**Decision.** Confirmations gain `paths`. `changeWithRetry` settles a guess when an edit changes one of its fields, and a patch marked `replaces` (an accepted import) is exempt.
+
+**Why.** Spec A2, "until answered or edited", and every write already passes through `changeWithRetry`.
+
+**Rejected.** A separate guesses list (a second open-items mechanism); settling in each route (five places to forget).
+
+**Refines →** D367.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
+
+### D370 — A paste over a draft is read first, then offered on a replace card *(recorded 2026-10-12)*
+
+**Decision.** The card is `kind: "import"` and is settled by the proposals route. The paste limit is 30,000 characters (`MAX_PASTE_CHARS`); a non-script message keeps 4,000 (`MAX_MESSAGE_CHARS`).
+
+**Why.** Spec Q1 (a), so accepting is instant and the card says what it holds.
+
+**Rejected.** A card first and parsing on accept (the card couldn't summarise the paste).
+
+**Refines →** D367.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
