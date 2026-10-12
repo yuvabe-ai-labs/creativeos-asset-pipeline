@@ -53,7 +53,7 @@ lines: Use exactly these labels, in this order where they apply: "Format", "Post
 - Disclaimers: which apply, and why. ${disclaimerNames}
 Mark each "given" when the person said it and "proposed" when you filled it.
 cast: every person, their role in the reel, exactly one lead, and avatarId when they are one of the client's saved avatars (else null).
-toConfirm: each thing only the person can confirm before the script is final: a post date or festival day you proposed, and each occasion custom you proposed (for example "onion and garlic stay off screen"). Do not list the review; the draft holds a placeholder for it.
+toConfirm: each thing only the person can confirm before the script is final: a post date or festival day you proposed, and each occasion custom you proposed (for example "onion and garlic stay off screen"). Do not list the review; the draft holds a placeholder for it. When there is nothing to confirm, return an empty list, never "None".
 title: from the angle's hook. reelNumber: the brief's, else the next free number given below.
 If the person asked for a change, apply it and keep every other line as it was.`;
 
