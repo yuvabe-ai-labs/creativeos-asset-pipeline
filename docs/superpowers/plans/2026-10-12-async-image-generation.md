@@ -2083,7 +2083,7 @@ export function useStartImageGeneration(nodeId: string) {
   const markGenerationStarted = useCanvasStore((s) => s.markGenerationStarted);
   return useMutation({
     mutationFn: (body: Record<string, unknown>) => nodeGenerationService.startImage(nodeId, body),
-    onSuccess: () => markGenerationStarted(nodeId, "image"),
+    onSuccess: (started) => markGenerationStarted(nodeId, "image", started.generationId),
   });
 }
 
@@ -2091,7 +2091,7 @@ export function useStartCompositeGeneration(nodeId: string) {
   const markGenerationStarted = useCanvasStore((s) => s.markGenerationStarted);
   return useMutation({
     mutationFn: (body: Record<string, unknown>) => nodeGenerationService.startComposite(nodeId, body),
-    onSuccess: () => markGenerationStarted(nodeId, "image"),
+    onSuccess: (started) => markGenerationStarted(nodeId, "image", started.generationId),
   });
 }
 
