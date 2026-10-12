@@ -33,6 +33,23 @@ export const draftOutputSchema = z.object({
 });
 export type DraftOutput = z.infer<typeof draftOutputSchema>;
 
+/** Paste-a-script spec §4 — the model's reading of a pasted script. The header, context, cast and
+ *  shots come before `kept`, in the first draft's order, so partial-draft.ts streams it into the pane
+ *  the same way. `lengthSeconds` is 0 where the paste has no timing: code estimates it (import.ts). */
+export const importOutputSchema = z.object({
+  readable: z.boolean(),
+  problem: z.string(),
+  reelNumber: z.number().int().nullable(),
+  header: draftOutputSchema.shape.header,
+  context: draftOutputSchema.shape.context,
+  cast: z.array(z.object({ key: z.string(), name: z.string(), description: z.string(), isLead: z.boolean() })),
+  shots: z.array(shotFieldsSchema),
+  kept: z.array(z.object({ name: z.string(), text: z.string() })),
+  guessed: z.object({ beats: z.boolean(), lead: z.boolean() }),
+  summary: z.string(),
+});
+export type ImportOutput = z.infer<typeof importOutputSchema>;
+
 const pieceAnswer = { action: z.enum(["given", "skip", "none"]), value: z.string() };
 export const extractionSchema = z.object({
   format: z.object(pieceAnswer),
