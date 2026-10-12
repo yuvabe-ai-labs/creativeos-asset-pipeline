@@ -5,6 +5,7 @@ import { CopilotResearchCard, researchRows } from "./copilot-research-card";
 import { CopilotAnglesCard } from "./copilot-angles-card";
 import { CopilotConfirmationCard } from "./copilot-confirmation-card";
 import { CopilotProposalCard } from "./copilot-proposal-card";
+import { CopilotImportCard } from "./copilot-import-card";
 
 export type ChatActions = {
   busy: boolean;
@@ -32,6 +33,7 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
       {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} disabled={actions.busy} onPick={(id) => actions.send(`Go with ${id}.`)} />}
       {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={actions.busy} onWrite={() => actions.send("Write it.")} />}
       {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
+      {card?.kind === "import" && <CopilotImportCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
     </li>
   );
 }
