@@ -1103,6 +1103,14 @@ describe("generation status feed (D366)", () => {
     expect(store.getState().generationStarts.n1).toBeUndefined();
   });
 
+  it("a hydrate that reloads the node's latest row unchanged does not retire an id-less mark", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    store.getState().markGenerationStarted("n1", "image");
+    store.getState().setTrayJobs([job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded")]);
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image" });
+  });
+
   it("clears a node's request error when a new start is marked", () => {
     const store = createCanvasStore([], []);
     store.getState().setGenerationRequestError("n1", "Couldn't start");

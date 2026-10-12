@@ -6,7 +6,7 @@ import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import type { GenerationRow } from "@/lib/db/types";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
-import { completionEffect } from "@/lib/generations/node-status";
+import { completionEffect, completionEffects, type CompletionEffect } from "@/lib/generations/node-status";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
 
 /**
@@ -26,6 +26,19 @@ export function useGenerationTray(canvasId: string): void {
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let cancelled = false;
 
+    // A job seen running that has now finished: announce it and put an image on its card (D366).
+    const applyCompletion = (nodeId: string, effect: CompletionEffect) => {
+      if (effect.toast.tone === "success") toast.success(effect.toast.message);
+      else toast.error(effect.toast.message);
+      if (effect.cardImage) {
+        storeApi.getState().updateNodeData(nodeId, {
+          parsed: effect.cardImage,
+          approvalStatus: "pending",
+        });
+      }
+      if (effect.toast.tone === "success") void revalidateCanvasGenerations();
+    };
+
     // Hydrate: latest generations for this canvas's nodes (reconstructs after refresh). Runs on
     // mount and again each time the channel (re)subscribes, so a job that changed while no channel
     // was listening is caught up; setTrayJobs merges, so a late result never undoes a live update.
@@ -39,7 +52,14 @@ export function useGenerationTray(canvasId: string): void {
         .order("created_at", { ascending: false })
         .then(({ data, error }: { data: unknown; error: unknown }) => {
           if (cancelled || error || !data) return;
-          setTrayJobs(data as GenerationRow[]);
+          const state = storeApi.getState();
+          const rows = data as GenerationRow[];
+          // A job that finished while no channel was listening (a reconnect, or before the first
+          // subscribe) is announced here, judged against what the store held before this load.
+          const onCanvas = rows.filter((r) => r.node_id !== null && state.nodes.some((n) => n.id === r.node_id));
+          const finished = completionEffects(state.trayJobs, onCanvas);
+          setTrayJobs(rows);
+          for (const { row, effect } of finished) applyCompletion(row.node_id!, effect);
         });
     };
     hydrate();
@@ -65,16 +85,7 @@ export function useGenerationTray(canvasId: string): void {
               if (row.node_id === null || !state.nodes.some((n) => n.id === row.node_id)) return;
               const effect = completionEffect(state.trayJobs[row.id], row);
               upsertTrayJob(row);
-              if (!effect) return;
-              if (effect.toast.tone === "success") toast.success(effect.toast.message);
-              else toast.error(effect.toast.message);
-              if (effect.cardImage) {
-                state.updateNodeData(row.node_id, {
-                  parsed: effect.cardImage,
-                  approvalStatus: "pending",
-                });
-              }
-              if (effect.toast.tone === "success") void revalidateCanvasGenerations();
+              if (effect) applyCompletion(row.node_id, effect);
             },
           )
           .subscribe((status: string) => {

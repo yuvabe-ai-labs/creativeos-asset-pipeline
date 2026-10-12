@@ -3,6 +3,7 @@ import type { GenerationRow } from "@/lib/db/types";
 import {
   clearsStartMark,
   completionEffect,
+  completionEffects,
   isNewerJob,
   jobKindOf,
   mergeJob,
@@ -133,5 +134,28 @@ describe("completionEffect", () => {
 
   it("ignores prompt generations, which announce themselves", () => {
     expect(completionEffect(row({ type: "prompt" }), row({ type: "prompt", status: "succeeded" }))).toBeNull();
+  });
+});
+
+describe("completionEffects", () => {
+  it("yields an effect only for rows that went from running to finished", () => {
+    const stored = {
+      a: row({ id: "a" }),
+      b: row({ id: "b" }),
+      c: row({ id: "c", status: "succeeded" }),
+    };
+    const effects = completionEffects(stored, [
+      row({ id: "a", status: "succeeded", output_snapshot: "img" }),
+      row({ id: "b" }),
+      row({ id: "c", status: "succeeded" }),
+      row({ id: "d", status: "failed" }),
+    ]);
+    expect(effects).toHaveLength(1);
+    expect(effects[0].row.id).toBe("a");
+    expect(effects[0].effect).toEqual({ toast: { tone: "success", message: "Image ready" }, cardImage: "img" });
+  });
+
+  it("is empty on a first load, when nothing is stored", () => {
+    expect(completionEffects({}, [row({ status: "succeeded" })])).toEqual([]);
   });
 });

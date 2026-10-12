@@ -61,6 +61,20 @@ export type CompletionEffect = {
   cardImage: string | null;
 };
 
+/** The completion effects a batch of loaded rows implies, judged against the jobs already stored:
+ *  only a stored `running` row that has now finished yields one (a first load yields none). */
+export function completionEffects(
+  stored: Record<string, GenerationRow>,
+  rows: GenerationRow[],
+): { row: GenerationRow; effect: CompletionEffect }[] {
+  const out: { row: GenerationRow; effect: CompletionEffect }[] = [];
+  for (const row of rows) {
+    const effect = completionEffect(stored[row.id], row);
+    if (effect) out.push({ row, effect });
+  }
+  return out;
+}
+
 /** What the canvas does when a job it saw running finishes: once per canvas, not once per node. */
 export function completionEffect(
   previous: GenerationRow | undefined,
