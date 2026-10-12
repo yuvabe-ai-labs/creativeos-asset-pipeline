@@ -404,7 +404,7 @@ describe("pasting a whole script over a draft (spec §3, Q1)", () => {
     expect(out.patch).toBeNull();
     expect(onDraft).not.toHaveBeenCalled();
     expect(out.result[0].content).toBe("Replace the current draft with this script? Nothing changes until you choose.");
-    expect(out.result[0].card).toMatchObject({ kind: "import", status: "pending", summary: "Reel 07 · 9 shots · 50s", replacing: shotSummary(doc) });
+    expect(out.result[0].card).toMatchObject({ kind: "import", status: "pending", summary: "Reel 07 · 9 shots · 50s", replacing: `${shotSummary(doc)} and its notes` });
   });
 
   it("a few pasted rows the detector calls an edit go to the editor, not the importer (A3)", async () => {

@@ -23,7 +23,7 @@ export async function prepareImport(input: TurnInput, deps: TurnDeps, base: Copi
   }
   if (script.doc) {
     const card: ImportCard = {
-      kind: "import", status: "pending", summary: importSummary(built.doc), replacing: shotSummary(script.doc),
+      kind: "import", status: "pending", summary: importSummary(built.doc), replacing: `${shotSummary(script.doc)} and its notes`,
       doc: built.doc, notes: built.notes, reply: built.reply,
     };
     return () => ({ patch: null, result: [{ content: "Replace the current draft with this script? Nothing changes until you choose.", card }] });
