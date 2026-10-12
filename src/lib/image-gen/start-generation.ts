@@ -24,6 +24,9 @@ export type StartImageGenerationInput = {
   mask?: { base64: string; mime: string };
 };
 
+/** Plain text for users when the start fails internally; the raw reason is kept for debugging only. */
+export const START_FAILED_MESSAGE = "Couldn't start the generation. Please try again.";
+
 /**
  * D366 — the route side of an async image generation, shared by Image Gen and Composite once
  * their prompt and references are decided: refuse a second run, record the run, reserve, upload
@@ -79,7 +82,10 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
 
     return apiOk({ generationId: generation.id }, 202);
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Image generation failed";
+    const isCreditLimit = e instanceof CreditLimitError;
+    const reason = e instanceof Error ? e.message : "Image generation failed";
+    // Users see plain copy; the raw reason goes only to the internal failure record.
+    const userMessage = isCreditLimit ? "Monthly credit limit reached" : START_FAILED_MESSAGE;
     // The failed attempt still shows in History, with its maker — as the synchronous path did.
     await insertVersion({
       nodeId,
@@ -87,10 +93,10 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
       inputsUsed,
       paramsUsed: { modelId, ...params },
       modelUsed: modelId,
-      error: message,
+      error: userMessage,
     }).catch(() => null);
-    await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
+    await failGeneration({ generationId: generation.id, error: reason }).catch(() => null);
     await refundReservation({ orgId, generationId: generation.id }).catch(() => null);
-    return apiError(message, e instanceof CreditLimitError ? 402 : 500);
+    return apiError(userMessage, isCreditLimit ? 402 : 500);
   }
 }

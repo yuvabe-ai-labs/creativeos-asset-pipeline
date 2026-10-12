@@ -36,7 +36,11 @@ vi.mock("@/lib/storage", () => ({
 vi.mock("@/lib/image-gen/estimate", () => ({ estimateImageGenerationCostUsd: () => 0.04 }));
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: m.trigger } }));
 
-import { startImageGeneration, type StartImageGenerationInput } from "../start-generation";
+import {
+  startImageGeneration,
+  START_FAILED_MESSAGE,
+  type StartImageGenerationInput,
+} from "../start-generation";
 
 const input: StartImageGenerationInput = {
   nodeId: "n1",
@@ -100,6 +104,7 @@ describe("startImageGeneration (D366)", () => {
     m.reserveCredits.mockResolvedValueOnce({ ok: false });
     const res = await startImageGeneration(input);
     expect(res.status).toBe(402);
+    expect((await res.json()).error).toBe("Monthly credit limit reached");
     expect(m.trigger).not.toHaveBeenCalled();
     expect(m.failGeneration).toHaveBeenCalledWith(expect.objectContaining({ generationId: "g1" }));
     expect(m.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
@@ -109,8 +114,11 @@ describe("startImageGeneration (D366)", () => {
     m.trigger.mockRejectedValueOnce(new Error("trigger down"));
     const res = await startImageGeneration(input);
     expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe(START_FAILED_MESSAGE);
     expect(m.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "trigger down" });
     expect(m.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
-    expect(m.insertVersion).toHaveBeenCalledWith(expect.objectContaining({ nodeId: "n1", error: "trigger down" }));
+    expect(m.insertVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ nodeId: "n1", error: START_FAILED_MESSAGE }),
+    );
   });
 });
