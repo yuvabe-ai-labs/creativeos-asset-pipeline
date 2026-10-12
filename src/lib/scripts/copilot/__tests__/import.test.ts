@@ -102,6 +102,25 @@ describe("buildImport — guesses (success 5, 10)", () => {
     expect(r.notes.confirmations[0]).toMatchObject({ id: "g1", paths: [`shots.${r.doc.shots[1].id}.vo`], confirmed: false });
   });
 
+  it("groups every changed shot into one open item, and the reply names them all", () => {
+    const off: ImportOutput = { ...REEL_07_IMPORT, shots: REEL_07_IMPORT.shots.map((s, i) => (i === 1 || i === 4 || i === 8 ? { ...s, vo: "Changed words here." } : s)) };
+    const r = built(off);
+    const ids = [1, 4, 8].map((i) => r.doc.shots[i].id);
+    const c = r.notes.confirmations.filter((x) => x.text.includes("word for word"));
+    expect(c).toHaveLength(1);
+    expect(c[0].paths).toEqual(ids.map((id) => `shots.${id}.vo`));
+    expect(c[0].text).toBe("S2, S5 and S9 don't match the pasted script word for word. Check them against the paste.");
+    expect(r.reply).toContain("S2, S5 and S9 don't match the paste word for word, so they're listed to check.");
+  });
+
+  it("says so, and keeps an open item, when the kept text is cut at the notes limit", () => {
+    const big: ImportOutput = { ...REEL_07_IMPORT, kept: [{ name: "Long note", text: "word ".repeat(2000).trim() }] };
+    const r = built(big);
+    expect(r.notes.brief).toHaveLength(8000);
+    expect(r.reply).toContain("The notes hold 8,000 characters, so the end of what I kept was cut; the rest is still in your paste.");
+    expect(r.notes.confirmations.some((c) => c.text === "Some of the kept text didn't fit in the notes. Copy the rest from the paste." && c.paths === undefined)).toBe(true);
+  });
+
   it("refuses a paste with no shots, saying what was missing (spec §5.4)", () => {
     expect(buildImport({ ...REEL_07_IMPORT, readable: false, problem: "There is no shot table in it.", shots: [] }, opts)).toEqual({ error: "There is no shot table in it." });
     expect(buildImport({ ...REEL_07_IMPORT, shots: [] }, opts)).toEqual({ error: "I couldn't find a series of shots or scenes in it." });

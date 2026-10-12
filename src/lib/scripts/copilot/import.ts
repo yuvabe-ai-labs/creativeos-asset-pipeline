@@ -70,6 +70,8 @@ function clean(out: ImportOutput): ImportOutput {
 
 export type ImportResult = { doc: ScriptDoc; notes: ScriptNotes; reply: string };
 
+const NOTES_BRIEF_MAX = 8000;
+
 type Guess = { text: string; paths: string[] };
 
 export function buildImport(
@@ -128,21 +130,33 @@ export function buildImport(
       ? `Who plays ${names[0]}? Pick an avatar below, or keep ${names[0]} in words for now.`
       : `Who plays ${listOf(names)}? Pick an avatar below for ${names[0]} first, or keep them in words for now.`);
   }
-  // §4.4 — a line the reading changed is named, and listed to check.
+  // §4.4 — lines the reading changed are named, and listed to check in one open item.
   const mismatches = unmatchedShots(doc, opts.paste);
-  for (const m of mismatches) {
+  if (mismatches.length === 1) {
+    const m = mismatches[0];
     const what = m.fields.map((f) => (f === "vo" ? "VO" : "on-screen text")).join(" and ");
     guesses.push({ text: `${shotName(m.index)}'s ${what} doesn't match the pasted script word for word. Check it against the paste.`, paths: m.fields.map((f) => `shots.${m.shotId}.${f}`) });
+  } else if (mismatches.length > 1) {
+    guesses.push({
+      text: `${listOf(mismatches.map((m) => shotName(m.index)))} don't match the pasted script word for word. Check them against the paste.`,
+      paths: mismatches.flatMap((m) => m.fields.map((f) => `shots.${m.shotId}.${f}`)),
+    });
   }
 
+  // Kept text is never cut silently: past the notes limit the reply says so and an open item remains.
+  const keptText = out.kept.length > 0 ? `From the pasted script:\n\n${out.kept.map((k) => k.text).join("\n\n")}` : "";
+  const keptCut = keptText.length > NOTES_BRIEF_MAX;
+  if (keptCut) guesses.push({ text: "Some of the kept text didn't fit in the notes. Copy the rest from the paste.", paths: [] });
+
   const notes: ScriptNotes = {
-    brief: out.kept.length > 0 ? `From the pasted script:\n\n${out.kept.map((k) => k.text).join("\n\n")}`.slice(0, 8000) : "",
-    confirmations: guesses.slice(0, 20).map((g, i) => ({ id: `g${i + 1}`, text: g.text.slice(0, 500), confirmed: false, paths: g.paths })),
+    brief: keptText.slice(0, NOTES_BRIEF_MAX),
+    confirmations: guesses.slice(0, 20).map((g, i) => ({ id: `g${i + 1}`, text: g.text.slice(0, 500), confirmed: false, ...(g.paths.length > 0 ? { paths: g.paths } : {}) })),
   };
 
   const head = [`Imported ${importSummary(doc)}.`];
   if (opts.takenReel !== null) head.push(`${reelLabel(opts.takenReel)} is taken, so this is ${reelLabel(doc.header.reelNumber)}.`);
   if (out.kept.length > 0) head.push(`Kept in the notes, word for word: ${listOf(out.kept.map((k) => k.name || "a note"))}.`);
+  if (keptCut) head.push("The notes hold 8,000 characters, so the end of what I kept was cut; the rest is still in your paste.");
   if (mismatches.length > 0) {
     const one = mismatches.length === 1;
     head.push(`${listOf(mismatches.map((m) => shotName(m.index)))} ${one ? "doesn't" : "don't"} match the paste word for word, so ${one ? "it's" : "they're"} listed to check.`);
