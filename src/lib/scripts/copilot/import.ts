@@ -68,6 +68,40 @@ function clean(out: ImportOutput): ImportOutput {
   };
 }
 
+type Cut = { label: string; path: string; text: string };
+
+/** Fields the script holds only up to a limit (draft.ts cuts them). Any whose saved text is shorter
+ *  than the pasted text lost its end: named here so its full text can be kept in the notes. A saved
+ *  empty field is the carry rule's, not a cut. */
+function cutFields(out: ImportOutput, cast: ImportOutput["cast"], shots: ImportOutput["shots"], doc: ScriptDoc): Cut[] {
+  const found: Cut[] = [];
+  const check = (label: string, path: string, source: string, saved: string) => {
+    if (saved !== "" && saved.length < source.length) found.push({ label, path, text: source });
+  };
+  const h = out.header;
+  const headerLabel: Record<keyof typeof h, string> = {
+    title: "title", format: "format", region: "region", postDate: "post date", theme: "theme",
+    aspect: "aspect", targetLength: "target length", production: "production",
+  };
+  for (const k of Object.keys(headerLabel) as (keyof typeof h)[]) check(headerLabel[k], `header.${k}`, h[k], doc.header[k]);
+  check("purpose", "context.purpose", out.context.purpose, doc.context.purpose);
+  check("setting and camera", "context.settingAndCamera", out.context.settingAndCamera, doc.context.settingAndCamera);
+  check("disclaimers", "context.disclaimers", out.context.disclaimers, doc.context.disclaimers);
+  out.context.watchOuts.forEach((w, i) => check(`watch-out ${i + 1}`, `context.watchOuts.${i}`, w, doc.context.watchOuts[i] ?? ""));
+  cast.forEach((m, i) => {
+    const saved = doc.cast[i];
+    check(`cast ${i + 1} name`, `cast.${saved.id}.name`, m.name, saved.name);
+    check(`${saved.name} description`, `cast.${saved.id}.description`, m.description, saved.description);
+  });
+  shots.forEach((sh, i) => {
+    const saved = doc.shots[i];
+    check(`S${i + 1} visual`, `shots.${saved.id}.visual`, sh.visual, saved.visual);
+    check(`S${i + 1} VO`, `shots.${saved.id}.vo`, sh.vo, saved.vo);
+    check(`S${i + 1} on-screen text`, `shots.${saved.id}.onScreenText`, sh.onScreenText, saved.onScreenText);
+  });
+  return found;
+}
+
 export type ImportResult = { doc: ScriptDoc; notes: ScriptNotes; reply: string };
 
 const NOTES_BRIEF_MAX = 8000;
@@ -130,6 +164,8 @@ export function buildImport(
       ? `Who plays ${names[0]}? Pick an avatar below, or keep ${names[0]} in words for now.`
       : `Who plays ${listOf(names)}? Pick an avatar below for ${names[0]} first, or keep them in words for now.`);
   }
+  // Long fields: the script holds a limit, so the full text goes to the notes and the reply says so.
+  const cuts = cutFields(out, cast, shots, doc);
   // §4.4 — lines the reading changed are named, and listed to check in one open item.
   const mismatches = unmatchedShots(doc, opts.paste);
   if (mismatches.length === 1) {
@@ -144,7 +180,11 @@ export function buildImport(
   }
 
   // Kept text is never cut silently: past the notes limit the reply says so and an open item remains.
-  const keptText = out.kept.length > 0 ? `From the pasted script:\n\n${out.kept.map((k) => k.text).join("\n\n")}` : "";
+  if (cuts.length > 0) {
+    guesses.push({ text: "Some fields were too long for the script and were cut; the full text is in the notes.", paths: cuts.map((c) => c.path) });
+  }
+  const keptTexts = [...out.kept.map((k) => k.text), ...cuts.map((c) => `Full ${c.label}: ${c.text}`)];
+  const keptText = keptTexts.length > 0 ? `From the pasted script:\n\n${keptTexts.join("\n\n")}` : "";
   const keptCut = keptText.length > NOTES_BRIEF_MAX;
   if (keptCut) guesses.push({ text: "Some of the kept text didn't fit in the notes. Copy the rest from the paste.", paths: [] });
 
@@ -156,6 +196,7 @@ export function buildImport(
   const head = [`${IMPORT_REPLY_PREFIX}${importSummary(doc)}.`];
   if (opts.takenReel !== null) head.push(`${reelLabel(opts.takenReel)} is taken, so this is ${reelLabel(doc.header.reelNumber)}.`);
   if (out.kept.length > 0) head.push(`Kept in the notes, word for word: ${listOf(out.kept.map((k) => k.name || "a note"))}.`);
+  if (cuts.length > 0) head.push(`${listOf(cuts.map((c) => c.label))} ran past what the script holds, so the full text is in the notes.`);
   if (keptCut) head.push("The notes hold 8,000 characters, so the end of what I kept was cut; the rest is still in your paste.");
   if (mismatches.length > 0) {
     const one = mismatches.length === 1;

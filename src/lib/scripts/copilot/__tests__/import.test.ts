@@ -121,6 +121,31 @@ describe("buildImport — guesses (success 5, 10)", () => {
     expect(r.notes.confirmations.some((c) => c.text === "Some of the kept text didn't fit in the notes. Copy the rest from the paste." && c.paths === undefined)).toBe(true);
   });
 
+  it("keeps the full text of a field the script cut at its limit, and says so (I1)", () => {
+    const production = "Shot on a phone, one take, natural light, no crew".padEnd(60, ".");
+    const longVo = "Okay, breakfast. ".repeat(70).trim();
+    const long: ImportOutput = {
+      ...REEL_07_IMPORT,
+      header: { ...REEL_07_IMPORT.header, production },
+      shots: REEL_07_IMPORT.shots.map((s, i) => (i === 2 ? { ...s, vo: longVo } : s)),
+    };
+    expect(longVo.length).toBeGreaterThan(1000);
+    const r = built(long, { paste: `${REEL_07_PASTE}\n${longVo}` });
+    expect(r.doc.header.production.length).toBe(40);
+    expect(r.notes.brief).toContain(production);
+    expect(r.notes.brief).toContain(longVo);
+    expect(r.reply).toContain("production and S3 VO ran past what the script holds, so the full text is in the notes.");
+    const cutItems = r.notes.confirmations.filter((c) => c.text === "Some fields were too long for the script and were cut; the full text is in the notes.");
+    expect(cutItems).toHaveLength(1);
+    expect(cutItems[0].paths).toEqual(["header.production", `shots.${r.doc.shots[2].id}.vo`]);
+  });
+
+  it("says nothing about cuts when every field fits, and a carried empty VO is not a cut", () => {
+    const r = built();
+    expect(r.reply).not.toContain("ran past");
+    expect(r.notes.confirmations.some((c) => c.text.includes("too long"))).toBe(false);
+  });
+
   it("refuses a paste with no shots, saying what was missing (spec §5.4)", () => {
     expect(buildImport({ ...REEL_07_IMPORT, readable: false, problem: "There is no shot table in it.", shots: [] }, opts)).toEqual({ error: "There is no shot table in it." });
     expect(buildImport({ ...REEL_07_IMPORT, shots: [] }, opts)).toEqual({ error: "I couldn't find a series of shots or scenes in it." });
