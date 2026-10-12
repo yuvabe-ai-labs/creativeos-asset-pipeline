@@ -18,6 +18,7 @@
 - Large bytes never travel in a task payload or webhook body: the mask is uploaded by the route, the result is uploaded by the task with a signed URL.
 - Every `@/lib` import inside `trigger/*.ts` is a dynamic `await import(...)` (those modules can carry `server-only`), as `trigger/video-generate.ts` does.
 - User-facing copy is plain: no vendor names, internals or raw errors in new UI strings, no em-dash phrasing.
+- Per-node generation status is **selected** from the canvas's one generations feed (`trayJobs` / `latestJobByNode`): no query and no realtime channel per node (AGENTS.md performance rules 1-3).
 - Controls are shadcn primitives only (no new native controls in this work).
 - Data fetching follows AGENTS.md's three layers: requests live in `src/services/*.service.ts` (typed through `readJson`, no React, no toasts); `useMutation`/`useQuery` wrappers live in `src/hooks/queries/*.ts` and update or invalidate the keys they change; components call those hooks and never call `fetch` directly.
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -39,8 +40,10 @@
 | `trigger/video-generate.ts` (modify) | Same retry rule (Task 12) |
 | `trigger/image-generate.ts` (create) | Trigger.dev task wrapping `runImageGenerateTask` |
 | `src/lib/generations/complete.ts` (modify) | Image success and failure branches |
-| `src/hooks/use-generation-status.ts` (create, replaces `use-video-gen-status.ts`) | Per-node generation status for any type; image completion patches the card |
-| `src/lib/canvas-store.ts` (modify) | `videoGenStatus` → `generationStatus` (rename only) |
+| `src/hooks/use-generation-status.ts` (create, replaces `use-video-gen-status.ts`) | Per-node generation status, selected from the canvas's one generations feed (no per-node calls) |
+| `src/lib/canvas-store.ts` (modify) | `latestJobByNode` index, start marks and request errors; replaces `videoGenStatus` |
+| `src/lib/generations/node-status.ts` (create) | Pure status and completion rules |
+| `src/hooks/use-generation-tray.ts` (modify) | The canvas's one feed also announces completions and puts finished images on cards |
 | `src/services/node-generation.service.ts` (create) | Requests: start an image or composite generation, restore a version |
 | `src/hooks/queries/node-generation.ts` (create) | `useStartImageGeneration`, `useStartCompositeGeneration`, `useRestoreNodeVersion`, `startErrorMessage` |
 | `src/components/nodes/image-gen-focus-view.tsx`, `image-gen-node.tsx` (modify) | Start-and-watch instead of wait |
@@ -1400,64 +1403,489 @@ git commit -m "feat(generations): the webhook completes background image generat
 
 ---
 
-### Task 7: Rename the video-only status to a generation status (no behaviour change)
+### Task 7: Per-node generation status read from the canvas's one generations feed
+
+**Why this shape.** Today every Video Gen node mounts `useVideoGenStatus` twice (card and focus
+view); each mount runs its own "is anything running?" query and each node opens its own realtime
+channel, so N video nodes cost 2N queries and N channels on canvas load. Putting that hook on every
+Image Gen card would have made a 300-node canvas fire ~600 queries and 300 channels (AGENTS.md
+performance rules 1–3). The canvas already loads every generation for its nodes in **one** query
+and listens on **one** channel (`use-generation-tray.ts` → `trayJobs`). Per-node status is read
+from there instead: zero calls per node.
 
 **Files:**
-- Create: `src/hooks/use-generation-status.ts` (the contents of `use-video-gen-status.ts`, renamed)
-- Delete: `src/hooks/use-video-gen-status.ts`
-- Modify: `src/lib/canvas-store.ts`, `src/components/nodes/video-gen-node.tsx`, `src/components/nodes/video-gen-focus-view.tsx`, `src/lib/realtime/node-generation-status.ts` (comment only)
+- Create: `src/lib/generations/node-status.ts`
+- Test: `src/lib/generations/__tests__/node-status.test.ts`
+- Modify: `src/lib/canvas-store.ts` (replace `videoGenStatus`, `setVideoGenGenerating`, `setVideoGenError`, `VideoGenJobKind`; extend `setTrayJobs` / `upsertTrayJob`)
+- Modify: `src/lib/canvas-store.test.ts` (add a describe block)
+- Modify: `src/hooks/use-generation-tray.ts`
+- Create: `src/hooks/use-generation-status.ts`
+- Delete: `src/hooks/use-video-gen-status.ts`, `src/lib/realtime/node-generation-status.ts`
+- Modify: `src/components/nodes/video-gen-node.tsx`, `src/components/nodes/video-gen-focus-view.tsx`
 
 **Interfaces:**
-- Produces: `useGenerationStatus(nodeId): GenerationStatus` (same fields as `VideoGenStatus`), store `generationStatus`, `setGenerationRunning(nodeId, v, kind?)`, `setGenerationError(nodeId, err)`, `GenerationJobKind = "image" | "video" | "voice"`.
-
-- [ ] **Step 1: Move the file**
-
-```bash
-git mv src/hooks/use-video-gen-status.ts src/hooks/use-generation-status.ts
-```
-
-- [ ] **Step 2: Rename identifiers** — apply exactly these replacements in the five files listed above (whole-word):
-
-| Old | New |
-|---|---|
-| `useVideoGenStatus` | `useGenerationStatus` |
-| `VideoGenStatus` (the type) | `GenerationStatus` |
-| `videoGenStatus` | `generationStatus` |
-| `setVideoGenGenerating` | `setGenerationRunning` |
-| `setVideoGenError` | `setGenerationError` |
-| `VideoGenJobKind` | `GenerationJobKind` |
-| `@/hooks/use-video-gen-status` | `@/hooks/use-generation-status` |
-
-In `canvas-store.ts`, widen the kind type:
+- Produces (used by Tasks 8–10):
 
 ```ts
+// src/lib/generations/node-status.ts
 export type GenerationJobKind = "image" | "video" | "voice";
+export type NodeGenerationStatus = { isGenerating: boolean; kind: GenerationJobKind | null; lastError: string | null };
+export function jobKindOf(type: GenerationRow["type"]): GenerationJobKind;
+export function isNewerJob(candidate: GenerationRow, current: GenerationRow | undefined): boolean;
+export function nodeGenerationStatus(latest: GenerationRow | undefined, started: GenerationJobKind | undefined, requestError: string | null): NodeGenerationStatus;
+export type CompletionEffect = { toast: { tone: "success" | "error"; message: string }; cardImage: string | null };
+export function completionEffect(previous: GenerationRow | undefined, next: GenerationRow): CompletionEffect | null;
+
+// canvas store (src/lib/canvas-store.ts)
+latestJobByNode: Record<string, GenerationRow>;            // maintained by setTrayJobs / upsertTrayJob
+generationStarts: Record<string, GenerationJobKind>;        // a start accepted, its row not seen yet
+generationRequestErrors: Record<string, string>;            // a start request that failed
+markGenerationStarted: (nodeId: string, kind: GenerationJobKind) => void;
+clearGenerationStarted: (nodeId: string) => void;
+setGenerationRequestError: (nodeId: string, error: string | null) => void;
+
+// src/hooks/use-generation-status.ts — same shape the video views already use
+export function useGenerationStatus(nodeId: string): {
+  isGenerating: boolean; isChangingVoice: boolean; lastError: string | null;
+  setGenerating: (v: boolean, kind?: GenerationJobKind) => void;
+  setLastError: (v: string | null) => void;
+};
 ```
 
-In `use-generation-status.ts`, replace `jobKind`:
+- [ ] **Step 1: Write the failing tests for the pure status rules**
 
 ```ts
-const jobKind = (type: string | null | undefined): GenerationJobKind =>
-  type === "voice" ? "voice" : type === "image" ? "image" : "video";
+// src/lib/generations/__tests__/node-status.test.ts
+import { describe, it, expect } from "vitest";
+import type { GenerationRow } from "@/lib/db/types";
+import { completionEffect, isNewerJob, jobKindOf, nodeGenerationStatus } from "../node-status";
+
+const row = (over: Partial<GenerationRow>): GenerationRow =>
+  ({
+    id: "g1",
+    node_id: "n1",
+    type: "image",
+    status: "running",
+    error: null,
+    output_snapshot: null,
+    created_at: "2026-10-12T10:00:00.000Z",
+    ...over,
+  }) as GenerationRow;
+
+describe("jobKindOf", () => {
+  it("maps the generation type to the job kind", () => {
+    expect(jobKindOf("image")).toBe("image");
+    expect(jobKindOf("voice")).toBe("voice");
+    expect(jobKindOf("video")).toBe("video");
+  });
+});
+
+describe("isNewerJob", () => {
+  it("is newer when there is no current job, or it was created later", () => {
+    expect(isNewerJob(row({}), undefined)).toBe(true);
+    expect(isNewerJob(row({ id: "g2", created_at: "2026-10-12T10:05:00.000Z" }), row({}))).toBe(true);
+    expect(isNewerJob(row({ id: "g0", created_at: "2026-10-12T09:55:00.000Z" }), row({}))).toBe(false);
+  });
+
+  it("treats an update of the same job as current", () => {
+    expect(isNewerJob(row({ status: "succeeded" }), row({}))).toBe(true);
+  });
+});
+
+describe("nodeGenerationStatus", () => {
+  it("is generating from the moment a start is accepted, before its row arrives", () => {
+    expect(nodeGenerationStatus(undefined, "image", null)).toEqual({ isGenerating: true, kind: "image", lastError: null });
+  });
+
+  it("is generating while the latest job is running", () => {
+    expect(nodeGenerationStatus(row({ type: "voice" }), undefined, null)).toEqual({
+      isGenerating: true,
+      kind: "voice",
+      lastError: null,
+    });
+  });
+
+  it("shows the latest job's failure, and a failed start request ahead of it", () => {
+    const failed = row({ status: "failed", error: "Content was blocked" });
+    expect(nodeGenerationStatus(failed, undefined, null).lastError).toBe("Content was blocked");
+    expect(nodeGenerationStatus(failed, undefined, "Couldn't start").lastError).toBe("Couldn't start");
+  });
+
+  it("is idle after a success", () => {
+    expect(nodeGenerationStatus(row({ status: "succeeded" }), undefined, null)).toEqual({
+      isGenerating: false,
+      kind: null,
+      lastError: null,
+    });
+  });
+});
+
+describe("completionEffect", () => {
+  it("announces an image that finished, and puts it on the card", () => {
+    expect(completionEffect(row({}), row({ status: "succeeded", output_snapshot: "https://cdn/g1.png" }))).toEqual({
+      toast: { tone: "success", message: "Image ready" },
+      cardImage: "https://cdn/g1.png",
+    });
+  });
+
+  it("announces a finished video without touching the card (the video view mirrors it)", () => {
+    expect(completionEffect(row({ type: "video" }), row({ type: "video", status: "succeeded" }))).toEqual({
+      toast: { tone: "success", message: "Video ready" },
+      cardImage: null,
+    });
+  });
+
+  it("reports a failure with its reason", () => {
+    expect(completionEffect(row({}), row({ status: "failed", error: "Out of credits" }))).toEqual({
+      toast: { tone: "error", message: "Out of credits" },
+      cardImage: null,
+    });
+  });
+
+  it("does nothing unless the job was seen running and has now finished", () => {
+    expect(completionEffect(undefined, row({ status: "succeeded" }))).toBeNull();
+    expect(completionEffect(row({}), row({}))).toBeNull();
+    expect(completionEffect(row({ status: "succeeded" }), row({ status: "succeeded" }))).toBeNull();
+  });
+
+  it("ignores prompt generations, which announce themselves", () => {
+    expect(completionEffect(row({ type: "prompt" }), row({ type: "prompt", status: "succeeded" }))).toBeNull();
+  });
+});
 ```
 
-- [ ] **Step 3: Verify nothing references the old names**
+- [ ] **Step 2: Run to verify it fails**
 
-Run: `npx tsc --noEmit -p .` — Expected: exit 0.
-Run: `git grep -n -e useVideoGenStatus -e videoGenStatus -e setVideoGenGenerating -e setVideoGenError -e VideoGenJobKind -- src` — Expected: no output.
+Run: `npx vitest run src/lib/generations/__tests__/node-status.test.ts`
+Expected: FAIL, cannot resolve `../node-status`.
 
-- [ ] **Step 4: Run the related tests**
+- [ ] **Step 3: Implement the pure rules**
 
-Run: `npx vitest run src/lib/canvas-store.test.ts src/components src/hooks`
+```ts
+// src/lib/generations/node-status.ts
+// D366 — a node's generation status, derived from the canvas's one generations feed (trayJobs)
+// rather than a query and a channel per node. Pure, so it is tested on its own.
+import type { GenerationRow } from "@/lib/db/types";
+
+export type GenerationJobKind = "image" | "video" | "voice";
+
+export type NodeGenerationStatus = {
+  isGenerating: boolean;
+  kind: GenerationJobKind | null;
+  lastError: string | null;
+};
+
+export function jobKindOf(type: GenerationRow["type"]): GenerationJobKind {
+  return type === "voice" ? "voice" : type === "image" ? "image" : "video";
+}
+
+/** Whether `candidate` should replace `current` as a node's latest job: the same job updated, or
+ *  one created later. */
+export function isNewerJob(candidate: GenerationRow, current: GenerationRow | undefined): boolean {
+  if (!current || candidate.id === current.id) return true;
+  return Date.parse(candidate.created_at) > Date.parse(current.created_at);
+}
+
+/** `started` covers the moment between a start being accepted and its row arriving on the feed;
+ *  `requestError` is a start request that failed before any row existed. */
+export function nodeGenerationStatus(
+  latest: GenerationRow | undefined,
+  started: GenerationJobKind | undefined,
+  requestError: string | null,
+): NodeGenerationStatus {
+  if (started) return { isGenerating: true, kind: started, lastError: null };
+  if (latest?.status === "running") return { isGenerating: true, kind: jobKindOf(latest.type), lastError: null };
+  const jobError = latest?.status === "failed" ? latest.error ?? "Generation failed" : null;
+  return { isGenerating: false, kind: null, lastError: requestError ?? jobError };
+}
+
+export type CompletionEffect = {
+  toast: { tone: "success" | "error"; message: string };
+  /** An image to put on the node's card (the job finished in the background). */
+  cardImage: string | null;
+};
+
+/** What the canvas does when a job it saw running finishes: once per canvas, not once per node. */
+export function completionEffect(
+  previous: GenerationRow | undefined,
+  next: GenerationRow,
+): CompletionEffect | null {
+  if (next.type === "prompt") return null;
+  if (previous?.status !== "running" || next.status === "running") return null;
+  const voice = next.type === "voice";
+  if (next.status === "succeeded") {
+    const message = voice ? "Voice changed and added as a new version" : next.type === "image" ? "Image ready" : "Video ready";
+    return {
+      toast: { tone: "success", message },
+      cardImage: next.type === "image" ? next.output_snapshot : null,
+    };
+  }
+  return {
+    toast: { tone: "error", message: next.error ?? (voice ? "Voice change failed" : "Generation failed") },
+    cardImage: null,
+  };
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `npx vitest run src/lib/generations/__tests__/node-status.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Store — write the failing tests** (append to `src/lib/canvas-store.test.ts`; it already imports `createCanvasStore`)
 
-```bash
-git add -A src/hooks src/lib/canvas-store.ts src/components/nodes/video-gen-node.tsx src/components/nodes/video-gen-focus-view.tsx src/lib/realtime/node-generation-status.ts
-git commit -m "refactor(generations): the per-node status is for any generation, not just video"
+```ts
+describe("generation status feed (D366)", () => {
+  const job = (id: string, nodeId: string, created_at: string, status: GenerationRow["status"] = "running") =>
+    ({ id, node_id: nodeId, type: "image", status, error: null, output_snapshot: null, created_at }) as GenerationRow;
+
+  it("indexes the newest job per node when the feed loads", () => {
+    const store = createCanvasStore([], []);
+    store.getState().setTrayJobs([
+      job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"),
+      job("new", "n1", "2026-10-12T10:00:00.000Z"),
+      job("other", "n2", "2026-10-12T08:00:00.000Z"),
+    ]);
+    expect(store.getState().latestJobByNode.n1.id).toBe("new");
+    expect(store.getState().latestJobByNode.n2.id).toBe("other");
+  });
+
+  it("keeps the newest job when an older one is updated late", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("new", "n1", "2026-10-12T10:00:00.000Z"));
+    store.getState().upsertTrayJob(job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"));
+    expect(store.getState().latestJobByNode.n1.id).toBe("new");
+  });
+
+  it("clears a start mark once a running row for that node arrives", () => {
+    const store = createCanvasStore([], []);
+    store.getState().markGenerationStarted("n1", "image");
+    store.getState().upsertTrayJob(job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"));
+    expect(store.getState().generationStarts.n1).toBe("image");
+    store.getState().upsertTrayJob(job("new", "n1", "2026-10-12T10:00:00.000Z"));
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+  });
+
+  it("clears a node's request error when a new start is marked", () => {
+    const store = createCanvasStore([], []);
+    store.getState().setGenerationRequestError("n1", "Couldn't start");
+    store.getState().markGenerationStarted("n1", "image");
+    expect(store.getState().generationRequestErrors.n1).toBeUndefined();
+  });
+});
 ```
 
+Add `import type { GenerationRow } from "./db/types";` to the test file's imports if it is not already there.
+
+- [ ] **Step 6: Run to verify they fail**
+
+Run: `npx vitest run src/lib/canvas-store.test.ts`
+Expected: the new block FAILS (`latestJobByNode` is undefined).
+
+- [ ] **Step 7: Store — implement.** In `src/lib/canvas-store.ts`:
+
+Delete `export type VideoGenJobKind = "video" | "voice";` and import instead:
+
+```ts
+import { isNewerJob, type GenerationJobKind } from "@/lib/generations/node-status";
+```
+
+In `CanvasState`, replace the three `videoGenStatus` / `setVideoGenGenerating` / `setVideoGenError` members with:
+
+```ts
+  // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
+  // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
+  latestJobByNode: Record<string, GenerationRow>;
+  generationStarts: Record<string, GenerationJobKind>;
+  generationRequestErrors: Record<string, string>;
+  markGenerationStarted: (nodeId: string, kind: GenerationJobKind) => void;
+  clearGenerationStarted: (nodeId: string) => void;
+  setGenerationRequestError: (nodeId: string, error: string | null) => void;
+```
+
+Replace the `videoGenStatus: {}` initial value and the `setVideoGenGenerating` / `setVideoGenError` implementations with:
+
+```ts
+    latestJobByNode: {},
+    generationStarts: {},
+    generationRequestErrors: {},
+
+    markGenerationStarted: (nodeId, kind) =>
+      set((s) => {
+        const { [nodeId]: _cleared, ...errors } = s.generationRequestErrors;
+        return { generationStarts: { ...s.generationStarts, [nodeId]: kind }, generationRequestErrors: errors };
+      }),
+
+    clearGenerationStarted: (nodeId) =>
+      set((s) => {
+        if (!(nodeId in s.generationStarts)) return {};
+        const { [nodeId]: _cleared, ...rest } = s.generationStarts;
+        return { generationStarts: rest };
+      }),
+
+    setGenerationRequestError: (nodeId, error) =>
+      set((s) => {
+        const { [nodeId]: _cleared, ...rest } = s.generationRequestErrors;
+        return { generationRequestErrors: error ? { ...rest, [nodeId]: error } : rest };
+      }),
+```
+
+Replace `setTrayJobs` and `upsertTrayJob` with:
+
+```ts
+    setTrayJobs: (jobs) => {
+      const latest: Record<string, GenerationRow> = {};
+      for (const j of jobs) {
+        if (j.node_id && isNewerJob(j, latest[j.node_id])) latest[j.node_id] = j;
+      }
+      set({ trayJobs: Object.fromEntries(jobs.map((j) => [j.id, j])), latestJobByNode: latest });
+    },
+    upsertTrayJob: (job) =>
+      set((s) => {
+        const nodeId = job.node_id;
+        const newer = nodeId !== null && isNewerJob(job, s.latestJobByNode[nodeId]);
+        // The job's own row now speaks for the node: a start mark is no longer needed.
+        const startCleared = nodeId !== null && job.status === "running" && nodeId in s.generationStarts;
+        const { [nodeId ?? ""]: _cleared, ...starts } = s.generationStarts;
+        return {
+          trayJobs: { ...s.trayJobs, [job.id]: job },
+          ...(newer ? { latestJobByNode: { ...s.latestJobByNode, [nodeId!]: job } } : {}),
+          ...(startCleared ? { generationStarts: starts } : {}),
+        };
+      }),
+```
+
+- [ ] **Step 8: Run the store tests**
+
+Run: `npx vitest run src/lib/canvas-store.test.ts`
+Expected: PASS (all, including existing tests).
+
+- [ ] **Step 9: The hook** — create `src/hooks/use-generation-status.ts`:
+
+```ts
+"use client";
+
+import { useShallow } from "zustand/react/shallow";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { nodeGenerationStatus, type GenerationJobKind } from "@/lib/generations/node-status";
+
+export type GenerationStatus = {
+  isGenerating: boolean;
+  /** D284 — true while the running job is a voice change rather than a fresh video. */
+  isChangingVoice: boolean;
+  lastError: string | null;
+  setGenerating: (v: boolean, kind?: GenerationJobKind) => void;
+  setLastError: (v: string | null) => void;
+};
+
+/** D366 — a node's generation status, read from the canvas's one generations feed. No query and no
+ *  channel per node (AGENTS.md performance rules 1–3): the canvas loads and listens once
+ *  (use-generation-tray.ts), and this selects its node's part in O(1). */
+export function useGenerationStatus(nodeId: string): GenerationStatus {
+  const { latest, started, requestError, mark, clear, setRequestError } = useCanvasStore(
+    useShallow((s) => ({
+      latest: s.latestJobByNode[nodeId],
+      started: s.generationStarts[nodeId],
+      requestError: s.generationRequestErrors[nodeId] ?? null,
+      mark: s.markGenerationStarted,
+      clear: s.clearGenerationStarted,
+      setRequestError: s.setGenerationRequestError,
+    })),
+  );
+  const status = nodeGenerationStatus(latest, started, requestError);
+  return {
+    isGenerating: status.isGenerating,
+    isChangingVoice: status.isGenerating && status.kind === "voice",
+    lastError: status.lastError,
+    setGenerating: (v, kind = "video") => (v ? mark(nodeId, kind) : clear(nodeId)),
+    setLastError: (v) => setRequestError(nodeId, v),
+  };
+}
+```
+
+- [ ] **Step 10: The canvas feed applies completions once, and waits for the session.** In `src/hooks/use-generation-tray.ts`, replace the live `useEffect` with:
+
+```ts
+  // Live: one channel for the whole canvas; ignore rows for other canvases' nodes. This is also
+  // where a finished job is announced and an image lands on its card (D366) — once per canvas,
+  // never once per node.
+  useEffect(() => {
+    const supabase = createBrowserSupabase();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+    // Await the session BEFORE subscribing: a channel opened without a JWT is dropped by RLS while
+    // still reporting SUBSCRIBED (the lesson node-generation-status.ts recorded).
+    void supabase.auth.getSession().then(() => {
+      if (cancelled) return;
+      channel = supabase
+        .channel(`generation-tray:${canvasId}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "generations" },
+          (payload: RealtimePostgresChangesPayload<GenerationRow>) => {
+            const row = payload.new as GenerationRow;
+            if (!row?.id) return;
+            const state = storeApi.getState();
+            if (row.node_id === null || !state.nodes.some((n) => n.id === row.node_id)) return;
+            const effect = completionEffect(state.trayJobs[row.id], row);
+            upsertTrayJob(row);
+            if (!effect) return;
+            if (effect.toast.tone === "success") toast.success(effect.toast.message);
+            else toast.error(effect.toast.message);
+            if (effect.cardImage) {
+              state.updateNodeData(row.node_id, { parsed: effect.cardImage, approvalStatus: "pending" });
+            }
+            if (effect.toast.tone === "success") void revalidateCanvasGenerations();
+          },
+        )
+        .subscribe();
+    });
+    return () => {
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [canvasId, upsertTrayJob, storeApi]);
+```
+
+Add the imports:
+
+```ts
+import { toast } from "sonner";
+import { completionEffect } from "@/lib/generations/node-status";
+import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
+```
+
+Update the file's header comment: replace "Coexists with the per-node use-video-gen-status subscription (separate concern)." with "D366 — it is also every node's generation status (useGenerationStatus selects from it) and the one place a finished job is announced."
+
+- [ ] **Step 11: Move the video views over and delete the per-node path**
+
+```bash
+git rm src/hooks/use-video-gen-status.ts src/lib/realtime/node-generation-status.ts
+```
+
+In `src/components/nodes/video-gen-node.tsx` and `src/components/nodes/video-gen-focus-view.tsx`, replace `import { useVideoGenStatus } from "@/hooks/use-video-gen-status";` with `import { useGenerationStatus } from "@/hooks/use-generation-status";` and `useVideoGenStatus(` with `useGenerationStatus(`.
+
+In `video-gen-focus-view.tsx`:
+- Delete the two store reads `const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);` and `const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);`.
+- In the open effect (the one beginning `// Load data when focus view opens; also re-check generation status…`), delete the `createBrowserSupabase().from("generations")…` query and its `.then(...)` entirely — status is derived from the canvas feed now, so there is no stale flag to clear — and remove `setVideoGenGenerating, setVideoGenError` from that effect's dependency array. Update its leading comment to "Load the connected inputs when the focus view opens." Remove the `createBrowserSupabase` import if nothing else in the file uses it.
+- Where the voice change starts (`setVideoGenGenerating(nodeId, true, "voice");`), use `setGenerating(true, "voice");` (it is already destructured from the hook).
+
+Confirm no old names remain:
+
+Run: `git grep -n -e useVideoGenStatus -e videoGenStatus -e setVideoGenGenerating -e setVideoGenError -e VideoGenJobKind -e node-generation-status -- src` — Expected: no output.
+
+- [ ] **Step 12: Verify**
+
+Run: `npx tsc --noEmit -p .` — Expected: exit 0.
+Run: `npx vitest run src/lib/generations src/lib/canvas-store.test.ts src/hooks src/components` — Expected: PASS.
+Run: `npx eslint src/hooks/use-generation-status.ts src/hooks/use-generation-tray.ts src/lib/generations/node-status.ts src/lib/canvas-store.ts src/components/nodes/video-gen-node.tsx src/components/nodes/video-gen-focus-view.tsx` — Expected: no new errors.
+
+- [ ] **Step 13: Commit**
+
+```bash
+git add -A src/lib/generations src/lib/canvas-store.ts src/lib/canvas-store.test.ts src/hooks src/lib/realtime src/components/nodes/video-gen-node.tsx src/components/nodes/video-gen-focus-view.tsx
+git commit -m "perf(generations): node status from the canvas's one feed, not a query and channel per node (D366)"
+```
 ---
 
 ### Task 8: Service and mutation hooks for starting generations and restoring versions
@@ -1469,7 +1897,7 @@ git commit -m "refactor(generations): the per-node status is for any generation,
 - Test: `src/hooks/queries/__tests__/node-generation.test.ts`
 
 **Interfaces:**
-- Consumes: `readJson`, `ApiError` from `@/services/read-json`; `nodeVersionKeys` from `@/hooks/queries/node-versions`; the store's `setGenerationRunning` (Task 7); `CREDIT_LIMIT_TOAST_MESSAGE` from `@/lib/credits/units`.
+- Consumes: `readJson`, `ApiError` from `@/services/read-json`; `nodeVersionKeys` from `@/hooks/queries/node-versions`; the store's `markGenerationStarted` (Task 7); `CREDIT_LIMIT_TOAST_MESSAGE` from `@/lib/credits/units`.
 - Produces:
 
 ```ts
@@ -1652,18 +2080,18 @@ export function startErrorMessage(e: unknown, fallback: string): string {
 }
 
 export function useStartImageGeneration(nodeId: string) {
-  const setGenerationRunning = useCanvasStore((s) => s.setGenerationRunning);
+  const markGenerationStarted = useCanvasStore((s) => s.markGenerationStarted);
   return useMutation({
     mutationFn: (body: Record<string, unknown>) => nodeGenerationService.startImage(nodeId, body),
-    onSuccess: () => setGenerationRunning(nodeId, true, "image"),
+    onSuccess: () => markGenerationStarted(nodeId, "image"),
   });
 }
 
 export function useStartCompositeGeneration(nodeId: string) {
-  const setGenerationRunning = useCanvasStore((s) => s.setGenerationRunning);
+  const markGenerationStarted = useCanvasStore((s) => s.markGenerationStarted);
   return useMutation({
     mutationFn: (body: Record<string, unknown>) => nodeGenerationService.startComposite(nodeId, body),
-    onSuccess: () => setGenerationRunning(nodeId, true, "image"),
+    onSuccess: () => markGenerationStarted(nodeId, "image"),
   });
 }
 
@@ -1692,50 +2120,14 @@ git commit -m "feat(generations): service and mutation hooks for starting genera
 
 ---
 
-### Task 9: Image completion updates the card; Image Gen view starts and watches
+### Task 9: Image Gen view starts and watches
 
 **Files:**
-- Modify: `src/hooks/use-generation-status.ts`
 - Modify: `src/components/nodes/image-gen-focus-view.tsx` (lines 192-199 state, 671-715 `handleGenerate`, 754-813 `handleEdit`, the `onProcessingChange` prop)
 - Modify: `src/components/nodes/image-gen-node.tsx` (lines 90, 136, 170, 208)
 
 **Interfaces:**
 - Consumes: `useGenerationStatus` (Task 7); `useStartImageGeneration`, `useRestoreNodeVersion`, `startErrorMessage` (Task 8).
-
-- [ ] **Step 1: Image completion in the status hook** — in `use-generation-status.ts`, read the store's `updateNodeData` and replace the `onUpdate` handler:
-
-```ts
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-```
-
-```ts
-      onUpdate: (gen) => {
-        const voice = gen.type === "voice";
-        const image = gen.type === "image";
-        if (gen.status === "succeeded") {
-          setGenerationRunning(nodeId, false);
-          setGenerationError(nodeId, null);
-          // D366 — an image finishes in the background: put it on the card now, whether or not a
-          // focus view is open. The new version starts unreviewed.
-          if (image && gen.output_snapshot) {
-            updateNodeData(nodeId, { parsed: gen.output_snapshot, approvalStatus: "pending" });
-            void revalidateCanvasGenerations();
-          }
-          toast.success(voice ? "Voice changed — added as a new version" : image ? "Image ready" : "Video ready");
-        } else if (gen.status === "failed") {
-          const fallback = voice ? "Voice change failed" : "Generation failed";
-          setGenerationRunning(nodeId, false);
-          setGenerationError(nodeId, gen.error ?? fallback);
-          toast.error(gen.error ?? fallback);
-        }
-      },
-```
-
-Add `updateNodeData` to that effect's dependency array, and import:
-
-```ts
-import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
-```
 
 - [ ] **Step 2: Image Gen focus view state** — replace lines 192-199:
 
@@ -1869,13 +2261,13 @@ import { useGenerationStatus } from "@/hooks/use-generation-status";
 - [ ] **Step 6: Typecheck, lint, test**
 
 Run: `npx tsc --noEmit -p .` — Expected: exit 0.
-Run: `npx eslint src/components/nodes/image-gen-focus-view.tsx src/components/nodes/image-gen-node.tsx src/hooks/use-generation-status.ts` — Expected: no errors.
+Run: `npx eslint src/components/nodes/image-gen-focus-view.tsx src/components/nodes/image-gen-node.tsx` — Expected: no errors.
 Run: `npx vitest run src/components src/hooks` — Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/hooks/use-generation-status.ts src/components/nodes/image-gen-focus-view.tsx src/components/nodes/image-gen-node.tsx
+git add src/components/nodes/image-gen-focus-view.tsx src/components/nodes/image-gen-node.tsx
 git commit -m "feat(image-gen): Image Gen starts a generation and watches it, so leaving loses nothing (D366)"
 ```
 
