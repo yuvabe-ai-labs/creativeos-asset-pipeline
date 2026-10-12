@@ -126,14 +126,16 @@ describe("before the draft", () => {
     const brief: Brief = { ...EMPTY_BRIEF, phase: "confirm", format: { value: "UGC", status: "given" }, occasion: { value: "x", status: "given" }, lead: { value: "y", status: "given" }, narrative: { value: "n", status: "given" }, card: CARD };
     const quick = fakeModel({ script_brief_read: [extraction({ confirm: true })] });
     const whole = JSON.stringify(DRAFT);
+    const previews: string[] = [];
     const stream = vi.fn(async (_args: unknown, onText: (t: string) => void) => {
+      previews.push("writer called");
       for (const at of [whole.indexOf("\"cast\""), whole.indexOf("\"REVIEW\""), whole.length]) onText(whole.slice(0, at));
       return DRAFT;
     });
-    const previews: number[] = [];
-    const d = { ...deps(fakeModel({}).call), quick: quick.call, stream: stream as never, onDraft: (p: { shots: unknown[] }) => previews.push(p.shots.length) };
+    const d = { ...deps(fakeModel({}).call), quick: quick.call, stream: stream as never, onDraft: (p: { shots: unknown[] }) => previews.push(`${p.shots.length} shots`) };
     const out = ok(await run(script({ brief }), "write it", d));
-    expect(previews).toEqual([0, 1, 2]);
+    // An empty draft first, so the page shows the script taking shape while the writer thinks.
+    expect(previews).toEqual(["0 shots", "writer called", "0 shots", "1 shots", "2 shots"]);
     expect(out.patch?.doc?.shots.map((s) => s.id)).toEqual(["s01", "s02"]);
   });
 

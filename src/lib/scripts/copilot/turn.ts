@@ -7,7 +7,7 @@ import { fieldLabel, parseFieldPath, readField, writeField } from "./fields";
 import { fillToFinal } from "./fill-to-final";
 import { anglesPrompt, cardPrompt, draftPrompt, editPrompt, extractPrompt, inlinePrompt, type CopilotBase } from "./messages";
 import type { StreamingCall, StructuredCall } from "./model";
-import { parsePartialDraft, type PartialDraft } from "./partial-draft";
+import { EMPTY_PARTIAL_DRAFT, parsePartialDraft, type PartialDraft } from "./partial-draft";
 import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
 import { anglesOutputSchema, cardOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
 import { libraryFormats, nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
@@ -118,7 +118,8 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
       }
       const card = brief.card;
       const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card }), schema: draftOutputSchema };
-      let shown = "";
+      deps.onDraft?.(EMPTY_PARTIAL_DRAFT);
+      let shown = "0:0:0";
       const out = deps.stream
         ? await deps.stream(draftArgs, (text) => {
           const partial = parsePartialDraft(text);
