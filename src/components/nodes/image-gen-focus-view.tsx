@@ -75,7 +75,12 @@ import {
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
 import type { NodeVersionsResponse } from "@/services/node-versions.service";
-import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
+import { useGenerationStatus } from "@/hooks/use-generation-status";
+import {
+  useStartImageGeneration,
+  useRestoreNodeVersion,
+  startErrorMessage,
+} from "@/hooks/queries/node-generation";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
 import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
@@ -106,7 +111,7 @@ import { groupByTimecode } from "@/lib/review-annotations/group";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
-import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
@@ -138,7 +143,6 @@ export type ImageGenFocusViewProps = {
   onPatch: (patch: Record<string, unknown>) => void;
   /** Mirrors in-flight generate/edit state up to the node so its card can show
    *  a Processing pill even while the focus view is closed. */
-  onProcessingChange?: (v: boolean) => void;
 };
 
 type ParamFormValues = Record<string, unknown>;
@@ -161,7 +165,6 @@ export function ImageGenFocusView({
   baseReferenceNodeId,
   upstream,
   onPatch,
-  onProcessingChange,
 }: ImageGenFocusViewProps) {
   const selectedModelId = modelId ?? DEFAULT_CLIENT_MODEL_ID;
   const model =
@@ -189,14 +192,18 @@ export function ImageGenFocusView({
     return smartMergeParams(base, model);
   });
 
-  const [generating, setGenerating] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [lastError, setLastError] = useState<string | null>(null);
-
-  // Mirror in-flight state up to the node card (survives focus-view close).
-  useEffect(() => {
-    onProcessingChange?.(generating || editing);
-  }, [generating, editing, onProcessingChange]);
+  // D366 — a generation runs in the background; this node's shared status says whether one is
+  // running (it survives a reload or a return to the canvas). The start mutation covers only the
+  // start request itself, and `lastAction` which button started it.
+  const status = useGenerationStatus(nodeId);
+  const startGeneration = useStartImageGeneration(nodeId);
+  const restoreVersion = useRestoreNodeVersion(nodeId);
+  const [lastAction, setLastAction] = useState<"generate" | "edit">("generate");
+  const busy = startGeneration.isPending || status.isGenerating;
+  const generating = busy && lastAction === "generate";
+  const editing = busy && lastAction === "edit";
+  const [requestError, setLastError] = useState<string | null>(null);
+  const lastError = requestError ?? status.lastError;
   const [editInstr, setEditInstr] = useState(editInstruction ?? "");
   const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
   const [activeTab, setActiveTab] = useState<"generate" | "edit">("generate");
@@ -670,47 +677,24 @@ export function ImageGenFocusView({
 
   async function handleGenerate() {
     // Second line of defence behind the button's disabled state: a run in flight must never
-    // be able to start another one. The disabled prop alone lives in a sibling component and
-    // has already been lost once to an unrelated tooltip edit — this guard is next to the
-    // request it protects, and covers any future caller that isn't that button.
-    if (generating || editing) return;
+    // be able to start another one. The server refuses a second run too (409).
+    if (busy) return;
     if (!promptUpstream) {
       toast.error("Connect a Prompt node first.");
       return;
     }
-    setGenerating(true);
+    setLastAction("generate");
     setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
-      const values = paramValues;
-      const res = await fetch(`/api/nodes/${nodeId}/image-generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelId: model.id, params: values }),
-      });
-      const json = (await res.json()) as {
-        imageUrl?: string;
-        versionId?: string;
-        error?: string;
-      };
-      if (!res.ok || !json.imageUrl)
-        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
-      onPatch({ parsed: json.imageUrl });
-      setActiveVersionId(json.versionId ?? null);
-      await fetchVersions();
-      // Tell the Gallery Drawer's Canvas Generations tab about the image we just made. The
-      // route has already committed the succeeded generation by the time it answers us, so
-      // this is the reliable signal — the drawer can be sitting open next to this focus view.
-      void revalidateCanvasGenerations();
-      toast.success("Image generated");
+      // On success the mutation marks the node as generating; the status hook lands the result.
+      await startGeneration.mutateAsync({ modelId: model.id, params: paramValues });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Generation failed";
+      const message = startErrorMessage(e, "Generation failed");
       setLastError(message);
       toast.error(message, { duration: 6000 });
       await fetchVersions();
-    } finally {
-      setGenerating(false);
     }
   }
 
@@ -752,16 +736,14 @@ export function ImageGenFocusView({
   }
 
   async function handleEdit() {
-    if (editing || generating) return; // same re-entrancy guard as handleGenerate
+    if (busy) return; // same re-entrancy guard as handleGenerate
     const baseVersionId = activeVersionId ?? undefined;
     const baseImageUrl = baseVersionId ? undefined : baseNodeUrl ?? undefined;
     if (!baseVersionId && !baseImageUrl) {
-      toast.error(
-        "Generate an image, or connect an image reference, to edit it."
-      );
+      toast.error("Generate an image, or connect an image reference, to edit it.");
       return;
     }
-    setEditing(true);
+    setLastAction("edit");
     setLastError(null);
     try {
       // Region mask (paint models only): convert the painted overlay into an alpha PNG and send
@@ -775,40 +757,23 @@ export function ImageGenFocusView({
           maskMime = mask.mime;
         }
       }
-      const res = await fetch(`/api/nodes/${nodeId}/image-generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          modelId: model.id,
-          params: paramValues,
-          instruction: editInstr,
-          intent,
-          prompt: finalPrompt,
-          extraReferenceUrls: selectedExtraUrls,
-          ...(maskBase64 ? { masked: true, maskBase64, maskMime } : {}),
-          ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
-        }),
+      await startGeneration.mutateAsync({
+        modelId: model.id,
+        params: paramValues,
+        instruction: editInstr,
+        intent,
+        prompt: finalPrompt,
+        extraReferenceUrls: selectedExtraUrls,
+        ...(maskBase64 ? { masked: true, maskBase64, maskMime } : {}),
+        ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
       });
-      const json = (await res.json()) as {
-        imageUrl?: string;
-        versionId?: string;
-        error?: string;
-      };
-      if (!res.ok || !json.imageUrl)
-        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Edit failed");
-      onPatch({ parsed: json.imageUrl });
-      setActiveVersionId(json.versionId ?? null);
+      // The mask has been sent with the request; the strokes are no longer needed.
       annotationRef.current?.clear();
-      await fetchVersions();
-      void revalidateCanvasGenerations(); // same as handleGenerate — an edit is a generation too
-      toast.success("Image edited");
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Edit failed";
+      const message = startErrorMessage(e, "Edit failed");
       setLastError(message);
       toast.error(message, { duration: 6000 });
       await fetchVersions();
-    } finally {
-      setEditing(false);
     }
   }
 
@@ -832,18 +797,7 @@ export function ImageGenFocusView({
     // stacking a second toast. Restore is two round trips (the POST, then the refetch).
     const toastId = toast.loading("Restoring version…");
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/restore-version`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionId }),
-      });
-      const json = (await res.json()) as {
-        output?: string;
-        modelUsed?: string | null;
-        paramsUsed?: Record<string, unknown>;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error ?? "Restore failed");
+      const json = await restoreVersion.mutateAsync(versionId);
       // params_used carries its own modelId for image versions (the image-generate route writes
       // it there); model_used is the same value, and the fallback covers either being absent.
       const restoredModelId =
