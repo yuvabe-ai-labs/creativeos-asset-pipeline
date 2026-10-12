@@ -16,6 +16,19 @@ describe("stripFormatting", () => {
     expect(stripFormatting(String.raw`**Helps control blood sugar levels\***`)).toBe("Helps control blood sugar levels*");
     expect(stripFormatting(String.raw`FSSAI Lic. No. \_\_\_\_ (licence`)).toBe("FSSAI Lic. No. ____ (licence");
     expect(stripFormatting("2021\\.")).toBe("2021.");
+    expect(stripFormatting("**8 minutes**")).toBe("8 minutes");
+  });
+
+  it("keeps fill-in blanks and a lone ** (C1)", () => {
+    for (const x of ["FSSAI Lic. No. ____ (licence", "Price Rs ____ only", "Terms apply**", "a ____ b ____ c"]) expect(stripFormatting(x)).toBe(x);
+  });
+
+  it("is idempotent, because the doc side runs it twice", () => {
+    const inputs = [
+      "FSSAI Lic. No. ____ (licence", "Terms apply**", "**8 minutes**",
+      String.raw`**Helps control blood sugar levels\***`, String.raw`FSSAI Lic. No. \_\_\_\_ (licence`,
+    ];
+    for (const x of inputs) expect(stripFormatting(stripFormatting(x))).toBe(stripFormatting(x));
   });
 });
 

@@ -4,11 +4,13 @@ import type { ScriptDoc } from "../schema";
 // shot's VO and on-screen text must still be found in the pasted text, so "word for word" is
 // checked, not trusted. Spacing and quote style are ignored; wording, case and spelling never are.
 
-/** Markdown's formatting, not the script's words. Bold markers are dropped first, only where they
- *  are not escaped, so an escaped "\_\_\_\_" keeps its four underscores; then backslash escapes. */
+/** Markdown's formatting, not the script's words. Only a balanced pair of bold markers around text
+ *  is dropped, and only where it is not escaped: a fill-in blank ("____") and a lone "**" are the
+ *  script's own and stay. Then backslash escapes, so "\_\_\_\_" becomes the blank "____". */
 export function stripFormatting(text: string): string {
   return text
-    .replace(/(?<!\\)(\*\*|__)/g, "")
+    .replace(/(?<!\\)\*\*(?=\S)(.+?)(?<=\S)(?<!\\)\*\*/g, "$1")
+    .replace(/(?<![\\_])__(?=[^\s_])(.+?)(?<=[^\s_])__(?!_)/g, "$1")
     .replace(/\\([\\`*_{}[\]()#+\-.!|<>~"])/g, "$1");
 }
 

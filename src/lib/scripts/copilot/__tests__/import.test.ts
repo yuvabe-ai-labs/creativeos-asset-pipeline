@@ -39,7 +39,7 @@ describe("buildImport — Reel 07 (success 1–4)", () => {
     expect(doc.header).toEqual({ ...REEL_07_IMPORT.header, reelNumber: 7 });
     expect(doc.cast).toEqual([expect.objectContaining({ name: "Rhea", isLead: true, avatarId: null, description: REEL_07_IMPORT.cast[0].description })]);
     expect(doc.context.watchOuts).toEqual(REEL_07_IMPORT.context.watchOuts);
-    for (const d of ["D1, on every reel.", "D2, on every reel.", "D4, on the pack end card of every reel."]) expect(doc.context.disclaimers).toContain(d);
+    for (const d of ["D1, on every reel.", "D2, on every reel.", "D4, on the pack end card of every reel. This is not a medicine. FSSAI Lic. No. ____ (licence number to be supplied by the brand)."]) expect(doc.context.disclaimers).toContain(d);
   });
 
   it("cleans the markdown escapes, so the review is the placeholder and an open item (success 3, Review Focus 1)", () => {

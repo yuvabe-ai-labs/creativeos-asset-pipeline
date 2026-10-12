@@ -62,7 +62,7 @@ describe("changeWithRetry", () => {
   it("an edit to a guessed field settles that guess in the same save", async () => {
     const guess: ScriptNotes = { brief: "", confirmations: [{ id: "g1", text: "Beats were added.", confirmed: false, paths: [`shots.${doc.shots[0].id}.beat`] }] };
     const current = { ...script(1), notes: guess };
-    const save = vi.fn(async (v: number, _patch: ScriptPatch) => script(v + 1));
+    const save = vi.fn<(v: number, patch: ScriptPatch) => Promise<GenerateScript>>(async (v) => script(v + 1));
     const edited = { ...current.doc!, shots: current.doc!.shots.map((s, i) => (i === 0 ? { ...s, beat: "OPEN" } : s)) };
     await changeWithRetry({ read: async () => current, save }, () => ({ patch: { doc: edited }, result: null }));
     expect(save.mock.calls[0][1].notes?.confirmations[0].confirmed).toBe(true);
@@ -70,7 +70,7 @@ describe("changeWithRetry", () => {
 
   it("a patch that replaces the draft keeps the guesses it brings", async () => {
     const fresh: ScriptNotes = { brief: "", confirmations: [{ id: "g1", text: "Beats were added.", confirmed: false, paths: [`shots.${doc.shots[0].id}.beat`] }] };
-    const save = vi.fn(async (v: number, _patch: ScriptPatch) => script(v + 1));
+    const save = vi.fn<(v: number, patch: ScriptPatch) => Promise<GenerateScript>>(async (v) => script(v + 1));
     const replaced = { ...doc, shots: doc.shots.map((s, i) => (i === 0 ? { ...s, beat: "OPEN" } : s)) };
     await changeWithRetry({ read: async () => script(1), save }, () => ({ patch: { doc: replaced, notes: fresh }, result: null, replaces: true }));
     expect(save.mock.calls[0][1].notes).toBe(fresh);
