@@ -141,8 +141,6 @@ export type ImageGenFocusViewProps = {
     imageHeight?: number;
   }>;
   onPatch: (patch: Record<string, unknown>) => void;
-  /** Mirrors in-flight generate/edit state up to the node so its card can show
-   *  a Processing pill even while the focus view is closed. */
 };
 
 type ParamFormValues = Record<string, unknown>;
@@ -199,7 +197,12 @@ export function ImageGenFocusView({
   const startGeneration = useStartImageGeneration(nodeId);
   const restoreVersion = useRestoreNodeVersion(nodeId);
   const [lastAction, setLastAction] = useState<"generate" | "edit">("generate");
-  const busy = startGeneration.isPending || status.isGenerating;
+  // `starting` turns true synchronously on click, before any await (the edit's mask conversion),
+  // so the buttons disable and a second click cannot start a second run. The ref covers two
+  // clicks inside the same render, before the state has committed.
+  const [starting, setStarting] = useState(false);
+  const startingRef = useRef(false);
+  const busy = starting || startGeneration.isPending || status.isGenerating;
   const generating = busy && lastAction === "generate";
   const editing = busy && lastAction === "edit";
   const [requestError, setLastError] = useState<string | null>(null);
@@ -678,11 +681,13 @@ export function ImageGenFocusView({
   async function handleGenerate() {
     // Second line of defence behind the button's disabled state: a run in flight must never
     // be able to start another one. The server refuses a second run too (409).
-    if (busy) return;
+    if (busy || startingRef.current) return;
     if (!promptUpstream) {
       toast.error("Connect a Prompt node first.");
       return;
     }
+    startingRef.current = true;
+    setStarting(true);
     setLastAction("generate");
     setLastError(null);
     setEvalDecision(null);
@@ -695,6 +700,9 @@ export function ImageGenFocusView({
       setLastError(message);
       toast.error(message, { duration: 6000 });
       await fetchVersions();
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
     }
   }
 
@@ -736,13 +744,15 @@ export function ImageGenFocusView({
   }
 
   async function handleEdit() {
-    if (busy) return; // same re-entrancy guard as handleGenerate
+    if (busy || startingRef.current) return; // same re-entrancy guard as handleGenerate
     const baseVersionId = activeVersionId ?? undefined;
     const baseImageUrl = baseVersionId ? undefined : baseNodeUrl ?? undefined;
     if (!baseVersionId && !baseImageUrl) {
       toast.error("Generate an image, or connect an image reference, to edit it.");
       return;
     }
+    startingRef.current = true;
+    setStarting(true);
     setLastAction("edit");
     setLastError(null);
     try {
@@ -774,6 +784,9 @@ export function ImageGenFocusView({
       setLastError(message);
       toast.error(message, { duration: 6000 });
       await fetchVersions();
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
     }
   }
 
