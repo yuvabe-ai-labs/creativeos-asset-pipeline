@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - One generation at a time per node: a second request while one is `running` answers `409` with "This node is already generating."
-- The `image-generate` task runs **once, with no automatic retries** (`retry: { maxAttempts: 1 }`). A failure posts `failed` (which refunds); a retry after that would be paid for and then dropped by the webhook's duplicate guard.
+- Paid generation tasks post `failed` **only when the failure is final** (`isFinalAttempt(attempt, maxAttempts, error)`): an earlier `failed` would refund and close the run, and a retry's paid result would then be dropped by the webhook's duplicate guard. A failure **after the provider returned** (upload, webhook) is a `PaidResultError`: never retried (`AbortTaskRunError`), since a retry would pay the provider again. This is the rule `video-voice-change.ts` already follows.
+- `image-generate` gets one retry (`maxAttempts: 2`): an image is one request/response and a failed call is not billed. `video-generate` gets **none** (`maxAttempts: 1`, Task 12): its provider jobs are billed when submitted, so a retry after a timed-out or failed poll would pay for a second clip.
 - Large bytes never travel in a task payload or webhook body: the mask is uploaded by the route, the result is uploaded by the task with a signed URL.
 - Every `@/lib` import inside `trigger/*.ts` is a dynamic `await import(...)` (those modules can carry `server-only`), as `trigger/video-generate.ts` does.
 - User-facing copy is plain: no vendor names, internals or raw errors in new UI strings, no em-dash phrasing.
@@ -33,7 +34,9 @@
 | `src/lib/image-gen/start-generation.ts` (create) | Shared route step: refuse a second run, insert, reserve, mask, sign, start task, `202` |
 | `src/app/api/nodes/[id]/image-generate/route.ts` (modify) | Uses `startImageGeneration` |
 | `src/lib/composite/run-generation.ts` (modify) | `runCompositeGeneration` delegates to `startImageGeneration` |
+| `src/lib/generations/task-failure.ts` (create) | `PaidResultError`, `isFinalAttempt` — the failure-reporting rule shared by paid tasks |
 | `src/lib/image-gen/run-task.ts` (create) | The task's work, with injected dependencies so it is unit-testable |
+| `trigger/video-generate.ts` (modify) | Same retry rule (Task 12) |
 | `trigger/image-generate.ts` (create) | Trigger.dev task wrapping `runImageGenerateTask` |
 | `src/lib/generations/complete.ts` (modify) | Image success and failure branches |
 | `src/hooks/use-generation-status.ts` (create, replaces `use-video-gen-status.ts`) | Per-node generation status for any type; image completion patches the card |
@@ -803,6 +806,58 @@ export type ImageGenerationSucceeded = {
 
 - [ ] **Step 0: Load the Trigger.dev skill** (AGENTS.md requires it before writing Trigger.dev code): invoke the `trigger-authoring-chat-agent` skill and follow anything in it that applies to a plain `task()`.
 
+- [ ] **Step 0b: The shared retry rule** — write the test first:
+
+```ts
+// src/lib/generations/__tests__/task-failure.test.ts
+import { describe, it, expect } from "vitest";
+import { PaidResultError, isFinalAttempt } from "../task-failure";
+
+describe("isFinalAttempt", () => {
+  it("is not final on an earlier attempt, so the failure is retried without being reported", () => {
+    expect(isFinalAttempt(1, 2, new Error("provider 500"))).toBe(false);
+  });
+
+  it("is final on the last configured attempt", () => {
+    expect(isFinalAttempt(2, 2, new Error("provider 500"))).toBe(true);
+  });
+
+  it("is always final once the provider has returned a paid result", () => {
+    expect(isFinalAttempt(1, 2, new PaidResultError("webhook unreachable"))).toBe(true);
+  });
+});
+```
+
+Run: `npx vitest run src/lib/generations/__tests__/task-failure.test.ts` — Expected: FAIL, cannot resolve `../task-failure`.
+
+Then create it:
+
+```ts
+// src/lib/generations/task-failure.ts
+// D366 — the retry rule for tasks that pay a provider (image-generate, video-generate), the one
+// video-voice-change.ts already follows. No `server-only`: Trigger.dev tasks import it.
+//
+// Report `failed` only on the run's FINAL attempt. Reporting it earlier refunds and marks the
+// generation terminal, so the retry's result — paid for — is then dropped by completeGeneration's
+// duplicate guard. And once the provider has returned, never retry: that would pay it again.
+
+
+/** A failure after the provider returned a (paid) result — an upload or the webhook. */
+export class PaidResultError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PaidResultError";
+  }
+}
+
+/** Whether this failure ends the run: report it as `failed`, and do not retry. */
+export function isFinalAttempt(attemptNumber: number, maxAttempts: number, error: unknown): boolean {
+  return error instanceof PaidResultError || attemptNumber >= maxAttempts;
+}
+```
+
+Run the test again — Expected: PASS (3 tests).
+
 - [ ] **Step 1: Write the failing test**
 
 ```ts
@@ -810,6 +865,7 @@ export type ImageGenerationSucceeded = {
 import { describe, it, expect, vi } from "vitest";
 import { runImageGenerateTask, type ImageGenerateTaskDeps } from "../run-task";
 import type { ImageGenerateTaskPayload } from "../task-payload";
+import { PaidResultError } from "@/lib/generations/task-failure";
 
 const payload: ImageGenerateTaskPayload = {
   generationId: "g1",
@@ -877,24 +933,41 @@ describe("runImageGenerateTask (D366)", () => {
     );
   });
 
-  it("refuses a result type it has no signed upload for", async () => {
+  it("refuses a result type it has no signed upload for — a paid result, so never retried", async () => {
     const d = deps({
       generate: vi.fn(async () => ({ imageBase64: "AA", mimeType: "image/gif", tokensUsed: {} })) as unknown as ImageGenerateTaskDeps["generate"],
     });
-    await expect(runImageGenerateTask(payload, d)).rejects.toThrow(/image\/gif/);
+    const run = runImageGenerateTask(payload, d);
+    await expect(run).rejects.toBeInstanceOf(PaidResultError);
+    await expect(run).rejects.toThrow(/image\/gif/);
     expect(d.postWebhook).not.toHaveBeenCalled();
   });
 
-  it("fails loudly, naming the stored image, when the webhook rejects a paid-for result", async () => {
+  it("fails as a paid result, naming the stored image, when the webhook rejects it", async () => {
     const d = deps({ postWebhook: vi.fn(async () => new Response("no", { status: 500 })) });
-    await expect(runImageGenerateTask(payload, d)).rejects.toThrow(/https:\/\/storage\.googleapis\.com\/b\/g1\.png/);
+    const run = runImageGenerateTask(payload, d);
+    await expect(run).rejects.toBeInstanceOf(PaidResultError);
+    await expect(run).rejects.toThrow(/https:\/\/storage\.googleapis\.com\/b\/g1\.png/);
   });
 
-  it("does not report success when the upload fails", async () => {
+  it("fails as a paid result, without reporting success, when the upload fails", async () => {
     const fetchFn = vi.fn(async () => new Response(null, { status: 403 })) as unknown as typeof fetch;
     const d = deps({ fetchFn });
-    await expect(runImageGenerateTask(payload, d)).rejects.toThrow(/upload failed: 403/i);
+    const run = runImageGenerateTask(payload, d);
+    await expect(run).rejects.toBeInstanceOf(PaidResultError);
+    await expect(run).rejects.toThrow(/upload failed: 403/i);
     expect(d.postWebhook).not.toHaveBeenCalled();
+  });
+
+  it("leaves a provider error retryable — nothing has been paid for", async () => {
+    const d = deps({
+      generate: vi.fn(async () => {
+        throw new Error("provider 500");
+      }) as unknown as ImageGenerateTaskDeps["generate"],
+    });
+    const run = runImageGenerateTask(payload, d);
+    await expect(run).rejects.toThrow("provider 500");
+    await expect(run).rejects.not.toBeInstanceOf(PaidResultError);
   });
 });
 ```
@@ -912,6 +985,7 @@ Expected: FAIL, cannot resolve `../run-task`.
 // Trigger.dev. No `server-only`: trigger/image-generate.ts imports it.
 import type { ImageGenInput, ImageGenResult } from "@/lib/image-gen/types";
 import type { ImageGenerateTaskPayload, ImageResultMime } from "@/lib/image-gen/task-payload";
+import { PaidResultError } from "@/lib/generations/task-failure";
 
 export type ImageGenerateTaskDeps = {
   generate: (input: ImageGenInput) => Promise<ImageGenResult>;
@@ -952,8 +1026,22 @@ export async function runImageGenerateTask(
     ...(maskBase64 ? { maskBase64, maskMime: payload.maskMime ?? "image/png" } : {}),
   });
 
+  // The provider has returned, and been paid. Nothing below may lead to a retry, which would pay it
+  // again: every failure from here is a PaidResultError (see task-failure.ts).
+  try {
+    await deliverResult(payload, result, deps);
+  } catch (e) {
+    throw e instanceof PaidResultError ? e : new PaidResultError(e instanceof Error ? e.message : String(e));
+  }
+}
+
+async function deliverResult(
+  payload: ImageGenerateTaskPayload,
+  result: ImageGenResult,
+  deps: ImageGenerateTaskDeps,
+): Promise<void> {
   const upload = payload.uploads[result.mimeType as ImageResultMime];
-  if (!upload) throw new Error(`The model returned an unsupported image type: ${result.mimeType}`);
+  if (!upload) throw new PaidResultError(`The model returned an unsupported image type: ${result.mimeType}`);
 
   const bytes = Buffer.from(result.imageBase64, "base64");
   const put = await deps.fetchFn(upload.putUrl, {
@@ -961,7 +1049,7 @@ export async function runImageGenerateTask(
     headers: { "Content-Type": result.mimeType },
     body: bytes,
   });
-  if (!put.ok) throw new Error(`Image upload failed: ${put.status}`);
+  if (!put.ok) throw new PaidResultError(`Image upload failed: ${put.status}`);
 
   const size = await deps.readSize(bytes).catch(() => ({}) as { width?: number; height?: number });
 
@@ -982,13 +1070,13 @@ export async function runImageGenerateTask(
   try {
     res = await deps.postWebhook(body);
   } catch (e) {
-    throw new Error(
+    throw new PaidResultError(
       `Image generated but the webhook was unreachable — imageUrl=${upload.url}: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
   if (!res.ok) {
     // The image EXISTS, is stored and has been billed. Name it, so it can be attached by hand.
-    throw new Error(`Image generated but the webhook rejected it (${res.status}) — imageUrl=${upload.url}`);
+    throw new PaidResultError(`Image generated but the webhook rejected it (${res.status}) — imageUrl=${upload.url}`);
   }
 }
 ```
@@ -996,7 +1084,7 @@ export async function runImageGenerateTask(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/image-gen/__tests__/run-task.test.ts`
-Expected: PASS (5 tests).
+Expected: PASS (6 tests).
 
 - [ ] **Step 5: Create the task**
 
@@ -1004,16 +1092,19 @@ Expected: PASS (5 tests).
 // trigger/image-generate.ts
 // D366 — Image Gen and Composite generations, run in the background like video-generate. Every
 // @/lib import is dynamic: several carry `server-only`, which Trigger.dev's build must not see.
-import { task, logger } from "@trigger.dev/sdk/v3";
+import { task, logger, AbortTaskRunError } from "@trigger.dev/sdk/v3";
 import type { ImageGenerateTaskPayload } from "@/lib/image-gen/task-payload";
+// One retry for a transient provider error: an image is one request/response, and a failed call
+// is not billed. (video-generate takes none: its jobs are billed when submitted.)
+const MAX_ATTEMPTS = 2;
 
 export const imageGenerateTask = task({
   id: "image-generate",
   maxDuration: 600,
-  // Never retried. A failure posts `failed` (which refunds); a retry after that would be paid for
-  // and then dropped by completeGeneration's duplicate guard. The operator retries by hand.
-  retry: { maxAttempts: 1 },
-  run: async (payload: ImageGenerateTaskPayload) => {
+  // One retry for a transient provider error. `failed` is posted only when the failure is final
+  // (see task-failure.ts), so a retry that succeeds is never thrown away.
+  retry: { maxAttempts: MAX_ATTEMPTS, minTimeoutInMs: 2000, maxTimeoutInMs: 15000, factor: 2 },
+  run: async (payload: ImageGenerateTaskPayload, { ctx }) => {
     const { assertWebhookConfig, postGenerationWebhook, postGenerationWebhookSafely } = await import(
       "@/lib/generations/post-webhook"
     );
@@ -1048,9 +1139,22 @@ export const imageGenerateTask = task({
       logger.info("Image generation succeeded", { generationId, modelId });
     } catch (e) {
       const error = e instanceof Error ? e.message : "Image generation failed";
-      logger.error("Image generation failed", { generationId, modelId, error, stack: e instanceof Error ? e.stack : undefined });
-      // The only record of why it failed; a failure to post it must not replace it.
-      await postGenerationWebhookSafely({ generationId, status: "failed", error }, "failure report");
+      const { isFinalAttempt, PaidResultError } = await import("@/lib/generations/task-failure");
+      const final = isFinalAttempt(ctx.attempt.number, MAX_ATTEMPTS, e);
+      logger.error("Image generation failed", {
+        generationId,
+        modelId,
+        error,
+        attempt: ctx.attempt.number,
+        final,
+        stack: e instanceof Error ? e.stack : undefined,
+      });
+      // Only a final failure is reported (it refunds); an earlier one is retried silently.
+      if (final) {
+        await postGenerationWebhookSafely({ generationId, status: "failed", error }, "failure report");
+      }
+      // A paid result is never retried: that would pay the provider again.
+      if (e instanceof PaidResultError) throw new AbortTaskRunError(error);
       throw e instanceof Error ? e : new Error(error);
     }
   },
@@ -1062,7 +1166,7 @@ export const imageGenerateTask = task({
 Run: `npx tsc --noEmit -p .` — Expected: exit 0.
 
 ```bash
-git add src/lib/image-gen/run-task.ts src/lib/image-gen/__tests__/run-task.test.ts trigger/image-generate.ts
+git add src/lib/generations/task-failure.ts src/lib/generations/__tests__/task-failure.test.ts src/lib/image-gen/run-task.ts src/lib/image-gen/__tests__/run-task.test.ts trigger/image-generate.ts
 git commit -m "feat(image-gen): the image-generate background task (D366)"
 ```
 
@@ -1914,14 +2018,18 @@ Expected: PASS.
 - [ ] **Step 5: Correct the spec's retry wording** — in `2026-10-12-async-image-generation-design.md`, replace the paragraph that begins "On any failure it posts" with:
 
 ```markdown
-On any failure it posts `{ generationId, status: "failed", error }` and rethrows, so the run shows
-as failed with the real reason. The task is **never retried automatically** (`maxAttempts: 1`):
-posting `failed` refunds the run, and a retry after that would be paid for and then dropped by the
-webhook's duplicate guard. A failure after the provider has returned names the image URL, so a
-paid-for result can be attached by hand. The operator retries with Generate.
+The task gets one retry for a transient provider error, and posts
+`{ generationId, status: "failed", error }` **only when the failure is final** (its last attempt):
+posting it earlier would refund and close the run, and the retry's paid result would then be
+dropped by the webhook's duplicate guard. A failure **after the provider has returned** (the upload,
+the webhook) is never retried, since a retry would pay the provider again; it names the image URL
+so the result can be attached by hand. `video-generate` reports failures by the same rule and takes
+no automatic retry at all: its provider jobs are billed when submitted, so a retry after a failed
+or timed-out poll would pay for a second clip. (It used to report `failed` on every attempt and then
+retry, so a retry that succeeded was paid for and discarded.)
 ```
 
-- [ ] **Step 6: Append D366 to the decision log** — at the end of `2026-05-30-creativeos-staging-roadmap.md`, append the ADR entry exactly as written in the spec's "ADR entry" section, with this sentence added at the end of **Decision**: "The task is never retried automatically: a failure refunds, and a retry after that would be paid for and then discarded."
+- [ ] **Step 6: Append D366 to the decision log** — at the end of `2026-05-30-creativeos-staging-roadmap.md`, append the ADR entry exactly as written in the spec's "ADR entry" section, with this sentence added at the end of **Decision**: "Paid generation tasks report `failed` only when the failure is final, and never retry a failure after the provider returned — the rule `video-voice-change` already followed. `image-generate` retries once (a failed image call is not billed); `video-generate` does not retry (its jobs are billed when submitted). Before this, `video-generate` reported `failed` on every attempt and then retried, so a retry that succeeded was paid for and discarded."
 
 - [ ] **Step 7: Full verification**
 
@@ -1953,3 +2061,99 @@ Then check on staging:
 7. Run out of credits: Generate is refused with the credit message, nothing is charged.
 8. Credits on the card and header update after completion.
 ```
+
+---
+
+### Task 12: `video-generate` never discards a paid video
+
+**Files:**
+- Modify: `trigger/video-generate.ts`
+
+**Interfaces:**
+- Consumes: `PaidResultError`, `isFinalAttempt` from `@/lib/generations/task-failure` (Task 5).
+
+**Why.** Today the task posts `failed` (which refunds and closes the generation) on every failure, then lets Trigger.dev retry under the project default of two attempts. A retry that succeeds is paid for and then ignored by `completeGeneration`'s duplicate guard, so the operator sees a failure for a clip the provider made and charged. And when the webhook is unreachable after a successful call, the plain `Error` it throws is caught by the same handler, reported as failed, and retried, which generates and pays for the video again. Video provider jobs are billed when submitted, so this task takes **no** automatic retry at all.
+
+- [ ] **Step 1: Set the retry limit and take the run context** — in `trigger/video-generate.ts`, change the first import and add the task-failure import:
+
+```ts
+import { task, logger, wait, AbortTaskRunError } from "@trigger.dev/sdk/v3";
+import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
+import { PaidResultError, isFinalAttempt } from "@/lib/generations/task-failure";
+
+// D366 — no automatic retry. A video provider bills the job when it is submitted, so a retry after a
+// failed or timed-out poll would pay for a second clip. The operator regenerates instead.
+const MAX_ATTEMPTS = 1;
+```
+
+Add `retry: { maxAttempts: MAX_ATTEMPTS },` directly after `maxDuration: 2400,`, and change `run: async (payload: { … }) => {` to `run: async (payload: { … }, { ctx }) => {` (the payload type is unchanged).
+
+- [ ] **Step 2: A failure after the provider returned is a paid result** — replace the inner `try { await postGenerationWebhook({ … }) } catch (e) { throw new Error(…) }` block with:
+
+```ts
+      // The video EXISTS and has been billed: nothing from here may lead to a retry.
+      let res: Response;
+      try {
+        res = await postGenerationWebhook({
+          generationId,
+          status: "succeeded",
+          videoUrl: result.videoUrl,
+          durationSeconds: result.durationSeconds,
+        });
+      } catch (e) {
+        // Name the URL, so a run lost to an unreachable webhook can be reconciled by hand.
+        throw new PaidResultError(
+          `Video generated but the webhook at ${webhookUrl} was unreachable — ` +
+            `videoUrl=${result.videoUrl}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+      if (!res.ok) {
+        throw new PaidResultError(
+          `Video generated but the webhook rejected it (${res.status}) — videoUrl=${result.videoUrl}`,
+        );
+      }
+```
+
+- [ ] **Step 3: Report only a final failure, and never retry a paid one** — replace the outer `catch (e) { … }` block with:
+
+```ts
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "Video generation failed";
+      const stack = e instanceof Error ? e.stack : undefined;
+      const final = isFinalAttempt(ctx.attempt.number, MAX_ATTEMPTS, e);
+      logger.error("Video generation failed", { generationId, modelId, error, stack, attempt: ctx.attempt.number, final });
+
+      // Only a final failure is reported: reporting refunds and closes the generation, so a retry's
+      // result would be discarded. Safely: this is the ONLY record of why it failed.
+      if (final) {
+        await postGenerationWebhookSafely({ generationId, status: "failed", error }, "failure report");
+      }
+      // A paid result is never retried. Otherwise rethrow, so the run is marked failed with the
+      // REAL reason (swallowing it made a failed generation show as a successful run).
+      if (e instanceof PaidResultError) throw new AbortTaskRunError(error);
+      throw e instanceof Error ? e : new Error(error);
+    }
+```
+
+- [ ] **Step 4: Verify**
+
+Run: `npx tsc --noEmit -p .` — Expected: exit 0.
+Run: `npx vitest run src/lib/generations` — Expected: PASS (the rule itself is covered by `task-failure.test.ts`).
+Run: `npx eslint trigger/video-generate.ts` — Expected: no errors.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add trigger/video-generate.ts
+git commit -m "fix(video-gen): never discard or re-pay a video after a failure (D366)
+
+The task reported failed on every attempt and then retried, so a retry that succeeded was
+paid for and dropped by the webhook's duplicate guard; and an unreachable webhook after a
+successful call was reported as failed and retried, paying for the video again. Video jobs
+are billed when submitted, so the task now takes no automatic retry, and a failure after
+the provider returned is never retried.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+- [ ] **Step 6: Deployment note** — deploy the Trigger.dev tasks (`video-generate` and the new `image-generate`) together.
