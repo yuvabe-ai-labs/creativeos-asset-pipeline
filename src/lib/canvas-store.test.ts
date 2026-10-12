@@ -1015,3 +1015,42 @@ describe("scene beats become cuts (D286)", () => {
     expect(data.parsed).toBe(before);
   });
 });
+
+describe("generation status feed (D366)", () => {
+  const job = (id: string, nodeId: string, created_at: string, status: GenerationRow["status"] = "running") =>
+    ({ id, node_id: nodeId, type: "image", status, error: null, output_snapshot: null, created_at }) as GenerationRow;
+
+  it("indexes the newest job per node when the feed loads", () => {
+    const store = createCanvasStore([], []);
+    store.getState().setTrayJobs([
+      job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"),
+      job("new", "n1", "2026-10-12T10:00:00.000Z"),
+      job("other", "n2", "2026-10-12T08:00:00.000Z"),
+    ]);
+    expect(store.getState().latestJobByNode.n1.id).toBe("new");
+    expect(store.getState().latestJobByNode.n2.id).toBe("other");
+  });
+
+  it("keeps the newest job when an older one is updated late", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("new", "n1", "2026-10-12T10:00:00.000Z"));
+    store.getState().upsertTrayJob(job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"));
+    expect(store.getState().latestJobByNode.n1.id).toBe("new");
+  });
+
+  it("clears a start mark once a running row for that node arrives", () => {
+    const store = createCanvasStore([], []);
+    store.getState().markGenerationStarted("n1", "image");
+    store.getState().upsertTrayJob(job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"));
+    expect(store.getState().generationStarts.n1).toBe("image");
+    store.getState().upsertTrayJob(job("new", "n1", "2026-10-12T10:00:00.000Z"));
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+  });
+
+  it("clears a node's request error when a new start is marked", () => {
+    const store = createCanvasStore([], []);
+    store.getState().setGenerationRequestError("n1", "Couldn't start");
+    store.getState().markGenerationStarted("n1", "image");
+    expect(store.getState().generationRequestErrors.n1).toBeUndefined();
+  });
+});

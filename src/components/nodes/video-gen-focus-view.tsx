@@ -61,7 +61,6 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
-import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
@@ -100,7 +99,7 @@ import {
 import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
-import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
+import { useGenerationStatus } from "@/hooks/use-generation-status";
 import {
   VideoGenVersionHistory,
   type VideoGenVersionSummary,
@@ -595,7 +594,7 @@ export function VideoGenFocusView({
   const showConnectedSkeleton = loadingConnected && !upstreamQuery.data;
 
   const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
-    useVideoGenStatus(nodeId);
+    useGenerationStatus(nodeId);
 
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
@@ -651,10 +650,6 @@ export function VideoGenFocusView({
     if (open) focusStoreApi.getState().setFocusSection(null);
   }, [open, focusStoreApi]);
 
-  // Stable Zustand actions — used directly in effects so deps don't include
-  // the per-render wrapper functions returned by useVideoGenStatus.
-  const setVideoGenGenerating = useCanvasStore((s) => s.setVideoGenGenerating);
-  const setVideoGenError = useCanvasStore((s) => s.setVideoGenError);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
@@ -859,29 +854,9 @@ export function VideoGenFocusView({
   );
   const { removeFor } = useRailDisconnect(nodeId, onDisconnected);
 
-  // Load data when focus view opens; also re-check generation status to clear
-  // any stale isGenerating=true that may have been set while the sheet was closed.
-  // setState calls happen inside .then() callbacks, not synchronously in the effect body.
+  // Load the connected inputs when the focus view opens.
   useEffect(() => {
     if (!open) return;
-    createBrowserSupabase()
-      .from("generations")
-      .select("id, status, error")
-      .eq("node_id", nodeId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }: { data: unknown }) => {
-        const row = data as { status: string; error: string | null } | null;
-        if (!row) return;
-        if (row.status === "succeeded" || row.status === "failed") {
-          setVideoGenGenerating(nodeId, false);
-          setVideoGenError(
-            nodeId,
-            row.status === "failed" ? (row.error ?? "Generation failed") : null,
-          );
-        }
-      });
     // Versions arrive through the shared cache (useNodeVersions above), not a fetch here.
     // persistThenRefresh, not refreshUpstream: a node reached straight from the guided
     // "Create video generation" button exists only in the client store at this point, and the
@@ -890,7 +865,7 @@ export function VideoGenFocusView({
     // covered by the same `loadingConnected` skeleton as the fetch behind it, so the sheet
     // still opens instantly and the wait reads as loading rather than as "nothing connected".
     void persistThenRefresh().finally(() => setLoadingConnected(false));
-  }, [open, nodeId, setVideoGenGenerating, setVideoGenError, persistThenRefresh]);
+  }, [open, persistThenRefresh]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
   const wasGeneratingRef = useRef(false);
@@ -1635,7 +1610,7 @@ export function VideoGenFocusView({
                     // there is no gap where the button is idle again.
                     onApplied={() => {
                       videoRef.current?.pause(); // the veil covers the controls
-                      setVideoGenGenerating(nodeId, true, "voice");
+                      setGenerating(true, "voice");
                       setLastError(null);
                     }}
                   />

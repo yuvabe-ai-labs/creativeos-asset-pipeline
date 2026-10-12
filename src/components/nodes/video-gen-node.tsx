@@ -14,7 +14,7 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import type { VideoGenNodeData } from "@/lib/canvas-nodes";
 import { VideoGenFocusView } from "./video-gen-focus-view";
-import { useVideoGenStatus } from "@/hooks/use-video-gen-status";
+import { useGenerationStatus } from "@/hooks/use-generation-status";
 import { ProcessingPill } from "./processing-pill";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
@@ -41,7 +41,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const totalCredits = useNodeCost(id);
 
   const [focusOpen, setFocusOpen] = useState(false);
-  const { isGenerating, isChangingVoice } = useVideoGenStatus(id);
+  const { isGenerating, isChangingVoice } = useGenerationStatus(id);
   const showVideo = Boolean(videoUrl) && (!isGenerating || isChangingVoice);
 
   // Open when opened locally OR when the Generation Tray points `focusedNodeId` here.

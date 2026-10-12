@@ -41,14 +41,12 @@ import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multi
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
+import { isNewerJob, type GenerationJobKind } from "@/lib/generations/node-status";
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
 // Seeded on creation with nodes loaded from the DB (1D-5).
-
-/** What a Video Gen node is running: a new video, or a voice change on one (D284). */
-export type VideoGenJobKind = "video" | "voice";
 
 export type CanvasState = {
   canvasName: string;
@@ -73,12 +71,14 @@ export type CanvasState = {
   /** D286 — cache one scene's fresh split on the Script node (never in `parsed`). */
   cacheSceneBeats: (scriptNodeId: string, fingerprint: string, beats: SceneBeat[]) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
-  // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
-  // `kind` says what is running (D284): a fresh video, or a voice change on an existing one —
-  // the focus view shows the two differently. Null when nothing runs.
-  videoGenStatus: Record<string, { isGenerating: boolean; kind: VideoGenJobKind | null; lastError: string | null }>;
-  setVideoGenGenerating: (nodeId: string, v: boolean, kind?: VideoGenJobKind) => void;
-  setVideoGenError: (nodeId: string, err: string | null) => void;
+  // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
+  // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
+  latestJobByNode: Record<string, GenerationRow>;
+  generationStarts: Record<string, GenerationJobKind>;
+  generationRequestErrors: Record<string, string>;
+  markGenerationStarted: (nodeId: string, kind: GenerationJobKind) => void;
+  clearGenerationStarted: (nodeId: string) => void;
+  setGenerationRequestError: (nodeId: string, error: string | null) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
   // keyed by generation id. The tray derives its list from these + the node graph (D9).
   trayJobs: Record<string, GenerationRow>;
@@ -733,38 +733,50 @@ export function createCanvasStore(
       });
     },
 
-    videoGenStatus: {},
+    latestJobByNode: {},
+    generationStarts: {},
+    generationRequestErrors: {},
 
-    setVideoGenGenerating: (nodeId, v, kind) =>
-      set((s) => ({
-        videoGenStatus: {
-          ...s.videoGenStatus,
-          [nodeId]: {
-            isGenerating: v,
-            // A start that doesn't say its kind keeps a known one (hydration may land first).
-            kind: v ? (kind ?? s.videoGenStatus[nodeId]?.kind ?? "video") : null,
-            lastError: s.videoGenStatus[nodeId]?.lastError ?? null,
-          },
-        },
-      })),
+    markGenerationStarted: (nodeId, kind) =>
+      set((s) => {
+        const { [nodeId]: _cleared, ...errors } = s.generationRequestErrors;
+        return { generationStarts: { ...s.generationStarts, [nodeId]: kind }, generationRequestErrors: errors };
+      }),
 
-    setVideoGenError: (nodeId, err) =>
-      set((s) => ({
-        videoGenStatus: {
-          ...s.videoGenStatus,
-          [nodeId]: {
-            isGenerating: s.videoGenStatus[nodeId]?.isGenerating ?? false,
-            kind: s.videoGenStatus[nodeId]?.kind ?? null,
-            lastError: err,
-          },
-        },
-      })),
+    clearGenerationStarted: (nodeId) =>
+      set((s) => {
+        if (!(nodeId in s.generationStarts)) return {};
+        const { [nodeId]: _cleared, ...rest } = s.generationStarts;
+        return { generationStarts: rest };
+      }),
+
+    setGenerationRequestError: (nodeId, error) =>
+      set((s) => {
+        const { [nodeId]: _cleared, ...rest } = s.generationRequestErrors;
+        return { generationRequestErrors: error ? { ...rest, [nodeId]: error } : rest };
+      }),
 
     trayJobs: {},
-    setTrayJobs: (jobs) =>
-      set({ trayJobs: Object.fromEntries(jobs.map((j) => [j.id, j])) }),
+    setTrayJobs: (jobs) => {
+      const latest: Record<string, GenerationRow> = {};
+      for (const j of jobs) {
+        if (j.node_id && isNewerJob(j, latest[j.node_id])) latest[j.node_id] = j;
+      }
+      set({ trayJobs: Object.fromEntries(jobs.map((j) => [j.id, j])), latestJobByNode: latest });
+    },
     upsertTrayJob: (job) =>
-      set((s) => ({ trayJobs: { ...s.trayJobs, [job.id]: job } })),
+      set((s) => {
+        const nodeId = job.node_id;
+        const newer = nodeId !== null && isNewerJob(job, s.latestJobByNode[nodeId]);
+        // The job's own row now speaks for the node: a start mark is no longer needed.
+        const startCleared = nodeId !== null && job.status === "running" && nodeId in s.generationStarts;
+        const { [nodeId ?? ""]: _cleared, ...starts } = s.generationStarts;
+        return {
+          trayJobs: { ...s.trayJobs, [job.id]: job },
+          ...(newer ? { latestJobByNode: { ...s.latestJobByNode, [nodeId!]: job } } : {}),
+          ...(startCleared ? { generationStarts: starts } : {}),
+        };
+      }),
 
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),
