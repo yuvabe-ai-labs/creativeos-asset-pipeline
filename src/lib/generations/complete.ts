@@ -12,7 +12,6 @@ import { readVoiceChange } from "@/lib/voice-change/source";
 import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
 import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
 import { computeImageCost } from "@/lib/image-gen/cost";
-import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import type { ImageGenerationSucceeded } from "@/lib/image-gen/run-task";
 import type { GenerationRow } from "@/lib/db/types";
 
@@ -60,7 +59,7 @@ async function completeImageGeneration(
     input.costUsd !== undefined
       ? { usd: input.costUsd }
       : input.tokensUsed && generation.model_used
-        ? computeImageCost(generation.model_used, input.tokensUsed as unknown as ImageTokenUsage)
+        ? computeImageCost(generation.model_used, input.tokensUsed)
         : null;
   const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
 
@@ -179,6 +178,11 @@ export async function completeGeneration(
   }
 
   if (input.kind === "image") {
+    // Fail closed: an image result must never settle (or attach a version to) a non-image row.
+    if (generation.type !== "image") {
+      await failAndRefund(input.generationId, generation.org_id, "Image result for a non-image generation");
+      return;
+    }
     await completeImageGeneration(nodeId, generation, input);
     return;
   }

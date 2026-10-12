@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { runImageGenerateTask, type ImageGenerateTaskDeps } from "../run-task";
 import type { ImageGenerateTaskPayload } from "../task-payload";
+import type { ImageGenResult, ImageTokenUsage } from "../types";
 import { PaidResultError } from "@/lib/generations/task-failure";
 
 const payload: ImageGenerateTaskPayload = {
@@ -16,13 +17,20 @@ const payload: ImageGenerateTaskPayload = {
   },
 };
 
+const TOKENS: ImageTokenUsage = {
+  text_input_tokens: 10,
+  image_input_tokens: 0,
+  image_output_tokens: 20,
+  total_tokens: 30,
+};
+
 function deps(overrides: Partial<ImageGenerateTaskDeps> = {}): ImageGenerateTaskDeps {
   return {
-    generate: vi.fn(async () => ({
+    generate: vi.fn(async (): Promise<ImageGenResult> => ({
       imageBase64: Buffer.from("png-bytes").toString("base64"),
       mimeType: "image/png",
-      tokensUsed: { input_tokens: 10, output_tokens: 20 },
-    })) as unknown as ImageGenerateTaskDeps["generate"],
+      tokensUsed: TOKENS,
+    })),
     fetchFn: vi.fn(async () => new Response(null, { status: 200 })) as unknown as typeof fetch,
     readSize: vi.fn(async () => ({ width: 1024, height: 1536 })),
     postWebhook: vi.fn(async () => new Response(null, { status: 200 })),
@@ -52,7 +60,7 @@ describe("runImageGenerateTask (D366)", () => {
       width: 1024,
       height: 1536,
       fileSizeBytes: Buffer.from("png-bytes").length,
-      tokensUsed: { input_tokens: 10, output_tokens: 20 },
+      tokensUsed: TOKENS,
     });
   });
 
@@ -71,7 +79,7 @@ describe("runImageGenerateTask (D366)", () => {
 
   it("refuses a result type it has no signed upload for — a paid result, so never retried", async () => {
     const d = deps({
-      generate: vi.fn(async () => ({ imageBase64: "AA", mimeType: "image/gif", tokensUsed: {} })) as unknown as ImageGenerateTaskDeps["generate"],
+      generate: vi.fn(async (): Promise<ImageGenResult> => ({ imageBase64: "AA", mimeType: "image/gif", tokensUsed: TOKENS })),
     });
     const run = runImageGenerateTask(payload, d);
     await expect(run).rejects.toBeInstanceOf(PaidResultError);

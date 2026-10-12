@@ -50,6 +50,8 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { completeGeneration } from "./complete";
+import { computeImageCost } from "@/lib/image-gen/cost";
+import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { computeVideoCost } from "@/lib/video-gen/cost";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
@@ -318,6 +320,13 @@ describe("completeGeneration — image (D366)", () => {
     };
   });
 
+  const TOKENS: ImageTokenUsage = {
+    text_input_tokens: 10,
+    image_input_tokens: 0,
+    image_output_tokens: 20,
+    total_tokens: 30,
+  };
+
   const succeeded = {
     generationId: "g1",
     status: "succeeded" as const,
@@ -327,7 +336,7 @@ describe("completeGeneration — image (D366)", () => {
     width: 1024,
     height: 1536,
     fileSizeBytes: 2048,
-    tokensUsed: { input_tokens: 10, output_tokens: 20 },
+    tokensUsed: TOKENS,
     costUsd: 0.05,
   };
 
@@ -340,7 +349,7 @@ describe("completeGeneration — image (D366)", () => {
       paramsUsed: {
         modelId: "openai:gpt-image-2",
         quality: "high",
-        tokensUsed: { input_tokens: 10, output_tokens: 20 },
+        tokensUsed: TOKENS,
         imageWidth: 1024,
         imageHeight: 1536,
         fileSizeBytes: 2048,
@@ -367,6 +376,34 @@ describe("completeGeneration — image (D366)", () => {
   it("refuses an image stored outside this app's bucket", async () => {
     await completeGeneration({ ...succeeded, imageUrl: "https://evil.example/x.png" });
     expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+    expect(mocks.failGeneration).toHaveBeenCalled();
+    expect(mocks.settleGeneration).not.toHaveBeenCalled();
+  });
+
+  it("bills a token-billed image from its reported tokens, never at zero", async () => {
+    const { costUsd: _omit, ...tokenBilled } = succeeded;
+    void _omit;
+    const tokens: ImageTokenUsage = {
+      text_input_tokens: 200,
+      image_input_tokens: 1000,
+      image_output_tokens: 4000,
+      total_tokens: 5200,
+    };
+    await completeGeneration({ ...tokenBilled, tokensUsed: tokens });
+    const usd = computeImageCost("openai:gpt-image-2", tokens)!.usd;
+    const credits = usdToFinalCredits(usd);
+    expect(credits).toBeGreaterThan(0);
+    expect(mocks.settleGeneration).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1", actualAmount: credits });
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ costUsd: usd, creditsCharged: credits }));
+  });
+
+  it("fails closed when an image result arrives for a non-image generation", async () => {
+    mocks.generation = { ...mocks.generation, type: "video" };
+    await completeGeneration(succeeded);
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.settleGeneration).not.toHaveBeenCalled();
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "Image result for a non-image generation" });
     expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
   });
 
