@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
 import { changeWithRetry } from "../change";
-import { EMPTY_BRIEF, EMPTY_NOTES, type GenerateScript } from "../schema";
+import { EMPTY_BRIEF, EMPTY_NOTES, type GenerateScript, type ScriptNotes, type ScriptPatch } from "../schema";
 
 const doc = scriptDocSchema.parse(reel01);
 const script = (v: number, title = doc.header.title): GenerateScript => ({
@@ -57,5 +57,22 @@ describe("changeWithRetry", () => {
     expect(await changeWithRetry({ read: async () => script(1), save }, () => ({ error: "No.", status: 422 })))
       .toEqual({ error: "No.", status: 422 });
     expect(save).not.toHaveBeenCalled();
+  });
+
+  it("an edit to a guessed field settles that guess in the same save", async () => {
+    const guess: ScriptNotes = { brief: "", confirmations: [{ id: "g1", text: "Beats were added.", confirmed: false, paths: [`shots.${doc.shots[0].id}.beat`] }] };
+    const current = { ...script(1), notes: guess };
+    const save = vi.fn(async (v: number, _patch: ScriptPatch) => script(v + 1));
+    const edited = { ...current.doc!, shots: current.doc!.shots.map((s, i) => (i === 0 ? { ...s, beat: "OPEN" } : s)) };
+    await changeWithRetry({ read: async () => current, save }, () => ({ patch: { doc: edited }, result: null }));
+    expect(save.mock.calls[0][1].notes?.confirmations[0].confirmed).toBe(true);
+  });
+
+  it("a patch that replaces the draft keeps the guesses it brings", async () => {
+    const fresh: ScriptNotes = { brief: "", confirmations: [{ id: "g1", text: "Beats were added.", confirmed: false, paths: [`shots.${doc.shots[0].id}.beat`] }] };
+    const save = vi.fn(async (v: number, _patch: ScriptPatch) => script(v + 1));
+    const replaced = { ...doc, shots: doc.shots.map((s, i) => (i === 0 ? { ...s, beat: "OPEN" } : s)) };
+    await changeWithRetry({ read: async () => script(1), save }, () => ({ patch: { doc: replaced, notes: fresh }, result: null, replaces: true }));
+    expect(save.mock.calls[0][1].notes).toBe(fresh);
   });
 });

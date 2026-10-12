@@ -51,6 +51,9 @@ export const scriptNotesSchema = z.object({
     id: z.string().min(1).max(16),
     text: z.string().max(500),
     confirmed: z.boolean(),
+    /** A guess's fields (paste-a-script §4.3), as fields.ts paths: changing any of them settles it.
+     *  Absent on items to confirm from the card, which only a tick or the copilot settles. */
+    paths: z.array(z.string().max(120)).max(200).optional(),
   })),
 });
 export type ScriptNotes = z.infer<typeof scriptNotesSchema>;
