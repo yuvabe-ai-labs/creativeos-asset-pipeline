@@ -1,7 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { withStillPresenter } from "@/lib/avatars/presenter-server";
-import { insertVersion, setActiveVersion, getVersionById } from "@/lib/db/versions";
-import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
+import { getVersionById } from "@/lib/db/versions";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
 import {
   buildEditPrompt,
@@ -9,21 +8,12 @@ import {
   type EditIntent,
 } from "@/lib/image-gen/edit-prompt";
 import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
-import { withProductDetailSuffix, mimeToExt } from "@/lib/image-gen/utils";
-import { computeImageCost } from "@/lib/image-gen/cost";
-import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
-import { usdToFinalCredits } from "@/lib/credits/units";
-import {
-  reserveCredits,
-  settleGeneration,
-  refundReservation,
-  CreditLimitError,
-} from "@/lib/db/credit-transactions";
-import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
-import { uploadImageGen } from "@/lib/storage";
+import { withProductDetailSuffix } from "@/lib/image-gen/utils";
+import { apiError, withNode } from "@/lib/api/route-helpers";
 import sharp from "sharp";
 import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { startImageGeneration } from "@/lib/image-gen/start-generation";
 
 const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "modify", "freeform"];
 function asIntent(v: unknown): EditIntent | undefined {
@@ -255,124 +245,19 @@ export async function POST(
       return apiError(message, 422);
     }
 
-    // Join the shared generations substrate (D26) — image is the synchronous fast path.
-    const generation = await insertGeneration({
+    // D366 — the provider runs in the image-generate task, not in this request; the version and
+    // the settlement land when it reports back (completeGeneration).
+    return startImageGeneration({
       nodeId,
-      orgId: effectiveOrgId,
       clientId,
-      userId: caller.userId,
-      userEmail: caller.email,
-      type: "image",
-      modelUsed: modelId,
-      paramsSnapshot: validatedParams,
-      inputsSnapshot: inputsUsed,
+      orgId: effectiveOrgId,
+      caller,
+      modelId,
+      params: validatedParams,
+      prompt,
+      referenceUrls,
+      inputsUsed,
+      ...(maskBase64 ? { mask: { base64: maskBase64, mime: maskMime ?? "image/png" } } : {}),
     });
-
-    try {
-      const costUsd = estimateImageGenerationCostUsd({
-        modelId,
-        quality: validatedParams.quality as string | undefined,
-        aspectRatio: validatedParams.aspect_ratio as string | undefined,
-        imageSize: validatedParams.image_size as string | undefined,
-        referenceUrls,
-      });
-      if (costUsd === null) {
-        throw new Error(`No cost estimate available for ${modelId} at this quality/size.`);
-      }
-
-      const estimatedCredits = usdToFinalCredits(costUsd);
-      const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
-      if (!reservation.ok) {
-        throw new CreditLimitError("Monthly credit limit reached");
-      }
-
-      const result = await config.generate({
-        prompt,
-        referenceUrls,
-        params: validatedParams,
-        ...(maskBase64 ? { maskBase64, maskMime } : {}),
-      });
-
-      const genBuffer = Buffer.from(result.imageBase64, "base64");
-      const { url: imageUrl } = await uploadImageGen({
-        nodeId,
-        ext: mimeToExt(result.mimeType),
-        body: genBuffer,
-        contentType: result.mimeType,
-      });
-
-      let genWidth: number | undefined;
-      let genHeight: number | undefined;
-      try {
-        const meta = await sharp(genBuffer).metadata();
-        genWidth = meta.width;
-        genHeight = meta.height;
-      } catch {
-        // best-effort
-      }
-
-      // Record the version
-      const version = await insertVersion({
-        nodeId,
-        operatorUserId: caller.userId, // R11.1: the maker
-        inputsUsed,
-        paramsUsed: {
-          modelId,
-          ...validatedParams,
-          tokensUsed: result.tokensUsed,
-          imageWidth: genWidth,
-          imageHeight: genHeight,
-          fileSizeBytes: genBuffer.length,
-        },
-        modelUsed: modelId,
-        output: imageUrl,
-      });
-      await setActiveVersion(nodeId, version.id);
-
-      // A provider billed per image (Seedream) reports its exact charge; token-billed ones don't.
-      const cost =
-        result.costUsd !== undefined
-          ? { usd: result.costUsd }
-          : result.tokensUsed
-            ? computeImageCost(modelId, result.tokensUsed)
-            : null;
-      // cost is only ever null when the provider returned no token usage — an actual cost
-      // of 0 credits in that case, not a reason to skip settlement.
-      const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
-      await settleGeneration({
-        orgId: effectiveOrgId,
-        generationId: generation.id,
-        actualAmount: actualCredits,
-      });
-      await succeedGeneration({
-        generationId: generation.id,
-        versionId: version.id,
-        costUsd: cost?.usd,
-        creditsCharged: actualCredits,
-        tokensUsed: { ...result.tokensUsed },
-        outputSnapshot: imageUrl,
-      });
-
-      return apiOk({
-        imageUrl,
-        versionId: version.id,
-        fileSizeBytes: genBuffer.length,
-        imageWidth: genWidth,
-        imageHeight: genHeight,
-      });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Image generation failed";
-      await insertVersion({
-        nodeId,
-        operatorUserId: caller.userId, // a failed attempt still has a maker
-        paramsUsed: { modelId, ...validatedParams },
-        modelUsed: modelId,
-        error: message,
-      }).catch(() => null);
-      await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
-      await refundReservation({ orgId: effectiveOrgId, generationId: generation.id }).catch(() => null);
-      const status = e instanceof CreditLimitError ? 402 : 500;
-      return apiError(message, status);
-    }
   });
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import type { NextResponse } from "next/server";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db/generations";
 import { insertVersion } from "@/lib/db/versions";
@@ -33,7 +34,7 @@ export const START_FAILED_MESSAGE = "Couldn't start the generation. Please try a
  * any mask, sign the result uploads, start `image-generate` and answer 202. The version and the
  * settlement happen when the task reports back (completeGeneration).
  */
-export async function startImageGeneration(input: StartImageGenerationInput): Promise<Response> {
+export async function startImageGeneration(input: StartImageGenerationInput): Promise<NextResponse> {
   const { nodeId, clientId, orgId, caller, modelId, params, prompt, referenceUrls, inputsUsed, mask } = input;
 
   if (await hasRunningGeneration(nodeId)) {
