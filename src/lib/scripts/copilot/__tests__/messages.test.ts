@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
-import { anglesPrompt, draftPrompt, editPrompt, extractPrompt, inlinePrompt, type CopilotBase } from "../messages";
+import { anglesPrompt, detectPrompt, draftPrompt, editPrompt, extractPrompt, importPrompt, inlinePrompt, type CopilotBase } from "../messages";
 import { EMPTY_BRIEF, EMPTY_NOTES } from "../schema";
 
 const base: CopilotBase = { clientName: "Jackfruit365", kbText: "KB TEXT", library: "LIBRARY", avatars: "AVATARS" };
@@ -43,5 +43,14 @@ describe("the copilot's prompts", () => {
   it("gives the draft call the confirmed card", () => {
     const card = { title: "Kerala Piravi at our table", reelNumber: 4, lines: [], cast: [], toConfirm: [] };
     expect(draftPrompt(base, { brief: EMPTY_BRIEF, card }).user).toContain("Kerala Piravi at our table");
+  });
+});
+
+describe("the paste prompts", () => {
+  it("asks the detector with whether a draft exists, and gives the reader the paste whole", () => {
+    expect(detectPrompt(base, { hasDraft: true, text: "PASTE" }).user).toBe("## Is there a draft already\nYes\n\n## The person's message\nPASTE");
+    const p = importPrompt(base, { text: "PASTE" });
+    expect(p.user).toBe("## The pasted script\nPASTE");
+    expect(p.system).toContain("the pasted script outranks the rules above");
   });
 });

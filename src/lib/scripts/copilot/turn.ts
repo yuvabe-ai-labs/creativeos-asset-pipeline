@@ -5,11 +5,15 @@ import type { CopilotContext } from "./context";
 import { newShotId as randomShotId, toScriptDoc } from "./draft";
 import { fieldLabel, parseFieldPath, readField, writeField } from "./fields";
 import { fillToFinal } from "./fill-to-final";
-import { anglesPrompt, cardPrompt, draftPrompt, editPrompt, extractPrompt, inlinePrompt, type CopilotBase } from "./messages";
+import { MAX_MESSAGE_CHARS } from "./constants";
+import { streamDraftCall } from "./draft-call";
+import { mightBeScript } from "./import";
+import { prepareImport } from "./import-turn";
+import { anglesPrompt, cardPrompt, detectPrompt, draftPrompt, editPrompt, extractPrompt, inlinePrompt, type CopilotBase } from "./messages";
 import type { StreamingCall, StructuredCall } from "./model";
-import { EMPTY_PARTIAL_DRAFT, parsePartialDraft, type PartialDraft } from "./partial-draft";
+import type { PartialDraft } from "./partial-draft";
 import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
-import { anglesOutputSchema, cardOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
+import { anglesOutputSchema, cardOutputSchema, detectOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
 import { libraryFormats, nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
 import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptNotes } from "./schema";
 import {
@@ -35,7 +39,7 @@ export type TurnDeps = {
 };
 /** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362). */
 export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; lastAssistant: string; leadAvatarId?: string | null };
-type Apply = (current: GenerateScript) => Change<Reply[]>;
+export type Apply = (current: GenerateScript) => Change<Reply[]>;
 
 function baseFor(ctx: CopilotContext, format: string): CopilotBase {
   return { clientName: ctx.clientName, kbText: ctx.kbText, library: renderLibrary(ctx.library, format), avatars: renderAvatars(ctx.avatars) };
@@ -44,8 +48,19 @@ function baseFor(ctx: CopilotContext, format: string): CopilotBase {
 export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<Apply> {
   const format = input.script.doc?.header.format ?? input.script.brief.format.value;
   const base = baseFor(input.ctx, format);
+  // A whole pasted script is imported, wherever the brief is (paste-a-script spec §3). The quick
+  // model is asked only for long, many-line messages; chips and ordinary replies never pay for it.
+  if (!input.script.doc && mightBeScript(input.text)) {
+    const quick = deps.quick ?? deps.call;
+    const seen = await quick({ name: "script_detect", ...detectPrompt(base, { hasDraft: false, text: input.text }), schema: detectOutputSchema });
+    if (seen.wholeScript) return prepareImport(input, deps, base);
+  }
+  // Up to MAX_PASTE_CHARS is let in for a pasted script; anything else keeps the message limit.
+  if (input.text.length > MAX_MESSAGE_CHARS) return () => ({ patch: null, result: [{ content: TOO_LONG, card: null }] });
   return input.script.doc ? prepareEdit(input, deps, base, input.script.doc) : prepareBrief(input, deps, base);
 }
+
+const TOO_LONG = `That's longer than a chat message can be (${MAX_MESSAGE_CHARS.toLocaleString("en")} characters), and it doesn't read as a whole script. If it is one, paste the whole script, shot table included.`;
 
 async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase): Promise<Apply> {
   const { script, ctx, text, lastAssistant } = input;
@@ -118,19 +133,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
       }
       const card = brief.card;
       const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card }), schema: draftOutputSchema };
-      deps.onDraft?.(EMPTY_PARTIAL_DRAFT);
-      let shown = "0:0:0";
-      const out = deps.stream
-        ? await deps.stream(draftArgs, (text) => {
-          const partial = parsePartialDraft(text);
-          if (!partial) return;
-          // Report only when something new can be drawn: a header field, a person or a whole shot.
-          const sig = `${Object.keys(partial.header).length}:${partial.cast.length}:${partial.shots.length}`;
-          if (sig === shown) return;
-          shown = sig;
-          deps.onDraft?.(partial);
-        })
-        : await deps.call(draftArgs);
+      const out = await streamDraftCall(deps, draftArgs);
       doc = toScriptDoc(out, { reelNumber: card.reelNumber, avatarIds, leadAvatarId: lead?.avatarId ?? null });
       notes = cardToNotes(card);
       brief = { ...brief, phase: "written" };

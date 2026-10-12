@@ -115,3 +115,7 @@ export type EditOp = z.infer<typeof editOpSchema>;
 
 export const editTurnSchema = z.object({ ops: z.array(editOpSchema), reply: z.string() });
 export const inlineOutputSchema = z.object({ replacement: z.string(), summary: z.string() });
+
+/** Paste-a-script spec §5.2 — is the message a whole script (import) or anything else (the turn
+ *  goes on as before). Asked of the quick model, only for long messages (import.ts mightBeScript). */
+export const detectOutputSchema = z.object({ wholeScript: z.boolean() });

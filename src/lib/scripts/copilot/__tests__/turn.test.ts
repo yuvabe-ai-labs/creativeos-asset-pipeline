@@ -7,6 +7,10 @@ import { EMPTY_BRIEF, EMPTY_NOTES, type Brief, type GenerateScript, type Proposa
 import type { CopilotContext } from "../context";
 import type { EditOp, Extraction } from "../output";
 import type { StructuredCall } from "../model";
+import { REEL_07_PASTE } from "@/lib/scripts/fixtures/reel-07-paste";
+import { REEL_07_IMPORT } from "@/lib/scripts/fixtures/reel-07-import";
+import { EMPTY_PARTIAL_DRAFT } from "../partial-draft";
+import type { Script } from "@/lib/scripts/schema";
 
 const doc = scriptDocSchema.parse(reel01);
 const ctx: CopilotContext = { clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [] };
@@ -320,5 +324,70 @@ describe("inline edits", () => {
       .toEqual({ error: "That text changed. Select it again.", status: 409 });
     expect(await prepareInline({ script: written, ctx, path: "shots.s01.id", selectedText: "x", offset: 0, instruction: "x" }, { call: m.call }))
       .toEqual({ error: "That part of the script can't be edited this way.", status: 400 });
+  });
+});
+
+describe("pasting a whole script (paste-a-script spec)", () => {
+  it("imports it as the first draft: detect, then read, then save the script, notes and reply", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
+    const out = ok(await run(script(), REEL_07_PASTE, deps(m.call)));
+    expect(m.calls).toEqual(["script_detect", "script_import"]);
+    expect(out.patch?.doc?.shots).toHaveLength(9);
+    expect(out.patch?.doc?.header.reelNumber).toBe(7);
+    expect(out.patch?.brief).toMatchObject({ phase: "written", imported: true, reelNumber: 7, card: null });
+    expect(out.patch?.notes?.brief).toContain("From the pasted script:");
+    expect(out.result).toHaveLength(1);
+    expect(out.result[0].content).toMatch(/^Imported Reel 07 · 9 shots · 50s\./);
+  });
+
+  it("shows the skeleton the moment the reading starts, as a first draft does (D366)", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
+    const onDraft = vi.fn();
+    await run(script(), REEL_07_PASTE, { ...deps(m.call), onDraft });
+    expect(onDraft).toHaveBeenNthCalledWith(1, EMPTY_PARTIAL_DRAFT);
+  });
+
+  it("wins over the brief mid-way: a paste while the card is showing imports, and the card goes (Review Focus 4)", async () => {
+    const brief: Brief = { ...EMPTY_BRIEF, phase: "confirm", format: { value: "UGC", status: "given" }, narrative: { value: "A. Hook A: s", status: "given" }, card: CARD };
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
+    const out = ok(await run(script({ brief }), REEL_07_PASTE, deps(m.call)));
+    expect(out.patch?.brief).toMatchObject({ phase: "written", imported: true, card: null });
+    expect(out.patch?.brief?.format).toEqual({ value: "UGC", status: "given" });
+  });
+
+  it("goes on with the brief when the long message is not a whole script", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: false }], script_brief_read: [extraction({ format: { action: "given", value: "UGC" } })] });
+    const brief = "Notes for the reel.\n".repeat(30);
+    await run(script(), brief, deps(m.call));
+    expect(m.calls).toEqual(["script_detect", "script_brief_read"]);
+  });
+
+  it("sends back a message over 4,000 characters that is not a script, changing nothing (Review Focus 3)", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: false }] });
+    const out = ok(await run(script(), "x".repeat(4001), deps(m.call)));
+    expect(out.patch).toBeNull();
+    expect(out.result[0].content).toBe("That's longer than a chat message can be (4,000 characters), and it doesn't read as a whole script. If it is one, paste the whole script, shot table included.");
+  });
+
+  it("changes nothing when the paste can't be read as a script, and says what to try (spec §5.4)", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [{ ...REEL_07_IMPORT, readable: false, problem: "There is no shot table in it.", shots: [] }] });
+    const out = ok(await run(script(), REEL_07_PASTE, deps(m.call)));
+    expect(out.patch).toBeNull();
+    expect(out.result[0].content).toBe("I couldn't read that as a script: There is no shot table in it. Nothing was changed. Try pasting the whole script, shot table included.");
+  });
+
+  it("takes the next free reel number when the pasted one is taken (success 9)", async () => {
+    const taken: Script = { id: "other", clientId: "c1", stage: "visualise", doc: { ...doc, header: { ...doc.header, reelNumber: 7 } }, approvedAt: null, createdAt: "t", updatedAt: "t" };
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
+    const apply = await prepareTurn({ script: script(), ctx: { ...ctx, library: [taken] }, text: REEL_07_PASTE, lastAssistant: "" }, deps(m.call));
+    const out = ok(apply(script()));
+    expect(out.patch?.doc?.header.reelNumber).toBe(8);
+    expect(out.result[0].content).toContain("Reel 07 is taken, so this is Reel 08.");
+  });
+
+  it("refuses to save over a draft that appeared while it read", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
+    const apply = await prepareTurn({ script: script(), ctx, text: REEL_07_PASTE, lastAssistant: "" }, deps(m.call));
+    expect(apply(script({ doc, docVersion: 2 }))).toEqual({ error: "The script changed while I was working. Send that again.", status: 409 });
   });
 });

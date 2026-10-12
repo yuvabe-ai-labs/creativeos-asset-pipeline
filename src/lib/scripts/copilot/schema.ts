@@ -34,13 +34,15 @@ export const briefSchema = z.object({
   narrative: pieceSchema,
   angles: z.array(angleSchema),
   card: confirmationCardSchema.nullable(),
+  /** The draft came from a pasted script (paste-a-script spec), so the copilot asks who plays whom. */
+  imported: z.boolean().default(false),
 });
 export type Brief = z.infer<typeof briefSchema>;
 
 const unset = (): Piece => ({ value: "", status: null });
 export const EMPTY_BRIEF: Brief = {
   phase: "pieces", reelNumber: null, format: unset(), occasion: unset(), postDate: "",
-  lead: unset(), leadAvatarId: null, narrative: unset(), angles: [], card: null,
+  lead: unset(), leadAvatarId: null, narrative: unset(), angles: [], card: null, imported: false,
 };
 
 /** The reel's own notes (spec 2 §4.2): the confirmed brief as editable text, and the items the
