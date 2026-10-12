@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CopilotChatMessage } from "../copilot-chat-message";
 
-const actions = { busy: false, send: () => {}, resolve: () => {} };
+const actions = { busy: false, send: () => {}, resolve: () => {}, link: () => {} };
 const mine = (content: string) => ({ id: "m1", role: "user" as const, content, card: null, createdAt: "t" });
 
 describe("the person's message", () => {

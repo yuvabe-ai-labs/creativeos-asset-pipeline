@@ -6,7 +6,7 @@ import type { MessageCard, ScriptMessage } from "@/lib/scripts/copilot/schema";
 const signals = [{ id: "sig-1", name: "Evening label-reading" }, { id: "sig-2", name: "Dabba prep" }];
 const research = (perAngle: { angleId: string; signalIds: string[] }[]): MessageCard => ({ kind: "research", signals, perAngle });
 const message = (card: MessageCard, content = ""): ScriptMessage => ({ id: "m1", role: "assistant", content, card, createdAt: "t" });
-const actions = { busy: false, send: () => {}, resolve: () => {} };
+const actions = { busy: false, send: () => {}, resolve: () => {}, link: () => {} };
 const html = (m: ScriptMessage) => renderToStaticMarkup(<CopilotChatMessage message={m} actions={actions} avatars={[]} />);
 
 describe("the Market Research card", () => {

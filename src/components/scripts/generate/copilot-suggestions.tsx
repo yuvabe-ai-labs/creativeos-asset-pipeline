@@ -2,10 +2,11 @@ import { Button } from "@/components/ui/button";
 import type { Suggestion } from "@/lib/scripts/copilot/suggestions";
 
 /** One-tap suggestions under the copilot's newest message: send at once, or fill the box to finish by hand. */
-export function CopilotSuggestions({ suggestions, onSend, onFill }: {
+export function CopilotSuggestions({ suggestions, onSend, onFill, onLink }: {
   suggestions: Suggestion[];
   onSend: (text: string, leadAvatarId?: string) => void;
   onFill: (text: string) => void;
+  onLink: (castId: string, avatarId: string) => void;
 }) {
   if (suggestions.length === 0) return null;
   return (
@@ -16,7 +17,7 @@ export function CopilotSuggestions({ suggestions, onSend, onFill }: {
           variant="outline"
           size="xs"
           className="h-auto max-w-full whitespace-normal rounded-full border-dashed border-primary/40 py-1 text-left text-primary hover:bg-primary/5"
-          onClick={() => (s.send ? onSend(s.text, s.leadAvatarId) : onFill(s.text))}
+          onClick={() => (s.link ? onLink(s.link.castId, s.link.avatarId) : s.send ? onSend(s.text, s.leadAvatarId) : onFill(s.text))}
         >
           {s.label}
         </Button>

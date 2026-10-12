@@ -79,7 +79,7 @@ export function CopilotChat({ scriptId, messages, actions, suggestions, avatars 
           </ol>
           {/* Under the newest message, so the options sit right below the question they answer. Hidden
               while the copilot works: the thinking line stands in their place. */}
-          {!actions.busy && <CopilotSuggestions suggestions={suggestions} onSend={actions.send} onFill={setText} />}
+          {!actions.busy && <CopilotSuggestions suggestions={suggestions} onSend={actions.send} onFill={setText} onLink={actions.link} />}
           <div ref={end} />
         </ScrollArea>
         <CopilotComposer busy={actions.busy} text={text} onTextChange={setText} onSend={actions.send} />

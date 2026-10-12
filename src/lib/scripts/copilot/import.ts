@@ -10,6 +10,9 @@ import type { ImportOutput } from "./output";
 import { nextReelNumber } from "./prompt-context";
 import type { CopilotAvatar, ScriptNotes } from "./schema";
 
+/** The cast name guessed for a script with nobody named on screen. */
+export const NARRATOR = "Narrator";
+
 // Paste-a-script spec §2–§5 — the model's reading of a pasted script becomes a script, its notes and
 // the reply. The rule: what the paste has is used exactly; what it lacks is guessed and asked about.
 // Plain code over the model's answer, so each promise is checked here rather than trusted.
@@ -89,7 +92,7 @@ export function buildImport(
   const leadGuessed = out.guessed.lead || out.cast.length === 0;
   const cast = out.cast.length > 0
     ? out.cast.map((m) => ({ ...m, avatarId: null }))
-    : [{ key: "narrator", name: "Narrator", description: "", avatarId: null, isLead: true }];
+    : [{ key: "narrator", name: NARRATOR, description: "", avatarId: null, isLead: true }];
 
   let doc: ScriptDoc;
   try {

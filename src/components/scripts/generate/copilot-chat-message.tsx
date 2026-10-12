@@ -14,6 +14,8 @@ export type ChatActions = {
   /** `leadAvatarId` when a lead chip sends the message (D362). */
   send: (text: string, leadAvatarId?: string) => void;
   resolve: (messageId: string, decision: "accept" | "reject") => void;
+  /** Links an avatar to a character, from a chip after an import (paste-a-script §4.3). */
+  link: (castId: string, avatarId: string) => void;
 };
 
 export function CopilotChatMessage({ message, actions, avatars }: { message: ScriptMessage; actions: ChatActions; avatars: CopilotAvatar[] }) {

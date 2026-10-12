@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { useGenerateState, useResolveProposal, useSendTurn } from "@/hooks/queries/script-generate";
+import { useGenerateState, useLinkCastAvatar, useResolveProposal, useSendTurn } from "@/hooks/queries/script-generate";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
 import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 import { suggestionsFor } from "@/lib/scripts/copilot/suggestions";
@@ -17,12 +17,14 @@ export function GenerateWorkspace({ clientId, initialState }: { clientId: string
   const [draft, setDraft] = useState<PartialDraft | null>(null);
   const turn = useSendTurn(clientId, scriptId, setDraft);
   const proposal = useResolveProposal(clientId, scriptId);
+  const avatarLink = useLinkCastAvatar(clientId, scriptId);
   const fail = (e: Error) => toast.error(e.message);
 
   const actions = {
-    busy: turn.isPending || proposal.isPending,
+    busy: turn.isPending || proposal.isPending || avatarLink.isPending,
     writing: draft !== null,
     send: (text: string, leadAvatarId?: string) => turn.mutate({ text, leadAvatarId }, { onError: fail, onSettled: () => setDraft(null) }),
+    link: (castId: string, avatarId: string) => avatarLink.mutate({ castId, avatarId }, { onError: fail }),
     resolve: (messageId: string, decision: "accept" | "reject") => proposal.mutate({ messageId, decision }, { onError: fail }),
   };
 
