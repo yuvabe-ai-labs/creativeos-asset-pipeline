@@ -1028,7 +1028,7 @@ export function VideoGenFocusView({
         // D308 — the stored roles, "off" included; the server runs the same selectReferences.
         imageRoles: supportedImageRoles,
       });
-      // 202 Accepted — hook's Realtime subscription clears isGenerating on completion
+      // 202 Accepted — the canvas's generations feed clears isGenerating when the job's row arrives
     } catch (e) {
       setGenerating(false);
       const msg =

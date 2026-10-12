@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import type { GenerationRow } from "@/lib/db/types";
-import { completionEffect, isNewerJob, jobKindOf, nodeGenerationStatus } from "../node-status";
+import {
+  clearsStartMark,
+  completionEffect,
+  isNewerJob,
+  jobKindOf,
+  mergeJob,
+  nodeGenerationStatus,
+} from "../node-status";
 
 const row = (over: Partial<GenerationRow>): GenerationRow =>
   ({
@@ -31,6 +38,40 @@ describe("isNewerJob", () => {
 
   it("treats an update of the same job as current", () => {
     expect(isNewerJob(row({ status: "succeeded" }), row({}))).toBe(true);
+  });
+});
+
+describe("clearsStartMark", () => {
+  it("a mark with an id clears on that job's row, whatever its status, and on no other", () => {
+    const mark = { kind: "image" as const, generationId: "g1" };
+    expect(clearsStartMark(mark, row({}), false)).toBe(true);
+    expect(clearsStartMark(mark, row({ status: "succeeded" }), false)).toBe(true);
+    expect(clearsStartMark(mark, row({ status: "failed" }), false)).toBe(true);
+    expect(clearsStartMark(mark, row({ id: "g2" }), true)).toBe(false);
+  });
+
+  it("a mark without an id clears on any row that advances the node's latest job", () => {
+    const mark = { kind: "voice" as const };
+    expect(clearsStartMark(mark, row({ status: "succeeded" }), true)).toBe(true);
+    expect(clearsStartMark(mark, row({}), true)).toBe(true);
+    expect(clearsStartMark(mark, row({ status: "succeeded" }), false)).toBe(false);
+  });
+});
+
+describe("mergeJob", () => {
+  it("never lets a running row overwrite a finished one", () => {
+    const done = row({ status: "succeeded" });
+    expect(mergeJob(done, row({}))).toBe(done);
+    const failed = row({ status: "failed" });
+    expect(mergeJob(failed, row({}))).toBe(failed);
+  });
+
+  it("otherwise takes the incoming row", () => {
+    const incoming = row({ status: "succeeded" });
+    expect(mergeJob(undefined, incoming)).toBe(incoming);
+    expect(mergeJob(row({}), incoming)).toBe(incoming);
+    const running = row({});
+    expect(mergeJob(row({}), running)).toBe(running);
   });
 });
 

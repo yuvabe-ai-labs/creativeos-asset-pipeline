@@ -41,7 +41,20 @@ import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multi
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import type { GenerationRow } from "@/lib/db/types";
-import { isNewerJob, type GenerationJobKind } from "@/lib/generations/node-status";
+import {
+  clearsStartMark,
+  isNewerJob,
+  mergeJob,
+  type GenerationJobKind,
+  type GenerationStartMark,
+} from "@/lib/generations/node-status";
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const rest = { ...record };
+  delete rest[key];
+  return rest;
+}
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
@@ -74,9 +87,11 @@ export type CanvasState = {
   // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
   // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
   latestJobByNode: Record<string, GenerationRow>;
-  generationStarts: Record<string, GenerationJobKind>;
+  generationStarts: Record<string, GenerationStartMark>;
   generationRequestErrors: Record<string, string>;
-  markGenerationStarted: (nodeId: string, kind: GenerationJobKind) => void;
+  /** `generationId`, when the start response names it, lets the mark clear on exactly that job's
+   *  row; a mark for a row already on the feed is not set at all. */
+  markGenerationStarted: (nodeId: string, kind: GenerationJobKind, generationId?: string) => void;
   clearGenerationStarted: (nodeId: string) => void;
   setGenerationRequestError: (nodeId: string, error: string | null) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
@@ -737,44 +752,63 @@ export function createCanvasStore(
     generationStarts: {},
     generationRequestErrors: {},
 
-    markGenerationStarted: (nodeId, kind) =>
+    markGenerationStarted: (nodeId, kind, generationId) =>
       set((s) => {
-        const { [nodeId]: _cleared, ...errors } = s.generationRequestErrors;
-        return { generationStarts: { ...s.generationStarts, [nodeId]: kind }, generationRequestErrors: errors };
+        const generationRequestErrors = omitKey(s.generationRequestErrors, nodeId);
+        // The job's row is already on the feed, so it speaks for the node: no mark to clear later.
+        if (generationId && generationId in s.trayJobs) {
+          return { generationStarts: omitKey(s.generationStarts, nodeId), generationRequestErrors };
+        }
+        const mark: GenerationStartMark = generationId ? { kind, generationId } : { kind };
+        return { generationStarts: { ...s.generationStarts, [nodeId]: mark }, generationRequestErrors };
       }),
 
     clearGenerationStarted: (nodeId) =>
-      set((s) => {
-        if (!(nodeId in s.generationStarts)) return {};
-        const { [nodeId]: _cleared, ...rest } = s.generationStarts;
-        return { generationStarts: rest };
-      }),
+      set((s) => (nodeId in s.generationStarts ? { generationStarts: omitKey(s.generationStarts, nodeId) } : {})),
 
     setGenerationRequestError: (nodeId, error) =>
       set((s) => {
-        const { [nodeId]: _cleared, ...rest } = s.generationRequestErrors;
+        const rest = omitKey(s.generationRequestErrors, nodeId);
         return { generationRequestErrors: error ? { ...rest, [nodeId]: error } : rest };
       }),
 
     trayJobs: {},
-    setTrayJobs: (jobs) => {
-      const latest: Record<string, GenerationRow> = {};
-      for (const j of jobs) {
-        if (j.node_id && isNewerJob(j, latest[j.node_id])) latest[j.node_id] = j;
-      }
-      set({ trayJobs: Object.fromEntries(jobs.map((j) => [j.id, j])), latestJobByNode: latest });
-    },
+    // Merges rather than replaces: a hydrate can land after a live update, and must not turn a
+    // finished row back to running, nor drop rows that arrived live.
+    setTrayJobs: (jobs) =>
+      set((s) => {
+        const trayJobs = { ...s.trayJobs };
+        let generationStarts = s.generationStarts;
+        for (const incoming of jobs) {
+          const existing = trayJobs[incoming.id];
+          const merged = mergeJob(existing, incoming);
+          trayJobs[incoming.id] = merged;
+          const nodeId = merged.node_id;
+          const mark = nodeId !== null ? generationStarts[nodeId] : undefined;
+          if (nodeId === null || !mark) continue;
+          // A reloaded row that changes nothing is not news, so it cannot retire a mark.
+          const changed = !existing || existing.status !== merged.status;
+          const advances = changed && isNewerJob(merged, s.latestJobByNode[nodeId]);
+          if (clearsStartMark(mark, merged, advances)) generationStarts = omitKey(generationStarts, nodeId);
+        }
+        const latestJobByNode: Record<string, GenerationRow> = {};
+        for (const j of Object.values(trayJobs)) {
+          if (j.node_id && isNewerJob(j, latestJobByNode[j.node_id])) latestJobByNode[j.node_id] = j;
+        }
+        return { trayJobs, latestJobByNode, generationStarts };
+      }),
     upsertTrayJob: (job) =>
       set((s) => {
         const nodeId = job.node_id;
         const newer = nodeId !== null && isNewerJob(job, s.latestJobByNode[nodeId]);
-        // The job's own row now speaks for the node: a start mark is no longer needed.
-        const startCleared = nodeId !== null && job.status === "running" && nodeId in s.generationStarts;
-        const { [nodeId ?? ""]: _cleared, ...starts } = s.generationStarts;
+        // The job's own row now speaks for the node, whatever its status: a mark naming this job,
+        // or (without an id) any row that advances the node's latest job, retires the mark.
+        const mark = nodeId !== null ? s.generationStarts[nodeId] : undefined;
+        const startCleared = mark !== undefined && clearsStartMark(mark, job, newer);
         return {
           trayJobs: { ...s.trayJobs, [job.id]: job },
           ...(newer ? { latestJobByNode: { ...s.latestJobByNode, [nodeId!]: job } } : {}),
-          ...(startCleared ? { generationStarts: starts } : {}),
+          ...(startCleared ? { generationStarts: omitKey(s.generationStarts, nodeId!) } : {}),
         };
       }),
 

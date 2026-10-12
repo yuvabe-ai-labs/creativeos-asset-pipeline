@@ -20,7 +20,7 @@ export function useGenerationStatus(nodeId: string): GenerationStatus {
   const { latest, started, requestError, mark, clear, setRequestError } = useCanvasStore(
     useShallow((s) => ({
       latest: s.latestJobByNode[nodeId],
-      started: s.generationStarts[nodeId],
+      started: s.generationStarts[nodeId]?.kind,
       requestError: s.generationRequestErrors[nodeId] ?? null,
       mark: s.markGenerationStarted,
       clear: s.clearGenerationStarted,
