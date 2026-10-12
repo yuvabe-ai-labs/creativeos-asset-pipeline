@@ -7,7 +7,7 @@ import {
 import { loadCopilotContext, loadSignals } from "@/lib/scripts/copilot/context";
 import { streamingCaller, structuredCaller } from "@/lib/scripts/copilot/model";
 import { prepareTurn, type Reply } from "@/lib/scripts/copilot/turn";
-import { MAX_MESSAGE_CHARS, SCRIPT_QUICK_MODEL, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
+import { MAX_PASTE_CHARS, SCRIPT_QUICK_MODEL, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
 import { isUuid } from "@/lib/avatars/utils";
 
 // A first draft is one long structured call; give it room (as the avatar generation routes do).
@@ -15,7 +15,7 @@ export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
-// POST /api/clients/:id/scripts/:scriptId/turn { text, leadAvatarId? } — one chat message to the copilot (spec 2
+// POST /api/clients/:id/scripts/:scriptId/turn { text (≤ 30,000: a pasted script), leadAvatarId? } — one chat message to the copilot (spec 2
 // §5–§9). The person's message is saved first so it is never lost; the replies are saved after.
 // The answer is newline-delimited JSON (D337, refined): `{type:"draft"}` previews while a first
 // draft streams in, then one `{type:"state"}` line with the whole workspace (or `{type:"error"}`).
@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: Ctx) {
       // A lead chip's avatar (D362); the turn links it only if it is one of this client's.
       const leadAvatarId = typeof body?.leadAvatarId === "string" && isUuid(body.leadAvatarId) ? body.leadAvatarId : null;
       if (!text) return apiError("Write a message first.", 400);
-      if (text.length > MAX_MESSAGE_CHARS) return apiError(`Keep a message under ${MAX_MESSAGE_CHARS} characters.`, 400);
+      if (text.length > MAX_PASTE_CHARS) return apiError(`Keep a message under ${MAX_PASTE_CHARS.toLocaleString("en")} characters.`, 400);
 
       const script = await getGenerateScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);

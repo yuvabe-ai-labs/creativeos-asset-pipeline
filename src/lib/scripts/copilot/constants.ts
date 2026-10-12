@@ -18,4 +18,8 @@ export const SCRIPT_WRITER_CANDIDATES = ["gpt-5.4-mini", "gemini-3.1-pro-preview
 export const REVIEW_PLACEHOLDER = "[real review, verbatim]";
 
 export const MAX_MESSAGE_CHARS = 4000;
+/** A whole pasted script must fit in one message (paste-a-script spec §5.1): Reel 07 with the
+ *  disclaimer block is about 4,000 characters, and a client's Word script with notes runs longer.
+ *  The turn sends a long message that is not a script back with MAX_MESSAGE_CHARS (import.ts). */
+export const MAX_PASTE_CHARS = 30000;
 export const MAX_SELECTION_CHARS = 2000;
