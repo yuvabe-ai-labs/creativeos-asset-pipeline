@@ -40,8 +40,7 @@ type Props = {
   estimating: boolean;
   /** D312 — a line under the model picker (the composite says where its face can go). */
   modelNote?: string;
-  /** D312 — the composite's short model list and narrowed param options. */
-  modelIds?: readonly string[];
+  /** D312 — the composite's model-chip hints and narrowed param options. */
   modelHints?: Readonly<Record<string, string>>;
   optionFilter?: Record<string, readonly string[]>;
   /** D312 — the button's own words (the Composite's Edit runs from here). Absent = Generate. */
@@ -74,7 +73,6 @@ export function ImageGenOutputSettingsBody({
   estimatedCredits,
   estimating,
   modelNote,
-  modelIds,
   modelHints,
   optionFilter,
   actionLabel,
@@ -115,7 +113,6 @@ export function ImageGenOutputSettingsBody({
         onCommit={onCommit}
         onModelChange={onModelChange}
         modelNote={modelNote}
-        modelIds={modelIds}
         modelHints={modelHints}
         optionFilter={optionFilter}
         inlineParams={inlineParams}

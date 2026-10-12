@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import {
   imageGenClientModelGroups,
-  imageGenClientModelMap,
   type ClientModelSpec,
 } from "@/lib/image-gen/client-models";
 import { ParamControl } from "./param-controls";
@@ -31,9 +30,6 @@ type Props = {
   onModelChange: (id: string) => void;
   /** D312 — a line under the model picker. Image Gen never passes it. */
   modelNote?: string;
-  /** D312 — a short, flat list of model ids (one row, no provider headings) instead of every
-   *  model grouped by provider. Image Gen never passes it. */
-  modelIds?: readonly string[];
   /** D312 — an (i) note on given model chips, by model id. */
   modelHints?: Readonly<Record<string, string>>;
   /** D312 — narrows a select param's options, e.g. { aspect_ratio: ["16:9", "9:16"] }. */
@@ -66,7 +62,6 @@ export function ImageGenOutputSettings({
   onCommit,
   onModelChange,
   modelNote,
-  modelIds,
   modelHints,
   optionFilter,
   inlineParams,
@@ -89,31 +84,20 @@ export function ImageGenOutputSettings({
           spacing carry the nesting on their own. */}
       <div className="space-y-3">
         <FieldLabel icon={Cpu} label="Model" />
-        {modelIds ? (
-          <ParamChipGroup
-            options={modelIds.flatMap((id) => {
-              const m = imageGenClientModelMap[id];
-              return m ? [{ value: m.id, label: m.label, hint: modelHints?.[m.id] }] : [];
-            })}
-            value={model.id}
-            onValueChange={onModelChange}
-          />
-        ) : (
-          <div className="space-y-4">
-            {imageGenClientModelGroups.map((group) => (
-              <div key={group.provider} className="space-y-2">
-                <span className="text-[0.65rem] font-medium tracking-wide text-foreground/70 uppercase">
-                  {group.label}
-                </span>
-                <ParamChipGroup
-                  options={group.models.map((m) => ({ value: m.id, label: m.label }))}
-                  value={model.id}
-                  onValueChange={onModelChange}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="space-y-4">
+          {imageGenClientModelGroups.map((group) => (
+            <div key={group.provider} className="space-y-2">
+              <span className="text-[0.65rem] font-medium tracking-wide text-foreground/70 uppercase">
+                {group.label}
+              </span>
+              <ParamChipGroup
+                options={group.models.map((m) => ({ value: m.id, label: m.label, hint: modelHints?.[m.id] }))}
+                value={model.id}
+                onValueChange={onModelChange}
+              />
+            </div>
+          ))}
+        </div>
         {modelNote && <p className="text-xs text-muted-foreground">{modelNote}</p>}
       </div>
 

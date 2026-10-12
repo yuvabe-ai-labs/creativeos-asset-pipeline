@@ -6754,6 +6754,12 @@ because the composite is a UGC clip's reference and the video model must be able
 current version, through the composite route with its preservation rules; the generate pipeline
 moved to `lib/composite/run-generation` so both share one credit path.
 
+**Amended (2026-10-10).** **The picker offers every image model**, grouped by provider exactly as
+Image Gen's, instead of a short list of three (GPT Image 2, Nano Banana 2, Seedream 5.0 Lite).
+Seedream stays the default and keeps its "goes into Seedance" hint; the avatar note still says
+where any other choice can go. Operator decision: newer models (GPT Image 2.5, Nano Banana 2.1 /
+Pro) were missing. Every image model takes 16:9 and 9:16 and reference images, which a test holds.
+
 **Rejected.** Role slots or separate Camera / Lighting / Composition fields (one mention-enabled
 box covers it, as D281 found). An LLM pass over the instruction (the instruction already is the
 brief; a rewrite costs a call and loses wording — revisit only on poor output). A composite prompt

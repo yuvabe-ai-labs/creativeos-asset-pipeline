@@ -15,7 +15,6 @@ import { usdToFinalCredits } from "@/lib/credits/units";
 import {
   COMPOSITE_ASPECT_RATIOS,
   COMPOSITE_MODEL_HINTS,
-  COMPOSITE_MODEL_IDS,
   clampCompositeParams,
   compositeModelNote,
   compositePickerModelId,
@@ -165,7 +164,6 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       onCommit={(next) => onPatch({ params: next })}
                       onModelChange={(id) => onPatch({ modelId: id })}
                       modelNote={modelNote ?? undefined}
-                      modelIds={COMPOSITE_MODEL_IDS}
                       modelHints={COMPOSITE_MODEL_HINTS}
                       optionFilter={{ aspect_ratio: COMPOSITE_ASPECT_RATIOS }}
                       inlineParams

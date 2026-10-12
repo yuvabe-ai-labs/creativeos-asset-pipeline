@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { SEEDANCE_FACE_MODEL_ID } from "@/lib/avatars/constants";
+import { imageGenClientModels } from "@/lib/image-gen/client-models";
 import {
   COMPOSITE_DEFAULT_MODEL_ID,
-  COMPOSITE_MODEL_IDS,
   COMPOSITE_ASPECT_RATIOS,
   compositeModelNote,
   resolveCompositeModelId,
@@ -21,14 +21,21 @@ describe("composite model (D312)", () => {
     expect(resolveCompositeModelId(undefined)).toBe(COMPOSITE_DEFAULT_MODEL_ID);
   });
 
-  it("offers three models — one per provider, the default among them", () => {
-    expect(COMPOSITE_MODEL_IDS).toEqual(["openai:gpt-image-2", "gemini:gemini-3.1-flash-image", SEEDANCE_FACE_MODEL_ID]);
+  it("the picker keeps any image model Image Gen offers", () => {
+    for (const m of imageGenClientModels) expect(compositePickerModelId(m.id)).toBe(m.id);
   });
 
-  it("the picker shows a stored model it no longer offers as the default", () => {
-    expect(compositePickerModelId("gemini:gemini-2.5-flash-image")).toBe(COMPOSITE_DEFAULT_MODEL_ID);
-    expect(compositePickerModelId("openai:gpt-image-2")).toBe("openai:gpt-image-2");
+  it("the picker shows a retired or missing model as the default", () => {
+    expect(compositePickerModelId("openai:dall-e-3")).toBe(COMPOSITE_DEFAULT_MODEL_ID);
     expect(compositePickerModelId(undefined)).toBe(COMPOSITE_DEFAULT_MODEL_ID);
+  });
+
+  it("every image model can make a composite's two aspect ratios", () => {
+    for (const m of imageGenClientModels) {
+      const ratio = m.params.find((p) => p.name === "aspect_ratio");
+      const options = ratio?.constraints.type === "select" ? ratio.constraints.options : [];
+      for (const r of COMPOSITE_ASPECT_RATIOS) expect(options, `${m.id} ${r}`).toContain(r);
+    }
   });
 
   it("with an avatar, says a Seedream composite goes everywhere", () => {
