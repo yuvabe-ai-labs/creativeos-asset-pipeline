@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import reel06 from "@/lib/scripts/fixtures/reel-06.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
+import { IMPORT_REPLY_PREFIX } from "../constants";
 import { avatarFits, suggestionsFor } from "../suggestions";
 import { fillToFinal } from "../fill-to-final";
 import { EMPTY_BRIEF, EMPTY_NOTES, type Angle, type Brief, type GenerateState } from "../schema";
@@ -68,7 +69,9 @@ describe("suggestionsFor", () => {
 
 describe("after an import (paste-a-script §4.3)", () => {
   const unlinked = { ...reel01, cast: reel01.cast.map((c) => ({ ...c, avatarId: null })) };
-  const imported = () => state({ brief: { ...EMPTY_BRIEF, phase: "written", imported: true }, doc: unlinked });
+  const msg = (role: "user" | "assistant", content: string): GenerateState["messages"][number] => ({ id: `m-${content}`, role, content, card: null, createdAt: "t" });
+  const importReply = msg("assistant", `${IMPORT_REPLY_PREFIX}Reel 01 · 9 shots · 50s.`);
+  const imported = () => ({ ...state({ brief: { ...EMPTY_BRIEF, phase: "written", imported: true }, doc: unlinked }), messages: [importReply] });
 
   it("offers the client's avatars for the lead, a fitting one first; a tap links, it never sends", () => {
     const base = imported();
@@ -82,8 +85,16 @@ describe("after an import (paste-a-script §4.3)", () => {
 
   it("asks nothing once everyone is linked, and nothing for a script the copilot wrote", () => {
     const linked = { ...reel01, cast: reel01.cast.map((c) => ({ ...c, avatarId: "6f1c2b1e-0000-4000-8000-0000000000aa" })) };
-    expect(suggestionsFor(state({ brief: { ...EMPTY_BRIEF, imported: true }, doc: linked })).some((x) => x.link)).toBe(false);
-    expect(suggestionsFor(state({ doc: unlinked })).some((x) => x.link)).toBe(false);
+    expect(suggestionsFor({ ...state({ brief: { ...EMPTY_BRIEF, imported: true }, doc: linked }), messages: [importReply] }).some((x) => x.link)).toBe(false);
+    expect(suggestionsFor({ ...state({ doc: unlinked }), messages: [importReply] }).some((x) => x.link)).toBe(false);
+  });
+
+  it("shows the link chips only while the import reply is the newest message (I3)", () => {
+    const base = imported();
+    expect(suggestionsFor(base).some((x) => x.link)).toBe(true);
+    expect(suggestionsFor({ ...base, messages: [importReply, msg("user", "Make the hook punchier")] }).some((x) => x.link)).toBe(false);
+    expect(suggestionsFor({ ...base, messages: [importReply, msg("assistant", "Done, the hook is punchier.")] }).some((x) => x.link)).toBe(false);
+    expect(suggestionsFor({ ...base, messages: [] }).some((x) => x.link)).toBe(false);
   });
 });
 

@@ -2,16 +2,13 @@ import type { Script, ScriptDoc } from "../schema";
 import { formatSeconds, totalSeconds } from "../timeline";
 import { reelLabel, shotSummary } from "../utils";
 import { openItemsLine } from "./brief";
-import { MAX_MESSAGE_CHARS } from "./constants";
+import { IMPORT_REPLY_PREFIX, MAX_MESSAGE_CHARS, NARRATOR } from "./constants";
 import { toScriptDoc } from "./draft";
 import { fillToFinal } from "./fill-to-final";
 import { stripFormatting, unmatchedShots } from "./import-check";
 import type { ImportOutput } from "./output";
 import { nextReelNumber } from "./prompt-context";
 import type { CopilotAvatar, ScriptNotes } from "./schema";
-
-/** The cast name guessed for a script with nobody named on screen. */
-export const NARRATOR = "Narrator";
 
 // Paste-a-script spec §2–§5 — the model's reading of a pasted script becomes a script, its notes and
 // the reply. The rule: what the paste has is used exactly; what it lacks is guessed and asked about.
@@ -156,7 +153,7 @@ export function buildImport(
     confirmations: guesses.slice(0, 20).map((g, i) => ({ id: `g${i + 1}`, text: g.text.slice(0, 500), confirmed: false, ...(g.paths.length > 0 ? { paths: g.paths } : {}) })),
   };
 
-  const head = [`Imported ${importSummary(doc)}.`];
+  const head = [`${IMPORT_REPLY_PREFIX}${importSummary(doc)}.`];
   if (opts.takenReel !== null) head.push(`${reelLabel(opts.takenReel)} is taken, so this is ${reelLabel(doc.header.reelNumber)}.`);
   if (out.kept.length > 0) head.push(`Kept in the notes, word for word: ${listOf(out.kept.map((k) => k.name || "a note"))}.`);
   if (keptCut) head.push("The notes hold 8,000 characters, so the end of what I kept was cut; the rest is still in your paste.");

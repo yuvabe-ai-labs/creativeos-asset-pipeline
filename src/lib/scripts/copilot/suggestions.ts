@@ -1,6 +1,6 @@
 import { isFounderLed, nextStep } from "./brief";
 import { avatarLabel } from "./avatar-label";
-import { NARRATOR } from "./import";
+import { IMPORT_REPLY_PREFIX, NARRATOR } from "./constants";
 import type { CopilotAvatar, GenerateState } from "./schema";
 
 // One-tap suggestions above the copilot's message box, for quick demos. Worked out from where the
@@ -52,7 +52,11 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
   const out: Suggestion[] = [];
   // After an import the copilot asked who plays whom: the avatars for the first character still in
   // words (the lead first), a fitting one first. A guessed Narrator is asked about in words instead.
-  const member = script.brief.imported
+  // The chips stay only while the import's reply is the newest message; a link posts no message, so
+  // they move on to the next character, and any later message ends the question.
+  const last = state.messages.at(-1);
+  const asking = script.brief.imported && last?.role === "assistant" && last.content.startsWith(IMPORT_REPLY_PREFIX);
+  const member = asking
     ? [...script.doc.cast].sort((a, b) => Number(b.isLead) - Number(a.isLead)).find((c) => !c.avatarId && c.name !== NARRATOR)
     : undefined;
   if (member && state.avatars.length > 0) {

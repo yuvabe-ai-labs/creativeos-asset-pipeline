@@ -23,3 +23,9 @@ export const MAX_MESSAGE_CHARS = 4000;
  *  The turn sends a long message that is not a script back with MAX_MESSAGE_CHARS (import.ts). */
 export const MAX_PASTE_CHARS = 30000;
 export const MAX_SELECTION_CHARS = 2000;
+
+/** The cast name guessed for a script with nobody named on screen (paste-a-script §4.3). */
+export const NARRATOR = "Narrator";
+/** How an import's reply begins. The avatar link chips (suggestions.ts) show only while it is the
+ *  newest message, so they must read the same text import.ts writes. */
+export const IMPORT_REPLY_PREFIX = "Imported ";
