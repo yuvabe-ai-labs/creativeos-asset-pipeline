@@ -139,6 +139,19 @@ export async function getGeneration(id: string): Promise<GenerationRow> {
   return data as GenerationRow;
 }
 
+/** D366 — whether this node has a generation still running: one at a time per node. */
+export async function hasRunningGeneration(nodeId: string): Promise<boolean> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("id")
+    .eq("node_id", nodeId)
+    .eq("status", "running")
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
 export async function listGenerations(nodeId: string): Promise<GenerationRow[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
