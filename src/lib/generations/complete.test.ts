@@ -302,3 +302,87 @@ describe("completeGeneration — a native voice preview keeps its voice (D296)",
     expect(mocks.updateAvatar).not.toHaveBeenCalled();
   });
 });
+
+describe("completeGeneration — image (D366)", () => {
+  beforeEach(() => {
+    mocks.generation = {
+      id: "g1",
+      status: "running",
+      type: "image",
+      node_id: "n1",
+      org_id: "org-1",
+      user_id: "u1",
+      model_used: "openai:gpt-image-2",
+      params_snapshot: { quality: "high" },
+      inputs_snapshot: { promptNodeId: "p1" },
+    };
+  });
+
+  const succeeded = {
+    generationId: "g1",
+    status: "succeeded" as const,
+    kind: "image" as const,
+    imageUrl: "https://storage.googleapis.com/b/g1.png",
+    mimeType: "image/png",
+    width: 1024,
+    height: 1536,
+    fileSizeBytes: 2048,
+    tokensUsed: { input_tokens: 10, output_tokens: 20 },
+    costUsd: 0.05,
+  };
+
+  it("creates the version from the run's snapshots, makes it active and settles at the reported cost", async () => {
+    await completeGeneration(succeeded);
+    expect(mocks.insertVersion).toHaveBeenCalledWith({
+      nodeId: "n1",
+      operatorUserId: "u1",
+      inputsUsed: { promptNodeId: "p1" },
+      paramsUsed: {
+        modelId: "openai:gpt-image-2",
+        quality: "high",
+        tokensUsed: { input_tokens: 10, output_tokens: 20 },
+        imageWidth: 1024,
+        imageHeight: 1536,
+        fileSizeBytes: 2048,
+      },
+      modelUsed: "openai:gpt-image-2",
+      output: "https://storage.googleapis.com/b/g1.png",
+    });
+    expect(mocks.setActiveVersion).toHaveBeenCalledWith("n1", "ver-1");
+    expect(mocks.settleGeneration).toHaveBeenCalledWith({
+      orgId: "org-1",
+      generationId: "g1",
+      actualAmount: usdToFinalCredits(0.05),
+    });
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generationId: "g1",
+        versionId: "ver-1",
+        costUsd: 0.05,
+        outputSnapshot: "https://storage.googleapis.com/b/g1.png",
+      }),
+    );
+  });
+
+  it("refuses an image stored outside this app's bucket", async () => {
+    await completeGeneration({ ...succeeded, imageUrl: "https://evil.example/x.png" });
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+  });
+
+  it("records a failed image as a failed version, then fails and refunds", async () => {
+    await completeGeneration({ generationId: "g1", status: "failed", error: "provider down" });
+    expect(mocks.insertVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ nodeId: "n1", operatorUserId: "u1", error: "provider down" }),
+    );
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "provider down" });
+    expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+  });
+
+  it("ignores a duplicate delivery", async () => {
+    mocks.generation = { ...mocks.generation, status: "succeeded" };
+    await completeGeneration(succeeded);
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.settleGeneration).not.toHaveBeenCalled();
+  });
+});

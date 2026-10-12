@@ -11,6 +11,10 @@ import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 import { readVoiceChange } from "@/lib/voice-change/source";
 import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
 import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
+import { computeImageCost } from "@/lib/image-gen/cost";
+import type { ImageTokenUsage } from "@/lib/image-gen/types";
+import type { ImageGenerationSucceeded } from "@/lib/image-gen/run-task";
+import type { GenerationRow } from "@/lib/db/types";
 
 // Every failure path in this file needs the same two calls in the same order — a small
 // local helper keeps that from drifting out of sync across the 3 sites that need it.
@@ -23,16 +27,66 @@ async function failAndRefund(
   await refundReservation({ orgId, generationId });
 }
 
+// D366 — an image arrives already stored (the task uploaded it through a signed URL).
+async function completeImageGeneration(
+  nodeId: string,
+  generation: GenerationRow,
+  input: ImageGenerationSucceeded,
+): Promise<void> {
+  if (!isOwnStoredUrl(input.imageUrl)) {
+    await failAndRefund(input.generationId, generation.org_id, "Stored image URL is outside this app's bucket");
+    return;
+  }
+
+  const version = await insertVersion({
+    nodeId,
+    operatorUserId: generation.user_id,
+    inputsUsed: generation.inputs_snapshot ?? {},
+    paramsUsed: {
+      modelId: generation.model_used,
+      ...(generation.params_snapshot ?? {}),
+      tokensUsed: input.tokensUsed ?? null,
+      imageWidth: input.width,
+      imageHeight: input.height,
+      fileSizeBytes: input.fileSizeBytes,
+    },
+    modelUsed: generation.model_used,
+    output: input.imageUrl,
+  });
+  await setActiveVersion(nodeId, version.id);
+
+  // A provider billed per image (Seedream) reports its exact charge; token-billed ones don't.
+  const cost =
+    input.costUsd !== undefined
+      ? { usd: input.costUsd }
+      : input.tokensUsed && generation.model_used
+        ? computeImageCost(generation.model_used, input.tokensUsed as unknown as ImageTokenUsage)
+        : null;
+  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+
+  await settleGeneration({ orgId: generation.org_id, generationId: input.generationId, actualAmount: actualCredits });
+  await succeedGeneration({
+    generationId: input.generationId,
+    versionId: version.id,
+    costUsd: cost?.usd,
+    creditsCharged: actualCredits,
+    tokensUsed: input.tokensUsed ? { ...input.tokensUsed } : null,
+    outputSnapshot: input.imageUrl,
+  });
+}
+
 export type CompleteGenerationInput =
   | {
       generationId: string;
       status: "succeeded";
+      kind?: "video";
       videoUrl: string;
       durationSeconds: number;
       /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
       stored?: boolean;
       meta?: Record<string, unknown>;
     }
+  | ImageGenerationSucceeded
   | {
       generationId: string;
       status: "failed";
@@ -109,7 +163,23 @@ export async function completeGeneration(
   }
 
   if (input.status === "failed") {
+    // D366 — a failed image still shows in History with its maker, as the synchronous path did.
+    if (generation.type === "image") {
+      await insertVersion({
+        nodeId,
+        operatorUserId: generation.user_id,
+        inputsUsed: generation.inputs_snapshot ?? {},
+        paramsUsed: { modelId: generation.model_used, ...(generation.params_snapshot ?? {}) },
+        modelUsed: generation.model_used,
+        error: input.error,
+      }).catch(() => null);
+    }
     await failAndRefund(input.generationId, generation.org_id, input.error);
+    return;
+  }
+
+  if (input.kind === "image") {
+    await completeImageGeneration(nodeId, generation, input);
     return;
   }
 
