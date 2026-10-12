@@ -73,7 +73,7 @@ export function CopilotChat({ scriptId, messages, actions, suggestions, avatars 
             {messages.map((m) => <CopilotChatMessage key={m.id} message={m} actions={actions} avatars={avatars} />)}
             {actions.busy && (
               <li>
-                <CopilotThinking />
+                <CopilotThinking writing={actions.writing} />
               </li>
             )}
           </ol>

@@ -21,6 +21,7 @@ export function GenerateWorkspace({ clientId, initialState }: { clientId: string
 
   const actions = {
     busy: turn.isPending || proposal.isPending,
+    writing: draft !== null,
     send: (text: string, leadAvatarId?: string) => turn.mutate({ text, leadAvatarId }, { onError: fail, onSettled: () => setDraft(null) }),
     resolve: (messageId: string, decision: "accept" | "reject") => proposal.mutate({ messageId, decision }, { onError: fail }),
   };

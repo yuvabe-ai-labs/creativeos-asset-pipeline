@@ -11,7 +11,7 @@ import type { ScriptViewSlots } from "./script-view-slots";
  *  (specs 2 to 4) put their work around it rather than drawing the script their own way.
  *  The optional props are how they do it; left out, the view is exactly spec 1's. It reads only
  *  the doc and the stage, so the client's page can pass a frozen version (spec 4). */
-export function ScriptView({ script, avatarFaces, compact = false, cast, shotAside, shotState, slots }: {
+export function ScriptView({ script, avatarFaces, compact = false, cast, shotAside, shotState, slots, pendingShots }: {
   script: Pick<Script, "doc" | "stage">;
   avatarFaces: Record<string, string | null>;
   /** Stacked shot rows for a narrow pane (Visualise's left pane), instead of the table. */
@@ -25,6 +25,8 @@ export function ScriptView({ script, avatarFaces, compact = false, cast, shotAsi
   shotState?: (timed: TimedShot) => ShotState;
   /** Room under each part for review work (spec 4: comments beside the part). */
   slots?: ScriptViewSlots;
+  /** Placeholder rows after the last shot while a draft streams in (D366). */
+  pendingShots?: number;
 }) {
   return (
     <div className={compact ? "flex flex-col gap-5" : "flex flex-col gap-8"}>
@@ -39,6 +41,7 @@ export function ScriptView({ script, avatarFaces, compact = false, cast, shotAsi
         aside={shotAside}
         shotState={shotState}
         renderAfter={slots?.shot}
+        pendingRows={pendingShots}
       />
     </div>
   );

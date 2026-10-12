@@ -7234,3 +7234,15 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Reusing gpt-image-2's per-image table: different consumption, and no xhigh/max rows.
 
 **Originated →** this conversation.
+
+### D366 — The first draft's skeleton shows the moment writing starts *(recorded 2026-10-12)*
+
+**Decision.** When the person confirms the brief, the turn sends an empty draft line (`EMPTY_PARTIAL_DRAFT`) before the writer is called, over the existing NDJSON `{type:"draft"}` channel. On it, the Generate workspace's right pane shows the script's skeleton (context card, two cast placeholders, five shot rows, laid out as `ScriptView` lays them out). Once the header arrives, the real view replaces it, with placeholder rows kept below the last shot (`ScriptView`'s `pendingShots`) until the draft is saved. While a draft is being written, the copilot's thinking pill uses writing verbs ("Writing the first draft", …) instead of "Mulling angles".
+
+**Why.** The writer (Gemini 3.1 Pro) thinks for about 25 s before its first token, and the pane stayed on its empty state through all of it, with a pill that still said "Mulling angles". The server knows it is writing as soon as the quick model reads the confirm, so the signal costs nothing and never guesses.
+
+**Rejected.** Showing the skeleton on the client when the message reads like "write it": the server decides (a confirm can fail to read), and its signal arrives about a second later anyway. Shortening the wait with a lower thinking budget: tried on 2026-10-09, drafts lost shots. Streaming the model's thought summaries: bigger than the problem.
+
+**Refines →** D337 (the first draft streams into the right pane).
+
+**Originated →** this conversation.

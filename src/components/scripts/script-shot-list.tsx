@@ -6,10 +6,11 @@ import { Label } from "@/components/ui/label";
 import type { CastMember, Shot } from "@/lib/scripts/schema";
 import { formatRange, groupByBeat, timeShots, type TimedShot } from "@/lib/scripts/timeline";
 import { SHOT_GRID, ScriptShotRow, type ShotState } from "./script-shot-row";
+import { ScriptShotRowsSkeleton } from "./script-shot-rows-skeleton";
 
 const COLUMNS = ["Time", "Visual", "VO", "On-screen text", "On screen"];
 
-export function ScriptShotList({ shots, cast, compact = false, aside, shotState, renderAfter }: {
+export function ScriptShotList({ shots, cast, compact = false, aside, shotState, renderAfter, pendingRows = 0 }: {
   shots: Shot[];
   cast: CastMember[];
   /** Stacked rows for a narrow pane (Visualise), with no column header. */
@@ -20,6 +21,8 @@ export function ScriptShotList({ shots, cast, compact = false, aside, shotState,
   shotState?: (t: TimedShot) => ShotState;
   /** Drawn under each row, full width (spec 4: the shot's comments). */
   renderAfter?: (shot: Shot) => ReactNode;
+  /** Placeholder rows after the last shot, for shots still being written (D366). */
+  pendingRows?: number;
 }) {
   const [grouped, setGrouped] = useState(true);
   const switchId = useId();
@@ -65,6 +68,7 @@ export function ScriptShotList({ shots, cast, compact = false, aside, shotState,
         ) : (
           <ul>{timed.map(row)}</ul>
         )}
+        {pendingRows > 0 && <ScriptShotRowsSkeleton count={pendingRows} className={shots.length > 0 ? "border-t border-border" : ""} />}
       </div>
     </section>
   );
