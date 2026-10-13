@@ -3,12 +3,15 @@
 import type { ImageGenInput, ImageGenResult, ImageTokenUsage } from "@/lib/image-gen/types";
 import type { ImageGenerateTaskPayload, ImageResultMime } from "@/lib/image-gen/task-payload";
 import { PaidResultError } from "@/lib/generations/task-failure";
+import { IMAGE_PROVIDER_TIMEOUT_MS } from "@/lib/image-gen/constants";
 
 export type ImageGenerateTaskDeps = {
   generate: (input: ImageGenInput) => Promise<ImageGenResult>;
   fetchFn: typeof fetch;
   readSize: (bytes: Buffer) => Promise<{ width?: number; height?: number }>;
   postWebhook: (body: object) => Promise<Response>;
+  /** Overrides IMAGE_PROVIDER_TIMEOUT_MS (tests). */
+  providerTimeoutMs?: number;
 };
 
 /** The body this task posts to the generation webhook on success (completeGeneration reads it). */
@@ -36,12 +39,19 @@ export async function runImageGenerateTask(
     maskBase64 = Buffer.from(await res.arrayBuffer()).toString("base64");
   }
 
-  const result = await deps.generate({
-    prompt: payload.prompt,
-    referenceUrls: payload.referenceUrls,
-    params: payload.params,
-    ...(maskBase64 ? { maskBase64, maskMime: payload.maskMime ?? "image/png" } : {}),
-  });
+  // The task retries a failed call itself (one retry), so the provider's client must not stack its
+  // own retries on top. A call that hangs is abandoned inside the task's maxDuration, so it fails
+  // like any provider error (retried, then reported) instead of the run being killed silently.
+  const result = await withTimeout(
+    deps.generate({
+      prompt: payload.prompt,
+      referenceUrls: payload.referenceUrls,
+      params: payload.params,
+      ...(maskBase64 ? { maskBase64, maskMime: payload.maskMime ?? "image/png" } : {}),
+      providerMaxRetries: 0,
+    }),
+    deps.providerTimeoutMs ?? IMAGE_PROVIDER_TIMEOUT_MS,
+  );
 
   // The provider has returned, and been paid. Nothing below may lead to a retry, which would pay it
   // again: every failure from here is a PaidResultError (see task-failure.ts).
@@ -49,6 +59,18 @@ export async function runImageGenerateTask(
     await deliverResult(payload, result, deps);
   } catch (e) {
     throw e instanceof PaidResultError ? e : new PaidResultError(e instanceof Error ? e.message : String(e));
+  }
+}
+
+async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`The image model did not answer within ${ms / 1000}s`)), ms);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

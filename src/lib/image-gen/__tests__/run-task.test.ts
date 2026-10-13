@@ -3,6 +3,7 @@ import { runImageGenerateTask, type ImageGenerateTaskDeps } from "../run-task";
 import type { ImageGenerateTaskPayload } from "../task-payload";
 import type { ImageGenResult, ImageTokenUsage } from "../types";
 import { PaidResultError } from "@/lib/generations/task-failure";
+import { IMAGE_PROVIDER_TIMEOUT_MS } from "../constants";
 
 const payload: ImageGenerateTaskPayload = {
   generationId: "g1",
@@ -46,6 +47,8 @@ describe("runImageGenerateTask (D366)", () => {
       prompt: "A mug on a desk",
       referenceUrls: ["https://cdn/ref.png"],
       params: { quality: "high" },
+      // The task's own retry is the only one: the provider's client must not stack its own on it.
+      providerMaxRetries: 0,
     });
     expect(d.fetchFn).toHaveBeenCalledWith(
       "https://put/png",
@@ -112,5 +115,20 @@ describe("runImageGenerateTask (D366)", () => {
     const run = runImageGenerateTask(payload, d);
     await expect(run).rejects.toThrow("provider 500");
     await expect(run).rejects.not.toBeInstanceOf(PaidResultError);
+  });
+
+  it("gives up on a provider call that hangs, inside the task's time limit, as an ordinary failure", async () => {
+    const d = deps({
+      generate: vi.fn(() => new Promise<ImageGenResult>(() => undefined)),
+      providerTimeoutMs: 20,
+    });
+    const run = runImageGenerateTask(payload, d);
+    await expect(run).rejects.toThrow(/did not answer/);
+    await expect(run).rejects.not.toBeInstanceOf(PaidResultError);
+    expect(d.postWebhook).not.toHaveBeenCalled();
+  });
+
+  it("keeps the provider call's limit below the task's 600s maxDuration", () => {
+    expect(IMAGE_PROVIDER_TIMEOUT_MS).toBeLessThan(600 * 1000);
   });
 });

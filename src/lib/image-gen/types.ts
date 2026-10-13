@@ -15,6 +15,7 @@ export type ImageGenInput = {
   params: Record<string, unknown>;
   maskBase64?: string;       // OpenAI alpha edit-mask (base64 PNG), same size as the base image
   maskMime?: string;         // defaults to image/png
+  providerMaxRetries?: number; // the provider client's own retries; unset keeps its default (D366: the image task passes 0)
 };
 
 export type ImageGenResult = {
