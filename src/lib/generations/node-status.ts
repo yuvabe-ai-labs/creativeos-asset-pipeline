@@ -2,6 +2,7 @@
 // rather than a query and a channel per node. Pure, so it is tested on its own.
 import type { GenerationRow } from "@/lib/db/types";
 import { isImageStartFailure } from "@/lib/image-gen/failure-copy";
+import { IMAGE_RUN_MAX_AGE_MS } from "@/lib/image-gen/constants";
 
 export type GenerationJobKind = "image" | "video" | "voice";
 
@@ -43,15 +44,25 @@ export function mergeJob(existing: GenerationRow | undefined, incoming: Generati
   return existing && isTerminal(existing) && incoming.status === "running" ? existing : incoming;
 }
 
+/** Whether a `running` row is still live. An image run past IMAGE_RUN_MAX_AGE_MS can no longer
+ *  report (its task is over), so it is stuck; the server stops counting it at the same age
+ *  (hasRunningGeneration). One comparison, so a per-node selector stays O(1). */
+function isLiveRun(row: GenerationRow, nowMs: number): boolean {
+  return row.type !== "image" || nowMs - Date.parse(row.created_at) <= IMAGE_RUN_MAX_AGE_MS;
+}
+
 /** `started` covers the moment between a start being accepted and its row arriving on the feed;
  *  `requestError` is a start request that failed before any row existed. */
 export function nodeGenerationStatus(
   latest: GenerationRow | undefined,
   started: GenerationJobKind | undefined,
   requestError: string | null,
+  nowMs: number = Date.now(),
 ): NodeGenerationStatus {
   if (started) return { isGenerating: true, kind: started, lastError: null };
-  if (latest?.status === "running") return { isGenerating: true, kind: jobKindOf(latest.type), lastError: null };
+  if (latest?.status === "running" && isLiveRun(latest, nowMs)) {
+    return { isGenerating: true, kind: jobKindOf(latest.type), lastError: null };
+  }
   const jobError = latest?.status === "failed" ? latest.error ?? "Generation failed" : null;
   return { isGenerating: false, kind: null, lastError: requestError ?? jobError };
 }

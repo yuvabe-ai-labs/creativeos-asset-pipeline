@@ -855,3 +855,47 @@ jobs that are still running, and their finished videos are then dropped.
 -- expect the definition to contain '00:50:00'
 select pg_get_viewdef('stuck_reservations');
 ```
+
+## Async image generation (D366) — no migration, but deploy order and env matter (2026-10-13)
+
+Image Gen and Composite now start a generation and return; the provider call runs in the new
+`image-generate` Trigger.dev task, which reports back through the generation webhook. No schema
+change.
+
+**Ordering:**
+
+1. **Fail old stuck image rows (pre-deploy, once).** An image row left `running` from before this
+   deploy would otherwise show its node as generating and refuse new starts until it ages out.
+   Run in the Supabase SQL editor:
+
+   ```sql
+   update generations
+   set status = 'failed',
+       error = 'The generation failed. Please try again.',
+       updated_at = now()
+   where type = 'image'
+     and status = 'running'
+     and created_at < now() - interval '1 hour';
+   ```
+
+   Any reservation still held by those rows is refunded by the `stuck_reservations` sweep as usual.
+   **Safe to re-run.**
+
+2. **Deploy the Trigger.dev tasks before the app**: `image-generate` (new) and `video-generate`
+   (its retry rule changed), with the rest of `trigger/`. The app triggers `image-generate` by id; if
+   the app ships first, every image start fails with "Couldn't start the generation."
+
+3. **Set the image provider keys in both Trigger.dev projects' env** (staging and production), not
+   only in Vercel: the provider calls now run inside the task. `OPENAI_API_KEY` (GPT Image),
+   `GOOGLE_GENAI_API_KEY` (Gemini) and `BYTEPLUS_API_KEY` (Seedream), alongside the
+   `APP_URL` and `TRIGGER_WEBHOOK_SECRET` the webhook already needs.
+
+4. Then deploy the app.
+
+**Verify after deploying:**
+
+```sql
+-- expect 0: no image row running for more than an hour
+select count(*) from generations
+where type = 'image' and status = 'running' and created_at < now() - interval '1 hour';
+```

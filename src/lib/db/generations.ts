@@ -5,6 +5,7 @@ import { getReservationAmounts } from "./credit-transactions";
 import type { GenerationRow as ImpersonationGenerationRow } from "@/lib/auth/impersonation-audit-view";
 import { isUuid } from "@/lib/avatars/utils";
 import { AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
+import { IMAGE_RUN_MAX_AGE_MS } from "@/lib/image-gen/constants";
 
 // Real settled credits per version, keyed by version_id — for the node focus views' usage
 // popovers, which used to recompute an estimate client-side from paramsUsed.tokensUsed. That
@@ -140,13 +141,17 @@ export async function getGeneration(id: string): Promise<GenerationRow> {
 }
 
 /** D366 — whether this node has a generation still running: one at a time per node. */
-export async function hasRunningGeneration(nodeId: string): Promise<boolean> {
+export async function hasRunningGeneration(nodeId: string, nowMs: number = Date.now()): Promise<boolean> {
+  // D366 — an image row still `running` past IMAGE_RUN_MAX_AGE_MS is stuck (its task can no
+  // longer report), so it must not lock the node: it does not count. Other kinds are unchanged.
+  const imageCutoff = new Date(nowMs - IMAGE_RUN_MAX_AGE_MS).toISOString();
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("generations")
     .select("id")
     .eq("node_id", nodeId)
     .eq("status", "running")
+    .or(`type.neq.image,created_at.gte.${imageCutoff}`)
     .limit(1);
   if (error) throw error;
   return (data ?? []).length > 0;

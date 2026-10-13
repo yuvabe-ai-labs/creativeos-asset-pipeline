@@ -10,6 +10,7 @@ import {
   nodeGenerationStatus,
 } from "../node-status";
 import { CREDIT_LIMIT_MESSAGE, START_FAILED_MESSAGE } from "@/lib/image-gen/failure-copy";
+import { IMAGE_RUN_MAX_AGE_MS } from "@/lib/image-gen/constants";
 
 const row = (over: Partial<GenerationRow>): GenerationRow =>
   ({
@@ -88,6 +89,17 @@ describe("nodeGenerationStatus", () => {
       kind: "voice",
       lastError: null,
     });
+  });
+
+  it("treats an image row running past the max age as stuck, not generating", () => {
+    const created = Date.parse("2026-10-12T10:00:00.000Z");
+    const live = nodeGenerationStatus(row({}), undefined, null, created + IMAGE_RUN_MAX_AGE_MS - 1000);
+    expect(live.isGenerating).toBe(true);
+    const stuck = nodeGenerationStatus(row({}), undefined, null, created + IMAGE_RUN_MAX_AGE_MS + 1000);
+    expect(stuck).toEqual({ isGenerating: false, kind: null, lastError: null });
+    // A video keeps its own (longer) life: the age limit is for image runs only.
+    const video = nodeGenerationStatus(row({ type: "video" }), undefined, null, created + IMAGE_RUN_MAX_AGE_MS + 1000);
+    expect(video.isGenerating).toBe(true);
   });
 
   it("shows the latest job's failure, and a failed start request ahead of it", () => {

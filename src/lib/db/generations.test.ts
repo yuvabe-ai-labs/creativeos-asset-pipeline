@@ -7,7 +7,8 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("./credit-transactions", () => ({ getReservationAmounts: vi.fn() }));
 
-import { getAvatarGeneration, insertGeneration } from "./generations";
+import { getAvatarGeneration, hasRunningGeneration, insertGeneration } from "./generations";
+import { IMAGE_RUN_MAX_AGE_MS } from "@/lib/image-gen/constants";
 
 beforeEach(() => {
   mockFrom.mockReset();
@@ -42,6 +43,27 @@ describe("insertGeneration", () => {
   it("refuses a generation owned by nothing", async () => {
     await expect(insertGeneration({ orgId: "org-1", type: "image" })).rejects.toThrow(/node or an avatar/);
     expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("hasRunningGeneration (D366)", () => {
+  it("counts a running row unless it is an image run older than the max age, which is stuck", async () => {
+    const calls: Record<string, unknown[]> = {};
+    const chain: Record<string, unknown> = {};
+    for (const k of ["select", "eq", "or"]) {
+      chain[k] = (...a: unknown[]) => {
+        (calls[k] ??= []).push(a);
+        return chain;
+      };
+    }
+    chain.limit = async () => ({ data: [], error: null });
+    mockFrom.mockReturnValue(chain);
+
+    const now = Date.parse("2026-10-13T12:00:00.000Z");
+    await expect(hasRunningGeneration("n1", now)).resolves.toBe(false);
+    const cutoff = new Date(now - IMAGE_RUN_MAX_AGE_MS).toISOString();
+    expect(calls.eq).toEqual([["node_id", "n1"], ["status", "running"]]);
+    expect(calls.or).toEqual([[`type.neq.image,created_at.gte.${cutoff}`]]);
   });
 });
 
