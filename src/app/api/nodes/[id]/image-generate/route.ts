@@ -14,6 +14,7 @@ import sharp from "sharp";
 import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { startImageGeneration } from "@/lib/image-gen/start-generation";
+import { IMAGE_GEN_MASK_MIME, MASK_NOT_PNG_MESSAGE } from "@/lib/image-gen/task-payload";
 
 const EDIT_INTENTS: readonly EditIntent[] = ["remove", "replace", "add", "modify", "freeform"];
 function asIntent(v: unknown): EditIntent | undefined {
@@ -114,6 +115,8 @@ export async function POST(
 
       if (baseVersionId) {
         const baseVersion = await getVersionById(baseVersionId);
+        // Only one of this node's own versions may be edited (AGENTS.md rule 14).
+        if (baseVersion && baseVersion.node_id !== nodeId) return apiError("No base image to edit.", 400);
         if (typeof baseVersion?.output === "string") resolvedBaseUrl = baseVersion.output;
         const prevInputs = (baseVersion?.inputs_used ?? {}) as { promptVersionId?: string };
         carriedPromptVersionId = prevInputs.promptVersionId ?? null;
@@ -129,7 +132,8 @@ export async function POST(
         body?.masked === true && typeof body?.maskBase64 === "string";
       maskBase64 = masked ? (body!.maskBase64 as string) : undefined;
       maskMime =
-        masked && typeof body?.maskMime === "string" ? (body.maskMime as string) : "image/png";
+        masked && typeof body?.maskMime === "string" ? (body.maskMime as string) : IMAGE_GEN_MASK_MIME;
+      if (masked && maskMime !== IMAGE_GEN_MASK_MIME) return apiError(MASK_NOT_PNG_MESSAGE, 400);
       const modelBaseUrl = resolvedBaseUrl; // clean base — no composite
 
       // Extra references are EXPLICIT (D101): only the connected-node URLs the operator ticked

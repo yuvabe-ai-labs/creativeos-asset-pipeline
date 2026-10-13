@@ -60,9 +60,10 @@ async function doFetch(canvasId: string) {
  * The Gallery Drawer's "Canvas Generations" tab used to depend entirely on the org-wide
  * Realtime subscription below to notice new images, and that out-of-band path had already been
  * repaired twice without the tab actually updating. It doesn't need to be out-of-band at all:
- * /api/nodes/[id]/image-generate awaits succeedGeneration() BEFORE it responds, so by the time
- * the focus view's fetch resolves the row is already committed and this refetch is guaranteed
- * to see it. Realtime stays wired up as a bonus for generations completed in another tab.
+ * D366 — an image now finishes in the background, and the canvas's generations feed
+ * (use-generation-tray.ts) calls this when it sees the row turn `succeeded`, so the row is
+ * already committed and this refetch is guaranteed to see it. Realtime stays wired up as a bonus
+ * for generations completed in another tab.
  *
  * Deliberately keyless-by-default: callers (a node focus view) know a generation finished but
  * not which canvas cache holds it, and a session realistically has one canvas cached anyway.

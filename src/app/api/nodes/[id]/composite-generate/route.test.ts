@@ -224,6 +224,16 @@ describe("POST composite-generate (D312)", () => {
       expect(sent().inputsUsed).toMatchObject({ masked: true });
     });
 
+    it("refuses a painted region that is not a PNG, before reserving", async () => {
+      const res = await post({
+        instruction: "the mug",
+        modelId: "openai:gpt-image-2",
+        edit: { baseVersionId: "v-base", intent: "remove", maskBase64: "AAAA", maskMime: "image/jpeg" },
+      });
+      expect(res.status).toBe(400);
+      expect(start).not.toHaveBeenCalled();
+    });
+
     it("refuses a painted region on a model that cannot take one, before reserving", async () => {
       const res = await post({
         instruction: "the mug",

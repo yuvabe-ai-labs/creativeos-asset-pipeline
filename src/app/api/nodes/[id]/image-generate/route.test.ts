@@ -73,8 +73,30 @@ describe("POST image-generate (D366)", () => {
     expect(m.start).not.toHaveBeenCalled();
   });
 
+  it("refuses a base version that belongs to another node", async () => {
+    m.getVersionById.mockResolvedValue({ id: "v-other", node_id: "other-node", output: "https://cdn/x.png", inputs_used: {} });
+    const res = await post({ modelId: "openai:gpt-image-2", params: {}, instruction: "the mug", baseVersionId: "v-other" });
+    expect(res.status).toBe(400);
+    expect(m.start).not.toHaveBeenCalled();
+  });
+
+  it("refuses a painted region that is not a PNG", async () => {
+    m.getVersionById.mockResolvedValue({ id: "v-base", node_id: "ig", output: "https://cdn/base.png", inputs_used: {} });
+    const res = await post({
+      modelId: "openai:gpt-image-2",
+      params: {},
+      instruction: "the mug",
+      baseVersionId: "v-base",
+      masked: true,
+      maskBase64: "AAAA",
+      maskMime: "image/jpeg",
+    });
+    expect(res.status).toBe(400);
+    expect(m.start).not.toHaveBeenCalled();
+  });
+
   it("passes a painted mask through as bytes for the shared step to upload", async () => {
-    m.getVersionById.mockResolvedValue({ id: "v-base", output: "https://cdn/base.png", inputs_used: {} });
+    m.getVersionById.mockResolvedValue({ id: "v-base", node_id: "ig", output: "https://cdn/base.png", inputs_used: {} });
     await post({
       modelId: "openai:gpt-image-2",
       params: {},
