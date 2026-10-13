@@ -12,6 +12,7 @@ import { readVoiceChange } from "@/lib/voice-change/source";
 import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
 import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
 import { computeImageCost } from "@/lib/image-gen/cost";
+import { IMAGE_GENERATION_FAILED_MESSAGE, plainImageFailure } from "@/lib/image-gen/failure-copy";
 import type { ImageGenerationSucceeded } from "@/lib/image-gen/run-task";
 import type { GenerationRow } from "@/lib/db/types";
 
@@ -33,7 +34,11 @@ async function completeImageGeneration(
   input: ImageGenerationSucceeded,
 ): Promise<void> {
   if (!isOwnStoredUrl(input.imageUrl)) {
-    await failAndRefund(input.generationId, generation.org_id, "Stored image URL is outside this app's bucket");
+    console.error("[completeGeneration] image stored outside this app's bucket", {
+      generationId: input.generationId,
+      imageUrl: input.imageUrl,
+    });
+    await failAndRefund(input.generationId, generation.org_id, IMAGE_GENERATION_FAILED_MESSAGE);
     return;
   }
 
@@ -52,7 +57,6 @@ async function completeImageGeneration(
     modelUsed: generation.model_used,
     output: input.imageUrl,
   });
-  await setActiveVersion(nodeId, version.id);
 
   // A provider billed per image (Seedream) reports its exact charge; token-billed ones don't.
   const cost =
@@ -63,7 +67,10 @@ async function completeImageGeneration(
         : null;
   const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
 
+  // Settle before the image goes live: if settling throws, the row is still `running` and no
+  // card shows an image the run never paid for.
   await settleGeneration({ orgId: generation.org_id, generationId: input.generationId, actualAmount: actualCredits });
+  await setActiveVersion(nodeId, version.id);
   await succeedGeneration({
     generationId: input.generationId,
     versionId: version.id,
@@ -98,7 +105,18 @@ export async function completeGeneration(
   const generation = await getGeneration(input.generationId);
 
   // Idempotency: skip if already resolved (duplicate webhook delivery)
-  if (generation.status !== "running") return;
+  if (generation.status !== "running") {
+    // D366 — a paid image for a run that already ended (swept, or failed at the start) is stored
+    // but attached to nothing. Name it so it can be attached by hand (a true duplicate is quiet).
+    if (input.status === "succeeded" && input.kind === "image" && generation.output_snapshot !== input.imageUrl) {
+      console.error("[completeGeneration] image arrived for a run that already ended", {
+        generationId: input.generationId,
+        status: generation.status,
+        imageUrl: input.imageUrl,
+      });
+    }
+    return;
+  }
 
   // An avatar-owned row (node_id null) has no node to attach a version to. The one kind that
   // completes through this webhook is the avatar's voice preview (D294), which has its own
@@ -163,15 +181,24 @@ export async function completeGeneration(
 
   if (input.status === "failed") {
     // D366 — a failed image still shows in History with its maker, as the synchronous path did.
+    // Users see plain words; the task's raw reason (a vendor message, or a paid image's URL) is
+    // kept in the server log only.
     if (generation.type === "image") {
+      console.error("[completeGeneration] image generation failed", {
+        generationId: input.generationId,
+        error: input.error,
+      });
+      const userError = plainImageFailure(input.error);
       await insertVersion({
         nodeId,
         operatorUserId: generation.user_id,
         inputsUsed: generation.inputs_snapshot ?? {},
         paramsUsed: { modelId: generation.model_used, ...(generation.params_snapshot ?? {}) },
         modelUsed: generation.model_used,
-        error: input.error,
+        error: userError,
       }).catch(() => null);
+      await failAndRefund(input.generationId, generation.org_id, userError);
+      return;
     }
     await failAndRefund(input.generationId, generation.org_id, input.error);
     return;

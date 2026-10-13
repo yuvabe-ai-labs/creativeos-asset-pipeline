@@ -50,6 +50,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { completeGeneration } from "./complete";
+import { IMAGE_GENERATION_FAILED_MESSAGE, IMAGE_PROMPT_DECLINED_MESSAGE } from "@/lib/image-gen/failure-copy";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { computeVideoCost } from "@/lib/video-gen/cost";
@@ -377,7 +378,7 @@ describe("completeGeneration — image (D366)", () => {
     await completeGeneration({ ...succeeded, imageUrl: "https://evil.example/x.png" });
     expect(mocks.insertVersion).not.toHaveBeenCalled();
     expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
-    expect(mocks.failGeneration).toHaveBeenCalled();
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: IMAGE_GENERATION_FAILED_MESSAGE });
     expect(mocks.settleGeneration).not.toHaveBeenCalled();
   });
 
@@ -407,13 +408,44 @@ describe("completeGeneration — image (D366)", () => {
     expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
   });
 
-  it("records a failed image as a failed version, then fails and refunds", async () => {
-    await completeGeneration({ generationId: "g1", status: "failed", error: "provider down" });
+  it("records a failed image as a failed version in plain words, then fails and refunds", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const raw = "Image generated but the webhook rejected it (500) — imageUrl=https://storage.googleapis.com/b/g1.png";
+    await completeGeneration({ generationId: "g1", status: "failed", error: raw });
     expect(mocks.insertVersion).toHaveBeenCalledWith(
-      expect.objectContaining({ nodeId: "n1", operatorUserId: "u1", error: "provider down" }),
+      expect.objectContaining({ nodeId: "n1", operatorUserId: "u1", error: IMAGE_GENERATION_FAILED_MESSAGE }),
     );
-    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "provider down" });
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: IMAGE_GENERATION_FAILED_MESSAGE });
     expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+    // The raw reason, with the paid image's URL, is kept for the operator in the server log.
+    expect(log).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ generationId: "g1", error: raw }));
+    log.mockRestore();
+  });
+
+  it("tells the user plainly when the model declined the prompt", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await completeGeneration({ generationId: "g1", status: "failed", error: "400 rejected by our safety system" });
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: IMAGE_PROMPT_DECLINED_MESSAGE });
+    log.mockRestore();
+  });
+
+  it("logs a paid image that arrives after its run already ended, so it can be recovered", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.generation = { ...mocks.generation, status: "failed" };
+    await completeGeneration(succeeded);
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ generationId: "g1", imageUrl: "https://storage.googleapis.com/b/g1.png" }),
+    );
+    log.mockRestore();
+  });
+
+  it("settles before the image becomes active, so a failed settlement leaves no active image", async () => {
+    mocks.settleGeneration.mockRejectedValueOnce(new Error("db down"));
+    await expect(completeGeneration(succeeded)).rejects.toThrow("db down");
+    expect(mocks.setActiveVersion).not.toHaveBeenCalled();
+    expect(mocks.succeedGeneration).not.toHaveBeenCalled();
   });
 
   it("ignores a duplicate delivery", async () => {

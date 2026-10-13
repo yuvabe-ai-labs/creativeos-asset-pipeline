@@ -1,6 +1,7 @@
 // D366 — a node's generation status, derived from the canvas's one generations feed (trayJobs)
 // rather than a query and a channel per node. Pure, so it is tested on its own.
 import type { GenerationRow } from "@/lib/db/types";
+import { isImageStartFailure } from "@/lib/image-gen/failure-copy";
 
 export type GenerationJobKind = "image" | "video" | "voice";
 
@@ -82,6 +83,8 @@ export function completionEffect(
 ): CompletionEffect | null {
   if (next.type === "prompt") return null;
   if (previous?.status !== "running" || next.status === "running") return null;
+  // A start that failed in its request already showed that request's toast: one is enough.
+  if (next.type === "image" && next.status === "failed" && isImageStartFailure(next.error)) return null;
   const voice = next.type === "voice";
   if (next.status === "succeeded") {
     const message = voice ? "Voice changed and added as a new version" : next.type === "image" ? "Image ready" : "Video ready";

@@ -9,6 +9,7 @@ import {
   mergeJob,
   nodeGenerationStatus,
 } from "../node-status";
+import { CREDIT_LIMIT_MESSAGE, START_FAILED_MESSAGE } from "@/lib/image-gen/failure-copy";
 
 const row = (over: Partial<GenerationRow>): GenerationRow =>
   ({
@@ -124,6 +125,11 @@ describe("completionEffect", () => {
       toast: { tone: "error", message: "Out of credits" },
       cardImage: null,
     });
+  });
+
+  it("stays quiet for an image start that failed in its request, which already said so", () => {
+    expect(completionEffect(row({}), row({ status: "failed", error: START_FAILED_MESSAGE }))).toBeNull();
+    expect(completionEffect(row({}), row({ status: "failed", error: CREDIT_LIMIT_MESSAGE }))).toBeNull();
   });
 
   it("does nothing unless the job was seen running and has now finished", () => {

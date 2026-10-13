@@ -9,11 +9,13 @@ const m = vi.hoisted(() => ({
   insertVersion: vi.fn(async () => ({ id: "v-failed" })),
   reserveCredits: vi.fn(async () => ({ ok: true })),
   refundReservation: vi.fn(async () => undefined),
-  uploadImageGenMask: vi.fn(async () => "https://storage.googleapis.com/b/g1-mask.png"),
-  signImageGenResultUploads: vi.fn(async () => ({
-    "image/png": { putUrl: "https://put/png", url: "https://storage.googleapis.com/b/g1.png" },
-    "image/jpeg": { putUrl: "https://put/jpg", url: "https://storage.googleapis.com/b/g1.jpg" },
-    "image/webp": { putUrl: "https://put/webp", url: "https://storage.googleapis.com/b/g1.webp" },
+  prepareImageGenUploads: vi.fn(async (args: { mask?: unknown }) => ({
+    uploads: {
+      "image/png": { putUrl: "https://put/png", url: "https://storage.googleapis.com/b/g1.png" },
+      "image/jpeg": { putUrl: "https://put/jpg", url: "https://storage.googleapis.com/b/g1.jpg" },
+      "image/webp": { putUrl: "https://put/webp", url: "https://storage.googleapis.com/b/g1.webp" },
+    },
+    ...(args.mask ? { maskUrl: "https://storage.googleapis.com/b/g1-mask.png" } : {}),
   })),
   trigger: vi.fn(async () => ({ id: "run-1" })),
 }));
@@ -29,18 +31,12 @@ vi.mock("@/lib/db/credit-transactions", () => ({
   refundReservation: m.refundReservation,
   CreditLimitError: class CreditLimitError extends Error {},
 }));
-vi.mock("@/lib/storage", () => ({
-  uploadImageGenMask: m.uploadImageGenMask,
-  signImageGenResultUploads: m.signImageGenResultUploads,
-}));
+vi.mock("@/lib/storage", () => ({ prepareImageGenUploads: m.prepareImageGenUploads }));
 vi.mock("@/lib/image-gen/estimate", () => ({ estimateImageGenerationCostUsd: () => 0.04 }));
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: m.trigger } }));
 
-import {
-  startImageGeneration,
-  START_FAILED_MESSAGE,
-  type StartImageGenerationInput,
-} from "../start-generation";
+import { startImageGeneration, type StartImageGenerationInput } from "../start-generation";
+import { CREDIT_LIMIT_MESSAGE, START_FAILED_MESSAGE } from "../failure-copy";
 
 const input: StartImageGenerationInput = {
   nodeId: "n1",
@@ -84,16 +80,16 @@ describe("startImageGeneration (D366)", () => {
         params: { quality: "high" },
         uploads: expect.objectContaining({ "image/png": expect.any(Object) }),
       }),
+      expect.anything(),
     );
   });
 
   it("uploads a painted mask and gives the task its URL, never the bytes", async () => {
     await startImageGeneration({ ...input, mask: { base64: "AAAA", mime: "image/png" } });
-    expect(m.uploadImageGenMask).toHaveBeenCalledWith({
+    expect(m.prepareImageGenUploads).toHaveBeenCalledWith({
       nodeId: "n1",
       generationId: "g1",
-      base64: "AAAA",
-      mime: "image/png",
+      mask: { base64: "AAAA", mime: "image/png" },
     });
     const payload = (m.trigger.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
     expect(payload.maskUrl).toBe("https://storage.googleapis.com/b/g1-mask.png");
@@ -106,19 +102,40 @@ describe("startImageGeneration (D366)", () => {
     expect(res.status).toBe(402);
     expect((await res.json()).error).toBe("Monthly credit limit reached");
     expect(m.trigger).not.toHaveBeenCalled();
-    expect(m.failGeneration).toHaveBeenCalledWith(expect.objectContaining({ generationId: "g1" }));
+    expect(m.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: CREDIT_LIMIT_MESSAGE });
     expect(m.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
   });
 
-  it("fails, refunds and records the failed attempt when the task cannot be started", async () => {
+  it("fails, refunds and records the failed attempt in plain words when the task cannot be started", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     m.trigger.mockRejectedValueOnce(new Error("trigger down"));
     const res = await startImageGeneration(input);
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe(START_FAILED_MESSAGE);
-    expect(m.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "trigger down" });
+    // The row carries the same plain words the request answers with (the feed knows not to toast
+    // them again); the raw reason goes to the server log.
+    expect(m.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: START_FAILED_MESSAGE });
+    expect(log).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ generationId: "g1", error: "trigger down" }));
     expect(m.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
     expect(m.insertVersion).toHaveBeenCalledWith(
       expect.objectContaining({ nodeId: "n1", error: START_FAILED_MESSAGE }),
     );
+    log.mockRestore();
+  });
+
+  it("closes the run before refunding, and logs a close that fails rather than hiding it", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    m.trigger.mockRejectedValueOnce(new Error("trigger down"));
+    m.failGeneration.mockRejectedValueOnce(new Error("db down"));
+    await startImageGeneration(input);
+    expect(m.failGeneration.mock.invocationCallOrder[0]).toBeLessThan(m.refundReservation.mock.invocationCallOrder[0]);
+    expect(log).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ generationId: "g1" }));
+    expect(log.mock.calls.some((c) => JSON.stringify(c).includes("db down"))).toBe(true);
+    log.mockRestore();
+  });
+
+  it("gives the task run a time to live, so a run that never starts cannot outlive the sweep", async () => {
+    await startImageGeneration(input);
+    expect(m.trigger).toHaveBeenCalledWith("image-generate", expect.any(Object), { ttl: "30m" });
   });
 });

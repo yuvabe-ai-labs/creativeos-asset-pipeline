@@ -6,10 +6,12 @@ import { insertVersion } from "@/lib/db/versions";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { uploadImageGenMask, signImageGenResultUploads } from "@/lib/storage";
+import { prepareImageGenUploads } from "@/lib/storage";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import type { CallerContext } from "@/lib/dal-logic";
-import type { ImageGenerateTaskPayload } from "@/lib/image-gen/task-payload";
+import { IMAGE_GEN_MASK_MIME, type ImageGenerateTaskPayload } from "@/lib/image-gen/task-payload";
+import { CREDIT_LIMIT_MESSAGE, START_FAILED_MESSAGE } from "@/lib/image-gen/failure-copy";
+import { IMAGE_RUN_QUEUE_TTL } from "@/lib/image-gen/constants";
 
 export type StartImageGenerationInput = {
   nodeId: string;
@@ -24,9 +26,6 @@ export type StartImageGenerationInput = {
   /** A painted edit region (models with supportsMask). The base image stays clean. */
   mask?: { base64: string; mime: string };
 };
-
-/** Plain text for users when the start fails internally; the raw reason is kept for debugging only. */
-export const START_FAILED_MESSAGE = "Couldn't start the generation. Please try again.";
 
 /**
  * D366 — the route side of an async image generation, shared by Image Gen and Composite once
@@ -62,13 +61,13 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
       referenceUrls,
     });
     if (costUsd === null) throw new Error(`No cost estimate available for ${modelId} at this quality/size.`);
-    const reservation = await reserveCredits(orgId, generation.id, usdToFinalCredits(costUsd));
-    if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
-
-    const maskUrl = mask
-      ? await uploadImageGenMask({ nodeId, generationId: generation.id, base64: mask.base64, mime: mask.mime })
-      : undefined;
-    const uploads = await signImageGenResultUploads({ nodeId, generationId: generation.id });
+    // Independent, so in parallel (AGENTS.md rule 5). Nothing is started until both succeed; a
+    // failure of either lands in the catch, which refunds.
+    const [reservation, { uploads, maskUrl }] = await Promise.all([
+      reserveCredits(orgId, generation.id, usdToFinalCredits(costUsd)),
+      prepareImageGenUploads({ nodeId, generationId: generation.id, mask }),
+    ]);
+    if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_MESSAGE);
 
     const payload: ImageGenerateTaskPayload = {
       generationId: generation.id,
@@ -76,18 +75,30 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
       prompt,
       referenceUrls,
       params,
-      ...(maskUrl ? { maskUrl, maskMime: mask?.mime ?? "image/png" } : {}),
+      ...(maskUrl ? { maskUrl, maskMime: IMAGE_GEN_MASK_MIME } : {}),
       uploads,
     };
-    await tasks.trigger("image-generate", payload);
+    // A run still queued after the TTL expires instead of starting: it can never begin after the
+    // node's running row has aged out (IMAGE_RUN_MAX_AGE_MS) and deliver a result nobody attaches.
+    await tasks.trigger("image-generate", payload, { ttl: IMAGE_RUN_QUEUE_TTL });
 
     return apiOk({ generationId: generation.id }, 202);
   } catch (e) {
     const isCreditLimit = e instanceof CreditLimitError;
-    const reason = e instanceof Error ? e.message : "Image generation failed";
-    // Users see plain copy; the raw reason goes only to the internal failure record.
-    const userMessage = isCreditLimit ? "Monthly credit limit reached" : START_FAILED_MESSAGE;
-    // The failed attempt still shows in History, with its maker — as the synchronous path did.
+    const reason = e instanceof Error ? e.message : String(e);
+    console.error("[startImageGeneration] start failed", { generationId: generation.id, error: reason });
+    // Users see plain copy, and the row carries the same words: the canvas feed recognises them
+    // and leaves the toast to this request (one toast, not two). The raw reason is in the log.
+    const userMessage = isCreditLimit ? CREDIT_LIMIT_MESSAGE : START_FAILED_MESSAGE;
+    // Close the run first: a row left `running` would refuse this node's next start until it ages
+    // out (hasRunningGeneration), so a failure here is logged, never hidden.
+    await failGeneration({ generationId: generation.id, error: userMessage }).catch((err: unknown) => {
+      console.error("[startImageGeneration] could not close the failed run", {
+        generationId: generation.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+    // The failed attempt still shows in History, with its maker, as the synchronous path did.
     await insertVersion({
       nodeId,
       operatorUserId: caller.userId,
@@ -96,8 +107,12 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
       modelUsed: modelId,
       error: userMessage,
     }).catch(() => null);
-    await failGeneration({ generationId: generation.id, error: reason }).catch(() => null);
-    await refundReservation({ orgId, generationId: generation.id }).catch(() => null);
+    await refundReservation({ orgId, generationId: generation.id }).catch((err: unknown) => {
+      console.error("[startImageGeneration] refund failed", {
+        generationId: generation.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
     return apiError(userMessage, isCreditLimit ? 402 : 500);
   }
 }
