@@ -1,5 +1,10 @@
-import { task, logger, wait } from "@trigger.dev/sdk/v3";
+import { task, logger, wait, AbortTaskRunError } from "@trigger.dev/sdk/v3";
 import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
+import { PaidResultError, isFinalAttempt } from "@/lib/generations/task-failure";
+
+// D366 — no automatic retry. A video provider bills the job when it is submitted, so a retry after a
+// failed or timed-out poll would pay for a second clip. The operator regenerates instead.
+const MAX_ATTEMPTS = 1;
 
 const MOCK_VIDEO_URL = "https://www.w3schools.com/html/mov_bbb.mp4";
 const MOCK_DURATION_SECONDS = 8;
@@ -13,6 +18,7 @@ export const videoGenerateTask = task({
   // the catch below, so no failure webhook was sent and the paid-for video was never collected.
   // 40 minutes = the 30-minute poll plus room to download, store and report the result.
   maxDuration: 2400,
+  retry: { maxAttempts: MAX_ATTEMPTS },
   run: async (payload: {
     generationId: string;
     modelId: string;
@@ -24,7 +30,7 @@ export const videoGenerateTask = task({
     referenceAudioUrl?: string;
     params: Record<string, unknown>;
     mockMode?: boolean;
-  }) => {
+  }, { ctx }) => {
     const { generationId, modelId } = payload;
     const MOCK_MODE = payload.mockMode === true;
     // Fail fast on a misconfigured deploy — before the mock wait and before any (paid) provider
@@ -76,32 +82,41 @@ export const videoGenerateTask = task({
         durationSeconds: result.durationSeconds,
       });
 
+      // The video EXISTS and has been billed: nothing from here may lead to a retry.
+      let res: Response;
       try {
-        await postGenerationWebhook({
+        res = await postGenerationWebhook({
           generationId,
           status: "succeeded",
           videoUrl: result.videoUrl,
           durationSeconds: result.durationSeconds,
         });
       } catch (e) {
-        // The video EXISTS and has been billed. Fail loudly and name the URL, so a run lost to an
-        // unreachable webhook can still be reconciled by hand instead of leaving a paid-for
-        // generation stuck pending with no trace of where it went.
-        throw new Error(
+        // Name the URL, so a run lost to an unreachable webhook can be reconciled by hand.
+        throw new PaidResultError(
           `Video generated but the webhook at ${webhookUrl} was unreachable — ` +
             `videoUrl=${result.videoUrl}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+      if (!res.ok) {
+        throw new PaidResultError(
+          `Video generated but the webhook rejected it (${res.status}) — videoUrl=${result.videoUrl}`,
         );
       }
     } catch (e) {
       const error = e instanceof Error ? e.message : "Video generation failed";
       const stack = e instanceof Error ? e.stack : undefined;
-      logger.error("Video generation failed", { generationId, modelId, error, stack });
+      const final = isFinalAttempt(ctx.attempt.number, MAX_ATTEMPTS, e);
+      logger.error("Video generation failed", { generationId, modelId, error, stack, attempt: ctx.attempt.number, final });
 
-      // Safely: this is the ONLY record of why the generation failed. An unguarded post here
-      // threw over the top of `error` and lost it.
-      await postGenerationWebhookSafely({ generationId, status: "failed", error }, "failure report");
-      // Rethrow so the run itself is marked failed with the REAL reason. Swallowing it made a
-      // failed generation show up as a successful run in the Trigger dashboard.
+      // Only a final failure is reported: reporting refunds and closes the generation, so a retry's
+      // result would be discarded. Safely: this is the ONLY record of why it failed.
+      if (final) {
+        await postGenerationWebhookSafely({ generationId, status: "failed", error }, "failure report");
+      }
+      // A paid result is never retried. Otherwise rethrow, so the run is marked failed with the
+      // REAL reason (swallowing it made a failed generation show as a successful run).
+      if (e instanceof PaidResultError) throw new AbortTaskRunError(error);
       throw e instanceof Error ? e : new Error(error);
     }
   },
