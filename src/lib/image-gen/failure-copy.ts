@@ -4,6 +4,11 @@
 
 export const IMAGE_GENERATION_FAILED_MESSAGE = "The generation failed. Please try again.";
 export const IMAGE_PROMPT_DECLINED_MESSAGE = "The model declined this prompt. Try rewording it.";
+/** The provider account behind the model is out of spend or quota: retrying won't help until an admin tops it up. */
+export const IMAGE_MODEL_UNAVAILABLE_MESSAGE =
+  "This model's spending limit has been reached. An admin needs to raise the limit or add billing for it. Until then, try another model.";
+/** The provider is only rate-limiting: a retry shortly after should work. */
+export const IMAGE_MODEL_BUSY_MESSAGE = "This model is busy right now. Please try again in a minute.";
 
 /** A start that failed inside the request. The request's own toast says it, so the feed doesn't. */
 export const START_FAILED_MESSAGE = "Couldn't start the generation. Please try again.";
@@ -20,7 +25,17 @@ export function isImageStartFailure(error: string | null | undefined): boolean {
 // *SensitiveContentDetected codes, a "content policy" mention anywhere.
 const DECLINED_PATTERN = /moderation|safety|sensitive|content[\s_-]?policy/i;
 
+// The account is out of money or quota: Gemini's "spending cap", OpenAI's "exceeded your current
+// quota" / insufficient_quota, BytePlus's overdue-balance codes. Checked before the busy pattern,
+// since both arrive as a 429.
+const UNAVAILABLE_PATTERN = /spend(ing)?[\s_-]?cap|exceeded your current quota|insufficient[\s_-]?quota|billing[\s_-]?hard[\s_-]?limit|overdue|insufficient[\s_-]?balance/i;
+// Plain rate limiting: a 429 or RESOURCE_EXHAUSTED with nothing above.
+const BUSY_PATTERN = /rate[\s_-]?limit|too many requests|resource[\s_-]?exhausted|\b429\b/i;
+
 /** The plain message to store for a failed image run, whatever the task reported. */
 export function plainImageFailure(raw: string): string {
-  return DECLINED_PATTERN.test(raw) ? IMAGE_PROMPT_DECLINED_MESSAGE : IMAGE_GENERATION_FAILED_MESSAGE;
+  if (DECLINED_PATTERN.test(raw)) return IMAGE_PROMPT_DECLINED_MESSAGE;
+  if (UNAVAILABLE_PATTERN.test(raw)) return IMAGE_MODEL_UNAVAILABLE_MESSAGE;
+  if (BUSY_PATTERN.test(raw)) return IMAGE_MODEL_BUSY_MESSAGE;
+  return IMAGE_GENERATION_FAILED_MESSAGE;
 }
