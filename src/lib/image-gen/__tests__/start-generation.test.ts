@@ -136,6 +136,6 @@ describe("startImageGeneration (D366)", () => {
 
   it("gives the task run a time to live, so a run that never starts cannot outlive the sweep", async () => {
     await startImageGeneration(input);
-    expect(m.trigger).toHaveBeenCalledWith("image-generate", expect.any(Object), { ttl: "30m" });
+    expect(m.trigger).toHaveBeenCalledWith("image-generate", expect.any(Object), { ttl: "15m" });
   });
 });

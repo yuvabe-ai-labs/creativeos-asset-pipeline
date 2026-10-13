@@ -40,8 +40,9 @@ export async function runImageGenerateTask(
   }
 
   // The task retries a failed call itself (one retry), so the provider's client must not stack its
-  // own retries on top. A call that hangs is abandoned inside the task's maxDuration, so it fails
-  // like any provider error (retried, then reported) instead of the run being killed silently.
+  // own retries on top. A call that hangs is abandoned inside the task's maxDuration and reported,
+  // instead of the run being killed silently. It is never retried: the provider may still finish,
+  // and bill, the abandoned call, so a retry could pay twice.
   const result = await withTimeout(
     deps.generate({
       prompt: payload.prompt,
@@ -65,7 +66,7 @@ export async function runImageGenerateTask(
 async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`The image model did not answer within ${ms / 1000}s`)), ms);
+    timer = setTimeout(() => reject(new PaidResultError(`The image model did not answer within ${ms / 1000}s`)), ms);
   });
   try {
     return await Promise.race([work, timeout]);

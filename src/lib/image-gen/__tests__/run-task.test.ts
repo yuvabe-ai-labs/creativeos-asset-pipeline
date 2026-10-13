@@ -117,14 +117,15 @@ describe("runImageGenerateTask (D366)", () => {
     await expect(run).rejects.not.toBeInstanceOf(PaidResultError);
   });
 
-  it("gives up on a provider call that hangs, inside the task's time limit, as an ordinary failure", async () => {
+  it("gives up on a provider call that hangs, inside the task's time limit, and never retries it", async () => {
     const d = deps({
       generate: vi.fn(() => new Promise<ImageGenResult>(() => undefined)),
       providerTimeoutMs: 20,
     });
     const run = runImageGenerateTask(payload, d);
     await expect(run).rejects.toThrow(/did not answer/);
-    await expect(run).rejects.not.toBeInstanceOf(PaidResultError);
+    // The abandoned call may still be billed, so a retry could pay twice.
+    await expect(run).rejects.toBeInstanceOf(PaidResultError);
     expect(d.postWebhook).not.toHaveBeenCalled();
   });
 
