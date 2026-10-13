@@ -7234,3 +7234,20 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Reusing gpt-image-2's per-image table: different consumption, and no xhigh/max rows.
 
 **Originated →** this conversation.
+
+### D366 — Image and Composite generations run as background jobs *(recorded 2026-10-12; refines D26, supersedes D35's rejection)*
+
+**Decision.** Image Gen and Composite generations, including edits, run as the `image-generate`
+Trigger.dev task, the same pipeline as video: the route reserves and starts the task, the task
+uploads through signed URLs and reports to the generation webhook, which graduates the version.
+One generation at a time per node. Paid generation tasks report `failed` only when the failure is final, and never retry a failure after the provider returned — the rule `video-voice-change` already followed. `image-generate` retries once (a failed image call is not billed); `video-generate` does not retry (its jobs are billed when submitted). Before this, `video-generate` reported `failed` on every attempt and then retried, so a retry that succeeded was paid for and discarded. Each node's generation status is read from the canvas's one generations feed (one query and one realtime channel per canvas), never a query or channel per node.
+
+**Why.** Synchronous image runs were lost when the operator left the canvas or closed the tab, and
+slow models (GPT Image high quality) approach the function time limit. D26 anticipated degrading a
+slow synchronous path to the asynchronous one; in practice image durations made that the norm.
+
+**Rejected.** Keeping the work in the Vercel function after responding (`after()` / `waitUntil`):
+still bound by the function time limit and no retries. A task that writes to the database directly:
+duplicates the completion logic outside the authenticated webhook (D89) and its org check (D79).
+
+**Originated →** `2026-10-12-async-image-generation-design.md`.

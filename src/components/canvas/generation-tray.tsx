@@ -15,7 +15,7 @@ import { GenerationTrayItem } from "./generation-tray-item";
 
 const COLLAPSE_KEY = "generation-tray-collapsed";
 
-// Module-level helper so the impure `Date.now()` (the stale-timeout clock) is not
+// Module-level helper so the impure `Date.now()` is not
 // called inside the component's render scope — matches the codebase's `timeAgo`
 // pattern and satisfies the react-hooks/purity rule.
 function selectTrayItems(nodes: AppNode[], edges: Edge[], trayJobs: Record<string, GenerationRow>) {

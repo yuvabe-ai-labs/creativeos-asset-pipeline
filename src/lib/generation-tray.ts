@@ -32,9 +32,6 @@ export function resolveShotLabel(
   return title ? title : "Untitled";
 }
 
-/** A running IMAGE job older than this (no completion) is derived Failed (D9). */
-export const STALE_RUNNING_MS = 300_000;
-
 export type TrayStatus = "running" | "ready" | "failed";
 
 /** What a row IS. Four values, because a `generations` row's `type` column collapses the
@@ -105,7 +102,7 @@ export function deriveTrayItems(
   nodes: AppNode[],
   edges: Edge[],
   jobs: GenerationRow[],
-  nowMs: number,
+  _nowMs: number,
 ): TrayItem[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const items: TrayItem[] = [];
@@ -118,20 +115,12 @@ export function deriveTrayItems(
     if (!node) continue; // node deleted → orphan row
     const kind = resolveTrayKind(jobRow.type, node.type);
 
-    let status: TrayStatus =
+    const status: TrayStatus =
       jobRow.status === "running"
         ? "running"
         : jobRow.status === "succeeded"
           ? "ready"
           : "failed";
-
-    // Stale running IMAGE OUTPUT (client disconnected mid-request) → Failed. Prompts are
-    // fast and were never stale-timed; video is owned by the async pipeline's own
-    // reconciliation. Keying on `kind === "image"` preserves both exclusions exactly.
-    if (status === "running" && kind === "image") {
-      if (nowMs - Date.parse(jobRow.created_at) > STALE_RUNNING_MS)
-        status = "failed";
-    }
 
     // Ready persists until the active version is approved (retention = "until approved").
     if (status === "ready") {

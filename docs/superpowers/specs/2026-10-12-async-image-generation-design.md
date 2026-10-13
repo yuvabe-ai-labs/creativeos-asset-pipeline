@@ -64,11 +64,15 @@ The composite pipeline (`runCompositeGeneration`) and the image route share the 
    `{ generationId, status: "succeeded", kind: "image", imageUrl, mimeType, width, height,
    fileSizeBytes, tokensUsed, costUsd }`.
 
-On any failure it posts `{ generationId, status: "failed", error }` and rethrows, so the run shows
-as failed with the real reason. Retries follow the project default (two attempts) up to and
-including the provider call. Once the image is uploaded it has been paid for, so a failure after
-that point (the webhook unreachable) aborts the run without a retry (`AbortTaskRunError`) and
-names the image URL, so it is never generated, and charged, twice.
+The task gets one retry for a transient provider error, and posts
+`{ generationId, status: "failed", error }` **only when the failure is final** (its last attempt):
+posting it earlier would refund and close the run, and the retry's paid result would then be
+dropped by the webhook's duplicate guard. A failure **after the provider has returned** (the upload,
+the webhook) is never retried, since a retry would pay the provider again; it names the image URL
+so the result can be attached by hand. `video-generate` reports failures by the same rule and takes
+no automatic retry at all: its provider jobs are billed when submitted, so a retry after a failed
+or timed-out poll would pay for a second clip. (It used to report `failed` on every attempt and then
+retry, so a retry that succeeded was paid for and discarded.)
 
 ### 3. Completion: image branch in `completeGeneration`
 
