@@ -1,6 +1,6 @@
 // D366 — a node's generation status, derived from the canvas's one generations feed (trayJobs)
 // rather than a query and a channel per node. Pure, so it is tested on its own.
-import type { GenerationRow } from "@/lib/db/types";
+import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import { isImageStartFailure } from "@/lib/image-gen/failure-copy";
 import { IMAGE_RUN_MAX_AGE_MS } from "@/lib/image-gen/constants";
 
@@ -12,13 +12,13 @@ export type NodeGenerationStatus = {
   lastError: string | null;
 };
 
-export function jobKindOf(type: GenerationRow["type"]): GenerationJobKind {
+export function jobKindOf(type: GenerationFeedRow["type"]): GenerationJobKind {
   return type === "voice" ? "voice" : type === "image" ? "image" : "video";
 }
 
 /** Whether `candidate` should replace `current` as a node's latest job: the same job updated, or
  *  one created later. */
-export function isNewerJob(candidate: GenerationRow, current: GenerationRow | undefined): boolean {
+export function isNewerJob(candidate: GenerationFeedRow, current: GenerationFeedRow | undefined): boolean {
   if (!current || candidate.id === current.id) return true;
   return Date.parse(candidate.created_at) > Date.parse(current.created_at);
 }
@@ -30,31 +30,31 @@ export type GenerationStartMark = { kind: GenerationJobKind; generationId?: stri
 /** Whether a row arriving on the feed retires a node's start mark: a mark that names its job
  *  clears on that job's row, whatever its status; a mark without an id clears on any row that
  *  advances the node's latest job. An update to an older job never clears it. */
-export function clearsStartMark(mark: GenerationStartMark, row: GenerationRow, advancesLatest: boolean): boolean {
+export function clearsStartMark(mark: GenerationStartMark, row: GenerationFeedRow, advancesLatest: boolean): boolean {
   return mark.generationId ? row.id === mark.generationId : advancesLatest;
 }
 
-function isTerminal(row: GenerationRow): boolean {
+function isTerminal(row: GenerationFeedRow): boolean {
   return row.status === "succeeded" || row.status === "failed";
 }
 
 /** The row to keep when a loaded row meets one already on the feed: a stale `running` row never
  *  overwrites a finished one (a hydrate can land after the live update). */
-export function mergeJob(existing: GenerationRow | undefined, incoming: GenerationRow): GenerationRow {
+export function mergeJob(existing: GenerationFeedRow | undefined, incoming: GenerationFeedRow): GenerationFeedRow {
   return existing && isTerminal(existing) && incoming.status === "running" ? existing : incoming;
 }
 
 /** Whether a `running` row is still live. An image run past IMAGE_RUN_MAX_AGE_MS can no longer
  *  report (its task is over), so it is stuck; the server stops counting it at the same age
  *  (hasRunningGeneration). One comparison, so a per-node selector stays O(1). */
-function isLiveRun(row: GenerationRow, nowMs: number): boolean {
+function isLiveRun(row: GenerationFeedRow, nowMs: number): boolean {
   return row.type !== "image" || nowMs - Date.parse(row.created_at) <= IMAGE_RUN_MAX_AGE_MS;
 }
 
 /** `started` covers the moment between a start being accepted and its row arriving on the feed;
  *  `requestError` is a start request that failed before any row existed. */
 export function nodeGenerationStatus(
-  latest: GenerationRow | undefined,
+  latest: GenerationFeedRow | undefined,
   started: GenerationJobKind | undefined,
   requestError: string | null,
   nowMs: number = Date.now(),
@@ -76,10 +76,10 @@ export type CompletionEffect = {
 /** The completion effects a batch of loaded rows implies, judged against the jobs already stored:
  *  only a stored `running` row that has now finished yields one (a first load yields none). */
 export function completionEffects(
-  stored: Record<string, GenerationRow>,
-  rows: GenerationRow[],
-): { row: GenerationRow; effect: CompletionEffect }[] {
-  const out: { row: GenerationRow; effect: CompletionEffect }[] = [];
+  stored: Record<string, GenerationFeedRow>,
+  rows: GenerationFeedRow[],
+): { row: GenerationFeedRow; effect: CompletionEffect }[] {
+  const out: { row: GenerationFeedRow; effect: CompletionEffect }[] = [];
   for (const row of rows) {
     const effect = completionEffect(stored[row.id], row);
     if (effect) out.push({ row, effect });
@@ -89,8 +89,8 @@ export function completionEffects(
 
 /** What the canvas does when a job it saw running finishes: once per canvas, not once per node. */
 export function completionEffect(
-  previous: GenerationRow | undefined,
-  next: GenerationRow,
+  previous: GenerationFeedRow | undefined,
+  next: GenerationFeedRow,
 ): CompletionEffect | null {
   if (next.type === "prompt") return null;
   if (previous?.status !== "running" || next.status === "running") return null;

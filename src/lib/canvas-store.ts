@@ -40,7 +40,7 @@ import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
-import type { GenerationRow } from "@/lib/db/types";
+import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
   isNewerJob,
@@ -86,7 +86,7 @@ export type CanvasState = {
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
   // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
   // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
-  latestJobByNode: Record<string, GenerationRow>;
+  latestJobByNode: Record<string, GenerationFeedRow>;
   generationStarts: Record<string, GenerationStartMark>;
   generationRequestErrors: Record<string, string>;
   /** `generationId`, when the start response names it, lets the mark clear on exactly that job's
@@ -96,9 +96,9 @@ export type CanvasState = {
   setGenerationRequestError: (nodeId: string, error: string | null) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
   // keyed by generation id. The tray derives its list from these + the node graph (D9).
-  trayJobs: Record<string, GenerationRow>;
-  setTrayJobs: (jobs: GenerationRow[]) => void;
-  upsertTrayJob: (job: GenerationRow) => void;
+  trayJobs: Record<string, GenerationFeedRow>;
+  setTrayJobs: (jobs: GenerationFeedRow[]) => void;
+  upsertTrayJob: (job: GenerationFeedRow) => void;
   // Programmatic focus-view open signal — set by the tray to open a node's focus view.
   focusedNodeId: string | null;
   setFocusedNodeId: (id: string | null) => void;
@@ -791,7 +791,7 @@ export function createCanvasStore(
           const advances = changed && isNewerJob(merged, s.latestJobByNode[nodeId]);
           if (clearsStartMark(mark, merged, advances)) generationStarts = omitKey(generationStarts, nodeId);
         }
-        const latestJobByNode: Record<string, GenerationRow> = {};
+        const latestJobByNode: Record<string, GenerationFeedRow> = {};
         for (const j of Object.values(trayJobs)) {
           if (j.node_id && isNewerJob(j, latestJobByNode[j.node_id])) latestJobByNode[j.node_id] = j;
         }

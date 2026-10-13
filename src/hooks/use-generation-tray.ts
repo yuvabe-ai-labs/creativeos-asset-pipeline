@@ -8,6 +8,7 @@ import type { GenerationRow } from "@/lib/db/types";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { completionEffect, completionEffects, type CompletionEffect } from "@/lib/generations/node-status";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
+import { loadGenerationFeed } from "@/lib/generations/canvas-feed";
 
 /**
  * Canvas-level Generation Tray data source. One Realtime channel per canvas on the
@@ -39,30 +40,29 @@ export function useGenerationTray(canvasId: string): void {
       if (effect.toast.tone === "success") void revalidateCanvasGenerations();
     };
 
-    // Hydrate: latest generations for this canvas's nodes (reconstructs after refresh). Runs on
-    // mount and again each time the channel (re)subscribes, so a job that changed while no channel
-    // was listening is caught up; setTrayJobs merges, so a late result never undoes a live update.
+    // Hydrate: recent generations for this canvas's nodes (reconstructs after refresh). Runs once
+    // each time the channel (re)subscribes, so a job that changed while no channel was listening is
+    // caught up; setTrayJobs merges, so a late result never undoes a live update. A failed load is
+    // logged and changes nothing: it is never read as "no jobs".
     const hydrate = () => {
       const nodeIds = storeApi.getState().nodes.map((n) => n.id);
       if (nodeIds.length === 0) return;
-      supabase
-        .from("generations")
-        .select("*")
-        .in("node_id", nodeIds)
-        .order("created_at", { ascending: false })
-        .then(({ data, error }: { data: unknown; error: unknown }) => {
-          if (cancelled || error || !data) return;
+      loadGenerationFeed(supabase, nodeIds)
+        .then((rows) => {
+          if (cancelled) return;
           const state = storeApi.getState();
-          const rows = data as GenerationRow[];
           // A job that finished while no channel was listening (a reconnect, or before the first
           // subscribe) is announced here, judged against what the store held before this load.
-          const onCanvas = rows.filter((r) => r.node_id !== null && state.nodes.some((n) => n.id === r.node_id));
+          const onCanvasIds = new Set(state.nodes.map((n) => n.id));
+          const onCanvas = rows.filter((r) => r.node_id !== null && onCanvasIds.has(r.node_id));
           const finished = completionEffects(state.trayJobs, onCanvas);
           setTrayJobs(rows);
           for (const { row, effect } of finished) applyCompletion(row.node_id!, effect);
+        })
+        .catch((e: unknown) => {
+          console.error("[useGenerationTray] generations load failed; keeping what is shown", e);
         });
     };
-    hydrate();
 
     // Live: one channel for the whole canvas; ignore rows for other canvases' nodes. This is also
     // where a finished job is announced and an image lands on its card (D366) — once per canvas,
@@ -94,6 +94,8 @@ export function useGenerationTray(canvasId: string): void {
       })
       .catch((e: unknown) => {
         console.error("[useGenerationTray] session load failed", e);
+        // No channel without a session; still show the canvas's jobs as they stand.
+        if (!cancelled) hydrate();
       });
     return () => {
       cancelled = true;

@@ -3,7 +3,7 @@
 // is derived on read (D9) from the node graph + the `generations` job rows.
 import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
-import type { GenerationRow } from "@/lib/db/types";
+import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import { findAncestorOfType } from "@/lib/canvas/graph";
 
 /** Walk edges upstream from `nodeId` to the nearest `shot` node. */
@@ -58,7 +58,7 @@ export const TRAY_KIND_META: Record<
  *  Falls back rather than throwing: this is a read-only derived view that must never
  *  blank the tray on unexpected data. */
 export function resolveTrayKind(
-  jobType: GenerationRow["type"],
+  jobType: GenerationFeedRow["type"],
   nodeType: string | undefined,
 ): TrayKind {
   if (jobType === "image") return "image";
@@ -85,8 +85,8 @@ const STATUS_RANK: Record<TrayStatus, number> = {
 /** Reduce all rows to the single newest row per node_id (by created_at). An avatar-owned row
  *  (node_id null, D291) is not a canvas job — the tray has no node to show it on — so it is
  *  skipped here before it ever reaches a node lookup. */
-export function latestJobPerNode(jobs: GenerationRow[]): GenerationRow[] {
-  const latest = new Map<string, GenerationRow>();
+export function latestJobPerNode(jobs: GenerationFeedRow[]): GenerationFeedRow[] {
+  const latest = new Map<string, GenerationFeedRow>();
   for (const jobRow of jobs) {
     if (jobRow.node_id === null) continue;
     const cur = latest.get(jobRow.node_id);
@@ -101,7 +101,7 @@ export function latestJobPerNode(jobs: GenerationRow[]): GenerationRow[] {
 export function deriveTrayItems(
   nodes: AppNode[],
   edges: Edge[],
-  jobs: GenerationRow[],
+  jobs: GenerationFeedRow[],
   _nowMs: number,
 ): TrayItem[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
