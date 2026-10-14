@@ -7294,3 +7294,27 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Refines →** D367.
 
 **Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
+
+### D371 — An approved script starts one canvas, and the canvas remembers it *(recorded 2026-10-13)*
+
+**Decision.** `canvases.source_script_id` (migration 0056: unique when set, `on delete set null`) records the approved script a canvas was created from. `createCanvasFromScriptAction` makes that canvas, or returns the existing one, including when a second request races the first (the unique index). The approved script's page shows **Create canvas** (the New canvas dialog, name pre-filled with the script's title), then **Open canvas** once the canvas exists. Deleting the canvas (a hard delete) frees the script to make another.
+
+**Why.** After approval the next step was four moves across three pages, and nothing stopped a second canvas for the same reel.
+
+**Rejected.** A column on `client_scripts` (a deleted canvas would leave a dangling pointer). Finding the canvas by scanning Script nodes (the node holds a copy of the script, not its id).
+
+**Refines →** spec 1 §5.2 (an approved script onto a canvas).
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-to-canvas-design.md.
+
+### D372 — "Parsing" is canvas-store state, and the canvas adds the script itself *(recorded 2026-10-13)*
+
+**Decision.** A transient `scriptParsing` flag in the canvas store replaces the Script node's local parsing state. Whoever parses sets it: the node's own view, the gallery, or the Create-canvas hand-off. While it is on, the node reads "Parsing script…" and its view, if opened, shows the "Parsing script…" skeleton, never the upload screen. The dialog hands off through `?addScript=<id>`. The headless `AddScriptFromUrl` removes the parameter, then runs the existing `useAddScriptNode`, which fills the new canvas's seeded empty Script node (keeping its KB wire) or adds a node at the viewport centre when there is none.
+
+**Why.** A gallery-started parse showed "Not extracted" and the empty upload screen while it ran. One path for every add keeps the parse, the avatar attach and the toasts in `addScriptToCanvas`.
+
+**Rejected.** Seeding the Script node with the script on the server (a second copy of the parse and avatar logic). Saving "parsing" in node data (a closed tab would leave the node stuck). Opening the script's view automatically when the parse ends (the spec keeps it openable, not opened).
+
+**Refines →** D371; spec 1 §5.2.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-to-canvas-design.md.
