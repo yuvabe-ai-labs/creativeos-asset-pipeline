@@ -62,6 +62,7 @@ import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
 import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
+import { AddScriptFromUrl } from "./add-script-from-url";
 import { ReviewDrawer } from "./review-drawer/review-drawer";
 import type { GalleryPaneDropHandlers } from "@/hooks/use-gallery-pane-drop";
 import type { ClientKBJobRow } from "@/lib/db/types";
@@ -451,6 +452,9 @@ export function Canvas({
 
       {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
       <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
+
+      {/* D372 — adds the approved script this canvas was created for (?addScript) */}
+      <AddScriptFromUrl />
 
       {/* Top-right overlay: KB badge */}
       <div className="absolute right-4 top-4 z-10 flex items-center gap-2">

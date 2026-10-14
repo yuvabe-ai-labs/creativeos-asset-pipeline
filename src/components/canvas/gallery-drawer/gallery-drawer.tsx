@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FolderOpen, Settings2 } from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
+import { viewportCentre } from "../viewport-centre";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
@@ -287,14 +288,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }
 
   function computeDefaultPosition() {
-    if (options?.position) return options.position;
-    const el = document.querySelector<HTMLDivElement>(".react-flow");
-    if (!el) return { x: 0, y: 0 };
-    const rect = el.getBoundingClientRect();
-    return reactFlow.screenToFlowPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    });
+    return options?.position ?? viewportCentre(reactFlow);
   }
 
   function handleCommit() {
