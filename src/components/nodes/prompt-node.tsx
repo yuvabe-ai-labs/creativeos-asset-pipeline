@@ -20,8 +20,10 @@ import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
 import { NodeCreditsFooter } from "./node-credits-footer";
+import { PresenterFace } from "./presenter-face";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
-const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image" };
+const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image", composite: "Composite" };
 
 // Prompt node. A compact launcher; double-click / Open hands off to the Prompt
 // focus view. The Inputs panel's connected-node list is derived from the store graph.
@@ -55,7 +57,7 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
       const fileUrl =
         n.type === "file" || n.type === "draw"
           ? (d.fileUrl as string | undefined)
-          : n.type === "image-gen"
+          : isGeneratedImageType(n.type)
             ? (typeof d.parsed === "string" ? d.parsed : undefined)
             : undefined;
       return {
@@ -66,7 +68,7 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
         fileKind:
           n.type === "file" || n.type === "draw"
             ? (d.fileKind as string | undefined)
-            : n.type === "image-gen"
+            : isGeneratedImageType(n.type)
               ? "image"
               : undefined,
         useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
@@ -134,10 +136,13 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
         placeholder="Image prompt"
         onCommitTitle={(t) => updateNodeData(id, { title: t })}
         status={
-          <span
-            className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
-            title={output ? "Generated" : "Not generated"}
-          />
+          <span className="flex items-center gap-1.5">
+            <PresenterFace promptNodeId={id} />
+            <span
+              className={cn("size-1.5 rounded-full", output ? "bg-primary" : "bg-muted-foreground/40")}
+              title={output ? "Generated" : "Not generated"}
+            />
+          </span>
         }
       />
 

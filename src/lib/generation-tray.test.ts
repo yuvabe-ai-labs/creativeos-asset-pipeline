@@ -9,7 +9,6 @@ import {
   deriveTrayItems,
   resolveTrayKind,
   TRAY_KIND_META,
-  STALE_RUNNING_MS,
 } from "./generation-tray";
 
 // Minimal node/edge factories — only the fields the walk reads.
@@ -54,7 +53,7 @@ describe("resolveShotLabel", () => {
 
 const job = (over: Partial<GenerationRow>): GenerationRow =>
   ({
-    id: "j", node_id: "g", org_id: "org-1", client_id: null, type: "image", status: "running",
+    id: "j", node_id: "g", avatar_id: null, org_id: "org-1", client_id: null, type: "image", status: "running",
     provider_job_id: null, model_used: null, params_snapshot: null,
     inputs_snapshot: null, output_snapshot: null, tokens_used: null, cost_usd: null, credits_charged: null,
     version_id: null, user_id: null, error: null, meta: null,
@@ -100,15 +99,14 @@ describe("deriveTrayItems", () => {
     expect(items[0].kind).toBe("image-prompt");
   });
 
-  it("renders a stale running IMAGE job as failed, but not a running video", () => {
-    const stale = Date.parse("2026-07-05T00:00:00.000Z") + STALE_RUNNING_MS + 1;
+  it("keeps a long-running image job running, it is a background job now (D366)", () => {
+    const later = Date.parse("2026-07-05T00:00:00.000Z") + 30 * 60_000;
     const jobs = [
       job({ id: "i", node_id: "gi", type: "image", status: "running" }),
       job({ id: "v", node_id: "gv", type: "video", status: "running" }),
     ];
-    const items = deriveTrayItems([node("gi", "image-gen"), node("gv", "video-gen")], [], jobs, stale);
-    expect(items.find((i) => i.nodeId === "gi")?.status).toBe("failed");
-    expect(items.find((i) => i.nodeId === "gv")?.status).toBe("running");
+    const items = deriveTrayItems([node("gi", "image-gen"), node("gv", "video-gen")], [], jobs, later);
+    expect(items.map((i) => i.status)).toEqual(["running", "running"]);
   });
 
   it("drops a Ready item once its node's active version is approved", () => {
@@ -200,23 +198,5 @@ describe("deriveTrayItems kind resolution", () => {
       deriveTrayItems(nodes, [], jobs, now).map((i) => [i.nodeId, i.kind]),
     );
     expect(byNode).toEqual({ gi: "image", gv: "video" });
-  });
-
-  // Guards the stale-guard re-key from `assetType === "image"` to `kind === "image"`.
-  // Not red-first — it asserts that behavior did NOT change.
-  it("stale-times the image OUTPUT kind only, never a running prompt", () => {
-    const stale = Date.parse("2026-07-05T00:00:00.000Z") + STALE_RUNNING_MS + 1;
-    const jobs = [
-      job({ id: "i", node_id: "gi", type: "image", status: "running" }),
-      job({ id: "p", node_id: "pr", type: "prompt", status: "running" }),
-    ];
-    const items = deriveTrayItems(
-      [node("gi", "image-gen"), node("pr", "prompt")],
-      [],
-      jobs,
-      stale,
-    );
-    expect(items.find((i) => i.nodeId === "gi")?.status).toBe("failed");
-    expect(items.find((i) => i.nodeId === "pr")?.status).toBe("running");
   });
 });

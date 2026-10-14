@@ -25,6 +25,7 @@ vi.mock("@/lib/supabase/server", () => ({
 import {
   uploadNodeFile,
   uploadImageGen,
+  uploadImageGenMask,
   uploadVideoGen,
   uploadClientLogo,
   uploadBrandImage,
@@ -78,6 +79,23 @@ describe("uploadImageGen", () => {
     expect(result.path).toBe(
       "clients/c1/canvases/ca1/nodes/n1/image-gen/output__2026-06-30T14-23-45-678Z.png",
     );
+  });
+});
+
+describe("uploadImageGenMask (D366)", () => {
+  const owner = { clientId: "c1", canvasId: "ca1" };
+
+  it("stores a PNG mask under the generation's path, with the ownership it is given", async () => {
+    const url = await uploadImageGenMask({ nodeId: "n1", generationId: "g1", base64: "AAAA", mime: "image/png", owner });
+    expect(url).toBe("https://storage.googleapis.com/test-bucket/clients/c1/canvases/ca1/nodes/n1/image-gen/g1-mask.png");
+    const stored = mockBucketState.get("test-bucket")!.get("clients/c1/canvases/ca1/nodes/n1/image-gen/g1-mask.png")!;
+    expect(stored.contentType).toBe("image/png");
+  });
+
+  it("refuses any mask that is not a PNG", async () => {
+    await expect(
+      uploadImageGenMask({ nodeId: "n1", generationId: "g1", base64: "AAAA", mime: "image/jpeg", owner }),
+    ).rejects.toThrow();
   });
 });
 

@@ -2,12 +2,7 @@ import { uploadViaSignedUrl } from "@/lib/uploads/client";
 import type {
   BrandAsset, BrandAssetCategory, BrandDetails, BrandKitPayload,
 } from "@/lib/brand-kit/types";
-
-async function readJson<T>(res: Response, fallback: string): Promise<T> {
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((json as { error?: string }).error ?? fallback);
-  return json as T;
-}
+import { readJson } from "./read-json";
 
 class BrandKitService {
   async load(clientId: string): Promise<BrandKitPayload> {

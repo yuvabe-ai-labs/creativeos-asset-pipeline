@@ -12,22 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { KBField } from "@/lib/kb/schema";
-
-// Fields whose values are brand colours (hex codes embedded in labels). Their
-// committed value renders as colour swatches while staying click-to-edit.
-const COLOR_FIELD_KEYS = new Set([
-  "colour_palette_primary",
-  "colour_palette_secondary",
-  "colour_palette_avoid",
-  "dominant_colors",
-]);
-
-const CONFIDENCE_LABEL = { high: "High", medium: "Med", low: "Low" };
-const CONFIDENCE_CLASSES = {
-  high: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  low: "bg-muted text-muted-foreground",
-};
+import { COLOUR_FIELD_KEYS } from "@/lib/kb/constants";
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -63,7 +48,7 @@ export function KBFieldRow({
   const displayValue = formatValue(field.value);
   const isEmpty = !field.value || (Array.isArray(field.value) && field.value.length === 0);
   const isRejected = field.status === "rejected";
-  const isColorField = COLOR_FIELD_KEYS.has(fieldKey);
+  const isColorField = COLOUR_FIELD_KEYS.has(fieldKey);
 
   // Commit an inline edit. Arrays are stored back as a comma-split list; a manual
   // edit always lands as status "edited" (EditableField fires onCommit only when
@@ -93,7 +78,8 @@ export function KBFieldRow({
   // Gutter: an editorial section label with a constant purple kicker rule —
   // mirrors the Section gutter in script-document.tsx. Review state (approved /
   // edited) is intentionally NOT shown per-field; the only at-a-glance signal is
-  // the per-module tick on the tab. Rejected keeps a line-through label.
+  // the per-module tick on the tab. Rejected keeps a line-through label. The extraction's
+  // confidence (high / medium / low) is kept on the field but not shown.
   return (
     <section className="grid gap-x-10 gap-y-2.5 sm:grid-cols-[160px_1fr]">
       <div className="self-start sm:sticky sm:top-2">
@@ -106,19 +92,9 @@ export function KBFieldRow({
         >
           {label}
         </span>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <span
-            className={cn(
-              "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
-              CONFIDENCE_CLASSES[field.confidence],
-            )}
-          >
-            {CONFIDENCE_LABEL[field.confidence]}
-          </span>
-          {field.evidence_type === "inferred" && (
-            <span className="text-[0.6rem] text-muted-foreground">inferred</span>
-          )}
-        </div>
+        {field.evidence_type === "inferred" && (
+          <span className="mt-1.5 block text-[0.6rem] text-muted-foreground">inferred</span>
+        )}
       </div>
 
       <div className={cn("min-w-0 leading-relaxed", isReanalyzing && "opacity-70")}>

@@ -43,6 +43,9 @@ export type ImageGenEditPanelProps = {
   onEdit: () => void;
   estimatedCredits: number | null;
   estimating: boolean;
+  /** D312 — false when the host renders the action itself (the Composite keeps its one button
+   *  where Generate sits). Image Gen leaves it on. */
+  showAction?: boolean;
 };
 
 export function ImageGenEditPanel({
@@ -61,6 +64,7 @@ export function ImageGenEditPanel({
   onEdit,
   estimatedCredits,
   estimating,
+  showAction = true,
 }: ImageGenEditPanelProps) {
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-card">
@@ -120,25 +124,29 @@ export function ImageGenEditPanel({
           className="nodrag resize-none text-sm leading-relaxed text-foreground placeholder:text-sm placeholder:text-muted-foreground/60"
         />
       </div>
-      <Button
-        onClick={onEdit}
-        disabled={editing || !canEdit || !finalPrompt.trim() || estimating}
-        className="flex px-14 py-4 text-sm"
-      >
-        {estimating ? (
-          <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
-        ) : (
-          <Sparkles className="size-4" strokeWidth={1.5} />
-        )}
-        {editing ? "Editing…" : "Edit image"}
-        {!editing && !estimating && estimatedCredits !== null && (
-          <EstimatedCreditsLabel credits={estimatedCredits} />
-        )}
-      </Button>
-      {!canEdit && (
-        <p className="text-xs text-muted-foreground">
-          Generate an image, or connect an image reference, to edit it.
-        </p>
+      {showAction && (
+        <>
+          <Button
+            onClick={onEdit}
+            disabled={editing || !canEdit || !finalPrompt.trim() || estimating}
+            className="flex px-14 py-4 text-sm"
+          >
+            {estimating ? (
+              <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
+            ) : (
+              <Sparkles className="size-4" strokeWidth={1.5} />
+            )}
+            {editing ? "Editing…" : "Edit image"}
+            {!editing && !estimating && estimatedCredits !== null && (
+              <EstimatedCreditsLabel credits={estimatedCredits} />
+            )}
+          </Button>
+          {!canEdit && (
+            <p className="text-xs text-muted-foreground">
+              Generate an image, or connect an image reference, to edit it.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

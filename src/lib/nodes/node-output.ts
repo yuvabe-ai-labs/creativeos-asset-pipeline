@@ -1,6 +1,6 @@
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { readVoLines, renderVoiceover } from "@/lib/nodes/voiceover";
+import { multishotVoiceover, renderVoiceover } from "@/lib/nodes/voiceover";
 import { SEQUENCE_VO_PREFIX } from "@/lib/nodes/multishot-plan";
 
 export type NodeOutputInput = {
@@ -47,16 +47,9 @@ export function getNodeOutput(node: NodeOutputInput): string {
       const cuts = (node.data.cuts ?? []) as MultishotCut[];
       const shots = cuts
         .filter((c) => c && typeof c.text === "string")
-        .map((c, i) => {
-          // The spoken line is part of what this cut IS — it is appended to this shot's beat in
-          // the rendered prompt (renderPlan), so a panel that showed only the description told the
-          // operator the node held less than it does.
-          const spoken = renderVoiceover(c.voiceover);
-          const head = `Shot ${i + 1} (${c.seconds}s): ${c.text.trim() || "(no description yet)"}`;
-          return spoken ? `${head} ${spoken}` : head;
-        });
-      // D286 — lines over the whole clip lead, as they do in the rendered prompt.
-      const spanning = renderVoiceover(readVoLines(node.data.sequenceVoiceover));
+        .map((c, i) => `Shot ${i + 1} (${c.seconds}s): ${c.text.trim() || "(no description yet)"}`);
+      // D286, D307 — the sequence's lines lead, as they do in the rendered prompt; cuts carry none.
+      const spanning = renderVoiceover(multishotVoiceover(node.data));
       return [...(spanning ? [`${SEQUENCE_VO_PREFIX}${spanning}`] : []), ...shots].join("\n");
     }
     case "file": {

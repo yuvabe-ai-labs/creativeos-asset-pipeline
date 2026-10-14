@@ -16,6 +16,26 @@ export function titleFromFilename(filename: string): string {
   return normalizeTitle(filename.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "));
 }
 
+// A title no name in `taken` already uses, numbered the way Windows and Google Drive number
+// copies: "Final cut", then "Final cut (1)", "Final cut (2)", taking the first free number.
+// Names compare case-insensitively after normalizing. A name that already ends in "(n)" counts
+// on from its stem, so a second "Final cut (1)" becomes "Final cut (2)", not "Final cut (1) (1)".
+export function uniqueTitle(base: string, taken: string[]): string {
+  const title = normalizeTitle(base);
+  if (!title) return title;
+  const key = (t: string) => normalizeTitle(t).toLowerCase();
+  const used = new Set(taken.map(key));
+  if (!used.has(key(title))) return title;
+
+  const stem = title.replace(/\s*\(\d+\)$/, "") || title;
+  for (let n = 1; ; n++) {
+    // Shorten the stem so the number survives the length cap instead of being cut off.
+    const suffix = ` (${n})`;
+    const candidate = `${stem.slice(0, MAX_TITLE_LENGTH - suffix.length).trimEnd()}${suffix}`;
+    if (!used.has(key(candidate))) return candidate;
+  }
+}
+
 /**
  * The title a File node should carry after its attachment changes — or null to leave the
  * current one alone.

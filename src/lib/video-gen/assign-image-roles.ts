@@ -1,4 +1,5 @@
-export type ImageRole = "start_frame" | "end_frame" | "reference";
+/** `off` (D308): the operator turned this image off; it is never sent and never re-defaulted. */
+export type ImageRole = "start_frame" | "end_frame" | "reference" | "off";
 
 export type UpstreamImageRef = { nodeId: string; url: string; type?: string };
 

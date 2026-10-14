@@ -7,7 +7,7 @@ import { ChevronDown, Loader2, CheckCircle2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
-import type { GenerationRow } from "@/lib/db/types";
+import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useGenerationTray } from "@/hooks/use-generation-tray";
 import { deriveTrayItems, type TrayStatus } from "@/lib/generation-tray";
@@ -15,10 +15,10 @@ import { GenerationTrayItem } from "./generation-tray-item";
 
 const COLLAPSE_KEY = "generation-tray-collapsed";
 
-// Module-level helper so the impure `Date.now()` (the stale-timeout clock) is not
+// Module-level helper so the impure `Date.now()` is not
 // called inside the component's render scope — matches the codebase's `timeAgo`
 // pattern and satisfies the react-hooks/purity rule.
-function selectTrayItems(nodes: AppNode[], edges: Edge[], trayJobs: Record<string, GenerationRow>) {
+function selectTrayItems(nodes: AppNode[], edges: Edge[], trayJobs: Record<string, GenerationFeedRow>) {
   return deriveTrayItems(nodes, edges, Object.values(trayJobs), Date.now());
 }
 

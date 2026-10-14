@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
 
 type ImageInputs = {
   startFrame: boolean;
@@ -28,6 +28,8 @@ type Props = {
   imageInputs: ImageInputs;
   onRoleChange: (imageId: string, role: ImageRole) => void;
   onOpenDetail?: (id: string, type: "prompt" | "image") => void;
+  /** D308 — images not sent as references, each with the reason (selectReferences). */
+  leftOut?: ReadonlyMap<string, string>;
   // The *reason* strings are not taken here — ActiveRulesCard states them persistently, and the
   // dimmed role chip is this component's share of that signal.
   disableFrameInputs?: boolean;
@@ -45,6 +47,7 @@ export function VideoGenConnectedSection({
   disableFrameInputs = false,
   disableRefs = false,
   onReset,
+  leftOut,
 }: Props) {
   const [promptOpen, setPromptOpen] = useState(false);
 
@@ -156,6 +159,7 @@ export function VideoGenConnectedSection({
           <div className="flex gap-2 pb-3.5">
             {images.map((image) => {
               const activeRole = imageRoles[image.id];
+              const outReason = leftOut?.get(image.id);
               return (
                 <div
                   key={image.id}
@@ -165,11 +169,17 @@ export function VideoGenConnectedSection({
                     <img
                       src={image.imageUrl}
                       alt={`Image input (${image.type})`}
-                      className="size-full object-cover"
+                      className={cn("size-full object-cover transition-opacity", outReason && "opacity-35")}
                       loading="lazy"
                       decoding="async"
                     />
                   </div>
+                  {/* D308 — not sent, and why: dimmed, with the reason in plain words. */}
+                  {outReason && (
+                    <span className="absolute inset-x-0 top-0 bg-background/85 px-2 py-1 text-[0.65rem] leading-snug text-muted-foreground">
+                      Not sent · {outReason}
+                    </span>
+                  )}
                   {onOpenDetail && (
                     <Button
                       type="button"

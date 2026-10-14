@@ -10,6 +10,37 @@ export const KB_JOB_NON_TERMINAL_STATUSES: ClientKBJobStatus[] = [
 ];
 export const KB_JOB_NON_TERMINAL = new Set<ClientKBJobStatus>(KB_JOB_NON_TERMINAL_STATUSES);
 
+/** Fields whose values are brand colours (a name plus hex code). They render as swatches. */
+export const COLOUR_FIELD_KEYS: ReadonlySet<string> = new Set([
+  "colour_palette_primary",
+  "colour_palette_secondary",
+  "colour_palette_avoid",
+  "dominant_colors",
+]);
+
+/** Fields shown first in a module, in this order, whatever order the stored KB has them in.
+ *  Visual Identity leads with the palette — the part people look for first. */
+export const MODULE_LEADING_FIELDS: Partial<Record<ModuleKey, readonly string[]>> = {
+  visual_identity: ["colour_palette_primary", "colour_palette_secondary", "colour_palette_avoid"],
+  // The tallied fields first, then the look, then how people and text appear (D312).
+  image_analysis: [
+    "content_mix",
+    "purpose_mix",
+    "dominant_colors",
+    "aesthetic",
+    "visual_mood",
+    "subjects",
+    "product_presentation",
+    "composition_style",
+    "lighting_character",
+    "settings_backgrounds",
+    "people_casting",
+    "text_overlay_style",
+    "recurring_motifs",
+    "brand_consistency_notes",
+  ],
+};
+
 export const MODULES: { key: ModuleKey; label: string }[] = [
   { key: "brand_voice",      label: "Brand Voice" },
   { key: "visual_identity",  label: "Visual Identity" },
@@ -43,6 +74,13 @@ export const FIELD_LABELS: Record<string, string> = {
   lighting_character: "Lighting Character",
   brand_consistency_notes: "Consistency Notes",
   subjects: "Subjects",
+  content_mix: "Format Mix",
+  purpose_mix: "Purpose Mix",
+  product_presentation: "Product Presentation",
+  settings_backgrounds: "Settings & Backgrounds",
+  people_casting: "People & Casting",
+  text_overlay_style: "Text Overlay Style",
+  recurring_motifs: "Recurring Motifs",
   age_range: "Age Range",
   gender: "Gender",
   location: "Location",

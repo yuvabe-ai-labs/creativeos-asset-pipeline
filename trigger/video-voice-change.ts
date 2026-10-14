@@ -12,9 +12,12 @@ export type VoiceChangeTaskPayload = RevoicePayload & {
   durationSeconds: number;
 };
 
-// Shared with `retry.maxAttempts` below — `ctx.attempt.number` reaches this on the run's last
-// configured attempt, which is when a failure webhook is worth posting (see the catch block).
 const MAX_ATTEMPTS = 2;
+
+// The re-voiced video is stored but its success report could not be delivered. Not reported as
+// `failed`: that would refund and drop a stored, paid result (the stuck sweep settles it instead).
+// Keeps AbortTaskRunError's name, which is how Trigger knows not to retry it.
+class DeliveryFailedError extends AbortTaskRunError {}
 
 // D284 — re-voices a stored version's ORIGINAL audio into a new version. The route resolved the
 // source, reserved voice-only credits and signed the upload. maxDuration 120 × MAX_ATTEMPTS keeps
@@ -25,7 +28,15 @@ export const videoVoiceChangeTask = task({
   maxDuration: 120,
   retry: { maxAttempts: MAX_ATTEMPTS, minTimeoutInMs: 2000, maxTimeoutInMs: 15000, factor: 2 },
   queue: { concurrencyLimit: 2 },
-  run: async (payload: VoiceChangeTaskPayload, { ctx }) => {
+  // `failed` is posted once the run has failed for good. onFailure is Trigger's own "no more
+  // attempts" signal; counting attempts in the catch is not, since Trigger may skip a retry
+  // (retries are off in dev, see trigger.config.ts).
+  onFailure: async ({ payload, error }) => {
+    if (error instanceof DeliveryFailedError) return;
+    const message = error instanceof Error ? error.message : "Voice change failed";
+    await postGenerationWebhookSafely({ generationId: payload.generationId, status: "failed", error: message }, "voice change failure");
+  },
+  run: async (payload: VoiceChangeTaskPayload) => {
     // Fail fast on a misconfigured deploy — before any download or ElevenLabs call.
     assertWebhookConfig();
     logger.info("Changing voice", { generationId: payload.generationId, voiceId: payload.voiceId });
@@ -40,12 +51,8 @@ export const videoVoiceChangeTask = task({
         putBytes,
       }));
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Voice change failed";
-      const finalAttempt = e instanceof NonRetryableRevoiceError || ctx.attempt.number >= MAX_ATTEMPTS;
-      if (finalAttempt) {
-        await postGenerationWebhookSafely({ generationId: payload.generationId, status: "failed", error: message }, "voice change failure");
-      }
-      if (e instanceof NonRetryableRevoiceError) throw new AbortTaskRunError(message);
+      // Reported by onFailure once no attempt is left.
+      if (e instanceof NonRetryableRevoiceError) throw new AbortTaskRunError(e.message);
       throw e;
     }
     try {
@@ -59,7 +66,7 @@ export const videoVoiceChangeTask = task({
       });
     } catch (e) {
       // The re-voiced video is stored; retrying would only pay ElevenLabs again.
-      throw new AbortTaskRunError(
+      throw new DeliveryFailedError(
         `Voice changed but the webhook was unreachable — videoUrl=${payload.revoicedUrl}: ${e instanceof Error ? e.message : String(e)}`,
       );
     }

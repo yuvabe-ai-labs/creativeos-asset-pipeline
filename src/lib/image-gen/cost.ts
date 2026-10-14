@@ -10,6 +10,8 @@ type ImagePricingEntry = {
 // Keys must exactly match ImageGenModelConfig.id values in registry.ts
 const IMAGE_MODEL_PRICING: Record<string, ImagePricingEntry> = {
   "openai:gpt-image-2":                    { textIn: 5.00, imgIn: 8.00,  imgOut: 30.00 },
+  "openai:gpt-image-2.5-sunburst":         { textIn: 5.00, imgIn: 8.00,  imgOut: 30.00 },
+  "openai:gpt-image-2.5-flare":            { textIn: 5.00, imgIn: 8.00,  imgOut: 30.00 },
   "openai:gpt-image-1":                    { textIn: 5.00, imgIn: 10.00, imgOut: 40.00 },
   "openai:gpt-image-1-mini":               { textIn: 2.00, imgIn: 2.50,  imgOut: 8.00  },
   // Source: ai.google.dev/gemini-api/docs/pricing (verified 2026-07-24). Google prices
@@ -19,6 +21,8 @@ const IMAGE_MODEL_PRICING: Record<string, ImagePricingEntry> = {
   "gemini:gemini-2.5-flash-image": { textIn: 0.30, imgIn: 0.30,  imgOut: 30.00  },
   "gemini:gemini-3.1-flash-image": { textIn: 0.50, imgIn: 0.50,  imgOut: 60.00  },
   "gemini:gemini-3-pro-image":     { textIn: 2.00, imgIn: 2.00,  imgOut: 120.00 },
+  // Verified 2026-10-10 on the same page (standard tier, text/image/video input one rate).
+  "gemini:gemini-nano-banana-2.1": { textIn: 1.50, imgIn: 1.50,  imgOut: 30.00  },
 };
 
 export function computeImageCost(
@@ -65,15 +69,31 @@ export function aspectRatioToOpenAISize(ratio: string): string {
 // estimateGeminiInputTokens/estimateOpenAIInputTokens below (D92) — not tabulated here.
 type ImageEstimateQualityRow = Record<string, number>; // size string -> USD
 
+type OpenAIImageQuality = "low" | "medium" | "high" | "xhigh" | "max";
+
+const GPT_IMAGE_25_MEASURED = {
+  low:    { "1024x1024": 0.0059, "1024x1536": 0.0047, "1536x1024": 0.0047 },
+  medium: { "1024x1024": 0.0132, "1024x1536": 0.0103, "1536x1024": 0.0103 },
+  high:   { "1024x1024": 0.0527, "1024x1536": 0.0412, "1536x1024": 0.0412 },
+  xhigh:  { "1024x1024": 0.0937, "1024x1536": 0.0738, "1536x1024": 0.0738 },
+  max:    { "1024x1024": 0.2107, "1024x1536": 0.1646, "1536x1024": 0.1646 },
+};
+
 const OPENAI_IMAGE_ESTIMATE_TABLE: Record<
   string,
-  { low: ImageEstimateQualityRow; medium: ImageEstimateQualityRow; high: ImageEstimateQualityRow }
+  { low: ImageEstimateQualityRow; medium: ImageEstimateQualityRow; high: ImageEstimateQualityRow;
+    xhigh?: ImageEstimateQualityRow; max?: ImageEstimateQualityRow }
 > = {
   "openai:gpt-image-2": {
     low:    { "1024x1024": 0.006, "1024x1536": 0.005, "1536x1024": 0.005 },
     medium: { "1024x1024": 0.053, "1024x1536": 0.041, "1536x1024": 0.041 },
     high:   { "1024x1024": 0.211, "1024x1536": 0.165, "1536x1024": 0.165 },
   },
+  // OpenAI publishes no per-image table for GPT Image 2.5 (its calculator doesn't cover it), so
+  // these are measured: one live generation per cell on 2026-10-10, output tokens x $30/M. Both
+  // models returned identical token counts in every cell. Refine from real usage.
+  "openai:gpt-image-2.5-sunburst": GPT_IMAGE_25_MEASURED,
+  "openai:gpt-image-2.5-flare":    GPT_IMAGE_25_MEASURED,
   "openai:gpt-image-1": {
     low:    { "1024x1024": 0.011, "1024x1536": 0.016, "1536x1024": 0.016 },
     medium: { "1024x1024": 0.042, "1024x1536": 0.063, "1536x1024": 0.063 },
@@ -92,6 +112,8 @@ const GEMINI_IMAGE_ESTIMATE_TABLE: Record<string, Record<string, number>> = {
   "gemini:gemini-2.5-flash-image": { "1K": 0.039 },
   "gemini:gemini-3.1-flash-image": { "512": 0.045, "1K": 0.067, "2K": 0.101, "4K": 0.151 },
   "gemini:gemini-3-pro-image":     { "1K": 0.134, "2K": 0.134, "4K": 0.24 },
+  // Google's published per-image prices (1120 / 1680 / 3780 output tokens at $30/M); no 512 tier.
+  "gemini:gemini-nano-banana-2.1": { "1K": 0.0336, "2K": 0.0504, "4K": 0.113 },
 };
 
 // Seedream bills per image, not per token (ref/byteplus-docs/seedance_2.5_PRICING.md, image
@@ -140,7 +162,7 @@ export function estimateImageOutputCost(
   const openaiEntry = OPENAI_IMAGE_ESTIMATE_TABLE[modelId];
   if (openaiEntry) {
     const effectiveQuality = quality === "auto" || quality === undefined ? "high" : quality;
-    const row = openaiEntry[effectiveQuality as "low" | "medium" | "high"];
+    const row = openaiEntry[effectiveQuality as OpenAIImageQuality];
     return row?.[size] ?? null;
   }
   const geminiEntry = GEMINI_IMAGE_ESTIMATE_TABLE[modelId];
@@ -208,6 +230,10 @@ const OPENAI_PER_REFERENCE_INPUT_TOKENS: Record<string, number> = {
   "openai:gpt-image-1": 330,
   "openai:gpt-image-1-mini": 330,
   "openai:gpt-image-2": 1550,
+  // Measured 1024 image tokens for a 1024x1024 reference on both (2026-10-10); larger uploads
+  // cost more, so gpt-image-2's historical p90 stands until real usage says otherwise.
+  "openai:gpt-image-2.5-sunburst": 1550,
+  "openai:gpt-image-2.5-flare": 1550,
 };
 
 /**

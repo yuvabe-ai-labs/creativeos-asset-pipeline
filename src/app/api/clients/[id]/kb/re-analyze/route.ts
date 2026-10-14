@@ -1,8 +1,8 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { zodTextFormat } from "openai/helpers/zod";
 import { createOpenAI } from "@/lib/openai/server";
-import { updateKBVersionOutput } from "@/lib/db/kb";
-import { setNestedField, getNestedValue } from "@/lib/kb/utils";
+import { setKBField } from "@/lib/db/kb";
+import { getNestedValue } from "@/lib/kb/utils";
 import {
   TraceableBrandProfileSchema,
   TraceableVisualIdentitySchema,
@@ -129,13 +129,8 @@ export async function POST(
     const updatedField = response.output_parsed as KBField<unknown> | null;
     if (!updatedField) return apiError("Model returned no output.", 500);
 
-    const updatedKB = setNestedField(
-      currentKB as unknown as Record<string, unknown>,
-      fieldPath,
-      updatedField as Record<string, unknown>,
-    ) as unknown as TraceableBrandKB;
-
-    await updateKBVersionOutput(versionId, updatedKB);
+    // Only this field: the model call takes seconds, and a background run may write meanwhile (D318).
+    await setKBField(versionId, fieldPath, updatedField);
 
     return apiOk({ fieldKey, field: updatedField });
   });

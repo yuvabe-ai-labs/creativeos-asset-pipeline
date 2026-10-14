@@ -41,12 +41,16 @@ export function describeNode(node: { type?: string; data: Record<string, unknown
       return snippet(d.instruction) || snippet(d.parsed) || "untitled prompt";
     case "image-gen":
       return "image generation";
+    case "composite":
+      return snippet(d.instruction) || "composite";
     case "video-prompt":
       return "motion prompt";
     case "multishot-prompt":
       return "multishot prompt";
     case "video-gen":
       return "video generation";
+    case "client-review":
+      return "client review";
     default:
       return node.type ?? "node";
   }
@@ -68,8 +72,10 @@ const NODE_ABBREV: Record<string, string> = {
   "multishot-prompt": "MSPR",
   draw: "DRAW",
   "image-gen": "IMG",
+  composite: "CMP",
   "video-prompt": "MPR",
   "video-gen": "VID",
+  "client-review": "REV",
 };
 
 export function nodeHandle(node: { id: string; type?: string }): string {

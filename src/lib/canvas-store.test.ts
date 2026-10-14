@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
 import { sceneFingerprint } from "./nodes/scene-beats";
+import { nodeGenerationStatus } from "./generations/node-status";
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), info: vi.fn(), error: vi.fn() }),
@@ -23,6 +24,35 @@ const nodes: AppNode[] = [
   { id: "b", type: "prompt", position: { x: 0, y: 0 }, data: { title: "" } },
 ] as AppNode[];
 
+describe("updateNodeData", () => {
+  it("leaves the nodes array untouched when every patched value is already set", () => {
+    // Autosave watches the nodes array by reference: a no-op patch that still replaced it
+    // queued a full-canvas save. Focus views re-patch values they just read back.
+    const store = createCanvasStore(
+      [{ id: "v", type: "video-gen", position: { x: 0, y: 0 }, data: { parsed: "u.mp4", approvalStatus: "pending" } }] as unknown as AppNode[],
+      [],
+    );
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("v", { parsed: "u.mp4", approvalStatus: "pending" });
+    expect(store.getState().nodes).toBe(before);
+  });
+
+  it("still applies a patch that changes a value", () => {
+    const store = createCanvasStore(nodes, []);
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("b", { title: "Hero shot" });
+    expect(store.getState().nodes).not.toBe(before);
+    expect(store.getState().nodes.find((n) => n.id === "b")?.data).toMatchObject({ title: "Hero shot" });
+  });
+
+  it("is a no-op for a node id that isn't on the canvas", () => {
+    const store = createCanvasStore(nodes, []);
+    const before = store.getState().nodes;
+    store.getState().updateNodeData("missing", { title: "x" });
+    expect(store.getState().nodes).toBe(before);
+  });
+});
+
 describe("onConnect", () => {
   it("assigns a UUID id to the new edge (the DB edges.id column is uuid)", () => {
     const store = createCanvasStore(nodes, []);
@@ -38,6 +68,31 @@ describe("onConnect", () => {
     // React Flow's default id would be `xy-edge__a-b` — not a uuid, which the
     // edges.id column rejects. onConnect must mint a real uuid.
     expect(UUID_RE.test(edges[0].id)).toBe(true);
+  });
+
+  // D298 — one presenter per script.
+  it("a second avatar connected to a script replaces the first, and says so once", () => {
+    const store = createCanvasStore([
+      { id: "s", type: "script", position: { x: 0, y: 0 }, data: {} },
+      { id: "v1", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a1" } },
+      { id: "v2", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a2" } },
+    ] as AppNode[], [{ id: "e1", source: "v1", target: "s" } as Edge]);
+    vi.mocked(toast).mockClear();
+    store.getState().onConnect({ source: "v2", target: "s", sourceHandle: null, targetHandle: null });
+    expect(store.getState().edges.map((e) => e.source)).toEqual(["v2"]);
+    expect(store.getState().removedEdgeIds).toContain("e1");
+    expect(toast).toHaveBeenCalledTimes(1);
+  });
+
+  it("connectNodes keeps one presenter too — the gallery path", () => {
+    const store = createCanvasStore([
+      { id: "s", type: "script", position: { x: 0, y: 0 }, data: {} },
+      { id: "v1", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a1" } },
+      { id: "v2", type: "avatar", position: { x: 0, y: 0 }, data: { avatarId: "a2" } },
+    ] as AppNode[], [{ id: "e1", source: "v1", target: "s" } as Edge]);
+    store.getState().connectNodes("v2", "s");
+    expect(store.getState().edges.map((e) => e.source)).toEqual(["v2"]);
+    expect(store.getState().removedEdgeIds).toContain("e1");
   });
 
   it("still rejects a loop-creating edge", () => {
@@ -226,7 +281,8 @@ describe("fanOutShots", () => {
     expect(first.script?.visual_script?.shots?.[0].voiceover).toEqual(vo);
   });
 
-  it("carries a shot's voiceover onto the multishot node's first cut", () => {
+  // D307 — a Multishot speaks over the whole sequence: the shot's lines join the sequence.
+  it("carries a shot's voiceover onto the multishot node's sequence, not its cut", () => {
     const vo = [{ text: "Hi.", speaker: "narrator" }];
     const reelB: AppNode = {
       id: "script-b",
@@ -253,8 +309,9 @@ describe("fanOutShots", () => {
     store.getState().fanOutShots("script-b");
     const multishots = store.getState().nodes.filter((n) => n.type === "multishot");
 
-    const cuts = (multishots[0].data as { cuts?: { voiceover?: unknown }[] }).cuts;
-    expect(cuts?.[0].voiceover).toEqual(vo);
+    const data = multishots[0].data as { cuts?: { voiceover?: unknown }[]; sequenceVoiceover?: unknown };
+    expect(data.sequenceVoiceover).toEqual(vo);
+    expect(data.cuts?.every((c) => c.voiceover === undefined)).toBe(true);
   });
 });
 
@@ -460,7 +517,7 @@ describe("canvas store — tombstones", () => {
 
 const genRow = (over: Partial<GenerationRow>): GenerationRow =>
   ({
-    id: "j", node_id: "g", org_id: "org-1", client_id: null, type: "image", status: "running",
+    id: "j", node_id: "g", avatar_id: null, org_id: "org-1", client_id: null, type: "image", status: "running",
     provider_job_id: null, model_used: null, params_snapshot: null,
     inputs_snapshot: null, output_snapshot: null, tokens_used: null, cost_usd: null, credits_charged: null,
     version_id: null, user_id: null, error: null, meta: null,
@@ -922,7 +979,7 @@ describe("scene beats become cuts (D286)", () => {
     store.getState().fanOutShots("sc");
     store.getState().setGenerationMode("sc", "0", true);
     const data = multishotData(store);
-    expect(data.cuts.every((c) => c.voiceover?.length === 0)).toBe(true);
+    expect(data.cuts.every((c) => c.voiceover === undefined)).toBe(true);
     expect(data.sequenceVoiceover?.map((l) => l.text)).toEqual(["Meet the jar.", "Made by hand."]);
   });
 
@@ -933,13 +990,13 @@ describe("scene beats become cuts (D286)", () => {
     expect(multishotData(store).sequenceVoiceover).toHaveLength(2);
   });
 
-  it("uses one cut, with every line on it, when the beats are stale", () => {
+  it("uses one cut, with every line on the sequence, when the beats are stale", () => {
     const store = createCanvasStore([v3Script({ ...stampedRow, description: "Edited" })], []);
     store.getState().fanOutShots("sc");
     store.getState().setGenerationMode("sc", "0", true);
     expect(cutsOf(store)).toEqual([["Edited", 6]]);
-    expect(multishotData(store).cuts[0].voiceover).toHaveLength(2);
-    expect(multishotData(store)).not.toHaveProperty("sequenceVoiceover");
+    expect(multishotData(store).cuts[0].voiceover).toBeUndefined();
+    expect(multishotData(store).sequenceVoiceover).toHaveLength(2);
   });
 
   it("uses cached beats written by cacheSceneBeats", () => {
@@ -957,5 +1014,107 @@ describe("scene beats become cuts (D286)", () => {
     const data = store.getState().nodes[0].data as { parsed: unknown; sceneBeats?: Record<string, unknown> };
     expect(Object.keys(data.sceneBeats ?? {})).toEqual([sceneFingerprint(plain)]);
     expect(data.parsed).toBe(before);
+  });
+});
+
+describe("generation status feed (D366)", () => {
+  const job = (id: string, nodeId: string, created_at: string, status: GenerationRow["status"] = "running") =>
+    ({ id, node_id: nodeId, type: "image", status, error: null, output_snapshot: null, created_at }) as GenerationRow;
+
+  it("indexes the newest job per node when the feed loads", () => {
+    const store = createCanvasStore([], []);
+    store.getState().setTrayJobs([
+      job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"),
+      job("new", "n1", "2026-10-12T10:00:00.000Z"),
+      job("other", "n2", "2026-10-12T08:00:00.000Z"),
+    ]);
+    expect(store.getState().latestJobByNode.n1.id).toBe("new");
+    expect(store.getState().latestJobByNode.n2.id).toBe("other");
+  });
+
+  it("keeps the newest job when an older one is updated late", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("new", "n1", "2026-10-12T10:00:00.000Z"));
+    store.getState().upsertTrayJob(job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"));
+    expect(store.getState().latestJobByNode.n1.id).toBe("new");
+  });
+
+  it("clears a start mark once a running row for that node arrives", () => {
+    const store = createCanvasStore([], []);
+    store.getState().markGenerationStarted("n1", "image");
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image" });
+    store.getState().upsertTrayJob(job("new", "n1", "2026-10-12T10:00:00.000Z"));
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+  });
+
+  it("an update to an older job does not clear a pending mark", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("prev", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    store.getState().markGenerationStarted("n1", "image");
+    store.getState().upsertTrayJob(job("older", "n1", "2026-10-12T09:00:00.000Z", "failed"));
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image" });
+    store.getState().markGenerationStarted("n1", "image", "next");
+    store.getState().upsertTrayJob(job("older", "n1", "2026-10-12T09:00:00.000Z", "succeeded"));
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image", generationId: "next" });
+  });
+
+  it("is not generating when the mark lands after the running row and the job then finishes", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z"));
+    store.getState().markGenerationStarted("n1", "voice");
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    const s = store.getState();
+    expect(s.generationStarts.n1).toBeUndefined();
+    expect(nodeGenerationStatus(s.latestJobByNode.n1, s.generationStarts.n1?.kind, null).isGenerating).toBe(false);
+  });
+
+  it("is not generating when only the job's terminal row ever arrives", () => {
+    const store = createCanvasStore([], []);
+    store.getState().markGenerationStarted("n1", "image", "g1");
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "failed"));
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+    store.getState().markGenerationStarted("n2", "video");
+    store.getState().upsertTrayJob(job("g2", "n2", "2026-10-12T10:00:00.000Z", "succeeded"));
+    expect(store.getState().generationStarts.n2).toBeUndefined();
+  });
+
+  it("marking with an id whose row is already on the feed sets no mark", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z"));
+    store.getState().markGenerationStarted("n1", "image", "g1");
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+  });
+
+  it("a stale hydrate never turns a finished job back to running", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    store.getState().setTrayJobs([job("g1", "n1", "2026-10-12T10:00:00.000Z")]);
+    expect(store.getState().trayJobs.g1.status).toBe("succeeded");
+    expect(store.getState().latestJobByNode.n1.status).toBe("succeeded");
+  });
+
+  it("a hydrate keeps rows it did not return and clears a mark its rows settle", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("live", "n2", "2026-10-12T10:00:00.000Z"));
+    store.getState().markGenerationStarted("n1", "image", "g1");
+    store.getState().setTrayJobs([job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded")]);
+    expect(store.getState().trayJobs.live).toBeDefined();
+    expect(store.getState().latestJobByNode.n2.id).toBe("live");
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+  });
+
+  it("a hydrate that reloads the node's latest row unchanged does not retire an id-less mark", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    store.getState().markGenerationStarted("n1", "image");
+    store.getState().setTrayJobs([job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded")]);
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image" });
+  });
+
+  it("clears a node's request error when a new start is marked", () => {
+    const store = createCanvasStore([], []);
+    store.getState().setGenerationRequestError("n1", "Couldn't start");
+    store.getState().markGenerationStarted("n1", "image");
+    expect(store.getState().generationRequestErrors.n1).toBeUndefined();
   });
 });

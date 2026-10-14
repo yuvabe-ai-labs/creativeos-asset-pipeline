@@ -4,6 +4,8 @@
 // File-with-text node tokens → extracted text inline.
 // Unknown nodeId → display label as plain text fallback.
 
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+
 export type MentionUpstream = {
   nodeId: string;
   type: string;
@@ -19,7 +21,7 @@ function isVisionNode(u: MentionUpstream): boolean {
   if ((u.type === "file" || u.type === "draw") && u.fileKind === "image" && hasUrl && !u.useLlm) {
     return true;
   }
-  if (u.type === "image-gen" && hasUrl) return true;
+  if (isGeneratedImageType(u.type) && hasUrl) return true;
   return false;
 }
 

@@ -19,6 +19,8 @@ type Props = {
   infinite: { hasMore: boolean; onMore: () => void } | null;
   playingId: string | null;
   onSelect: (voice: PickerVoice) => void;
+  /** D292 — remove one of the client's own voices. Absent: rows have no remove control. */
+  onRemove?: (voice: PickerVoice) => Promise<void>;
   onTogglePreview: (voice: PickerVoice) => void;
   onRetry: () => void;
   onClearFilters: () => void;
@@ -45,6 +47,8 @@ export function VideoGenVoicePickerList(p: Props) {
         selected={p.selectedId === v.voiceId}
         playing={p.playingId === v.voiceId}
         onSelect={() => p.onSelect(v)}
+        // Stock voices belong to no client and use no slot: nothing to remove.
+        onRemove={p.onRemove && CUSTOM_VOICE_CATEGORIES.has(v.category) ? () => p.onRemove!(v) : undefined}
         onTogglePreview={() => p.onTogglePreview(v)}
       />
     );

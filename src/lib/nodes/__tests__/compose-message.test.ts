@@ -5,6 +5,16 @@ import type { UpstreamPreview } from "../resolve-inputs";
 const base = { nodeId: "n", versionId: null, label: "X", text: "" };
 
 describe("buildUserContent vision handling", () => {
+  it("treats a composite upstream WITH a fileUrl as a vision part (D312)", () => {
+    const up: UpstreamPreview[] = [
+      { ...base, type: "composite", fileUrl: "https://x/c.png", fileKind: "image" },
+    ];
+    expect(buildUserContent("PROMPT", up)).toContainEqual({
+      type: "image_url",
+      image_url: { url: "https://x/c.png", detail: "auto" },
+    });
+  });
+
   it("treats an image-gen upstream WITH a fileUrl as a vision part", () => {
     const up: UpstreamPreview[] = [
       { ...base, type: "image-gen", fileUrl: "https://x/img.png", fileKind: "image" },

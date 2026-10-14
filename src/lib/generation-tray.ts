@@ -3,7 +3,7 @@
 // is derived on read (D9) from the node graph + the `generations` job rows.
 import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
-import type { GenerationRow } from "@/lib/db/types";
+import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import { findAncestorOfType } from "@/lib/canvas/graph";
 
 /** Walk edges upstream from `nodeId` to the nearest `shot` node. */
@@ -32,9 +32,6 @@ export function resolveShotLabel(
   return title ? title : "Untitled";
 }
 
-/** A running IMAGE job older than this (no completion) is derived Failed (D9). */
-export const STALE_RUNNING_MS = 300_000;
-
 export type TrayStatus = "running" | "ready" | "failed";
 
 /** What a row IS. Four values, because a `generations` row's `type` column collapses the
@@ -61,7 +58,7 @@ export const TRAY_KIND_META: Record<
  *  Falls back rather than throwing: this is a read-only derived view that must never
  *  blank the tray on unexpected data. */
 export function resolveTrayKind(
-  jobType: GenerationRow["type"],
+  jobType: GenerationFeedRow["type"],
   nodeType: string | undefined,
 ): TrayKind {
   if (jobType === "image") return "image";
@@ -85,10 +82,13 @@ const STATUS_RANK: Record<TrayStatus, number> = {
   ready: 2,
 };
 
-/** Reduce all rows to the single newest row per node_id (by created_at). */
-export function latestJobPerNode(jobs: GenerationRow[]): GenerationRow[] {
-  const latest = new Map<string, GenerationRow>();
+/** Reduce all rows to the single newest row per node_id (by created_at). An avatar-owned row
+ *  (node_id null, D291) is not a canvas job — the tray has no node to show it on — so it is
+ *  skipped here before it ever reaches a node lookup. */
+export function latestJobPerNode(jobs: GenerationFeedRow[]): GenerationFeedRow[] {
+  const latest = new Map<string, GenerationFeedRow>();
   for (const jobRow of jobs) {
+    if (jobRow.node_id === null) continue;
     const cur = latest.get(jobRow.node_id);
     if (!cur || Date.parse(jobRow.created_at) > Date.parse(cur.created_at)) {
       latest.set(jobRow.node_id, jobRow);
@@ -101,31 +101,26 @@ export function latestJobPerNode(jobs: GenerationRow[]): GenerationRow[] {
 export function deriveTrayItems(
   nodes: AppNode[],
   edges: Edge[],
-  jobs: GenerationRow[],
-  nowMs: number,
+  jobs: GenerationFeedRow[],
+  _nowMs: number,
 ): TrayItem[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const items: TrayItem[] = [];
 
   for (const jobRow of latestJobPerNode(jobs)) {
+    // latestJobPerNode already drops avatar-owned rows (node_id null); this narrows the type
+    // for TS the same way rather than asserting it away.
+    if (jobRow.node_id === null) continue;
     const node = byId.get(jobRow.node_id);
     if (!node) continue; // node deleted → orphan row
     const kind = resolveTrayKind(jobRow.type, node.type);
 
-    let status: TrayStatus =
+    const status: TrayStatus =
       jobRow.status === "running"
         ? "running"
         : jobRow.status === "succeeded"
           ? "ready"
           : "failed";
-
-    // Stale running IMAGE OUTPUT (client disconnected mid-request) → Failed. Prompts are
-    // fast and were never stale-timed; video is owned by the async pipeline's own
-    // reconciliation. Keying on `kind === "image"` preserves both exclusions exactly.
-    if (status === "running" && kind === "image") {
-      if (nowMs - Date.parse(jobRow.created_at) > STALE_RUNNING_MS)
-        status = "failed";
-    }
 
     // Ready persists until the active version is approved (retention = "until approved").
     if (status === "ready") {

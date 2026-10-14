@@ -59,13 +59,13 @@ export const TraceableVisualIdentitySchema = z.object({
     "Macro, editorial, lifestyle, flat lay, etc.",
   ),
   colour_palette_primary: kbField(z.array(z.string())).describe(
-    "Main brand colours — always include hex codes: 'turmeric gold #C8A000'",
+    "Main brand colours, each as '<name> #RRGGBB' — never without a hex: 'turmeric gold #C8A000'",
   ),
   colour_palette_secondary: kbField(z.array(z.string())).describe(
-    "Supporting colours with hex codes where available",
+    "Supporting colours, each as '<name> #RRGGBB' — never without a hex",
   ),
   colour_palette_avoid: kbField(z.array(z.string())).describe(
-    "Colours explicitly prohibited by the brand",
+    "Colours explicitly prohibited by the brand, each as '<name> #RRGGBB'",
   ),
   surface_palette: kbField(z.array(z.string())).describe(
     "Physical textures and props: wood, linen, stone, clay, aged terracotta",
@@ -167,9 +167,18 @@ export const TraceableComplianceSchema = z.object({
 
 // ── Image Analysis (from brand image uploads) ─────────────────────────────────
 
+// Written from per-image cards of every brand image — uploads and imported (D312), not by the
+// KB build. content_mix (formats), purpose_mix and dominant_colors are tallied from the cards; the
+// rest is summarised. Formats and purposes are two fixed axes, the same for every brand (D314).
 export const ImageAnalysisSchema = z.object({
+  content_mix: kbField(z.array(z.string())).describe(
+    "Share of each visual format, e.g. 'Product shot 38%', 'In use 24%'",
+  ),
+  purpose_mix: kbField(z.array(z.string())).describe(
+    "Share of each purpose, e.g. 'Educate 45%', 'Promote 25%'",
+  ),
   dominant_colors: kbField(z.array(z.string())).describe(
-    "Most prominent colours observed across images, with hex estimates where possible",
+    "Most used colours across the images, each as '<name> #RRGGBB'",
   ),
   visual_mood: kbField(z.string()).describe(
     "Emotional atmosphere conveyed by the images",
@@ -186,8 +195,23 @@ export const ImageAnalysisSchema = z.object({
   lighting_character: kbField(z.string()).describe(
     "Lighting style observed: natural, golden, harsh, soft diffused, etc.",
   ),
+  product_presentation: kbField(z.string()).describe(
+    "How the product is shown: packshot, in hand, in use, flat lay, backgrounds around it",
+  ),
+  settings_backgrounds: kbField(z.string()).describe(
+    "Typical settings and what sits behind the subject",
+  ),
+  people_casting: kbField(z.string()).describe(
+    "Who appears and how they are styled: age, look, wardrobe, expression",
+  ),
+  text_overlay_style: kbField(z.string()).describe(
+    "Text on images: font style, colours as #RRGGBB, placement and treatment",
+  ),
+  recurring_motifs: kbField(z.array(z.string())).describe(
+    "Props, patterns and graphic devices that repeat across images",
+  ),
   brand_consistency_notes: kbField(z.string()).describe(
-    "Notes on visual consistency or standout patterns across the image set",
+    "How consistent the look is across uploads, website and social, and where it differs",
   ),
 });
 
@@ -216,12 +240,19 @@ export function emptyKBField<T>(value: T | null = null): KBField<T> {
 
 export function defaultEmptyImageAnalysis(): TraceableBrandKB["image_analysis"] {
   return {
+    content_mix: emptyKBField<string[]>(null),
+    purpose_mix: emptyKBField<string[]>(null),
     dominant_colors: emptyKBField<string[]>(null),
     visual_mood: emptyKBField<string>(null),
     aesthetic: emptyKBField<string>(null),
     subjects: emptyKBField<string>(null),
     composition_style: emptyKBField<string>(null),
     lighting_character: emptyKBField<string>(null),
+    product_presentation: emptyKBField<string>(null),
+    settings_backgrounds: emptyKBField<string>(null),
+    people_casting: emptyKBField<string>(null),
+    text_overlay_style: emptyKBField<string>(null),
+    recurring_motifs: emptyKBField<string[]>(null),
     brand_consistency_notes: emptyKBField<string>(null),
   };
 }

@@ -7,6 +7,7 @@ import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
 import { cutsFromShots, shotsFromCuts, totalOf } from "./multishot-cuts";
 import { mergeShotRows } from "./group-shots";
 import type { ReelShot, VoLine } from "./reel-script";
+import { foldMultishotVoiceover } from "./voiceover";
 import { bestFitMultishotModel } from "./multishot-models";
 import { deriveShotType } from "./shot-types";
 
@@ -37,7 +38,8 @@ export function shotDataToMultishot(
   // The ladder keeps its real length; the violation is STATED by `checkLadder`.
   const totalSeconds = totalOf(cuts);
 
-  return {
+  // D307 — each shot's lines join the sequence's: a Multishot speaks over the whole sequence.
+  return foldMultishotVoiceover({
     order: data.order,
     seededFrom: data.seededFrom,
     totalSeconds,
@@ -53,7 +55,7 @@ export function shotDataToMultishot(
       visual_script: { ...data.script?.visual_script, shots: undefined },
     },
     // No shot_type: framing is per cut on a multishot node.
-  };
+  });
 }
 
 export function multishotDataToShot(data: MultishotNodeData): ShotNodeData {

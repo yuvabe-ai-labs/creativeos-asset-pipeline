@@ -3,11 +3,13 @@ import sharp from "sharp";
 
 const imagesGenerate = vi.fn();
 const imagesEdit = vi.fn();
+const clientOptions: unknown[] = [];
 
 vi.mock("@/lib/openai/server", () => ({
-  createOpenAI: () => ({
-    images: { generate: imagesGenerate, edit: imagesEdit },
-  }),
+  createOpenAI: (options?: unknown) => {
+    clientOptions.push(options);
+    return { images: { generate: imagesGenerate, edit: imagesEdit } };
+  },
 }));
 
 import { generateWithOpenAI } from "../providers/openai";
@@ -33,6 +35,20 @@ function baseInput(params: Record<string, unknown>): ImageGenInput {
     params,
   };
 }
+
+describe("generateWithOpenAI — client retries (D366)", () => {
+  it("turns the client's own retries off when the caller asks (the image task retries itself)", async () => {
+    clientOptions.length = 0;
+    await generateWithOpenAI("gpt-image-2", { ...baseInput({ aspect_ratio: "1:1" }), providerMaxRetries: 0 });
+    expect(clientOptions).toEqual([{ maxRetries: 0 }]);
+  });
+
+  it("keeps the client's default for every other caller", async () => {
+    clientOptions.length = 0;
+    await generateWithOpenAI("gpt-image-2", baseInput({ aspect_ratio: "1:1" }));
+    expect(clientOptions).toEqual([undefined]);
+  });
+});
 
 describe("generateWithOpenAI — transparent background + jpeg output", () => {
   it("overrides output_format to png when background is transparent and output_format is jpeg", async () => {

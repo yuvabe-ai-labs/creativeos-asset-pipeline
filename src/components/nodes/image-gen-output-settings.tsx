@@ -28,6 +28,14 @@ type Props = {
   onValuesChange: (next: ParamFormValues) => void;
   onCommit: (values: ParamFormValues) => void;
   onModelChange: (id: string) => void;
+  /** D312 — a line under the model picker. Image Gen never passes it. */
+  modelNote?: string;
+  /** D312 — an (i) note on given model chips, by model id. */
+  modelHints?: Readonly<Record<string, string>>;
+  /** D312 — narrows a select param's options, e.g. { aspect_ratio: ["16:9", "9:16"] }. */
+  optionFilter?: Record<string, readonly string[]>;
+  /** D312 — primary params side by side on one line instead of stacked. */
+  inlineParams?: boolean;
 };
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
@@ -53,6 +61,10 @@ export function ImageGenOutputSettings({
   onValuesChange,
   onCommit,
   onModelChange,
+  modelNote,
+  modelHints,
+  optionFilter,
+  inlineParams,
 }: Props) {
   function patch(updates: ParamFormValues) {
     const next = { ...values, ...updates };
@@ -79,18 +91,25 @@ export function ImageGenOutputSettings({
                 {group.label}
               </span>
               <ParamChipGroup
-                options={group.models.map((m) => ({ value: m.id, label: m.label }))}
+                options={group.models.map((m) => ({ value: m.id, label: m.label, hint: modelHints?.[m.id] }))}
                 value={model.id}
                 onValueChange={onModelChange}
               />
             </div>
           ))}
         </div>
+        {modelNote && <p className="text-xs text-muted-foreground">{modelNote}</p>}
       </div>
 
       {/* Primary params — each rendered as a chip group, stacked vertically so
           Quality/Resolution always sits below Aspect Ratio. */}
-      <div className="flex flex-col gap-4 [&>*+*]:border-t [&>*+*]:border-border [&>*+*]:pt-4">
+      <div
+        className={
+          inlineParams
+            ? "flex flex-wrap items-start gap-x-8 gap-y-4"
+            : "flex flex-col gap-4 [&>*+*]:border-t [&>*+*]:border-border [&>*+*]:pt-4"
+        }
+      >
         {primaryParams.map((param: ParamSpec) =>
           param.constraints.type === "select" ? (
             <div key={param.name} className="space-y-3">
@@ -99,7 +118,9 @@ export function ImageGenOutputSettings({
                 label={param.label}
               />
               <ParamChipGroup
-                options={param.constraints.options.map((o) => ({
+                options={param.constraints.options
+                  .filter((o) => !optionFilter?.[param.name] || optionFilter[param.name].includes(o))
+                  .map((o) => ({
                   value: o,
                   label: formatOption(o),
                 }))}

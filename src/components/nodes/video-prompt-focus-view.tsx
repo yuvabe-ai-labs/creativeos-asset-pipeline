@@ -47,6 +47,13 @@ import { storedRefDialect, renderRefs, missingRefsMessage } from "@/lib/nodes/re
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import {
+  useNodeVersions,
+  useRefreshNodeVersions,
+  useSetActiveNodeVersion,
+} from "@/hooks/queries/node-versions";
+import type { NodeVersionsResponse } from "@/services/node-versions.service";
+import { useMentionUpstream } from "@/hooks/use-mention-upstream";
 
 // Only Omni and Seedance carry an inline reference handle in the model's own syntax (`<IMAGE_REF_N>`
 // / `@Image N`) — Veo and Kling stay positional prose (buildCompositionBlock in video-prompt.ts), so
@@ -87,6 +94,8 @@ export function VideoPromptFocusView({
   onPatch,
   onSaveOutput,
 }: VideoPromptFocusViewProps) {
+  // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
+  const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
@@ -106,8 +115,18 @@ export function VideoPromptFocusView({
     output,
     nodeId,
   });
-  const [versions, setVersions] = useState<VersionSummary[]>([]);
-  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // This node's versions, from the shared cache: a reopen renders the cached list at once and
+  // re-checks behind it. Versions don't depend on the node's edges, so unlike the preview
+  // below they never wait for the autosave flush.
+  const versionsQuery = useNodeVersions<VersionSummary>(nodeId, open);
+  const refreshVersions = useRefreshNodeVersions<VersionSummary>(nodeId);
+  const setActiveVersionId = useSetActiveNodeVersion(nodeId);
+  const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
+  const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
+  // The versions the review fields below were last seeded from — see applyVersions.
+  const [seededVersions, setSeededVersions] = useState<
+    NodeVersionsResponse<VersionSummary> | undefined
+  >(undefined);
   const [restoring, setRestoring] = useState(false);
   // Seeded from `open`, not `false`. The seed block below only arms this on the false → true
   // TRANSITION, and a node created by the guided button never has one: guidedCreateNext and
@@ -150,6 +169,10 @@ export function VideoPromptFocusView({
     // regenerate/restore/save would strand it `true` forever.
     if (opening) {
       setLoadingPreview(true);
+      // A reopen seeds the review fields from the cached versions straight away; with nothing
+      // cached yet, the first read to arrive seeds them in full (the block below).
+      setSeededVersions(versionsQuery.data);
+      if (versionsQuery.data) applyVersions(versionsQuery.data);
     }
     // Re-arm the "inputs are persisted" gate the same way (see the effect below). Adjusted
     // during render rather than in that effect, which cannot set state synchronously —
@@ -178,7 +201,7 @@ export function VideoPromptFocusView({
 
   // The attached images in `<IMAGE_REF_N>` order. Shared with the strip below and with the chips
   // rendered inside the generated prompt, via one filter — see visionAttachmentsOf.
-  const promptRefImages = visionAttachmentsOf(upstream).map((u) => ({
+  const promptRefImages = visionAttachmentsOf(mentionUpstream).map((u) => ({
     id: u.id,
     label: u.label,
     fileUrl: u.fileUrl,
@@ -219,8 +242,8 @@ export function VideoPromptFocusView({
   // and a fresh dialect each time would re-run the editor's population effect and fight the caret.
   const refIdsKey = promptRefImages.map((r) => r.id).join(",");
   const labelOfRef = useCallback(
-    (id: string) => upstream.find((u) => u.id === id)?.label,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `upstream` is rebuilt every render
+    (id: string) => mentionUpstream.find((u) => u.id === id)?.label,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `mentionUpstream` is rebuilt every render
     [refIdsKey],
   );
   const omniRefs = useMemo(() => {
@@ -252,27 +275,43 @@ export function VideoPromptFocusView({
     preserveEvalDraft?: boolean;
   }): Promise<ApprovalStatus | undefined> {
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/versions`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const vs: VersionSummary[] = json.versions ?? [];
-      const activeVid: string | null = json.activeVersionId ?? null;
-      setVersions(vs);
-      setActiveVersionId(activeVid);
-      const active = vs.find((v) => v.id === activeVid);
-      setEvalDecision(active?.decision ?? null);
-      // The eval note is a CONTROLLED draft saved on blur, so re-seeding it mid-keystroke
-      // discards whatever the viewer was typing. Harmless when they triggered the refresh
-      // themselves; a silent loss when someone else's decision triggered it.
-      if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
-      setApprovalStatus(active?.approvalStatus ?? "pending");
-      setApprovalNote(active?.note ?? "");
-      setApprovedByName(active?.approvedByName ?? null);
-      setApprovedAt(active?.approvedAt ?? null);
-      return active?.approvalStatus ?? "pending";
+      return applyVersions(await refreshVersions(), opts);
     } catch {
       /* best-effort */
     }
+  }
+
+  // Copies the ACTIVE version's review state into the fields the eval and approval controls
+  // edit. Returns that version's approval status.
+  function applyVersions(
+    data: NodeVersionsResponse<VersionSummary>,
+    opts?: { preserveEvalDraft?: boolean },
+  ): ApprovalStatus {
+    const active = data.versions.find((v) => v.id === data.activeVersionId);
+    setEvalDecision(active?.decision ?? null);
+    // The eval note is a CONTROLLED draft saved on blur, so re-seeding it mid-keystroke
+    // discards whatever the viewer was typing. Harmless when they triggered the refresh
+    // themselves; a silent loss when someone else's decision triggered it.
+    if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
+    setApprovalStatus(active?.approvalStatus ?? "pending");
+    setApprovalNote(active?.note ?? "");
+    setApprovedByName(active?.approvedByName ?? null);
+    setApprovedAt(active?.approvedAt ?? null);
+    return active?.approvalStatus ?? "pending";
+  }
+
+  // Whenever the cached versions change while open — the first read, the re-check behind a
+  // reopen, a live update, a refresh after our own action — re-seed the review fields from
+  // them. Only the FIRST seed of an open replaces the eval note: after that it is the viewer's
+  // draft (saved on blur), and a background update must not discard what they are typing.
+  if (open && versionsQuery.data && versionsQuery.data !== seededVersions) {
+    setSeededVersions(versionsQuery.data);
+    applyVersions(versionsQuery.data, {
+      // A draft belongs to the version it was typed on: a different active version re-seeds it.
+      preserveEvalDraft:
+        seededVersions !== undefined &&
+        seededVersions.activeVersionId === versionsQuery.data.activeVersionId,
+    });
   }
 
   /**
@@ -310,26 +349,6 @@ export function VideoPromptFocusView({
   useEffect(() => {
     if (!open || !inputsPersisted) return;
     let cancelled = false;
-
-    void (async () => {
-      try {
-        const res = await fetch(`/api/nodes/${nodeId}/versions`);
-        if (!cancelled && res.ok) {
-          const json = await res.json();
-          const vs: VersionSummary[] = json.versions ?? [];
-          const activeVid: string | null = json.activeVersionId ?? null;
-          setVersions(vs);
-          setActiveVersionId(activeVid);
-          const active = vs.find((v) => v.id === activeVid);
-          setEvalDecision(active?.decision ?? null);
-          setEvalNote(active?.note ?? "");
-          setApprovalStatus(active?.approvalStatus ?? "pending");
-          setApprovalNote(active?.note ?? "");
-        }
-      } catch {
-        /* best-effort */
-      }
-    })();
 
     const t = setTimeout(async () => {
       try {
@@ -544,7 +563,7 @@ export function VideoPromptFocusView({
                         onPatch({ instruction: v });
                       }}
                       placeholder={DEFAULT_MOTION_INSTRUCTION}
-                      upstream={upstream}
+                      upstream={mentionUpstream}
                       disabled={!editable}
                       className="min-h-16"
                     />
@@ -671,7 +690,7 @@ export function VideoPromptFocusView({
                         <MentionInstructionEditor
                           value={draft}
                           onChange={setDraft}
-                          upstream={upstream}
+                          upstream={mentionUpstream}
                           disabled={!editable}
                           dialect={omniRefs}
                           placeholder="Empty — click to edit"

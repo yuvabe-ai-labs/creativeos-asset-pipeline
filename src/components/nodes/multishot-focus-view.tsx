@@ -408,43 +408,6 @@ export function MultishotFocusView({
                       />
                     </div>
 
-                    {/* The spoken line gets its OWN lane, below the description's scroller rather
-                        than inside it (operator, 2026-09-23: "vo is hidden under scroll"). What a
-                        shot SAYS is not a footnote to what it shows — it is the other half of the
-                        shot, and it was reachable only by scrolling a 176px box that gave no sign
-                        there was anything below the prose.
-
-                        The lane is `shrink-0` and never scrolls: it grows with its lines and the
-                        card grows with it. A silent shot still shows the Add-line chip, so the
-                        lane never collapses into an invisible strip. */}
-                    {/* Under the read-only lock a silent shot has nothing to put in the lane, and
-                        a heading over an empty space reads as a loading state. */}
-                    {(!isReadOnly || (cut.voiceover?.length ?? 0) > 0) && (
-                      <div className="mt-1 flex min-h-0 shrink-0 flex-col border-t border-border/70 pt-2">
-                        {/* The label sits OUTSIDE the scroller. Inside it, the first shot with two
-                            lines scrolled its own heading out of view, so one card said
-                            "Voiceover" and its neighbour said nothing. */}
-                        <span className="text-eyebrow shrink-0 text-muted-foreground">
-                          Voiceover
-                        </span>
-                        {/* No scroller of its own: every line has to stay reachable, and the
-                            Add-line chip below them is the one control that must never be the
-                            thing that gets clipped. The lane grows; the row grows with it. */}
-                        <div className="mt-1">
-                          <VoLinesEditor
-                            lines={cut.voiceover}
-                            readOnly={isReadOnly}
-                            onChange={(next) =>
-                              setCuts((cs) =>
-                                cs.map((c, j) =>
-                                  j === i ? { ...c, voiceover: next } : c,
-                                ),
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex flex-col items-center gap-1">

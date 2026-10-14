@@ -1,6 +1,7 @@
 // Pure logic for the Shot Composer (D28). No server-only imports — unit-testable.
 import type { ShotRole } from "@/lib/nodes/shot-roles";
 import type { UpstreamPreview } from "@/lib/nodes/resolve-inputs"; // type-only (erased) — safe
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 // One composed candidate. The Shot's output is still a description string; an idea is a
 // labelled candidate description the designer can pick (-> setDescription) or promote.
@@ -46,10 +47,10 @@ export function renderComposeContext(args: {
 export function selectImageUpstreams(ups: ComposeUpstream[]): UpstreamPreview[] {
   const out: UpstreamPreview[] = [];
   for (const u of ups) {
-    if (u.type === "image-gen") {
+    if (isGeneratedImageType(u.type)) {
       const url = typeof u.activeOutput === "string" ? u.activeOutput : undefined;
       if (url) {
-        out.push({ nodeId: u.nodeId, versionId: u.versionId, label: "Image", type: "image-gen", text: "", fileUrl: url, fileKind: "image" });
+        out.push({ nodeId: u.nodeId, versionId: u.versionId, label: u.type === "composite" ? "Composite" : "Image", type: u.type, text: "", fileUrl: url, fileKind: "image" });
       }
       continue;
     }

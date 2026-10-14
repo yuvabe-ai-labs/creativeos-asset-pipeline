@@ -144,3 +144,14 @@ describe("orderImagesForPromptTokens", () => {
     expect(assigned.referenceUrls[1]).toContain("sandal");
   });
 });
+
+describe("D312 — a composite is a reference", () => {
+  it("a composite defaults to reference, never start_frame, even on a no-reference model", () => {
+    const roles = autoAssignImageRoles(
+      [{ nodeId: "c1", url: "https://cdn/c.png", type: "composite" }],
+      {},
+      { supportsStartFrame: true, supportsReferences: false },
+    );
+    expect(roles.c1).toBe("reference");
+  });
+});

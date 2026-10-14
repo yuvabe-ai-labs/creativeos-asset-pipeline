@@ -2,6 +2,7 @@ import { insertBrandImage } from "@/lib/db/kb";
 import { IMG_EXTENSIONS } from "@/lib/kb/constants";
 import { apiError, apiOk, withClient } from "@/lib/api/route-helpers";
 import { publicUrlFor } from "@/lib/storage/gcs";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 
 // POST /api/clients/:id/kb/images/finalize — record a brand image already uploaded
 // directly to GCS (via a signed URL) in the database.
@@ -36,6 +37,7 @@ export async function POST(
       storageUrl: publicUrlFor(body.path),
       sizeBytes: body.size,
     });
+    await startImageAnalysisQuietly(clientId);
 
     return apiOk({ image });
   });

@@ -109,7 +109,9 @@ export type AuditEventRow = {
 };
 
 export type GenerationRow = {
-  node_id: string;
+  // Null for an avatar-owned generation (migration 0042, D291) — a null never equals the
+  // string node id a "generate" audit event carries, so it simply never correlates below.
+  node_id: string | null;
   type: string;
   model_used: string | null;
   status: string;

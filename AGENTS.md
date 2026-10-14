@@ -67,6 +67,33 @@ See **[docs/component-structure.md](docs/component-structure.md)** for the full 
 folder ownership, component rules (one per file, named export, split at ~200 lines, no prop drilling), and shadcn/ui usage (Base UI registry — `render` prop, not `asChild`).
 <!-- END:component-structure -->
 
+<!-- BEGIN:controls -->
+# Controls — shadcn primitives only, never native
+
+Every interactive control in JSX MUST be a shadcn primitive from
+`src/components/ui/*` (Base UI registry — https://ui.shadcn.com). **Never** use a
+raw `<button>`, `<textarea>`, `<input>`, `<select>`, `<option>`, checkbox, radio,
+switch, or slider. Use `Button`, `Textarea`, `Input`, `Select`, etc. — Base UI
+components compose via the `render` prop (not `asChild`). If the primitive you
+need doesn't exist yet, add it to `src/components/ui/` rather than dropping to a
+native element. Non-interactive elements (`span`/`div`/`p` for labels, badges,
+and layout) are fine.
+
+**This holds for anything *inside* a control too.** An icon, unit label, or button
+sitting in a field — a show/hide password eye, a search icon, a "https://" prefix,
+a clear button — is composed with `InputGroup` / `InputGroupInput` /
+`InputGroupAddon` / `InputGroupButton` from `src/components/ui/input-group.tsx`.
+It is **never** a raw `<button>` absolutely positioned over an `Input`. The group
+owns the field's focus ring, disabled and invalid states, so an overlaid element
+sits on top of that styling instead of participating in it, and the seam shows the
+moment the field is focused or errors.
+
+Before hand-rolling any control arrangement, check whether the registry already
+composes it (https://ui.shadcn.com) and whether the primitive is already vendored
+in `src/components/ui/`. `input-group.tsx` is the one most often missed, because it
+solves a layout problem rather than naming a control.
+<!-- END:controls -->
+
 <!-- BEGIN:api-routes -->
 # API routes
 
@@ -113,3 +140,86 @@ Before writing any constant, utility function, or helper, **search the module fi
 - **Two call sites = extract. One = leave inline.** Don't abstract speculatively; wait for a real second consumer.
 - **Narrower sets are intentional.** A subset (e.g. binary-only extensions) that is intentionally smaller than the canonical set is not a duplicate — leave it separate and name it clearly.
 <!-- END:reusability -->
+
+<!-- BEGIN:data-fetching -->
+# Data fetching — TanStack Query, three layers
+
+Browser-side reads and writes against our own API routes go through **TanStack Query**
+(`@tanstack/react-query` v5, D300). Never hand-roll a cache, a context that loads a list, or a
+`useEffect` + `useState` fetch for data the server owns. The one `QueryClient` is provided in
+`src/components/layout/query-provider.tsx`, inside the root layout. Server Components keep
+fetching directly, without TanStack Query.
+
+Every resource is split into three layers, and nothing skips one:
+
+1. **API file:** `src/services/<feature>.service.ts`. Plain async functions (or the existing
+   service-class methods) that call one route each and return typed data through `readJson`.
+   No React, no caching, no toasts.
+2. **Query file:** `src/hooks/queries/<resource>.ts`. The resource's **query-key factory**
+   (`avatarKeys.list(clientId)`, `avatarKeys.detail(clientId, id)`, …) and its consumer hooks:
+   `useQuery` wrappers for reads (`useAvatars(clientId)`) and `useMutation` wrappers for writes
+   (`useArchiveAvatar(clientId)`), which update or invalidate the keys they change. Keys are
+   only ever built through the factory, never written inline.
+3. **Consumers:** components and feature hooks call the query file's hooks. They never call
+   a service for data a query owns, and never call `fetch` directly.
+
+- **One owner per resource.** When a resource moves to TanStack Query, every reader of it
+  moves in the same change; never cache the same data two ways.
+- **Seed details from lists.** A detail query whose row is already in a cached list uses that
+  row as `initialData`, so opening an item never refetches what is on screen.
+- **Existing hand-rolled hooks** (`useAvatarGeneration`, `useAvatarStudio` and the like) move
+  to this pattern when they are next substantially changed, not in passing.
+- **Polling** uses `refetchInterval` (a function returning `false` once the work is done),
+  not `setInterval`.
+<!-- END:data-fetching -->
+
+<!-- BEGIN:performance -->
+# Performance — rules we never break
+
+Learned the hard way (October 2026: one cost request per node, auth checked twice per request,
+full-canvas saves on every click, a server far from its database). Check every change against
+these before calling it done. Full checklist: [docs/performance-checklist.md](docs/performance-checklist.md).
+
+**Count the calls first.** Before shipping anything that loads data, answer: *on a canvas with
+300 nodes, how many requests, queries and realtime channels does this make on load?* If the
+answer grows with the number of nodes, it is wrong.
+
+1. **Nothing per item.** A hook or component that mounts once per node, card or row makes **zero**
+   network calls and opens **zero** channels on mount. Load once for the whole screen (one query,
+   one channel), keep it in the store or the query cache, and let each item *select* its part.
+2. **Selectors are O(1).** Store selectors re-run on every store change (dragging a node changes
+   the store every frame). A per-node selector never scans a large collection; keep an index
+   (e.g. latest job by node id) updated on write instead.
+3. **One realtime channel per screen, not per item.** Filter events client-side. Await the session
+   before subscribing (a channel opened without a JWT silently receives nothing).
+4. **Never write when nothing changed.** Compare against what was last saved; a no-op update must
+   not replace store arrays (it triggers autosave and re-renders).
+5. **Server: independent queries in parallel.** Count the sequential database calls in each route;
+   each one is a full round trip. `Promise.all` what does not depend on each other.
+6. **Auth once per request.** React `cache()` does not dedupe inside route handlers; resolve the
+   caller once and pass it down.
+7. **Server next to its database.** Each environment's functions run in the same region as its
+   database. Verify it (`x-vercel-id`), never assume.
+8. **Ask for what you need.** Select only the columns used; never download a large payload to read
+   one field; never put file bytes in a task payload, webhook body or route body (upload, then
+   pass a URL).
+9. **Index what you filter on.** Every column used in a frequent `where`, join or sort — foreign
+   keys included — has an index.
+10. **Cache on the client, act on fresh data.** Cached data is for *showing*; anything that writes
+    or acts on it waits for a fresh read. A user's own action refreshes and cancels older reads in
+    flight.
+11. **Prefetch with intent.** Hover/scroll prefetch waits for the pointer to settle (~200 ms).
+12. **Long or paid work runs in the background** (Trigger.dev), never inside the browser's request.
+    A paid task reports `failed` only when the failure is final, and never retries after the
+    provider has returned (a retry would pay twice).
+13. **A failure is never "empty".** A failed read must not be treated as "nothing there" when
+    empty would trigger a write (e.g. pruning roles, deleting rows).
+14. **IDs from the client are checked.** A route taking a list of ids verifies the caller may access
+    every one.
+<!-- END:performance -->
+
+<!-- TRIGGER.DEV SKILLS START -->
+## Trigger.dev agent skills
+
+This project has Trigger.dev agent skills installed in `.claude/skills/`. Before writing or changing Trigger.dev code (background tasks, scheduled tasks, realtime, or chat.agent AI agents), load the most relevant skill: `trigger-authoring-chat-agent`.
+<!-- TRIGGER.DEV SKILLS END -->

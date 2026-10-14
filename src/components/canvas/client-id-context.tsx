@@ -23,3 +23,16 @@ export function ClientIdProvider({
 export function useClientId(): string {
   return useContext(ClientIdContext);
 }
+
+// D298 — the client's slug, for links out of the canvas into the client's own pages (an Avatar
+// node's "Open in Studio" goes to /clients/{slug}/avatars/{id}). Kept beside the id rather than
+// folded into it, so every existing useClientId() reader is untouched.
+const ClientSlugContext = createContext<string>("");
+
+export function ClientSlugProvider({ value, children }: { value: string; children: ReactNode }) {
+  return <ClientSlugContext.Provider value={value}>{children}</ClientSlugContext.Provider>;
+}
+
+export function useClientSlug(): string {
+  return useContext(ClientSlugContext);
+}

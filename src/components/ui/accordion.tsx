@@ -52,14 +52,17 @@ function AccordionContent({
   ...props
 }: AccordionPrimitive.Panel.Props) {
   return (
+    // Base UI sets --accordion-panel-height and the starting/ending-style attributes on the Panel, so the
+    // height transition lives here. (tw-animate's accordion keyframes read Radix's variable, not Base
+    // UI's, so they end at height: auto and snap.) Opens gradually on the house ease-out; closes fast.
     <AccordionPrimitive.Panel
       data-slot="accordion-content"
-      className="overflow-hidden text-sm data-open:animate-accordion-down data-closed:animate-accordion-up"
+      className="h-(--accordion-panel-height) overflow-hidden text-sm transition-[height] duration-320 ease-[cubic-bezier(0.22,1,0.36,1)] data-starting-style:h-0 data-ending-style:h-0 data-ending-style:duration-200 motion-reduce:transition-none"
       {...props}
     >
       <div
         className={cn(
-          "h-(--accordion-panel-height) pt-0 pb-2.5 data-ending-style:h-0 data-starting-style:h-0 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+          "pt-0 pb-2.5 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
           className
         )}
       >

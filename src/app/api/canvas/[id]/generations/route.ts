@@ -65,12 +65,17 @@ export async function GET(
 
     const items: CanvasGenerationItem[] = gens
       .map((g) => {
+        // Belt-and-suspenders: the query above already filters to this canvas's node ids, so
+        // an avatar-owned row (node_id null, D291) can't actually reach here — but a canvas
+        // view has no node to show it on regardless, so guard before the cast rather than
+        // trust the upstream filter alone.
+        if (typeof g.node_id !== "string") return null;
         const output = outputById.get(g.version_id as string);
         if (typeof output !== "string" || !output.startsWith("http")) return null;
         return {
           id: g.id as string,
-          nodeId: g.node_id as string,
-          nodeName: nodeNameById.get(g.node_id as string) ?? null,
+          nodeId: g.node_id,
+          nodeName: nodeNameById.get(g.node_id) ?? null,
           imageUrl: output,
           modelUsed: g.model_used as string | null,
           createdAt: g.created_at as string,

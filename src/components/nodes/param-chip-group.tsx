@@ -1,10 +1,16 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-export type ChipOption = { value: string; label: string };
+export type ChipOption = {
+  value: string;
+  label: string;
+  /** A short note behind an (i) inside the chip, shown on hover. */
+  hint?: string;
+};
 
 type Props = {
   options: ChipOption[];
@@ -51,6 +57,20 @@ export function ParamChipGroup({
           >
             {active && <Check className="size-3.5 shrink-0" strokeWidth={2} />}
             {opt.label}
+            {opt.hint && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={<span aria-label={opt.hint} className="inline-flex text-muted-foreground" />}
+                  >
+                    <Info className="size-3.5 shrink-0" strokeWidth={1.5} />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-56 text-center">
+                    {opt.hint}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </Button>
         );
       })}

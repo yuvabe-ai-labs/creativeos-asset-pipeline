@@ -8,6 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { canConnect, type AppNode } from "@/lib/canvas-nodes";
 import { nodeLabel } from "@/lib/nodes/describe-node";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 // The candidate's image, when it has one: an image File's upload, a Draw's sketch,
 // an Image Gen's generated still (`parsed` is its URL). Text-bearing nodes → none.
@@ -16,7 +17,7 @@ function thumbUrl(node: AppNode): string | undefined {
   if (node.type === "file")
     return d.fileKind === "image" && typeof d.fileUrl === "string" ? d.fileUrl : undefined;
   if (node.type === "draw") return typeof d.fileUrl === "string" ? d.fileUrl : undefined;
-  if (node.type === "image-gen") return typeof d.parsed === "string" ? d.parsed : undefined;
+  if (isGeneratedImageType(node.type)) return typeof d.parsed === "string" ? d.parsed : undefined;
   return undefined;
 }
 

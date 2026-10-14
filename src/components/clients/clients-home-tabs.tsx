@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
-import { ClientsTable } from "@/components/clients/clients-table";
+import { ClientsGrid } from "@/components/clients/clients-grid";
 import { RecentCanvasesTable } from "@/components/canvases/recent-canvases-table";
 import { useReviewCounts } from "@/hooks/use-review-counts";
 import type { ClientWithCount } from "@/lib/db/clients";
@@ -70,7 +70,7 @@ export function ClientsHomeTabs({
             action={<NewClientDialog trigger={<Button>+ Add client</Button>} />}
           />
         ) : (
-          <ClientsTable clients={clients} counts={liveCounts.byClient} />
+          <ClientsGrid clients={clients} counts={liveCounts.byClient} />
         )}
       </TabsContent>
 
@@ -97,7 +97,7 @@ export function ClientsHomeTabs({
             </p>
           </Card>
         ) : (
-          <ClientsTable clients={archivedClients} archived />
+          <ClientsGrid clients={archivedClients} archived />
         )}
       </TabsContent>
     </Tabs>

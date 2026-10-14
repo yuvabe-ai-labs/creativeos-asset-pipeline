@@ -13,11 +13,14 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
+import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
 import {
   multishotSeedFor,
   pruneBeatCache,
@@ -37,15 +40,26 @@ import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
-import type { GenerationRow } from "@/lib/db/types";
+import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
+import {
+  clearsStartMark,
+  isNewerJob,
+  mergeJob,
+  type GenerationJobKind,
+  type GenerationStartMark,
+} from "@/lib/generations/node-status";
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const rest = { ...record };
+  delete rest[key];
+  return rest;
+}
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
 // Seeded on creation with nodes loaded from the DB (1D-5).
-
-/** What a Video Gen node is running: a new video, or a voice change on one (D284). */
-export type VideoGenJobKind = "video" | "voice";
 
 export type CanvasState = {
   canvasName: string;
@@ -70,17 +84,21 @@ export type CanvasState = {
   /** D286 — cache one scene's fresh split on the Script node (never in `parsed`). */
   cacheSceneBeats: (scriptNodeId: string, fingerprint: string, beats: SceneBeat[]) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
-  // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
-  // `kind` says what is running (D284): a fresh video, or a voice change on an existing one —
-  // the focus view shows the two differently. Null when nothing runs.
-  videoGenStatus: Record<string, { isGenerating: boolean; kind: VideoGenJobKind | null; lastError: string | null }>;
-  setVideoGenGenerating: (nodeId: string, v: boolean, kind?: VideoGenJobKind) => void;
-  setVideoGenError: (nodeId: string, err: string | null) => void;
+  // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
+  // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
+  latestJobByNode: Record<string, GenerationFeedRow>;
+  generationStarts: Record<string, GenerationStartMark>;
+  generationRequestErrors: Record<string, string>;
+  /** `generationId`, when the start response names it, lets the mark clear on exactly that job's
+   *  row; a mark for a row already on the feed is not set at all. */
+  markGenerationStarted: (nodeId: string, kind: GenerationJobKind, generationId?: string) => void;
+  clearGenerationStarted: (nodeId: string) => void;
+  setGenerationRequestError: (nodeId: string, error: string | null) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
   // keyed by generation id. The tray derives its list from these + the node graph (D9).
-  trayJobs: Record<string, GenerationRow>;
-  setTrayJobs: (jobs: GenerationRow[]) => void;
-  upsertTrayJob: (job: GenerationRow) => void;
+  trayJobs: Record<string, GenerationFeedRow>;
+  setTrayJobs: (jobs: GenerationFeedRow[]) => void;
+  upsertTrayJob: (job: GenerationFeedRow) => void;
   // Programmatic focus-view open signal — set by the tray to open a node's focus view.
   focusedNodeId: string | null;
   setFocusedNodeId: (id: string | null) => void;
@@ -117,6 +135,9 @@ function defaultData(type: string): AppNode["data"] {
   switch (type) {
     case "file":
       return { title: "" };
+    case "avatar":
+      // Filled by whoever adds the node (the gallery) — an Avatar node is never added bare.
+      return { avatarId: "" };
     case "text":
       return {};
     case "shot":
@@ -127,6 +148,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "" };
     case "image-gen":
       return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
+    case "composite":
+      return { title: "", modelId: COMPOSITE_DEFAULT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
     case "post":
@@ -236,7 +259,14 @@ export function createCanvasStore(
 
       // Mint a uuid id — React Flow would otherwise assign `xy-edge__<src>-<tgt>`,
       // which the edges.id uuid column rejects (failing the whole save batch).
-      set({ edges: addEdge({ ...connection, id: crypto.randomUUID() }, get().edges) });
+      // D298 — a script has one presenter: another avatar's edge into it is replaced.
+      const replaced = source && target ? replacedPresenterEdges(get().nodes, get().edges, source, target) : [];
+      const kept = replaced.length ? get().edges.filter((e) => !replaced.includes(e)) : get().edges;
+      set({
+        edges: addEdge({ ...connection, id: crypto.randomUUID() }, kept),
+        ...(replaced.length && { removedEdgeIds: [...get().removedEdgeIds, ...replaced.map((e) => e.id)] }),
+      });
+      if (replaced.length) toast(PRESENTER_REPLACED_MESSAGE);
     },
     addNode: (type, position, id) =>
       set({
@@ -250,21 +280,33 @@ export function createCanvasStore(
           } as AppNode,
         ],
       }),
-    updateNodeData: (id, data) =>
+    updateNodeData: (id, data) => {
+      // A patch that changes nothing must not replace the nodes array: autosave watches it
+      // by reference, and focus views routinely re-patch values they just read back (the
+      // active version's output, its approval status), each of which queued a full-canvas
+      // save. Shallow on purpose — a fresh object for a nested value still counts as a change.
+      const target = get().nodes.find((n) => n.id === id);
+      if (!target) return;
+      const current = target.data as Record<string, unknown>;
+      if (Object.entries(data).every(([k, v]) => Object.is(current[k], v))) return;
       set({
         nodes: get().nodes.map((n) =>
           n.id === id
             ? ({ ...n, data: { ...n.data, ...data } } as AppNode)
             : n,
         ),
-      }),
-    connectNodes: (sourceId, targetId) =>
+      });
+    },
+    connectNodes: (sourceId, targetId) => {
+      // D298 — the gallery's path keeps one presenter per script too, announced once, here.
+      const replaced = replacedPresenterEdges(get().nodes, get().edges, sourceId, targetId);
+      const kept = replaced.length ? get().edges.filter((e) => !replaced.includes(e)) : get().edges;
       set({
-        edges: addEdge(
-          { source: sourceId, target: targetId, id: crypto.randomUUID() },
-          get().edges,
-        ),
-      }),
+        edges: addEdge({ source: sourceId, target: targetId, id: crypto.randomUUID() }, kept),
+        ...(replaced.length && { removedEdgeIds: [...get().removedEdgeIds, ...replaced.map((e) => e.id)] }),
+      });
+      if (replaced.length) toast(PRESENTER_REPLACED_MESSAGE);
+    },
     // The counterpart to connectNodes: drop the wire, keep both nodes. Dropped edge ids MUST
     // land in removedEdgeIds — autosave sends that list as the delete set, so an edge removed
     // from `edges` alone is only gone in memory and resurrects on the next load. Same cascade
@@ -525,7 +567,8 @@ export function createCanvasStore(
             id: crypto.randomUUID(),
             type: "multishot",
             position,
-            data: {
+            // D307 — each shot's lines join the sequence's: a Multishot speaks over the whole sequence.
+            data: foldMultishotVoiceover({
               // The envelope only — `cuts` is the sole shot list on this node type.
               script: { ...parsed, visual_script: { ...parsed?.visual_script, shots: undefined } },
               order: generation.index + 1,
@@ -535,7 +578,7 @@ export function createCanvasStore(
               targetModel: bestFitMultishotModel(cuts),
               ...(seed.sequenceVoiceover ? { sequenceVoiceover: seed.sequenceVoiceover } : {}),
               seededFrom,
-            },
+            }),
           };
         }
 
@@ -705,41 +748,73 @@ export function createCanvasStore(
       });
     },
 
-    videoGenStatus: {},
+    latestJobByNode: {},
+    generationStarts: {},
+    generationRequestErrors: {},
 
-    setVideoGenGenerating: (nodeId, v, kind) =>
-      set((s) => ({
-        videoGenStatus: {
-          ...s.videoGenStatus,
-          [nodeId]: {
-            isGenerating: v,
-            // A start that doesn't say its kind keeps a known one (hydration may land first).
-            kind: v ? (kind ?? s.videoGenStatus[nodeId]?.kind ?? "video") : null,
-            lastError: s.videoGenStatus[nodeId]?.lastError ?? null,
-          },
-        },
-      })),
+    markGenerationStarted: (nodeId, kind, generationId) =>
+      set((s) => {
+        const generationRequestErrors = omitKey(s.generationRequestErrors, nodeId);
+        // The job's row is already on the feed, so it speaks for the node: no mark to clear later.
+        if (generationId && generationId in s.trayJobs) {
+          return { generationStarts: omitKey(s.generationStarts, nodeId), generationRequestErrors };
+        }
+        const mark: GenerationStartMark = generationId ? { kind, generationId } : { kind };
+        return { generationStarts: { ...s.generationStarts, [nodeId]: mark }, generationRequestErrors };
+      }),
 
-    setVideoGenError: (nodeId, err) =>
-      set((s) => ({
-        videoGenStatus: {
-          ...s.videoGenStatus,
-          [nodeId]: {
-            isGenerating: s.videoGenStatus[nodeId]?.isGenerating ?? false,
-            kind: s.videoGenStatus[nodeId]?.kind ?? null,
-            lastError: err,
-          },
-        },
-      })),
+    clearGenerationStarted: (nodeId) =>
+      set((s) => (nodeId in s.generationStarts ? { generationStarts: omitKey(s.generationStarts, nodeId) } : {})),
+
+    setGenerationRequestError: (nodeId, error) =>
+      set((s) => {
+        const rest = omitKey(s.generationRequestErrors, nodeId);
+        return { generationRequestErrors: error ? { ...rest, [nodeId]: error } : rest };
+      }),
 
     trayJobs: {},
+    // Merges rather than replaces: a hydrate can land after a live update, and must not turn a
+    // finished row back to running, nor drop rows that arrived live.
     setTrayJobs: (jobs) =>
-      set({ trayJobs: Object.fromEntries(jobs.map((j) => [j.id, j])) }),
+      set((s) => {
+        const trayJobs = { ...s.trayJobs };
+        let generationStarts = s.generationStarts;
+        for (const incoming of jobs) {
+          const existing = trayJobs[incoming.id];
+          const merged = mergeJob(existing, incoming);
+          trayJobs[incoming.id] = merged;
+          const nodeId = merged.node_id;
+          const mark = nodeId !== null ? generationStarts[nodeId] : undefined;
+          if (nodeId === null || !mark) continue;
+          // A reloaded row that changes nothing is not news, so it cannot retire a mark.
+          const changed = !existing || existing.status !== merged.status;
+          const advances = changed && isNewerJob(merged, s.latestJobByNode[nodeId]);
+          if (clearsStartMark(mark, merged, advances)) generationStarts = omitKey(generationStarts, nodeId);
+        }
+        const latestJobByNode: Record<string, GenerationFeedRow> = {};
+        for (const j of Object.values(trayJobs)) {
+          if (j.node_id && isNewerJob(j, latestJobByNode[j.node_id])) latestJobByNode[j.node_id] = j;
+        }
+        return { trayJobs, latestJobByNode, generationStarts };
+      }),
     upsertTrayJob: (job) =>
-      set((s) => ({ trayJobs: { ...s.trayJobs, [job.id]: job } })),
+      set((s) => {
+        const nodeId = job.node_id;
+        const newer = nodeId !== null && isNewerJob(job, s.latestJobByNode[nodeId]);
+        // The job's own row now speaks for the node, whatever its status: a mark naming this job,
+        // or (without an id) any row that advances the node's latest job, retires the mark.
+        const mark = nodeId !== null ? s.generationStarts[nodeId] : undefined;
+        const startCleared = mark !== undefined && clearsStartMark(mark, job, newer);
+        return {
+          trayJobs: { ...s.trayJobs, [job.id]: job },
+          ...(newer ? { latestJobByNode: { ...s.latestJobByNode, [nodeId!]: job } } : {}),
+          ...(startCleared ? { generationStarts: omitKey(s.generationStarts, nodeId!) } : {}),
+        };
+      }),
 
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),
+
 
     focusSection: null,
     setFocusSection: (section) => set({ focusSection: section }),

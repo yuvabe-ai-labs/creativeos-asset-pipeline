@@ -33,7 +33,8 @@ import {
 // @6 (D267, Task 5): the writer no longer writes dialogue or the voiceover — {} dropped from the
 //     SOUND section below, and `voiceoverRules` is replaced by the shared VO_PERFORMANCE_RULES;
 //     renderPlan appends the actual line afterwards.
-export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@6";
+// @7 (D319): shares the role-aware reference reading and the `references` scratch field.
+export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@7";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Seedance 2.5.
 

@@ -29,6 +29,18 @@ export const gemini25FlashParams: ParamSpec[] = [
     constraints: { type: "select", options: ["1K"] } },
 ];
 
+// gemini-nano-banana-2.1 (Nano Banana 2.1). Google's image-generation docs list 1:1, 3:2, 2:3,
+// 3:4, 4:3, 4:5, 5:4, 9:16, 16:9 and 21:9 for it, without 4:1/1:4, so those two are not offered.
+// The pricing page publishes 1K/2K/4K prices only (no 512), so 512 is not offered either.
+export const geminiNanoBanana21Params: ParamSpec[] = [
+  { name: "aspect_ratio", label: "Aspect ratio", component: "select", group: "primary", order: 0, visible: true,
+    defaultValue: "1:1",
+    constraints: { type: "select", options: ["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"] } },
+  { name: "image_size",   label: "Resolution",   component: "select", group: "primary", order: 1, visible: true,
+    defaultValue: "1K",
+    constraints: { type: "select", options: ["1K", "2K", "4K"] } },
+];
+
 // gemini-3-pro-image rejects 4:1 and 1:4 the same way gemini-2.5-flash-image does (verified
 // live) — don't add them here.
 export const geminiProParams: ParamSpec[] = [

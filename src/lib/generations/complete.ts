@@ -9,6 +9,12 @@ import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 import { readVoiceChange } from "@/lib/voice-change/source";
+import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
+import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
+import { computeImageCost } from "@/lib/image-gen/cost";
+import { IMAGE_GENERATION_FAILED_MESSAGE, plainImageFailure } from "@/lib/image-gen/failure-copy";
+import type { ImageGenerationSucceeded } from "@/lib/image-gen/run-task";
+import type { GenerationRow } from "@/lib/db/types";
 
 // Every failure path in this file needs the same two calls in the same order — a small
 // local helper keeps that from drifting out of sync across the 3 sites that need it.
@@ -21,16 +27,72 @@ async function failAndRefund(
   await refundReservation({ orgId, generationId });
 }
 
+// D366 — an image arrives already stored (the task uploaded it through a signed URL).
+async function completeImageGeneration(
+  nodeId: string,
+  generation: GenerationRow,
+  input: ImageGenerationSucceeded,
+): Promise<void> {
+  if (!isOwnStoredUrl(input.imageUrl)) {
+    console.error("[completeGeneration] image stored outside this app's bucket", {
+      generationId: input.generationId,
+      imageUrl: input.imageUrl,
+    });
+    await failAndRefund(input.generationId, generation.org_id, IMAGE_GENERATION_FAILED_MESSAGE);
+    return;
+  }
+
+  const version = await insertVersion({
+    nodeId,
+    operatorUserId: generation.user_id,
+    inputsUsed: generation.inputs_snapshot ?? {},
+    paramsUsed: {
+      modelId: generation.model_used,
+      ...(generation.params_snapshot ?? {}),
+      tokensUsed: input.tokensUsed ?? null,
+      imageWidth: input.width,
+      imageHeight: input.height,
+      fileSizeBytes: input.fileSizeBytes,
+    },
+    modelUsed: generation.model_used,
+    output: input.imageUrl,
+  });
+
+  // A provider billed per image (Seedream) reports its exact charge; token-billed ones don't.
+  const cost =
+    input.costUsd !== undefined
+      ? { usd: input.costUsd }
+      : input.tokensUsed && generation.model_used
+        ? computeImageCost(generation.model_used, input.tokensUsed)
+        : null;
+  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+
+  // Settle before the image goes live: if settling throws, the row is still `running` and no
+  // card shows an image the run never paid for.
+  await settleGeneration({ orgId: generation.org_id, generationId: input.generationId, actualAmount: actualCredits });
+  await setActiveVersion(nodeId, version.id);
+  await succeedGeneration({
+    generationId: input.generationId,
+    versionId: version.id,
+    costUsd: cost?.usd,
+    creditsCharged: actualCredits,
+    tokensUsed: input.tokensUsed ? { ...input.tokensUsed } : null,
+    outputSnapshot: input.imageUrl,
+  });
+}
+
 export type CompleteGenerationInput =
   | {
       generationId: string;
       status: "succeeded";
+      kind?: "video";
       videoUrl: string;
       durationSeconds: number;
       /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
       stored?: boolean;
       meta?: Record<string, unknown>;
     }
+  | ImageGenerationSucceeded
   | {
       generationId: string;
       status: "failed";
@@ -43,7 +105,41 @@ export async function completeGeneration(
   const generation = await getGeneration(input.generationId);
 
   // Idempotency: skip if already resolved (duplicate webhook delivery)
-  if (generation.status !== "running") return;
+  if (generation.status !== "running") {
+    // D366 — a paid image for a run that already ended (swept, or failed at the start) is stored
+    // but attached to nothing. Name it so it can be attached by hand (a true duplicate is quiet).
+    if (input.status === "succeeded" && input.kind === "image" && generation.output_snapshot !== input.imageUrl) {
+      console.error("[completeGeneration] image arrived for a run that already ended", {
+        generationId: input.generationId,
+        status: generation.status,
+        imageUrl: input.imageUrl,
+      });
+    }
+    return;
+  }
+
+  // An avatar-owned row (node_id null) has no node to attach a version to. The one kind that
+  // completes through this webhook is the avatar's voice preview (D294), which has its own
+  // settlement. The Studio's images (D291) finish inside their own request and never arrive
+  // here, so anything else is dropped the same defensive way as the org-mismatch backstop below.
+  if (!generation.node_id) {
+    if (isVoicePreviewGeneration(generation)) {
+      await completeAvatarVoicePreview(generation, input);
+      return;
+    }
+    console.error("[completeGeneration] generation has no node_id — dropping", {
+      generationId: input.generationId,
+    });
+    await failAndRefund(
+      input.generationId,
+      generation.org_id,
+      "Dropped: generation has no node to attach output to",
+    ).catch((e) => {
+      console.error("[completeGeneration] failAndRefund failed on missing-node path", { error: e });
+    });
+    return;
+  }
+  const nodeId = generation.node_id;
 
   // D79: the org recorded on the job at creation must still match the current org of
   // the node it targets. Should be impossible in practice (nothing in this app moves a
@@ -52,7 +148,7 @@ export async function completeGeneration(
   const { data: currentChain, error: chainError } = await createServerSupabase()
     .from("nodes")
     .select("canvases!inner(clients!inner(org_id))")
-    .eq("id", generation.node_id)
+    .eq("id", nodeId)
     .maybeSingle();
   if (chainError) throw chainError;
   const canvas = currentChain
@@ -84,7 +180,37 @@ export async function completeGeneration(
   }
 
   if (input.status === "failed") {
+    // D366 — a failed image still shows in History with its maker, as the synchronous path did.
+    // Users see plain words; the task's raw reason (a vendor message, or a paid image's URL) is
+    // kept in the server log only.
+    if (generation.type === "image") {
+      console.error("[completeGeneration] image generation failed", {
+        generationId: input.generationId,
+        error: input.error,
+      });
+      const userError = plainImageFailure(input.error);
+      await insertVersion({
+        nodeId,
+        operatorUserId: generation.user_id,
+        inputsUsed: generation.inputs_snapshot ?? {},
+        paramsUsed: { modelId: generation.model_used, ...(generation.params_snapshot ?? {}) },
+        modelUsed: generation.model_used,
+        error: userError,
+      }).catch(() => null);
+      await failAndRefund(input.generationId, generation.org_id, userError);
+      return;
+    }
     await failAndRefund(input.generationId, generation.org_id, input.error);
+    return;
+  }
+
+  if (input.kind === "image") {
+    // Fail closed: an image result must never settle (or attach a version to) a non-image row.
+    if (generation.type !== "image") {
+      await failAndRefund(input.generationId, generation.org_id, "Image result for a non-image generation");
+      return;
+    }
+    await completeImageGeneration(nodeId, generation, input);
     return;
   }
 
@@ -115,7 +241,7 @@ export async function completeGeneration(
     const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
     try {
       const result = await uploadVideoGen({
-        nodeId: generation.node_id,
+        nodeId,
         body: videoBuffer,
         contentType: "video/mp4",
       });
@@ -140,7 +266,7 @@ export async function completeGeneration(
 
   // 2. INSERT node_versions
   const version = await insertVersion({
-    nodeId: generation.node_id,
+    nodeId,
     // R11.1. There is no session at this boundary — this runs from the Trigger.dev
     // webhook, so resolveCallerContext() has nothing to resolve. generations.user_id is
     // who kicked the job off, captured at insertGeneration and (per db/generations.ts)
@@ -158,7 +284,7 @@ export async function completeGeneration(
   });
 
   // 3. Move active pointer
-  await setActiveVersion(generation.node_id, version.id);
+  await setActiveVersion(nodeId, version.id);
 
   // 4. Compute cost and mark succeeded
   const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);

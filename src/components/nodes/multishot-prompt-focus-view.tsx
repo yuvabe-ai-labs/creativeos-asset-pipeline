@@ -13,6 +13,7 @@ import {
   ChevronDown,
   TriangleAlert,
   Compass,
+  Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -44,7 +45,14 @@ import { GeneratedPromptBody } from "./generated-prompt-body";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import {
+  useNodeVersions,
+  useRefreshNodeVersions,
+  useSetActiveNodeVersion,
+} from "@/hooks/queries/node-versions";
+import type { NodeVersionsResponse } from "@/services/node-versions.service";
 import { MultishotBeatCard } from "./multishot-beat-card";
+import { VoLinesEditor } from "./vo-lines-editor";
 import { RefineWithAI } from "./refine-with-ai";
 import { RefineProgress } from "./refine-progress";
 import { planMentionables } from "@/lib/nodes/plan-mentions";
@@ -59,9 +67,9 @@ import {
   type MultishotPlan,
 } from "@/lib/nodes/multishot-plan";
 import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
-import { renderVoiceover } from "@/lib/nodes/voiceover";
 import type { VoLine } from "@/lib/nodes/reel-script";
 import type { RefineScope } from "@/lib/nodes/refine-suggestions";
+import { useMentionUpstream } from "@/hooks/use-mention-upstream";
 
 type MultishotPromptFocusViewProps = {
   open: boolean;
@@ -107,6 +115,8 @@ export function MultishotPromptFocusView({
   upstream,
   onPatch,
 }: MultishotPromptFocusViewProps) {
+  // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
+  const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   // The model the upstream Multishot node is currently SET to — what the next Generate will use.
@@ -161,8 +171,18 @@ export function MultishotPromptFocusView({
     null,
   );
   const [seed, setSeed] = useState<{ open: boolean; nodeId: string }>({ open, nodeId });
-  const [versions, setVersions] = useState<VersionSummary[]>([]);
-  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // This node's versions, from the shared cache: a reopen renders the cached list at once and
+  // re-checks behind it. Versions don't depend on the node's edges, so unlike the preview
+  // below they never wait for the autosave flush.
+  const versionsQuery = useNodeVersions<VersionSummary>(nodeId, open);
+  const refreshVersions = useRefreshNodeVersions<VersionSummary>(nodeId);
+  const setActiveVersionId = useSetActiveNodeVersion(nodeId);
+  const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
+  const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
+  // The versions the review fields below were last seeded from — see applyVersions.
+  const [seededVersions, setSeededVersions] = useState<
+    NodeVersionsResponse<VersionSummary> | undefined
+  >(undefined);
   const [restoring, setRestoring] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(open);
   const [inputsPersisted, setInputsPersisted] = useState(false);
@@ -197,6 +217,12 @@ export function MultishotPromptFocusView({
       setLoadingPreview(true);
       setInputsPersisted(false);
     }
+    if (opening) {
+      // A reopen seeds the review fields from the cached versions straight away; with nothing
+      // cached yet, the first read to arrive seeds them in full (the block below).
+      setSeededVersions(versionsQuery.data);
+      if (versionsQuery.data) applyVersions(versionsQuery.data);
+    }
   }
 
   const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
@@ -207,7 +233,7 @@ export function MultishotPromptFocusView({
   // The attached images in `<IMAGE_REF_N>` order — shared by every chip editor on this node
   // (sequence steer, per-cut instructions, the look block, every beat) so a reference binds to
   // the same picture wherever it is mentioned.
-  const promptRefImages = visionAttachmentsOf(upstream).map((u) => ({
+  const promptRefImages = visionAttachmentsOf(mentionUpstream).map((u) => ({
     id: u.id,
     label: u.label,
     fileUrl: u.fileUrl,
@@ -229,8 +255,8 @@ export function MultishotPromptFocusView({
   // BUG-010 — wrapped in `storedRefDialect`: chips read from image IDS (and legacy positions),
   // and every edit serialises back to ids, so a saved plan can't be re-pointed by a disconnect.
   const labelOfRef = useCallback(
-    (id: string) => upstream.find((u) => u.id === id)?.label,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `upstream` is rebuilt every render
+    (id: string) => mentionUpstream.find((u) => u.id === id)?.label,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids; `mentionUpstream` is rebuilt every render
     [refIdsKey],
   );
   const beatDialect = useMemo(
@@ -309,23 +335,39 @@ export function MultishotPromptFocusView({
 
   async function fetchVersions(opts?: { preserveEvalDraft?: boolean }) {
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/versions`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const vs: VersionSummary[] = json.versions ?? [];
-      const activeVid: string | null = json.activeVersionId ?? null;
-      setVersions(vs);
-      setActiveVersionId(activeVid);
-      const active = vs.find((v) => v.id === activeVid);
-      setEvalDecision(active?.decision ?? null);
-      if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
-      setApprovalStatus(active?.approvalStatus ?? "pending");
-      setApprovalNote(active?.note ?? "");
-      setApprovedByName(active?.approvedByName ?? null);
-      setApprovedAt(active?.approvedAt ?? null);
+      applyVersions(await refreshVersions(), opts);
     } catch {
       /* best-effort */
     }
+  }
+
+  // Copies the ACTIVE version's review state into the fields the eval and approval controls
+  // edit. `preserveEvalDraft` leaves the eval note — the viewer's unsaved draft — alone.
+  function applyVersions(
+    data: NodeVersionsResponse<VersionSummary>,
+    opts?: { preserveEvalDraft?: boolean },
+  ) {
+    const active = data.versions.find((v) => v.id === data.activeVersionId);
+    setEvalDecision(active?.decision ?? null);
+    if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
+    setApprovalStatus(active?.approvalStatus ?? "pending");
+    setApprovalNote(active?.note ?? "");
+    setApprovedByName(active?.approvedByName ?? null);
+    setApprovedAt(active?.approvedAt ?? null);
+  }
+
+  // Whenever the cached versions change while open — the first read, the re-check behind a
+  // reopen, a live update, a refresh after our own action — re-seed the review fields from
+  // them. Only the FIRST seed of an open replaces the eval note: after that it is the viewer's
+  // draft, and a background update must not discard what they are typing.
+  if (open && versionsQuery.data && versionsQuery.data !== seededVersions) {
+    setSeededVersions(versionsQuery.data);
+    applyVersions(versionsQuery.data, {
+      // A draft belongs to the version it was typed on: a different active version re-seeds it.
+      preserveEvalDraft:
+        seededVersions !== undefined &&
+        seededVersions.activeVersionId === versionsQuery.data.activeVersionId,
+    });
   }
 
   // Same flush-then-fetch sequencing as video-prompt-focus-view: a node reached straight from
@@ -350,26 +392,6 @@ export function MultishotPromptFocusView({
   useEffect(() => {
     if (!open || !inputsPersisted) return;
     let cancelled = false;
-
-    void (async () => {
-      try {
-        const res = await fetch(`/api/nodes/${nodeId}/versions`);
-        if (!cancelled && res.ok) {
-          const json = await res.json();
-          const vs: VersionSummary[] = json.versions ?? [];
-          const activeVid: string | null = json.activeVersionId ?? null;
-          setVersions(vs);
-          setActiveVersionId(activeVid);
-          const active = vs.find((v) => v.id === activeVid);
-          setEvalDecision(active?.decision ?? null);
-          setEvalNote(active?.note ?? "");
-          setApprovalStatus(active?.approvalStatus ?? "pending");
-          setApprovalNote(active?.note ?? "");
-        }
-      } catch {
-        /* best-effort */
-      }
-    })();
 
     const t = setTimeout(async () => {
       try {
@@ -749,13 +771,15 @@ export function MultishotPromptFocusView({
                             setInstructionDraft(v);
                             onPatch({ instruction: v });
                           }}
-                          placeholder="e.g. @ the turnaround is the character — identity only, ignore its backdrop. Take the setting and light from @ the kitchen shot."
-                          upstream={upstream}
+                          placeholder="e.g. @ the turnaround is the character. Use @ the kitchen shot as the background. Follow @ the storyboard for framing."
+                          upstream={mentionUpstream}
                           disabled={isReadOnly || generating || !!refining}
                           className="min-h-16"
                         />
+                        {/* D319 — every reference is used: its role is read from the image unless
+                            the Direction states one. */}
                         <p className="text-[0.65rem] text-muted-foreground">
-                          References are used for identity only unless you say otherwise here.
+                          Each reference is used for what it shows: a place as the background, panels as a storyboard, a person as the character. Say it here to change that.
                         </p>
                       </div>
 
@@ -794,15 +818,6 @@ export function MultishotPromptFocusView({
                                   <p className="mt-1.5 flex items-center gap-1 text-[0.7rem] text-destructive">
                                     <TriangleAlert className="size-3 shrink-0" strokeWidth={1.5} />
                                     Not written yet — re-generate, or write this shot.
-                                  </p>
-                                )}
-                                {/* What this shot SAYS. Shown because the writer no longer writes
-                                    spoken lines — they are appended to this shot's beat when the
-                                    prompt is rendered — so a card without them read as a shot with
-                                    no voiceover at all. */}
-                                {renderVoiceover(cut.voiceover) && (
-                                  <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-primary/80">
-                                    {renderVoiceover(cut.voiceover)}
                                   </p>
                                 )}
                               </div>
@@ -1012,7 +1027,7 @@ export function MultishotPromptFocusView({
                           <MentionInstructionEditor
                             value={planDraft.look}
                             onChange={updateLook}
-                            upstream={upstream}
+                            upstream={mentionUpstream}
                             dialect={beatDialect}
                             disabled={isReadOnly || !!refining}
                           />
@@ -1031,16 +1046,13 @@ export function MultishotPromptFocusView({
                               from={beat.from}
                               to={beat.to}
                               text={beat.text}
-                              upstream={upstream}
+                              upstream={mentionUpstream}
 
                               dialect={beatDialect}
                               onChange={(v) => updateBeat(beat.cutId, v)}
                               onRerun={() => runRefine("cut", { cutId: beat.cutId })}
                               onRefine={(note) => runRefine("cut", { cutId: beat.cutId, note })}
                               mentionables={planMentions}
-                              spokenLine={renderVoiceover(
-                                cuts.find((c) => c.id === beat.cutId)?.voiceover,
-                              )}
                               showRerun={SHOW_PER_BEAT_REGENERATE}
                               rerunning={refining?.cutId === beat.cutId}
                               onFocusTimings={focusTimings}
@@ -1053,6 +1065,19 @@ export function MultishotPromptFocusView({
                             />
                           ))}
                         </div>
+
+                        {/* The Multishot node's voiceover, which ships with this plan (renderPlan).
+                            It was only visible in the Prompt tab, so the Breakup view read as if
+                            the sequence had none. Read-only: it belongs to the Multishot node. */}
+                        {(sequenceVoiceover?.length ?? 0) > 0 && (
+                          <div className="flex shrink-0 flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-card">
+                            <FieldLabel icon={Mic} label="Voiceover · whole sequence" />
+                            <VoLinesEditor lines={sequenceVoiceover} readOnly />
+                            <p className="text-[0.65rem] text-muted-foreground">
+                              Plays over every shot. Edit it on the Multishot node.
+                            </p>
+                          </div>
+                        )}
                       </>
                     )}
                     </div>

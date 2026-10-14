@@ -69,7 +69,18 @@ import {
 } from "@/lib/actions/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
-import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
+import {
+  useNodeVersions,
+  useRefreshNodeVersions,
+  useSetActiveNodeVersion,
+} from "@/hooks/queries/node-versions";
+import type { NodeVersionsResponse } from "@/services/node-versions.service";
+import { useGenerationStatus } from "@/hooks/use-generation-status";
+import {
+  useStartImageGeneration,
+  useRestoreNodeVersion,
+  startErrorMessage,
+} from "@/hooks/queries/node-generation";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
 import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
@@ -100,7 +111,7 @@ import { groupByTimecode } from "@/lib/review-annotations/group";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
-import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
@@ -130,9 +141,6 @@ export type ImageGenFocusViewProps = {
     imageHeight?: number;
   }>;
   onPatch: (patch: Record<string, unknown>) => void;
-  /** Mirrors in-flight generate/edit state up to the node so its card can show
-   *  a Processing pill even while the focus view is closed. */
-  onProcessingChange?: (v: boolean) => void;
 };
 
 type ParamFormValues = Record<string, unknown>;
@@ -155,7 +163,6 @@ export function ImageGenFocusView({
   baseReferenceNodeId,
   upstream,
   onPatch,
-  onProcessingChange,
 }: ImageGenFocusViewProps) {
   const selectedModelId = modelId ?? DEFAULT_CLIENT_MODEL_ID;
   const model =
@@ -183,14 +190,23 @@ export function ImageGenFocusView({
     return smartMergeParams(base, model);
   });
 
-  const [generating, setGenerating] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [lastError, setLastError] = useState<string | null>(null);
-
-  // Mirror in-flight state up to the node card (survives focus-view close).
-  useEffect(() => {
-    onProcessingChange?.(generating || editing);
-  }, [generating, editing, onProcessingChange]);
+  // D366 — a generation runs in the background; this node's shared status says whether one is
+  // running (it survives a reload or a return to the canvas). The start mutation covers only the
+  // start request itself, and `lastAction` which button started it.
+  const status = useGenerationStatus(nodeId);
+  const startGeneration = useStartImageGeneration(nodeId);
+  const restoreVersion = useRestoreNodeVersion(nodeId);
+  const [lastAction, setLastAction] = useState<"generate" | "edit">("generate");
+  // `starting` turns true synchronously on click, before any await (the edit's mask conversion),
+  // so the buttons disable and a second click cannot start a second run. The ref covers two
+  // clicks inside the same render, before the state has committed.
+  const [starting, setStarting] = useState(false);
+  const startingRef = useRef(false);
+  const busy = starting || startGeneration.isPending || status.isGenerating;
+  const generating = busy && lastAction === "generate";
+  const editing = busy && lastAction === "edit";
+  const [requestError, setLastError] = useState<string | null>(null);
+  const lastError = requestError ?? status.lastError;
   const [editInstr, setEditInstr] = useState(editInstruction ?? "");
   const [intent, setIntent] = useState<EditIntent>(editIntent ?? "freeform");
   const [activeTab, setActiveTab] = useState<"generate" | "edit">("generate");
@@ -211,8 +227,19 @@ export function ImageGenFocusView({
   const discardConfirm = useDiscardAnnotationsConfirm();
   // null = follow the per-intent template; a string = the operator's hand-edited final prompt.
   const [promptOverride, setPromptOverride] = useState<string | null>(null);
-  const [versions, setVersions] = useState<ImageGenVersionSummary[]>([]);
-  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  // This node's versions, from the shared cache: a reopen renders the cached list at once and
+  // re-checks behind it. The skeletons below key off "nothing cached yet", so they can neither
+  // stick on nor flash for a node already seen.
+  const versionsQuery = useNodeVersions<ImageGenVersionSummary>(nodeId, open);
+  const refreshVersions = useRefreshNodeVersions<ImageGenVersionSummary>(nodeId);
+  const setActiveVersionId = useSetActiveNodeVersion(nodeId);
+  const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
+  const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
+  const loadingVersions = open && versionsQuery.isPending;
+  // The versions the review fields below were last seeded from — see applyVersions.
+  const [seededVersions, setSeededVersions] = useState<
+    NodeVersionsResponse<ImageGenVersionSummary> | undefined
+  >(undefined);
   const [restoring, setRestoring] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(
@@ -229,27 +256,24 @@ export function ImageGenFocusView({
   const [approvalSaving, setApprovalSaving] = useState(false);
   const { identity } = useIdentity();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
-  const [fetchedPrompt, setFetchedPrompt] = useState<{
-    nodeId: string;
-    text: string;
-  } | null>(null);
-  // estimatedCredits/editEstimatedCredits are computed directly below (D93) — no state, no
-  // fetch. See the useMemo blocks further down for both.
-  // Seeded from `open`, not `false`. These flags are armed inside the open-TRANSITION
-  // block below, so any path that mounts this view ALREADY open skips them and every
-  // skeleton stays off through the first fetch.
-  //
-  // Both branches hit this independently: the guided button creates a node with its focus
-  // view already open (see video-prompt-focus-view.tsx), and a navbar-inbox review link
-  // does the same. The visible symptom differed — an empty prompt panel there, "Generate
-  // an image first…" snapping to the approval control here — but it is one bug.
-  const [loadingVersions, setLoadingVersions] = useState(open);
-  // Mirrors the re-arm's own condition exactly: only arm when there IS a prompt to fetch.
-  // The effect that clears this flag returns early when none is connected, so arming it
-  // unconditionally would strand the skeleton on forever.
-  const [loadingPreview, setLoadingPreview] = useState(
-    () => open && upstream.some((u) => u.type === "prompt"),
+  // The connected Prompt node's active output — the text this image is generated from. Read
+  // through the same versions cache as the Prompt node's own focus view, so a prompt just
+  // written there is already here. estimatedCredits/editEstimatedCredits are computed directly
+  // below (D93) — no state, no fetch.
+  const promptNodeId = upstream.find((u) => u.type === "prompt")?.id ?? "";
+  const promptVersionsQuery = useNodeVersions<{ id: string; output: string | null }>(
+    promptNodeId,
+    open && Boolean(promptNodeId),
   );
+  const fetchedPrompt = useMemo(() => {
+    const data = promptVersionsQuery.data;
+    const output = data?.versions.find((v) => v.id === data.activeVersionId)?.output;
+    return promptNodeId && output ? { nodeId: promptNodeId, text: output } : null;
+  }, [promptNodeId, promptVersionsQuery.data]);
+  // Only while there IS a prompt to read and nothing cached for it yet — so the skeleton can
+  // neither strand on (no prompt connected) nor skip the first read (a view mounted already
+  // open, from the guided button or a navbar-inbox review link).
+  const loadingPreview = open && Boolean(promptNodeId) && promptVersionsQuery.isPending;
   // The selected rail item: "image" (the hero pane), "history", "details", or a
   // connected node's id (right pane shows that node's read-only detail).
   const focusStoreApi = useCanvasStoreApi();
@@ -267,13 +291,15 @@ export function ImageGenFocusView({
     if (selected === sourceId) setSelected("image");
   });
 
-  // Re-arm skeletons on open transition.
+  // On the open transition: re-seed the review fields from whatever versions arrive first, and
+  // pick the rail section.
   if (open !== openSeed) {
     setOpenSeed(open);
     if (open) {
-      setLoadingVersions(true);
-      // Only arm the preview skeleton if there's actually a prompt node to fetch.
-      setLoadingPreview(upstream.some((u) => u.type === "prompt"));
+      // A reopen seeds from the cached versions straight away; with nothing cached yet, the
+      // first read to arrive seeds them in full (the block below).
+      setSeededVersions(versionsQuery.data);
+      if (versionsQuery.data) applyVersions(versionsQuery.data);
       // Normally the hero pane — but a programmatic open from the review drawer or the
       // navbar inbox asks for "details", where sign-off lives. Landing on the hero pane
       // would make a reviewer hunt for the control they were sent here to use.
@@ -309,39 +335,19 @@ export function ImageGenFocusView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, onPatch]);
 
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(`/api/nodes/${nodeId}/versions`);
-        if (!cancelled && res.ok) {
-          const json = (await res.json()) as {
-            activeVersionId: string | null;
-            versions: ImageGenVersionSummary[];
-          };
-          setVersions(json.versions ?? []);
-          setActiveVersionId(json.activeVersionId ?? null);
-          const active = (json.versions ?? []).find(
-            (v) => v.id === json.activeVersionId
-          );
-          setEvalDecision(active?.decision ?? null);
-          setEvalNote(active?.note ?? "");
-          setApprovalStatus(active?.approvalStatus ?? "pending");
-          setApprovalNote(active?.note ?? "");
-          setApprovedByName(active?.approvedByName ?? null);
-          setApprovedAt(active?.approvedAt ?? null);
-        }
-      } catch {
-        /* best-effort */
-      } finally {
-        if (!cancelled) setLoadingVersions(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, nodeId]);
+  // Whenever the cached versions change while open — the first read, the re-check behind a
+  // reopen, a live update, a refresh after our own action — re-seed the review fields from
+  // them. Only the FIRST seed of an open replaces the eval note: after that it is the viewer's
+  // draft (saved on blur), and a background update must not discard what they are typing.
+  if (open && versionsQuery.data && versionsQuery.data !== seededVersions) {
+    setSeededVersions(versionsQuery.data);
+    applyVersions(versionsQuery.data, {
+      // A draft belongs to the version it was typed on: a different active version re-seeds it.
+      preserveEvalDraft:
+        seededVersions !== undefined &&
+        seededVersions.activeVersionId === versionsQuery.data.activeVersionId,
+    });
+  }
 
   // D170: the maker's mirror of ?review=1 landing a reviewer on the node. Fire-and-forget
   // — the server no-ops for anyone who isn't the version's own maker, or when there's
@@ -353,36 +359,6 @@ export function ImageGenFocusView({
       /* best-effort */
     });
   }, [open, activeVersionId, approvalStatus]);
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    const promptNode = upstream.find((u) => u.type === "prompt");
-    if (!promptNode) return;
-    void (async () => {
-      try {
-        const res = await fetch(`/api/nodes/${promptNode.id}/versions`);
-        if (!res.ok || cancelled) return;
-        const json = (await res.json()) as {
-          activeVersionId: string | null;
-          versions: Array<{ id: string; output: string | null }>;
-        };
-        const active = (json.versions ?? []).find(
-          (v) => v.id === json.activeVersionId
-        );
-        if (!cancelled && active?.output) {
-          setFetchedPrompt({ nodeId: promptNode.id, text: active.output });
-        }
-      } catch {
-        /* best-effort */
-      } finally {
-        if (!cancelled) setLoadingPreview(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, upstream]);
 
   const promptUpstream = upstream.find((u) => u.type === "prompt");
   const referenceCount = upstream.filter((u) => {
@@ -661,6 +637,25 @@ export function ImageGenFocusView({
     [latestChangeRequest],
   );
 
+  // Copies the ACTIVE version's review state into the fields the eval and approval controls
+  // edit. Returns that version's approval status.
+  function applyVersions(
+    data: NodeVersionsResponse<ImageGenVersionSummary>,
+    opts?: { preserveEvalDraft?: boolean },
+  ): ApprovalStatus {
+    const active = data.versions.find((v) => v.id === data.activeVersionId);
+    setEvalDecision(active?.decision ?? null);
+    // The eval note is a CONTROLLED draft saved on blur, so re-seeding it mid-keystroke
+    // discards whatever the viewer was typing. Harmless when they triggered the refresh
+    // themselves; a silent loss when someone else's decision triggered it.
+    if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
+    setApprovalStatus(active?.approvalStatus ?? "pending");
+    setApprovalNote(active?.note ?? "");
+    setApprovedByName(active?.approvedByName ?? null);
+    setApprovedAt(active?.approvedAt ?? null);
+    return active?.approvalStatus ?? "pending";
+  }
+
   // `preserveEvalDraft` exists for the live-refresh path only — see useNodeVersionUpdates
   // below. Every other caller is reacting to the viewer's OWN action (generate, restore,
   // decide), where re-seeding from the server is the point.
@@ -670,27 +665,7 @@ export function ImageGenFocusView({
     preserveEvalDraft?: boolean;
   }): Promise<ApprovalStatus | undefined> {
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/versions`);
-      if (!res.ok) return;
-      const json = (await res.json()) as {
-        activeVersionId: string | null;
-        versions: ImageGenVersionSummary[];
-      };
-      setVersions(json.versions ?? []);
-      setActiveVersionId(json.activeVersionId ?? null);
-      const active = (json.versions ?? []).find(
-        (v) => v.id === json.activeVersionId
-      );
-      setEvalDecision(active?.decision ?? null);
-      // The eval note is a CONTROLLED draft saved on blur, so re-seeding it mid-keystroke
-      // discards whatever the viewer was typing. Harmless when they triggered the refresh
-      // themselves; a silent loss when someone else's decision triggered it.
-      if (!opts?.preserveEvalDraft) setEvalNote(active?.note ?? "");
-      setApprovalStatus(active?.approvalStatus ?? "pending");
-      setApprovalNote(active?.note ?? "");
-      setApprovedByName(active?.approvedByName ?? null);
-      setApprovedAt(active?.approvedAt ?? null);
-      return active?.approvalStatus ?? "pending";
+      return applyVersions(await refreshVersions(), opts);
     } catch {
       /* best-effort */
     }
@@ -705,47 +680,29 @@ export function ImageGenFocusView({
 
   async function handleGenerate() {
     // Second line of defence behind the button's disabled state: a run in flight must never
-    // be able to start another one. The disabled prop alone lives in a sibling component and
-    // has already been lost once to an unrelated tooltip edit — this guard is next to the
-    // request it protects, and covers any future caller that isn't that button.
-    if (generating || editing) return;
+    // be able to start another one. The server refuses a second run too (409).
+    if (busy || startingRef.current) return;
     if (!promptUpstream) {
       toast.error("Connect a Prompt node first.");
       return;
     }
-    setGenerating(true);
+    startingRef.current = true;
+    setStarting(true);
+    setLastAction("generate");
     setLastError(null);
     setEvalDecision(null);
     setEvalNote("");
     try {
-      const values = paramValues;
-      const res = await fetch(`/api/nodes/${nodeId}/image-generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelId: model.id, params: values }),
-      });
-      const json = (await res.json()) as {
-        imageUrl?: string;
-        versionId?: string;
-        error?: string;
-      };
-      if (!res.ok || !json.imageUrl)
-        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
-      onPatch({ parsed: json.imageUrl });
-      setActiveVersionId(json.versionId ?? null);
-      await fetchVersions();
-      // Tell the Gallery Drawer's Canvas Generations tab about the image we just made. The
-      // route has already committed the succeeded generation by the time it answers us, so
-      // this is the reliable signal — the drawer can be sitting open next to this focus view.
-      void revalidateCanvasGenerations();
-      toast.success("Image generated");
+      // On success the mutation marks the node as generating; the status hook lands the result.
+      await startGeneration.mutateAsync({ modelId: model.id, params: paramValues });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Generation failed";
+      const message = startErrorMessage(e, "Generation failed");
       setLastError(message);
       toast.error(message, { duration: 6000 });
       await fetchVersions();
     } finally {
-      setGenerating(false);
+      startingRef.current = false;
+      setStarting(false);
     }
   }
 
@@ -787,16 +744,16 @@ export function ImageGenFocusView({
   }
 
   async function handleEdit() {
-    if (editing || generating) return; // same re-entrancy guard as handleGenerate
+    if (busy || startingRef.current) return; // same re-entrancy guard as handleGenerate
     const baseVersionId = activeVersionId ?? undefined;
     const baseImageUrl = baseVersionId ? undefined : baseNodeUrl ?? undefined;
     if (!baseVersionId && !baseImageUrl) {
-      toast.error(
-        "Generate an image, or connect an image reference, to edit it."
-      );
+      toast.error("Generate an image, or connect an image reference, to edit it.");
       return;
     }
-    setEditing(true);
+    startingRef.current = true;
+    setStarting(true);
+    setLastAction("edit");
     setLastError(null);
     try {
       // Region mask (paint models only): convert the painted overlay into an alpha PNG and send
@@ -810,40 +767,26 @@ export function ImageGenFocusView({
           maskMime = mask.mime;
         }
       }
-      const res = await fetch(`/api/nodes/${nodeId}/image-generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          modelId: model.id,
-          params: paramValues,
-          instruction: editInstr,
-          intent,
-          prompt: finalPrompt,
-          extraReferenceUrls: selectedExtraUrls,
-          ...(maskBase64 ? { masked: true, maskBase64, maskMime } : {}),
-          ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
-        }),
+      await startGeneration.mutateAsync({
+        modelId: model.id,
+        params: paramValues,
+        instruction: editInstr,
+        intent,
+        prompt: finalPrompt,
+        extraReferenceUrls: selectedExtraUrls,
+        ...(maskBase64 ? { masked: true, maskBase64, maskMime } : {}),
+        ...(baseVersionId ? { baseVersionId } : { baseImageUrl }),
       });
-      const json = (await res.json()) as {
-        imageUrl?: string;
-        versionId?: string;
-        error?: string;
-      };
-      if (!res.ok || !json.imageUrl)
-        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Edit failed");
-      onPatch({ parsed: json.imageUrl });
-      setActiveVersionId(json.versionId ?? null);
+      // The mask has been sent with the request; the strokes are no longer needed.
       annotationRef.current?.clear();
-      await fetchVersions();
-      void revalidateCanvasGenerations(); // same as handleGenerate — an edit is a generation too
-      toast.success("Image edited");
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Edit failed";
+      const message = startErrorMessage(e, "Edit failed");
       setLastError(message);
       toast.error(message, { duration: 6000 });
       await fetchVersions();
     } finally {
-      setEditing(false);
+      startingRef.current = false;
+      setStarting(false);
     }
   }
 
@@ -867,18 +810,7 @@ export function ImageGenFocusView({
     // stacking a second toast. Restore is two round trips (the POST, then the refetch).
     const toastId = toast.loading("Restoring version…");
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/restore-version`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionId }),
-      });
-      const json = (await res.json()) as {
-        output?: string;
-        modelUsed?: string | null;
-        paramsUsed?: Record<string, unknown>;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error ?? "Restore failed");
+      const json = await restoreVersion.mutateAsync(versionId);
       // params_used carries its own modelId for image versions (the image-generate route writes
       // it there); model_used is the same value, and the fallback covers either being absent.
       const restoredModelId =

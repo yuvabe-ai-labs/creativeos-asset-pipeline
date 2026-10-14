@@ -21,6 +21,7 @@ export function InfiniteScrollSentinel({
    * (`[data-slot="scroll-area-viewport"]`, see src/components/ui/scroll-area.tsx) so the margin —
    * and thus the early prefetch — is measured against that scrollable region instead, which matters
    * when the list scrolls inside a small fixed-height container (e.g. a popover) rather than the page.
+   * A plain `overflow-y-auto` element counts too when it carries `data-scroll-root`.
    */
   scrollRoot?: "viewport" | "nearest";
 }) {
@@ -36,7 +37,9 @@ export function InfiniteScrollSentinel({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const root = scrollRoot === "nearest" ? el.closest('[data-slot="scroll-area-viewport"]') : null;
+    // A plain overflow container opts in with `data-scroll-root` (the Brand KB review body).
+    const root =
+      scrollRoot === "nearest" ? el.closest('[data-slot="scroll-area-viewport"], [data-scroll-root]') : null;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) cbRef.current();

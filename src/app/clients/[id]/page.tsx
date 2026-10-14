@@ -8,6 +8,7 @@ import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ClientSettingsMenu } from "@/components/clients/client-settings-menu";
+import { ClientIdentity } from "@/components/clients/client-identity";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -84,24 +85,8 @@ export default async function ClientPage({
         </BreadcrumbList>
       </Breadcrumb>
 
-      <header className="animate-rise mb-10 mt-4 flex items-end justify-between gap-4">
-        <div className="flex items-end gap-4">
-          {client.logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={client.logo_url}
-              alt={`${client.name} logo`}
-              className="size-14 shrink-0 rounded-lg border bg-card object-contain p-1.5"
-            />
-          ) : (
-            <span className="flex size-14 shrink-0 items-center justify-center rounded-lg border bg-card font-display text-xl font-semibold text-muted-foreground/50">
-              {initials(client.name)}
-            </span>
-          )}
-          <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">
-            {client.name}
-          </h1>
-        </div>
+      <header className="animate-rise mb-10 mt-4 flex items-center justify-between gap-4">
+        <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} />
 
         <div className="flex shrink-0 items-end gap-2">
           <ClientSettingsMenu slug={client.slug} />

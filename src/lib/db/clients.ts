@@ -101,6 +101,13 @@ export async function createClient(input: {
   return data as ClientRow;
 }
 
+/** Renames a client. The slug is left alone on purpose: it is in every bookmarked URL. */
+export async function renameClient(clientId: string, name: string): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase.from("clients").update({ name }).eq("id", clientId);
+  if (error) throw error;
+}
+
 export async function updateClientLogoUrl(
   clientId: string,
   logoUrl: string,

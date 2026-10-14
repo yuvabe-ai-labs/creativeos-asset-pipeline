@@ -17,7 +17,6 @@ export const kbBuildTask = task({
     clientId: string;
     websiteUrl: string | null;
     docIds: string[];
-    imageIds: string[];
   }) => {
     const appUrl = process.env.APP_URL;
     if (!appUrl) throw new Error("APP_URL env var not set");
@@ -46,7 +45,8 @@ export const kbBuildTask = task({
 
     try {
       const docCount = payload.docIds.length;
-      const imgCount = payload.imageIds.length;
+      // Images are analysed by the image-analysis run started once the build lands (D312).
+      const imgCount = 0;
 
       logger.info("kb-build started", {
         jobId: payload.jobId,
@@ -77,7 +77,6 @@ export const kbBuildTask = task({
       const result = await runKBExtraction({
         clientId: payload.clientId,
         docIds: payload.docIds,
-        imageIds: payload.imageIds,
         researchMarkdown,
       });
       logger.info("Phase 2: extraction complete", { modelUsed: result.modelUsed, fillRate: result.fillRate });

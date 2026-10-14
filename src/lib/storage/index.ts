@@ -1,12 +1,20 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { _put, _remove, _signPutUrl, getBucketName, publicUrlFor } from "./gcs";
-import { resolveOwnership } from "./ownership";
+import { resolveOwnership, type Ownership } from "./ownership";
+import { mimeToExt } from "@/lib/image-gen/utils";
+import {
+  IMAGE_GEN_MASK_MIME,
+  IMAGE_RESULT_MIME_TYPES,
+  type ImageResultUploads,
+} from "@/lib/image-gen/task-payload";
 import {
   pathForBrandAsset,
   pathForBrandImage,
   pathForClientLogo,
   pathForImageGen,
+  pathForImageGenMask,
+  pathForImageGenResult,
   pathForKBDocument,
   pathForMarketThumb,
   pathForMarketMedia,
@@ -15,8 +23,16 @@ import {
   pathForReviewAnnotation,
   pathForVideoGen,
   pathForVideoGenVoice,
+  pathForAvatarImage,
+  pathForAvatarGenerated,
+  pathForScriptPanel,
+  pathForAvatarVoicePreview,
+  pathForAvatarVoiceSample,
+  pathForAvatarNamedVoiceSample,
+  pathForClientReviewCut,
 } from "./paths";
 import type { BrandAssetCategory } from "@/lib/brand-kit/types";
+import type { AvatarImageSlot } from "@/lib/avatars/schema";
 
 export type UploadResult = { url: string; path: string };
 
@@ -93,6 +109,66 @@ export async function uploadImageGen(args: {
   return _upload(path, args.body, args.contentType);
 }
 
+// D366 — an image task can wait in the queue and then take minutes on a slow model before it
+// uploads; the default five-minute signature is far too short.
+export const IMAGE_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
+
+// D366 — the task has no storage credentials; the route signs its one upload up front, once per
+// type a provider may return, since a signed PUT pins the Content-Type.
+export async function signImageGenResultUploads(args: {
+  nodeId: string;
+  generationId: string;
+  owner: Ownership;
+}): Promise<ImageResultUploads> {
+  const { clientId, canvasId } = args.owner;
+  const entries = await Promise.all(
+    IMAGE_RESULT_MIME_TYPES.map(async (mime) => {
+      const path = pathForImageGenResult({
+        clientId,
+        canvasId,
+        nodeId: args.nodeId,
+        generationId: args.generationId,
+        ext: mimeToExt(mime),
+      });
+      const upload = { putUrl: await _signPutUrl(path, mime, IMAGE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+      return [mime, upload] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as ImageResultUploads;
+}
+
+/** D366 — a painted edit mask, uploaded so the task receives a URL rather than megabytes. Masks are
+ *  PNG only (the path ends in .png, and the routes refuse anything else). */
+export async function uploadImageGenMask(args: {
+  nodeId: string;
+  generationId: string;
+  base64: string;
+  mime: string;
+  owner: Ownership;
+}): Promise<string> {
+  if (args.mime !== IMAGE_GEN_MASK_MIME) throw new Error(`Edit masks must be ${IMAGE_GEN_MASK_MIME}, got ${args.mime}`);
+  const { clientId, canvasId } = args.owner;
+  const path = pathForImageGenMask({ clientId, canvasId, nodeId: args.nodeId, generationId: args.generationId });
+  const { url } = await _upload(path, Buffer.from(args.base64, "base64"), IMAGE_GEN_MASK_MIME);
+  return url;
+}
+
+/** D366 — everything an image task needs from storage, with the node's ownership resolved once:
+ *  the signed result uploads and (when painted) the mask, in parallel. */
+export async function prepareImageGenUploads(args: {
+  nodeId: string;
+  generationId: string;
+  mask?: { base64: string; mime: string };
+}): Promise<{ uploads: ImageResultUploads; maskUrl?: string }> {
+  const owner = await resolveOwnership(args.nodeId);
+  const { nodeId, generationId, mask } = args;
+  const [uploads, maskUrl] = await Promise.all([
+    signImageGenResultUploads({ nodeId, generationId, owner }),
+    mask ? uploadImageGenMask({ nodeId, generationId, base64: mask.base64, mime: mask.mime, owner }) : undefined,
+  ]);
+  return maskUrl ? { uploads, maskUrl } : { uploads };
+}
+
 export async function uploadVideoGen(args: {
   nodeId: string;
   ext?: string;
@@ -165,6 +241,21 @@ export async function uploadBrandImage(args: {
   return _upload(path, args.body, args.contentType);
 }
 
+/**
+ * An imported brand asset (D302, D304) — or its video's poster, under the same id. Takes bytes
+ * rather than signing: they come from a provider CDN fetched inside the asset-import task.
+ */
+export async function uploadImportedBrandMedia(args: {
+  clientId: string;
+  imageId: string;
+  filename: string;
+  body: Buffer;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForBrandImage({ clientId: args.clientId, imageId: args.imageId, filename: args.filename });
+  return _upload(path, args.body, args.contentType);
+}
+
 // Authorize a direct browser upload of a brand image. The imageId only
 // disambiguates the storage path (the DB row gets its own id on finalize).
 export async function signBrandImageUpload(args: {
@@ -226,6 +317,75 @@ export async function signClientBrandAssetUpload(args: {
     filename: args.filename,
   });
   return _sign(path, args.contentType);
+}
+
+export async function signAvatarImageUpload(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  filename: string;
+  contentType: string;
+}): Promise<SignedUploadResult> {
+  const path = pathForAvatarImage({
+    clientId: args.clientId,
+    avatarId: args.avatarId,
+    slot: args.slot,
+    filename: args.filename,
+  });
+  return _sign(path, args.contentType);
+}
+
+// Stores a generated avatar image exactly as the provider returned it (no re-encode).
+export async function uploadAvatarGenerated(args: {
+  clientId: string;
+  avatarId: string;
+  slot: AvatarImageSlot;
+  ext: string;
+  /** D340 — the stored name's stem ("view-left", "strip"), so parallel uploads never share one. */
+  name?: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForAvatarGenerated({
+    clientId: args.clientId,
+    avatarId: args.avatarId,
+    slot: args.slot,
+    ext: args.ext,
+    name: args.name,
+  });
+  return _upload(path, args.body, args.contentType);
+}
+
+// D294 — the avatar-voice-preview task has no GCS credentials either; the route signs its one
+// upload up front, exactly as signRevoicedVideoUrl does for a canvas voice change.
+export async function signAvatarVoicePreviewUrl(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): Promise<{ putUrl: string; url: string }> {
+  const path = pathForAvatarVoicePreview(args);
+  return { putUrl: await _signPutUrl(path, "video/mp4", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
+// D296 — the voice reference extracted from a native preview's clip. Signed by the route
+// alongside the clip's own upload, for the same reason: the task has no GCS credentials.
+export async function signAvatarVoiceSampleUrl(args: {
+  clientId: string;
+  avatarId: string;
+  generationId: string;
+}): Promise<{ putUrl: string; url: string }> {
+  const path = pathForAvatarVoiceSample(args);
+  return { putUrl: await _signPutUrl(path, "audio/mpeg", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
+// D299 — a named voice's reference audio, made in the web server (no signed upload needed).
+export async function uploadAvatarNamedVoiceSample(args: {
+  clientId: string;
+  avatarId: string;
+  voiceId: string;
+  body: Buffer;
+}): Promise<UploadResult> {
+  return _upload(pathForAvatarNamedVoiceSample(args), args.body, "audio/mpeg");
 }
 
 // Review annotation assets (D239-D244). Ownership resolves ONCE for the whole batch —
@@ -328,5 +488,31 @@ export async function uploadMarketMedia(args: {
     itemId: args.itemId,
     ext: extForContentType(args.contentType),
   });
+  return _upload(path, args.body, args.contentType);
+}
+
+// Authorize a direct browser → GCS upload of a Client review cut (up to 500 MB,
+// far past Vercel's 4.5 MB body cap — the bytes never touch a function).
+export async function signClientReviewUpload(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  ext: string;
+  contentType: string;
+}): Promise<SignedUploadResult> {
+  const path = pathForClientReviewCut(args);
+  return _sign(path, args.contentType);
+}
+
+// D338 — one storyboard panel's bytes, stored as the provider returned them.
+export async function uploadScriptPanel(args: {
+  clientId: string;
+  scriptId: string;
+  shotId: string;
+  ext: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForScriptPanel({ clientId: args.clientId, scriptId: args.scriptId, shotId: args.shotId, ext: args.ext });
   return _upload(path, args.body, args.contentType);
 }

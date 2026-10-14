@@ -1,13 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { parseColour } from "@/lib/kb/utils";
 
 // Renders a comma-separated list of brand colours (e.g. "turmeric gold #C8A000,
-// soft green #3D6B1A") as labelled swatches. Each entry shows a colour chip when
-// a hex code is present; entries without one fall back to plain text. Reusable
-// across any colour-palette field.
-
-const HEX = /#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/;
+// soft green #3D6B1A") as labelled swatches: a colour chip, the name, and the hex code
+// (always #RRGGBB). An entry with no hex falls back to its name alone. Reusable across
+// any colour-palette field.
 
 export function KBColorSwatches({
   value,
@@ -26,7 +25,7 @@ export function KBColorSwatches({
   return (
     <span className={cn("flex flex-wrap gap-x-3 gap-y-1.5", className)}>
       {entries.map((entry, i) => {
-        const hex = entry.match(HEX)?.[0];
+        const { name, hex } = parseColour(entry);
         return (
           <span key={i} className="inline-flex items-center gap-1.5">
             {hex && (
@@ -36,7 +35,8 @@ export function KBColorSwatches({
                 style={{ backgroundColor: hex }}
               />
             )}
-            <span>{entry}</span>
+            {name && <span>{name}</span>}
+            {hex && <span className="text-muted-foreground tabular-nums">{hex}</span>}
           </span>
         );
       })}

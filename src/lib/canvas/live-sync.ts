@@ -1,4 +1,5 @@
 import type { ApprovalStatus } from "@/lib/approval";
+import { GENERATED_IMAGE_TYPES } from "@/lib/nodes/image-node-types";
 
 export type LiveSyncNode = { id: string; type?: string; data: Record<string, unknown> };
 
@@ -9,7 +10,8 @@ export type LiveSyncPatch = {
 
 // Node types whose `parsed` is a rendered asset (an image or video URL) — safe to swap on the card
 // because nothing on the card edits it. A prompt node's `parsed` is text the operator edits.
-const MEDIA_NODE_TYPES = new Set(["image-gen", "video-gen"]);
+// D312 — every generated image type (image-gen, composite), plus video.
+const MEDIA_NODE_TYPES = new Set([...GENERATED_IMAGE_TYPES, "video-gen"]);
 
 /**
  * What an open canvas should change after someone else's write lands (R8.3/D202, BUG-002).

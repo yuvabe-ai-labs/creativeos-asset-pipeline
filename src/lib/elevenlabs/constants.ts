@@ -9,6 +9,10 @@ export const CUSTOM_VOICE_CATEGORIES = new Set(["cloned", "generated", "professi
 export const VOICE_NOT_SET_UP_MESSAGE =
   "Voice change isn't set up — ELEVEN_LABS_API_KEY is missing.";
 
+// D292 — ElevenLabs answers `voice_limit_reached` when the plan's custom-voice slots are used up.
+export const VOICE_SLOTS_FULL_MESSAGE =
+  "The ElevenLabs account has no free voice slots. Remove an unused voice, or upgrade the plan.";
+
 // D283 — voice picker paging and caching.
 export const ACCOUNT_VOICES_PAGE_SIZE = 100;
 export const LIBRARY_PAGE_SIZE = 30;

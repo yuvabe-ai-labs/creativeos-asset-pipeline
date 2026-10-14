@@ -3,6 +3,7 @@ import {
   normalizeTitle,
   titleFromFilename,
   nextFileNodeTitle,
+  uniqueTitle,
   MAX_TITLE_LENGTH,
 } from "./title";
 
@@ -99,5 +100,40 @@ describe("nextFileNodeTitle", () => {
         nextFilename: "brief.txt",
       }),
     ).toBeNull();
+  });
+});
+
+describe("uniqueTitle", () => {
+  it("keeps the name when nothing else uses it", () => {
+    expect(uniqueTitle("Final cut", ["Rough cut"])).toBe("Final cut");
+  });
+
+  it("adds (1) when the name is taken, like Windows and Google Drive", () => {
+    expect(uniqueTitle("Final cut", ["Final cut"])).toBe("Final cut (1)");
+  });
+
+  it("takes the next free number", () => {
+    expect(uniqueTitle("Final cut", ["Final cut", "Final cut (1)", "Final cut (3)"])).toBe(
+      "Final cut (2)",
+    );
+  });
+
+  it("compares names ignoring case and spacing", () => {
+    expect(uniqueTitle("final cut", ["  Final   Cut "])).toBe("final cut (1)");
+  });
+
+  it("counts on from a name that already carries a number", () => {
+    expect(uniqueTitle("Final cut (1)", ["Final cut", "Final cut (1)"])).toBe("Final cut (2)");
+  });
+
+  it("keeps the number inside the title length cap", () => {
+    const long = "a".repeat(MAX_TITLE_LENGTH);
+    const result = uniqueTitle(long, [long]);
+    expect(result.length).toBeLessThanOrEqual(MAX_TITLE_LENGTH);
+    expect(result.endsWith(" (1)")).toBe(true);
+  });
+
+  it("leaves a blank name blank", () => {
+    expect(uniqueTitle("", [""])).toBe("");
   });
 });

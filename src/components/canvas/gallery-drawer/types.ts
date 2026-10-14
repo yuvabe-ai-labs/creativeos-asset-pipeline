@@ -1,4 +1,4 @@
-export type GalleryTab = "references" | "assets" | "moodboard" | "signals";
+export type GalleryTab = "references" | "assets" | "moodboard" | "signals" | "avatars" | "scripts";
 export type ViewMode = "grid" | "list";
 
 /** Unified shape rendered by the grid/list — covers both Drive and Assets sources. */
@@ -33,4 +33,6 @@ export type GalleryImage = {
 export type OpenDrawerOptions = {
   position?: { x: number; y: number };
   connectToNodeId?: string;
+  /** Open on this tab — the Script's "+ Presenter" opens straight on Avatars (D298). */
+  tab?: GalleryTab;
 };

@@ -13,12 +13,13 @@ import { voiceChangeRows } from "@/lib/voice-change/describe";
 import { LeftSection } from "./focus-left-section";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 
-type ImageRole = "start_frame" | "end_frame" | "reference";
+import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
 
 const ROLE_LABEL: Record<ImageRole, string> = {
   start_frame: "Start",
   end_frame: "End",
   reference: "Ref",
+  off: "Off",
 };
 
 /**

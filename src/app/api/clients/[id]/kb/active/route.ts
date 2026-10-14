@@ -12,7 +12,7 @@ export async function GET(
       const [version, documents, images] = await Promise.all([
         getActiveKBVersion(clientId),
         listKBDocuments(clientId),
-        listBrandImages(clientId),
+        listBrandImages(clientId, "uploads"),
       ]);
 
       return apiOk({

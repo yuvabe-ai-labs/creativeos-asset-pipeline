@@ -141,6 +141,39 @@ describe("flowToPersisted (image-gen edit fields)", () => {
 });
 
 describe("canConnect", () => {
+  it("D298/D312 — an avatar connects to a script and a composite, and nothing else", () => {
+    expect(canConnect("avatar", "script")).toBe(true);
+    expect(canConnect("avatar", "composite")).toBe(true);
+    expect(canConnect("avatar", "video-gen")).toBe(false);
+    expect(canConnect("avatar", "prompt")).toBe(false);
+    expect(canConnect("avatar", "image-gen")).toBe(false);
+    expect(canConnect("script", "avatar")).toBe(false);
+  });
+
+  it("D312 — every image source feeds a composite", () => {
+    for (const source of ["file", "draw", "image-gen", "composite", "avatar"]) {
+      expect(canConnect(source, "composite")).toBe(true);
+    }
+    for (const source of ["text", "prompt", "video-gen"]) {
+      expect(canConnect(source, "composite")).toBe(false);
+    }
+  });
+
+  it("D320 — a script, shot or multishot feeds a composite as context", () => {
+    for (const source of ["script", "shot", "multishot"]) {
+      expect(canConnect(source, "composite")).toBe(true);
+    }
+  });
+
+  it("D312 — a composite goes everywhere an Image Gen still goes", () => {
+    for (const target of ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post"]) {
+      expect(canConnect("image-gen", target)).toBe(true);
+      expect(canConnect("composite", target)).toBe(true);
+    }
+    expect(canConnect("composite", "composite")).toBe(true);
+    expect(canConnect("composite", "image-gen")).toBe(false);
+  });
+
   it("allows a documented pair (draw → prompt)", () => {
     expect(canConnect("draw", "prompt")).toBe(true);
   });

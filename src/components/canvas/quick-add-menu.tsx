@@ -7,12 +7,14 @@ import {
   StickyNote,
   Sparkles,
   Pencil,
+  Combine,
   ImageIcon,
   Clapperboard,
   Layers,
   ClipboardPaste,
   Images,
   LayoutTemplate,
+  MessageSquareText,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -39,18 +41,20 @@ const ICONS: Record<AddNodeType, LucideIcon> = {
   prompt: Sparkles,
   draw: Pencil,
   "image-gen": ImageIcon,
+  composite: Combine,
   "video-prompt": Clapperboard,
   // Layers, matching the Multishot node's own icon — the two share a lane.
   "multishot-prompt": Layers,
   "video-gen": Clapperboard,
   post: LayoutTemplate,
+  "client-review": MessageSquareText,
 };
 
 const MENU_W = 240;
 // Tall enough to show the input + every row of ADD_NODE_OPTIONS (+ the optional paste row)
 // without the list scrolling. Kept in sync with CommandList's max-h below — raise BOTH when
 // a node type is added, or the last row falls below the fold and reads as missing.
-const MENU_H = 468;
+const MENU_H = 564; // 12 option rows + input + paste row
 
 interface QuickAddMenuProps {
   screenX: number;
@@ -110,7 +114,7 @@ export function QuickAddMenu({
         <CommandInput autoFocus placeholder="Add node…" />
         {/* Override shadcn's default max-h-72 (288px) so every node type fits
             without the list scrolling; still caps height on short viewports. */}
-        <CommandList className="max-h-[468px]">
+        <CommandList className="max-h-[564px]">
           <CommandEmpty>No node type found.</CommandEmpty>
           <CommandGroup>
             {canPasteImage && onPasteImage && (
