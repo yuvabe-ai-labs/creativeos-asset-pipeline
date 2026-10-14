@@ -14,6 +14,8 @@ function deps(overrides: Partial<AddScriptDeps> = {}): AddScriptDeps & { toast: 
     attachAvatar: vi.fn(),
     parse: vi.fn().mockResolvedValue({ ok: true, output: { visual_script: { shots: new Array(14).fill({}) } } }),
     writeParsed: vi.fn(),
+    fillScriptNode: vi.fn(),
+    setParsing: vi.fn(),
     newId: () => "n1",
     toast: { loading: vi.fn().mockReturnValue("t1"), success: vi.fn(), error: vi.fn() },
     ...overrides,
@@ -63,5 +65,38 @@ describe("addScriptToCanvas", () => {
     await addScriptToCanvas("s1", POS, d);
     expect(d.addScriptNode).not.toHaveBeenCalled();
     expect(d.toast.error).toHaveBeenCalledWith("Could not load the script.");
+  });
+
+  it("marks the node as parsing for exactly the length of the parse", async () => {
+    const order: string[] = [];
+    const d = deps({
+      setParsing: vi.fn((_id: string, p: boolean) => void order.push(p ? "on" : "off")),
+      parse: vi.fn(async () => { order.push("parse"); return { ok: true as const, output: { visual_script: { shots: [] } } }; }),
+      writeParsed: vi.fn(() => void order.push("write")),
+    });
+    await addScriptToCanvas("s1", POS, d);
+    expect(order).toEqual(["on", "parse", "write", "off"]);
+    expect(d.setParsing).toHaveBeenCalledWith("n1", true);
+  });
+
+  it("clears the parsing state when the parse fails, is still saving, or throws (Review Focus 5)", async () => {
+    for (const parse of [
+      vi.fn().mockResolvedValue({ ok: false, reason: "failed", error: "Bad" }),
+      vi.fn().mockResolvedValue({ ok: false, reason: "saving", error: "Still saving" }),
+      vi.fn().mockRejectedValue(new Error("offline")),
+    ]) {
+      const d = deps({ parse });
+      await addScriptToCanvas("s1", POS, d);
+      expect(d.setParsing).toHaveBeenLastCalledWith("n1", false);
+    }
+  });
+
+  it("fills an existing empty Script node instead of adding one, when told to", async () => {
+    const d = deps();
+    await addScriptToCanvas("s1", POS, d, { into: "seeded" });
+    expect(d.addScriptNode).not.toHaveBeenCalled();
+    expect(d.fillScriptNode).toHaveBeenCalledWith("seeded", { title: "Golu starts today", source: expect.any(String) });
+    expect(d.setParsing).toHaveBeenCalledWith("seeded", true);
+    expect(d.writeParsed).toHaveBeenCalledWith("seeded", expect.anything());
   });
 });
