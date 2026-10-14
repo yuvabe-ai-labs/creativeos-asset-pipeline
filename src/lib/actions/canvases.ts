@@ -6,6 +6,7 @@ import { getActiveKBVersion } from "@/lib/db/kb";
 import { saveCanvasNodes } from "@/lib/db/nodes";
 import { saveCanvasEdges } from "@/lib/db/edges";
 import { getScript } from "@/lib/db/scripts";
+import { getClientById } from "@/lib/db/clients";
 import type { CanvasRow } from "@/lib/db/types";
 import { resolveOrgId } from "@/lib/dal";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
@@ -81,12 +82,16 @@ export async function createCanvasFromScriptAction(input: {
   return withAction("createCanvasFromScriptAction", async () => {
     const name = input.name?.trim();
     if (!name) throw new Error("Canvas needs a name");
+    // The client id comes from the browser and these reads use the service role (no RLS): a
+    // client outside the caller's org is "not found", before anything of it is read or linked.
+    const orgId = await resolveOrgId();
+    const client = await getClientById(input.clientId);
+    if (!client || client.org_id !== orgId) throw new Error("Client not found.");
     const script = await getScript(input.clientId, input.scriptId);
     if (!script || script.stage !== "approved") throw new Error("Only an approved script can start a canvas.");
     const existing = await getScriptCanvas(input.clientId, input.scriptId);
     if (existing) return { canvas: existing, created: false };
 
-    const orgId = await resolveOrgId();
     let canvas: CanvasRow;
     try {
       canvas = await createCanvas({ clientId: input.clientId, orgId, name, sourceScriptId: input.scriptId });

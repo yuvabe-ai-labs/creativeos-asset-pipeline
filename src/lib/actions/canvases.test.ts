@@ -6,7 +6,8 @@ type ImpersonationStateMockResult =
   | { isImpersonating: false }
   | { isImpersonating: true; operatorId: string; targetOrgId: string; elevated: boolean };
 
-const { resolveImpersonationStateMock, resolveOrgIdMock, createCanvasMock, getScriptCanvasMock, getScriptMock } = vi.hoisted(() => ({
+const { resolveImpersonationStateMock, resolveOrgIdMock, createCanvasMock, getScriptCanvasMock, getScriptMock, getClientByIdMock } = vi.hoisted(() => ({
+  getClientByIdMock: vi.fn(async (): Promise<unknown> => null),
   getScriptCanvasMock: vi.fn(async (): Promise<unknown> => null),
   getScriptMock: vi.fn(async (): Promise<unknown> => null),
   resolveImpersonationStateMock: vi.fn(
@@ -28,6 +29,7 @@ vi.mock("@/lib/db/canvases", () => ({
   getScriptCanvas: getScriptCanvasMock,
 }));
 vi.mock("@/lib/db/scripts", () => ({ getScript: getScriptMock }));
+vi.mock("@/lib/db/clients", () => ({ getClientById: getClientByIdMock }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn(async () => null) }));
 vi.mock("@/lib/db/nodes", () => ({ saveCanvasNodes: vi.fn(async () => undefined) }));
 vi.mock("@/lib/db/edges", () => ({ saveCanvasEdges: vi.fn(async () => undefined) }));
@@ -68,6 +70,7 @@ describe("createCanvasFromScriptAction", () => {
     vi.resetAllMocks();
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
     resolveOrgIdMock.mockResolvedValue("org-1");
+    getClientByIdMock.mockResolvedValue({ id: "client-1", org_id: "org-1" });
     getScriptMock.mockResolvedValue(approved);
     getScriptCanvasMock.mockResolvedValue(null);
     createCanvasMock.mockImplementation(async (a) => ({ id: "canvas-1", slug: "reel-12", ...a }));
@@ -91,6 +94,14 @@ describe("createCanvasFromScriptAction", () => {
     createCanvasMock.mockRejectedValue(new Error("duplicate key value violates unique constraint"));
     const out = await createCanvasFromScriptAction(input);
     expect(out).toEqual({ created: false, canvas: { id: "canvas-race", slug: "reel-12" } });
+  });
+
+  it("refuses a client outside the caller's org: no read of its canvas, no canvas made", async () => {
+    getClientByIdMock.mockResolvedValue({ id: "client-1", org_id: "someone-elses-org" });
+    getScriptCanvasMock.mockResolvedValue({ id: "their-canvas", slug: "theirs" });
+    await expect(createCanvasFromScriptAction(input)).rejects.toThrow("Client not found.");
+    expect(getScriptCanvasMock).not.toHaveBeenCalled();
+    expect(createCanvasMock).not.toHaveBeenCalled();
   });
 
   it("refuses a script that is not approved", async () => {
