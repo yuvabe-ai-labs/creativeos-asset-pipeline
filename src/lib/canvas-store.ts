@@ -79,6 +79,11 @@ export type CanvasState = {
   videoGenStatus: Record<string, { isGenerating: boolean; kind: VideoGenJobKind | null; lastError: string | null }>;
   setVideoGenGenerating: (nodeId: string, v: boolean, kind?: VideoGenJobKind) => void;
   setVideoGenError: (nodeId: string, err: string | null) => void;
+  // Which Script nodes are parsing right now. Whoever runs the parse (the node's own view, the
+  // gallery, the Create-canvas hand-off) sets it, and the node and its view both read it (D372).
+  // Transient like videoGenStatus: never saved, so a closed tab cannot leave a node "parsing".
+  scriptParsing: Record<string, true>;
+  setScriptParsing: (nodeId: string, parsing: boolean) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
   // keyed by generation id. The tray derives its list from these + the node graph (D9).
   trayJobs: Record<string, GenerationRow>;
@@ -759,6 +764,15 @@ export function createCanvasStore(
           },
         },
       })),
+
+    scriptParsing: {},
+    setScriptParsing: (nodeId, parsing) =>
+      set((s) => {
+        if (parsing) return { scriptParsing: { ...s.scriptParsing, [nodeId]: true } };
+        const rest = { ...s.scriptParsing };
+        delete rest[nodeId];
+        return { scriptParsing: rest };
+      }),
 
     trayJobs: {},
     setTrayJobs: (jobs) =>

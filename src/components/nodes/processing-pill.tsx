@@ -7,12 +7,12 @@ import { Loader2 } from "lucide-react";
  *   <ProcessingPill processing={isProcessing} />
  *   {!isProcessing && <span className="size-1.5 rounded-full …" />}
  */
-export function ProcessingPill({ processing }: { processing: boolean }) {
+export function ProcessingPill({ processing, label = "Processing" }: { processing: boolean; label?: string }) {
   if (!processing) return null;
   return (
     <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-primary/5 px-1.5 py-0.5 text-primary">
       <Loader2 className="size-3 animate-spin stroke-[1.5]" />
-      <span className="text-eyebrow !text-[0.6rem]">Processing</span>
+      <span className="text-eyebrow !text-[0.6rem]">{label}</span>
     </span>
   );
 }
