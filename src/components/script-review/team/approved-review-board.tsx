@@ -1,7 +1,7 @@
 // src/components/script-review/team/approved-review-board.tsx
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useReplyToThread, useResolveThread, useTeamScriptReview } from "@/hooks/queries/script-review";
 import { useReviewColumn } from "@/hooks/use-review-column";
 import { threadCount } from "@/lib/script-review/column";
@@ -21,12 +21,14 @@ const NOTHING: ReadonlyMap<string, Part> = new Map();
 /** Spec 4 §6 (review board, 4.17): after approval the team sees what the client approved — the
  *  approved version, read-only, as the client's page draws it — with the column (the team still
  *  replies and resolves) and Reopen to Visualise. The record of the sign-off, not the live script. */
-export function ApprovedReviewBoard({ clientId, script, version, initialReview }: {
+export function ApprovedReviewBoard({ clientId, script, version, initialReview, canvasAction }: {
   clientId: string;
   script: Script;
   version: ScriptVersion;
   /** Built on the server, so the threads are there on the first render. */
   initialReview: TeamScriptReview;
+  /** D371 — Create canvas / Open canvas, built by the page (it knows the script's canvas). */
+  canvasAction?: ReactNode;
 }) {
   const { data: review } = useTeamScriptReview(clientId, script.id, initialReview);
   const reply = useReplyToThread(clientId, script.id);
@@ -60,7 +62,7 @@ export function ApprovedReviewBoard({ clientId, script, version, initialReview }
               {review?.approval ? ` · approved by ${review.approval.byName} on ${formatShortDay(review.approval.at)}` : ""}
             </span>
           </div>
-          <ReviewActions clientId={clientId} script={script} review={review} commentCount={threadCount(placed)} />
+          <ReviewActions clientId={clientId} script={script} review={review} commentCount={threadCount(placed)} canvasAction={canvasAction} />
         </section>
         <FrozenBoard version={version} stage="approved" column={<ReviewColumn activity={review?.activity ?? []} />} />
       </div>

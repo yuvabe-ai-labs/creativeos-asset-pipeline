@@ -1,6 +1,7 @@
 // src/components/script-review/team/review-actions.tsx
 "use client";
 
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,14 +19,16 @@ import { ShareDialog } from "./share-dialog";
 
 /** Spec 4 §6 (review board): the review's actions on the board's top line — the feedback count and
  *  latest version, Share / Share again (In review), Copy link, the team's stage moves, and below
- *  `xl` the Comments button once something has been shared. A move reloads the page: the stage
+ *  `xl` the Comments button once something has been shared, and, once approved, Create / Open
+ *  canvas (`canvasAction`, D371). A move reloads the page: the stage
  *  decides which board it shows. Move to In review is the share dialog (D349, refined): one element
  *  for both stages, so the dialog and its new link survive the move flipping it to Share again. */
-export function ReviewActions({ clientId, script, review, commentCount }: {
+export function ReviewActions({ clientId, script, review, commentCount, canvasAction }: {
   clientId: string;
   script: Script;
   review: TeamScriptReview | undefined;
   commentCount: number;
+  canvasAction?: ReactNode;
 }) {
   const router = useRouter();
   const stage = review?.stage ?? script.stage;
@@ -59,6 +62,7 @@ export function ReviewActions({ clientId, script, review, commentCount }: {
           {TEAM_STAGE_MOVES[m].label}
         </Button>
       ))}
+      {canvasAction}
       {latest && <CommentsButton count={commentCount} />}
     </div>
   );

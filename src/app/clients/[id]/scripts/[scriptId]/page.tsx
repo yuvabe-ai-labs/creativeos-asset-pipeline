@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
+import { getScriptCanvas } from "@/lib/db/canvases";
+import { ScriptCanvasButton } from "@/components/scripts/script-canvas-button";
 import { getGenerateScript, loadGenerateState } from "@/lib/db/script-generate";
 import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
@@ -57,6 +59,16 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     ? {}
     : Object.fromEntries((await listAvatars(client.id)).map((a) => [a.id, a.front?.url ?? null]));
   const label = reelLabel(script.doc.header.reelNumber);
+  // D371 — an approved script's canvas: Create canvas, or Open canvas once it has one.
+  const scriptCanvas = script.stage === "approved" ? await getScriptCanvas(client.id, script.id) : null;
+  const canvasAction = script.stage === "approved" ? (
+    <ScriptCanvasButton
+      clientId={client.id}
+      clientSlug={client.slug}
+      script={{ id: script.id, title: `${label ? `${label} · ` : ""}${script.doc.header.title}` }}
+      canvas={scriptCanvas ? { slug: scriptCanvas.slug } : null}
+    />
+  ) : null;
 
   return (
     <main className={cn("mx-auto w-full flex-1 px-6 py-12", board || approved ? "max-w-[96rem]" : "max-w-6xl")}>
@@ -74,9 +86,12 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
       {board ? (
         <TeamReviewBoard clientId={client.id} initial={{ script, board }} initialReview={review!} />
       ) : approved ? (
-        <ApprovedReviewBoard clientId={client.id} script={script} version={approved} initialReview={review!} />
+        <ApprovedReviewBoard clientId={client.id} script={script} version={approved} initialReview={review!} canvasAction={canvasAction} />
       ) : (
-        <ScriptView script={script} avatarFaces={avatarFaces} />
+        <>
+          {canvasAction && <div className="mb-4 flex justify-end">{canvasAction}</div>}
+          <ScriptView script={script} avatarFaces={avatarFaces} />
+        </>
       )}
     </main>
   );
