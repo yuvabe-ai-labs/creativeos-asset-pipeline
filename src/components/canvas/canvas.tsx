@@ -91,6 +91,7 @@ const nodeTypes: NodeTypes = {
 
 // The node types whose focus view opens on a version history — what hovering one prefetches.
 const VERSIONED_NODE_TYPES = new Set([
+  "dubbing",
   "prompt",
   "multishot-prompt",
   "image-gen",

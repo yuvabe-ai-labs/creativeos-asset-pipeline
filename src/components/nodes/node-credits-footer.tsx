@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // The bottom "N credits spent" strip on a node card. totalCredits === null means the cost
@@ -10,9 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function NodeCreditsFooter({
   totalCredits,
   hasOutput,
+  usage,
 }: {
   totalCredits: number | null;
   hasOutput: boolean;
+  /** Replaces the plain total, e.g. a usage popover trigger. */
+  usage?: ReactNode;
 }) {
   if (totalCredits === null) {
     if (!hasOutput) return null;
@@ -23,6 +27,7 @@ export function NodeCreditsFooter({
     );
   }
   if (totalCredits <= 0) return null;
+  if (usage) return <div className="nodrag border-t border-border px-1.5 py-0.5">{usage}</div>;
   return (
     <div className="border-t border-border px-3 py-1.5">
       <p className="text-[0.6rem] tabular-nums text-muted-foreground">
