@@ -13,7 +13,7 @@ import { useDubbingVersions } from "@/hooks/use-dubbing-versions";
 import { useDubbingSource } from "@/hooks/use-dubbing-source";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { nodeLabel } from "@/lib/nodes/describe-node";
-import { DEFAULT_DUB_LANGUAGE, isDubLanguage, type DubLanguage } from "@/lib/dubbing/types";
+import { DEFAULT_DUB_LANGUAGE, dubLanguageLabel, isDubLanguage, type DubLanguage } from "@/lib/dubbing/types";
 import { ConnectedDetailView } from "./connected-inputs-card";
 import { EditableField } from "./editable-field";
 import { GenerationErrorBadge } from "./generation-error-badge";
@@ -107,7 +107,13 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
                 />
               )}
             </div>
-            <DubbingPlayer key={`${activeDub?.dubbed ?? ""}|${activeDub?.lipSynced ?? ""}`} dub={activeDub} sourceUrl={source?.url ?? null} />
+            <DubbingPlayer
+              key={`${activeDub?.dubbed ?? ""}|${activeDub?.lipSynced ?? ""}`}
+              dub={activeDub}
+              sourceUrl={source?.url ?? null}
+              running={running}
+              runningLanguage={dubLanguageLabel(running === "lipsync" && activeDub ? activeDub.language : lang)}
+            />
           </div>
         </div>
       </SheetContent>
