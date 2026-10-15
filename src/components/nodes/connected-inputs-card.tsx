@@ -201,6 +201,8 @@ export function ConnectedDetailView({
     (isGeneratedImageType(node.type) ||
       node.type === "avatar" ||
       ((node.type === "file" || node.type === "draw") && node.fileKind === "image"));
+  // A Video Gen preview is its take (the Dubbing rail, D374).
+  const isVideo = !!node.fileUrl && node.type === "video-gen";
 
   return (
     <div className="w-full max-w-5xl flex h-full flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
@@ -230,6 +232,8 @@ export function ConnectedDetailView({
             alt={node.label}
             className="max-h-full rounded-md border border-border object-contain"
           />
+        ) : isVideo ? (
+          <video src={node.fileUrl} controls playsInline className="max-h-full w-full rounded-md border border-border bg-black object-contain" />
         ) : node.text.trim() ? (
           <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
             {node.text}
