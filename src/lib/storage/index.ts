@@ -2,6 +2,7 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { _put, _remove, _signPutUrl, getBucketName, publicUrlFor } from "./gcs";
 import { resolveOwnership, type Ownership } from "./ownership";
+import { DUBBING_UPLOAD_EXPIRY_MS } from "@/lib/dubbing/constants";
 import { mimeToExt } from "@/lib/image-gen/utils";
 import {
   IMAGE_GEN_MASK_MIME,
@@ -23,6 +24,7 @@ import {
   pathForReviewAnnotation,
   pathForVideoGen,
   pathForVideoGenVoice,
+  pathForDubbing,
   pathForAvatarImage,
   pathForAvatarGenerated,
   pathForScriptPanel,
@@ -198,6 +200,26 @@ export async function signRevoicedVideoUrl(args: { nodeId: string; generationId:
   const { clientId, canvasId } = await resolveOwnership(args.nodeId);
   const path = pathForVideoGenVoice({ clientId, canvasId, nodeId: args.nodeId, generationId: args.generationId, variant: "revoiced" });
   return { putUrl: await _signPutUrl(path, "video/mp4", VOICE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
+// D377 — the dubbing tasks have no GCS credentials; the routes sign their uploads up front.
+async function signDubbingPut(nodeId: string, generationId: string, variant: "dubbed" | "dubbed-audio" | "lip-synced") {
+  const { clientId, canvasId } = await resolveOwnership(nodeId);
+  const path = pathForDubbing({ clientId, canvasId, nodeId, generationId, variant });
+  const contentType = variant === "dubbed-audio" ? "audio/wav" : "video/mp4";
+  return { putUrl: await _signPutUrl(path, contentType, DUBBING_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+}
+
+export async function signDubbingUploads(args: { nodeId: string; generationId: string }) {
+  const [dubbed, dubbedAudio] = await Promise.all([
+    signDubbingPut(args.nodeId, args.generationId, "dubbed"),
+    signDubbingPut(args.nodeId, args.generationId, "dubbed-audio"),
+  ]);
+  return { dubbed, dubbedAudio };
+}
+
+export async function signLipSyncedUpload(args: { nodeId: string; generationId: string }) {
+  return signDubbingPut(args.nodeId, args.generationId, "lip-synced");
 }
 
 export async function uploadClientLogo(args: {

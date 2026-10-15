@@ -14,6 +14,7 @@ import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview
 import { computeImageCost } from "@/lib/image-gen/cost";
 import { IMAGE_GENERATION_FAILED_MESSAGE, plainImageFailure } from "@/lib/image-gen/failure-copy";
 import type { ImageGenerationSucceeded } from "@/lib/image-gen/run-task";
+import { completeDubGeneration, completeLipSyncGeneration, dubbingCompleteDeps, type DubSucceeded, type LipSyncSucceeded } from "@/lib/dubbing/complete";
 import type { GenerationRow } from "@/lib/db/types";
 
 // Every failure path in this file needs the same two calls in the same order — a small
@@ -81,23 +82,32 @@ async function completeImageGeneration(
   });
 }
 
+export type VideoGenerationSucceeded = {
+  generationId: string;
+  status: "succeeded";
+  kind?: "video";
+  videoUrl: string;
+  durationSeconds: number;
+  /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
+  stored?: boolean;
+  meta?: Record<string, unknown>;
+};
+
 export type CompleteGenerationInput =
-  | {
-      generationId: string;
-      status: "succeeded";
-      kind?: "video";
-      videoUrl: string;
-      durationSeconds: number;
-      /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
-      stored?: boolean;
-      meta?: Record<string, unknown>;
-    }
+  | VideoGenerationSucceeded
   | ImageGenerationSucceeded
+  | DubSucceeded
+  | LipSyncSucceeded
   | {
       generationId: string;
       status: "failed";
       error: string;
     };
+
+/** A succeeded plain video (Video Gen / voice preview): not an image, dub or lip sync. */
+export function isVideoSucceeded(input: CompleteGenerationInput): input is VideoGenerationSucceeded {
+  return input.status === "succeeded" && (input.kind === undefined || input.kind === "video");
+}
 
 export async function completeGeneration(
   input: CompleteGenerationInput,
@@ -201,6 +211,18 @@ export async function completeGeneration(
       return;
     }
     await failAndRefund(input.generationId, generation.org_id, input.error);
+    return;
+  }
+
+  // D375 - the Dubbing node's two jobs. Fail closed on a kind that doesn't match its row.
+  if (input.kind === "dub" || input.kind === "lipsync") {
+    if (generation.type !== input.kind) {
+      await failAndRefund(input.generationId, generation.org_id, `${input.kind} result for a ${generation.type} generation`);
+      return;
+    }
+    const deps = dubbingCompleteDeps(failAndRefund);
+    if (input.kind === "dub") await completeDubGeneration(nodeId, generation, input, deps);
+    else await completeLipSyncGeneration(nodeId, generation, input, deps);
     return;
   }
 

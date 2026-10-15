@@ -16,6 +16,7 @@ export type AddNodeType =
   | "video-prompt"
   | "multishot-prompt"
   | "video-gen"
+  | "dubbing"
   | "post"
   | "client-review";
 
@@ -43,6 +44,8 @@ export const ADD_NODE_OPTIONS: readonly AddNodeOption[] = [
   // Motion Prompt is, and a reference library can be connected to it directly.
   { type: "multishot-prompt", label: "Multishot Prompt", mnemonic: "U" },
   { type: "video-gen", label: "Video Gen", mnemonic: "V" },
+  // "B" for duBbing (D374): D is Draw.
+  { type: "dubbing", label: "Dubbing", mnemonic: "B" },
   { type: "post", label: "Post", mnemonic: "O" },
   // "R" for Review. The cut a client comments on through a public link (D309).
   { type: "client-review", label: "Client review", mnemonic: "R" },

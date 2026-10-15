@@ -19,7 +19,7 @@ import {
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
-import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
+import { canAcceptIncoming, canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { fileNodeService } from "@/services/file-node.service";
@@ -39,6 +39,7 @@ import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { CompositeNode } from "@/components/nodes/composite-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
+import { DubbingNode } from "@/components/nodes/dubbing-node";
 import { PostNode } from "@/components/nodes/post-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { useAnyFocusViewOpen } from "@/hooks/use-focus-view-open";
@@ -83,12 +84,14 @@ const nodeTypes: NodeTypes = {
   composite: CompositeNode,
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
+  dubbing: DubbingNode,
   post: PostNode,
   "client-review": ClientReviewNode,
 };
 
 // The node types whose focus view opens on a version history — what hovering one prefetches.
 const VERSIONED_NODE_TYPES = new Set([
+  "dubbing",
   "prompt",
   "multishot-prompt",
   "image-gen",
@@ -376,6 +379,8 @@ export function Canvas({
       const target = nodes.find((n) => n.id === connection.target);
       if (!source || !target) return false;
       if (!canConnect(source.type ?? "", target.type ?? "")) return false;
+      const incoming = edges.filter((e) => e.target === connection.target).length;
+      if (!canAcceptIncoming(target.type ?? "", incoming)) return false;
       // script → prompt: one script can only wire to a single prompt
       if (source.type === "script" && target.type === "prompt") {
         const alreadyConnected = edges.some(

@@ -36,7 +36,7 @@ export type TrayStatus = "running" | "ready" | "failed";
 
 /** What a row IS. Four values, because a `generations` row's `type` column collapses the
  *  two prompt node types into one value and the tray must tell them apart (D142). */
-export type TrayKind = "image-prompt" | "image" | "motion-prompt" | "video";
+export type TrayKind = "image-prompt" | "image" | "motion-prompt" | "video" | "dub";
 
 /** Display label plus the two facets the row encodes visually: `track` picks the glyph,
  *  `stage` picks the chip weight. Pure data so it is unit-testable here — the Lucide glyph
@@ -51,6 +51,7 @@ export const TRAY_KIND_META: Record<
   // operator looks. Only the persisted `nodes.type` slug stays "video-prompt".
   "motion-prompt": { label: "Motion Prompt", track: "video", stage: "prompt" },
   video: { label: "Video", track: "video", stage: "output" },
+  dub: { label: "Dub", track: "video", stage: "output" },
 };
 
 /** A `prompt` job row cannot say which prompt node wrote it — the Prompt node and the
@@ -61,6 +62,7 @@ export function resolveTrayKind(
   jobType: GenerationFeedRow["type"],
   nodeType: string | undefined,
 ): TrayKind {
+  if (jobType === "dub" || jobType === "lipsync") return "dub";
   if (jobType === "image") return "image";
   if (jobType === "video") return "video";
   return nodeType === "video-prompt" ? "motion-prompt" : "image-prompt";

@@ -152,6 +152,7 @@ describe("resolveTrayKind", () => {
 describe("TRAY_KIND_META", () => {
   it("covers every TrayKind", () => {
     expect(Object.keys(TRAY_KIND_META).sort()).toEqual([
+      "dub",
       "image",
       "image-prompt",
       "motion-prompt",
@@ -198,5 +199,13 @@ describe("deriveTrayItems kind resolution", () => {
       deriveTrayItems(nodes, [], jobs, now).map((i) => [i.nodeId, i.kind]),
     );
     expect(byNode).toEqual({ gi: "image", gv: "video" });
+  });
+});
+
+describe("resolveTrayKind dubbing", () => {
+  it("shows dub and lip sync jobs as Dub", () => {
+    expect(resolveTrayKind("dub" as never, "dubbing")).toBe("dub");
+    expect(resolveTrayKind("lipsync" as never, "dubbing")).toBe("dub");
+    expect(TRAY_KIND_META.dub.label).toBe("Dub");
   });
 });

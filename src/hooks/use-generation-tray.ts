@@ -2,6 +2,10 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { fetchNodeVersionsOnce } from "@/hooks/queries/node-versions";
+import { activeDubbingOf } from "@/lib/dubbing/types";
+import type { DubbingVersionSummary } from "@/hooks/use-dubbing-versions";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import type { GenerationRow } from "@/lib/db/types";
@@ -21,6 +25,7 @@ export function useGenerationTray(canvasId: string): void {
   const setTrayJobs = useCanvasStore((s) => s.setTrayJobs);
   const upsertTrayJob = useCanvasStore((s) => s.upsertTrayJob);
   const storeApi = useCanvasStoreApi();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
@@ -36,6 +41,17 @@ export function useGenerationTray(canvasId: string): void {
           parsed: effect.cardImage,
           approvalStatus: "pending",
         });
+      }
+      // A dub or lip sync that finished with its view closed: read the node's versions once and put
+      // the active output on the card. A failed read leaves the card as it was (the view patches
+      // it when opened).
+      if (effect.refreshVersions) {
+        fetchNodeVersionsOnce<DubbingVersionSummary>(queryClient, nodeId)
+          .then((list) => {
+            const dubbing = activeDubbingOf(list);
+            if (dubbing && !cancelled) storeApi.getState().updateNodeData(nodeId, { parsed: dubbing });
+          })
+          .catch((e: unknown) => console.error("[useGenerationTray] could not read the finished dub", e));
       }
       if (effect.toast.tone === "success") void revalidateCanvasGenerations();
     };
@@ -101,5 +117,5 @@ export function useGenerationTray(canvasId: string): void {
       cancelled = true;
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [canvasId, setTrayJobs, upsertTrayJob, storeApi]);
+  }, [canvasId, setTrayJobs, upsertTrayJob, storeApi, queryClient]);
 }

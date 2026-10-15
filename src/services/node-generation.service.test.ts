@@ -44,3 +44,14 @@ describe("nodeGenerationService (D366)", () => {
     );
   });
 });
+
+describe("dubbing starts", () => {
+  it("posts the language and the version to their routes", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ generationId: "g" }), { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(nodeGenerationService.startDub("n1", { language: "hi-IN", style: "modern-colloquial" })).resolves.toEqual({ generationId: "g" });
+    await expect(nodeGenerationService.startLipSync("n1", { versionId: "v1" })).resolves.toEqual({ generationId: "g" });
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(["/api/nodes/n1/dub", "/api/nodes/n1/lip-sync"]);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ language: "hi-IN", style: "modern-colloquial" });
+  });
+});

@@ -47,7 +47,7 @@ export function usePlaybookRunner(say: (text: string) => void) {
         },
         connect: (fromHandles, toHandle) => {
           const s = state();
-          const plan = planConnections(fromHandles, toHandle, s.nodes);
+          const plan = planConnections(fromHandles, toHandle, s.nodes, s.edges);
           if (!plan.target) return { wired: [], rejected: [], unknown: fromHandles };
           plan.wired.forEach((w) => s.connectNodes(w.sourceId, plan.target!.id));
           return {

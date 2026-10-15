@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { nodeVersionsService, type NodeVersionsResponse } from "@/services/node-versions.service";
 import { useIdentity } from "@/hooks/use-identity";
 import { subscribeToOrgVersionUpdates } from "@/lib/realtime/org-version-updates";
@@ -48,6 +48,12 @@ export function useRefreshNodeVersions<V>(nodeId: string) {
     await queryClient.cancelQueries({ queryKey: nodeVersionKeys.list(nodeId), exact: true });
     return queryClient.query({ ...nodeVersionsQuery<V>(nodeId), staleTime: 0 });
   }, [queryClient, nodeId]);
+}
+
+/** Read a node's versions once, fresh, into the cache (the canvas tray, when a background job
+ *  finishes while the node's view is closed). One request per finished job, never per node. */
+export function fetchNodeVersionsOnce<V>(queryClient: QueryClient, nodeId: string): Promise<NodeVersionsResponse<V>> {
+  return queryClient.query({ ...nodeVersionsQuery<V>(nodeId), staleTime: 0 });
 }
 
 /** Point the cached list at a version right away — the one a generate just made, or a restore

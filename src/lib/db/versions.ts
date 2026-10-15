@@ -110,6 +110,21 @@ export async function updateVersionOutput(versionId: string, output: unknown): P
   if (error) throw error;
 }
 
+// D375 - lip sync fills a stage of an existing Dubbing version: its output and its record
+// change together. `generated_output` stays frozen (D22).
+export async function updateVersionOutputAndInputs(
+  versionId: string,
+  output: unknown,
+  inputsUsed: Record<string, unknown>,
+): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("node_versions")
+    .update({ output, inputs_used: inputsUsed })
+    .eq("id", versionId);
+  if (error) throw error;
+}
+
 export async function listVersions(nodeId: string): Promise<NodeVersionRow[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase

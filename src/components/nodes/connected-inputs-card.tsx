@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Combine, FileText, ImageIcon, ListVideo, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft, UserRound } from "lucide-react";
+import { Combine, FileText, ImageIcon, ListVideo, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft, UserRound, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getShotRole } from "@/lib/nodes/shot-roles";
 import { Button } from "@/components/ui/button";
@@ -201,6 +201,8 @@ export function ConnectedDetailView({
     (isGeneratedImageType(node.type) ||
       node.type === "avatar" ||
       ((node.type === "file" || node.type === "draw") && node.fileKind === "image"));
+  // A Video Gen preview is its take (the Dubbing rail, D374).
+  const isVideo = !!node.fileUrl && node.type === "video-gen";
 
   return (
     <div className="w-full max-w-5xl flex h-full flex-col min-h-0 overflow-hidden px-6 py-6 gap-4">
@@ -230,6 +232,8 @@ export function ConnectedDetailView({
             alt={node.label}
             className="max-h-full rounded-md border border-border object-contain"
           />
+        ) : isVideo ? (
+          <video src={node.fileUrl} controls playsInline className="max-h-full w-full rounded-md border border-border bg-black object-contain" />
         ) : node.text.trim() ? (
           <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
             {node.text}
@@ -243,6 +247,7 @@ export function ConnectedDetailView({
 }
 
 export function NodeIcon({ type }: { type: string }) {
+  if (type === "video-gen") return <Video className="size-3 shrink-0 text-primary" strokeWidth={1.5} />;
   if (type === "shot") return <Clapperboard className="size-3 shrink-0 text-primary" />;
   if (type === "script") return <FileText className="size-3 shrink-0 text-primary" />;
   if (type === "file") return <Paperclip className="size-3 shrink-0 text-primary" />;

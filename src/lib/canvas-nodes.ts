@@ -12,6 +12,7 @@ import type { PostFormat, PostLayer } from "@/lib/post/types";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
 import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
+import type { DubLanguage, DubStyle } from "@/lib/dubbing/types";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 export type ScriptNodeData = {
@@ -264,6 +265,11 @@ export type PostNodeData = {
 // live in canvas_reviews / canvas_review_comments — only the title is node data.
 export type ClientReviewNodeData = { title?: string };
 
+// D374 — dubs its one connected Video Gen take. `language` is the select's last value; each
+// version records its own. `parsed` is the active version's DubbingOutput (display only, D19).
+// `style` is the last translation style picked (DUB_STYLES); each version records its own.
+export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; parsed?: unknown };
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
@@ -280,7 +286,8 @@ export type AppNode =
   | Node<VideoPromptNodeData, "video-prompt">
   | Node<VideoGenNodeData, "video-gen">
   | Node<PostNodeData, "post">
-  | Node<ClientReviewNodeData, "client-review">;
+  | Node<ClientReviewNodeData, "client-review">
+  | Node<DubbingNodeData, "dubbing">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
@@ -311,7 +318,8 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
   "video-prompt":     ["video-gen"],
   "multishot-prompt": ["video-gen"],
-  "video-gen":        [],
+  "video-gen":        ["dubbing"],
+  "dubbing":          [],
   "post":             [],
   "client-review":    [],
 } as const;
@@ -321,6 +329,15 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
 // Ordered on purpose — connection direction is meaningful; there is no symmetric variant.
 export function canConnect(sourceType: string, targetType: string): boolean {
   return (VALID_CONNECTIONS[sourceType] ?? []).includes(targetType);
+}
+
+// D374 — targets that take a fixed number of inputs. One place, checked wherever a wire is made
+// (manual drag, the + picker, the copilot).
+export const MAX_INCOMING: Record<string, number> = { dubbing: 1 };
+
+export function canAcceptIncoming(targetType: string, currentIncoming: number): boolean {
+  const max = MAX_INCOMING[targetType];
+  return max === undefined || currentIncoming < max;
 }
 
 // A node row joined with its active version's output (canvas-load shape).

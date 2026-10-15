@@ -132,6 +132,13 @@ describe("completionEffect", () => {
     });
   });
 
+  it("asks for a dub or lip sync's node to be refreshed once it succeeds", () => {
+    for (const type of ["dub", "lipsync"] as const) {
+      expect(completionEffect(row({ type }), row({ type, status: "succeeded" }))?.refreshVersions).toBe(true);
+      expect(completionEffect(row({ type }), row({ type, status: "failed", error: "x" }))?.refreshVersions).toBeUndefined();
+    }
+  });
+
   it("reports a failure with its reason", () => {
     expect(completionEffect(row({}), row({ status: "failed", error: "Out of credits" }))).toEqual({
       toast: { tone: "error", message: "Out of credits" },
@@ -175,5 +182,19 @@ describe("completionEffects", () => {
 
   it("is empty on a first load, when nothing is stored", () => {
     expect(completionEffects({}, [row({ status: "succeeded" })])).toEqual([]);
+  });
+});
+
+describe("dubbing kinds", () => {
+  it("names dub and lipsync jobs", () => {
+    expect(jobKindOf("dub")).toBe("dub");
+    expect(jobKindOf("lipsync")).toBe("lipsync");
+  });
+  it("announces a finished dub and lip sync", () => {
+    const r = (type: string, status: string, error: string | null = null) =>
+      ({ id: "g", node_id: "n", type, status, error, output_snapshot: null, created_at: "2026-10-15T00:00:00Z", version_id: null }) as never;
+    expect(completionEffect(r("dub", "running"), r("dub", "succeeded"))?.toast.message).toBe("Dub ready");
+    expect(completionEffect(r("lipsync", "running"), r("lipsync", "succeeded"))?.toast.message).toBe("Lip sync ready");
+    expect(completionEffect(r("dub", "running"), r("dub", "failed", null))?.toast.message).toBe("Dubbing failed");
   });
 });
