@@ -71,7 +71,7 @@ Composite's shell (back to canvas, editable title, rail | middle | right).
     with its credit cost ("Dub again" once a dub exists). Each dub is a new version.
   - **Lip sync tab:** "Match the mouth to the Tamil dub", then **Lip sync** with its cost ("Lip sync
     again" on a lip-synced dub; it replaces that dub's lip-synced video). Before any dub, a
-    dashed "Make a dub first" box with a **Go to Dub** chip.
+    dashed "Make a dub first" box with a plain "Go to the Dub tab" link.
   - The Lip sync tab shows a **Ready** mark while a dub is waiting for it. The view opens on Dub,
     or on Lip sync while one is running. A failure shows `GenerationErrorBadge` with plain copy.
   - No voice or model picker.

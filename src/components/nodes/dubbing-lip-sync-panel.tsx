@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, Plus } from "lucide-react";
+import { Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dubLanguageLabel, type DubbingOutput } from "@/lib/dubbing/types";
 import { lipSyncCredits } from "@/lib/dubbing/cost";
@@ -24,14 +24,9 @@ export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, edit
       <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-border p-5">
         <FieldLabel icon={Mic} label="Make a dub first" />
         <p className="text-xs text-muted-foreground">Lip sync matches the presenter&apos;s mouth to a dubbed voice.</p>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onGoToDub}
-          className="gap-1 border border-dashed border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
-        >
-          <Plus className="size-3.5" strokeWidth={1.5} />
-          Go to Dub
+        {/* Navigation, not an "Add" action: a plain link, never the dashed + chip. */}
+        <Button variant="link" size="sm" onClick={onGoToDub} className="h-auto px-0">
+          Go to the Dub tab
         </Button>
       </div>
     );
