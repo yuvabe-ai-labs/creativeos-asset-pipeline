@@ -80,7 +80,8 @@ describe("Lip sync tab", () => {
   it("points back to Dub before any dub exists", () => {
     const html = lipPanel({ activeDub: null });
     expect(html).toContain("Make a dub first");
-    expect(find(html, /Go to Dub/)).toBeTruthy();
+    expect(find(html, /Go to the Dub tab/)).toBeTruthy();
+    expect(html).not.toContain("lucide-plus");
     expect(find(html, /^Lip sync/)).toBeUndefined();
   });
 
