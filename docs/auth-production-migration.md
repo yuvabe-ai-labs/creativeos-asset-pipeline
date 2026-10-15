@@ -899,3 +899,24 @@ change.
 select count(*) from generations
 where type = 'image' and status = 'running' and created_at < now() - interval '1 hour';
 ```
+
+## Dubbing node (D374–D377) — no migration, but deploy order and env matter (2026-10-15)
+
+New generation types `dub` and `lipsync` (`generations.type` is free text; no schema change) and
+two Trigger.dev tasks, `video-dub` and `video-lip-sync`.
+
+**Ordering:**
+
+1. **Set the keys in both Trigger.dev projects' env** (staging and production) **and in Vercel**:
+   `SARVAM_API_KEY`, `FAL_KEY`. The routes refuse with "Dubbing isn't set up yet." without them.
+2. **Deploy the Trigger.dev tasks before the app** (`npm run deploy:trigger`). The app triggers
+   `video-dub` / `video-lip-sync` by id; app first means every start fails and is refunded.
+3. Then deploy the app.
+
+**Verify after deploying:**
+
+```sql
+-- expect 0: no dub or lip sync running for more than 20 minutes (runs give up at 12)
+select count(*) from generations
+where type in ('dub', 'lipsync') and status = 'running' and created_at < now() - interval '20 minutes';
+```
