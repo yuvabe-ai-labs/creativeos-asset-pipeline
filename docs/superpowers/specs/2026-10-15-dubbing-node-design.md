@@ -139,6 +139,23 @@ writes the version.
 - `computeLipSyncCost(seconds)` = `seconds / 60 × FAL_LIPSYNC_PRO_USD_PER_MIN` → credits.
 - Both are pure, live in `src/lib/dubbing/cost.ts`, and feed the button labels and the route's
   reservation, so the number on the button is the number reserved.
+- Reserve, settle at actual cost and refund on failure exactly as Change voice does; the stuck
+  sweep covers both types unchanged.
+
+### Showing usage
+
+- **Per-version credits are summed.** A Dubbing version is charged by one dub generation plus
+  every lip sync run on it. `getCreditsChargedByVersionIds` currently keeps one generation per
+  version (a `Map` that the last row overwrites); it sums instead. This also fixes any future
+  type that charges a version twice.
+- **Node and pipeline totals** (`useNodeCost`, the canvas cost query) already sum settled
+  generations by node, so dub and lip sync count with no change.
+- **Usage popover** on the Dubbing node's credits footer (`UsagePopoverShell`, like Video Gen's):
+  one row per version, "Hindi dub · N credits", with a sub-line per lip sync run
+  "Lip sync · N credits"; node total; pipeline total with the connected video upstream.
+- **Generation kinds:** `GenerationJobKind` gains `dub` and `lipsync` (today an unknown type
+  falls back to `video`); the generation tray gains a `dub` kind labelled **Dub** / **Lip sync**
+  (today it would fall back to "Image Prompt").
 
 ## 8. API
 
@@ -175,7 +192,7 @@ Missing keys → 400 "Dubbing isn't set up yet." (no vendor names in UI copy).
 
 Vitest, dependencies injected like `revoice.test.ts`: Sarvam and fal clients (`fetchImpl`), the
 two task step functions (paid call happens once across poll failures; timeout path), cost
-functions, both routes (source resolution, one-input rule, 409), `completeGeneration` for both
+functions, per-version credit summing (dub + two lip syncs on one version), tray and job kinds, both routes (source resolution, one-input rule, 409), `completeGeneration` for both
 types, the connection limit, and `nodeRowToFlow` for the new type.
 
 ## 12. Out of scope
