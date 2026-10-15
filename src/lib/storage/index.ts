@@ -206,7 +206,7 @@ export async function signRevoicedVideoUrl(args: { nodeId: string; generationId:
 async function signDubbingPut(nodeId: string, generationId: string, variant: "dubbed" | "dubbed-audio" | "lip-synced") {
   const { clientId, canvasId } = await resolveOwnership(nodeId);
   const path = pathForDubbing({ clientId, canvasId, nodeId, generationId, variant });
-  const contentType = variant === "dubbed-audio" ? "audio/mpeg" : "video/mp4";
+  const contentType = variant === "dubbed-audio" ? "audio/wav" : "video/mp4";
   return { putUrl: await _signPutUrl(path, contentType, DUBBING_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
 }
 

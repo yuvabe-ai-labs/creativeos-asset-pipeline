@@ -271,10 +271,10 @@ describe("pathForScriptPanel", () => {
 });
 
 describe("pathForDubbing", () => {
-  it("keeps a dub's files under the node, mp3 for the audio track", () => {
+  it("keeps a dub's files under the node, wav for the audio track", () => {
     const base = { clientId: "c", canvasId: "cv", nodeId: "n", generationId: "g" };
     expect(pathForDubbing({ ...base, variant: "dubbed" })).toBe("clients/c/canvases/cv/nodes/n/dubbing/g-dubbed.mp4");
-    expect(pathForDubbing({ ...base, variant: "dubbed-audio" })).toBe("clients/c/canvases/cv/nodes/n/dubbing/g-dubbed-audio.mp3");
+    expect(pathForDubbing({ ...base, variant: "dubbed-audio" })).toBe("clients/c/canvases/cv/nodes/n/dubbing/g-dubbed-audio.wav");
     expect(pathForDubbing({ ...base, variant: "lip-synced" })).toBe("clients/c/canvases/cv/nodes/n/dubbing/g-lip-synced.mp4");
   });
 });

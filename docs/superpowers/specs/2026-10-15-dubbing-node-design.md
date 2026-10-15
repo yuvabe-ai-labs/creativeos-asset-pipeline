@@ -91,15 +91,19 @@ picker; the node, routes and versions don't change.
 ### Sarvam dubbing (`src/lib/sarvam/`)
 
 `api-subscription-key` header, env `SARVAM_API_KEY`.
-1. `POST /dubbing/jobs` `{ src_lang: "en-IN", target_langs: [lang], voice_cloning: true,
-   num_speakers: 1, disable_watermark: true, editor_flow: false }` → `job_id`, `upload_url`.
-   `export_options` is left unset. The docs say that exports the video, its audio and an mp3; a real
-   run (2026-10-15) listed only the video, so only the video is relied on.
-2. `PUT upload_url` with the source bytes (`x-ms-blob-type: BlockBlob`, `Content-Type: video/mp4`).
-3. `POST /dubbing/jobs/{id}/start`.
-4. Poll `GET …/live-status` until `completed` or `failed`.
-5. `GET …/export-status` → per (language, format) `download_url`s; take the `video` export. The
-   dubbed audio (lip sync's input) is taken from that video as mp3 with ffmpeg, as Change voice does.
+Audio in, audio out (research, 2026-10-15): the vendor dubs from the sound alone, so only the
+clip's audio is sent and only the dubbed audio comes back. The picture never leaves us.
+1. Take the source take's audio as mp3 with ffmpeg (as Change voice does). A take with no audio
+   stops here, before anything is paid.
+2. `POST /dubbing/jobs` `{ src_lang: "en-IN", target_langs: [lang], voice_cloning: true,
+   num_speakers: 1, disable_watermark: true, editor_flow: false, export_options: ["audio", "srt"],
+   register: "modern-colloquial" }` → `job_id`, `upload_url`.
+3. `PUT upload_url` with the mp3 (`x-ms-blob-type: BlockBlob`, `Content-Type: audio/mpeg`).
+4. `POST /dubbing/jobs/{id}/start`, then poll `GET …/live-status` until `completed` or `failed`.
+5. `GET …/export-status` → take the `audio` export (a WAV). The SRT is kept on the vendor side for a
+   later script view.
+6. Lay the WAV into the **original** video with ffmpeg: that is the "Dubbed" stage, full quality.
+   The WAV itself is stored too; lip sync uses the original video plus that WAV.
 
 Languages: `hi bn gu kn ml mr or pa ta te as` + `-IN`. Billed per whole second of source × 1
 language (₹40/min on Starter). **Verify the live-status and export-status JSON keys against a

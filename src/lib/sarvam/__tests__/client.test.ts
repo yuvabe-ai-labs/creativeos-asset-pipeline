@@ -16,7 +16,8 @@ describe("sarvam client", () => {
     expect((init.headers as Record<string, string>)["api-subscription-key"]).toBe("k");
     expect(JSON.parse(String(init.body))).toEqual({
       src_lang: "en-IN", target_langs: ["hi-IN"], voice_cloning: true, num_speakers: 1,
-      disable_watermark: true, editor_flow: false, job_name: "gen-1",
+      disable_watermark: true, editor_flow: false, export_options: ["audio", "srt"],
+      register: "modern-colloquial", job_name: "gen-1",
     });
   });
 

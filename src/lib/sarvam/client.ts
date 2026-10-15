@@ -76,6 +76,11 @@ export async function createDubJob(
     disable_watermark: true,
     // false: exports run automatically after TTS (true is the dashboard editor, at double rate).
     editor_flow: false,
+    // Audio in, audio out: the dub only uses the sound, and the picture is ours (research, 2026-10-15).
+    // The SRT is kept for a later script view.
+    export_options: ["audio", "srt"],
+    // Everyday spoken style (Tanglish-like), the style the research runs used.
+    register: "modern-colloquial",
     ...(args.jobName ? { job_name: args.jobName } : {}),
   };
   const out = await call("/dubbing/jobs", { method: "POST", body: JSON.stringify(body) }, CreateSchema, "create job", fetchImpl);

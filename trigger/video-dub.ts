@@ -4,7 +4,7 @@ import { finalUserMessage, isDeliveryFailed } from "@/lib/dubbing/poll";
 import { DUB_FAILED_MESSAGE } from "@/lib/dubbing/copy";
 import { createDubJob, uploadDubMedia, startDubJob, getDubLiveStatus, getDubExports } from "@/lib/sarvam/client";
 import { fetchBytes, putBytes } from "@/lib/voice-change/http";
-import { extractAudio } from "@/lib/media/ffmpeg";
+import { extractAudio, replaceAudio } from "@/lib/media/ffmpeg";
 import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
 
 export type VideoDubTaskPayload = DubRunPayload & { dubbedUrl: string; dubbedAudioUrl: string; durationSeconds: number };
@@ -49,6 +49,7 @@ export const videoDubTask = task({
       liveStatus: (id) => getDubLiveStatus(id),
       exports: (id) => getDubExports(id),
       extractAudio,
+      replaceAudio: (video, wav) => replaceAudio(video, wav, "wav"),
       putBytes,
       sleep: (seconds) => wait.for({ seconds }),
       now: () => Date.now(),

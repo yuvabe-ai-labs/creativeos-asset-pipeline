@@ -125,7 +125,7 @@ export function pathForDubbing(args: {
   generationId: string;
   variant: "dubbed" | "dubbed-audio" | "lip-synced";
 }): string {
-  const ext = args.variant === "dubbed-audio" ? "mp3" : "mp4";
+  const ext = args.variant === "dubbed-audio" ? "wav" : "mp4";
   return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/dubbing/${args.generationId}-${args.variant}.${ext}`;
 }
 
