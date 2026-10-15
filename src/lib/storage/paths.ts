@@ -116,6 +116,19 @@ export function pathForVideoGenVoice(args: {
   return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/video-gen/${args.generationId}-${args.variant}.mp4`;
 }
 
+// D377 — a Dubbing node's stored files: the dubbed video, its audio track (lip sync's input) and
+// the lip-synced video. Named by the generation that made them.
+export function pathForDubbing(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  generationId: string;
+  variant: "dubbed" | "dubbed-audio" | "lip-synced";
+}): string {
+  const ext = args.variant === "dubbed-audio" ? "mp3" : "mp4";
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/dubbing/${args.generationId}-${args.variant}.${ext}`;
+}
+
 export function pathForClientLogo(args: {
   clientId: string;
   filename: string;
