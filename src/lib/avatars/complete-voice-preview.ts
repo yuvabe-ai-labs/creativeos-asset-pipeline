@@ -7,7 +7,7 @@ import { usdToFinalCredits } from "@/lib/credits/units";
 import { isOwnStoredUrl } from "@/lib/storage";
 import { asResolutionString } from "@/lib/video-gen/cost";
 import type { GenerationRow } from "@/lib/db/types";
-import type { CompleteGenerationInput } from "@/lib/generations/complete";
+import { isVideoSucceeded, type CompleteGenerationInput } from "@/lib/generations/complete";
 import { keepAutoVoice } from "./auto-voice";
 import { voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewRowEngine, voicePreviewRowMode } from "./voice-preview";
 
@@ -54,7 +54,7 @@ export async function completeAvatarVoicePreview(
 
   // The task uploads the clip itself, to a URL the route signed. Anything else (including an
   // image result, D366) is not a preview this app made.
-  if (input.kind === "image" || !input.stored || !isOwnStoredUrl(input.videoUrl)) {
+  if (!isVideoSucceeded(input) || !input.stored || !isOwnStoredUrl(input.videoUrl)) {
     await failAndRefund("Preview clip is outside this app's bucket");
     return;
   }

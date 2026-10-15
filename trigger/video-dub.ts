@@ -1,6 +1,6 @@
 import { task, logger, wait, AbortTaskRunError } from "@trigger.dev/sdk/v3";
 import { runDub, type DubRunPayload } from "@/lib/dubbing/run-dub";
-import { finalUserMessage } from "@/lib/dubbing/poll";
+import { finalUserMessage, isDeliveryFailed } from "@/lib/dubbing/poll";
 import { DUB_FAILED_MESSAGE } from "@/lib/dubbing/copy";
 import { createDubJob, uploadDubMedia, startDubJob, getDubLiveStatus, getDubExports } from "@/lib/sarvam/client";
 import { fetchBytes, putBytes } from "@/lib/voice-change/http";
@@ -10,7 +10,12 @@ export type VideoDubTaskPayload = DubRunPayload & { dubbedUrl: string; dubbedAud
 
 // The dub is stored but its success report could not be delivered: not `failed` (that would
 // refund a stored, paid result); the stuck sweep settles it. Same as video-voice-change.
-class DeliveryFailedError extends AbortTaskRunError {}
+class DeliveryFailedError extends AbortTaskRunError {
+  constructor(message: string) {
+    super(message);
+    this.name = "DeliveryFailedError";
+  }
+}
 
 // D377 — dubs one take. The route resolved the source, reserved credits and signed both uploads.
 // maxAttempts 1: the vendor job is paid once; polls retry in place inside runDub. wait.for
@@ -21,7 +26,7 @@ export const videoDubTask = task({
   retry: { maxAttempts: 1 },
   queue: { concurrencyLimit: 4 },
   onFailure: async ({ payload, error }) => {
-    if (error instanceof DeliveryFailedError) return;
+    if (error instanceof DeliveryFailedError || isDeliveryFailed(error)) return;
     await postGenerationWebhookSafely(
       { generationId: payload.generationId, status: "failed", error: finalUserMessage(error, DUB_FAILED_MESSAGE) },
       "dub failure",

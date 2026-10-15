@@ -1,6 +1,6 @@
 import { task, logger, wait, AbortTaskRunError } from "@trigger.dev/sdk/v3";
 import { runLipSync, type LipSyncRunPayload } from "@/lib/dubbing/run-lip-sync";
-import { finalUserMessage } from "@/lib/dubbing/poll";
+import { finalUserMessage, isDeliveryFailed } from "@/lib/dubbing/poll";
 import { LIP_SYNC_FAILED_MESSAGE } from "@/lib/dubbing/copy";
 import { submitLipSync, getFalStatus, getLipSyncResult } from "@/lib/fal/client";
 import { fetchBytes, putBytes } from "@/lib/voice-change/http";
@@ -9,7 +9,12 @@ import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig
 export type VideoLipSyncTaskPayload = LipSyncRunPayload & { generationId: string; lipSyncedUrl: string; durationSeconds: number };
 
 // Stored but undelivered: not `failed` (see video-dub.ts).
-class DeliveryFailedError extends AbortTaskRunError {}
+class DeliveryFailedError extends AbortTaskRunError {
+  constructor(message: string) {
+    super(message);
+    this.name = "DeliveryFailedError";
+  }
+}
 
 // D377 — lip-syncs a dub's original video to its dubbed audio. Paid once; see video-dub.ts.
 export const videoLipSyncTask = task({
@@ -18,7 +23,7 @@ export const videoLipSyncTask = task({
   retry: { maxAttempts: 1 },
   queue: { concurrencyLimit: 4 },
   onFailure: async ({ payload, error }) => {
-    if (error instanceof DeliveryFailedError) return;
+    if (error instanceof DeliveryFailedError || isDeliveryFailed(error)) return;
     await postGenerationWebhookSafely(
       { generationId: payload.generationId, status: "failed", error: finalUserMessage(error, LIP_SYNC_FAILED_MESSAGE) },
       "lip sync failure",

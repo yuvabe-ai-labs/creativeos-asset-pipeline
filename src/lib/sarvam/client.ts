@@ -39,7 +39,8 @@ async function call<T>(path: string, init: RequestInit, schema: z.ZodType<T>, wh
 }
 
 const CreateSchema = z.object({ data: z.object({ job_id: z.string(), upload_url: z.string().nullable() }) });
-const StartSchema = z.object({ data: z.object({ job_id: z.string() }) });
+// The start reply is never read, so a 2xx must not throw over its shape.
+const StartSchema = z.unknown();
 const JOB_STATUSES = ["not_started", "queued", "in_progress", "completed", "failed", "partial_failure", "deleted"] as const;
 export type SarvamJobStatus = (typeof JOB_STATUSES)[number];
 const LiveSchema = z.object({

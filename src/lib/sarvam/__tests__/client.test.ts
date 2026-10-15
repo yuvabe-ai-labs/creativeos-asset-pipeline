@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createDubJob, uploadDubMedia, startDubJob, getDubLiveStatus, getDubExports, SarvamHttpError } from "../client";
+import { createDubJob, uploadDubMedia, startDubJob, getDubLiveStatus, getDubExports } from "../client";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -30,18 +30,26 @@ describe("sarvam client", () => {
 
   it("starts the job", async () => {
     process.env.SARVAM_API_KEY = "k";
-    const fetchImpl = vi.fn(async (_url: string) => json({ status: "success", message: "ok", data: { job_id: "dub_1", status: "processing" } }));
+    const fetchImpl = vi.fn(async () => json({ status: "success", message: "ok", data: { job_id: "dub_1", status: "processing" } }));
     await startDubJob("dub_1", fetchImpl as unknown as typeof fetch);
-    expect(fetchImpl.mock.calls[0][0]).toBe("https://api.sarvam.ai/dubbing/jobs/dub_1/start");
+    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe("https://api.sarvam.ai/dubbing/jobs/dub_1/start");
+  });
+
+  it("does not fail a started job just because the start reply names no job id", async () => {
+    process.env.SARVAM_API_KEY = "k";
+    for (const body of [{ status: "success" }, { data: {} }, null]) {
+      const fetchImpl = vi.fn(async () => json(body));
+      await expect(startDubJob("dub_1", fetchImpl as unknown as typeof fetch)).resolves.toBeUndefined();
+    }
   });
 
   it("reads live status and export entries", async () => {
     process.env.SARVAM_API_KEY = "k";
     const live = vi.fn(async () => json({ status: "success", message: "", data: { job_id: "dub_1", status: "in_progress", progress: 40, current_step_label: "Translating", error_message: null } }));
     expect(await getDubLiveStatus("dub_1", live as unknown as typeof fetch)).toEqual({ status: "in_progress", progress: 40, stepLabel: "Translating", errorMessage: null });
-    const exp = vi.fn(async (_url: string) => json({ status: "success", message: "", data: { exports: [{ id: "e1", export_type: "video", target_language: "hi-IN", status: "completed", is_stale: false, download_url: "https://dl/v" }] } }));
+    const exp = vi.fn(async () => json({ status: "success", message: "", data: { exports: [{ id: "e1", export_type: "video", target_language: "hi-IN", status: "completed", is_stale: false, download_url: "https://dl/v" }] } }));
     expect(await getDubExports("dub_1", exp as unknown as typeof fetch)).toEqual([{ exportType: "video", targetLanguage: "hi-IN", status: "completed", downloadUrl: "https://dl/v" }]);
-    expect(exp.mock.calls[0][0]).toBe("https://api.sarvam.ai/dubbing/jobs/dub_1/export-status?limit=20");
+    expect((exp.mock.calls[0] as unknown as [string])[0]).toBe("https://api.sarvam.ai/dubbing/jobs/dub_1/export-status?limit=20");
   });
 
   it("throws SarvamHttpError with the status on a non-2xx, and on an unexpected body", async () => {

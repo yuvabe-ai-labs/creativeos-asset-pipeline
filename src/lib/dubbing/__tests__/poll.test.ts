@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DubbingFinalError, finalUserMessage } from "../poll";
+import { DubbingFinalError, finalUserMessage, isDeliveryFailed } from "../poll";
 
 describe("finalUserMessage", () => {
   it("uses the message of a DubbingFinalError instance", () => {
@@ -12,5 +12,16 @@ describe("finalUserMessage", () => {
     expect(finalUserMessage(new Error("boom"), "fallback")).toBe("fallback");
     expect(finalUserMessage({ name: "DubbingFinalError" }, "fallback")).toBe("fallback");
     expect(finalUserMessage(undefined, "fallback")).toBe("fallback");
+  });
+});
+
+describe("isDeliveryFailed", () => {
+  it("recognises a serialized error by its name", () => {
+    expect(isDeliveryFailed({ name: "DeliveryFailedError", message: "x" })).toBe(true);
+  });
+  it("rejects other errors and non-objects", () => {
+    expect(isDeliveryFailed(new Error("x"))).toBe(false);
+    expect(isDeliveryFailed(null)).toBe(false);
+    expect(isDeliveryFailed(undefined)).toBe(false);
   });
 });

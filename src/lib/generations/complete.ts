@@ -82,17 +82,19 @@ async function completeImageGeneration(
   });
 }
 
+export type VideoGenerationSucceeded = {
+  generationId: string;
+  status: "succeeded";
+  kind?: "video";
+  videoUrl: string;
+  durationSeconds: number;
+  /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
+  stored?: boolean;
+  meta?: Record<string, unknown>;
+};
+
 export type CompleteGenerationInput =
-  | {
-      generationId: string;
-      status: "succeeded";
-      kind?: "video";
-      videoUrl: string;
-      durationSeconds: number;
-      /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
-      stored?: boolean;
-      meta?: Record<string, unknown>;
-    }
+  | VideoGenerationSucceeded
   | ImageGenerationSucceeded
   | DubSucceeded
   | LipSyncSucceeded
@@ -101,6 +103,11 @@ export type CompleteGenerationInput =
       status: "failed";
       error: string;
     };
+
+/** A succeeded plain video (Video Gen / voice preview): not an image, dub or lip sync. */
+export function isVideoSucceeded(input: CompleteGenerationInput): input is VideoGenerationSucceeded {
+  return input.status === "succeeded" && (input.kind === undefined || input.kind === "video");
+}
 
 export async function completeGeneration(
   input: CompleteGenerationInput,

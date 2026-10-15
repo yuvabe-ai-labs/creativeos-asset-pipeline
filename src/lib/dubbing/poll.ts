@@ -37,3 +37,9 @@ export function finalUserMessage(error: unknown, fallback: string): string {
   if (e?.name === "DubbingFinalError" && typeof e.userMessage === "string") return e.userMessage;
   return fallback;
 }
+
+/** Whether a task error is the stored-but-undelivered one (see DeliveryFailedError in the tasks).
+ *  `instanceof` alone misses an error Trigger serialized, which keeps only its name. */
+export function isDeliveryFailed(error: unknown): boolean {
+  return (error as { name?: unknown } | null | undefined)?.name === "DeliveryFailedError";
+}
