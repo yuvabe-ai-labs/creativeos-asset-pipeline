@@ -47,7 +47,16 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
   const startLipSync = useStartLipSync(nodeId);
   const lang = isDubLanguage(language) ? language : DEFAULT_DUB_LANGUAGE;
   const dubStyle = isDubStyle(style) ? style : DEFAULT_DUB_STYLE;
-  const running = status.runningKind === "dub" || status.runningKind === "lipsync" ? status.runningKind : null;
+  // Running from the click, not from the start request's reply: while the request is in flight
+  // (a second or two), the mutation's `isPending` already shows "Dubbing…" and blocks a second click.
+  const running =
+    status.runningKind === "dub" || status.runningKind === "lipsync"
+      ? status.runningKind
+      : startDub.isPending
+        ? "dub"
+        : startLipSync.isPending
+          ? "lipsync"
+          : null;
   const activeDub = active?.dubbing ?? null;
 
   const onDub = () =>
