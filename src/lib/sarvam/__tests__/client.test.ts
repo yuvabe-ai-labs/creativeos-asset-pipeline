@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createDubJob, uploadDubMedia, startDubJob, getDubLiveStatus, getDubExports } from "../client";
+import { textToSpeech, createDubJob, uploadDubMedia, startDubJob, getDubLiveStatus, getDubExports } from "../client";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -19,6 +19,14 @@ describe("sarvam client", () => {
       disable_watermark: true, editor_flow: false, export_options: ["audio", "srt"],
       register: "modern-colloquial", job_name: "gen-1",
     });
+  });
+
+  it("turns cloning off for a preset voice, with its pace", async () => {
+    process.env.SARVAM_API_KEY = "k";
+    const fetchImpl = vi.fn(async () => json({ status: "success", message: "ok", data: { job_id: "dub_2", upload_url: "https://blob/up" } }));
+    await createDubJob({ srcLang: "en-IN", targetLang: "ta-IN", register: "formal", voice: "ishita", pace: "slow" }, fetchImpl as unknown as typeof fetch);
+    const body = JSON.parse(String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(body).toMatchObject({ voice_cloning: false, voice_id: "ishita", pace_preset: "slow", num_speakers: 1 });
   });
 
   it("uploads raw bytes as a block blob without the api key", async () => {
@@ -63,5 +71,18 @@ describe("sarvam client", () => {
 
   it("refuses to run without a key", async () => {
     await expect(startDubJob("x", vi.fn() as unknown as typeof fetch)).rejects.toThrow("SARVAM_API_KEY is not set");
+  });
+});
+
+describe("textToSpeech (voice previews)", () => {
+  it("reads a line with a preset speaker and returns the WAV bytes", async () => {
+    process.env.SARVAM_API_KEY = "k";
+    const wav = Buffer.from("RIFFwav");
+    const fetchImpl = vi.fn(async () => json({ request_id: "r", audios: [wav.toString("base64")] }));
+    const out = await textToSpeech({ text: "Hello", language: "ta-IN", speaker: "ishita" }, fetchImpl as unknown as typeof fetch);
+    expect(out.equals(wav)).toBe(true);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.sarvam.ai/text-to-speech");
+    expect(JSON.parse(String(init.body))).toEqual({ text: "Hello", target_language_code: "ta-IN", speaker: "ishita", model: "bulbul:v3" });
   });
 });

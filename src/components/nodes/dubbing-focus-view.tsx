@@ -13,7 +13,7 @@ import { useDubbingVersions } from "@/hooks/use-dubbing-versions";
 import { useDubbingSource } from "@/hooks/use-dubbing-source";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { nodeLabel } from "@/lib/nodes/describe-node";
-import { DEFAULT_DUB_LANGUAGE, DEFAULT_DUB_STYLE, dubLanguageLabel, isDubLanguage, isDubStyle, type DubLanguage, type DubStyle } from "@/lib/dubbing/types";
+import { DEFAULT_DUB_LANGUAGE, DEFAULT_DUB_PACE, DEFAULT_DUB_STYLE, PRESENTER_VOICE, dubLanguageLabel, isDubLanguage, isDubPace, isDubStyle, isDubVoice, type DubLanguage, type DubPace, type DubStyle, type DubVoiceChoice } from "@/lib/dubbing/types";
 import { ConnectedDetailView } from "./connected-inputs-card";
 import { EditableField } from "./editable-field";
 import { GenerationErrorBadge } from "./generation-error-badge";
@@ -30,12 +30,14 @@ type Props = {
   title: string;
   language: DubLanguage | undefined;
   style: DubStyle | undefined;
+  voice: DubVoiceChoice | undefined;
+  pace: DubPace | undefined;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
 // D374 — Composite's shell: rail | controls | video. Everything it reads (the wired video, the
 // versions) is held back until the view is open, so a closed card costs nothing.
-export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, style, onPatch }: Props) {
+export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, style, voice, pace, onPatch }: Props) {
   const editable = useCanvasEditable();
   const [selected, setSelected] = useState<DubbingRailSelection>("dubbing");
   const source = useDubbingSource(nodeId, open);
@@ -47,6 +49,8 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
   const startLipSync = useStartLipSync(nodeId);
   const lang = isDubLanguage(language) ? language : DEFAULT_DUB_LANGUAGE;
   const dubStyle = isDubStyle(style) ? style : DEFAULT_DUB_STYLE;
+  const dubVoice: DubVoiceChoice = isDubVoice(voice) ? voice : PRESENTER_VOICE;
+  const dubPace = isDubPace(pace) ? pace : DEFAULT_DUB_PACE;
   // Running from the click, not from the start request's reply: while the request is in flight
   // (a second or two), the mutation's `isPending` already shows "Dubbing…" and blocks a second click.
   const running =
@@ -60,7 +64,7 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
   const activeDub = active?.dubbing ?? null;
 
   const onDub = () =>
-    startDub.mutate({ language: lang, style: dubStyle }, { onError: (e) => toast.error(startErrorMessage(e, "Couldn't start the dub.")) });
+    startDub.mutate({ language: lang, style: dubStyle, voice: dubVoice, pace: dubPace }, { onError: (e) => toast.error(startErrorMessage(e, "Couldn't start the dub.")) });
   const onLipSync = () => {
     if (!activeVersionId) return;
     startLipSync.mutate({ versionId: activeVersionId }, { onError: (e) => toast.error(startErrorMessage(e, "Couldn't start lip sync.")) });
@@ -118,10 +122,15 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
                 </div>
               ) : (
                 <DubbingControls
+                  nodeId={nodeId}
                   language={lang}
                   onLanguageChange={(l) => onPatch({ language: l })}
                   style={dubStyle}
                   onStyleChange={(s) => onPatch({ style: s })}
+                  voice={dubVoice}
+                  onVoiceChange={(v) => onPatch({ voice: v })}
+                  pace={dubPace}
+                  onPaceChange={(p) => onPatch({ pace: p })}
                   sourceSeconds={source?.seconds ?? 0}
                   sourceLoading={source?.secondsLoading ?? false}
                   activeDubSeconds={activeSeconds}

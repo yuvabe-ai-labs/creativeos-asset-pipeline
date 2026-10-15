@@ -102,6 +102,8 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
         title={d.title ?? ""}
         language={d.language}
         style={d.style}
+        voice={d.voice}
+        pace={d.pace}
         onPatch={(patch) => updateNodeData(id, patch)}
       />
     </>

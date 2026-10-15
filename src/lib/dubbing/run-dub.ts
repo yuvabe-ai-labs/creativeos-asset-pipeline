@@ -16,6 +16,9 @@ export type DubRunPayload = {
   targetLang: string;
   /** The vendor's translation style (`register`), one of DUB_STYLES. */
   style: string;
+  /** D379 — a preset voice and its pace; absent = the presenter's own voice, cloned. */
+  voice?: string;
+  pace?: string;
   dubbedPutUrl: string;
   dubbedAudioPutUrl: string;
 };
@@ -24,7 +27,7 @@ export type DubRunDeps = {
   fetchBytes: (url: string) => Promise<Buffer>;
   /** The source clip's audio, as mp3: what is uploaded to the vendor. */
   extractAudio: (video: Buffer) => Promise<Buffer>;
-  createJob: (a: { srcLang: string; targetLang: string; register: string; jobName?: string }) => Promise<{ jobId: string; uploadUrl: string }>;
+  createJob: (a: { srcLang: string; targetLang: string; register: string; voice?: string; pace?: string; jobName?: string }) => Promise<{ jobId: string; uploadUrl: string }>;
   upload: (uploadUrl: string, body: Buffer, contentType: string) => Promise<void>;
   start: (jobId: string) => Promise<void>;
   liveStatus: (jobId: string) => Promise<{ status: SarvamJobStatus; progress: number; stepLabel: string | null; errorMessage: string | null }>;
@@ -64,10 +67,10 @@ export async function runDub(p: DubRunPayload, d: DubRunDeps): Promise<{ vendorJ
 
   // The paid part. Each runs once: a failure here fails the run (nothing has been charged yet
   // that a retry would recover, and a retry after `start` would pay twice).
-  const { jobId, uploadUrl } = await d.createJob({ srcLang: DUB_SOURCE_LANGUAGE, targetLang: p.targetLang, register: p.style, jobName: p.generationId });
+  const { jobId, uploadUrl } = await d.createJob({ srcLang: DUB_SOURCE_LANGUAGE, targetLang: p.targetLang, register: p.style, ...(p.voice ? { voice: p.voice, pace: p.pace } : {}), jobName: p.generationId });
   await d.upload(uploadUrl, sourceAudio, "audio/mpeg");
   await d.start(jobId);
-  log("Dub job started", { jobId, targetLang: p.targetLang, style: p.style, uploadBytes: sourceAudio.length });
+  log("Dub job started", { jobId, targetLang: p.targetLang, style: p.style, voice: p.voice ?? "presenter", uploadBytes: sourceAudio.length });
 
   // 1. The job.
   let lastLive = "";

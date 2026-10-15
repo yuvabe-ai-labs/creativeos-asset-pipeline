@@ -222,6 +222,11 @@ export async function signLipSyncedUpload(args: { nodeId: string; generationId: 
   return signDubbingPut(args.nodeId, args.generationId, "lip-synced");
 }
 
+// D379 — a preset voice's preview sample, shared by every client (path from pathForDubVoicePreview).
+export async function uploadDubVoicePreview(path: string, wav: Buffer): Promise<UploadResult> {
+  return _upload(path, wav, "audio/wav");
+}
+
 export async function uploadClientLogo(args: {
   clientId: string;
   filename: string;

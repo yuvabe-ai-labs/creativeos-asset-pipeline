@@ -1,5 +1,5 @@
 import { readJson } from "./read-json";
-import type { DubLanguage, DubStyle } from "@/lib/dubbing/types";
+import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
 
 /** D366 — a started background generation; its result arrives through the node's status. */
 export type StartedGeneration = { generationId: string };
@@ -31,7 +31,7 @@ class NodeGenerationService {
   }
 
   /** Dubbing node (D374): dub the connected take. Answers once the job is started (202). */
-  async startDub(nodeId: string, body: { language: DubLanguage; style: DubStyle }): Promise<StartedGeneration> {
+  async startDub(nodeId: string, body: { language: DubLanguage; style: DubStyle; voice: DubVoiceChoice; pace: DubPace }): Promise<StartedGeneration> {
     return readJson<StartedGeneration>(await post(`/api/nodes/${nodeId}/dub`, body), "Couldn't start the dub.");
   }
 

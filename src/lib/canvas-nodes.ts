@@ -12,7 +12,7 @@ import type { PostFormat, PostLayer } from "@/lib/post/types";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
 import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
-import type { DubLanguage, DubStyle } from "@/lib/dubbing/types";
+import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 export type ScriptNodeData = {
@@ -268,7 +268,8 @@ export type ClientReviewNodeData = { title?: string };
 // D374 — dubs its one connected Video Gen take. `language` is the select's last value; each
 // version records its own. `parsed` is the active version's DubbingOutput (display only, D19).
 // `style` is the last translation style picked (DUB_STYLES); each version records its own.
-export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; parsed?: unknown };
+// `voice` / `pace` (D379): the last Advanced picks; absent voice = the presenter's own.
+export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; voice?: DubVoiceChoice; pace?: DubPace; parsed?: unknown };
 
 export type AppNode =
   | Node<ScriptNodeData, "script">

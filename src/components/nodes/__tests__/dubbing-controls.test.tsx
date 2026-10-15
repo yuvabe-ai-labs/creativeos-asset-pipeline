@@ -6,7 +6,8 @@ import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
 import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
 
 const base = {
-  language: "hi-IN" as const, onLanguageChange: vi.fn(), style: "modern-colloquial" as const, onStyleChange: vi.fn(), sourceSeconds: 8, activeDubSeconds: 8, hasSource: true,
+  nodeId: "n1",
+  language: "hi-IN" as const, onLanguageChange: vi.fn(), style: "modern-colloquial" as const, onStyleChange: vi.fn(), voice: "presenter" as const, onVoiceChange: vi.fn(), pace: "normal" as const, onPaceChange: vi.fn(), sourceSeconds: 8, activeDubSeconds: 8, hasSource: true,
   activeDub: null, running: null, editable: true, onDub: vi.fn(), onLipSync: vi.fn(),
 };
 const dub = { language: "hi-IN" as const, original: "o", dubbed: "d", dubbedAudio: "a", lipSynced: null };
@@ -53,6 +54,13 @@ describe("DubbingControls (tabs)", () => {
 });
 
 describe("Dub tab", () => {
+  it("keeps voice and pace under a closed Advanced section, and names the voice in use", () => {
+    const html = dubPanel();
+    expect(html).toContain("Advanced");
+    expect(html).toContain("The presenter&#x27;s own voice, speaking the new language.");
+    expect(dubPanel({ voice: "ishita" })).toContain("Ishita&#x27;s voice, speaking the new language.");
+  });
+
   it("shows the translation style in plain words, with what it means", () => {
     const html = dubPanel({ style: "formal" });
     expect(html).toContain("About translation style");

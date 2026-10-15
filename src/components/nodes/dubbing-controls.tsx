@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { DubLanguage, DubStyle, DubbingOutput } from "@/lib/dubbing/types";
+import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice, DubbingOutput } from "@/lib/dubbing/types";
 import { DubbingDubPanel } from "./dubbing-dub-panel";
 import { DubbingLipSyncPanel } from "./dubbing-lip-sync-panel";
 import { DisabledReason } from "./disabled-reason";
@@ -11,10 +11,15 @@ import { LIP_SYNC_NEEDS_DUB } from "@/lib/dubbing/blocked-reasons";
 type Tab = "dub" | "lipsync";
 
 type Props = {
+  nodeId: string;
   language: DubLanguage;
   onLanguageChange: (l: DubLanguage) => void;
   style: DubStyle;
   onStyleChange: (s: DubStyle) => void;
+  voice: DubVoiceChoice;
+  onVoiceChange: (v: DubVoiceChoice) => void;
+  pace: DubPace;
+  onPaceChange: (p: DubPace) => void;
   /** The connected take's length; 0 when unknown. */
   sourceSeconds: number;
   /** The connected take is still being read, so its length is not known yet. */
@@ -46,10 +51,15 @@ export function DubbingControls({ sourceLoading = false, activeDub, running, onL
       </TabsList>
       <TabsContent value="dub" className="px-6 py-5">
         <DubbingDubPanel
+          nodeId={rest.nodeId}
           language={rest.language}
           onLanguageChange={rest.onLanguageChange}
           style={rest.style}
           onStyleChange={rest.onStyleChange}
+          voice={rest.voice}
+          onVoiceChange={rest.onVoiceChange}
+          pace={rest.pace}
+          onPaceChange={rest.onPaceChange}
           sourceSeconds={rest.sourceSeconds}
           sourceLoading={sourceLoading}
           hasSource={rest.hasSource}

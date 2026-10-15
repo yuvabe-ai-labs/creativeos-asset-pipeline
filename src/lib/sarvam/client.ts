@@ -65,13 +65,15 @@ const ExportsSchema = z.object({
 export type SarvamExport = { exportType: string; targetLanguage: string; status: string; downloadUrl: string | null };
 
 export async function createDubJob(
-  args: { srcLang: string; targetLang: string; register: string; jobName?: string },
+  /** `voice` set = a preset voice (cloning off) at `pace`; absent = the speaker's own voice, cloned. */
+  args: { srcLang: string; targetLang: string; register: string; voice?: string; pace?: string; jobName?: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ jobId: string; uploadUrl: string }> {
   const body = {
     src_lang: args.srcLang,
     target_langs: [args.targetLang],
-    voice_cloning: true,
+    // A preset voice turns cloning off; the vendor ignores pace when cloning (D379).
+    ...(args.voice ? { voice_cloning: false, voice_id: args.voice, pace_preset: args.pace ?? "normal" } : { voice_cloning: true }),
     num_speakers: 1,
     disable_watermark: true,
     // false: exports run automatically after TTS (true is the dashboard editor, at double rate).
@@ -120,4 +122,17 @@ export async function getDubExports(jobId: string, fetchImpl: typeof fetch = fet
     status: e.status,
     downloadUrl: e.download_url ?? null,
   }));
+}
+
+const TtsSchema = z.object({ audios: z.array(z.string()).min(1) });
+
+/** D379 — one short line read by a preset voice (the dub's preset voices are these Bulbul v3
+ *  speakers), as WAV. Used for the voice picker's previews. */
+export async function textToSpeech(
+  args: { text: string; language: string; speaker: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<Buffer> {
+  const body = { text: args.text, target_language_code: args.language, speaker: args.speaker, model: "bulbul:v3" };
+  const out = await call("/text-to-speech", { method: "POST", body: JSON.stringify(body) }, TtsSchema, "text to speech", fetchImpl);
+  return Buffer.from(out.audios[0], "base64");
 }

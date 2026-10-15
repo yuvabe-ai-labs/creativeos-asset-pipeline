@@ -60,6 +60,21 @@ describe("POST /api/nodes/[id]/dub", () => {
     expect((await post({ language: "hi-IN", style: "shouty" })).status).toBe(400);
   });
 
+  it("dubs in a preset voice at its pace, and keeps the presenter's voice by default", async () => {
+    await post({ language: "ta-IN", voice: "ishita", pace: "slow" });
+    expect(mocks.trigger).toHaveBeenLastCalledWith("video-dub", expect.objectContaining({ voice: "ishita", pace: "slow" }));
+    expect(mocks.insertGeneration).toHaveBeenLastCalledWith(expect.objectContaining({
+      inputsSnapshot: { dub: expect.objectContaining({ voice: "ishita", pace: "slow" }) },
+    }));
+    await post({ language: "ta-IN", voice: "ishita" });
+    expect(mocks.trigger).toHaveBeenLastCalledWith("video-dub", expect.objectContaining({ voice: "ishita", pace: "normal" }));
+    await post({ language: "ta-IN", voice: "presenter", pace: "fast" });
+    const last = (mocks.trigger.mock.calls.at(-1) as unknown as [string, Record<string, unknown>])[1];
+    expect(last.voice).toBeUndefined();
+    expect(last.pace).toBeUndefined();
+    expect((await post({ language: "ta-IN", voice: "nobody" })).status).toBe(400);
+  });
+
   it("refuses before recording anything", async () => {
     expect((await post({ language: "en-IN" })).status).toBe(400);
     mocks.resolve.mockResolvedValueOnce({ ok: false, reason: "Connect a video to dub." });

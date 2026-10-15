@@ -5,7 +5,7 @@ import { nodeGenerationService } from "@/services/node-generation.service";
 import { ApiError } from "@/services/read-json";
 import { nodeVersionKeys } from "@/hooks/queries/node-versions";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import type { DubLanguage, DubStyle } from "@/lib/dubbing/types";
+import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 
 // D366 — starting a background generation and restoring a version, through TanStack Query
@@ -38,7 +38,7 @@ export function useStartCompositeGeneration(nodeId: string) {
 export function useStartDub(nodeId: string) {
   const markGenerationStarted = useCanvasStore((s) => s.markGenerationStarted);
   return useMutation({
-    mutationFn: (body: { language: DubLanguage; style: DubStyle }) => nodeGenerationService.startDub(nodeId, body),
+    mutationFn: (body: { language: DubLanguage; style: DubStyle; voice: DubVoiceChoice; pace: DubPace }) => nodeGenerationService.startDub(nodeId, body),
     onSuccess: (started) => markGenerationStarted(nodeId, "dub", started.generationId),
   });
 }

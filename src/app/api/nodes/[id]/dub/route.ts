@@ -10,10 +10,16 @@ import { resolveDubSource } from "@/lib/dubbing/source";
 import { dubCredits } from "@/lib/dubbing/cost";
 import { DUB_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
-import { DEFAULT_DUB_STYLE, DUB_SOURCE_LANGUAGE, isDubLanguage, isDubStyle, type DubRecord } from "@/lib/dubbing/types";
+import { DEFAULT_DUB_PACE, DEFAULT_DUB_STYLE, DUB_SOURCE_LANGUAGE, PRESENTER_VOICE, isDubLanguage, isDubPace, isDubStyle, isDubVoice, type DubRecord } from "@/lib/dubbing/types";
 
 // `style` is optional: a client without the picker gets the default (Everyday).
-const BodySchema = z.object({ language: z.string().refine(isDubLanguage), style: z.string().refine(isDubStyle).optional() });
+// D379 — `voice`: "presenter" (default) or a preset name; `pace` only matters with a preset.
+const BodySchema = z.object({
+  language: z.string().refine(isDubLanguage),
+  style: z.string().refine(isDubStyle).optional(),
+  voice: z.string().refine((v) => v === PRESENTER_VOICE || isDubVoice(v)).optional(),
+  pace: z.string().refine(isDubPace).optional(),
+});
 
 // D374 — dub the one connected video's current take. A new `dub` generation; its version is
 // written when the task reports back (D375).
@@ -25,6 +31,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!parsed.success || !isDubLanguage(parsed.data.language)) return apiError("Pick a language to dub into.", 400);
       const targetLang = parsed.data.language;
       const style = isDubStyle(parsed.data.style) ? parsed.data.style : DEFAULT_DUB_STYLE;
+      const voice = isDubVoice(parsed.data.voice) ? parsed.data.voice : undefined;
+      const pace = voice ? (isDubPace(parsed.data.pace) ? parsed.data.pace : DEFAULT_DUB_PACE) : undefined;
       if (!process.env.SARVAM_API_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
 
       // Independent reads run side by side (performance rule 5).
@@ -45,6 +53,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         provider: DUB_ENGINE.provider,
         model: DUB_ENGINE.model,
         style,
+        ...(voice ? { voice, pace } : {}),
       };
       const generation = await insertGeneration({
         nodeId,
@@ -67,6 +76,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           sourceUrl: source.sourceUrl,
           targetLang,
           style,
+          ...(voice ? { voice, pace } : {}),
           dubbedPutUrl: uploads.dubbed.putUrl,
           dubbedAudioPutUrl: uploads.dubbedAudio.putUrl,
           dubbedUrl: uploads.dubbed.url,

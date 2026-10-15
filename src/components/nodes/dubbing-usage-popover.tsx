@@ -3,7 +3,7 @@
 import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useNodeCost } from "@/hooks/use-node-cost";
-import { dubLanguageLabel, dubStyleLabel } from "@/lib/dubbing/types";
+import { dubLanguageLabel, dubStyleLabel, dubVoiceLabel } from "@/lib/dubbing/types";
 import type { DubbingVersionSummary } from "@/hooks/use-dubbing-versions";
 
 // Spec §7 — the Dubbing focus view's usage popover, in the header like Video Gen's and Image Gen's.
@@ -19,6 +19,7 @@ export function DubbingUsagePopover({ versions, nodeId, upstreamNodeIds }: {
     meta: [
       v.dubbing ? `${dubLanguageLabel(v.dubbing.language)} dub` : "Dub",
       v.dubbing?.style ? dubStyleLabel(v.dubbing.style) : null,
+      v.dubbing?.voice ? dubVoiceLabel(v.dubbing.voice) : null,
       v.lipSyncRuns > 0 ? `lip sync ×${v.lipSyncRuns}` : null,
     ].filter(Boolean).join(" · "),
     credits: v.creditsCharged === null ? "—" : v.creditsCharged.toLocaleString(),

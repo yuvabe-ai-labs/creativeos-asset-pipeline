@@ -54,6 +54,7 @@ export async function completeDubGeneration(
     dubbedAudio: input.dubbedAudioUrl,
     lipSynced: null,
     ...(record.style ? { style: record.style } : {}),
+    ...(record.voice ? { voice: record.voice } : {}),
   };
   const version = await deps.insertVersion({
     nodeId,

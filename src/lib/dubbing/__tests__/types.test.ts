@@ -70,3 +70,28 @@ describe("translation styles", () => {
     expect(readDubbingOutput({ ...base, style: "shouty" })?.style).toBeUndefined();
   });
 });
+
+describe("preset voices and pace", () => {
+  it("offers exactly the 15 voices the vendor accepts, grouped by gender, and four paces", async () => {
+    const { DUB_VOICES, DUB_PACES, DEFAULT_DUB_PACE, isDubVoice, isDubPace, dubVoiceLabel, PRESENTER_VOICE } = await import("../types");
+    expect(DUB_VOICES.map((v) => v.code).sort()).toEqual(
+      ["amit", "dev", "ishita", "kavya", "manan", "pooja", "priya", "rahul", "ratan", "ritu", "rohan", "shreya", "shubh", "simran", "sumit"],
+    );
+    expect(DUB_VOICES.filter((v) => v.gender === "female").map((v) => v.code)).toEqual(["ishita", "kavya", "pooja", "priya", "ritu", "shreya", "simran"]);
+    expect(DUB_PACES.map((p) => p.code)).toEqual(["slow", "moderate", "normal", "fast"]);
+    expect(DEFAULT_DUB_PACE).toBe("normal");
+    expect(isDubVoice("ishita")).toBe(true);
+    expect(isDubVoice(PRESENTER_VOICE)).toBe(false);
+    expect(isDubPace("fast")).toBe(true);
+    expect(dubVoiceLabel(PRESENTER_VOICE)).toBe("Presenter’s own voice");
+  });
+
+  it("keeps a version's preset voice and pace, and reads a presenter-voice dub without one", async () => {
+    const { readDubbingOutput, readDubRecord } = await import("../types");
+    const base = { language: "ta-IN", original: "o", dubbed: "d", dubbedAudio: "a", lipSynced: null };
+    expect(readDubbingOutput({ ...base, voice: "ishita" })?.voice).toBe("ishita");
+    expect(readDubbingOutput(base)?.voice).toBeUndefined();
+    const rec = { sourceNodeId: "v", sourceVersionId: "s", sourceUrl: "u", srcLang: "en-IN", targetLang: "ta-IN", durationSeconds: 8, provider: "sarvam", model: "sarvam-dub" };
+    expect(readDubRecord({ ...rec, voice: "ishita", pace: "slow" })).toMatchObject({ voice: "ishita", pace: "slow" });
+  });
+});

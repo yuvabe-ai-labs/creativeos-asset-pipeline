@@ -57,6 +57,59 @@ export function dubStyleLabel(code: string): string {
   return DUB_STYLES.find((s) => s.code === code)?.label ?? code;
 }
 
+/**
+ * D379 — a preset voice instead of the presenter's own (cloned) one. Exactly the 15 names the
+ * vendor accepts (asked of its API, 2026-10-15). Gender: the vendor states it for ishita and shubh
+ * only; the rest are grouped by name, to confirm by listening.
+ */
+export const DUB_VOICES = [
+  { code: "ishita", label: "Ishita", gender: "female" },
+  { code: "kavya", label: "Kavya", gender: "female" },
+  { code: "pooja", label: "Pooja", gender: "female" },
+  { code: "priya", label: "Priya", gender: "female" },
+  { code: "ritu", label: "Ritu", gender: "female" },
+  { code: "shreya", label: "Shreya", gender: "female" },
+  { code: "simran", label: "Simran", gender: "female" },
+  { code: "amit", label: "Amit", gender: "male" },
+  { code: "dev", label: "Dev", gender: "male" },
+  { code: "manan", label: "Manan", gender: "male" },
+  { code: "rahul", label: "Rahul", gender: "male" },
+  { code: "ratan", label: "Ratan", gender: "male" },
+  { code: "rohan", label: "Rohan", gender: "male" },
+  { code: "shubh", label: "Shubh", gender: "male" },
+  { code: "sumit", label: "Sumit", gender: "male" },
+] as const;
+
+export type DubVoice = (typeof DUB_VOICES)[number]["code"];
+/** The node's voice choice: the presenter's own, or a preset. */
+export const PRESENTER_VOICE = "presenter";
+export type DubVoiceChoice = DubVoice | typeof PRESENTER_VOICE;
+
+const VOICE_CODES = new Set<string>(DUB_VOICES.map((v) => v.code));
+
+export function isDubVoice(v: unknown): v is DubVoice {
+  return typeof v === "string" && VOICE_CODES.has(v);
+}
+
+export function dubVoiceLabel(code: string): string {
+  return code === PRESENTER_VOICE ? "Presenter’s own voice" : DUB_VOICES.find((v) => v.code === code)?.label ?? code;
+}
+
+/** D379 — how fast a preset voice speaks. The vendor ignores it for the presenter's own voice. */
+export const DUB_PACES = [
+  { code: "slow", label: "Slow", hint: "Unhurried. Good for how-tos and explainers." },
+  { code: "moderate", label: "Moderate", hint: "A little slower than normal." },
+  { code: "normal", label: "Normal", hint: "Natural speaking speed." },
+  { code: "fast", label: "Fast", hint: "Brisk. Good for dense promos." },
+] as const;
+
+export type DubPace = (typeof DUB_PACES)[number]["code"];
+export const DEFAULT_DUB_PACE: DubPace = "normal";
+
+export function isDubPace(v: unknown): v is DubPace {
+  return typeof v === "string" && DUB_PACES.some((p) => p.code === v);
+}
+
 /** D375 — a Dubbing version's output: the three stages of one dub. */
 export type DubbingOutput = {
   language: DubLanguage;
@@ -66,6 +119,8 @@ export type DubbingOutput = {
   lipSynced: string | null;
   /** The translation style it was dubbed in. Absent on dubs made before the style existed. */
   style?: DubStyle;
+  /** D379 — the preset voice it was dubbed in. Absent = the presenter's own voice. */
+  voice?: DubVoice;
 };
 
 const isStr = (v: unknown): v is string => typeof v === "string" && v.length > 0;
@@ -82,6 +137,7 @@ export function readDubbingOutput(v: unknown): DubbingOutput | null {
     dubbedAudio: o.dubbedAudio,
     lipSynced: isStr(o.lipSynced) ? o.lipSynced : null,
     ...(isDubStyle(o.style) ? { style: o.style } : {}),
+    ...(isDubVoice(o.voice) ? { voice: o.voice } : {}),
   };
 }
 
@@ -106,6 +162,9 @@ export type DubRecord = {
   provider: string;
   model: string;
   style?: DubStyle;
+  /** D379 — a preset voice and its pace. Absent = the presenter's own voice. */
+  voice?: DubVoice;
+  pace?: DubPace;
   vendorJobId?: string;
 };
 
@@ -121,6 +180,8 @@ export function readDubRecord(v: unknown): DubRecord | null {
     sourceNodeId: o.sourceNodeId, sourceVersionId: o.sourceVersionId, sourceUrl: o.sourceUrl,
     srcLang: o.srcLang, targetLang: o.targetLang, durationSeconds: d, provider: o.provider, model: o.model,
     ...(isDubStyle(o.style) ? { style: o.style } : {}),
+    ...(isDubVoice(o.voice) ? { voice: o.voice } : {}),
+    ...(isDubPace(o.pace) ? { pace: o.pace } : {}),
     ...(isStr(o.vendorJobId) ? { vendorJobId: o.vendorJobId } : {}),
   };
 }

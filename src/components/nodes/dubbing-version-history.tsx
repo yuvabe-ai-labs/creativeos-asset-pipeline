@@ -4,7 +4,7 @@ import { Check, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/format/relative-time";
-import { dubLanguageLabel, dubStyleLabel } from "@/lib/dubbing/types";
+import { dubLanguageLabel, dubStyleLabel, dubVoiceLabel } from "@/lib/dubbing/types";
 import type { DubbingVersionSummary } from "@/hooks/use-dubbing-versions";
 
 function Step({ done, label }: { done: boolean; label: string }) {
@@ -38,7 +38,7 @@ export function DubbingVersionHistory({ versions, activeVersionId, onRestore, re
           >
             <span className="flex w-full items-center gap-2">
               <span className="text-xs font-semibold tabular-nums text-muted-foreground">v{versions.length - i}</span>
-              <span className="flex-1 text-sm font-medium">{d ? `${dubLanguageLabel(d.language)} dub${d.style ? ` · ${dubStyleLabel(d.style)}` : ""}` : "Dub"}</span>
+              <span className="flex-1 text-sm font-medium">{d ? `${dubLanguageLabel(d.language)} dub${d.style ? ` · ${dubStyleLabel(d.style)}` : ""}${d.voice ? ` · ${dubVoiceLabel(d.voice)}` : ""}` : "Dub"}</span>
               {active && <span className="text-xs font-medium text-primary">Showing</span>}
               <span className="text-xs text-muted-foreground">{formatRelativeTime(v.createdAt)}</span>
             </span>

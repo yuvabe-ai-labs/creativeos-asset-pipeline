@@ -76,7 +76,11 @@ Composite's shell (back to canvas, editable title, rail | middle | right).
     job already running, no connected video, a take or dub with no recorded length.
   - The view opens on Dub, or on Lip sync while one is running. A failure shows
     `GenerationErrorBadge` with plain copy.
-  - No voice or model picker.
+  - **Advanced** (D379, closed by default): **Voice**, the presenter's own (default) or one of 15
+    preset voices, picked in a Change-voice-style dialog (All / Female / Male, a preview per voice in
+    the dub language, **Use**); with a preset, **Pace** (slow / moderate / normal / fast). Pace
+    changes delivery, not the dub's length.
+  - No model picker.
 - **Right:** the video player for the active version with an **Original / Dubbed / Lip-synced**
   segmented switch (a stage with no video is disabled). Defaults to the furthest stage present.
   With no version yet it shows the connected take's video.

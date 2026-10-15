@@ -7389,3 +7389,15 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 **Refines →** D374 (one select became two), D376.
 
 **Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D379 — Dubbing can use a preset voice, picked with previews, at a chosen pace *(recorded 2026-10-15)*
+
+**Decision.** Under **Advanced** (closed by default, the section Avatars and Visualise use), the Dub tab offers **Voice**: the presenter's own (cloned, the default) or one of the 15 preset voices Sarvam accepts (amit, dev, ishita, kavya, manan, pooja, priya, rahul, ratan, ritu, rohan, shreya, shubh, simran, sumit; the list came from the API itself). The picker matches Change voice's: a field showing the name and gender with a play button, opening a dialog (All / Female / Male) of rows with a preview and **Use**. With a preset, **Pace** appears (slow, moderate, normal by default, fast). A preset sends `voice_cloning: false`, `voice_id` and `pace_preset`; the presenter's voice sends `voice_cloning: true` and no pace. Previews are generated on first play with Sarvam text-to-speech (`bulbul:v3`, the same speakers) in the dub language (English for Assamese, which its TTS lacks), stored once at `dubbing/voice-previews/v1/<voice>-<lang>.wav`, then served from storage.
+
+**Why.** A presenter's clone suits most dubs, but noisy or very short takes clone badly, and some clients want a different voice. Pace does not change the dub's length: Sarvam fits each line to the original timing, and our ffmpeg step keeps the video's length.
+
+**Rejected.** A plain select without previews (voices can't be judged by name). Generating previews ahead of time for all 165 voice-language pairs (paid for unused samples). Exposing pace with the cloned voice (Sarvam ignores it there).
+
+**Refines →** D378.
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
