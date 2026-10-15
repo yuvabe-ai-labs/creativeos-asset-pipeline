@@ -158,6 +158,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "", modelId: COMPOSITE_DEFAULT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
+    case "dubbing":
+      return { title: "" };
     case "post":
       // 4:5 portrait, not square: it's Instagram's best-performing feed size and takes the
       // most vertical space in the feed. Only affects NEW nodes — resolveFormat's fallback

@@ -49,6 +49,8 @@ export function describeNode(node: { type?: string; data: Record<string, unknown
       return "multishot prompt";
     case "video-gen":
       return "video generation";
+    case "dubbing":
+      return "dubbing";
     case "client-review":
       return "client review";
     default:
@@ -75,6 +77,7 @@ const NODE_ABBREV: Record<string, string> = {
   composite: "CMP",
   "video-prompt": "MPR",
   "video-gen": "VID",
+  dubbing: "DUB",
   "client-review": "REV",
 };
 

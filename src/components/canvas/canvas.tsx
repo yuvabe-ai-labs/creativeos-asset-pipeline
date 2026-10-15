@@ -19,7 +19,7 @@ import {
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
-import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
+import { canAcceptIncoming, canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { fileNodeService } from "@/services/file-node.service";
@@ -376,6 +376,8 @@ export function Canvas({
       const target = nodes.find((n) => n.id === connection.target);
       if (!source || !target) return false;
       if (!canConnect(source.type ?? "", target.type ?? "")) return false;
+      const incoming = edges.filter((e) => e.target === connection.target).length;
+      if (!canAcceptIncoming(target.type ?? "", incoming)) return false;
       // script → prompt: one script can only wire to a single prompt
       if (source.type === "script" && target.type === "prompt") {
         const alreadyConnected = edges.some(
