@@ -29,6 +29,11 @@ export const videoLipSyncTask = task({
       "lip sync failure",
     );
   },
+  // A run cancelled from the dashboard refunds at once. (A dev CLI that exits takes the worker
+  // with it, so this never runs then; the stuck-reservation sweep settles that case.)
+  onCancel: async ({ payload }) => {
+    await postGenerationWebhookSafely({ generationId: payload.generationId, status: "failed", error: LIP_SYNC_FAILED_MESSAGE }, "lip sync cancelled");
+  },
   run: async (payload: VideoLipSyncTaskPayload) => {
     assertWebhookConfig();
     logger.info("Lip syncing", { generationId: payload.generationId });

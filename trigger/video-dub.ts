@@ -4,6 +4,7 @@ import { finalUserMessage, isDeliveryFailed } from "@/lib/dubbing/poll";
 import { DUB_FAILED_MESSAGE } from "@/lib/dubbing/copy";
 import { createDubJob, uploadDubMedia, startDubJob, getDubLiveStatus, getDubExports } from "@/lib/sarvam/client";
 import { fetchBytes, putBytes } from "@/lib/voice-change/http";
+import { extractAudio } from "@/lib/media/ffmpeg";
 import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
 
 export type VideoDubTaskPayload = DubRunPayload & { dubbedUrl: string; dubbedAudioUrl: string; durationSeconds: number };
@@ -32,6 +33,11 @@ export const videoDubTask = task({
       "dub failure",
     );
   },
+  // A run cancelled from the dashboard refunds at once. (A dev CLI that exits takes the worker
+  // with it, so this never runs then; the stuck-reservation sweep settles that case.)
+  onCancel: async ({ payload }) => {
+    await postGenerationWebhookSafely({ generationId: payload.generationId, status: "failed", error: DUB_FAILED_MESSAGE }, "dub cancelled");
+  },
   run: async (payload: VideoDubTaskPayload) => {
     assertWebhookConfig();
     logger.info("Dubbing", { generationId: payload.generationId, targetLang: payload.targetLang });
@@ -42,6 +48,7 @@ export const videoDubTask = task({
       start: (id) => startDubJob(id),
       liveStatus: (id) => getDubLiveStatus(id),
       exports: (id) => getDubExports(id),
+      extractAudio,
       putBytes,
       sleep: (seconds) => wait.for({ seconds }),
       now: () => Date.now(),

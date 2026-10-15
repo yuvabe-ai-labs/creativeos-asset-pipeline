@@ -21,6 +21,8 @@ export type DubRunDeps = {
   start: (jobId: string) => Promise<void>;
   liveStatus: (jobId: string) => Promise<{ status: SarvamJobStatus; progress: number; stepLabel: string | null; errorMessage: string | null }>;
   exports: (jobId: string) => Promise<SarvamExport[]>;
+  /** The dubbed track, as mp3, taken from the dubbed video (lip sync's audio input). */
+  extractAudio: (video: Buffer) => Promise<Buffer>;
   putBytes: (url: string, body: Buffer, contentType: string) => Promise<void>;
   sleep: (seconds: number) => Promise<void>;
   now: () => number;
@@ -59,9 +61,10 @@ export async function runDub(p: DubRunPayload, d: DubRunDeps): Promise<{ vendorJ
     if (live.status === "completed") break;
   }
 
-  // 2. Its exports finish one by one, after the job: wait for the video and the mp3.
-  let video: SarvamExport | undefined;
-  let audio: SarvamExport | undefined;
+  // 2. Its export finishes after the job: wait for the dubbed video. Only the video is relied on:
+  // the vendor does not always list the audio exports its docs describe, so the audio track is
+  // taken from the video below.
+  let videoUrl: string | undefined;
   let lastExports = "";
   for (;;) {
     const listed = await retryInPlace(() => d.exports(jobId), d.sleep);
@@ -69,19 +72,25 @@ export async function runDub(p: DubRunPayload, d: DubRunDeps): Promise<{ vendorJ
     if (exportsKey !== lastExports) log("Dub exports", { jobId, exports: exportsKey || "(none)" });
     lastExports = exportsKey;
     const all = listed.filter((e) => e.targetLanguage === p.targetLang);
-    video = all.find((e) => e.exportType === "video");
-    audio = all.find((e) => e.exportType === "mp3");
-    if ([video, audio].some((e) => e?.status === "failed")) throw new DubbingFinalError(DUB_FAILED_MESSAGE, "export failed");
-    if (video?.status === "completed" && video.downloadUrl && audio?.status === "completed" && audio.downloadUrl) break;
+    const video = all.find((e) => e.exportType === "video");
+    if (video?.status === "failed") throw new DubbingFinalError(DUB_FAILED_MESSAGE, "export failed");
+    if (video?.status === "completed" && video.downloadUrl) {
+      videoUrl = video.downloadUrl;
+      break;
+    }
     if (d.now() > deadline) throw new DubbingFinalError(DUB_TIMEOUT_MESSAGE, `exports of ${jobId}`);
     await d.sleep(DUB_POLL_INTERVAL_SECONDS);
   }
 
   log("Dub ready, storing", { jobId });
-  const [videoBytes, audioBytes] = await Promise.all([
-    retryInPlace(() => d.fetchBytes(video!.downloadUrl!), d.sleep),
-    retryInPlace(() => d.fetchBytes(audio!.downloadUrl!), d.sleep),
-  ]);
+  const ready = videoUrl;
+  const videoBytes = await retryInPlace(() => d.fetchBytes(ready), d.sleep);
+  let audioBytes: Buffer;
+  try {
+    audioBytes = await d.extractAudio(videoBytes);
+  } catch (e) {
+    throw new DubbingFinalError(DUB_FAILED_MESSAGE, `could not take the audio from the dubbed video: ${e instanceof Error ? e.message : String(e)}`);
+  }
   await retryInPlace(() => d.putBytes(p.dubbedPutUrl, videoBytes, "video/mp4"), d.sleep);
   await retryInPlace(() => d.putBytes(p.dubbedAudioPutUrl, audioBytes, "audio/mpeg"), d.sleep);
   log("Dub stored", { jobId, videoBytes: videoBytes.length, audioBytes: audioBytes.length });

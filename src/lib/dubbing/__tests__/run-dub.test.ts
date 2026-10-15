@@ -4,9 +4,9 @@ import { DubbingFinalError } from "../poll";
 import { DUB_FAILED_MESSAGE, DUB_NO_SPEECH_MESSAGE, DUB_TIMEOUT_MESSAGE } from "../copy";
 
 const P = { generationId: "g1", sourceUrl: "https://src.mp4", targetLang: "hi-IN", dubbedPutUrl: "https://put/v", dubbedAudioPutUrl: "https://put/a" };
+// What the vendor really lists: the dubbed video only (no audio exports, 2026-10-15 run).
 const DONE = [
   { exportType: "video", targetLanguage: "hi-IN", status: "completed", downloadUrl: "https://dl/v" },
-  { exportType: "mp3", targetLanguage: "hi-IN", status: "completed", downloadUrl: "https://dl/a" },
 ];
 
 function deps(over: Partial<DubRunDeps> = {}): DubRunDeps {
@@ -18,6 +18,7 @@ function deps(over: Partial<DubRunDeps> = {}): DubRunDeps {
     start: vi.fn(async () => undefined),
     liveStatus: vi.fn(async () => ({ status: "completed" as const, progress: 100, stepLabel: null, errorMessage: null })),
     exports: vi.fn(async () => DONE),
+    extractAudio: vi.fn(async (video: Buffer) => Buffer.concat([Buffer.from("mp3:"), video])),
     putBytes: vi.fn(async () => undefined),
     sleep: vi.fn(async (s: number) => { t += s * 1000; }),
     now: () => t,
@@ -26,14 +27,26 @@ function deps(over: Partial<DubRunDeps> = {}): DubRunDeps {
 }
 
 describe("runDub", () => {
-  it("creates, uploads and starts once, then stores the dubbed video and mp3", async () => {
+  it("creates, uploads and starts once, then stores the dubbed video and the mp3 taken from it", async () => {
     const d = deps();
     expect(await runDub(P, d)).toEqual({ vendorJobId: "dub_1" });
     expect(d.createJob).toHaveBeenCalledWith({ srcLang: "en-IN", targetLang: "hi-IN", jobName: "g1" });
     expect(d.upload).toHaveBeenCalledWith("https://blob/up", Buffer.from("https://src.mp4"), "video/mp4");
     expect(d.start).toHaveBeenCalledTimes(1);
     expect(d.putBytes).toHaveBeenCalledWith("https://put/v", Buffer.from("https://dl/v"), "video/mp4");
-    expect(d.putBytes).toHaveBeenCalledWith("https://put/a", Buffer.from("https://dl/a"), "audio/mpeg");
+    expect(d.extractAudio).toHaveBeenCalledWith(Buffer.from("https://dl/v"));
+    expect(d.putBytes).toHaveBeenCalledWith("https://put/a", Buffer.from("mp3:https://dl/v"), "audio/mpeg");
+  });
+
+  it("needs only the video export, whatever else is listed", async () => {
+    const exports = vi.fn(async () => [{ exportType: "srt", targetLanguage: "hi-IN", status: "in_progress", downloadUrl: null }, ...DONE]);
+    await expect(runDub(P, deps({ exports }))).resolves.toEqual({ vendorJobId: "dub_1" });
+  });
+
+  it("fails for good when the audio can't be taken from the dubbed video", async () => {
+    const d = deps({ extractAudio: vi.fn(async () => { throw new Error("no audio stream"); }) });
+    await expect(runDub(P, d)).rejects.toEqual(expect.objectContaining({ userMessage: DUB_FAILED_MESSAGE }));
+    expect(d.putBytes).not.toHaveBeenCalled();
   });
 
   it("retries a flaky status poll in place and never starts a second job", async () => {
@@ -47,9 +60,9 @@ describe("runDub", () => {
     expect(d.start).toHaveBeenCalledTimes(1);
   });
 
-  it("waits for both exports to finish", async () => {
+  it("waits for the video export to finish", async () => {
     const exports = vi.fn()
-      .mockResolvedValueOnce([{ ...DONE[0] }, { ...DONE[1], status: "in_progress", downloadUrl: null }])
+      .mockResolvedValueOnce([{ ...DONE[0], status: "in_progress", downloadUrl: null }])
       .mockResolvedValue(DONE);
     const d = deps({ exports });
     await runDub(P, d);
