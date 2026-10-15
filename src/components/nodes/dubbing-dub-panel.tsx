@@ -9,6 +9,8 @@ import { dubCredits } from "@/lib/dubbing/cost";
 import { DUB_NO_LENGTH_MESSAGE } from "@/lib/dubbing/copy";
 import { FieldLabel } from "./field-label";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
+import { DisabledReason } from "./disabled-reason";
+import { dubBlockedReason } from "@/lib/dubbing/blocked-reasons";
 
 type Props = {
   language: DubLanguage;
@@ -29,6 +31,7 @@ type Props = {
 // D378 — the Dub tab: a language, a translation style, and Dub (each run is a new version).
 export function DubbingDubPanel({ language, onLanguageChange, style, onStyleChange, sourceSeconds, sourceLoading, hasSource, hasDub, running, editable, onDub }: Props) {
   const busy = running !== null;
+  const blocked = dubBlockedReason({ editable, running, hasSource, sourceLoading, sourceSeconds });
   const canDub = editable && hasSource && sourceSeconds > 0 && !busy;
   const unpriced = hasSource && !sourceLoading && sourceSeconds <= 0;
   return (
@@ -80,10 +83,12 @@ export function DubbingDubPanel({ language, onLanguageChange, style, onStyleChan
       </div>
 
       <div className="flex flex-col gap-2">
-        <Button onClick={onDub} disabled={!canDub} className="w-full">
-          {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}
-          {running !== "dub" && sourceSeconds > 0 && <EstimatedCreditsLabel credits={dubCredits(sourceSeconds)} />}
-        </Button>
+        <DisabledReason reason={canDub ? null : blocked}>
+          <Button onClick={onDub} disabled={!canDub} className="w-full">
+            {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}
+            {running !== "dub" && sourceSeconds > 0 && <EstimatedCreditsLabel credits={dubCredits(sourceSeconds)} />}
+          </Button>
+        </DisabledReason>
         <p className="text-xs text-muted-foreground">Each dub is added to History as a new version.</p>
       </div>
     </div>

@@ -70,10 +70,12 @@ Composite's shell (back to canvas, editable title, rail | middle | right).
     decide; each option shows a one-line hint, an info tooltip explains the setting), then **Dub**
     with its credit cost ("Dub again" once a dub exists). Each dub is a new version.
   - **Lip sync tab:** "Match the mouth to the Tamil dub", then **Lip sync** with its cost ("Lip sync
-    again" on a lip-synced dub; it replaces that dub's lip-synced video). Before any dub, a
-    dashed "Make a dub first" box with a plain "Go to the Dub tab" link.
-  - The Lip sync tab shows a **Ready** mark while a dub is waiting for it. The view opens on Dub,
-    or on Lip sync while one is running. A failure shows `GenerationErrorBadge` with plain copy.
+    again" on a lip-synced dub; it replaces that dub's lip-synced video). The tab is **disabled until
+    there is a dub**; hovering it says "Make a dub first. Lip sync matches the mouth to a dubbed voice."
+  - **A disabled control says why on hover** (the Lip sync tab, Dub, Lip sync): read-only canvas, a
+    job already running, no connected video, a take or dub with no recorded length.
+  - The view opens on Dub, or on Lip sync while one is running. A failure shows
+    `GenerationErrorBadge` with plain copy.
   - No voice or model picker.
 - **Right:** the video player for the active version with an **Original / Dubbed / Lip-synced**
   segmented switch (a stage with no video is disabled). Defaults to the furthest stage present.

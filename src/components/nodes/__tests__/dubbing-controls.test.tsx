@@ -24,7 +24,7 @@ const find = (html: string, re: RegExp) => buttons(html).find((b) => re.test(b.t
 const dubPanel = (over: Partial<Parameters<typeof DubbingDubPanel>[0]> = {}) =>
   renderToStaticMarkup(<DubbingDubPanel {...base} sourceLoading={false} hasDub={false} {...over} />);
 const lipPanel = (over: Partial<Parameters<typeof DubbingLipSyncPanel>[0]> = {}) =>
-  renderToStaticMarkup(<DubbingLipSyncPanel activeDub={dub} activeDubSeconds={8} running={null} editable onLipSync={vi.fn()} onGoToDub={vi.fn()} {...over} />);
+  renderToStaticMarkup(<DubbingLipSyncPanel activeDub={dub} activeDubSeconds={8} running={null} editable onLipSync={vi.fn()} {...over} />);
 
 describe("DubbingControls (tabs)", () => {
   it("shows Dub and Lip sync as tabs, opening on Dub", () => {
@@ -34,10 +34,16 @@ describe("DubbingControls (tabs)", () => {
     expect(html).toContain("Translation style");
   });
 
-  it("marks Lip sync Ready while a dub waits for it, and not once it is lip-synced", () => {
-    expect(renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} />)).toContain(">Ready<");
-    expect(renderToStaticMarkup(<DubbingControls {...base} activeDub={{ ...dub, lipSynced: "l" }} />)).not.toContain(">Ready<");
-    expect(renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} running="dub" />)).not.toContain(">Ready<");
+  it("keeps the Lip sync tab disabled until there is a dub, with no Ready mark", () => {
+    // The Lip sync tab element's own attributes, read off the static markup.
+    const lipTabDisabled = (html: string) => {
+      const attrs = /<button([^>]*)>Lip sync</.exec(html)?.[1] ?? "";
+      return /sdisabled(=|s|$)|aria-disabled="true"|sdata-disabled(=|s|$)/.test(attrs);
+    };
+    expect(lipTabDisabled(renderToStaticMarkup(<DubbingControls {...base} />))).toBe(true);
+    const withDub = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} />);
+    expect(lipTabDisabled(withDub)).toBe(false);
+    expect(withDub).not.toContain("Ready");
   });
 
   it("opens on Lip sync while one is running", () => {
@@ -77,14 +83,6 @@ describe("Dub tab", () => {
 });
 
 describe("Lip sync tab", () => {
-  it("points back to Dub before any dub exists", () => {
-    const html = lipPanel({ activeDub: null });
-    expect(html).toContain("Make a dub first");
-    expect(find(html, /Go to the Dub tab/)).toBeTruthy();
-    expect(html).not.toContain("lucide-plus");
-    expect(find(html, /^Lip sync/)).toBeUndefined();
-  });
-
   it("names the dub's language and prices on the dub's own length", () => {
     const html = lipPanel({ activeDubSeconds: 5 });
     expect(html).toContain("Match the mouth to the Hindi dub");

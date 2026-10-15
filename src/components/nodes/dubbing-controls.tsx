@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DubLanguage, DubStyle, DubbingOutput } from "@/lib/dubbing/types";
 import { DubbingDubPanel } from "./dubbing-dub-panel";
 import { DubbingLipSyncPanel } from "./dubbing-lip-sync-panel";
+import { DisabledReason } from "./disabled-reason";
+import { LIP_SYNC_NEEDS_DUB } from "@/lib/dubbing/blocked-reasons";
 
 type Tab = "dub" | "lipsync";
 
@@ -28,20 +30,19 @@ type Props = {
 };
 
 // D378 — the Dubbing view's controls as two tabs, Dub | Lip sync, so each shows one primary action.
-// Opens on Lip sync only when one is running; a "Ready" mark on its tab says a dub is waiting for it.
+// Opens on Lip sync only when one is running. Lip sync is disabled until there is a dub, and its
+// tab says why on hover.
 export function DubbingControls({ sourceLoading = false, activeDub, running, onLipSync, ...rest }: Props) {
   const [tab, setTab] = useState<Tab>(running === "lipsync" ? "lipsync" : "dub");
-  const lipSyncReady = Boolean(activeDub && !activeDub.lipSynced) && running === null && tab === "dub";
+  // A dub disappearing (a restore to nothing) falls back to the Dub tab.
+  const current: Tab = activeDub ? tab : "dub";
   return (
-    <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-0">
+    <Tabs value={current} onValueChange={(v) => setTab(v as Tab)} className="gap-0">
       <TabsList variant="line" className="w-full justify-start gap-4 border-b border-border px-6 pt-2">
         <TabsTrigger value="dub" className="flex-none px-1 pb-2">Dub</TabsTrigger>
-        <TabsTrigger value="lipsync" className="flex-none px-1 pb-2">
-          Lip sync
-          {lipSyncReady && (
-            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[0.65rem] font-semibold text-primary">Ready</span>
-          )}
-        </TabsTrigger>
+        <DisabledReason reason={activeDub ? null : LIP_SYNC_NEEDS_DUB} className="inline-flex">
+          <TabsTrigger value="lipsync" disabled={!activeDub} className="flex-none px-1 pb-2">Lip sync</TabsTrigger>
+        </DisabledReason>
       </TabsList>
       <TabsContent value="dub" className="px-6 py-5">
         <DubbingDubPanel
@@ -58,16 +59,17 @@ export function DubbingControls({ sourceLoading = false, activeDub, running, onL
           onDub={rest.onDub}
         />
       </TabsContent>
-      <TabsContent value="lipsync" className="px-6 py-5">
-        <DubbingLipSyncPanel
-          activeDub={activeDub}
-          activeDubSeconds={rest.activeDubSeconds}
-          running={running}
-          editable={rest.editable}
-          onLipSync={onLipSync}
-          onGoToDub={() => setTab("dub")}
-        />
-      </TabsContent>
+      {activeDub && (
+        <TabsContent value="lipsync" className="px-6 py-5">
+          <DubbingLipSyncPanel
+            activeDub={activeDub}
+            activeDubSeconds={rest.activeDubSeconds}
+            running={running}
+            editable={rest.editable}
+            onLipSync={onLipSync}
+          />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }
