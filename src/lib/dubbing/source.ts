@@ -4,6 +4,7 @@ import { durationOfParams } from "@/lib/voice-change/record";
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import type { NodeVersionRow } from "@/lib/db/types";
 import { DUB_MAX_SECONDS } from "./constants";
+import { DUB_NO_LENGTH_MESSAGE } from "./copy";
 
 /** D374 — the one connected Video Gen node's active version, read on the server, used as-is. */
 export async function resolveDubSource(
@@ -25,7 +26,7 @@ export async function resolveDubSource(
     return noTake;
   }
   const durationSeconds = durationOfParams(version.params_used ?? {});
-  if (!durationSeconds) return { ok: false, reason: "This take has no recorded length, so it can't be priced." };
+  if (!durationSeconds) return { ok: false, reason: DUB_NO_LENGTH_MESSAGE };
   if (durationSeconds > DUB_MAX_SECONDS) return { ok: false, reason: "Dubbing works on clips up to a minute." };
   return { ok: true, sourceNodeId: video.nodeId, sourceVersionId: version.id, sourceUrl: version.output, durationSeconds };
 }

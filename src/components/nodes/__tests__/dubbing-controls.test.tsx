@@ -4,7 +4,7 @@ import { DubbingControls } from "../dubbing-controls";
 import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
 
 const base = {
-  language: "hi-IN" as const, onLanguageChange: vi.fn(), sourceSeconds: 8, hasSource: true,
+  language: "hi-IN" as const, onLanguageChange: vi.fn(), sourceSeconds: 8, activeDubSeconds: 8, hasSource: true,
   activeDub: null, running: null, editable: true, onDub: vi.fn(), onLipSync: vi.fn(),
 };
 const dub = { language: "hi-IN" as const, original: "o", dubbed: "d", dubbedAudio: "a", lipSynced: null };
@@ -33,6 +33,24 @@ describe("DubbingControls", () => {
     expect(btn?.text).toContain(`Est. ${lipSyncCredits(8)} credits`);
     expect(btn?.disabled).toBe(false);
     expect(find(html, /^Dub again/)).toBeTruthy();
+  });
+
+  it("prices Lip sync on the dub's own length, not the source's", () => {
+    const html = renderToStaticMarkup(<DubbingControls {...base} sourceSeconds={8} activeDubSeconds={5} activeDub={dub} />);
+    expect(find(html, /^Lip sync/)?.text).toContain(`Est. ${lipSyncCredits(5)} credits`);
+  });
+
+  it("explains an unpriced take instead of leaving Dub silently off", () => {
+    const html = renderToStaticMarkup(<DubbingControls {...base} sourceSeconds={0} />);
+    expect(html).toContain("This take has no recorded length, so it can&#x27;t be priced.");
+    expect(find(html, /^Dub/)?.disabled).toBe(true);
+    const loading = renderToStaticMarkup(<DubbingControls {...base} sourceSeconds={0} sourceLoading />);
+    expect(loading).not.toContain("no recorded length");
+  });
+
+  it("keeps Lip sync off when the dub has no recorded length", () => {
+    const html = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} activeDubSeconds={0} />);
+    expect(find(html, /^Lip sync/)?.disabled).toBe(true);
   });
 
   it("says what is running and blocks both buttons", () => {

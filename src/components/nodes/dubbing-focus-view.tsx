@@ -21,7 +21,6 @@ import { DubbingFocusRail, type DubbingRailSelection } from "./dubbing-focus-rai
 import { DubbingControls } from "./dubbing-controls";
 import { DubbingPlayer } from "./dubbing-player";
 import { DubbingVersionHistory } from "./dubbing-version-history";
-import { DubbingUsagePopover } from "./dubbing-usage-popover";
 
 type Props = {
   open: boolean;
@@ -40,7 +39,7 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
   const source = useDubbingSource(nodeId, open);
   const sourceName = source ? nodeLabel({ id: source.id, type: source.type, data: source.data }).name : "";
 
-  const { versions, activeVersionId, active, loading, restore, restoring } = useDubbingVersions(nodeId, open, onPatch);
+  const { versions, activeVersionId, active, activeSeconds, loading, restore, restoring } = useDubbingVersions(nodeId, open, onPatch);
   const status = useGenerationStatus(nodeId);
   const startDub = useStartDub(nodeId);
   const startLipSync = useStartLipSync(nodeId);
@@ -68,12 +67,6 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
                 <EditableField value={title} onCommit={(t) => onPatch({ title: normalizeTitle(t) })} placeholder="Dubbing" className="font-display text-3xl font-semibold tracking-tight" />
               </SheetTitle>
               <div className="flex shrink-0 flex-col items-end gap-2">
-                {/* Versions load when the view opens; hold the popover's place until they do. */}
-                {loading ? (
-                  <Skeleton className="h-8 w-20 rounded-md" />
-                ) : (
-                  <DubbingUsagePopover versions={versions} nodeId={nodeId} upstreamNodeIds={source ? [source.id] : []} />
-                )}
                 {status.lastError && !running && <GenerationErrorBadge error={status.lastError} />}
               </div>
             </header>
@@ -102,6 +95,8 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
                   language={lang}
                   onLanguageChange={(l) => onPatch({ language: l })}
                   sourceSeconds={source?.seconds ?? 0}
+                  sourceLoading={source?.secondsLoading ?? false}
+                  activeDubSeconds={activeSeconds}
                   hasSource={Boolean(source?.url)}
                   activeDub={activeDub}
                   running={running}

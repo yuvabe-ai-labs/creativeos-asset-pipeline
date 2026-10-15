@@ -115,3 +115,8 @@ export function readLipSyncRecord(v: unknown): LipSyncRecord | null {
     ...(isStr(o.vendorRequestId) ? { vendorRequestId: o.vendorRequestId } : {}),
   };
 }
+
+/** The active version's dubbing output from a node's versions list (null when none is active). */
+export function activeDubbingOf(list: { activeVersionId: string | null; versions: { id: string; dubbing: DubbingOutput | null }[] }): DubbingOutput | null {
+  return list.versions.find((v) => v.id === list.activeVersionId)?.dubbing ?? null;
+}

@@ -84,6 +84,8 @@ export type CompletionEffect = {
   toast: { tone: "success" | "error"; message: string };
   /** An image to put on the node's card (the job finished in the background). */
   cardImage: string | null;
+  /** A dub or lip sync finished: its node's card should show the new active version, read once. */
+  refreshVersions?: true;
 };
 
 /** The completion effects a batch of loaded rows implies, judged against the jobs already stored:
@@ -113,6 +115,7 @@ export function completionEffect(
     return {
       toast: { tone: "success", message: SUCCESS[next.type] ?? "Video ready" },
       cardImage: next.type === "image" ? next.output_snapshot : null,
+      ...(next.type === "dub" || next.type === "lipsync" ? { refreshVersions: true as const } : {}),
     };
   }
   return {

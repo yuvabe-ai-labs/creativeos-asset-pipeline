@@ -40,3 +40,14 @@ describe("dubbing types", () => {
     expect(readLipSyncRecord({ versionId: "v1" })).toBeNull();
   });
 });
+
+describe("activeDubbingOf", () => {
+  const dub = { language: "hi-IN", original: "o", dubbed: "d", dubbedAudio: "a", lipSynced: null } as const;
+  it("returns the active version's dubbing, or null", async () => {
+    const { activeDubbingOf } = await import("../types");
+    const versions = [{ id: "v2", dubbing: null }, { id: "v1", dubbing: dub }];
+    expect(activeDubbingOf({ activeVersionId: "v1", versions })).toEqual(dub);
+    expect(activeDubbingOf({ activeVersionId: "v2", versions })).toBeNull();
+    expect(activeDubbingOf({ activeVersionId: null, versions })).toBeNull();
+  });
+});

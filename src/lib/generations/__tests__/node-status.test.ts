@@ -132,6 +132,13 @@ describe("completionEffect", () => {
     });
   });
 
+  it("asks for a dub or lip sync's node to be refreshed once it succeeds", () => {
+    for (const type of ["dub", "lipsync"] as const) {
+      expect(completionEffect(row({ type }), row({ type, status: "succeeded" }))?.refreshVersions).toBe(true);
+      expect(completionEffect(row({ type }), row({ type, status: "failed", error: "x" }))?.refreshVersions).toBeUndefined();
+    }
+  });
+
   it("reports a failure with its reason", () => {
     expect(completionEffect(row({}), row({ status: "failed", error: "Out of credits" }))).toEqual({
       toast: { tone: "error", message: "Out of credits" },
