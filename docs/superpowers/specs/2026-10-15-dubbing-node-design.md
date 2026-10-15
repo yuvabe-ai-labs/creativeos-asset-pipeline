@@ -11,7 +11,7 @@ It is deliberately small: one input, one language select, two buttons, no voice 
 - **Type** `dubbing`, label **Dubbing**, quick-add mnemonic **B** (free; "duBbing").
 - **Input:** exactly **one** Video Gen node (`VALID_CONNECTIONS["video-gen"]` gains `"dubbing"`).
   A second incoming wire is refused (`MAX_INCOMING = { dubbing: 1 }`, checked wherever
-  `canConnect` is). There is no "add" affordance anywhere in the node or its view.
+  `canConnect` is). Video Gen gains an output handle so it can be wired from the canvas.
 - **Output:** none for now (`VALID_CONNECTIONS.dubbing = []`).
 - **Node data:** `{ title?: string; language?: DubLanguage }`. `language` is the last picked
   target and the select's value; it is not the source of truth for any version.
@@ -62,7 +62,8 @@ language, and the user can make any version active (the existing restore-version
 Composite's shell (back to canvas, editable title, rail | middle | right).
 
 - **Rail:** *Dubbing* (the controls) · *Connected* (the one video node; selecting it shows its
-  read-only `ConnectedDetailView`) · *History* (count). No add chip.
+  read-only `ConnectedDetailView`, with a disconnect control) · *History* (count). The Connected
+  header has the usual **Add** chip; it hides once one video is wired.
 - **Middle (Dubbing):**
   - **Dub into** — shadcn `Select` of the target languages (all vendor languages except the
     source's `en-IN`), default Hindi.

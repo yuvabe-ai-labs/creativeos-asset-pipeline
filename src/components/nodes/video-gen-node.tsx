@@ -146,11 +146,16 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
 
         <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(videoUrl)} />
 
-        {/* Leaf node — only a target handle, no source */}
         <Handle
           type="target"
           position={Position.Left}
           className="!size-4 !border-2 !border-card !bg-muted-foreground"
+        />
+        {/* D374 — its take feeds a Dubbing node. */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!size-4 !border-2 !border-card !bg-primary"
         />
       </div>
     </NodeContextMenu>

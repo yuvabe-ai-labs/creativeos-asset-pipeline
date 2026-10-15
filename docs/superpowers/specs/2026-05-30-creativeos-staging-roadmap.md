@@ -7338,11 +7338,11 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 
 ### D374 — A Dubbing node dubs one connected video's current take *(recorded 2026-10-15)*
 
-**Decision.** A new `dubbing` node accepts exactly one Video Gen input (the first per-target incoming limit, `MAX_INCOMING`). The server reads that node's active version when Dub runs and uses it as-is, so a voice-changed take is dubbed in its changed voice. The focus view has one control, **Dub into** (a language), plus Dub and Lip sync buttons. The source's spoken language is English.
+**Decision.** A new `dubbing` node accepts exactly one Video Gen input (the first per-target incoming limit, `MAX_INCOMING`); Video Gen gains an output handle for it, and the rail's Add chip works as in other views until that one input is wired. The server reads that node's active version when Dub runs and uses it as-is, so a voice-changed take is dubbed in its changed voice. The focus view has one control, **Dub into** (a language), plus Dub and Lip sync buttons. The source's spoken language is English.
 
 **Why.** Localising an ad is a step of its own on the canvas. The smallest useful version is one input and one choice.
 
-**Rejected.** Voice, settings and model pickers (not needed for a first version). Several inputs per node, or an add-input affordance. Taking the source version from the client (rule 10).
+**Rejected.** Voice, settings and model pickers (not needed for a first version). Several inputs per node (the rail's Add chip hides once one video is wired). Taking the source version from the client (rule 10).
 
 **Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
 

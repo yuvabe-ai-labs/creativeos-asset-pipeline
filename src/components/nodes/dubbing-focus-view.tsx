@@ -75,6 +75,7 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
 
         <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
           <DubbingFocusRail
+            nodeId={nodeId}
             source={source ? { id: source.id, label: sourceName || "Video" } : null}
             selected={selected}
             onSelect={setSelected}
