@@ -91,11 +91,12 @@ picker; the node, routes and versions don't change.
 
 `api-subscription-key` header, env `SARVAM_API_KEY`.
 1. `POST /dubbing/jobs` `{ src_lang: "en-IN", target_langs: [lang], voice_cloning: true,
-   num_speakers: 1, disable_watermark: true, export_options: ["video", "audio"] }` → `job_id`, `upload_url`.
+   num_speakers: 1, disable_watermark: true, editor_flow: false }` → `job_id`, `upload_url`.
+   `export_options` is left unset, which exports the dubbed video, its audio and an mp3 of it.
 2. `PUT upload_url` with the source bytes (`x-ms-blob-type: BlockBlob`, `Content-Type: video/mp4`).
 3. `POST /dubbing/jobs/{id}/start`.
 4. Poll `GET …/live-status` until `completed` or `failed`.
-5. `GET …/export-status` → per (language, format) `download_url`s; take `video` and `audio`.
+5. `GET …/export-status` → per (language, format) `download_url`s; take `video` and `mp3`.
 
 Languages: `hi bn gu kn ml mr or pa ta te as` + `-IN`. Billed per whole second of source × 1
 language (₹40/min on Starter). **Verify the live-status and export-status JSON keys against a
@@ -126,9 +127,10 @@ writes the version.
   whose webhook can't be delivered is left for the stuck sweep (the voice-change
   `DeliveryFailedError` pattern).
 - Wall time: `wait.for` checkpoints don't count against `maxDuration`, but the run must settle
-  inside the stuck-reservation threshold (migration 0055); polls give up at **12 minutes** with
+  inside the stuck-reservation threshold (50 minutes, migration 0055); polls give up at **12 minutes** with
   "The dub took too long. Your credits were returned."
-- Generation types `dub` and `lipsync` (migration 0057 widens `generations.type`).
+- Generation types `dub` and `lipsync`. `generations.type` is free text (migration 0007, no
+  check constraint), so **no migration**; `GenerationRow["type"]` widens in TypeScript.
   `completeGeneration`: `dub` → insert version + set active; `lipsync` → update the target
   version's `output.lipSynced` and `inputs_used.lipSync` (the generation's
   `inputs_snapshot.lipSync.versionId` names it). Both settle the reservation at the actual cost.
@@ -151,8 +153,8 @@ writes the version.
 - **Node and pipeline totals** (`useNodeCost`, the canvas cost query) already sum settled
   generations by node, so dub and lip sync count with no change.
 - **Usage popover** on the Dubbing node's credits footer (`UsagePopoverShell`, like Video Gen's):
-  one row per version, "Hindi dub · N credits", with a sub-line per lip sync run
-  "Lip sync · N credits"; node total; pipeline total with the connected video upstream.
+  one row per version, "Hindi dub · lip sync ×2" with that version's summed credits (the dub
+  plus every lip sync on it); node total; pipeline total with the connected video upstream.
 - **Generation kinds:** `GenerationJobKind` gains `dub` and `lipsync` (today an unknown type
   falls back to `video`); the generation tray gains a `dub` kind labelled **Dub** / **Lip sync**
   (today it would fall back to "Image Prompt").
@@ -171,8 +173,9 @@ Missing keys → 400 "Dubbing isn't set up yet." (no vendor names in UI copy).
 
 ## 9. Client
 
-- `src/services/dubbing.service.ts` — `startDub`, `startLipSync` (`readJson`).
-- `src/hooks/queries/dubbing.ts` — `useStartDub(nodeId)`, `useStartLipSync(nodeId)`; on settle
+- `nodeGenerationService.startDub` / `startLipSync` in `src/services/node-generation.service.ts`
+  (the existing start-a-generation service, `readJson`).
+- `useStartDub(nodeId)`, `useStartLipSync(nodeId)` in `src/hooks/queries/node-generation.ts`; on settle
   they refresh `nodeVersionKeys.list(nodeId)`. Running state comes from the canvas's existing
   generation channel (`use-canvas-generations`), never a per-node subscription.
 - Versions through `useNodeVersions` / `useRefreshNodeVersions`.

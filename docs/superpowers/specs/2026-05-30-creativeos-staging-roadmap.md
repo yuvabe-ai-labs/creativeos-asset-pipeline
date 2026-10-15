@@ -7368,7 +7368,7 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 
 ### D377 — Dub and lip sync are background jobs that pay their vendor once *(recorded 2026-10-15)*
 
-**Decision.** Two Trigger tasks follow the voice-change pattern: `video-dub` and `video-lip-sync`, with generation types `dub` and `lipsync` (migration 0057). Each makes its paid vendor call once. Polling uses `wait.for`, and polls and downloads retry in place. The task itself never retries (`maxAttempts: 1`). `failed` is reported through `onFailure` and refunds the credits. Polls give up after 12 minutes. The button's credit figure is the reservation, computed by the same pure cost function.
+**Decision.** Two Trigger tasks follow the voice-change pattern: `video-dub` and `video-lip-sync`, with generation types `dub` and `lipsync` (no migration: `generations.type` is free text). Each makes its paid vendor call once. Polling uses `wait.for`, and polls and downloads retry in place. The task itself never retries (`maxAttempts: 1`). `failed` is reported through `onFailure` and refunds the credits. Polls give up after 12 minutes. The button's credit figure is the reservation, computed by the same pure cost function.
 
 **Why.** Performance rule 12: long or paid work runs in the background and never pays twice.
 
