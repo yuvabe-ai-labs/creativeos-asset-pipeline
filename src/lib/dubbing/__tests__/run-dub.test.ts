@@ -70,3 +70,17 @@ describe("runDub", () => {
     expect(d.start).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("runDub logging", () => {
+  it("logs the vendor job id and each status change once", async () => {
+    const log = vi.fn();
+    const liveStatus = vi.fn()
+      .mockResolvedValueOnce({ status: "in_progress", progress: 10, stepLabel: "Translating", errorMessage: null })
+      .mockResolvedValueOnce({ status: "in_progress", progress: 10, stepLabel: "Translating", errorMessage: null })
+      .mockResolvedValue({ status: "completed", progress: 100, stepLabel: null, errorMessage: null });
+    await runDub(P, deps({ liveStatus, log }));
+    expect(log).toHaveBeenCalledWith("Dub job started", { jobId: "dub_1", targetLang: "hi-IN" });
+    expect(log.mock.calls.filter((c) => c[0] === "Dub job status")).toHaveLength(2);
+    expect(log).toHaveBeenCalledWith("Dub stored", expect.objectContaining({ jobId: "dub_1" }));
+  });
+});

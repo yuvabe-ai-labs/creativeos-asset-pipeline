@@ -39,3 +39,14 @@ describe("runLipSync", () => {
     await expect(runLipSync(P, d)).rejects.toEqual(expect.objectContaining({ userMessage: DUB_TIMEOUT_MESSAGE }));
   });
 });
+
+describe("runLipSync logging", () => {
+  it("logs the vendor request id and each status change once", async () => {
+    const log = vi.fn();
+    const status = vi.fn().mockResolvedValueOnce("IN_QUEUE").mockResolvedValueOnce("IN_QUEUE").mockResolvedValue("COMPLETED");
+    await runLipSync(P, deps({ status, log }));
+    expect(log).toHaveBeenCalledWith("Lip sync submitted", { requestId: "r1", model: "lipsync-2-pro" });
+    expect(log.mock.calls.filter((c) => c[0] === "Lip sync status")).toHaveLength(2);
+    expect(log).toHaveBeenCalledWith("Lip sync stored", expect.objectContaining({ requestId: "r1" }));
+  });
+});

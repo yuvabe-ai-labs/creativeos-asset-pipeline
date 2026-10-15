@@ -45,6 +45,7 @@ export const videoDubTask = task({
       putBytes,
       sleep: (seconds) => wait.for({ seconds }),
       now: () => Date.now(),
+      log: (message, data) => logger.info(message, data),
     });
     try {
       await postGenerationWebhook({
