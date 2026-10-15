@@ -7335,3 +7335,45 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 **Refines →** D372; spec 1 §5.2.
 
 **Originated →** docs/superpowers/specs/2026-10-12-script-to-canvas-design.md.
+
+### D374 — A Dubbing node dubs one connected video's current take *(recorded 2026-10-15)*
+
+**Decision.** A new `dubbing` node accepts exactly one Video Gen input (the first per-target incoming limit, `MAX_INCOMING`). The server reads that node's active version when Dub runs and uses it as-is, so a voice-changed take is dubbed in its changed voice. The focus view has one control, **Dub into** (a language), plus Dub and Lip sync buttons. The source's spoken language is English.
+
+**Why.** Localising an ad is a step of its own on the canvas. The smallest useful version is one input and one choice.
+
+**Rejected.** Voice, settings and model pickers (not needed for a first version). Several inputs per node, or an add-input affordance. Taking the source version from the client (rule 10).
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D375 — A Dubbing version holds original, dubbed and lip-synced *(recorded 2026-10-15)*
+
+**Decision.** Each Dub run creates a version whose output is `{ language, original, dubbed, dubbedAudio, lipSynced }`. Lip sync writes `lipSynced` into the active version and overrides it on each run. It does not make a new version. Re-dubbing makes a new version, so earlier dubs stay in History.
+
+**Why.** The three stages of one dub belong together. A lip sync redone on the same dub replaces the last attempt rather than piling up.
+
+**Rejected.** A new version per lip sync (History fills with near-duplicates). One version that every run overrides (earlier dubs are lost). An approval gate before lip sync (an extra step and new state for little gain).
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D376 — One engine each for now: Sarvam dubbing, sync lipsync-2-pro via fal *(recorded 2026-10-15)*
+
+**Decision.** Dubbing runs on Sarvam's Dubbing API with `voice_cloning: true`. Lip sync runs on `fal-ai/sync-lipsync/v2` with `lipsync-2-pro`. Each sits behind a small engine interface in `src/lib/dubbing/`. No model or vendor is shown in the UI.
+
+**Why.** Sarvam covers the Indian languages our clients need, and it clones the presenter's voice in the same job. lipsync-2-pro takes our own video and audio URLs. The interface lets a second model or vendor be added without touching the node, routes or versions.
+
+**Rejected.** ElevenLabs Dubbing (weaker coverage of Indian languages). Our own transcribe → translate → TTS pipeline (a far larger build). Kling lip sync (one face per pass, Indian languages undocumented).
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D377 — Dub and lip sync are background jobs that pay their vendor once *(recorded 2026-10-15)*
+
+**Decision.** Two Trigger tasks follow the voice-change pattern: `video-dub` and `video-lip-sync`, with generation types `dub` and `lipsync` (migration 0057). Each makes its paid vendor call once. Polling uses `wait.for`, and polls and downloads retry in place. The task itself never retries (`maxAttempts: 1`). `failed` is reported through `onFailure` and refunds the credits. Polls give up after 12 minutes. The button's credit figure is the reservation, computed by the same pure cost function.
+
+**Why.** Performance rule 12: long or paid work runs in the background and never pays twice.
+
+**Rejected.** Vendor webhooks straight into our app (a second completion path beside the generation webhook). Task-level retries (they would create a second vendor job).
+
+**Refines →** D284 (the voice-change task this copies).
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
