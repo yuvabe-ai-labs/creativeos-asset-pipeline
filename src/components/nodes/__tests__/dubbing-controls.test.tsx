@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DubbingControls } from "../dubbing-controls";
+import { DubbingDubPanel } from "../dubbing-dub-panel";
+import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
 import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
 
 const base = {
@@ -14,69 +16,86 @@ const dub = { language: "hi-IN" as const, original: "o", dubbed: "d", dubbedAudi
 function buttons(html: string): { text: string; disabled: boolean }[] {
   return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)]
     .map((m) => ({ text: m[2].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim(), disabled: /\sdisabled(=|\s|$)/.test(m[1]) }))
-    .filter((b) => /Dub|Lip/.test(b.text));
+    .filter((b) => /Dub|Lip|Go to/.test(b.text));
 }
 const find = (html: string, re: RegExp) => buttons(html).find((b) => re.test(b.text));
 
-describe("DubbingControls", () => {
-  it("shows the translation style in plain words, with what it means", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} style="formal" />);
+// Each tab's panel, rendered on its own (static markup shows only the active tab of the shell).
+const dubPanel = (over: Partial<Parameters<typeof DubbingDubPanel>[0]> = {}) =>
+  renderToStaticMarkup(<DubbingDubPanel {...base} sourceLoading={false} hasDub={false} {...over} />);
+const lipPanel = (over: Partial<Parameters<typeof DubbingLipSyncPanel>[0]> = {}) =>
+  renderToStaticMarkup(<DubbingLipSyncPanel activeDub={dub} activeDubSeconds={8} running={null} editable onLipSync={vi.fn()} onGoToDub={vi.fn()} {...over} />);
+
+describe("DubbingControls (tabs)", () => {
+  it("shows Dub and Lip sync as tabs, opening on Dub", () => {
+    const html = renderToStaticMarkup(<DubbingControls {...base} />);
+    expect(html).toMatch(/role="tab"[^>]*>Dub</);
+    expect(html).toContain("Lip sync");
     expect(html).toContain("Translation style");
+  });
+
+  it("marks Lip sync Ready while a dub waits for it, and not once it is lip-synced", () => {
+    expect(renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} />)).toContain(">Ready<");
+    expect(renderToStaticMarkup(<DubbingControls {...base} activeDub={{ ...dub, lipSynced: "l" }} />)).not.toContain(">Ready<");
+    expect(renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} running="dub" />)).not.toContain(">Ready<");
+  });
+
+  it("opens on Lip sync while one is running", () => {
+    const html = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} running="lipsync" />);
+    expect(find(html, /Lip-syncing…/)?.disabled).toBe(true);
+  });
+});
+
+describe("Dub tab", () => {
+  it("shows the translation style in plain words, with what it means", () => {
+    const html = dubPanel({ style: "formal" });
     expect(html).toContain("About translation style");
     expect(html).toContain("Formal");
     expect(html).toContain("Polished and respectful, no slang.");
-    expect(html).not.toContain("formal<");
   });
 
-  it("shows Dub with its credit estimate and keeps Lip sync off until a dub exists", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} />);
-    const dubBtn = find(html, /^Dub/);
+  it("shows Dub with its credit estimate, and Dub again once a dub exists", () => {
+    const dubBtn = find(dubPanel(), /^Dub/);
     expect(dubBtn?.text).toContain(`Est. ${dubCredits(8)} credits`);
     expect(dubBtn?.disabled).toBe(false);
-    expect(find(html, /^Lip sync/)?.disabled).toBe(true);
-  });
-
-  it("enables Lip sync on a dub, with its estimate", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} />);
-    const btn = find(html, /^Lip sync/);
-    expect(btn?.text).toContain(`Est. ${lipSyncCredits(8)} credits`);
-    expect(btn?.disabled).toBe(false);
-    expect(find(html, /^Dub again/)).toBeTruthy();
-  });
-
-  it("prices Lip sync on the dub's own length, not the source's", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} sourceSeconds={8} activeDubSeconds={5} activeDub={dub} />);
-    expect(find(html, /^Lip sync/)?.text).toContain(`Est. ${lipSyncCredits(5)} credits`);
+    expect(find(dubPanel({ hasDub: true }), /^Dub again/)).toBeTruthy();
   });
 
   it("explains an unpriced take instead of leaving Dub silently off", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} sourceSeconds={0} />);
+    const html = dubPanel({ sourceSeconds: 0 });
     expect(html).toContain("This take has no recorded length, so it can&#x27;t be priced.");
     expect(find(html, /^Dub/)?.disabled).toBe(true);
-    const loading = renderToStaticMarkup(<DubbingControls {...base} sourceSeconds={0} sourceLoading />);
-    expect(loading).not.toContain("no recorded length");
+    expect(dubPanel({ sourceSeconds: 0, sourceLoading: true })).not.toContain("no recorded length");
   });
 
-  it("keeps Lip sync off when the dub has no recorded length", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} activeDubSeconds={0} />);
-    expect(find(html, /^Lip sync/)?.disabled).toBe(true);
+  it("asks for a video when nothing is connected, and blocks while busy or read-only", () => {
+    expect(dubPanel({ hasSource: false })).toContain("Connect a video to dub.");
+    expect(find(dubPanel({ hasSource: false }), /^Dub/)?.disabled).toBe(true);
+    expect(find(dubPanel({ running: "dub" }), /Dubbing…/)?.disabled).toBe(true);
+    expect(find(dubPanel({ editable: false }), /^Dub/)?.disabled).toBe(true);
+  });
+});
+
+describe("Lip sync tab", () => {
+  it("points back to Dub before any dub exists", () => {
+    const html = lipPanel({ activeDub: null });
+    expect(html).toContain("Make a dub first");
+    expect(find(html, /Go to Dub/)).toBeTruthy();
+    expect(find(html, /^Lip sync/)).toBeUndefined();
   });
 
-  it("says what is running and blocks both buttons", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} running="dub" />);
-    expect(find(html, /Dubbing…/)?.disabled).toBe(true);
-    expect(find(html, /^Lip sync/)?.disabled).toBe(true);
+  it("names the dub's language and prices on the dub's own length", () => {
+    const html = lipPanel({ activeDubSeconds: 5 });
+    expect(html).toContain("Match the mouth to the Hindi dub");
+    const btn = find(html, /^Lip sync/);
+    expect(btn?.text).toContain(`Est. ${lipSyncCredits(5)} credits`);
+    expect(btn?.disabled).toBe(false);
   });
 
-  it("asks for a video when nothing is connected", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} hasSource={false} />);
-    expect(html).toContain("Connect a video to dub.");
-    expect(find(html, /^Dub/)?.disabled).toBe(true);
-  });
-
-  it("blocks both buttons when the view is read-only", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} editable={false} />);
-    expect(find(html, /^Dub again/)?.disabled).toBe(true);
-    expect(find(html, /^Lip sync/)?.disabled).toBe(true);
+  it("offers Lip sync again on a lip-synced dub, and blocks when unpriced, busy or read-only", () => {
+    expect(find(lipPanel({ activeDub: { ...dub, lipSynced: "l" } }), /^Lip sync again/)).toBeTruthy();
+    expect(find(lipPanel({ activeDubSeconds: 0 }), /^Lip sync/)?.disabled).toBe(true);
+    expect(find(lipPanel({ running: "dub" }), /^Lip sync/)?.disabled).toBe(true);
+    expect(find(lipPanel({ editable: false }), /^Lip sync/)?.disabled).toBe(true);
   });
 });

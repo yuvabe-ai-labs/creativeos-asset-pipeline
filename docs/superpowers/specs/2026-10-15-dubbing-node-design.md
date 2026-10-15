@@ -64,17 +64,16 @@ Composite's shell (back to canvas, editable title, rail | middle | right).
 - **Rail:** *Dubbing* (the controls) · *Connected* (the one video node; selecting it shows its
   read-only `ConnectedDetailView`, with a disconnect control) · *History* (count). The Connected
   header has the usual **Add** chip; it hides once one video is wired.
-- **Middle (Dubbing):**
-  - **Dub into** — shadcn `Select` of the target languages (all vendor languages except the
-    source's `en-IN`), default Hindi.
-  - **Dub** — primary button with its credit cost. While running: "Dubbing…" with the progress
-    the task reports. A failure shows `GenerationErrorBadge` with plain copy.
-  - **Lip sync** — secondary button with its credit cost, enabled once the active version has a
-    `dubbed` video. Label becomes **Lip sync again** when `lipSynced` is set.
-  - **Translation style** (D378) — a select under "Dub into": Everyday (default), Simple, Formal,
-    Traditional, Technical, Let it decide. Each option shows a one-line hint; an info tooltip on the
-    label explains the setting. Sent as Sarvam's `register`; recorded on each version and shown
-    in History ("Tamil dub · Formal").
+- **Middle (Dubbing): two tabs, Dub | Lip sync** (D378), so each shows one primary action.
+  - **Dub tab:** **Dub into** (a shadcn `Select` of the target languages, default Hindi),
+    **Translation style** (Everyday by default, Simple, Formal, Traditional, Technical, Let it
+    decide; each option shows a one-line hint, an info tooltip explains the setting), then **Dub**
+    with its credit cost ("Dub again" once a dub exists). Each dub is a new version.
+  - **Lip sync tab:** "Match the mouth to the Tamil dub", then **Lip sync** with its cost ("Lip sync
+    again" on a lip-synced dub; it replaces that dub's lip-synced video). Before any dub, a
+    dashed "Make a dub first" box with a **Go to Dub** chip.
+  - The Lip sync tab shows a **Ready** mark while a dub is waiting for it. The view opens on Dub,
+    or on Lip sync while one is running. A failure shows `GenerationErrorBadge` with plain copy.
   - No voice or model picker.
 - **Right:** the video player for the active version with an **Original / Dubbed / Lip-synced**
   segmented switch (a stage with no video is disabled). Defaults to the furthest stage present.
