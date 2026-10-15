@@ -51,3 +51,22 @@ describe("activeDubbingOf", () => {
     expect(activeDubbingOf({ activeVersionId: null, versions })).toBeNull();
   });
 });
+
+describe("translation styles", () => {
+  it("lists the vendor's registers in plain words, Everyday first and by default", async () => {
+    const { DUB_STYLES, DEFAULT_DUB_STYLE, isDubStyle, dubStyleLabel } = await import("../types");
+    expect(DUB_STYLES.map((s) => s.code)).toEqual(["modern-colloquial", "common-indic", "formal", "classic-colloquial", "academic", "auto"]);
+    expect(DEFAULT_DUB_STYLE).toBe("modern-colloquial");
+    expect(dubStyleLabel("modern-colloquial")).toBe("Everyday");
+    expect(isDubStyle("formal")).toBe(true);
+    expect(isDubStyle("shouty")).toBe(false);
+  });
+
+  it("keeps a version's style when it has one, and reads older dubs without it", async () => {
+    const { readDubbingOutput } = await import("../types");
+    const base = { language: "ta-IN", original: "o", dubbed: "d", dubbedAudio: "a", lipSynced: null };
+    expect(readDubbingOutput({ ...base, style: "formal" })?.style).toBe("formal");
+    expect(readDubbingOutput(base)?.style).toBeUndefined();
+    expect(readDubbingOutput({ ...base, style: "shouty" })?.style).toBeUndefined();
+  });
+});

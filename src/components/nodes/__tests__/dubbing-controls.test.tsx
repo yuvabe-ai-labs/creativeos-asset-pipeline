@@ -4,7 +4,7 @@ import { DubbingControls } from "../dubbing-controls";
 import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
 
 const base = {
-  language: "hi-IN" as const, onLanguageChange: vi.fn(), sourceSeconds: 8, activeDubSeconds: 8, hasSource: true,
+  language: "hi-IN" as const, onLanguageChange: vi.fn(), style: "modern-colloquial" as const, onStyleChange: vi.fn(), sourceSeconds: 8, activeDubSeconds: 8, hasSource: true,
   activeDub: null, running: null, editable: true, onDub: vi.fn(), onLipSync: vi.fn(),
 };
 const dub = { language: "hi-IN" as const, original: "o", dubbed: "d", dubbedAudio: "a", lipSynced: null };
@@ -19,6 +19,15 @@ function buttons(html: string): { text: string; disabled: boolean }[] {
 const find = (html: string, re: RegExp) => buttons(html).find((b) => re.test(b.text));
 
 describe("DubbingControls", () => {
+  it("shows the translation style in plain words, with what it means", () => {
+    const html = renderToStaticMarkup(<DubbingControls {...base} style="formal" />);
+    expect(html).toContain("Translation style");
+    expect(html).toContain("About translation style");
+    expect(html).toContain("Formal");
+    expect(html).toContain("Polished and respectful, no slang.");
+    expect(html).not.toContain("formal<");
+  });
+
   it("shows Dub with its credit estimate and keeps Lip sync off until a dub exists", () => {
     const html = renderToStaticMarkup(<DubbingControls {...base} />);
     const dubBtn = find(html, /^Dub/);

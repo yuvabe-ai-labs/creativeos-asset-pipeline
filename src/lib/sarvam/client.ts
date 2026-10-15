@@ -65,7 +65,7 @@ const ExportsSchema = z.object({
 export type SarvamExport = { exportType: string; targetLanguage: string; status: string; downloadUrl: string | null };
 
 export async function createDubJob(
-  args: { srcLang: string; targetLang: string; jobName?: string },
+  args: { srcLang: string; targetLang: string; register: string; jobName?: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ jobId: string; uploadUrl: string }> {
   const body = {
@@ -79,8 +79,8 @@ export async function createDubJob(
     // Audio in, audio out: the dub only uses the sound, and the picture is ours (research, 2026-10-15).
     // The SRT is kept for a later script view.
     export_options: ["audio", "srt"],
-    // Everyday spoken style (Tanglish-like), the style the research runs used.
-    register: "modern-colloquial",
+    // The translation style the user picked (DUB_STYLES).
+    register: args.register,
     ...(args.jobName ? { job_name: args.jobName } : {}),
   };
   const out = await call("/dubbing/jobs", { method: "POST", body: JSON.stringify(body) }, CreateSchema, "create job", fetchImpl);

@@ -10,9 +10,10 @@ import { resolveDubSource } from "@/lib/dubbing/source";
 import { dubCredits } from "@/lib/dubbing/cost";
 import { DUB_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
-import { DUB_SOURCE_LANGUAGE, isDubLanguage, type DubRecord } from "@/lib/dubbing/types";
+import { DEFAULT_DUB_STYLE, DUB_SOURCE_LANGUAGE, isDubLanguage, isDubStyle, type DubRecord } from "@/lib/dubbing/types";
 
-const BodySchema = z.object({ language: z.string().refine(isDubLanguage) });
+// `style` is optional: a client without the picker gets the default (Everyday).
+const BodySchema = z.object({ language: z.string().refine(isDubLanguage), style: z.string().refine(isDubStyle).optional() });
 
 // D374 — dub the one connected video's current take. A new `dub` generation; its version is
 // written when the task reports back (D375).
@@ -23,6 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success || !isDubLanguage(parsed.data.language)) return apiError("Pick a language to dub into.", 400);
       const targetLang = parsed.data.language;
+      const style = isDubStyle(parsed.data.style) ? parsed.data.style : DEFAULT_DUB_STYLE;
       if (!process.env.SARVAM_API_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
 
       // Independent reads run side by side (performance rule 5).
@@ -42,6 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         durationSeconds: source.durationSeconds,
         provider: DUB_ENGINE.provider,
         model: DUB_ENGINE.model,
+        style,
       };
       const generation = await insertGeneration({
         nodeId,
@@ -63,6 +66,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           generationId: generation.id,
           sourceUrl: source.sourceUrl,
           targetLang,
+          style,
           dubbedPutUrl: uploads.dubbed.putUrl,
           dubbedAudioPutUrl: uploads.dubbedAudio.putUrl,
           dubbedUrl: uploads.dubbed.url,

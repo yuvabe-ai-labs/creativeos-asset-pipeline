@@ -102,6 +102,7 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
         nodeId={id}
         title={d.title ?? ""}
         language={d.language}
+        style={d.style}
         onPatch={(patch) => updateNodeData(id, patch)}
       />
     </>

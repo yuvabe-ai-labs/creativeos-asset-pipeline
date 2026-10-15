@@ -9,7 +9,7 @@ describe("sarvam client", () => {
   it("creates a cloned-voice job for one language and returns its id + upload url", async () => {
     process.env.SARVAM_API_KEY = "k";
     const fetchImpl = vi.fn(async () => json({ status: "success", message: "ok", data: { job_id: "dub_1", upload_url: "https://blob/up" } }));
-    const out = await createDubJob({ srcLang: "en-IN", targetLang: "hi-IN", jobName: "gen-1" }, fetchImpl as unknown as typeof fetch);
+    const out = await createDubJob({ srcLang: "en-IN", targetLang: "hi-IN", register: "modern-colloquial", jobName: "gen-1" }, fetchImpl as unknown as typeof fetch);
     expect(out).toEqual({ jobId: "dub_1", uploadUrl: "https://blob/up" });
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.sarvam.ai/dubbing/jobs");

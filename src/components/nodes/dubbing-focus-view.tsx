@@ -13,7 +13,7 @@ import { useDubbingVersions } from "@/hooks/use-dubbing-versions";
 import { useDubbingSource } from "@/hooks/use-dubbing-source";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { nodeLabel } from "@/lib/nodes/describe-node";
-import { DEFAULT_DUB_LANGUAGE, dubLanguageLabel, isDubLanguage, type DubLanguage } from "@/lib/dubbing/types";
+import { DEFAULT_DUB_LANGUAGE, DEFAULT_DUB_STYLE, dubLanguageLabel, isDubLanguage, isDubStyle, type DubLanguage, type DubStyle } from "@/lib/dubbing/types";
 import { ConnectedDetailView } from "./connected-inputs-card";
 import { EditableField } from "./editable-field";
 import { GenerationErrorBadge } from "./generation-error-badge";
@@ -28,12 +28,13 @@ type Props = {
   nodeId: string;
   title: string;
   language: DubLanguage | undefined;
+  style: DubStyle | undefined;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
 // D374 — Composite's shell: rail | controls | video. Everything it reads (the wired video, the
 // versions) is held back until the view is open, so a closed card costs nothing.
-export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, onPatch }: Props) {
+export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, style, onPatch }: Props) {
   const editable = useCanvasEditable();
   const [selected, setSelected] = useState<DubbingRailSelection>("dubbing");
   const source = useDubbingSource(nodeId, open);
@@ -44,11 +45,12 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
   const startDub = useStartDub(nodeId);
   const startLipSync = useStartLipSync(nodeId);
   const lang = isDubLanguage(language) ? language : DEFAULT_DUB_LANGUAGE;
+  const dubStyle = isDubStyle(style) ? style : DEFAULT_DUB_STYLE;
   const running = status.runningKind === "dub" || status.runningKind === "lipsync" ? status.runningKind : null;
   const activeDub = active?.dubbing ?? null;
 
   const onDub = () =>
-    startDub.mutate({ language: lang }, { onError: (e) => toast.error(startErrorMessage(e, "Couldn't start the dub.")) });
+    startDub.mutate({ language: lang, style: dubStyle }, { onError: (e) => toast.error(startErrorMessage(e, "Couldn't start the dub.")) });
   const onLipSync = () => {
     if (!activeVersionId) return;
     startLipSync.mutate({ versionId: activeVersionId }, { onError: (e) => toast.error(startErrorMessage(e, "Couldn't start lip sync.")) });
@@ -95,6 +97,8 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
                 <DubbingControls
                   language={lang}
                   onLanguageChange={(l) => onPatch({ language: l })}
+                  style={dubStyle}
+                  onStyleChange={(s) => onPatch({ style: s })}
                   sourceSeconds={source?.seconds ?? 0}
                   sourceLoading={source?.secondsLoading ?? false}
                   activeDubSeconds={activeSeconds}

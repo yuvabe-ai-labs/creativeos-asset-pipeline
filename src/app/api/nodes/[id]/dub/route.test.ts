@@ -38,20 +38,26 @@ beforeEach(() => {
 
 describe("POST /api/nodes/[id]/dub", () => {
   it("records the source, reserves the dub's credits and triggers video-dub", async () => {
-    const res = await post({ language: "ta-IN" });
+    const res = await post({ language: "ta-IN", style: "formal" });
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ generationId: "gen-1" });
     expect(mocks.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
       nodeId: "n1", orgId: "org-1", clientId: "client-1", userId: "u1", type: "dub", modelUsed: "sarvam:dub",
       paramsSnapshot: { durationSeconds: 8 },
-      inputsSnapshot: { dub: { sourceNodeId: "vg", sourceVersionId: "sv", sourceUrl: "https://own/src.mp4", srcLang: "en-IN", targetLang: "ta-IN", durationSeconds: 8, provider: "sarvam", model: "sarvam-dub" } },
+      inputsSnapshot: { dub: { sourceNodeId: "vg", sourceVersionId: "sv", sourceUrl: "https://own/src.mp4", srcLang: "en-IN", targetLang: "ta-IN", durationSeconds: 8, provider: "sarvam", model: "sarvam-dub", style: "formal" } },
     }));
     expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-1", dubCredits(8));
     expect(mocks.trigger).toHaveBeenCalledWith("video-dub", {
-      generationId: "gen-1", sourceUrl: "https://own/src.mp4", targetLang: "ta-IN",
+      generationId: "gen-1", sourceUrl: "https://own/src.mp4", targetLang: "ta-IN", style: "formal",
       dubbedPutUrl: "https://put/v", dubbedAudioPutUrl: "https://put/a",
       dubbedUrl: "https://own/v.mp4", dubbedAudioUrl: "https://own/a.mp3", durationSeconds: 8,
     });
+  });
+
+  it("dubs in the Everyday style when none is sent, and refuses an unknown style", async () => {
+    await post({ language: "hi-IN" });
+    expect(mocks.trigger).toHaveBeenCalledWith("video-dub", expect.objectContaining({ style: "modern-colloquial" }));
+    expect((await post({ language: "hi-IN", style: "shouty" })).status).toBe(400);
   });
 
   it("refuses before recording anything", async () => {

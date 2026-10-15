@@ -71,7 +71,11 @@ Composite's shell (back to canvas, editable title, rail | middle | right).
     the task reports. A failure shows `GenerationErrorBadge` with plain copy.
   - **Lip sync** — secondary button with its credit cost, enabled once the active version has a
     `dubbed` video. Label becomes **Lip sync again** when `lipSynced` is set.
-  - No voice picker, settings, or model picker.
+  - **Translation style** (D378) — a select under "Dub into": Everyday (default), Simple, Formal,
+    Traditional, Technical, Let it decide. Each option shows a one-line hint; an info tooltip on the
+    label explains the setting. Sent as Sarvam's `register`; recorded on each version and shown
+    in History ("Tamil dub · Formal").
+  - No voice or model picker.
 - **Right:** the video player for the active version with an **Original / Dubbed / Lip-synced**
   segmented switch (a stage with no video is disabled). Defaults to the furthest stage present.
   With no version yet it shows the connected take's video.
@@ -97,7 +101,7 @@ clip's audio is sent and only the dubbed audio comes back. The picture never lea
    stops here, before anything is paid.
 2. `POST /dubbing/jobs` `{ src_lang: "en-IN", target_langs: [lang], voice_cloning: true,
    num_speakers: 1, disable_watermark: true, editor_flow: false, export_options: ["audio", "srt"],
-   register: "modern-colloquial" }` → `job_id`, `upload_url`.
+   register: <the picked style> }` → `job_id`, `upload_url`.
 3. `PUT upload_url` with the mp3 (`x-ms-blob-type: BlockBlob`, `Content-Type: audio/mpeg`).
 4. `POST /dubbing/jobs/{id}/start`, then poll `GET …/live-status` until `completed` or `failed`.
 5. `GET …/export-status` → take the `audio` export (a WAV). The SRT is kept on the vendor side for a

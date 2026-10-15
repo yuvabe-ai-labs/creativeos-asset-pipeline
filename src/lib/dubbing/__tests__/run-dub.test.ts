@@ -3,7 +3,7 @@ import { runDub, type DubRunDeps } from "../run-dub";
 import { DubbingFinalError } from "../poll";
 import { DUB_FAILED_MESSAGE, DUB_NO_SPEECH_MESSAGE, DUB_TIMEOUT_MESSAGE } from "../copy";
 
-const P = { generationId: "g1", sourceUrl: "https://src.mp4", targetLang: "hi-IN", dubbedPutUrl: "https://put/v", dubbedAudioPutUrl: "https://put/a" };
+const P = { generationId: "g1", sourceUrl: "https://src.mp4", targetLang: "hi-IN", style: "formal", dubbedPutUrl: "https://put/v", dubbedAudioPutUrl: "https://put/a" };
 // Audio in, audio out: the vendor lists the dubbed audio (plus the SRT we do not use yet).
 const DONE = [
   { exportType: "srt", targetLanguage: "hi-IN", status: "completed", downloadUrl: "https://dl/s" },
@@ -33,7 +33,7 @@ describe("runDub", () => {
     const d = deps();
     expect(await runDub(P, d)).toEqual({ vendorJobId: "dub_1" });
     expect(d.extractAudio).toHaveBeenCalledWith(Buffer.from("https://src.mp4"));
-    expect(d.createJob).toHaveBeenCalledWith({ srcLang: "en-IN", targetLang: "hi-IN", jobName: "g1" });
+    expect(d.createJob).toHaveBeenCalledWith({ srcLang: "en-IN", targetLang: "hi-IN", register: "formal", jobName: "g1" });
     expect(d.upload).toHaveBeenCalledWith("https://blob/up", Buffer.from("mp3:https://src.mp4"), "audio/mpeg");
     expect(d.start).toHaveBeenCalledTimes(1);
     expect(d.replaceAudio).toHaveBeenCalledWith(Buffer.from("https://src.mp4"), Buffer.from("https://dl/a"));

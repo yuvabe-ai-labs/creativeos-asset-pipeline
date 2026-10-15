@@ -31,6 +31,32 @@ export function dubLanguageLabel(code: string): string {
   return DUB_LANGUAGES.find((l) => l.code === code)?.label ?? code;
 }
 
+/**
+ * How the translation sounds: the vendor's `register`, in plain words. Order is what the picker
+ * shows; the hints follow the vendor's own guidance (docs: "control translation tone").
+ */
+export const DUB_STYLES = [
+  { code: "modern-colloquial", label: "Everyday", hint: "Casual, current speech. Best for reels, ads and social." },
+  { code: "common-indic", label: "Simple", hint: "Neutral words understood across India." },
+  { code: "formal", label: "Formal", hint: "Polished and respectful, no slang." },
+  { code: "classic-colloquial", label: "Traditional", hint: "Classic, literary speech. For devotional or heritage stories." },
+  { code: "academic", label: "Technical", hint: "Precise, keeps technical terms. For tutorials and explainers." },
+  { code: "auto", label: "Let it decide", hint: "Picks a style from what is said." },
+] as const;
+
+export type DubStyle = (typeof DUB_STYLES)[number]["code"];
+export const DEFAULT_DUB_STYLE: DubStyle = "modern-colloquial";
+
+const STYLE_CODES = new Set<string>(DUB_STYLES.map((s) => s.code));
+
+export function isDubStyle(v: unknown): v is DubStyle {
+  return typeof v === "string" && STYLE_CODES.has(v);
+}
+
+export function dubStyleLabel(code: string): string {
+  return DUB_STYLES.find((s) => s.code === code)?.label ?? code;
+}
+
 /** D375 — a Dubbing version's output: the three stages of one dub. */
 export type DubbingOutput = {
   language: DubLanguage;
@@ -38,6 +64,8 @@ export type DubbingOutput = {
   dubbed: string;
   dubbedAudio: string;
   lipSynced: string | null;
+  /** The translation style it was dubbed in. Absent on dubs made before the style existed. */
+  style?: DubStyle;
 };
 
 const isStr = (v: unknown): v is string => typeof v === "string" && v.length > 0;
@@ -53,6 +81,7 @@ export function readDubbingOutput(v: unknown): DubbingOutput | null {
     dubbed: o.dubbed,
     dubbedAudio: o.dubbedAudio,
     lipSynced: isStr(o.lipSynced) ? o.lipSynced : null,
+    ...(isDubStyle(o.style) ? { style: o.style } : {}),
   };
 }
 
@@ -76,6 +105,7 @@ export type DubRecord = {
   durationSeconds: number;
   provider: string;
   model: string;
+  style?: DubStyle;
   vendorJobId?: string;
 };
 
@@ -90,6 +120,7 @@ export function readDubRecord(v: unknown): DubRecord | null {
   return {
     sourceNodeId: o.sourceNodeId, sourceVersionId: o.sourceVersionId, sourceUrl: o.sourceUrl,
     srcLang: o.srcLang, targetLang: o.targetLang, durationSeconds: d, provider: o.provider, model: o.model,
+    ...(isDubStyle(o.style) ? { style: o.style } : {}),
     ...(isStr(o.vendorJobId) ? { vendorJobId: o.vendorJobId } : {}),
   };
 }
