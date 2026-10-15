@@ -111,8 +111,7 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
               key={`${activeDub?.dubbed ?? ""}|${activeDub?.lipSynced ?? ""}`}
               dub={activeDub}
               sourceUrl={source?.url ?? null}
-              running={running}
-              runningLanguage={dubLanguageLabel(running === "lipsync" && activeDub ? activeDub.language : lang)}
+              workingLabel={running === "dub" ? `Dubbing into ${dubLanguageLabel(lang)}…` : running === "lipsync" ? "Lip-syncing…" : null}
             />
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Languages } from "lucide-react";
+import { AudioLines, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -15,6 +15,7 @@ import type { DubbingNodeData } from "@/lib/canvas-nodes";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
+import { ProcessingPill } from "./processing-pill";
 import { DubbingFocusView } from "./dubbing-focus-view";
 import { DubbingUsagePopover } from "./dubbing-usage-popover";
 
@@ -39,6 +40,7 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
   const deleteNode = useDeleteNode();
   const totalCredits = useNodeCost(id);
   const status = useGenerationStatus(id);
+  const running = status.runningKind === "dub" || status.runningKind === "lipsync" ? status.runningKind : null;
   const [focusOpen, setFocusOpen] = useState(false);
 
   const focusViewOpen = focusOpen || focusedNodeId === id;
@@ -62,17 +64,29 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
           <NodeCardHeader icon={Languages} nodeId={id} nodeType="dubbing" title={d.title ?? ""} placeholder="Dubbing" onCommitTitle={(t) => updateNodeData(id, { title: t })} />
           <div className="flex flex-col gap-2 px-3 py-3">
             {url && (
-              <div className="overflow-hidden rounded-md border border-border bg-black">
-                <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="aspect-video w-full object-contain" />
+              <div className="relative overflow-hidden rounded-md border border-border">
+                <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="h-16 w-full object-cover" />
+                {/* Like Video Gen's voice change: the take stays in view, veiled, while a job runs. */}
+                {running && (
+                  <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-background/60 text-xs font-medium backdrop-blur-sm">
+                    <AudioLines className="size-3.5 animate-pulse text-primary" strokeWidth={1.5} />
+                    {stateWord(dub, running)}
+                  </div>
+                )}
               </div>
             )}
+            {/* Open ↗ left, status right — the same arrangement as the Video Gen card. */}
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">
-                {dub ? `${dubLanguageLabel(dub.language)} · ` : ""}{stateWord(dub, status.runningKind)}
-              </span>
               <Button variant="ghost" onClick={() => setFocusOpen(true)} className="nodrag -mx-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary">
                 Open ↗
               </Button>
+              {running ? (
+                <ProcessingPill processing label={running === "dub" ? "Dubbing" : "Lip-syncing"} />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {dub ? `${dubLanguageLabel(dub.language)} · ` : ""}{stateWord(dub, null)}
+                </span>
+              )}
             </div>
           </div>
           <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(dub)} usage={<DubbingUsagePopover nodeId={id} />} />

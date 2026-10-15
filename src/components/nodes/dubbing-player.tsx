@@ -1,12 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Check, Languages } from "lucide-react";
+import { useState } from "react";
+import { AudioLines, Clapperboard } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import { dubLanguageLabel, furthestStage, stageUrl, type DubStage, type DubbingOutput } from "@/lib/dubbing/types";
-import type { WorkingKind } from "@/lib/dubbing/working-steps";
-import { DubbingWorkingOverlay } from "./dubbing-working-overlay";
+import { furthestStage, stageUrl, type DubStage, type DubbingOutput } from "@/lib/dubbing/types";
 
 const STAGES: { id: DubStage; label: string }[] = [
   { id: "original", label: "Original" },
@@ -14,71 +11,59 @@ const STAGES: { id: DubStage; label: string }[] = [
   { id: "lipSynced", label: "Lip-synced" },
 ];
 
-function Chip({ children, tone = "plain" }: { children: ReactNode; tone?: "plain" | "good" | "note" }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium backdrop-blur-sm",
-        tone === "plain" && "bg-black/60 text-white",
-        tone === "good" && "bg-primary/85 text-primary-foreground",
-        tone === "note" && "bg-white/85 text-neutral-900",
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-// D375 — the active version's three stages behind one switch; with no dub yet, the connected take.
-// A new dub or finished lip sync jumps to the furthest stage and rises in: the parent keys this
-// component by the dub's urls, so it remounts instead of syncing state in an effect. While a job
-// runs, the frame being worked on sits under the working overlay.
-export function DubbingPlayer({ dub, sourceUrl, running, runningLanguage }: {
+// D375 — the right column, laid out like Video Gen's: an eyebrow, the stage switch beside it, the
+// 9:16 frame below. While a job runs, the video it works on stays in place under the same veil
+// Video Gen gives a voice change. The parent keys this by the dub's urls, so a new result
+// remounts on the furthest stage instead of syncing state in an effect.
+export function DubbingPlayer({ dub, sourceUrl, workingLabel }: {
   dub: DubbingOutput | null;
   sourceUrl: string | null;
-  running: WorkingKind | null;
-  /** The language the running job is for: the picked one for a dub, the dub's own for a lip sync. */
-  runningLanguage: string;
+  /** "Dubbing into Tamil…" while a job runs, else null. */
+  workingLabel: string | null;
 }) {
   const [stage, setStage] = useState<DubStage>(dub ? furthestStage(dub) : "original");
-  const url = dub ? stageUrl(dub, stage) : sourceUrl;
-  const poster = running === "lipsync" ? dub?.dubbed ?? sourceUrl : sourceUrl;
+  const url = workingLabel ? (dub?.dubbed && stage !== "original" ? dub.dubbed : sourceUrl) : dub ? stageUrl(dub, stage) : sourceUrl;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/30 p-6">
-      {dub && !running && (
-        <Tabs value={stage} onValueChange={(v) => setStage(v as DubStage)}>
-          <TabsList>
-            {STAGES.map((s) => (
-              <TabsTrigger key={s.id} value={s.id} disabled={!stageUrl(dub, s.id)}>{s.label}</TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      )}
-      {running ? (
-        <DubbingWorkingOverlay kind={running} language={runningLanguage} posterUrl={poster} />
-      ) : url ? (
-        <div className={cn("relative min-h-0", dub && "animate-rise")}>
-          <video key={url} src={url} controls playsInline className="max-h-full w-full rounded-xl border border-border bg-black object-contain" />
-          <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
-            <Chip>
-              <Languages className="size-3.5" strokeWidth={1.5} />
-              {dub && stage !== "original" ? dubLanguageLabel(dub.language) : "Original"}
-            </Chip>
-            {dub && stage === "dubbed" && !dub.lipSynced && <Chip tone="note">Mouth not matched yet</Chip>}
-            {dub && stage === "lipSynced" && (
-              <Chip tone="good">
-                <Check className="size-3.5" strokeWidth={1.5} />
-                Lip-synced
-              </Chip>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-1.5">
+          <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
+          <span className="text-eyebrow">Video</span>
+        </div>
+        {dub && (
+          <Tabs value={stage} onValueChange={(v) => setStage(v as DubStage)}>
+            <TabsList>
+              {STAGES.map((s) => (
+                <TabsTrigger key={s.id} value={s.id} disabled={Boolean(workingLabel) || !stageUrl(dub, s.id)}>{s.label}</TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
+      </div>
+      <div className="min-h-0 flex-1">
+        {url ? (
+          <div className="relative h-full w-fit max-w-full">
+            <video key={url} src={url} controls={!workingLabel} playsInline className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20" />
+            {workingLabel && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm">
+                <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
+                  <AudioLines className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                  {workingLabel}
+                </div>
+              </div>
             )}
           </div>
-        </div>
-      ) : (
-        <div className="grid flex-1 place-items-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
-          Connect a video to dub.
-        </div>
-      )}
+        ) : (
+          <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
+            <div className="px-8 text-center">
+              <Clapperboard className="mx-auto size-8 text-muted-foreground/40" strokeWidth={1.5} />
+              <p className="mt-3 text-sm font-medium text-muted-foreground">No video yet</p>
+              <p className="mt-1 text-xs text-muted-foreground/70">Add the video to dub.</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
