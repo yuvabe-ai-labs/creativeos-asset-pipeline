@@ -9,7 +9,7 @@ import { CopilotImportCard } from "./copilot-import-card";
 
 export type ChatActions = {
   busy: boolean;
-  /** The first draft is being written, its skeleton on the right (D366). */
+  /** The first draft is being written, its skeleton on the right (D367). */
   writing?: boolean;
   /** `leadAvatarId` when a lead chip sends the message (D362). */
   send: (text: string, leadAvatarId?: string) => void;

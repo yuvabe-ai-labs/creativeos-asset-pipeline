@@ -28,7 +28,7 @@ export function NewCanvasDialog({
   clientId: string;
   clientSlug: string;
   trigger?: ReactElement;
-  /** D371 — creating this canvas for an approved script: the name starts as the script's title,
+  /** D372 — creating this canvas for an approved script: the name starts as the script's title,
    *  and the canvas is the script's (made now, or the one it already has). */
   fromScript?: { id: string; title: string };
 }) {

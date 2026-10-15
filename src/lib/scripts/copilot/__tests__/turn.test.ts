@@ -343,7 +343,7 @@ describe("pasting a whole script (paste-a-script spec)", () => {
     expect(out.result[0].content).toMatch(/^Imported Reel 07 · 9 shots · 50s\./);
   });
 
-  it("shows the skeleton the moment the reading starts, as a first draft does (D366)", async () => {
+  it("shows the skeleton the moment the reading starts, as a first draft does (D367)", async () => {
     const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
     const onDraft = vi.fn();
     await run(script(), REEL_07_PASTE, { ...deps(m.call), onDraft });

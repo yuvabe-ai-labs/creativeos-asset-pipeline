@@ -3,7 +3,7 @@
 **12 October 2026 · product spec (the *what*) · builds on spec 2 (Generate)**
 Branch: `worktree-script-copilot-finish`. Parent: [spec 2](2026-10-08-script-copilot-2-generate-design.md),
 whose copilot, script pane, proposals and open items this spec reuses.
-ADRs: D367 onward (D366 was the first-draft skeleton, on this branch).
+ADRs: D368 onward (D367 was the first-draft skeleton, on this branch).
 How the copilot works today: https://claude.ai/artifact/KfULcVne4H8ARk9JnMWLC5 (§08 sketches this feature).
 
 ---

@@ -3,7 +3,7 @@ import type { StreamingCall, StructuredCall } from "./model";
 import { EMPTY_PARTIAL_DRAFT, parsePartialDraft, type PartialDraft } from "./partial-draft";
 
 /** A call whose answer is shaped like a draft (header, cast, shots), streamed into the pane: the empty
- *  draft line at once (D366), then a new line each time a header field, a person or a whole shot has
+ *  draft line at once (D367), then a new line each time a header field, a person or a whole shot has
  *  arrived (D337). Used by the first draft and by a pasted script's import. */
 export async function streamDraftCall<S extends z.ZodType>(
   deps: { call: StructuredCall; stream?: StreamingCall; onDraft?: (draft: PartialDraft) => void },

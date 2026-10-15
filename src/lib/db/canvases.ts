@@ -51,7 +51,7 @@ export async function createCanvas(input: {
   clientId: string;
   orgId: string;
   name: string;
-  /** D371 — set when the canvas is created from an approved script. */
+  /** D372 — set when the canvas is created from an approved script. */
   sourceScriptId?: string | null;
 }): Promise<CanvasRow> {
   const supabase = createServerSupabase();
@@ -74,7 +74,7 @@ export async function createCanvas(input: {
   return data as CanvasRow;
 }
 
-/** D371 — the canvas an approved script started, if it still exists (deleting a canvas frees it). */
+/** D372 — the canvas an approved script started, if it still exists (deleting a canvas frees it). */
 export async function getScriptCanvas(clientId: string, scriptId: string): Promise<CanvasRow | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase

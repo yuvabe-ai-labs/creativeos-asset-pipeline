@@ -40,15 +40,26 @@ import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
-import type { GenerationRow } from "@/lib/db/types";
+import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
+import {
+  clearsStartMark,
+  isNewerJob,
+  mergeJob,
+  type GenerationJobKind,
+  type GenerationStartMark,
+} from "@/lib/generations/node-status";
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const rest = { ...record };
+  delete rest[key];
+  return rest;
+}
 import type { PlaybookRun } from "@/lib/copilot/runner";
 
 // 1C/1D: the canvas store. Nodes/edges live here; custom node components read
 // and write it directly (React Flow only hands a node `{ id, data }`).
 // Seeded on creation with nodes loaded from the DB (1D-5).
-
-/** What a Video Gen node is running: a new video, or a voice change on one (D284). */
-export type VideoGenJobKind = "video" | "voice";
 
 export type CanvasState = {
   canvasName: string;
@@ -73,22 +84,27 @@ export type CanvasState = {
   /** D286 — cache one scene's fresh split on the Script node (never in `parsed`). */
   cacheSceneBeats: (scriptNodeId: string, fingerprint: string, beats: SceneBeat[]) => void;
   promoteIdeasToShots: (shotNodeId: string, ideas: ShotComposeIdea[]) => void;
-  // Per-node video generation status — shared between VideoGenNode and VideoGenFocusView
-  // `kind` says what is running (D284): a fresh video, or a voice change on an existing one —
-  // the focus view shows the two differently. Null when nothing runs.
-  videoGenStatus: Record<string, { isGenerating: boolean; kind: VideoGenJobKind | null; lastError: string | null }>;
-  setVideoGenGenerating: (nodeId: string, v: boolean, kind?: VideoGenJobKind) => void;
-  setVideoGenError: (nodeId: string, err: string | null) => void;
+  // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
+  // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
+  latestJobByNode: Record<string, GenerationFeedRow>;
+  generationStarts: Record<string, GenerationStartMark>;
+  generationRequestErrors: Record<string, string>;
+  /** `generationId`, when the start response names it, lets the mark clear on exactly that job's
+   *  row; a mark for a row already on the feed is not set at all. */
+  markGenerationStarted: (nodeId: string, kind: GenerationJobKind, generationId?: string) => void;
+  clearGenerationStarted: (nodeId: string) => void;
+  setGenerationRequestError: (nodeId: string, error: string | null) => void;
   // Which Script nodes are parsing right now. Whoever runs the parse (the node's own view, the
-  // gallery, the Create-canvas hand-off) sets it, and the node and its view both read it (D372).
-  // Transient like videoGenStatus: never saved, so a closed tab cannot leave a node "parsing".
+  // gallery, the Create-canvas hand-off) sets it, and the node and its view both read it (D373).
+  // A parse is a request, not a generation, so it has no feed row: this flag is client state,
+  // never saved, so a closed tab cannot leave a node "parsing".
   scriptParsing: Record<string, true>;
   setScriptParsing: (nodeId: string, parsing: boolean) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
   // keyed by generation id. The tray derives its list from these + the node graph (D9).
-  trayJobs: Record<string, GenerationRow>;
-  setTrayJobs: (jobs: GenerationRow[]) => void;
-  upsertTrayJob: (job: GenerationRow) => void;
+  trayJobs: Record<string, GenerationFeedRow>;
+  setTrayJobs: (jobs: GenerationFeedRow[]) => void;
+  upsertTrayJob: (job: GenerationFeedRow) => void;
   // Programmatic focus-view open signal — set by the tray to open a node's focus view.
   focusedNodeId: string | null;
   setFocusedNodeId: (id: string | null) => void;
@@ -738,32 +754,29 @@ export function createCanvasStore(
       });
     },
 
-    videoGenStatus: {},
+    latestJobByNode: {},
+    generationStarts: {},
+    generationRequestErrors: {},
 
-    setVideoGenGenerating: (nodeId, v, kind) =>
-      set((s) => ({
-        videoGenStatus: {
-          ...s.videoGenStatus,
-          [nodeId]: {
-            isGenerating: v,
-            // A start that doesn't say its kind keeps a known one (hydration may land first).
-            kind: v ? (kind ?? s.videoGenStatus[nodeId]?.kind ?? "video") : null,
-            lastError: s.videoGenStatus[nodeId]?.lastError ?? null,
-          },
-        },
-      })),
+    markGenerationStarted: (nodeId, kind, generationId) =>
+      set((s) => {
+        const generationRequestErrors = omitKey(s.generationRequestErrors, nodeId);
+        // The job's row is already on the feed, so it speaks for the node: no mark to clear later.
+        if (generationId && generationId in s.trayJobs) {
+          return { generationStarts: omitKey(s.generationStarts, nodeId), generationRequestErrors };
+        }
+        const mark: GenerationStartMark = generationId ? { kind, generationId } : { kind };
+        return { generationStarts: { ...s.generationStarts, [nodeId]: mark }, generationRequestErrors };
+      }),
 
-    setVideoGenError: (nodeId, err) =>
-      set((s) => ({
-        videoGenStatus: {
-          ...s.videoGenStatus,
-          [nodeId]: {
-            isGenerating: s.videoGenStatus[nodeId]?.isGenerating ?? false,
-            kind: s.videoGenStatus[nodeId]?.kind ?? null,
-            lastError: err,
-          },
-        },
-      })),
+    clearGenerationStarted: (nodeId) =>
+      set((s) => (nodeId in s.generationStarts ? { generationStarts: omitKey(s.generationStarts, nodeId) } : {})),
+
+    setGenerationRequestError: (nodeId, error) =>
+      set((s) => {
+        const rest = omitKey(s.generationRequestErrors, nodeId);
+        return { generationRequestErrors: error ? { ...rest, [nodeId]: error } : rest };
+      }),
 
     scriptParsing: {},
     setScriptParsing: (nodeId, parsing) =>
@@ -775,10 +788,44 @@ export function createCanvasStore(
       }),
 
     trayJobs: {},
+    // Merges rather than replaces: a hydrate can land after a live update, and must not turn a
+    // finished row back to running, nor drop rows that arrived live.
     setTrayJobs: (jobs) =>
-      set({ trayJobs: Object.fromEntries(jobs.map((j) => [j.id, j])) }),
+      set((s) => {
+        const trayJobs = { ...s.trayJobs };
+        let generationStarts = s.generationStarts;
+        for (const incoming of jobs) {
+          const existing = trayJobs[incoming.id];
+          const merged = mergeJob(existing, incoming);
+          trayJobs[incoming.id] = merged;
+          const nodeId = merged.node_id;
+          const mark = nodeId !== null ? generationStarts[nodeId] : undefined;
+          if (nodeId === null || !mark) continue;
+          // A reloaded row that changes nothing is not news, so it cannot retire a mark.
+          const changed = !existing || existing.status !== merged.status;
+          const advances = changed && isNewerJob(merged, s.latestJobByNode[nodeId]);
+          if (clearsStartMark(mark, merged, advances)) generationStarts = omitKey(generationStarts, nodeId);
+        }
+        const latestJobByNode: Record<string, GenerationFeedRow> = {};
+        for (const j of Object.values(trayJobs)) {
+          if (j.node_id && isNewerJob(j, latestJobByNode[j.node_id])) latestJobByNode[j.node_id] = j;
+        }
+        return { trayJobs, latestJobByNode, generationStarts };
+      }),
     upsertTrayJob: (job) =>
-      set((s) => ({ trayJobs: { ...s.trayJobs, [job.id]: job } })),
+      set((s) => {
+        const nodeId = job.node_id;
+        const newer = nodeId !== null && isNewerJob(job, s.latestJobByNode[nodeId]);
+        // The job's own row now speaks for the node, whatever its status: a mark naming this job,
+        // or (without an id) any row that advances the node's latest job, retires the mark.
+        const mark = nodeId !== null ? s.generationStarts[nodeId] : undefined;
+        const startCleared = mark !== undefined && clearsStartMark(mark, job, newer);
+        return {
+          trayJobs: { ...s.trayJobs, [job.id]: job },
+          ...(newer ? { latestJobByNode: { ...s.latestJobByNode, [nodeId!]: job } } : {}),
+          ...(startCleared ? { generationStarts: omitKey(s.generationStarts, nodeId!) } : {}),
+        };
+      }),
 
     focusedNodeId: null,
     setFocusedNodeId: (id) => set({ focusedNodeId: id }),

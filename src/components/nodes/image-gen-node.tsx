@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useGenerationStatus } from "@/hooks/use-generation-status";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,9 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const totalCredits = useNodeCost(id);
   const [focusOpen, setFocusOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  // D366 — whether this node is generating, from its shared status (survives the focus view
+  // closing, a reload, or leaving the canvas and coming back).
+  const { isGenerating: isProcessing } = useGenerationStatus(id);
 
   // The focus view is open when opened locally (double-click / "Open ↗") OR when the
   // Generation Tray points `focusedNodeId` at this node. Derived during render — no
@@ -205,7 +208,6 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
       baseReferenceNodeId={d.baseReferenceNodeId}
       upstream={upstream}
       onPatch={(patch) => updateNodeData(id, patch)}
-      onProcessingChange={setIsProcessing}
     />
     </>
   );

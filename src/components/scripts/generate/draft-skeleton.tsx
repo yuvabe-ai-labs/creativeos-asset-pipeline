@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScriptShotRowsSkeleton } from "@/components/scripts/script-shot-rows-skeleton";
 import { DraftCastSkeleton } from "./draft-cast-skeleton";
 
-/** The script's shape before any of the first draft has arrived (D366): the writer thinks for
+/** The script's shape before any of the first draft has arrived (D367): the writer thinks for
  *  ~25 s before its first word, so the pane shows the script it is about to fill, laid out as
  *  ScriptView lays it out (context card, cast, shot table). */
 export function DraftSkeleton() {

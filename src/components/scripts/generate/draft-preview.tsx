@@ -6,7 +6,7 @@ import { DraftSkeleton } from "./draft-skeleton";
 
 /** The first draft as it streams in (D337, refined): the same script view, read-only, filling shot
  *  by shot. Replaced by the saved, editable script when the copilot finishes. Until its first part
- *  arrives, the script's skeleton; then placeholder rows below the last shot while more are written (D366). */
+ *  arrives, the script's skeleton; then placeholder rows below the last shot while more are written (D367). */
 export function DraftPreview({ draft }: { draft: PartialDraft }) {
   const doc = previewDoc(draft);
   const started = Object.keys(draft.header).length > 0 || draft.shots.length > 0;

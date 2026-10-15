@@ -52,9 +52,9 @@ export async function completeAvatarVoicePreview(
     return;
   }
 
-  // The task uploads the clip itself, to a URL the route signed. Anything else is not a preview
-  // this app made.
-  if (!input.stored || !isOwnStoredUrl(input.videoUrl)) {
+  // The task uploads the clip itself, to a URL the route signed. Anything else (including an
+  // image result, D366) is not a preview this app made.
+  if (input.kind === "image" || !input.stored || !isOwnStoredUrl(input.videoUrl)) {
     await failAndRefund("Preview clip is outside this app's bucket");
     return;
   }

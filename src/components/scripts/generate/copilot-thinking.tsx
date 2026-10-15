@@ -13,7 +13,7 @@ const GLYPHS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "�
 const VERB_MS = 2600;
 const VERBS = ["Thinking of ideas", "Mulling angles", "Brewing hooks", "Reading the house rules", "Sketching shots"];
 
-/** Once the first draft is being written (D366): the angles are settled by then. */
+/** Once the first draft is being written (D367): the angles are settled by then. */
 const WRITING_VERBS = ["Writing the first draft", "Sketching shots", "Timing each shot", "Checking the house rules", "Writing the voiceover"];
 
 export function CopilotThinking({ writing = false }: { writing?: boolean }) {

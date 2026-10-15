@@ -173,6 +173,51 @@ Every resource is split into three layers, and nothing skips one:
   not `setInterval`.
 <!-- END:data-fetching -->
 
+<!-- BEGIN:performance -->
+# Performance — rules we never break
+
+Learned the hard way (October 2026: one cost request per node, auth checked twice per request,
+full-canvas saves on every click, a server far from its database). Check every change against
+these before calling it done. Full checklist: [docs/performance-checklist.md](docs/performance-checklist.md).
+
+**Count the calls first.** Before shipping anything that loads data, answer: *on a canvas with
+300 nodes, how many requests, queries and realtime channels does this make on load?* If the
+answer grows with the number of nodes, it is wrong.
+
+1. **Nothing per item.** A hook or component that mounts once per node, card or row makes **zero**
+   network calls and opens **zero** channels on mount. Load once for the whole screen (one query,
+   one channel), keep it in the store or the query cache, and let each item *select* its part.
+2. **Selectors are O(1).** Store selectors re-run on every store change (dragging a node changes
+   the store every frame). A per-node selector never scans a large collection; keep an index
+   (e.g. latest job by node id) updated on write instead.
+3. **One realtime channel per screen, not per item.** Filter events client-side. Await the session
+   before subscribing (a channel opened without a JWT silently receives nothing).
+4. **Never write when nothing changed.** Compare against what was last saved; a no-op update must
+   not replace store arrays (it triggers autosave and re-renders).
+5. **Server: independent queries in parallel.** Count the sequential database calls in each route;
+   each one is a full round trip. `Promise.all` what does not depend on each other.
+6. **Auth once per request.** React `cache()` does not dedupe inside route handlers; resolve the
+   caller once and pass it down.
+7. **Server next to its database.** Each environment's functions run in the same region as its
+   database. Verify it (`x-vercel-id`), never assume.
+8. **Ask for what you need.** Select only the columns used; never download a large payload to read
+   one field; never put file bytes in a task payload, webhook body or route body (upload, then
+   pass a URL).
+9. **Index what you filter on.** Every column used in a frequent `where`, join or sort — foreign
+   keys included — has an index.
+10. **Cache on the client, act on fresh data.** Cached data is for *showing*; anything that writes
+    or acts on it waits for a fresh read. A user's own action refreshes and cancels older reads in
+    flight.
+11. **Prefetch with intent.** Hover/scroll prefetch waits for the pointer to settle (~200 ms).
+12. **Long or paid work runs in the background** (Trigger.dev), never inside the browser's request.
+    A paid task reports `failed` only when the failure is final, and never retries after the
+    provider has returned (a retry would pay twice).
+13. **A failure is never "empty".** A failed read must not be treated as "nothing there" when
+    empty would trigger a write (e.g. pruning roles, deleting rows).
+14. **IDs from the client are checked.** A route taking a list of ids verifies the caller may access
+    every one.
+<!-- END:performance -->
+
 <!-- TRIGGER.DEV SKILLS START -->
 ## Trigger.dev agent skills
 

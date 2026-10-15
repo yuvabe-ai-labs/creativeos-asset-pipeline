@@ -20,18 +20,16 @@ const FILE_REF: CompositeRef = { nodeId: "n-file", name: "Sandals.png", role: "i
 const loadCompositeInputs = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({}) as unknown);
 vi.mock("@/lib/composite/load-inputs", () => ({ loadCompositeInputs: (...a: unknown[]) => loadCompositeInputs(...a) }));
 
-// vi.mock factories are hoisted above every const; the registry factory CALLS `model`, so both
-// live in vi.hoisted.
-const { generate, model } = vi.hoisted(() => {
-  const generate = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({}) as unknown);
+// vi.mock factories are hoisted above every const; the registry factory CALLS `model`, so it
+// lives in vi.hoisted.
+const { model } = vi.hoisted(() => {
   const model = (label: string, maxReferenceImages: number) => ({
     label,
     maxReferenceImages,
     maxReferenceSizeBytes: 0,
     schema: { safeParse: (v: unknown) => ({ success: true, data: v }) },
-    generate: (...a: unknown[]) => generate(...a),
   });
-  return { generate, model };
+  return { model };
 });
 vi.mock("@/lib/image-gen/registry", () => ({
   imageGenRegistry: {
@@ -42,35 +40,15 @@ vi.mock("@/lib/image-gen/registry", () => ({
   },
 }));
 
-vi.mock("@/lib/image-gen/estimate", () => ({ estimateImageGenerationCostUsd: () => 0.03 }));
-vi.mock("@/lib/image-gen/cost", () => ({ computeImageCost: () => ({ usd: 0.03 }) }));
-vi.mock("@/lib/storage", () => ({ uploadImageGen: vi.fn(async () => ({ url: "https://cdn/out.png" })) }));
-vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({ width: 1152, height: 2048 }) }) }));
+const start = vi.fn<(...a: unknown[]) => Promise<Response>>(
+  async () => new Response(JSON.stringify({ generationId: "g1" }), { status: 202 }),
+);
+vi.mock("@/lib/image-gen/start-generation", () => ({
+  startImageGeneration: (...a: unknown[]) => start(...a),
+}));
 
-// Every mock takes `...a: unknown[]` so `mock.calls[0][0]` is typed and tsc stays clean.
-const insertVersion = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({ id: "v1" }));
 const getVersionById = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => null);
-vi.mock("@/lib/db/versions", () => ({
-  insertVersion: (...a: unknown[]) => insertVersion(...a),
-  setActiveVersion: vi.fn(async () => undefined),
-  getVersionById: (...a: unknown[]) => getVersionById(...a),
-}));
-const insertGeneration = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({ id: "g1" }));
-const failGeneration = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => undefined);
-vi.mock("@/lib/db/generations", () => ({
-  insertGeneration: (...a: unknown[]) => insertGeneration(...a),
-  succeedGeneration: vi.fn(async () => undefined),
-  failGeneration: (...a: unknown[]) => failGeneration(...a),
-}));
-const reserveCredits = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({ ok: true }));
-const settleGeneration = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => undefined);
-const refundReservation = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => undefined);
-vi.mock("@/lib/db/credit-transactions", () => ({
-  reserveCredits: (...a: unknown[]) => reserveCredits(...a),
-  settleGeneration: (...a: unknown[]) => settleGeneration(...a),
-  refundReservation: (...a: unknown[]) => refundReservation(...a),
-  CreditLimitError: class extends Error {},
-}));
+vi.mock("@/lib/db/versions", () => ({ getVersionById: (...a: unknown[]) => getVersionById(...a) }));
 
 import { POST } from "./route";
 import { COMPOSITE_PROMPT_ID } from "@/prompts/composite-generate";
@@ -80,21 +58,20 @@ const post = (body: unknown) =>
     params: Promise.resolve({ id: "node-1" }),
   });
 
-/** What the provider was called with. */
-const sent = () => generate.mock.calls[0][0] as { prompt: string; referenceUrls: string[] };
+/** What the generation was started with. */
+const sent = () => start.mock.calls[0][0] as { prompt: string; referenceUrls: string[]; mask?: { base64: string; mime: string }; inputsUsed: Record<string, unknown>; modelId: string };
 
 beforeEach(() => {
   vi.clearAllMocks();
   stored.instruction = "";
   loadCompositeInputs.mockResolvedValue({ ok: true, refs: [AVATAR_REF, SHEET_REF, FILE_REF], avatarIds: ["av-1"], contexts: [] });
-  generate.mockResolvedValue({ imageBase64: Buffer.from("png").toString("base64"), mimeType: "image/png", costUsd: 0.03 });
 });
 
 describe("POST composite-generate (D312)", () => {
   it("refuses with no instruction, before reserving", async () => {
     const res = await post({ instruction: "   " });
     expect(res.status).toBe(400);
-    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
   });
 
   it("uses the instruction from the request body over the stored one", async () => {
@@ -114,37 +91,37 @@ describe("POST composite-generate (D312)", () => {
     const res = await post({ instruction: "@[Avatar: Zoe](gone) in a kitchen", modelId: SEEDANCE_FACE_MODEL_ID });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("'Zoe'");
-    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
   });
 
   it("refuses when an avatar cannot contribute a face", async () => {
     loadCompositeInputs.mockResolvedValue({ ok: false, error: "Riya has no front image yet — finish them in the Avatar Studio." });
     const res = await post({ instruction: "x", modelId: SEEDANCE_FACE_MODEL_ID });
     expect(res.status).toBe(400);
-    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
   });
 
   it("allows Nano Banana with an avatar wired — the operator chooses (D312)", async () => {
     const res = await post({ instruction: "x", modelId: "gemini:gemini-3-pro-image" });
-    expect(res.status).toBe(200);
-    expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ modelUsed: "gemini:gemini-3-pro-image" }));
+    expect(res.status).toBe(202);
+    expect(sent().modelId).toBe("gemini:gemini-3-pro-image");
   });
 
   it("defaults to Seedream when the request names no model", async () => {
     await post({ instruction: "x" });
-    expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ modelUsed: SEEDANCE_FACE_MODEL_ID }));
+    expect(sent().modelId).toBe(SEEDANCE_FACE_MODEL_ID);
   });
 
   it("allows any model when no avatar is wired", async () => {
     loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF], avatarIds: [], contexts: [] });
     const res = await post({ instruction: "on a desk", modelId: "gemini:gemini-3-pro-image" });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(202);
   });
 
   it("generates with zero references — a background from text alone", async () => {
     loadCompositeInputs.mockResolvedValue({ ok: true, refs: [], avatarIds: [], contexts: [] });
     const res = await post({ instruction: "an empty bedroom, four angles" });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(202);
     expect(sent().referenceUrls).toEqual([]);
   });
 
@@ -153,7 +130,7 @@ describe("POST composite-generate (D312)", () => {
     const res = await post({ instruction: "x", modelId: "tiny:two" });
     expect(res.status).toBe(422);
     expect((await res.json()).error).toContain("3 reference images");
-    expect(generate).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
   });
 
   it("sends the avatar's front and sheet first, then the rest, and resolves chips to positions", async () => {
@@ -183,29 +160,17 @@ describe("POST composite-generate (D312)", () => {
       ],
     });
     const res = await post({ instruction: "@[File: Sandals.png](n-file) for @[Shot: Launch reel · Shot 2](s:shot:2)" });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(202);
     const { prompt } = sent();
     expect(prompt).toContain("for Shot 2 of Launch reel (see the shot context)");
     expect(prompt).toContain("Shot 2 (2s): Sandals on the floor.");
     expect(prompt).not.toContain("Opens the box.");
   });
 
-  it("reserves, then settles, and records the avatar on the version", async () => {
+  it("starts the generation with the avatar recorded in its inputs", async () => {
     const res = await post({ instruction: "x", modelId: SEEDANCE_FACE_MODEL_ID });
-    expect(res.status).toBe(200);
-    expect(reserveCredits).toHaveBeenCalled();
-    expect(settleGeneration).toHaveBeenCalled();
-    const version = insertVersion.mock.calls[0][0] as { inputsUsed: Record<string, unknown> };
-    expect(version.inputsUsed).toMatchObject({ avatarIds: ["av-1"], promptId: COMPOSITE_PROMPT_ID });
-  });
-
-  it("refunds when the provider fails, and records the failed attempt", async () => {
-    generate.mockRejectedValue(new Error("provider down"));
-    const res = await post({ instruction: "x", modelId: SEEDANCE_FACE_MODEL_ID });
-    expect(res.status).toBe(500);
-    expect(refundReservation).toHaveBeenCalled();
-    expect(failGeneration).toHaveBeenCalled();
-    expect(insertVersion).toHaveBeenCalledWith(expect.objectContaining({ error: "provider down" }));
+    expect(res.status).toBe(202);
+    expect(sent().inputsUsed).toMatchObject({ avatarIds: ["av-1"], promptId: COMPOSITE_PROMPT_ID });
   });
 
   describe("edit (D312)", () => {
@@ -215,11 +180,10 @@ describe("POST composite-generate (D312)", () => {
 
     it("edits the current picture: base first, then the ticked references, with the edit template", async () => {
       const res = await post({ instruction: "the cup", modelId: SEEDANCE_FACE_MODEL_ID, edit: { baseVersionId: "v-base", intent: "remove", extraIds: ["n-file"] } });
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(202);
       expect(sent().referenceUrls).toEqual(["https://cdn/base.png", "https://cdn/sandals.png"]);
       expect(sent().prompt).toMatch(/^Using the provided image, remove the cup\./);
-      const version = insertVersion.mock.calls[0][0] as { inputsUsed: Record<string, unknown> };
-      expect(version.inputsUsed).toMatchObject({ mode: "edit", baseVersionId: "v-base", intent: "remove" });
+      expect(sent().inputsUsed).toMatchObject({ mode: "edit", baseVersionId: "v-base", intent: "remove" });
     });
 
     it("a mentioned reference joins the edit even when not ticked", async () => {
@@ -245,7 +209,7 @@ describe("POST composite-generate (D312)", () => {
       getVersionById.mockResolvedValue({ id: "v-x", node_id: "other-node", output: "https://cdn/x.png" });
       const res = await post({ instruction: "x", edit: { baseVersionId: "v-x" } });
       expect(res.status).toBe(400);
-      expect(insertGeneration).not.toHaveBeenCalled();
+      expect(start).not.toHaveBeenCalled();
     });
 
     it("sends a painted region to a model that takes a mask, and says so in the prompt", async () => {
@@ -254,13 +218,20 @@ describe("POST composite-generate (D312)", () => {
         modelId: "openai:gpt-image-2",
         edit: { baseVersionId: "v-base", intent: "remove", maskBase64: "AAAA", maskMime: "image/png" },
       });
-      expect(res.status).toBe(200);
-      const call = generate.mock.calls[0][0] as { maskBase64?: string; maskMime?: string; prompt: string };
-      expect(call.maskBase64).toBe("AAAA");
-      expect(call.maskMime).toBe("image/png");
-      expect(call.prompt).toMatch(/selected \(masked\) region/);
-      const version = insertVersion.mock.calls[0][0] as { inputsUsed: Record<string, unknown> };
-      expect(version.inputsUsed).toMatchObject({ masked: true });
+      expect(res.status).toBe(202);
+      expect(sent().mask).toEqual({ base64: "AAAA", mime: "image/png" });
+      expect(sent().prompt).toMatch(/selected \(masked\) region/);
+      expect(sent().inputsUsed).toMatchObject({ masked: true });
+    });
+
+    it("refuses a painted region that is not a PNG, before reserving", async () => {
+      const res = await post({
+        instruction: "the mug",
+        modelId: "openai:gpt-image-2",
+        edit: { baseVersionId: "v-base", intent: "remove", maskBase64: "AAAA", maskMime: "image/jpeg" },
+      });
+      expect(res.status).toBe(400);
+      expect(start).not.toHaveBeenCalled();
     });
 
     it("refuses a painted region on a model that cannot take one, before reserving", async () => {
@@ -270,7 +241,7 @@ describe("POST composite-generate (D312)", () => {
         edit: { baseVersionId: "v-base", intent: "remove", maskBase64: "AAAA" },
       });
       expect(res.status).toBe(400);
-      expect(insertGeneration).not.toHaveBeenCalled();
+      expect(start).not.toHaveBeenCalled();
     });
   });
 });

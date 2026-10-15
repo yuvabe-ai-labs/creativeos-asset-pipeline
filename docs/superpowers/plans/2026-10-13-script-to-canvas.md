@@ -57,7 +57,7 @@
 | `src/lib/scripts/add-from-url.ts` (new) | pure: `planAddFromUrl(...)` | 5 |
 | `src/components/canvas/add-script-from-url.tsx` (new) | headless: reads `?addScript`, strips it, adds | 5 |
 | `src/components/canvas/canvas.tsx` | mounts `<AddScriptFromUrl/>` | 5 |
-| roadmap §7 | D371–D372 | 6 |
+| roadmap §7 | D372–D373 | 6 |
 
 ---
 
@@ -360,7 +360,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 `supabase/migrations/0056_canvas_source_script.sql`:
 
 ```sql
--- Script-to-canvas (D371): a canvas remembers the approved script it was created from, so the
+-- Script-to-canvas (D372): a canvas remembers the approved script it was created from, so the
 -- script's page can say "Open canvas". One canvas per script; deleting the canvas (a hard delete)
 -- frees the script to make another. Deleting the script leaves the canvas, unlinked.
 alter table canvases
@@ -426,14 +426,14 @@ Expected: FAIL — `createCanvasFromScriptAction` is not exported.
 `src/lib/db/types.ts` — in `CanvasRow` add:
 
 ```ts
-  /** D371 — the approved script this canvas was created from (one canvas per script). */
+  /** D372 — the approved script this canvas was created from (one canvas per script). */
   source_script_id: string | null;
 ```
 
 `src/lib/db/canvases.ts` — `createCanvas` takes `sourceScriptId?: string | null` and inserts `source_script_id: input.sourceScriptId ?? null` alongside the other columns. Add:
 
 ```ts
-/** D371 — the canvas an approved script started, if it still exists (deleting a canvas frees it). */
+/** D372 — the canvas an approved script started, if it still exists (deleting a canvas frees it). */
 export async function getScriptCanvas(clientId: string, scriptId: string): Promise<CanvasRow | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
@@ -457,7 +457,7 @@ export async function getScriptCanvas(clientId: string, scriptId: string): Promi
 2. Import `getScriptCanvas` (with the other canvases imports), `getScript` from `@/lib/db/scripts`, `type CanvasRow` from `@/lib/db/types`, and add:
 
 ```ts
-/** D371 — "Create canvas" on an approved script: the script's canvas, made now or already there.
+/** D372 — "Create canvas" on an approved script: the script's canvas, made now or already there.
  *  One canvas per script; a racing second request gets the first one's canvas (unique index). The
  *  canvas is seeded as any new canvas is; the script itself is added on the canvas, which fills
  *  the seeded empty Script node (AddScriptFromUrl), so it parses with the lead's avatar attached. */
@@ -584,7 +584,7 @@ export function canvasHref(clientSlug: string, canvasSlug: string, addScriptId?:
 ```
 
 `new-canvas-dialog.tsx`:
-- New optional prop, documented: `/** D371 — creating this canvas for an approved script: the name starts as the script's title, and the canvas is the script's (made now or already there). */ fromScript?: { id: string; title: string };`
+- New optional prop, documented: `/** D372 — creating this canvas for an approved script: the name starts as the script's title, and the canvas is the script's (made now or already there). */ fromScript?: { id: string; title: string };`
 - `const [name, setName] = useState(fromScript?.title ?? "");` and in `onOpenChange` reset with `setName(fromScript?.title ?? "")`.
 - `handleCreate`'s transition body:
 
@@ -612,7 +612,7 @@ import { Button } from "@/components/ui/button";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { canvasHref } from "@/lib/canvases/paths";
 
-/** D371 — an approved script's next step: make its canvas (the script lands on it, parsing), or
+/** D372 — an approved script's next step: make its canvas (the script lands on it, parsing), or
  *  open the one it already has. One canvas per script. */
 export function ScriptCanvasButton({ clientId, clientSlug, script, canvas }: {
   clientId: string;
@@ -638,7 +638,7 @@ export function ScriptCanvasButton({ clientId, clientSlug, script, canvas }: {
 `page.tsx` (scripts/[scriptId]): import `getScriptCanvas` and `ScriptCanvasButton`. After `const label = …`:
 
 ```tsx
-  // D371 — an approved script's canvas: Create canvas, or Open canvas once it has one.
+  // D372 — an approved script's canvas: Create canvas, or Open canvas once it has one.
   const scriptCanvas = script.stage === "approved" ? await getScriptCanvas(client.id, script.id) : null;
   const canvasAction = script.stage === "approved" ? (
     <ScriptCanvasButton
@@ -730,7 +730,7 @@ Expected: FAIL — module missing.
 ```ts
 import type { XYPosition } from "@xyflow/react";
 
-// D372 — arriving on a canvas from "Create canvas" (?addScript=<id>): what to do. Plain, so the
+// D373 — arriving on a canvas from "Create canvas" (?addScript=<id>): what to do. Plain, so the
 // decision is testable without a canvas. The script goes into the new canvas's empty seeded Script
 // node (wired to the KB) when there is one, else onto a new node at the viewport centre (null).
 
@@ -779,7 +779,7 @@ import { useAddScriptNode } from "@/hooks/use-add-script-node";
 import { planAddFromUrl } from "@/lib/scripts/add-from-url";
 import { viewportCentre } from "./viewport-centre";
 
-/** D372 — headless. Arriving from an approved script's "Create canvas" (?addScript=<id>), adds that
+/** D373 — headless. Arriving from an approved script's "Create canvas" (?addScript=<id>), adds that
  *  script once this session can edit: the parameter is removed first, so a reload or Back never adds
  *  it again (script-to-canvas spec §3). The add itself is useAddScriptNode's: parse, avatar, toasts. */
 export function AddScriptFromUrl() {
@@ -810,7 +810,7 @@ export function AddScriptFromUrl() {
 }
 ```
 
-`canvas.tsx`: import `AddScriptFromUrl` and mount it right after `<CanvasKBStatus … />` with a one-line comment: `{/* D372 — adds the approved script this canvas was created for (?addScript) */}`.
+`canvas.tsx`: import `AddScriptFromUrl` and mount it right after `<CanvasKBStatus … />` with a one-line comment: `{/* D373 — adds the approved script this canvas was created for (?addScript) */}`.
 
 - [ ] **Step 4: Run it to see it pass**
 
@@ -830,11 +830,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 6: ADRs and the whole-branch check
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7 (append after the last entry, D370)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7 (append after the last entry, D371)
 
 - [ ] **Step 1: ADRs** — in the log's format (`### D3xx — Title *(recorded 2026-10-13)*`, then Decision / Why / Rejected / Refines → / Originated → `docs/superpowers/specs/2026-10-12-script-to-canvas-design.md`):
-  - **D371 — An approved script starts one canvas, and the canvas remembers it.** `canvases.source_script_id` (unique when set, `on delete set null`); `createCanvasFromScriptAction` makes it or returns the existing one; the script page shows Create canvas / Open canvas. *Why:* the post-approval step was four moves across three pages, and nothing stopped a second canvas. *Rejected:* a column on `client_scripts` (a deleted canvas would leave a dangling pointer); finding the canvas by scanning Script nodes (the node holds a copy, not an id). *Refines →* spec 1 §5.2.
-  - **D372 — "Parsing" is canvas-store state, and the canvas adds the script itself.** A transient `scriptParsing` flag replaces the Script node's local state, set by whoever parses; the dialog hands off through `?addScript`, and headless `AddScriptFromUrl` removes it and runs `useAddScriptNode`, filling the seeded empty Script node. *Why:* a gallery-started parse showed "Not extracted" and the upload screen; one path for every add keeps parse/avatar/toasts in `addScriptToCanvas`. *Rejected:* seeding the Script node on the server (a second copy of the parse and avatar logic); saving "parsing" in node data (a closed tab would leave it stuck). *Refines →* D337 (streamed parse states), spec 1 §5.2.
+  - **D372 — An approved script starts one canvas, and the canvas remembers it.** `canvases.source_script_id` (unique when set, `on delete set null`); `createCanvasFromScriptAction` makes it or returns the existing one; the script page shows Create canvas / Open canvas. *Why:* the post-approval step was four moves across three pages, and nothing stopped a second canvas. *Rejected:* a column on `client_scripts` (a deleted canvas would leave a dangling pointer); finding the canvas by scanning Script nodes (the node holds a copy, not an id). *Refines →* spec 1 §5.2.
+  - **D373 — "Parsing" is canvas-store state, and the canvas adds the script itself.** A transient `scriptParsing` flag replaces the Script node's local state, set by whoever parses; the dialog hands off through `?addScript`, and headless `AddScriptFromUrl` removes it and runs `useAddScriptNode`, filling the seeded empty Script node. *Why:* a gallery-started parse showed "Not extracted" and the upload screen; one path for every add keeps parse/avatar/toasts in `addScriptToCanvas`. *Rejected:* seeding the Script node on the server (a second copy of the parse and avatar logic); saving "parsing" in node data (a closed tab would leave it stuck). *Refines →* D337 (streamed parse states), spec 1 §5.2.
 
 - [ ] **Step 2: The whole branch** — run `npx vitest run`, `npx tsc --noEmit` (errors only under `.next/` are the dev server's stale generated types; restart the dev server), `npx eslint src/lib src/components src/app supabase` limited to files this branch changed. Re-run any cold-cache timeout file alone before investigating.
 
@@ -842,7 +842,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "docs(adr): D371-D372 approved script to its canvas
+git commit -m "docs(adr): D372-D373 approved script to its canvas
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```

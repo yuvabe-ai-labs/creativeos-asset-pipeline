@@ -24,7 +24,7 @@
 - User-facing copy says "avatar", never "presenter". Copy is plain sentences.
 - Controls are shadcn primitives from `src/components/ui/*` only, never native elements (AGENTS.md).
 - Motion easing `cubic-bezier(0.22,1,0.36,1)` only; purple only as a sparing accent (AGENTS.md).
-- ADRs go in the one log, `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, as D367 onward (Task 9).
+- ADRs go in the one log, `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, as D368 onward (Task 9).
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## Review Focus
@@ -1039,7 +1039,7 @@ describe("pasting a whole script (paste-a-script spec)", () => {
     expect(out.result[0].content).toMatch(/^Imported Reel 07 · 9 shots · 50s\./);
   });
 
-  it("shows the skeleton the moment the reading starts, as a first draft does (D366)", async () => {
+  it("shows the skeleton the moment the reading starts, as a first draft does (D367)", async () => {
     const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
     const onDraft = vi.fn();
     await run(script(), REEL_07_PASTE, { ...deps(m.call), onDraft });
@@ -1173,7 +1173,7 @@ import type { StreamingCall, StructuredCall } from "./model";
 import { EMPTY_PARTIAL_DRAFT, parsePartialDraft, type PartialDraft } from "./partial-draft";
 
 /** A call whose answer is shaped like a draft (header, cast, shots), streamed into the pane: the empty
- *  draft line at once (D366), then a new line each time a header field, a person or a whole shot has
+ *  draft line at once (D367), then a new line each time a header field, a person or a whole shot has
  *  arrived (D337). Used by the first draft and by a pasted script's import. */
 export async function streamDraftCall<S extends z.ZodType>(
   deps: { call: StructuredCall; stream?: StreamingCall; onDraft?: (draft: PartialDraft) => void },
@@ -1723,7 +1723,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `scripts/probe-script-import.itest.ts`
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7 (append D367–D370 after D366)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7 (append D368–D371 after D367)
 
 - [ ] **Step 1: The live probe**
 
@@ -1837,20 +1837,20 @@ Then in the app (`npm run dev` in the worktree, a Jackfruit365 script):
 
 - [ ] **Step 3: ADRs**
 
-Append after D366 in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, in its format (Decision / Why / Rejected / Refines / Originated):
+Append after D367 in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, in its format (Decision / Why / Rejected / Refines / Originated):
 
-- **D367 — A pasted script is imported, not written.** A long, many-line message goes to the quick model's `script_detect`, and a whole script goes to the writer's `script_import`, which reads the paste in the draft's shape and streams it into the pane. Plain code (`buildImport`) cleans the markdown, estimates missing lengths, resolves the reel number, keeps leftovers in the notes under "From the pasted script", and writes the reply. *Why:* agencies already have scripts, and the rule "use it exactly, else guess and ask" is only trustworthy where it can be checked. *Rejected:* the brief reader also classifying (it doesn't run once a draft exists); letting the model estimate lengths (code is repeatable and testable); a heuristic-only detector (it can't tell "add these two shots" from a script). *Refines →* D337, D366. *Originated →* paste-a-script spec.
-- **D368 — Every imported VO and card is checked against the paste.** `unmatchedShots` ignores spacing, quote style and markdown formatting only. A mismatch is named in the reply and becomes an open item. *Why:* "word for word" is shown, not trusted. *Rejected:* fuzzy matching (it would hide a changed word).
-- **D369 — A guess is an item to confirm with the fields it filled.** Confirmations gain `paths`. `changeWithRetry` settles a guess when an edit changes one of its fields, and a patch marked `replaces` (an accepted import) is exempt. *Why:* spec A2, "until answered or edited", and every write already passes through `changeWithRetry`. *Rejected:* a separate guesses list (a second open-items mechanism); settling in each route (five places to forget).
-- **D370 — A paste over a draft is read first, then offered on a replace card.** The card is `kind: "import"` and is settled by the proposals route. The paste limit is 30,000 characters; a non-script message keeps 4,000. *Why:* spec Q1 (a), so accepting is instant and the card says what it holds. *Rejected:* a card first and parsing on accept (the card couldn't summarise the paste).
+- **D368 — A pasted script is imported, not written.** A long, many-line message goes to the quick model's `script_detect`, and a whole script goes to the writer's `script_import`, which reads the paste in the draft's shape and streams it into the pane. Plain code (`buildImport`) cleans the markdown, estimates missing lengths, resolves the reel number, keeps leftovers in the notes under "From the pasted script", and writes the reply. *Why:* agencies already have scripts, and the rule "use it exactly, else guess and ask" is only trustworthy where it can be checked. *Rejected:* the brief reader also classifying (it doesn't run once a draft exists); letting the model estimate lengths (code is repeatable and testable); a heuristic-only detector (it can't tell "add these two shots" from a script). *Refines →* D337, D367. *Originated →* paste-a-script spec.
+- **D369 — Every imported VO and card is checked against the paste.** `unmatchedShots` ignores spacing, quote style and markdown formatting only. A mismatch is named in the reply and becomes an open item. *Why:* "word for word" is shown, not trusted. *Rejected:* fuzzy matching (it would hide a changed word).
+- **D370 — A guess is an item to confirm with the fields it filled.** Confirmations gain `paths`. `changeWithRetry` settles a guess when an edit changes one of its fields, and a patch marked `replaces` (an accepted import) is exempt. *Why:* spec A2, "until answered or edited", and every write already passes through `changeWithRetry`. *Rejected:* a separate guesses list (a second open-items mechanism); settling in each route (five places to forget).
+- **D371 — A paste over a draft is read first, then offered on a replace card.** The card is `kind: "import"` and is settled by the proposals route. The paste limit is 30,000 characters; a non-script message keeps 4,000. *Why:* spec Q1 (a), so accepting is instant and the card says what it holds. *Rejected:* a card first and parsing on accept (the card couldn't summarise the paste).
 
-Also record in D367 that the avatar chips after an import link via the existing cast PATCH route, and only on a tap.
+Also record in D368 that the avatar chips after an import link via the existing cast PATCH route, and only on a tap.
 
 - [ ] **Step 4: Commit and report**
 
 ```bash
 git add scripts/probe-script-import.itest.ts docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "test(scripts): live probe for pasting a script; ADRs D367-D370
+git commit -m "test(scripts): live probe for pasting a script; ADRs D368-D371
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```

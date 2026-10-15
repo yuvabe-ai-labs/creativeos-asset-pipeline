@@ -70,6 +70,27 @@ export function pathForImageGen(args: {
   return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/image-gen/${name}`;
 }
 
+// D366 — one async image generation's result and mask. Keyed by generation id (not
+// buildStoredName's timestamped name) because the route signs the upload before the task runs.
+export function pathForImageGenResult(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  generationId: string;
+  ext: string;
+}): string {
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/image-gen/${args.generationId}.${args.ext}`;
+}
+
+export function pathForImageGenMask(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  generationId: string;
+}): string {
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/image-gen/${args.generationId}-mask.png`;
+}
+
 export function pathForVideoGen(args: {
   clientId: string;
   canvasId: string;

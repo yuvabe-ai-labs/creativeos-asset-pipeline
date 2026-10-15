@@ -83,7 +83,7 @@ export function ScriptFocusView({
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [draft, setDraft] = useState<ReelScript>(parsed ?? {});
   const [showOriginal, setShowOriginal] = useState(false);
-  // Shared with the node card and set by whoever parses (D372): opened mid-parse, the view shows
+  // Shared with the node card and set by whoever parses (D373): opened mid-parse, the view shows
   // the skeleton, never the upload screen.
   const parsing = useCanvasStore((s) => s.scriptParsing[nodeId] === true);
   const setScriptParsing = useCanvasStore((s) => s.setScriptParsing);

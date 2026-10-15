@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { canvasHref } from "@/lib/canvases/paths";
 
-/** D371 — an approved script's next step: make its canvas (the script lands on it, parsing), or
+/** D372 — an approved script's next step: make its canvas (the script lands on it, parsing), or
  *  open the one it already has. One canvas per script. */
 export function ScriptCanvasButton({ clientId, clientSlug, script, canvas }: {
   clientId: string;

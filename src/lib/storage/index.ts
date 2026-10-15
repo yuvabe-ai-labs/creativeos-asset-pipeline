@@ -1,12 +1,20 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { _put, _remove, _signPutUrl, getBucketName, publicUrlFor } from "./gcs";
-import { resolveOwnership } from "./ownership";
+import { resolveOwnership, type Ownership } from "./ownership";
+import { mimeToExt } from "@/lib/image-gen/utils";
+import {
+  IMAGE_GEN_MASK_MIME,
+  IMAGE_RESULT_MIME_TYPES,
+  type ImageResultUploads,
+} from "@/lib/image-gen/task-payload";
 import {
   pathForBrandAsset,
   pathForBrandImage,
   pathForClientLogo,
   pathForImageGen,
+  pathForImageGenMask,
+  pathForImageGenResult,
   pathForKBDocument,
   pathForMarketThumb,
   pathForMarketMedia,
@@ -99,6 +107,66 @@ export async function uploadImageGen(args: {
     ext: args.ext,
   });
   return _upload(path, args.body, args.contentType);
+}
+
+// D366 — an image task can wait in the queue and then take minutes on a slow model before it
+// uploads; the default five-minute signature is far too short.
+export const IMAGE_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
+
+// D366 — the task has no storage credentials; the route signs its one upload up front, once per
+// type a provider may return, since a signed PUT pins the Content-Type.
+export async function signImageGenResultUploads(args: {
+  nodeId: string;
+  generationId: string;
+  owner: Ownership;
+}): Promise<ImageResultUploads> {
+  const { clientId, canvasId } = args.owner;
+  const entries = await Promise.all(
+    IMAGE_RESULT_MIME_TYPES.map(async (mime) => {
+      const path = pathForImageGenResult({
+        clientId,
+        canvasId,
+        nodeId: args.nodeId,
+        generationId: args.generationId,
+        ext: mimeToExt(mime),
+      });
+      const upload = { putUrl: await _signPutUrl(path, mime, IMAGE_UPLOAD_EXPIRY_MS), url: publicUrlFor(path) };
+      return [mime, upload] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as ImageResultUploads;
+}
+
+/** D366 — a painted edit mask, uploaded so the task receives a URL rather than megabytes. Masks are
+ *  PNG only (the path ends in .png, and the routes refuse anything else). */
+export async function uploadImageGenMask(args: {
+  nodeId: string;
+  generationId: string;
+  base64: string;
+  mime: string;
+  owner: Ownership;
+}): Promise<string> {
+  if (args.mime !== IMAGE_GEN_MASK_MIME) throw new Error(`Edit masks must be ${IMAGE_GEN_MASK_MIME}, got ${args.mime}`);
+  const { clientId, canvasId } = args.owner;
+  const path = pathForImageGenMask({ clientId, canvasId, nodeId: args.nodeId, generationId: args.generationId });
+  const { url } = await _upload(path, Buffer.from(args.base64, "base64"), IMAGE_GEN_MASK_MIME);
+  return url;
+}
+
+/** D366 — everything an image task needs from storage, with the node's ownership resolved once:
+ *  the signed result uploads and (when painted) the mask, in parallel. */
+export async function prepareImageGenUploads(args: {
+  nodeId: string;
+  generationId: string;
+  mask?: { base64: string; mime: string };
+}): Promise<{ uploads: ImageResultUploads; maskUrl?: string }> {
+  const owner = await resolveOwnership(args.nodeId);
+  const { nodeId, generationId, mask } = args;
+  const [uploads, maskUrl] = await Promise.all([
+    signImageGenResultUploads({ nodeId, generationId, owner }),
+    mask ? uploadImageGenMask({ nodeId, generationId, base64: mask.base64, mime: mask.mime, owner }) : undefined,
+  ]);
+  return maskUrl ? { uploads, maskUrl } : { uploads };
 }
 
 export async function uploadVideoGen(args: {

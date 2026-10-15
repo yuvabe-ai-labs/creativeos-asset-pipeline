@@ -27,7 +27,7 @@ export function ApprovedReviewBoard({ clientId, script, version, initialReview, 
   version: ScriptVersion;
   /** Built on the server, so the threads are there on the first render. */
   initialReview: TeamScriptReview;
-  /** D371 — Create canvas / Open canvas, built by the page (it knows the script's canvas). */
+  /** D372 — Create canvas / Open canvas, built by the page (it knows the script's canvas). */
   canvasAction?: ReactNode;
 }) {
   const { data: review } = useTeamScriptReview(clientId, script.id, initialReview);

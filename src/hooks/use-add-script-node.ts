@@ -16,7 +16,7 @@ import { CURRENT_GROUPING_VERSION } from "@/lib/nodes/group-shots";
 // with the lead's avatar attached when it has a usable one. The node holds a COPY: re-approving
 // the script later never changes a node already on a canvas (spec 1 §5.4). The steps, and every
 // failure path, live in `addScriptToCanvas`; this hook only wires them to the canvas. With
-// `opts.into` it fills an existing empty Script node instead (the Create-canvas hand-off, D372).
+// `opts.into` it fills an existing empty Script node instead (the Create-canvas hand-off, D373).
 export function useAddScriptNode() {
   const clientId = useClientId();
   const storeApi = useCanvasStoreApi();

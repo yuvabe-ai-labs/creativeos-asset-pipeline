@@ -1,4 +1,4 @@
--- Script-to-canvas (D371): a canvas remembers the approved script it was created from, so the
+-- Script-to-canvas (D372): a canvas remembers the approved script it was created from, so the
 -- script's page can say "Open canvas". One canvas per script; deleting the canvas (a hard delete)
 -- frees the script to make another. Deleting the script leaves the canvas, unlinked.
 alter table canvases

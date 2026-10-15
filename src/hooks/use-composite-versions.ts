@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ImageGenVersionSummary } from "@/components/nodes/image-gen-version-history";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
@@ -9,14 +9,16 @@ import {
   useRefreshNodeVersions,
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
-import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { useGenerationStatus } from "@/hooks/use-generation-status";
+import {
+  useStartCompositeGeneration,
+  useRestoreNodeVersion,
+  startErrorMessage,
+} from "@/hooks/queries/node-generation";
 
 type Patch = (patch: Record<string, unknown>) => void;
 
-/** D312 — a composite's versions, Generate and Restore. The same endpoints Image Gen uses for
- *  versions and restore; generation goes to composite-generate with the instruction in the body
- *  (the canvas autosaves on a delay, so the stored copy can lag). */
+/** D312/D366 — a composite's versions, Generate and Restore. Generate starts a background job and resolves once it is accepted; the result lands through the node's generation status. */
 export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Patch) {
   // Read through the shared versions cache: reopening shows the list at once and re-checks behind it.
   const { data, isPending } = useNodeVersions<ImageGenVersionSummary>(nodeId, open);
@@ -25,9 +27,20 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
   const versions = data?.versions ?? [];
   const activeVersionId = data?.activeVersionId ?? null;
   const loading = open && isPending;
-  const [generating, setGenerating] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const [lastError, setLastError] = useState<string | null>(null);
+  // D366 — a composite runs in the background; the node's shared status says whether one is
+  // running, across reloads and returns to the canvas. The start mutation covers the request.
+  const status = useGenerationStatus(nodeId);
+  const startGeneration = useStartCompositeGeneration(nodeId);
+  const restoreVersion = useRestoreNodeVersion(nodeId);
+  // `starting` turns true synchronously at the top of generate, before any await, so a second
+  // click while the caller is still converting its mask cannot start a second run. The ref covers
+  // two clicks inside one render, before the state has committed.
+  const [starting, setStarting] = useState(false);
+  const startingRef = useRef(false);
+  const generating = starting || startGeneration.isPending || status.isGenerating;
+  const restoring = restoreVersion.isPending;
+  const [requestError, setLastError] = useState<string | null>(null);
+  const lastError = requestError ?? status.lastError;
 
   // Best-effort, like the read it replaces: a failed refresh leaves the cached list on screen.
   const fetchVersions = useCallback(async () => {
@@ -50,53 +63,35 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
       maskMime?: string;
     };
   }): Promise<boolean> {
-    if (generating) return false; // a run in flight never starts another — next to the request it guards
-    setGenerating(true);
+    if (generating || startingRef.current) return false; // a run in flight never starts another; the server refuses too (409)
+    startingRef.current = true;
+    setStarting(true);
     setLastError(null);
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/composite-generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = (await res.json()) as { imageUrl?: string; versionId?: string; error?: string };
-      if (!res.ok || !json.imageUrl) {
-        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
-      }
-      onPatch({ parsed: json.imageUrl });
-      setActiveVersionId(json.versionId ?? null);
-      void revalidateCanvasGenerations();
-      toast.success("Composite generated");
+      // Accepted: the mutation marks the node as generating; the status hook lands the result.
+      await startGeneration.mutateAsync(body);
       return true;
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Generation failed";
+      const message = startErrorMessage(e, "Generation failed");
       setLastError(message);
       toast.error(message, { duration: 6000 });
+      await fetchVersions();
       return false;
     } finally {
-      setGenerating(false);
-      await fetchVersions();
+      startingRef.current = false;
+      setStarting(false);
     }
   }
 
   async function restore(versionId: string) {
-    setRestoring(true);
     const toastId = toast.loading("Restoring version…");
     try {
-      const res = await fetch(`/api/nodes/${nodeId}/restore-version`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionId }),
-      });
-      const json = (await res.json()) as { output?: string; error?: string };
-      if (!res.ok) throw new Error(json.error ?? "Restore failed");
+      const json = await restoreVersion.mutateAsync(versionId);
       if (json.output) onPatch({ parsed: json.output });
       setActiveVersionId(versionId);
       toast.success("Version restored", { id: toastId });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Restore failed", { id: toastId });
-    } finally {
-      setRestoring(false);
     }
   }
 

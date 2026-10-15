@@ -16,7 +16,7 @@ export type AddScriptDeps = {
   writeParsed: (nodeId: string, output: ReelScript) => void;
   /** Puts the script into an existing empty Script node (a new canvas's seeded one). */
   fillScriptNode: (nodeId: string, data: { title: string; source: string }) => void;
-  /** The canvas's shared "this node is parsing" flag (canvas store, never saved; D372). */
+  /** The canvas's shared "this node is parsing" flag (canvas store, never saved; D373). */
   setParsing: (nodeId: string, parsing: boolean) => void;
   newId: () => string;
   toast: {

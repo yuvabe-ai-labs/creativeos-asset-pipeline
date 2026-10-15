@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
 import { sceneFingerprint } from "./nodes/scene-beats";
+import { nodeGenerationStatus } from "./generations/node-status";
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), info: vi.fn(), error: vi.fn() }),
@@ -1013,5 +1014,107 @@ describe("scene beats become cuts (D286)", () => {
     const data = store.getState().nodes[0].data as { parsed: unknown; sceneBeats?: Record<string, unknown> };
     expect(Object.keys(data.sceneBeats ?? {})).toEqual([sceneFingerprint(plain)]);
     expect(data.parsed).toBe(before);
+  });
+});
+
+describe("generation status feed (D366)", () => {
+  const job = (id: string, nodeId: string, created_at: string, status: GenerationRow["status"] = "running") =>
+    ({ id, node_id: nodeId, type: "image", status, error: null, output_snapshot: null, created_at }) as GenerationRow;
+
+  it("indexes the newest job per node when the feed loads", () => {
+    const store = createCanvasStore([], []);
+    store.getState().setTrayJobs([
+      job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"),
+      job("new", "n1", "2026-10-12T10:00:00.000Z"),
+      job("other", "n2", "2026-10-12T08:00:00.000Z"),
+    ]);
+    expect(store.getState().latestJobByNode.n1.id).toBe("new");
+    expect(store.getState().latestJobByNode.n2.id).toBe("other");
+  });
+
+  it("keeps the newest job when an older one is updated late", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("new", "n1", "2026-10-12T10:00:00.000Z"));
+    store.getState().upsertTrayJob(job("old", "n1", "2026-10-12T09:00:00.000Z", "succeeded"));
+    expect(store.getState().latestJobByNode.n1.id).toBe("new");
+  });
+
+  it("clears a start mark once a running row for that node arrives", () => {
+    const store = createCanvasStore([], []);
+    store.getState().markGenerationStarted("n1", "image");
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image" });
+    store.getState().upsertTrayJob(job("new", "n1", "2026-10-12T10:00:00.000Z"));
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+  });
+
+  it("an update to an older job does not clear a pending mark", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("prev", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    store.getState().markGenerationStarted("n1", "image");
+    store.getState().upsertTrayJob(job("older", "n1", "2026-10-12T09:00:00.000Z", "failed"));
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image" });
+    store.getState().markGenerationStarted("n1", "image", "next");
+    store.getState().upsertTrayJob(job("older", "n1", "2026-10-12T09:00:00.000Z", "succeeded"));
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image", generationId: "next" });
+  });
+
+  it("is not generating when the mark lands after the running row and the job then finishes", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z"));
+    store.getState().markGenerationStarted("n1", "voice");
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    const s = store.getState();
+    expect(s.generationStarts.n1).toBeUndefined();
+    expect(nodeGenerationStatus(s.latestJobByNode.n1, s.generationStarts.n1?.kind, null).isGenerating).toBe(false);
+  });
+
+  it("is not generating when only the job's terminal row ever arrives", () => {
+    const store = createCanvasStore([], []);
+    store.getState().markGenerationStarted("n1", "image", "g1");
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "failed"));
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+    store.getState().markGenerationStarted("n2", "video");
+    store.getState().upsertTrayJob(job("g2", "n2", "2026-10-12T10:00:00.000Z", "succeeded"));
+    expect(store.getState().generationStarts.n2).toBeUndefined();
+  });
+
+  it("marking with an id whose row is already on the feed sets no mark", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z"));
+    store.getState().markGenerationStarted("n1", "image", "g1");
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+  });
+
+  it("a stale hydrate never turns a finished job back to running", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    store.getState().setTrayJobs([job("g1", "n1", "2026-10-12T10:00:00.000Z")]);
+    expect(store.getState().trayJobs.g1.status).toBe("succeeded");
+    expect(store.getState().latestJobByNode.n1.status).toBe("succeeded");
+  });
+
+  it("a hydrate keeps rows it did not return and clears a mark its rows settle", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("live", "n2", "2026-10-12T10:00:00.000Z"));
+    store.getState().markGenerationStarted("n1", "image", "g1");
+    store.getState().setTrayJobs([job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded")]);
+    expect(store.getState().trayJobs.live).toBeDefined();
+    expect(store.getState().latestJobByNode.n2.id).toBe("live");
+    expect(store.getState().generationStarts.n1).toBeUndefined();
+  });
+
+  it("a hydrate that reloads the node's latest row unchanged does not retire an id-less mark", () => {
+    const store = createCanvasStore([], []);
+    store.getState().upsertTrayJob(job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded"));
+    store.getState().markGenerationStarted("n1", "image");
+    store.getState().setTrayJobs([job("g1", "n1", "2026-10-12T10:00:00.000Z", "succeeded")]);
+    expect(store.getState().generationStarts.n1).toEqual({ kind: "image" });
+  });
+
+  it("clears a node's request error when a new start is marked", () => {
+    const store = createCanvasStore([], []);
+    store.getState().setGenerationRequestError("n1", "Couldn't start");
+    store.getState().markGenerationStarted("n1", "image");
+    expect(store.getState().generationRequestErrors.n1).toBeUndefined();
   });
 });

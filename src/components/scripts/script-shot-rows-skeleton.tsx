@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { SHOT_GRID } from "./script-shot-row";
 
-/** Shot rows still to come, in the shot table's own grid: the first draft streaming in (D366). */
+/** Shot rows still to come, in the shot table's own grid: the first draft streaming in (D367). */
 export function ScriptShotRowsSkeleton({ count, className = "" }: { count: number; className?: string }) {
   return (
     <ul aria-hidden className={className}>

@@ -1,7 +1,7 @@
 import type { XYPosition } from "@xyflow/react";
 import { urlWithoutParams } from "@/lib/review/focus-pointer";
 
-// D372 — arriving on a canvas from "Create canvas" (?addScript=<id>): what to do. Plain, so the
+// D373 — arriving on a canvas from "Create canvas" (?addScript=<id>): what to do. Plain, so the
 // decision is testable without a canvas. The script goes into the new canvas's empty seeded Script
 // node (wired to the KB) when there is one, else onto a new node at the viewport centre (null).
 

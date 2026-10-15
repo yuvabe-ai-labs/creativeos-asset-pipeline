@@ -59,7 +59,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     ? {}
     : Object.fromEntries((await listAvatars(client.id)).map((a) => [a.id, a.front?.url ?? null]));
   const label = reelLabel(script.doc.header.reelNumber);
-  // D371 — an approved script's canvas: Create canvas, or Open canvas once it has one.
+  // D372 — an approved script's canvas: Create canvas, or Open canvas once it has one.
   const scriptCanvas = script.stage === "approved" ? await getScriptCanvas(client.id, script.id) : null;
   const canvasAction = script.stage === "approved" ? (
     <ScriptCanvasButton

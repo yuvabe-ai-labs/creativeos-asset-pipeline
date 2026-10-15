@@ -9,7 +9,7 @@ import { useAddScriptNode } from "@/hooks/use-add-script-node";
 import { startAddFromUrl } from "@/lib/scripts/add-from-url";
 import { viewportCentre } from "./viewport-centre";
 
-/** D372 — headless. Arriving from an approved script's "Create canvas" (?addScript=<id>), adds that
+/** D373 — headless. Arriving from an approved script's "Create canvas" (?addScript=<id>), adds that
  *  script once this session can edit. The parameter leaves the URL first, through
  *  history.replaceState (as the review drawer spends `?node=`), so a reload or Back never adds it
  *  again (script-to-canvas spec §3). The add itself is useAddScriptNode's: parse, avatar, toasts. */

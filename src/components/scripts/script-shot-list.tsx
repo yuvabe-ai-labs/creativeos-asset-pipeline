@@ -21,7 +21,7 @@ export function ScriptShotList({ shots, cast, compact = false, aside, shotState,
   shotState?: (t: TimedShot) => ShotState;
   /** Drawn under each row, full width (spec 4: the shot's comments). */
   renderAfter?: (shot: Shot) => ReactNode;
-  /** Placeholder rows after the last shot, for shots still being written (D366). */
+  /** Placeholder rows after the last shot, for shots still being written (D367). */
   pendingRows?: number;
 }) {
   const [grouped, setGrouped] = useState(true);

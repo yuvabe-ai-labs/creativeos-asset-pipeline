@@ -1,7 +1,7 @@
 # Approved script → its canvas
 
 **12 October 2026 · product spec (the *what*) · builds on script copilot spec 1 (§5, a script lands on a canvas) and spec 4 (client review / approval)**
-Branch: `script-to-canvas`. ADRs: D371 onward.
+Branch: `script-to-canvas`. ADRs: D372 onward.
 
 ---
 

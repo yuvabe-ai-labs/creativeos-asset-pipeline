@@ -200,7 +200,9 @@ export async function generateWithOpenAI(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {
-  const openai = createOpenAI();
+  const openai = createOpenAI(
+    input.providerMaxRetries !== undefined ? { maxRetries: input.providerMaxRetries } : undefined,
+  );
   const p = input.params;
 
   // Server-side migration: params saved before the aspect_ratio field existed may carry a

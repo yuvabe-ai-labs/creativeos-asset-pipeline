@@ -25,7 +25,7 @@ export function ScriptView({ script, avatarFaces, compact = false, cast, shotAsi
   shotState?: (timed: TimedShot) => ShotState;
   /** Room under each part for review work (spec 4: comments beside the part). */
   slots?: ScriptViewSlots;
-  /** Placeholder rows after the last shot while a draft streams in (D366). */
+  /** Placeholder rows after the last shot while a draft streams in (D367). */
   pendingShots?: number;
 }) {
   return (

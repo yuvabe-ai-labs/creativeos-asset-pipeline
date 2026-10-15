@@ -50,6 +50,9 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { completeGeneration } from "./complete";
+import { IMAGE_GENERATION_FAILED_MESSAGE, IMAGE_PROMPT_DECLINED_MESSAGE } from "@/lib/image-gen/failure-copy";
+import { computeImageCost } from "@/lib/image-gen/cost";
+import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { computeVideoCost } from "@/lib/video-gen/cost";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
@@ -300,5 +303,155 @@ describe("completeGeneration — a native voice preview keeps its voice (D296)",
     };
     await succeed({ voiceSample: { url: SAMPLE, durationSeconds: 4.8 } });
     expect(mocks.updateAvatar).not.toHaveBeenCalled();
+  });
+});
+
+describe("completeGeneration — image (D366)", () => {
+  beforeEach(() => {
+    mocks.generation = {
+      id: "g1",
+      status: "running",
+      type: "image",
+      node_id: "n1",
+      org_id: "org-1",
+      user_id: "u1",
+      model_used: "openai:gpt-image-2",
+      params_snapshot: { quality: "high" },
+      inputs_snapshot: { promptNodeId: "p1" },
+    };
+  });
+
+  const TOKENS: ImageTokenUsage = {
+    text_input_tokens: 10,
+    image_input_tokens: 0,
+    image_output_tokens: 20,
+    total_tokens: 30,
+  };
+
+  const succeeded = {
+    generationId: "g1",
+    status: "succeeded" as const,
+    kind: "image" as const,
+    imageUrl: "https://storage.googleapis.com/b/g1.png",
+    mimeType: "image/png",
+    width: 1024,
+    height: 1536,
+    fileSizeBytes: 2048,
+    tokensUsed: TOKENS,
+    costUsd: 0.05,
+  };
+
+  it("creates the version from the run's snapshots, makes it active and settles at the reported cost", async () => {
+    await completeGeneration(succeeded);
+    expect(mocks.insertVersion).toHaveBeenCalledWith({
+      nodeId: "n1",
+      operatorUserId: "u1",
+      inputsUsed: { promptNodeId: "p1" },
+      paramsUsed: {
+        modelId: "openai:gpt-image-2",
+        quality: "high",
+        tokensUsed: TOKENS,
+        imageWidth: 1024,
+        imageHeight: 1536,
+        fileSizeBytes: 2048,
+      },
+      modelUsed: "openai:gpt-image-2",
+      output: "https://storage.googleapis.com/b/g1.png",
+    });
+    expect(mocks.setActiveVersion).toHaveBeenCalledWith("n1", "ver-1");
+    expect(mocks.settleGeneration).toHaveBeenCalledWith({
+      orgId: "org-1",
+      generationId: "g1",
+      actualAmount: usdToFinalCredits(0.05),
+    });
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generationId: "g1",
+        versionId: "ver-1",
+        costUsd: 0.05,
+        outputSnapshot: "https://storage.googleapis.com/b/g1.png",
+      }),
+    );
+  });
+
+  it("refuses an image stored outside this app's bucket", async () => {
+    await completeGeneration({ ...succeeded, imageUrl: "https://evil.example/x.png" });
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: IMAGE_GENERATION_FAILED_MESSAGE });
+    expect(mocks.settleGeneration).not.toHaveBeenCalled();
+  });
+
+  it("bills a token-billed image from its reported tokens, never at zero", async () => {
+    const { costUsd: _omit, ...tokenBilled } = succeeded;
+    void _omit;
+    const tokens: ImageTokenUsage = {
+      text_input_tokens: 200,
+      image_input_tokens: 1000,
+      image_output_tokens: 4000,
+      total_tokens: 5200,
+    };
+    await completeGeneration({ ...tokenBilled, tokensUsed: tokens });
+    const usd = computeImageCost("openai:gpt-image-2", tokens)!.usd;
+    const credits = usdToFinalCredits(usd);
+    expect(credits).toBeGreaterThan(0);
+    expect(mocks.settleGeneration).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1", actualAmount: credits });
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ costUsd: usd, creditsCharged: credits }));
+  });
+
+  it("fails closed when an image result arrives for a non-image generation", async () => {
+    mocks.generation = { ...mocks.generation, type: "video" };
+    await completeGeneration(succeeded);
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.settleGeneration).not.toHaveBeenCalled();
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "Image result for a non-image generation" });
+    expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+  });
+
+  it("records a failed image as a failed version in plain words, then fails and refunds", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const raw = "Image generated but the webhook rejected it (500) — imageUrl=https://storage.googleapis.com/b/g1.png";
+    await completeGeneration({ generationId: "g1", status: "failed", error: raw });
+    expect(mocks.insertVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ nodeId: "n1", operatorUserId: "u1", error: IMAGE_GENERATION_FAILED_MESSAGE }),
+    );
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: IMAGE_GENERATION_FAILED_MESSAGE });
+    expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+    // The raw reason, with the paid image's URL, is kept for the operator in the server log.
+    expect(log).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ generationId: "g1", error: raw }));
+    log.mockRestore();
+  });
+
+  it("tells the user plainly when the model declined the prompt", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await completeGeneration({ generationId: "g1", status: "failed", error: "400 rejected by our safety system" });
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: IMAGE_PROMPT_DECLINED_MESSAGE });
+    log.mockRestore();
+  });
+
+  it("logs a paid image that arrives after its run already ended, so it can be recovered", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.generation = { ...mocks.generation, status: "failed" };
+    await completeGeneration(succeeded);
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ generationId: "g1", imageUrl: "https://storage.googleapis.com/b/g1.png" }),
+    );
+    log.mockRestore();
+  });
+
+  it("settles before the image becomes active, so a failed settlement leaves no active image", async () => {
+    mocks.settleGeneration.mockRejectedValueOnce(new Error("db down"));
+    await expect(completeGeneration(succeeded)).rejects.toThrow("db down");
+    expect(mocks.setActiveVersion).not.toHaveBeenCalled();
+    expect(mocks.succeedGeneration).not.toHaveBeenCalled();
+  });
+
+  it("ignores a duplicate delivery", async () => {
+    mocks.generation = { ...mocks.generation, status: "succeeded" };
+    await completeGeneration(succeeded);
+    expect(mocks.insertVersion).not.toHaveBeenCalled();
+    expect(mocks.settleGeneration).not.toHaveBeenCalled();
   });
 });

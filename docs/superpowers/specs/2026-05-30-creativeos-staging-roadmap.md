@@ -7235,7 +7235,24 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** this conversation.
 
-### D366 — The first draft's skeleton shows the moment writing starts *(recorded 2026-10-12)*
+### D366 — Image and Composite generations run as background jobs *(recorded 2026-10-12; refines D26, supersedes D35's rejection)*
+
+**Decision.** Image Gen and Composite generations, including edits, run as the `image-generate`
+Trigger.dev task, the same pipeline as video: the route reserves and starts the task, the task
+uploads through signed URLs and reports to the generation webhook, which graduates the version.
+One generation at a time per node. Paid generation tasks report `failed` only when the failure is final, and never retry a failure after the provider returned — the rule `video-voice-change` already followed. `image-generate` retries once (a failed image call is not billed); `video-generate` does not retry (its jobs are billed when submitted). Before this, `video-generate` reported `failed` on every attempt and then retried, so a retry that succeeded was paid for and discarded. Each node's generation status is read from the canvas's one generations feed (one query and one realtime channel per canvas), never a query or channel per node.
+
+**Why.** Synchronous image runs were lost when the operator left the canvas or closed the tab, and
+slow models (GPT Image high quality) approach the function time limit. D26 anticipated degrading a
+slow synchronous path to the asynchronous one; in practice image durations made that the norm.
+
+**Rejected.** Keeping the work in the Vercel function after responding (`after()` / `waitUntil`):
+still bound by the function time limit and no retries. A task that writes to the database directly:
+duplicates the completion logic outside the authenticated webhook (D89) and its org check (D79).
+
+**Originated →** `2026-10-12-async-image-generation-design.md`.
+
+### D367 — The first draft's skeleton shows the moment writing starts *(recorded 2026-10-12)*
 
 **Decision.** When the person confirms the brief, the turn sends an empty draft line (`EMPTY_PARTIAL_DRAFT`) before the writer is called, over the existing NDJSON `{type:"draft"}` channel. On it, the Generate workspace's right pane shows the script's skeleton (context card, two cast placeholders, five shot rows, laid out as `ScriptView` lays them out). Once the header arrives, the real view replaces it, with placeholder rows kept below the last shot (`ScriptView`'s `pendingShots`) until the draft is saved. While a draft is being written, the copilot's thinking pill uses writing verbs ("Writing the first draft", …) instead of "Mulling angles".
 
@@ -7247,7 +7264,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** this conversation.
 
-### D367 — A pasted script is imported, not written *(recorded 2026-10-12)*
+### D368 — A pasted script is imported, not written *(recorded 2026-10-12)*
 
 **Decision.** A long, many-line message goes to the quick model's `script_detect`, and a whole script goes to the writer's `script_import`, which reads the paste in the draft's shape and streams it into the pane. Plain code (`buildImport`, with `NARRATOR` in `constants.ts`) cleans the markdown, estimates missing lengths, resolves the reel number, keeps leftovers in the notes under "From the pasted script", and writes the reply. All word-for-word mismatches are grouped into ONE open item carrying every mismatched field path. When the kept text exceeds the 8,000-character notes cap, the reply says so and an open item is added. After an import, avatar chips ask who plays each character; they link via the existing cast PATCH route, and only on a tap.
 
@@ -7255,11 +7272,11 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Rejected.** The brief reader also classifying (it doesn't run once a draft exists); letting the model estimate lengths (code is repeatable and testable); a heuristic-only detector (it can't tell "add these two shots" from a script).
 
-**Refines →** D337, D366.
+**Refines →** D337, D367.
 
 **Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
 
-### D368 — Every imported VO and card is checked against the paste *(recorded 2026-10-12)*
+### D369 — Every imported VO and card is checked against the paste *(recorded 2026-10-12)*
 
 **Decision.** `unmatchedShots` compares every imported VO and card with the paste, ignoring spacing, quote style and markdown formatting only. Mismatches are named in the reply and become one open item listing every mismatched field path.
 
@@ -7267,11 +7284,11 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Rejected.** Fuzzy matching (it would hide a changed word).
 
-**Refines →** D367.
+**Refines →** D368.
 
 **Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
 
-### D369 — A guess is an item to confirm with the fields it filled *(recorded 2026-10-12)*
+### D370 — A guess is an item to confirm with the fields it filled *(recorded 2026-10-12)*
 
 **Decision.** Confirmations gain `paths`. `changeWithRetry` settles a guess when an edit changes one of its fields, and a patch marked `replaces` (an accepted import) is exempt.
 
@@ -7279,11 +7296,11 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Rejected.** A separate guesses list (a second open-items mechanism); settling in each route (five places to forget).
 
-**Refines →** D367.
+**Refines →** D368.
 
 **Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
 
-### D370 — A paste over a draft is read first, then offered on a replace card *(recorded 2026-10-12)*
+### D371 — A paste over a draft is read first, then offered on a replace card *(recorded 2026-10-12)*
 
 **Decision.** The card is `kind: "import"` and is settled by the proposals route. The paste limit is 30,000 characters (`MAX_PASTE_CHARS`); a non-script message keeps 4,000 (`MAX_MESSAGE_CHARS`).
 
@@ -7291,11 +7308,11 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Rejected.** A card first and parsing on accept (the card couldn't summarise the paste).
 
-**Refines →** D367.
+**Refines →** D368.
 
 **Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
 
-### D371 — An approved script starts one canvas, and the canvas remembers it *(recorded 2026-10-13)*
+### D372 — An approved script starts one canvas, and the canvas remembers it *(recorded 2026-10-13)*
 
 **Decision.** `canvases.source_script_id` (migration 0056: unique when set, `on delete set null`) records the approved script a canvas was created from. `createCanvasFromScriptAction` makes that canvas, or returns the existing one, including when a second request races the first (the unique index). The approved script's page shows **Create canvas** (the New canvas dialog, name pre-filled with the script's title), then **Open canvas** once the canvas exists. Deleting the canvas (a hard delete) frees the script to make another.
 
@@ -7307,7 +7324,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** docs/superpowers/specs/2026-10-12-script-to-canvas-design.md.
 
-### D372 — "Parsing" is canvas-store state, and the canvas adds the script itself *(recorded 2026-10-13)*
+### D373 — "Parsing" is canvas-store state, and the canvas adds the script itself *(recorded 2026-10-13)*
 
 **Decision.** A transient `scriptParsing` flag in the canvas store replaces the Script node's local parsing state. Whoever parses sets it: the node's own view, the gallery, or the Create-canvas hand-off. While it is on, the node reads "Parsing script…" and its view, if opened, shows the "Parsing script…" skeleton, never the upload screen. The dialog hands off through `?addScript=<id>`. The headless `AddScriptFromUrl` removes the parameter, then runs the existing `useAddScriptNode`, which fills the new canvas's seeded empty Script node (keeping its KB wire) or adds a node at the viewport centre when there is none.
 
@@ -7315,6 +7332,6 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Rejected.** Seeding the Script node with the script on the server (a second copy of the parse and avatar logic). Saving "parsing" in node data (a closed tab would leave the node stuck). Opening the script's view automatically when the parse ends (the spec keeps it openable, not opened).
 
-**Refines →** D371; spec 1 §5.2.
+**Refines →** D372; spec 1 §5.2.
 
 **Originated →** docs/superpowers/specs/2026-10-12-script-to-canvas-design.md.

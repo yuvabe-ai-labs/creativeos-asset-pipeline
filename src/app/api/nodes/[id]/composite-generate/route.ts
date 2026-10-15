@@ -14,6 +14,7 @@ import {
 import { compositeContextLines, contextIds, resolveContextMentions } from "@/lib/composite/context";
 import { resolveCompositeModelId } from "@/lib/composite/model";
 import { referenceProblem, runCompositeGeneration } from "@/lib/composite/run-generation";
+import { IMAGE_GEN_MASK_MIME, MASK_NOT_PNG_MESSAGE } from "@/lib/image-gen/task-payload";
 import {
   buildCompositePrompt,
   buildCompositeEditBrief,
@@ -80,8 +81,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // A painted region (GPT Image): only a model that takes a mask may receive one.
       const mask =
         typeof edit.maskBase64 === "string" && edit.maskBase64
-          ? { base64: edit.maskBase64, mime: typeof edit.maskMime === "string" ? edit.maskMime : "image/png" }
+          ? { base64: edit.maskBase64, mime: typeof edit.maskMime === "string" ? edit.maskMime : IMAGE_GEN_MASK_MIME }
           : undefined;
+      if (mask && mask.mime !== IMAGE_GEN_MASK_MIME) return apiError(MASK_NOT_PNG_MESSAGE, 400);
       if (mask && !config.supportsMask) {
         return apiError(`${config.label} can't edit a painted region — type the change instead, or pick GPT Image.`, 400);
       }

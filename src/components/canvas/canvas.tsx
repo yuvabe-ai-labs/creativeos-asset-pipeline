@@ -453,7 +453,7 @@ export function Canvas({
       {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
       <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
 
-      {/* D372 — adds the approved script this canvas was created for (?addScript) */}
+      {/* D373 — adds the approved script this canvas was created for (?addScript) */}
       <AddScriptFromUrl />
 
       {/* Top-right overlay: KB badge */}

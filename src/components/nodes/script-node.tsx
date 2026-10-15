@@ -51,7 +51,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const groupingVersion = d.groupingVersion;
   const sceneBeats = d.sceneBeats;
   const [focusOpen, setFocusOpen] = useState(false);
-  // Set by whoever parses — this node's view, the gallery, the Create-canvas hand-off (D372).
+  // Set by whoever parses — this node's view, the gallery, the Create-canvas hand-off (D373).
   const isParsing = useCanvasStore((s) => s.scriptParsing[id] === true);
   const connState = useNodeConnectionState(id, "script");
   const addAvatarNode = useAddAvatarNode();
