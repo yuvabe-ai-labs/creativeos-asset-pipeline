@@ -28,3 +28,12 @@ export async function retryInPlace<T>(fn: () => Promise<T>, sleep: (s: number) =
   }
   throw last;
 }
+
+/** The user-facing copy for a failed run: a DubbingFinalError's own message (also when Trigger
+ *  serialized it and only the name survived), otherwise `fallback`. */
+export function finalUserMessage(error: unknown, fallback: string): string {
+  if (error instanceof DubbingFinalError) return error.userMessage;
+  const e = error as { name?: unknown; userMessage?: unknown } | null | undefined;
+  if (e?.name === "DubbingFinalError" && typeof e.userMessage === "string") return e.userMessage;
+  return fallback;
+}
