@@ -25,7 +25,6 @@ export function UsagePopoverShell({
   totalCredits,
   pipelineTotalCredits,
   pipelineLoading,
-  onOpenChange,
 }: {
   rows: UsageRow[];
   /** Extra key/value rows shown in the Overall section (e.g. token counts). */
@@ -37,11 +36,9 @@ export function UsagePopoverShell({
   /** True while a pipeline total is expected but hasn't loaded yet — shows a skeleton
    * instead of flashing this node's own (smaller, wrong) total first. */
   pipelineLoading?: boolean;
-  /** Told when the popover opens or closes, so a caller can load its rows only on open. */
-  onOpenChange?: (open: boolean) => void;
 }) {
   return (
-    <Popover onOpenChange={onOpenChange}>
+    <Popover>
       <PopoverTrigger
         render={
           /* The credits total IS the trigger — no "Usage" label. Link variant

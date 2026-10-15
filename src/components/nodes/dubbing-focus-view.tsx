@@ -21,6 +21,7 @@ import { DubbingFocusRail, type DubbingRailSelection } from "./dubbing-focus-rai
 import { DubbingControls } from "./dubbing-controls";
 import { DubbingPlayer } from "./dubbing-player";
 import { DubbingVersionHistory } from "./dubbing-version-history";
+import { DubbingUsagePopover } from "./dubbing-usage-popover";
 
 type Props = {
   open: boolean;
@@ -69,7 +70,20 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
                 <EditableField value={title} onCommit={(t) => onPatch({ title: normalizeTitle(t) })} placeholder="Dubbing" className="font-display text-3xl font-semibold tracking-tight" />
               </SheetTitle>
               <div className="flex shrink-0 flex-col items-end gap-2">
-                {status.lastError && !running && <GenerationErrorBadge error={status.lastError} />}
+                <div className="flex items-center gap-2">
+                  {/* As in Video Gen: the popover needs the versions, so a skeleton holds its place
+                      while they load. Once loaded it always shows, "0 credits used" before a dub. */}
+                  {loading ? (
+                    <Skeleton className="h-8 w-20 rounded-md" />
+                  ) : (
+                    <DubbingUsagePopover versions={versions} nodeId={nodeId} upstreamNodeIds={source ? [source.id] : undefined} />
+                  )}
+                </div>
+                {status.lastError && !running && (
+                  <div className="mt-1">
+                    <GenerationErrorBadge error={status.lastError} />
+                  </div>
+                )}
               </div>
             </header>
           </div>

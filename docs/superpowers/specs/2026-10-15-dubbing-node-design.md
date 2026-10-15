@@ -163,7 +163,7 @@ writes the version.
   type that charges a version twice.
 - **Node and pipeline totals** (`useNodeCost`, the canvas cost query) already sum settled
   generations by node, so dub and lip sync count with no change.
-- **Usage popover** on the Dubbing node's credits footer (`UsagePopoverShell`, like Video Gen's):
+- **Usage popover** in the Dubbing focus view header, as Video Gen and Image Gen place theirs (`UsagePopoverShell`):
   one row per version, "Hindi dub · lip sync ×2" with that version's summed credits (the dub
   plus every lip sync on it); node total; pipeline total with the connected video upstream.
 - **Generation kinds:** `GenerationJobKind` gains `dub` and `lipsync` (today an unknown type

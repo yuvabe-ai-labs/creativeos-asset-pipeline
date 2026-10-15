@@ -17,7 +17,6 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { ProcessingPill } from "./processing-pill";
 import { DubbingFocusView } from "./dubbing-focus-view";
-import { DubbingUsagePopover } from "./dubbing-usage-popover";
 
 function stateWord(dub: DubbingOutput | null, running: string | null): string {
   if (running === "dub") return "Dubbing…";
@@ -89,7 +88,7 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
               )}
             </div>
           </div>
-          <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(dub)} usage={<DubbingUsagePopover nodeId={id} />} />
+          <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(dub)} />
           <Handle type="target" position={Position.Left} className="!size-4 !border-2 !border-card !bg-muted-foreground" />
         </div>
       </NodeContextMenu>
