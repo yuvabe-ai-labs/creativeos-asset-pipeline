@@ -246,3 +246,16 @@ describe("dubbing connections", () => {
     expect((n.data as { parsed: unknown }).parsed).toEqual(out);
   });
 });
+
+describe("VALID_CONNECTIONS — an image into a Multishot (D383)", () => {
+  it("lets a file, draw, image-gen or composite connect to a multishot", () => {
+    for (const source of ["file", "draw", "image-gen", "composite"]) {
+      expect(canConnect(source, "multishot")).toBe(true);
+    }
+  });
+
+  it("still feeds a multishot nothing else", () => {
+    expect(canConnect("text", "multishot")).toBe(false);
+    expect(canConnect("prompt", "multishot")).toBe(false);
+  });
+});

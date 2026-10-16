@@ -316,14 +316,17 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   // The multishot lane skips the still entirely: a start frame fixes ONE composition and
   // this node is a sequence of several. A composite made for one of its shots is the exception.
   multishot:          ["multishot-prompt", "composite"],
-  file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
-  draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
+  // D383 — an image may sit on a Multishot (its storyboard panel, or any picture) to be SEEN there.
+  // Nothing reads it: the multishot prompt resolves only its own direct upstream, so an image must
+  // still be wired to the prompt to reach the writer or the video.
+  file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "multishot", "post", "composite"],
+  draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "multishot", "post", "composite"],
   text:               ["prompt", "video-prompt", "multishot-prompt"],
   prompt:             ["prompt", "image-gen"],
-  "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
+  "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "multishot", "post", "composite"],
   // D312 — a composite is a reference image: Image Gen's outputs, plus another composite (a
   // location sheet made first becomes the background of an avatar composite).
-  composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
+  composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "multishot", "post", "composite"],
   "video-prompt":     ["video-gen"],
   "multishot-prompt": ["video-gen"],
   "video-gen":        ["dubbing"],
