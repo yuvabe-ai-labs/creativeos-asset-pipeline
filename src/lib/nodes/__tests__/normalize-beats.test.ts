@@ -66,3 +66,10 @@ describe("stampSceneBeats", () => {
     expect(stampSceneBeats({ title: "x" })).toEqual({ title: "x" });
   });
 });
+
+describe("stampSceneBeats keeps the shot's name (D380)", () => {
+  it("passes label through untouched", () => {
+    const out = stampSceneBeats({ visual_script: { shots: [row({ label: "S3", beats: [] })] } });
+    expect(out.visual_script?.shots?.[0].label).toBe("S3");
+  });
+});

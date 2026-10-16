@@ -105,8 +105,9 @@ const reelSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["description", "duration", "duration_seconds", "clip", "voiceover", "beats"],
+            required: ["label", "description", "duration", "duration_seconds", "clip", "voiceover", "beats"],
             properties: {
+              label: { type: "string" },
               description: { type: "string" },
               duration: { type: "string" },
               duration_seconds: { type: "integer" },
@@ -152,9 +153,11 @@ Fields:
 - schedule: { date, post_time, category, theme }.
 - strategic_objective: the stated goal of the reel.
 - ai_production_type: the production approach stated in the script.
-- visual_script: { shots: [{ description, duration, duration_seconds, clip, voiceover, beats }], execution_refinement } — one row per SCENE, in the order the script writes them.
+- visual_script: { shots: [{ label, description, duration, duration_seconds, clip, voiceover, beats }], execution_refinement } — one row per SCENE, in the order the script writes them.
   - A scene begins at a heading, whatever the script calls it: "Scene 3 — How to Use | 10–18 sec", "Shot 2", "CLIP 4 (10–20 SEC)", or a bare timecode line ("0–5 sec"). A title after a dash or a pipe is part of the heading, not content.
   - Each scene produces EXACTLY ONE row. A scene whose visual lists several beats — a montage, "A → B → C", "quick cuts of X, Y, Z" — is still one row, and its description keeps that prose as written. Do NOT split a montage into rows: its suggested cuts go in that row's beats, never in extra rows.
+  - When a script names its shots — a "Shot" column in a table, or numbered headings ("Shot 3", "Scene 3", "CLIP 3") — every named shot is EXACTLY ONE row, in the script's order. Never merge two named shots into one row, never split one named shot into two, never drop or add one. In a table with a Shot column, each table row is one shot.
+  - label: that shot's own name exactly as the script writes it — "S3", "Shot 3", "Scene 3", "CLIP 3" — from its Shot cell or its heading, without the timing or the title after it. "" when the script names none. A bare timecode is not a name. Never invent, renumber or reformat a name.
   - duration: the timing exactly as the script writes it (e.g. "0-3 sec", "3-8 sec").
   - duration_seconds: that shot's OWN LENGTH in whole seconds — NOT the end of its timecode range. Scripts usually write cumulative ranges, so "0-3 sec" is 3, "3-8 sec" is 5, and "8-14 sec" is 6. If a shot gives only a single number ("4 sec"), that number IS the length. If the length cannot be determined, use 4.
   - clip: the number recorded from that row's own heading when the script uses the word "CLIP" for it — "CLIP 1 (0–10 SEC)", "CLIP 2", "Clip 3 — …" — kept for reference only; it no longer groups several rows under one number or changes how many rows a heading produces. Use 0 when the script marks none, and never invent a number the heading does not give.
@@ -201,7 +204,7 @@ What the signal changes is the SETTING, and it MUST change it. Rewrite EVERY sho
 
 What you carry over untouched is what each shot SHOWS: its subject and its action, plus its camera, framing, motion and timing direction. Re-place the shot; do not re-stage what it is doing. Each description should read as the source's own subject and action, happening somewhere else, at some other time.
 
-The shot list is fixed: every source shot appears exactly once, in source order. Never drop, merge, reorder, split or replace a shot, and never add one — in particular, never promote something named only in the caption, the ingredient list or the QC notes into a shot.
+The shot list is fixed: every source shot appears exactly once, in source order, and keeps its label. Never drop, merge, reorder, split or replace a shot, and never add one — in particular, never promote something named only in the caption, the ingredient list or the QC notes into a shot.
 
 The SCHEDULE follows the signal, because a signal states when. ALWAYS rewrite "schedule.theme" so it describes the signal's own moment — its occasion, or the habit and time of day it describes when it names no occasion. A theme left naming the source script's occasion is always wrong. Where the signal names a calendar occasion, the theme also says where this post sits against it — a run-up, the day itself, the morning after — and "schedule.date" moves into that occasion's window, keeping the source's year unless the signal gives one. Be honest about precision there: where the signal names only a month, a season or a festival whose exact date you cannot know, write the window ("mid-August 2027", "the week before Rakshabandhan") and NEVER invent a specific day to look precise. Adjust "schedule.post_time" only where the signal's occasion or audience implies a different slot — a shot's time of day is not a posting time, so a dawn-lit shot does not mean a dawn post. Leave "schedule.category" as the source has it.`;
 
@@ -256,7 +259,10 @@ export const scriptParsePrompt = {
   // v11: "cuts"/"montage" in any phrasing is a cut signal, with worked examples (v10 missed
   // "Handheld cuts — A, B, C" 3/3); beats must stand alone as shots; beats carry no voiceover —
   // a split scene's lines always play over the whole sequence (D286, operator 2026-09-29).
-  version: 11,
+  // v12: every row carries the shot's own name as written (`label`, D380), and a script that names
+  // its shots — the copilot's Shot column, or "Shot 3" / "Scene 3" headings — gets exactly one row
+  // per named shot, in order. A bare timecode is not a name.
+  version: 12,
   model: "gpt-5.4-mini",
   system,
   clientContextHeading,
