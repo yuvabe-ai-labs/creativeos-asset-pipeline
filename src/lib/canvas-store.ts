@@ -40,6 +40,8 @@ import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
+import { SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, storyboardPanelNodes } from "@/lib/scripts/storyboard-canvas";
+import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -484,6 +486,10 @@ export function createCanvasStore(
     //
     // INCREMENTAL. A generation already on canvas is skipped, so pressing Fan out twice does
     // nothing the second time instead of duplicating the whole row.
+    //
+    // With an approved storyboard (D382) each NEW node also gets its panel, wired into its image
+    // handle. Only new nodes: a re-run never adds a second panel, and one the person deleted
+    // stays deleted (spec A5).
     fanOutShots: (scriptNodeId) => {
       const script = get().nodes.find((n) => n.id === scriptNodeId);
       if (!script) return;
@@ -493,12 +499,16 @@ export function createCanvasStore(
         groupModes?: Record<string, boolean>;
         groupingVersion?: GroupingVersion;
         sceneBeats?: SceneBeatCache;
+        storyboard?: ScriptStoryboard;
       };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
       if (shots.length === 0) return;
 
       const scriptTitle = data.title || parsed?.title || "";
+      // D382 — with an approved storyboard each shot gets its panel underneath, so rows need room.
+      const storyboardPanels = data.storyboard?.panels;
+      const pitch = storyboardPanels?.length ? STORYBOARD_ROW_PITCH : SHOT_ROW_PITCH;
       const generations = describeGenerations(
         shots,
         data.groupModes,
@@ -540,7 +550,7 @@ export function createCanvasStore(
       );
       const baseY =
         seeded.length > 0
-          ? Math.max(...seeded.map((n) => n.position.y)) + 170
+          ? Math.max(...seeded.map((n) => n.position.y)) + pitch
           : script.position.y;
       const baseX = script.position.x + 360;
 
@@ -550,7 +560,7 @@ export function createCanvasStore(
           shotIndexes: generation.shotIndexes,
           scriptTitle,
         };
-        const position = { x: baseX, y: baseY + i * 170 };
+        const position = { x: baseX, y: baseY + i * pitch };
         const groupShots = generation.shotIndexes.map((shotIndex) => shots[shotIndex]);
 
         if (generation.multishot) {
@@ -615,10 +625,11 @@ export function createCanvasStore(
         source: scriptNodeId,
         target: n.id,
       }));
+      const panels = storyboardPanelNodes(created, shots, storyboardPanels);
 
       set({
-        nodes: [...get().nodes, ...created],
-        edges: [...get().edges, ...createdEdges],
+        nodes: [...get().nodes, ...created, ...panels.nodes],
+        edges: [...get().edges, ...createdEdges, ...panels.edges],
       });
 
       // The ONLY fan-out toast (BUG-007: the Script node used to add its own, counting script
