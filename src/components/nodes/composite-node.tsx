@@ -11,11 +11,13 @@ import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { useNodeCost } from "@/hooks/use-node-cost";
+import { useGenerationStatus } from "@/hooks/use-generation-status";
 import type { CompositeNodeData } from "@/lib/canvas-nodes";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { CompositeFocusView } from "./composite-focus-view";
+import { ProcessingPill } from "./processing-pill";
 
 // D312 — the Composite card: the current image and a way in. Generation runs in the focus view.
 export function CompositeNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
@@ -31,6 +33,8 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
   const drop = useGalleryNodeDrop(id, position);
   const totalCredits = useNodeCost(id);
   const [focusOpen, setFocusOpen] = useState(false);
+  // D366 — the node's shared status, so the card shows a run in flight after the focus view closes.
+  const { isGenerating: isProcessing } = useGenerationStatus(id);
 
   const focusViewOpen = focusOpen || focusedNodeId === id;
   const handleFocusOpenChange = (next: boolean) => {
@@ -71,13 +75,17 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
                 <img src={imageUrl} alt="Composite" className="aspect-video w-full object-cover" />
               </div>
             )}
-            <Button
-              variant="ghost"
-              onClick={() => setFocusOpen(true)}
-              className="nodrag -mx-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
-            >
-              Open ↗
-            </Button>
+            {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => setFocusOpen(true)}
+                className="nodrag -mx-1.5 h-auto gap-1 rounded-md border-0 px-1.5 py-1 text-xs text-primary transition-colors hover:bg-primary/10 hover:text-primary"
+              >
+                Open ↗
+              </Button>
+              <ProcessingPill processing={isProcessing} />
+            </div>
           </div>
           <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(imageUrl)} />
           <Handle type="target" position={Position.Left} className="!size-4 !border-2 !border-card !bg-muted-foreground" />

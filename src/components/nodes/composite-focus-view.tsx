@@ -34,6 +34,7 @@ import { FieldLabel } from "./field-label";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
 import { ImageGenVersionHistory } from "./image-gen-version-history";
+import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { CompositeOutputPane } from "./composite-output-pane";
 
 type Props = {
@@ -56,6 +57,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   const upstream = useCompositeUpstream(nodeId);
   const mentionUpstream = useMemo(() => compositeMentionUpstream(upstream), [upstream]);
   const hasAvatar = upstream.some((u) => u.type === "avatar");
+  const upstreamNodeIds = useMemo(() => upstream.map((u) => u.id), [upstream]);
   // A stored id the client map no longer lists (a retired model) falls back to the default.
   const model = imageGenClientModelMap[compositePickerModelId(modelId)];
   const modelNote = compositeModelNote(model.id, hasAvatar);
@@ -103,9 +105,17 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="-ml-2.5 gap-1.5 font-medium text-muted-foreground hover:text-foreground">
               <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
             </Button>
-            <SheetTitle className="mt-4 p-0 font-display text-3xl font-semibold tracking-tight">
-              <EditableField value={title} onCommit={(t) => onPatch({ title: normalizeTitle(t) })} placeholder="Composite" className="font-display text-3xl font-semibold tracking-tight" />
-            </SheetTitle>
+            <header className="mt-4 flex items-start justify-between gap-4">
+              <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                <EditableField value={title} onCommit={(t) => onPatch({ title: normalizeTitle(t) })} placeholder="Composite" className="font-display text-3xl font-semibold tracking-tight" />
+              </SheetTitle>
+              {/* Per-version credits; a skeleton holds its place until the versions load. */}
+              {loading ? (
+                <Skeleton className="h-8 w-28 shrink-0 rounded-lg" />
+              ) : (
+                <ImageGenUsagePopover versions={versions} nodeId={nodeId} upstreamNodeIds={upstreamNodeIds} />
+              )}
+            </header>
             {lastError && !generating && <div className="mt-2"><GenerationErrorBadge error={lastError} /></div>}
           </div>
         </div>
