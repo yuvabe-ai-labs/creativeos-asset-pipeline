@@ -2,12 +2,14 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { getScript } from "@/lib/db/scripts";
 import { getAvatar } from "@/lib/db/avatars";
 import { archiveUnwrittenScript, getGenerateScript } from "@/lib/db/script-generate";
+import { loadApprovedStoryboard } from "@/lib/scripts/storyboard-server";
 
 type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
 // GET /api/clients/:id/scripts/:scriptId — one script, plus the lead's avatar id when that
 // avatar can go on a canvas: this client's, ready, not archived (spec 1 §5.4). Otherwise null,
-// and the script still arrives without an avatar.
+// and the script still arrives without an avatar. Also the approved storyboard (D381): the
+// panels the client approved, named by shot, or [] when there are none.
 export async function GET(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
   return withClient(req, params, async (clientId) =>
@@ -18,7 +20,8 @@ export async function GET(req: Request, { params }: Ctx) {
       const lead = script.doc.cast.find((c) => c.isLead);
       const avatar = lead?.avatarId ? await getAvatar(clientId, lead.avatarId) : null;
       const leadAvatarId = avatar && avatar.status === "ready" && !avatar.archivedAt ? avatar.id : null;
-      return apiOk({ script, leadAvatarId });
+      const storyboard = await loadApprovedStoryboard(script);
+      return apiOk({ script, leadAvatarId, storyboard });
     }),
   );
 }
