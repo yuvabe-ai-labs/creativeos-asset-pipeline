@@ -7401,3 +7401,51 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 **Refines →** D378.
 
 **Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D380 — Shots are named in the script text, and the parse keeps the names *(recorded 2026-10-16)*
+
+**Decision.** The canvas copy of a copilot script names its shots in a Shot column (S1, S2…, the names the copilot already shows). The Script node's parse (v12) returns each row's `label` as written, and a script that names its shots ("S3", "Shot 3", "Scene 3", "CLIP 3") gets exactly one row per named shot, in order. A bare timecode is not a name. Measured with real parses: 12/12 runs kept every name in order — a 14-shot copilot script, "Shot N" headings, "Scene N" headings, and an unnamed script that got no invented names (scripts/probe-shot-names.itest.ts, gpt-5.4-mini).
+
+**Why.** The canvas threw away which shot a row was: the copilot's shot ids are not in the text, and the parse had no name field, so nothing on the canvas could say "this is shot 3". A name printed into the text survives every edit, paste and re-parse, which hidden ids cannot once editing is free. It also helps uploaded scripts that number their shots.
+
+**Rejected.** A deterministic copilot → parsed-script converter that skips the LLM (two paths producing rows that drift, and edits would fall back to the LLM anyway). Printing the copilot's internal ids (unreadable in a script). Matching rows to shots by position (a merge or split shifts every later row).
+
+**Refines →** D372, D286.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D381 — A script arrives on the canvas with the storyboard the client approved, frozen on the node *(recorded 2026-10-16)*
+
+**Decision.** Adding an approved script (Create canvas or the gallery) also hands over its approved panels: the ones frozen in the script's latest review version — the only version approval can approve — named by the script's order. The Script node keeps them as `storyboard`, never refreshed. A script with none gets no key.
+
+**Why.** The panels the client signed off are the point; live picks can be redrawn during review or after a reopen. Keeping them on the node makes the canvas self-contained (Fan out and the gallery read the node, no extra fetch), and the node is already a frozen copy of the script (spec 1 §5.4).
+
+**Rejected.** Reading `script_panel_picks` (not what the client approved). Fetching panels on demand from the canvas (a second source that can disagree with the text on the node).
+
+**Refines →** D372, D351.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D382 — Fan out wires each new shot's panel into it, and nothing further *(recorded 2026-10-16)*
+
+**Decision.** For each node Fan out creates, every row it covers whose name matches a panel gets a File node pointing at the panel's stored image (no copy), placed under the shot and wired into its `image` handle. Only new nodes: a re-run adds no second panel, and a panel the person deleted stays deleted. Rows are spaced 360px instead of 170 when the script has a storyboard. Nothing is wired into prompt, Image Gen, Composite, the video prompt or Video Gen.
+
+**Why.** On a Shot, an image on the image handle grounds the Shot Composer and nothing paid: the panel is three levels from Video Gen, which looks two up. Wiring past the shot is a choice the team should make after using this (operator, 2026-10-16).
+
+**Rejected.** Wiring the panel into the image prompt automatically (deferred), or into Video Gen as a reference (reference support varies by model, and it skips the still).
+
+**Refines →** D228, D28.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D383 — A Multishot node shows an image; the gallery shows the whole storyboard *(recorded 2026-10-16)*
+
+**Decision.** File, Draw, Image Gen and Composite may connect to a Multishot node, on an `image` handle with the Shot's id (so the wire survives a shot ↔ multishot flip). Nothing reads it: the multishot prompt resolves only its own direct upstream. The gallery's References tab shows a Storyboard group per Script node with panels, in shot order, labelled "S3 · HOOK — storyboard", even without a Drive folder.
+
+**Why.** A Multishot row should carry its panel like any shot, but the multishot lane deliberately has no still (D230); reading the panel there is a separate decision. The gallery keeps every panel reachable when an edit unlinks one, which is why no warning is needed.
+
+**Rejected.** Letting the multishot prompt read the panel now (deferred). A separate Storyboard gallery tab (the panels are references).
+
+**Refines →** D230, D300.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
