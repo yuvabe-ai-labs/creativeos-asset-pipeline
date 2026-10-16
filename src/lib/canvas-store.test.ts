@@ -370,7 +370,7 @@ describe("fanOutShots with an approved storyboard (D382)", () => {
     expect(panelNodes(plain)).toEqual([]);
     expect(plain.getState().nodes.filter((n) => n.type === "shot").map((s) => s.position.y)).toEqual([0, 170]);
 
-    const unnamed = createCanvasStore([scriptNode(rows.map(({ label: _l, ...r }) => r))], []);
+    const unnamed = createCanvasStore([scriptNode(rows.map(({ description, duration_seconds }) => ({ description, duration_seconds })))], []);
     unnamed.getState().fanOutShots("sb");
     expect(panelNodes(unnamed)).toEqual([]);
   });

@@ -10,7 +10,7 @@ export type GalleryImage = {
   previewUrl?: string;
   filename: string;
   subtitle: string;
-  source: "drive" | "generated" | "moodboard";
+  source: "drive" | "generated" | "moodboard" | "storyboard";
   /** MIME type of the Drive file — required when source === "drive" for import. */
   driveMimeType?: string;
   /** Provenance page URL — set when source === "moodboard". */

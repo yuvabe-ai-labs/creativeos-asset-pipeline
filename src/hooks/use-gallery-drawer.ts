@@ -5,20 +5,12 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { fileNodeService } from "@/services/file-node.service";
 import type { GalleryImage } from "@/components/canvas/gallery-drawer/types";
+import { galleryImageTitle } from "@/components/canvas/gallery-drawer/gallery-image-title";
 
 const COLS = 3;
 const GAP_X = 220;
 const GAP_Y = 260;
 const OFFSET_X = 280;
-
-// Deliberately NOT lib/nodes/title.ts's titleFromFilename: a gallery pick keeps the file's
-// name as-is minus the extension ("hero-shot"), where an uploaded file's auto-title also reads
-// separators as spaces ("hero shot"). nextFileNodeTitle() knows about both spellings, so
-// replacing the attachment on a node created here still re-derives its title.
-function stripExtension(filename: string): string {
-  const dot = filename.lastIndexOf(".");
-  return dot > 0 ? filename.slice(0, dot) : filename;
-}
 
 export function useGalleryDrawer() {
   const addNode = useCanvasStore((s) => s.addNode);
@@ -44,7 +36,7 @@ export function useGalleryDrawer() {
         const nodeId = crypto.randomUUID();
         addNode("file", position, nodeId);
 
-        const title = stripExtension(image.filename);
+        const title = galleryImageTitle(image);
 
         if (image.source === "drive" && image.driveMimeType) {
           updateNodeData(nodeId, {

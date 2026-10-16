@@ -35,6 +35,10 @@ import { useRefreshScripts } from "@/hooks/queries/scripts";
 import { DriveFolderPicker } from "./drive-folder-picker";
 import { GalleryAddUrl } from "./gallery-add-url";
 import { moodboardItemToGalleryImage } from "./moodboard-image";
+import { GalleryStoryboard } from "./gallery-storyboard";
+import { storyboardGroups } from "./storyboard-images";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { cn } from "@/lib/utils";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
 import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
@@ -234,6 +238,11 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
     return (signal?.items ?? []).map(moodboardItemToGalleryImage);
   }, [market.data, selectedSignalId]);
 
+  // D383 — the canvas's own approved storyboards, read from its Script nodes.
+  const nodes = useCanvasStore((s) => s.nodes);
+  const storyboard = useMemo(() => storyboardGroups(nodes), [nodes]);
+  const storyboardImages = useMemo(() => storyboard.flatMap((g) => g.images), [storyboard]);
+
   const activeImages =
     tab === "references"
       ? references
@@ -244,7 +253,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           : moodboardImages;
 
   function toggleSelect(id: string) {
-    const allImages = [...references, ...assets, ...moodboardImages, ...signalImages];
+    const allImages = [...storyboardImages, ...references, ...assets, ...moodboardImages, ...signalImages];
     const image = allImages.find((i) => i.id === id);
     if (!image) return;
     setSelectedIds((prev) => {
@@ -322,7 +331,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }
 
   const previewImage = previewId
-    ? [...references, ...assets, ...moodboardImages, ...signalImages].find(
+    ? [...storyboardImages, ...references, ...assets, ...moodboardImages, ...signalImages].find(
         (i) => i.id === previewId,
       )
     : null;
@@ -506,12 +515,28 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               <GalleryScriptsTab clientId={clientId} defaultPosition={computeDefaultPosition} />
             )}
 
+            {tab === "references" && (
+              <GalleryStoryboard
+                groups={storyboard}
+                viewMode={viewMode}
+                selectedIds={selectedIds}
+                onToggle={toggleSelect}
+                onPreview={setPreviewId}
+                onDragStartImage={handleDragStartImage}
+              />
+            )}
+
             {tab !== "moodboard" &&
               tab !== "signals" &&
               tab !== "avatars" &&
               tab !== "scripts" &&
               (noFolderLinked ? (
-              <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+              <div
+                className={cn(
+                  "flex flex-col items-center justify-center gap-4 text-center",
+                  storyboard.length > 0 ? "py-10" : "h-full",
+                )}
+              >
                 <FolderOpen className="size-10 text-muted-foreground/40" strokeWidth={1.5} />
                 <div className="space-y-1">
                   <p className="text-sm font-medium">No Drive folder linked</p>
