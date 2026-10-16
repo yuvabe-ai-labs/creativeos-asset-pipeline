@@ -3,19 +3,22 @@ import type { Script } from "./schema";
 import type { ParseResult } from "@/lib/nodes/parse-script-node";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { printScript } from "./print";
+import type { ScriptStoryboard, StoryboardPanel } from "./storyboard";
+
+type ScriptNodeFill = { title: string; source: string; storyboard?: ScriptStoryboard };
 
 // Spec 1 §5.2 — what happens when an approved script lands on a canvas, as a plain function so
 // every path (including failures) is testable without React. `useAddScriptNode` supplies the
 // store, the avatar attach, the parse call and the toasts.
 
 export type AddScriptDeps = {
-  getDetail: (scriptId: string) => Promise<{ script: Script; leadAvatarId: string | null }>;
-  addScriptNode: (nodeId: string, position: XYPosition, data: { title: string; source: string }) => void;
+  getDetail: (scriptId: string) => Promise<{ script: Script; leadAvatarId: string | null; storyboard: StoryboardPanel[] }>;
+  addScriptNode: (nodeId: string, position: XYPosition, data: ScriptNodeFill) => void;
   attachAvatar: (avatarId: string, nodeId: string, position: XYPosition) => void;
   parse: (nodeId: string, source: string) => Promise<ParseResult>;
   writeParsed: (nodeId: string, output: ReelScript) => void;
   /** Puts the script into an existing empty Script node (a new canvas's seeded one). */
-  fillScriptNode: (nodeId: string, data: { title: string; source: string }) => void;
+  fillScriptNode: (nodeId: string, data: ScriptNodeFill) => void;
   /** The canvas's shared "this node is parsing" flag (canvas store, never saved; D373). */
   setParsing: (nodeId: string, parsing: boolean) => void;
   newId: () => string;
@@ -45,9 +48,15 @@ export async function addScriptToCanvas(scriptId: string, position: XYPosition, 
 
   const { header } = detail.script.doc;
   const source = printScript(detail.script.doc);
+  // D381 — the approved panels ride on the node, frozen; a script without any gets no key.
+  const fill: ScriptNodeFill = {
+    title: header.title,
+    source,
+    ...(detail.storyboard.length > 0 && { storyboard: { scriptId, panels: detail.storyboard } }),
+  };
   const nodeId = opts.into ?? d.newId();
-  if (opts.into) d.fillScriptNode(nodeId, { title: header.title, source });
-  else d.addScriptNode(nodeId, position, { title: header.title, source });
+  if (opts.into) d.fillScriptNode(nodeId, fill);
+  else d.addScriptNode(nodeId, position, fill);
   if (detail.leadAvatarId) d.attachAvatar(detail.leadAvatarId, nodeId, position);
 
   // The node reads "Parsing script…" for exactly as long as the parse runs, however it ends.
