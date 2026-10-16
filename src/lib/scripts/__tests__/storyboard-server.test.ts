@@ -33,6 +33,17 @@ describe("loadApprovedStoryboard", () => {
     expect(getScriptReviewForScript).not.toHaveBeenCalled();
   });
 
+  // Final review — getLatestVersion throws on a frozen version it cannot read; that must not stop
+  // the script reaching a canvas. Unreadable reads as "no storyboard" (spec §3).
+  it("is empty, not an error, when the approved version cannot be read", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(getScriptReviewForScript).mockResolvedValue({ id: "r1" } as never);
+    vi.mocked(getLatestVersion).mockRejectedValue(new Error("Version 3 of this review could not be read."));
+    await expect(loadApprovedStoryboard(script())).resolves.toEqual([]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("is empty when the script was never shared, or its version froze no panels", async () => {
     vi.mocked(getScriptReviewForScript).mockResolvedValue(null);
     expect(await loadApprovedStoryboard(script())).toEqual([]);
