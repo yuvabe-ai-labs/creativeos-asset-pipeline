@@ -28,7 +28,7 @@ describe("addScriptToCanvas", () => {
   it("creates the node with the printed text, parses it and reports the shot count", async () => {
     const d = deps();
     await addScriptToCanvas("s1", POS, d);
-    expect(d.addScriptNode).toHaveBeenCalledWith("n1", POS, { title: "Golu starts today", source: expect.stringContaining("| Beat | Visual | VO | On-screen text |") });
+    expect(d.addScriptNode).toHaveBeenCalledWith("n1", POS, { title: "Golu starts today", source: expect.stringContaining("| Shot | Beat | Visual | VO | On-screen text |") });
     expect(d.writeParsed).toHaveBeenCalledWith("n1", { visual_script: { shots: expect.any(Array) } });
     expect(d.toast.success).toHaveBeenCalledWith('"Golu starts today" parsed into 14 shots', { id: "t1" });
   });
