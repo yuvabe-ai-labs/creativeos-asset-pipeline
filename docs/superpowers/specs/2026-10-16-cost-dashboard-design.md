@@ -27,8 +27,8 @@ alerts, budgets beyond the existing `monthly_credit_limit`.
 | **Not recorded** | Billed − Recorded. Spend we have no record of. | Derived |
 | **Rupees** | USD × that month's stored rate. | `cost_fx_rates` |
 
-Credits appear only in the "Credit limit used" column (credits vs `organizations.monthly_credit_limit`,
-from `credit_transactions`), because that is what the limit is measured in.
+Credits appear only in the "Credit limit used" column (summed `generations.credits_charged`, the
+settled amount, vs `organizations.monthly_credit_limit`), because that is what the limit is measured in.
 
 ## 3. The page — `/admin/costs` (production only)
 
@@ -225,6 +225,6 @@ until the run finishes, then invalidates the month query.
   canvases, avatars and scripts; only succeeded rows are summed, and grouping matches.
 - Sync task: idempotency (two runs give identical rows), a failed provider adapter leaves its old rows,
   shared-key split arithmetic, month freeze after the 3rd.
-- Refresh route: second click within 10 minutes returns the same run; non-super-admin gets 403.
+- Refresh route: second click within 10 minutes returns the same run; non-super-admin gets 404 (repo rule: admin surfaces are not revealed).
 - Coverage registry: every recorded `feature` key has a registry entry.
 - Page: env toggle, expand/collapse, CSV columns.
