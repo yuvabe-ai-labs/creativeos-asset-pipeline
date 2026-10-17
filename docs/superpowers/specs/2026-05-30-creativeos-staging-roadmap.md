@@ -7401,3 +7401,35 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 **Refines →** D378.
 
 **Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D380 — An internal cost dashboard on production admin, fed by a nightly sync plus Refresh now *(recorded 2026-10-16)*
+
+**Decision.** `/admin/costs` on production, super-admin only, shows both environments: Billed vs Recorded in rupees, accounts → clients → canvases (plus each client's avatars and scripts), providers, credit coverage, and six months. The page reads only summary tables in the production DB. A Trigger.dev task `cost-sync` fills them nightly at 02:00 IST (yesterday plus month to date; the previous month again on the 1st–3rd, then frozen), and on demand from **Refresh now** (current month, one run at a time, 10-minute window). Staging's records come from an aggregate-only RPC `cost_recorded_rollup` on the staging DB, called with a staging key held only in production's Trigger.dev environment. The web app never connects to staging.
+
+**Why.** Balance-only providers (Kling, ElevenLabs) need a daily snapshot history, so a scheduled job is needed anyway, and provider bills lag about a day. Summary tables keep the page to one round trip per table regardless of generation volume (performance rules 1 and 5). Refresh now covers "I need today's number" without making the page call providers.
+
+**Rejected.** Live queries on page load (slow, cross-region, provider rate limits, no balance history). An external BI tool (still needs the provider sync; another login; no links back into CreativeOS). Copying raw staging rows into production (only aggregates are needed).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D381 — "Recorded" is `generations.cost_usd`; providers bill only to provider × environment; one FX rate per month *(recorded 2026-10-16)*
+
+**Decision.** Recorded = summed raw `generations.cost_usd` of succeeded generations (before the credit round-up). Credits appear only against `monthly_credit_limit`. Account, client, canvas, avatar and script figures are always Recorded: providers report totals, so Billed stops at provider × environment and the difference shows as "Not recorded". Where one key serves both environments, its bill is stored as `shared` and split at read time by each environment's share of Recorded, labelled as split. Rupees = USD × the month's stored rate (`cost_fx_rates`); a new month defaults to the previous rate. Providers without a billing API (Google AI Studio, Sarvam, plan fees) use a monthly manual entry. A failed provider fetch never writes zero; the old rows stay and the UI says they are stale. Tracking starts 1 Nov 2026, when OpenAI, fal and Kling have separate staging and production keys and their billing APIs attribute cost per key (OpenAI `group_by=api_key_id`, fal `auth_method`, Kling `api_key_name` on each deduction), so those three split exactly; nothing before November is synced. Only keys listed in `src/lib/costs/provider-keys.ts` count, because the OpenAI project and the Kling account also hold keys for other uses.
+
+**Why.** `cost_usd` is the closest record to true provider cost; credits include round-up. Pretending to split a provider bill per canvas would be invented precision. A stored rate keeps past months stable.
+
+**Rejected.** Recorded from credits (overstates by the round-up). Live FX (past months would drift). Including card forex fees and GST (not needed yet).
+
+**Refines →** D77 (reads its ledger for the limit column).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D382 — A credit coverage registry lists every money-spending feature and whether it charges credits *(recorded 2026-10-16)*
+
+**Decision.** `src/lib/costs/coverage.ts` lists each paid feature (area, label, providers, status `charged | logged | none`). The sync stores a `feature` key on every recorded row, and a test fails if a key has no registry entry. The dashboard shows the registry with this month's spend per feature. At recording: canvas generation tools, avatars and storyboard panels charge credits. Script parsing, split scene and compose save usage without charging. The script copilot, canvas assistant, knowledge base and image analysis, Apify research and import, uploaded-file reading and dubbing voice preview are not recorded at all.
+
+**Why.** Unconnected features are the largest explainable part of "Not recorded", and listing them keeps connecting them visible work rather than something rediscovered later.
+
+**Rejected.** Inferring coverage automatically from code (fragile). Leaving unconnected spend only inside the gap total (hides which feature to fix).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
