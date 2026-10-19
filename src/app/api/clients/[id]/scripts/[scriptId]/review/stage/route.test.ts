@@ -40,16 +40,17 @@ describe("POST …/review/stage", () => {
     vi.mocked(teamActorName).mockResolvedValue("Arun");
   });
 
-  it("moves a Visualise script to In review, records who, and shares the script as it is now", async () => {
+  it("moves a Visualise script to In review, records who, and shares everything as it is now (D386)", async () => {
     vi.mocked(getScript).mockResolvedValue(script("visualise"));
     vi.mocked(moveScriptStage).mockResolvedValue(true);
     const version = { number: 2, scope: "panels", sharedAt: "2026-10-09T10:00:00.000Z" };
     vi.mocked(shareNow).mockResolvedValue({ ok: true, version: version as never, shareToken: "tok" });
     const { POST } = await import("./route");
-    const res = await POST(post({ move: "to_review", scope: "panels" }), { params });
+    const res = await POST(post({ move: "to_review" }), { params });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ stage: "in_review", version, shareToken: "tok" });
-    expect(vi.mocked(shareNow).mock.calls[0][0]).toMatchObject({ clientId: "c1", scope: "panels", script: { id: SCRIPT_ID } });
+    expect(vi.mocked(shareNow).mock.calls[0][0]).toMatchObject({ clientId: "c1", script: { id: SCRIPT_ID } });
+    expect(vi.mocked(shareNow).mock.calls[0][0]).not.toHaveProperty("scope");
     expect(moveScriptStage).toHaveBeenCalledWith({
       scriptId: SCRIPT_ID, clientId: "c1", from: "visualise", to: "in_review", event: "moved_to_review", actorName: "Arun",
     });
@@ -58,7 +59,7 @@ describe("POST …/review/stage", () => {
   it("refuses a move from the wrong stage without writing", async () => {
     vi.mocked(getScript).mockResolvedValue(script("generate"));
     const { POST } = await import("./route");
-    const res = await POST(post({ move: "to_review", scope: "script" }), { params });
+    const res = await POST(post({ move: "to_review" }), { params });
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("Move to In review works from Visualise; this script is at Generate.");
     expect(moveScriptStage).not.toHaveBeenCalled();
@@ -69,7 +70,7 @@ describe("POST …/review/stage", () => {
     vi.mocked(moveScriptStage).mockResolvedValue(true);
     vi.mocked(shareNow).mockResolvedValue({ ok: false, error: "Someone else shared a version just now.", status: 409 });
     const { POST } = await import("./route");
-    const res = await POST(post({ move: "to_review", scope: "script" }), { params });
+    const res = await POST(post({ move: "to_review" }), { params });
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("Moved to In review, but the share did not go through: Someone else shared a version just now. Press Share to send it.");
   });

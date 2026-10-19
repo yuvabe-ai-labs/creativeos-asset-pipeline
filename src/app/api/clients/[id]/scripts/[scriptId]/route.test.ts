@@ -11,7 +11,9 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/scripts", () => ({ listScripts: vi.fn(), getScript: vi.fn() }));
 vi.mock("@/lib/db/avatars", () => ({ getAvatar: vi.fn() }));
+vi.mock("@/lib/scripts/storyboard-server", () => ({ loadCurrentStoryboard: vi.fn() }));
 
+import { loadCurrentStoryboard } from "@/lib/scripts/storyboard-server";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
@@ -36,6 +38,17 @@ describe("GET /api/clients/[id]/scripts/[scriptId]", () => {
     vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-1", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1" } as never);
+    vi.mocked(loadCurrentStoryboard).mockResolvedValue([]);
+  });
+
+  it("returns the approved storyboard beside the script (D381)", async () => {
+    vi.mocked(getScript).mockResolvedValue(scriptWithLead(null));
+    const panels = [{ label: "S1", beat: "HOOK", shotId: "s01", url: "https://x/p.png" }];
+    vi.mocked(loadCurrentStoryboard).mockResolvedValue(panels);
+    const { GET } = await import("./route");
+    const res = await GET(req(), { params });
+    expect(res.status).toBe(200);
+    expect((await res.json()).storyboard).toEqual(panels);
   });
 
   it("returns the script and the lead's avatar when it is ready", async () => {

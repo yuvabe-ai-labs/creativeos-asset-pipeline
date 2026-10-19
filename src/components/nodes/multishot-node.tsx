@@ -148,11 +148,19 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
           </div>
         </div>
 
-        {/* Lineage target (dashed Script->Multishot edge). No image handle: there is no
-            Composer to ground, and references reach the sequence at the prompt node. */}
+        {/* Lineage target (dashed Script->Multishot edge). */}
         <Handle
           type="target"
           position={Position.Left}
+          className="size-4! border-2! border-card! bg-muted-foreground!"
+        />
+        {/* D383 — an image to see beside the sequence (its storyboard panel). Same id as the Shot's
+            image handle, so the wire survives a shot ↔ multishot flip. It feeds nothing: references
+            reach the sequence at the prompt node. */}
+        <Handle
+          id="image"
+          type="target"
+          position={Position.Bottom}
           className="size-4! border-2! border-card! bg-muted-foreground!"
         />
         <Handle

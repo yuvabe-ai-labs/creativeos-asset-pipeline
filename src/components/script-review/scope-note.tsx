@@ -1,11 +1,11 @@
 // src/components/script-review/scope-note.tsx
 import type { ShareScope } from "@/lib/script-review/constants";
 
-// Spec 4 §12: a partial share must not read as the whole.
+// Spec 4 §12: a partial share must not read as the whole. It can still be approved (D385), so the
+// note says only what the share holds.
 const NOTE: Record<ShareScope, string | null> = {
-  script:
-    "This share is the script, for your comments. The avatars and the storyboard come next; you approve the reel once you have seen them.",
-  avatars: "This share is the script and the avatars, for your comments. The storyboard comes next; you approve the reel once you have seen it.",
+  script: "This share is the script only. The avatars and the storyboard are not part of it.",
+  avatars: "This share is the script and the avatars. The storyboard is not part of it.",
   panels: null,
 };
 

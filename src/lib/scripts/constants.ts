@@ -16,3 +16,14 @@ export const SCRIPT_DRAG_MIME = "application/x-creativeos-script";
 export function isScriptStage(value: unknown): value is ScriptStage {
   return typeof value === "string" && (SCRIPT_STAGES as readonly string[]).includes(value);
 }
+
+/** D384 — why a script can't be deleted, in the order the database checks them (the first wins). */
+export const SCRIPT_DELETE_BLOCKS = ["has_canvas", "shared", "drawing"] as const;
+export type ScriptDeleteBlock = (typeof SCRIPT_DELETE_BLOCKS)[number];
+
+/** The reason a person sees, from the route's 409 and from the card's dialog alike. */
+export const SCRIPT_DELETE_BLOCKED: Record<ScriptDeleteBlock, string> = {
+  has_canvas: "A canvas was started from this script, so it can't be deleted.",
+  shared: "This script has been shared with the client, so it can't be deleted.",
+  drawing: "A panel is still being drawn. Try again when it finishes.",
+};

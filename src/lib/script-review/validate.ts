@@ -1,7 +1,7 @@
 // src/lib/script-review/validate.ts
 import { COMMENT_BODY_MAX, REVIEWER_NAME_MAX } from "@/lib/client-review/constants";
 import { record, text, type Parsed } from "@/lib/client-review/validate";
-import { isShareScope, isTeamStageMove, type ShareScope, type TeamStageMove } from "./constants";
+import { isTeamStageMove, type TeamStageMove } from "./constants";
 import { parsePart } from "./parts";
 import type { Part } from "./types";
 
@@ -48,18 +48,9 @@ export function parseApproval(input: unknown): Parsed<{ approverName: string; ve
   return { ok: true, value: { approverName: name.value, versionNumber } };
 }
 
-export function parseShare(input: unknown): Parsed<{ scope: ShareScope }> {
-  const scope = record(input)?.scope;
-  return isShareScope(scope) ? { ok: true, value: { scope } } : { ok: false, error: "Choose what the share includes." };
-}
-
-/** Moving into In review also shares (D349, refined 9 Oct 2026), so that move carries the scope. */
-export function parseStageMove(input: unknown): Parsed<{ move: TeamStageMove; scope?: ShareScope }> {
-  const body = record(input);
-  const move = body?.move;
-  if (!isTeamStageMove(move)) return { ok: false, error: "Unknown stage move." };
-  if (move !== "to_review") return { ok: true, value: { move } };
-  return isShareScope(body?.scope)
-    ? { ok: true, value: { move, scope: body.scope } }
-    : { ok: false, error: "Choose what to share with the client." };
+/** Moving into In review also shares (D349, refined 9 Oct 2026). There is one way to share (D386),
+ *  so the move is all it takes; a scope an older page still sends is ignored. */
+export function parseStageMove(input: unknown): Parsed<{ move: TeamStageMove }> {
+  const move = record(input)?.move;
+  return isTeamStageMove(move) ? { ok: true, value: { move } } : { ok: false, error: "Unknown stage move." };
 }

@@ -27,8 +27,25 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("is version 11", () => {
-    expect(scriptParsePrompt.version).toBe(11);
+  it("is version 12", () => {
+    expect(scriptParsePrompt.version).toBe(12);
+  });
+
+  // D380 — each row carries the shot's own name, and named shots are never merged or split.
+  it("declares a required string label on every shot", () => {
+    expect(shotProps.properties.label).toEqual({ type: "string" });
+    expect(shotProps.required).toContain("label");
+  });
+
+  it("tells the model a named shot is exactly one row, in order, keeping its name as written", () => {
+    expect(scriptParsePrompt.system).toMatch(/every named shot is EXACTLY ONE row, in the script's order/);
+    expect(scriptParsePrompt.system).toMatch(/A bare timecode is not a name/);
+    expect(scriptParsePrompt.system).toContain('"S3", "Shot 3", "Scene 3", "CLIP 3"');
+  });
+
+  it("keeps the shot names fixed under a market signal too", () => {
+    expect(scriptParsePrompt.signalModes.tint).toMatch(/keeps its label/);
+    expect(scriptParsePrompt.signalModes.rewrite).toMatch(/keeps its label/);
   });
 
   // D286 — each scene carries its suggested cuts; strict mode requires the key on every row.

@@ -57,3 +57,17 @@ describe("listFeedbackCounts (final review #3)", () => {
     expect(await listFeedbackCounts("c1")).toEqual({ s1: 3, s2: 1 });
   });
 });
+
+// The approve function lives in SQL and there is no database in this suite, so this pins the text
+// of the migration that redefines it: Approve works on any share's scope (D385, supersedes D350's
+// full-share-only rule), and the rest of its checks stay.
+describe("script_review_approve (migration 0058)", () => {
+  it("approves any share scope, keeping the stale, already and in-review checks", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync("supabase/migrations/0058_approve_any_share.sql", "utf8").replace(/\s+/g, " ");
+    expect(sql).toMatch(/create or replace function script_review_approve\(/);
+    expect(sql).not.toMatch(/'partial'/);
+    expect(sql).not.toMatch(/v_scope/);
+    for (const status of ["'stale'", "'already'", "'not_in_review'", "'not_found'", "'ok'"]) expect(sql).toContain(status);
+  });
+});

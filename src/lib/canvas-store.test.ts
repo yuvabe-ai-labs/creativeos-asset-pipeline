@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
 import { sceneFingerprint } from "./nodes/scene-beats";
+import { generationKey } from "./nodes/group-shots";
 import { nodeGenerationStatus } from "./generations/node-status";
 
 vi.mock("sonner", () => ({
@@ -312,6 +313,66 @@ describe("fanOutShots", () => {
     const data = multishots[0].data as { cuts?: { voiceover?: unknown }[]; sequenceVoiceover?: unknown };
     expect(data.sequenceVoiceover).toEqual(vo);
     expect(data.cuts?.every((c) => c.voiceover === undefined)).toBe(true);
+  });
+});
+
+describe("fanOutShots with an approved storyboard (D382)", () => {
+  const panels = [1, 2].map((n) => ({
+    label: `S${n}`, beat: "HOOK", shotId: `s0${n}`,
+    url: `https://x.supabase.co/storage/v1/object/public/assets/clients/c/scripts/s/panels/s0${n}/panel__a.png`,
+  }));
+  const scriptNode = (rows: object[], extra: object = {}): AppNode =>
+    ({
+      id: "sb", type: "script", position: { x: 0, y: 0 },
+      data: { title: "Reel 12", groupingVersion: 3, parsed: { visual_script: { shots: rows } }, storyboard: { scriptId: "script-1", panels }, ...extra },
+    }) as AppNode;
+  const rows = [
+    { label: "S1", description: "a", duration_seconds: 3 },
+    { label: "S2", description: "b", duration_seconds: 4 },
+  ];
+  const panelNodes = (s: ReturnType<typeof createCanvasStore>) => s.getState().nodes.filter((n) => n.type === "file");
+
+  it("wires each new shot's panel into its image handle, spaced so panels sit under their shots", () => {
+    const store = createCanvasStore([scriptNode(rows)], []);
+    store.getState().fanOutShots("sb");
+    const shots = store.getState().nodes.filter((n) => n.type === "shot");
+    expect(shots.map((s) => s.position.y)).toEqual([0, 360]);
+    const files = panelNodes(store);
+    expect(files).toHaveLength(2);
+    const imageEdges = store.getState().edges.filter((e) => e.targetHandle === "image");
+    expect(imageEdges.map((e) => e.target).sort()).toEqual(shots.map((s) => s.id).sort());
+    expect(files.map((f) => f.position.y)).toEqual([190, 550]);
+  });
+
+  it("wires a row fanned out as a Multishot too", () => {
+    const store = createCanvasStore([scriptNode(rows, { groupModes: { [generationKey([1])]: true } })], []);
+    store.getState().fanOutShots("sb");
+    const ms = store.getState().nodes.find((n) => n.type === "multishot")!;
+    expect(store.getState().edges.some((e) => e.target === ms.id && e.targetHandle === "image")).toBe(true);
+  });
+
+  it("adds no second panel when fanned out again", () => {
+    const store = createCanvasStore([scriptNode(rows)], []);
+    store.getState().fanOutShots("sb");
+    store.getState().fanOutShots("sb");
+    expect(panelNodes(store)).toHaveLength(2);
+  });
+
+  it("gives a renamed row no panel", () => {
+    const store = createCanvasStore([scriptNode([rows[0], { ...rows[1], label: "Shot 2" }])], []);
+    store.getState().fanOutShots("sb");
+    expect(panelNodes(store).map((f) => (f.data as { title: string }).title)).toEqual(["S1 · HOOK — storyboard"]);
+  });
+
+  it("is unchanged for a script without a storyboard, or a parse without names", () => {
+    const plain = createCanvasStore([scriptNode(rows, { storyboard: undefined })], []);
+    plain.getState().fanOutShots("sb");
+    expect(panelNodes(plain)).toEqual([]);
+    expect(plain.getState().nodes.filter((n) => n.type === "shot").map((s) => s.position.y)).toEqual([0, 170]);
+
+    const unnamed = createCanvasStore([scriptNode(rows.map(({ description, duration_seconds }) => ({ description, duration_seconds })))], []);
+    unnamed.getState().fanOutShots("sb");
+    expect(panelNodes(unnamed)).toEqual([]);
   });
 });
 
