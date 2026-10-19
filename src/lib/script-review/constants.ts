@@ -30,9 +30,6 @@ export function scopeIncludes(scope: ShareScope, what: "avatars" | "panels"): bo
   return what === "avatars" ? scope !== "script" : scope === "panels";
 }
 
-/** Spec 4 §8: Approve appears only on a full share. */
-export const FULL_SHARE: ShareScope = "panels";
-
 /** Spec 3 owns the four views (D340); spec 4 comments on each. Spec 3's list, under spec 4's names. */
 export { AVATAR_VIEWS };
 export type AvatarView = AvatarViewId;

@@ -141,8 +141,8 @@ export async function shareVersion(input: {
   throw new Error(`Unexpected share result: ${JSON.stringify(out)}`);
 }
 
-export type ApproveStatus = "ok" | "already" | "stale" | "partial" | "not_in_review" | "not_found";
-const APPROVE_STATUSES: readonly string[] = ["ok", "already", "stale", "partial", "not_in_review", "not_found"];
+export type ApproveStatus = "ok" | "already" | "stale" | "not_in_review" | "not_found";
+const APPROVE_STATUSES: readonly string[] = ["ok", "already", "stale", "not_in_review", "not_found"];
 
 export async function approveVersion(input: { reviewId: string; versionNumber: number; actorName: string }): Promise<ApproveStatus> {
   const { data, error } = await createServerSupabase().rpc("script_review_approve", {

@@ -9,15 +9,15 @@ import type { ReelShot } from "@/lib/nodes/reel-script";
 /** The name of the shot at `index` (zero-based) in the script's order. */
 export const shotLabel = (index: number): string => `S${index + 1}`;
 
-/** D381 — one approved panel as it travels to the canvas: its shot's name, beat and id, and the
+/** D381 — one storyboard panel as it travels to the canvas: its shot's name, beat and id, and the
  *  stored image (never copied; deleting a canvas node never deletes it). */
 export type StoryboardPanel = { label: string; beat: string; shotId: string; url: string };
 
 /** What a Script node keeps: the panels, frozen when the script was added. */
 export type ScriptStoryboard = { scriptId: string; panels: StoryboardPanel[] };
 
-/** The approved panels in the script's order, each named as `printScript` names its shot. A
- *  frozen panel for a shot the script no longer has is left out (spec 3 keeps orphaned takes). */
+/** The picked panels in the script's order, each named as `printScript` names its shot. A
+ *  panel for a shot the script no longer has is left out (spec 3 keeps orphaned takes). */
 export function storyboardFor(doc: ScriptDoc, panels: Record<string, PanelSnapshot>): StoryboardPanel[] {
   return doc.shots.flatMap((shot, i) => {
     const panel = panels[shot.id];

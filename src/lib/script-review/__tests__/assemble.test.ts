@@ -30,10 +30,11 @@ describe("approval of the version on screen (spec 4 §8)", () => {
     expect(commentsOpen(version(1), approvalOf(events, 1))).toBe(false);
   });
 
-  it("offers Approve only on a full share, In review, once", () => {
+  it("offers Approve on any share, In review, once (D385)", () => {
     const full = version(1, { scope: "panels" });
     expect(canApprove("in_review", full, null)).toBe(true);
-    expect(canApprove("in_review", version(1, { scope: "avatars" }), null)).toBe(false);
+    expect(canApprove("in_review", version(1, { scope: "avatars" }), null)).toBe(true);
+    expect(canApprove("in_review", version(1, { scope: "script" }), null)).toBe(true);
     expect(canApprove("visualise", full, null)).toBe(false);
     expect(canApprove("in_review", full, { byName: "Priya", at: "t" })).toBe(false);
     expect(canApprove("in_review", null, null)).toBe(false);

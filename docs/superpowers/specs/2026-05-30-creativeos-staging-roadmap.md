@@ -7079,6 +7079,8 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §3, §8; question 4.4.
 
+**Superseded in part by →** D385: Approve appears on every share, not only the full one. The three scopes stay.
+
 ### D351 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
 
 **Decision.** Four tables (`script_reviews`, `script_review_versions`, `script_review_comments`, `script_review_events`; migration 0054) hold the review. Spec 4 never writes `client_scripts.doc`; it changes only `stage` / `approved_at`, inside three plpgsql functions that lock the script row so a share, an approval and a stage move never interleave. The activity is derived from append-only rows.
@@ -7428,6 +7430,8 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 
 **Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
 
+**Refined by →** D385: the canvas takes the script's current picks, not the approved version's frozen panels.
+
 ### D382 — Fan out wires each new shot's panel into it, and nothing further *(recorded 2026-10-16)*
 
 **Decision.** For each node Fan out creates, every row it covers whose name matches a panel gets a File node pointing at the panel's stored image (no copy), placed under the shot and wired into its `image` handle. Only new nodes: a re-run adds no second panel, and a panel the person deleted stays deleted. Rows are spaced 360px instead of 170 when the script has a storyboard. Nothing is wired into prompt, Image Gen, Composite, the video prompt or Video Gen.
@@ -7473,3 +7477,20 @@ The library loads the first two once for the page, so a blocked card's icon open
 **Supersedes →** D360.
 
 **Originated →** docs/superpowers/specs/2026-10-19-delete-script-design.md.
+
+### D385 — The client may approve any share; the canvas takes the script's storyboard as it is now *(recorded 2026-10-19)*
+
+**Decision.**
+- Approve appears on the client's link for every share: the script only, the script and avatars, or the script, avatars and panels. The other approval rules (D354) stay: a typed name, the version on screen, refused when a newer version was shared, open threads named first, only the client approves. A partial share's note still says what the share holds, and no longer says approval comes later.
+- When an approved script goes onto a canvas, it brings each shot's current pick, read when it is added, not the panels frozen in the approved version. A script with no picks arrives without a storyboard. The panels still freeze on the Script node once added (D381).
+
+**Why.** User, 19 Oct: "approve needs to come for all types of share"; a script shared as script only had no way to be approved. And "what comes to the canvas is the current version, doesn't have to be the approved one, as the designer can decide to make changes post approval"; "don't complicate it".
+
+**Rejected.**
+- Keeping Approve on the full share only (D350): it left a script-only share with no way forward.
+- Reading the approved version's frozen panels (D381's choice): it hides changes the designer makes after approval.
+- A warning when a narrower re-share replaces a full one: no longer needed, since every share can be approved.
+
+**Supersedes →** D350 in part (Approve only on a full share). **Refines →** D381, D354.
+
+**Originated →** this conversation (no spec; a small change). Migration 0058 redefines `script_review_approve`.

@@ -48,7 +48,8 @@ export async function addScriptToCanvas(scriptId: string, position: XYPosition, 
 
   const { header } = detail.script.doc;
   const source = printScript(detail.script.doc);
-  // D381 — the approved panels ride on the node, frozen; a script without any gets no key.
+  // D381, D385 — the storyboard panels (current picks when added) ride on the node, frozen; a
+  // script without any gets no key.
   const fill: ScriptNodeFill = {
     title: header.title,
     source,

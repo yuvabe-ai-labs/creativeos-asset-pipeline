@@ -5,7 +5,7 @@ import type { GalleryImage } from "./types";
 export type StoryboardGroup = { scriptNodeId: string; title: string; images: GalleryImage[] };
 
 /** D383 — the References tab's Storyboard: one group per Script node on this canvas that came
- *  with approved panels, in shot order. Read from the canvas, so removing the Script node removes
+ *  with storyboard panels, in shot order. Read from the canvas, so removing the Script node removes
  *  its group (spec A3), and a panel unlinked by an edit is still here (spec §3). */
 export function storyboardGroups(nodes: readonly AppNode[]): StoryboardGroup[] {
   return nodes.flatMap((n) => {
