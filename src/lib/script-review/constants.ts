@@ -5,17 +5,12 @@ import { AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarViewId } from "@/lib/avatars/schema";
 import type { ScriptStage } from "@/lib/scripts/constants";
 
-/** What a share includes (spec 4 §3 step 2). */
+/** What a share included (spec 4 §3 step 2). Since D386 every new share is the full one; the others
+ *  remain on versions shared before it. */
 export const SHARE_SCOPES = ["script", "avatars", "panels"] as const;
 export type ShareScope = (typeof SHARE_SCOPES)[number];
 
-export const SHARE_SCOPE_LABEL: Record<ShareScope, string> = {
-  script: "Script only",
-  avatars: "Script and avatars",
-  panels: "Script, avatars and panels",
-};
-
-/** The same, as words inside a sentence: "Shared, version 1 · the script". */
+/** As words inside a sentence: "Shared, version 1 · the script". */
 export const SHARE_SCOPE_PHRASE: Record<ShareScope, string> = {
   script: "the script",
   avatars: "the script and avatars",
@@ -25,6 +20,10 @@ export const SHARE_SCOPE_PHRASE: Record<ShareScope, string> = {
 export function isShareScope(value: unknown): value is ShareScope {
   return typeof value === "string" && (SHARE_SCOPES as readonly string[]).includes(value);
 }
+
+/** D386: one way to share. Every new share freezes the script, avatars and storyboard; the other two
+ *  scopes remain only so versions shared before D386 still read as what they were. */
+export const FULL_SHARE: ShareScope = "panels";
 
 export function scopeIncludes(scope: ShareScope, what: "avatars" | "panels"): boolean {
   return what === "avatars" ? scope !== "script" : scope === "panels";

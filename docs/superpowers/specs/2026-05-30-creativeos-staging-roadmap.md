@@ -7079,7 +7079,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §3, §8; question 4.4.
 
-**Superseded in part by →** D385: Approve appears on every share, not only the full one. The three scopes stay.
+**Superseded by →** D386: one way to share, everything (D385 had first let Approve show on every scope).
 
 ### D351 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
 
@@ -7494,3 +7494,18 @@ The library loads the first two once for the page, so a blocked card's icon open
 **Supersedes →** D350 in part (Approve only on a full share). **Refines →** D381, D354.
 
 **Originated →** this conversation (no spec; a small change). Migration 0058 redefines `script_review_approve`.
+
+### D386 — One way to share: the script, avatars and storyboard, every time *(recorded 2026-10-19)*
+
+**Decision.** The Share dialog and the move into In review no longer ask what to include. Every new share freezes the script, its avatars and its storyboard as they are now, and the client approves that. The request carries no scope; the server always shares the full scope and ignores a scope an older page still sends. Versions shared before this keep the scope they were shared with, and still read as what they were (with their note), because a frozen version is a record of what the client saw.
+
+**Why.** User, 19 Oct: "remove the extra ways of sharing, remove all that". A script-only share that the client approved (allowed by D385) left the approved page with no avatars or storyboard, which looked like they had been erased.
+
+**Rejected.**
+- Keeping three scopes and showing the current avatars and storyboard on the approved page: more rules for the team to keep in mind, and the approved page would no longer match what the client approved.
+- Making the client link live instead of frozen: it would undo versions, and comments and approvals are tied to a version.
+- Rewriting old partial versions to full: a version is a record of what the client saw.
+
+**Supersedes →** D350 (three share scopes). **Refines →** D385 (Approve on any share is now moot for new shares), D349.
+
+**Originated →** this conversation (no spec; a small change). No migration: the scope column stays, and new rows always say `panels`.
