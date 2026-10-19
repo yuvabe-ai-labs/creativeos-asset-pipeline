@@ -84,7 +84,7 @@ export function useMarkFinal(clientId: string, scriptId: string) {
   });
 }
 
-/** Delete an unwritten script. Every script list for the client changes with it. */
+/** Delete a script for good (D384). Every script list for the client changes with it. */
 export function useDeleteScript(clientId: string) {
   const queryClient = useQueryClient();
   return useMutation({

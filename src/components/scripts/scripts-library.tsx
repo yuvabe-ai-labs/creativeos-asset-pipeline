@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { cn } from "@/lib/utils";
 import type { Script } from "@/lib/scripts/schema";
 import type { UnwrittenScript } from "@/lib/scripts/copilot/schema";
-import { SCRIPT_STAGES, SCRIPT_STAGE_LABEL, type ScriptStage } from "@/lib/scripts/constants";
+import { SCRIPT_STAGES, SCRIPT_STAGE_LABEL, type ScriptDeleteBlock, type ScriptStage } from "@/lib/scripts/constants";
 import { ScriptCard } from "./script-card";
 import { ScriptUnwrittenCard } from "./script-unwritten-card";
 import { NewScriptButton } from "./new-script-button";
@@ -15,13 +15,15 @@ type Filter = "all" | ScriptStage;
 
 // Spec 1 §3, with spec 2's New script and the scripts the copilot has not written yet, and spec 4's
 // client-feedback count on each card.
-export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwritten, feedback }: {
+export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwritten, feedback, deleteBlocks }: {
   clientId: string;
   clientName: string;
   clientSlug: string;
   scripts: Script[];
   unwritten: UnwrittenScript[];
   feedback?: Record<string, number>;
+  /** D384 — why a script can't be deleted, by script id; absent when nothing blocks it. */
+  deleteBlocks?: Record<string, ScriptDeleteBlock>;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const shown = filter === "all" ? scripts : scripts.filter((s) => s.stage === filter);
@@ -78,7 +80,14 @@ export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwr
                 <ScriptUnwrittenCard key={u.id} clientId={clientId} script={u} href={`/clients/${clientSlug}/scripts/${u.id}`} />
               ))}
               {shown.map((s) => (
-                <ScriptCard key={s.id} script={s} href={`/clients/${clientSlug}/scripts/${s.id}`} feedbackCount={feedback?.[s.id] ?? 0} />
+                <ScriptCard
+                  key={s.id}
+                  clientId={clientId}
+                  script={s}
+                  href={`/clients/${clientSlug}/scripts/${s.id}`}
+                  feedbackCount={feedback?.[s.id] ?? 0}
+                  deleteBlock={deleteBlocks?.[s.id] ?? null}
+                />
               ))}
             </div>
           )}

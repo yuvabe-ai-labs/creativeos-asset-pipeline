@@ -7185,6 +7185,8 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** this conversation; no spec section.
 
+**Superseded by →** D384.
+
 ### D361 — The copilot's questions never repeat their chips *(recorded 2026-10-09)*
 
 **Decision.** When the copilot asks for a piece of the brief, the one-tap chips under the message carry the options and the skip; the message only asks, plus what no chip can do ("describe your own", "name someone new"). The format question offers the formats in the client's finished scripts as chips (carried in the Generate state while there is no draft), and the lead question offers every saved avatar, not the first three. The opening is three short lines: what the copilot works from, the four pieces, the format question. The Jackfruit-only "option" hint and the two demo starters are gone.
@@ -7449,3 +7451,25 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 **Refines →** D230, D300.
 
 **Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D384 — A script is deleted for good, unless a canvas, the client or a running draw depends on it *(recorded 2026-10-19)*
+
+**Decision.** Every card in a client's Scripts library has a delete icon, at every stage. Deleting erases the script for good: its brief, copilot chat, storyboard (panel takes, picks and the generations behind them) and any review rows go through the existing cascades. One database function (`delete_client_script`, migration 0057) locks the script row and checks three blocks, in order; the first that applies wins and nothing is removed:
+- a canvas was started from the script (D372's link), "has_canvas";
+- it has a client review link, made on its first share, which never expires, "shared";
+- a panel draw under way, "drawing": one of the script's generations is still running (at any age; the reconcile sweep fails and refunds a crashed one within about an hour, and erasing it first would orphan its reservation where the sweep can't refund it), or a panel take is still running and under 5 minutes old (the panel route's `maxDuration`), which covers the moment before the generation row exists.
+
+The library loads the first two once for the page, so a blocked card's icon opens a dialog that gives the reason. The route returns the same reason with a 409 whenever its own check, made on fresh data, disagrees with the page. **Storage is never touched:** the panel image files stay. Scripts already archived under D360 stay hidden and are not purged. There is no role check, as before.
+
+**Why.** User, 19 Oct: delete a script and "the storyboards should also be deleted, nothing else"; "if a script has at least one canvas then don't allow a delete"; a live client link, "block that one too"; deleted "for good". Canvases point straight at panel files: Fan out's File nodes, panels dragged from the gallery, and frozen Script-node storyboards (D381–D383 on their branch). Keeping the files keeps them all working, including canvases the script was only dragged onto. The lock comes before the checks, so a canvas, review or take insert at the same moment queues on its foreign key. The result is never "script gone, canvas unlinked".
+
+**Rejected.**
+- Looking inside every canvas for dragged copies: its cost grows with nodes, and the user picked the single check.
+- Deleting the panel files: they would break images on canvases.
+- Letting a delete go ahead mid-draw: the settle step would lose its generation row, and a draw the provider was already paid for would be refunded.
+- Archive only: the user chose "for good".
+- A way to turn off a client link so a shared script can be deleted: out of scope.
+
+**Supersedes →** D360.
+
+**Originated →** docs/superpowers/specs/2026-10-19-delete-script-design.md.
