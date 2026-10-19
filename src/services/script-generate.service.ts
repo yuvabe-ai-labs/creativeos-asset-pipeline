@@ -22,7 +22,7 @@ class ScriptGenerateService {
     return (await readJson<{ scriptId: string }>(res, "Could not start a new script.")).scriptId;
   }
 
-  /** Delete from the library: only a script the copilot has not written yet (the route refuses the rest). */
+  /** Delete from the library, for good (D384). The route refuses, with the reason as the error, a script a canvas or the client depends on. */
   async remove(clientId: string, scriptId: string): Promise<void> {
     const res = await send(scriptUrl(clientId, scriptId), "DELETE");
     await readJson<{ ok: true }>(res, "Could not delete the script.");
