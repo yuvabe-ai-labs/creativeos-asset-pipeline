@@ -48,8 +48,8 @@ don't want it to break anything that still depends on that script.
   pays the provider and then records the charge against the generation. If the script were erased
   mid-draw, that record would have nothing to attach to, and the charge would quietly be refunded
   even though the provider was already paid. So delete is refused while a panel draw is under way:
-  "a panel is still being drawn; try again when it finishes". A draw older than the longest a draw
-  can run counts as dead, so a crashed draw never blocks delete for good.
+  "a panel is still being drawn; try again when it finishes". A crashed draw never blocks delete for
+  good: the hourly clean-up fails and refunds it, and then the delete goes through.
 - **Which message, when more than one applies.** Today a canvas can be started only from an approved
   script, and approval happens only through the client link. So every script with a canvas has also
   been shared. *(My call:)* the canvas reason is checked first and its message wins, because it's

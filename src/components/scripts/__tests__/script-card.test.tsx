@@ -23,6 +23,11 @@ describe("ScriptCard (D384)", () => {
     expect(link).not.toContain("data-delete-block");
   });
 
+  it("keeps the client-feedback count above the stretched link, so its tooltip still shows", () => {
+    const html = renderToStaticMarkup(<ScriptCard clientId="c1" script={script} href="/x" feedbackCount={2} />);
+    expect(html).toMatch(/<div class="relative z-10[^"]*">(?:(?!<\/div>).)*Client feedback/);
+  });
+
   it("offers a plain delete when nothing blocks it", () => {
     const html = renderToStaticMarkup(<ScriptCard clientId="c1" script={script} href="/x" />);
     expect(html).toContain('data-delete-block="none"');

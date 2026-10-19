@@ -7409,7 +7409,7 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 **Decision.** Every card in a client's Scripts library has a delete icon, at every stage. Deleting erases the script for good: its brief, copilot chat, storyboard (panel takes, picks and the generations behind them) and any review rows go through the existing cascades. One database function (`delete_client_script`, migration 0057) locks the script row and checks three blocks, in order; the first that applies wins and nothing is removed:
 - a canvas was started from the script (D372's link), "has_canvas";
 - it has a client review link, made on its first share, which never expires, "shared";
-- a panel take still running and under 5 minutes old (the panel route's `maxDuration`), "drawing".
+- a panel draw under way, "drawing": one of the script's generations is still running (at any age; the reconcile sweep fails and refunds a crashed one within about an hour, and erasing it first would orphan its reservation where the sweep can't refund it), or a panel take is still running and under 5 minutes old (the panel route's `maxDuration`), which covers the moment before the generation row exists.
 
 The library loads the first two once for the page, so a blocked card's icon opens a dialog that gives the reason. The route returns the same reason with a 409 whenever its own check, made on fresh data, disagrees with the page. **Storage is never touched:** the panel image files stay. Scripts already archived under D360 stay hidden and are not purged. There is no role check, as before.
 

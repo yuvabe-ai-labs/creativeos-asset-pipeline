@@ -33,14 +33,15 @@ export function ScriptCard({ clientId, script, href, feedbackCount = 0, deleteBl
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
         <span className="text-sm text-muted-foreground">{shotSummary(script.doc)}</span>
-        <div className="flex items-center gap-2">
+        {/* Above the stretched link, so the feedback count keeps its tooltip and Delete takes the click. */}
+        <div className="relative z-10 flex items-center gap-2">
           <ClientFeedbackCount count={feedbackCount} />
           <DeleteScriptButton
             clientId={clientId}
             scriptId={script.id}
             title={header.title}
             block={deleteBlock}
-            className="relative z-10 -my-1 shrink-0"
+            className="-my-1 shrink-0"
           />
         </div>
       </div>

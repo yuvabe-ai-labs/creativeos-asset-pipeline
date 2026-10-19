@@ -64,3 +64,15 @@ describe("listScriptDeleteBlocks", () => {
     expect(await listScriptDeleteBlocks("c1")).toEqual({});
   });
 });
+
+// The function lives in SQL and there is no database in this suite, so this pins its text: a draw
+// whose generation is still running blocks the delete at any age. The reconcile sweep fails and
+// refunds those within about an hour, so it never blocks for good (final review, Important 1).
+describe("delete_client_script (migration 0057)", () => {
+  it("refuses while any of the script's generations is still running, with no age cap", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync("supabase/migrations/0057_delete_client_script.sql", "utf8").replace(/\s+/g, " ");
+    const check = sql.match(/exists \( ?select 1 from generations where script_id = p_script_id and status = 'running' ?\)/);
+    expect(check).not.toBeNull();
+  });
+});

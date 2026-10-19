@@ -5,9 +5,9 @@
 -- depends on it. Checked in this order, the first that applies wins:
 --   'has_canvas' a canvas was started from it (D372's link)
 --   'shared'     it has a client review link (made on the first share; it never expires)
---   'drawing'    a panel draw is under way: erasing mid-draw would orphan the charge and refund a
---                draw the provider was already paid for. A take still 'running' after the panel
---                route's maxDuration (300 s) is dead, so it never blocks for good.
+--   'drawing'    a panel draw is under way (its generation still running, or its take running and
+--                under the panel route's maxDuration of 300 s): erasing mid-draw would orphan the
+--                charge. Neither blocks for good (see the checks below).
 -- Storage is never touched: canvases reference panel image files directly (Fan out, gallery drags,
 -- frozen Script-node storyboards), so the files stay (spec §3 "What is kept").
 -- A script D360 already archived is 'not_found': it stays hidden, as before.
@@ -34,6 +34,13 @@ begin
   end if;
   if exists (select 1 from script_reviews where script_id = p_script_id) then
     return 'shared';
+  end if;
+  -- A draw whose generation is still running, at any age: erasing it would orphan its credit
+  -- reservation where the reconcile sweep (stuck_reservations needs a generation id) can never
+  -- refund it. The sweep fails and refunds a crashed one within about an hour, so this never
+  -- blocks for good. The take check covers the moment before the generation row exists.
+  if exists (select 1 from generations where script_id = p_script_id and status = 'running') then
+    return 'drawing';
   end if;
   if exists (
     select 1 from script_panel_takes
