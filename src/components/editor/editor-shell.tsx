@@ -8,6 +8,7 @@ import { useEditorAutosave } from "@/hooks/use-editor-autosave";
 import { useLockHandoffNavigation } from "@/hooks/use-lock-handoff-navigation";
 import { useEditorState } from "@/hooks/queries/editor";
 import type { EditorState } from "@/lib/editor/types";
+import { EditorExportButton } from "./editor-export-button";
 import { EditorHeader } from "./editor-header";
 import { EditorPropsPanel } from "./editor-props-panel";
 import { EditorSourcesPanel } from "./editor-sources-panel";
@@ -74,6 +75,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
         status={status}
         readOnly={!lock.canEdit}
         onBack={() => void navigate(canvasPath, flush)}
+        actions={<EditorExportButton canvasId={canvasId} nodeId={initialState.editorNodeId} title={title} flush={flush} />}
       />
       <div className="relative flex min-h-0 flex-1 flex-col">
         {!lock.canEdit && <LockBanner heldByName={lock.heldByName} canTakeOver={lock.canTakeOver} onTakeOver={lock.takeOver} />}
