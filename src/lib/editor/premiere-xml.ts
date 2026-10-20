@@ -177,9 +177,13 @@ export function buildPremiereXml(plan: SequencePlan): string {
       x("track", null, ...placed.filter((p) => p.dub[ch]).map((p) => dubItem(p, p.dub[ch], ch)))),
   ];
 
-  const titles = plan.titles.map((t, i) => titleClipitem({
-    n: i + 1, title: t, start: t.start, end: t.end, fps: seqFps, width: plan.width, height: plan.height,
-  }));
+  // Captions on V2 and up: one track per set of non-overlapping titles (sequence-plan assigns them).
+  const titleTracks: XNode[][] = [];
+  plan.titles.forEach((t, i) => {
+    (titleTracks[t.track] ??= []).push(titleClipitem({
+      n: i + 1, title: t, start: t.start, end: t.end, fps: seqFps, width: plan.width, height: plan.height,
+    }));
+  });
 
   const duration = plan.clips.length ? plan.clips[plan.clips.length - 1].end : 0;
   const sequence = x("sequence", { id: "sequence-1" },
@@ -193,7 +197,7 @@ export function buildPremiereXml(plan: SequencePlan): string {
           x("samplecharacteristics", null, rate(seqFps), x("width", null, plan.width), x("height", null, plan.height), x("pixelaspectratio", null, "square")),
         ),
         x("track", null, ...placed.map(videoItem)),
-        titles.length > 0 && x("track", null, ...titles),
+        ...titleTracks.map((items) => x("track", null, ...items)),
       ),
       x("audio", null,
         x("numOutputChannels", null, 2),

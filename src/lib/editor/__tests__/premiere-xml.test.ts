@@ -96,4 +96,13 @@ describe("buildPremiereXml", () => {
     const out = process.env.EDITOR_XML_OUT;
     if (out) (await import("node:fs")).writeFileSync(out, xml);
   });
+
+  it("puts overlapping captions on their own title tracks", () => {
+    const cap = (id: string, at: number): Caption => ({ id, pieceId: "1", at, duration: 2, text: id, x: 0.5, y: 0.8, font: "anton", size: 84, color: "#ffffff" });
+    const p = plan(three, [A, B], [cap("a", 0), cap("b", 1), cap("c", 2.5)]);
+    expect(p.titles.map((t) => t.track)).toEqual([0, 1, 0]);
+    const x = buildPremiereXml(p);
+    expect(x.match(/<mediaSource>GraphicAndType<\/mediaSource>/g)).toHaveLength(3);
+    expect(x.match(/<track>/g)).toHaveLength(1 + 2 + 2); // V1, V2, V3, A1, A2
+  });
 });

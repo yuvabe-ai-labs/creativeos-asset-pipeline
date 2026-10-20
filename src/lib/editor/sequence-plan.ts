@@ -38,7 +38,8 @@ export type PlanClip = {
   scale: number | null;
 };
 
-export type PlanTitle = TitleSpec & { start: number; end: number; fontKey: CaptionFontKey };
+/** track: which caption track (V2 + track) it sits on, so overlapping captions never share one. */
+export type PlanTitle = TitleSpec & { start: number; end: number; fontKey: CaptionFontKey; track: number };
 
 export type SequencePlan = {
   name: string;
@@ -66,6 +67,17 @@ const extOf = (url: string) => {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Whole frames of a file at the sequence rate, never rounded up past its last real frame. */
 export const framesWithin = (seconds: number, fps: number) => Math.floor(seconds * fps + 1e-6);
+
+/** Greedy interval assignment: each title takes the first track free at its start. One FCP7
+ *  track can't hold overlapping clipitems, and Premiere would drop or cut one of them. */
+function assignTitleTracks(titles: PlanTitle[]): void {
+  const trackEnds: number[] = [];
+  for (const t of [...titles].sort((a, b) => a.start - b.start)) {
+    const free = trackEnds.findIndex((end) => end <= t.start);
+    t.track = free < 0 ? trackEnds.length : free;
+    trackEnds[t.track] = t.end;
+  }
+}
 
 export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
   const byId = new Map(sources.map((s) => [s.nodeId, s]));
@@ -155,8 +167,10 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
         color: c.color,
         x: c.x,
         y: c.y,
+        track: 0,
       });
     }
+    assignTitleTracks(titles);
 
     const sampleRate = media.find((m) => m.facts.audio)?.facts.audio?.sampleRate ?? FALLBACK_SAMPLE_RATE;
     return { ok: true, plan: { name: SEQUENCE_NAME, shape: doc.shape, fps, ...frame, sampleRate, media, clips, titles } };

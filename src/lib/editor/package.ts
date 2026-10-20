@@ -20,6 +20,8 @@ export function fontsUsed(plan: SequencePlan): CaptionFontKey[] {
 export function packageReadme(plan: SequencePlan): string {
   const dubbed = plan.clips.some((c) => c.dub);
   const titled = plan.titles.length > 0;
+  const lastTitleTrack = 2 + Math.max(0, ...plan.titles.map((t) => t.track));
+  const captionTracks = lastTitleTrack > 2 ? `V2–V${lastTitleTrack}` : "V2";
   return [
     "CreativeOS rough cut: Premiere Pro package",
     "",
@@ -41,7 +43,7 @@ export function packageReadme(plan: SequencePlan): string {
       : []),
     ...(titled
       ? [
-          "- V2: the captions as editable Premiere text.",
+          `- ${captionTracks}: the captions as editable Premiere text.`,
           "- captions.srt: the same captions as plain text (File > Import gives a plain",
           "  caption track instead).",
           "- fonts/: the caption fonts. Install them if Premiere doesn't have them.",
