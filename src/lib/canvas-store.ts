@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { editorConnectRefusal } from "@/lib/editor/rules";
 import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
@@ -47,9 +48,15 @@ import {
   clearsStartMark,
   isNewerJob,
   mergeJob,
+  nodeGenerationStatus,
   type GenerationJobKind,
   type GenerationStartMark,
 } from "@/lib/generations/node-status";
+
+/** Whether a node has a job running, from the canvas's O(1) job index (D366). */
+export function isNodeGenerating(s: Pick<CanvasState, "latestJobByNode" | "generationStarts">, nodeId: string): boolean {
+  return nodeGenerationStatus(s.latestJobByNode[nodeId], s.generationStarts[nodeId]?.kind, null).isGenerating;
+}
 
 function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
   if (!(key in record)) return record;
@@ -222,6 +229,16 @@ export function createCanvasStore(
       if (source && target && wouldCreateCycle(get().edges, source, target)) {
         toast.error("That connection would create a loop.");
         return;
+      }
+      // D389 — the Editor refuses a clip that is generating or has no finished take, and says why.
+      const editorTarget = get().nodes.find((n) => n.id === target);
+      if (source && editorTarget?.type === "editor") {
+        const editorSource = get().nodes.find((n) => n.id === source);
+        const refusal = editorSource && editorConnectRefusal(editorSource, "editor", isNodeGenerating(get(), source));
+        if (refusal) {
+          toast.error(refusal);
+          return;
+        }
       }
       // D236/D239 — coerce the target's STORED modelId to the model the connected plan was
       // WRITTEN for. Filtering the picker is not enforcing a constraint: D216 hid every other chip

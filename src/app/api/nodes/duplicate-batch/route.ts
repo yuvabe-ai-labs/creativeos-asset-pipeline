@@ -1,4 +1,5 @@
 import { createServerSupabase } from "@/lib/supabase/server";
+import { canDuplicateNode } from "@/lib/canvas-nodes";
 import { apiError, apiOk, withTryCatch, withCanvas } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import { edgeRowToFlow, flowEdgeToRow, type EdgeRow } from "@/lib/db/edge-rows";
@@ -41,8 +42,8 @@ export async function POST(req: Request) {
       return apiError("Failed to fetch source nodes.", 500);
     }
 
-    // Silently skip KB nodes (defensive — client already filters them)
-    const eligible = sourceNodes.filter((n) => n.type !== "kb");
+    // Silently skip KB and Editor nodes (defensive — client already filters them)
+    const eligible = sourceNodes.filter((n) => canDuplicateNode(n.type));
     if (eligible.length === 0) {
       return apiOk({ nodes: [], edges: [] }, 201);
     }

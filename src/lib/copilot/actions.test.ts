@@ -132,6 +132,15 @@ describe("planConnections", () => {
     expect(plan.wired).toEqual([]);
     expect(plan.rejected.map((r) => r.handle)).toEqual(["PRM-CCCC"]);
   });
+  // D389 — the Editor refuses a clip mid-generation, and says why.
+  it("rejects a generating clip with the Editor's reason", () => {
+    const vg = { id: "dddd4444", type: "video-gen", position: { x: 0, y: 0 }, data: { parsed: "https://s/a.mp4" } } as never;
+    const ed = n("eeee5555", "editor");
+    const plan = planConnections(["VID-DDDD"], "EDT-EEEE", [vg, ed], [], (id) => id === "dddd4444");
+    expect(plan.wired).toEqual([]);
+    expect(plan.rejected).toEqual([{ handle: "VID-DDDD", reason: "This clip is still generating. Connect it to the Editor once it finishes." }]);
+    expect(planConnections(["VID-DDDD"], "EDT-EEEE", [vg, ed], [], () => false).wired).toHaveLength(1);
+  });
 });
 
 import { mergeMentionedIds, selectionSignature } from "./actions";

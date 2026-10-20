@@ -349,6 +349,13 @@ export function canConnect(sourceType: string, targetType: string): boolean {
   return (VALID_CONNECTIONS[sourceType] ?? []).includes(targetType);
 }
 
+// Nodes that are never duplicated: the KB anchors the canvas, and there is one Editor per canvas
+// (D387). One check for the context menu, Ctrl+D and both duplicate routes.
+const NOT_DUPLICABLE = new Set(["kb", "editor"]);
+export function canDuplicateNode(type: string | undefined): boolean {
+  return !NOT_DUPLICABLE.has(type ?? "");
+}
+
 // D374 — targets that take a fixed number of inputs. One place, checked wherever a wire is made
 // (manual drag, the + picker, the copilot).
 export const MAX_INCOMING: Record<string, number> = { dubbing: 1 };
