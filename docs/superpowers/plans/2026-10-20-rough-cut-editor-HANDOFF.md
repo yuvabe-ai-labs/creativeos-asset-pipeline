@@ -48,8 +48,10 @@ The original prototype lives outside the repo at `C:\Users\cyril varghese\Deskto
 
 ## 3. Reusing the spike: where the code is, and how to bring it over
 
-All spike work is in commit **`216ed101`** on **`spike/rough-cut-editor`**: 31 files. It can be
-read from any worktree of this repo, because branches are shared.
+All spike work is in commit **`216ed101`** on **`spike/rough-cut-editor`**: 32 files, about
+3,000 lines. It can be read from any worktree of this repo, because branches are shared. The
+spike branch also carries an *older* copy of this handoff; **this copy, on
+`feat/rough-cut-editor`, is the current one**.
 
 ```bash
 # list what the spike added
