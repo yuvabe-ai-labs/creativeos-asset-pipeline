@@ -7509,3 +7509,135 @@ The library loads the first two once for the page, so a blocked card's icon open
 **Supersedes →** D350 (three share scopes). **Refines →** D385 (Approve on any share is now moot for new shares), D349.
 
 **Originated →** this conversation (no spec; a small change). No migration: the scope column stays, and new rows always say `panels`.
+
+### D387 — An Editor node assembles the connected clips, and opens a full page, not a focus view *(recorded 2026-10-20)*
+
+**Decision.** A new `editor` node type. Its inputs are Video Gen and Dubbing nodes, at any approval status, as many as the user connects. It has no output handle. Dubbing gains its first output handle, which connects only to the Editor. There is **one per canvas**: every way of adding a node (the add menu, a shortcut, paste, duplicate, the copilot) refuses a second one and says why. The card shows its title, its sources, the piece count and total length, a strip of the cut, and **Open editor**; it edits nothing itself. Opening it, from the card or through `open_node`, goes to a full page at the canvas URL plus `/edit`, with **Back to canvas**. What leaves the editor is a Premiere package (D388); CreativeOS renders no video.
+
+**Why.** The team assembles CreativeOS clips somewhere else today, one download at a time. A timeline with four lanes, a stage and two side panels needs the whole screen. One Editor per canvas keeps "the reel" unambiguous: one edit, under the canvas's one lock (D390), with one set of generation locks to explain (D389).
+
+**Rejected.**
+- The slide-up focus view every other node opens: too small for a timeline. *(User's call; it departs from the convention on purpose.)*
+- Several Editor nodes on a canvas: two reels sharing sources would make the generation locks hard to follow.
+- An output handle, for example into Review: the final cut is made in Premiere and comes back by upload, as today.
+- Rendering an MP4 in CreativeOS: the editor makes the rough cut; Premiere makes the final cut.
+
+**Refines →** D64 (each node type owns what opening it does), D72 (a new target type), D374 (Dubbing gets an output).
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md.
+
+### D388 — The Premiere package is written in TypeScript: FCP7 XML plus OpenTimelineIO JSON *(recorded 2026-10-20)*
+
+**Decision.** The export writes Final Cut Pro 7 XML ("xmeml"), which Premiere imports, and an `.otio` JSON file, both directly in TypeScript. No Python and no OpenTimelineIO install run anywhere. Premiere Pro is the only target. The sequence matches what Premiere's own export contains:
+- V1: the pieces in order, with their trims.
+- A1/A2: each piece's own sound, a stereo pair linked to its picture (`groupindex 1`).
+- A3/A4: the dub, linked to the picture (`groupindex 2`). The original sound under it stays on A1/A2 with `enabled FALSE`, so it can be switched back on.
+- V2: the captions (D392).
+
+Frame rates and lengths come from each take's measured facts (D391), never a constant. The package also holds an SRT, a manifest, a README, the caption fonts and a `media/` folder with exactly the files the reel uses. The README and the export dialog both say to **drag `creativeos-premiere.xml` into Premiere's Project panel**.
+
+**Why.** The spike (D393) wrote the export this way, and the package opened in the user's Windows Premiere on 2026-10-20 with linked sound, the dub on its own tracks and styled captions. The prototype's Python service only used OpenTimelineIO's `fcp_xml` adapter, and that adapter writes each clip's audio as an empty stub reusing the video clip's id and drops `<link>`, so sound arrives unlinked. The prototype also assumed 25 fps; our clips are 24 fps (121 frames for 5.04 s), so it asked Premiere for frames past the end of every clip. Premiere's Import screen ignores sequence XML and silently builds "Sequence 01" from the MP4s, which reads as a broken export unless the user is told where to drag it.
+
+**Rejected.**
+- A Python service, or a Trigger.dev Python extension, running OpenTimelineIO: its adapter loses linked audio, and a Premiere-only export needs no format hub.
+- Other editors (Resolve, Final Cut, CapCut): not asked for.
+- Absolute media paths: a package built in the cloud can't know where it will be unzipped. Relative paths need one relink at most.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§9, §11).
+
+### D389 — A clip connected to the Editor can't generate; switching its version still works *(recorded 2026-10-20)*
+
+**Decision.**
+- While a node feeds the Editor, generation is refused on:
+  - the connected node: on a Video Gen, no generate and no Change voice (a voice change makes a new take); on a Dubbing node, no dub and no lip sync (its voice and pace are settings of the dub);
+  - the Video Gen feeding a connected Dubbing node.
+- Nothing further upstream is locked. Prompts, images, composites and scripts stay usable.
+- **Switching to another version from History stays allowed**, and the reel follows. A shorter version pulls trims in to fit; a lip-synced picture or dub the new version lacks falls back to Original. Both tell the user.
+- The server enforces it. The four start routes (video generate, voice change, dub, lip sync) check the lock in one database call and refuse with a reason, so another tab, a teammate or a script is held too. The copilot has no generate tool today; its connect tool gets the same connect refusal as the canvas. In place of the action, the node says *"In use by the Editor · Disconnect to generate"*, or on the Video Gen behind a dub, *"Locked by its dub · feeds the Editor"*.
+- Connecting a clip to the Editor is refused while it is generating or has no finished take, and the user is told to connect it once it finishes.
+- Removing the connection lifts the lock.
+
+**Why.** A finished generation always becomes the node's current take. A regenerate, or a job that finishes after the clip was connected, would change a reel that was already cut, which the design names as an anti-goal. Upstream prompts and images also feed clips that aren't in the reel, so locking them would block unrelated work. Switching versions is a visible choice the user makes, and they wanted it kept.
+
+**Rejected.**
+- Locking everything upstream: it would freeze shared prompts and images.
+- Hiding the buttons only: a second tab or the copilot would still generate (D97: the server enforces rules).
+- Pinning each source to the version it had when connected: the user wants the reel to follow a version switch.
+
+**Refines →** D72 (the connect rule can now refuse with a reason), D97, D374, D284.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§4, §5).
+
+### D390 — The edit has its own record, saved under the canvas lock *(recorded 2026-10-20)*
+
+**Decision.**
+- The reel's edit lives in its own row, keyed to the canvas and the Editor node, not in the node's data. It holds the order, the pieces and their trims, each piece's picture and sound choice, the captions with their position and style, and the reel's shape (9:16 or 16:9).
+- The editor page saves it automatically through its own route. The route accepts a write only from the session holding the canvas lock (D33), and a write that changes nothing is not sent.
+- Opening the editor in the same tab carries the lock from the canvas to the editor. Both pages use the tab's one lock session id, and on the way between them the page being left flushes its save and skips the release it normally sends on unmount (a per-tab handoff flag), so that release can't land after the next page has taken the lock. While the editor is open, the canvas is read-only in every other tab and for teammates, as when anyone holds it. Someone who opens the editor without the lock sees it read-only.
+- Trims are stored by time, in seconds, and turned into frames only on export, so a lip-synced file with another frame rate or length still lines up.
+- Deleting the Editor node deletes its edit, after the canvas's usual confirm ("This can't be undone"; the canvas has no undo). The row cascades with the node's row.
+
+**Why.** Canvas autosave doesn't run on the editor page, and writing the edit into node data would rewrite the whole canvas on every trim (performance rule 4). The canvas lock already gives one writer and a read-only view for everyone else. Reusing it means nothing can change under an open editor, and no live sync is needed.
+
+**Rejected.**
+- Storing the edit in node data under canvas autosave: autosave doesn't run on `/edit`, and every trim would rewrite the canvas.
+- A separate editor lock: a teammate could change the sources on the canvas under an open editor, which would need live sync.
+- Trims in frames: a source at another frame rate would shift every cut.
+
+**Refines →** D33, D201.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§8, §10).
+
+### D391 — Media facts are measured on the server, once per take; the export is a background task *(recorded 2026-10-20)*
+
+**Decision.**
+- Each file the editor can place has its media facts measured once on the server and kept with the take: a Video Gen take's video, and a Dubbing take's original, dub audio and lip-synced files. The facts are frame rate, frame count, duration, picture size, and audio channels and sample rate.
+- A file is measured the first time the editor needs it, by reading only its header: mediabunny over HTTP range requests, in the route that loads the editor. The result is kept in a `media_facts` table keyed by the file's stored URL. Measured on 2026-10-20: a 5.15 MB CreativeOS clip took two range reads, about 288 KB, and gave 24 fps, 121 frames, 720×1280, stereo at 32 kHz, the same figures the spike read in the browser. Takes made before the Editor existed are covered the same way, so there is no backfill job.
+- The **Premiere export runs as a Trigger.dev task.** It reads storage directly, writes the zip to storage and hands back a download link. The page starts it once and polls lightly.
+- An export fails whole. A source it can't read fails it with a plain reason, and no package is left that looks complete.
+- Quiet-section detection for one piece reads through the existing same-origin proxy (D245).
+
+**Why.** Storage sends no CORS headers (D245). The browser can play a clip but can't read its bytes, so it can neither measure a file nor zip it. Zipping through our server functions would stream every byte of every clip through a request with a time limit. A background task has no such limit, and it is how long work runs here (performance rule 12, D264). Measuring once per take keeps opening the editor at one read, however many clips there are.
+
+**Rejected.**
+- Zipping in the browser through the media proxy: every byte passes through a function, and the proxy has no Range support.
+- A CORS policy on the bucket: D245 already declined that infra change.
+- Measuring in the browser (the spike's mediabunny probe): it only worked on local files.
+- Measuring with ffprobe in a Trigger.dev task: the first open of the editor would wait on a queued run.
+- Measuring when each take is made: it touches every video provider's completion path, and older takes would still need a backfill.
+
+**Refines →** D245. **Builds on →** D264.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§10).
+
+### D392 — Captions reach Premiere as styled Graphic titles, in fonts from a fixed Google Fonts list *(recorded 2026-10-20)*
+
+**Decision.**
+- Each caption is exported as a Premiere Graphic: a `GraphicAndType` clipitem on V2 carrying its text, font, size, colour and position.
+- Its "Source Text" parameter is base64 of a u32 little-endian byte length, four zero bytes, then UTF-16LE JSON, decoded from a title Premiere exported (OpenTimelineIO's `premiere_generators.xml` sample). "Position" is `x:y`, each from 0 to 1.
+- Because that format is undocumented:
+  - the package also carries an SRT (text and timing only) as the fallback;
+  - the repo keeps the caption-probe test, which writes our title next to Premiere's own, to re-check each new Premiere version.
+- **Fonts come from a fixed list of open-licence Google Fonts.** They ship in the package, and the stage renders the real font, so what the user sees is what Premiere shows. These fonts are reel content, not interface: they appear only in captions on the stage and in the package. That is an intended exception to the two-UI-font rule (AGENTS.md, *Frontend aesthetics*).
+- A caption belongs to the piece it starts in and moves with it. Deleting the piece deletes its captions. There is no background box; a soft shadow keeps the text readable.
+
+**Why.** An SRT arrives in Premiere as a plain caption track with almost no styling, so the styling the user set would be lost. Shipping the fonts means Premiere doesn't substitute one the editor's machine lacks, and an open licence is what allows them to ship. Captions tied to pieces stay with the speech when an earlier piece is trimmed or moved.
+
+**Rejected.**
+- SRT only: no styling survives.
+- Any font the user picks: the package could only ship fonts whose licence allows it, and the stage could not promise a match.
+- Captions timed against the whole reel: trimming an earlier piece would knock every later caption out of sync.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§7, §11).
+
+### D393 — The rough-cut spike stays on its own branch and is never merged *(recorded 2026-10-20)*
+
+**Decision.** The spike (`/spike/rough-cut`, branch `spike/rough-cut-editor`, commit `216ed101`) is reference only. The product reuses its writers, timeline maths, playback hook and tests by copying files into their product homes (`git checkout spike/rough-cut-editor -- <file>`, then move them). Nothing is merged or cherry-picked from it. The implementation plan names each file it ports. Once the product ships, the branch is deleted or kept as an archive.
+
+**Why.** The spike's route, page, panels, and browser-only probe and zip don't belong in the product. A merge or cherry-pick of `216ed101` would bring them all along. Porting file by file keeps what the spike proved, the writers and their tests, and nothing else.
+
+**Rejected.**
+- Merging the spike and deleting what isn't needed: a leftover route or dependency is easy to miss.
+- Rewriting the writers from scratch: it would lose the tests and the details verified in Premiere.
+
+**Originated →** docs/superpowers/plans/2026-10-20-rough-cut-editor-HANDOFF.md (§3).

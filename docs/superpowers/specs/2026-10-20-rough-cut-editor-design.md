@@ -1,9 +1,12 @@
 # Rough Cut Editor: design
 
-*2026-10-20 · branch `feat/rough-cut-editor` · **approved by the user 2026-10-20** · ADR numbers
-assigned when the plan is written (next free was D387 on origin/staging, verify)*
+*2026-10-20 · branch `feat/rough-cut-editor` · **approved by the user 2026-10-20** · ADRs
+**D387–D393** in the roadmap's ADR log (§7): node and full page D387, TypeScript Premiere export
+D388, generation lock D389, edit record under the canvas lock D390, server-side media facts and the
+export task D391, caption titles and fonts D392, spike never merged D393*
 
 - Handoff (state, how to resume): [../plans/2026-10-20-rough-cut-editor-HANDOFF.md](../plans/2026-10-20-rough-cut-editor-HANDOFF.md)
+- Implementation plan: [../plans/2026-10-20-rough-cut-editor.md](../plans/2026-10-20-rough-cut-editor.md)
 - Architecture + feasibility page: https://claude.ai/artifact/88wWK2tgPUk3o2tHYKQPEn
 - Screen mockups (design canvas, 5 artboards): https://claude.ai/artifact/SseUKVaihCKMsHZscoQDCR
 
