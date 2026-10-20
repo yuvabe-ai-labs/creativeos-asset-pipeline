@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useStartExport } from "@/hooks/queries/editor";
 import { dubLanguageLabel } from "@/lib/dubbing/types";
+import { SaveFailure } from "@/lib/editor/autosave";
 import { fontCoversText } from "@/lib/editor/caption-fonts";
 import { ApiError } from "@/services/read-json";
 import { EditorExportDialog } from "./editor-export-dialog";
@@ -31,7 +32,8 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
       const { jobId: id } = await start.mutateAsync(nodeId);
       setJobId(id);
     } catch (err) {
-      toast.error(err instanceof ApiError || err instanceof Error ? err.message : "Couldn't start the export.");
+      if (err instanceof SaveFailure) toast.error(`Your latest changes aren't saved, so the export didn't start. ${err.message}`);
+      else toast.error(err instanceof ApiError || err instanceof Error ? err.message : "Couldn't start the export.");
     }
   };
 

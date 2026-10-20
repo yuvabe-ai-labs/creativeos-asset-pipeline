@@ -8,7 +8,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_FONTS, captionFont, coveringFonts, missingChars } from "@/lib/editor/caption-fonts";
-import { captionTimes, editCaption } from "@/lib/editor/captions";
+import { captionTimes, editCaption, MAX_CAPTION_TEXT } from "@/lib/editor/captions";
 import { formatTime } from "@/lib/editor/timeline";
 import { cn } from "@/lib/utils";
 import { CAPTION_FONT_CSS } from "./caption-font-faces";
@@ -41,7 +41,7 @@ export function EditorCaptionProps({ captionId }: { captionId: string }) {
       <div className="flex flex-col gap-2">
         <span className="text-eyebrow text-muted-foreground">Caption</span>
         <Label htmlFor="cap-text" className="text-[13px] font-semibold">Text</Label>
-        <Textarea id="cap-text" rows={2} value={caption.text} disabled={!editable} onChange={(e) => patch({ text: e.target.value })} />
+        <Textarea id="cap-text" rows={2} maxLength={MAX_CAPTION_TEXT} value={caption.text} disabled={!editable} onChange={(e) => patch({ text: e.target.value })} />
         {t && (
           <span className="text-xs tabular-nums text-muted-foreground">
             {formatTime(t.start)} → {formatTime(t.end)} · moves with piece {pieceIndex + 1}{handle ? ` (${handle})` : ""}

@@ -3,86 +3,59 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditorStoreApi } from "@/components/editor/editor-store-provider";
 import { useSaveEdit } from "@/hooks/queries/editor";
-import { ApiError } from "@/services/read-json";
+import { createAutosaver, type SaveStatus } from "@/lib/editor/autosave";
+import { markLockHandoff } from "@/lib/canvas/lock-session";
 
-export type SaveStatus = "saved" | "saving" | "unsaved" | "error";
+export type { SaveStatus };
 
-const DEBOUNCE_MS = 800;
-const RETRY_MS = 5000;
+type Autosaver = ReturnType<typeof createAutosaver>;
 
 /**
- * Saves the edit while the editor holds the canvas lock (D390): 800 ms after the last change,
- * never when nothing changed since the last save (rule 4), retrying a failure after 5 s. A 409
- * means another session took the lock. `initiallyDirty`: opening reconciled the saved edit, so it
- * is saved once, as soon as the lock is ours. `flush` saves now — before leaving the page or
- * exporting, since nothing saves on unmount.
+ * The editor page's autosave (D390), the React side of lib/editor/autosave.ts. `flush` saves now
+ * and rejects when it couldn't, so Back and Export stop rather than go ahead on an edit the server
+ * doesn't have. Closing the tab with changes unsaved asks first. The browser's Back keeps the lock
+ * (it marks the handoff) so the last pending save still lands.
  */
 export function useEditorAutosave(a: { canvasId: string; nodeId: string; sessionId: string; initiallyDirty: boolean; onLockLost(): void }) {
   const store = useEditorStoreApi();
   const save = useSaveEdit(a.canvasId);
   const [status, setStatus] = useState<SaveStatus>(a.initiallyDirty ? "unsaved" : "saved");
-  const lastSaved = useRef(a.initiallyDirty ? "" : JSON.stringify(store.getState().doc));
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inFlight = useRef<Promise<void>>(Promise.resolve());
   const live = useRef(a);
   const saveRef = useRef(save.mutateAsync);
-  const flushRef = useRef<() => Promise<void>>(async () => {});
+  const saverRef = useRef<Autosaver | null>(null);
   useEffect(() => {
     live.current = a;
     saveRef.current = save.mutateAsync;
   });
 
-  const flush = useCallback(async (): Promise<void> => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    const run = inFlight.current.then(async () => {
-      const { doc, editable } = store.getState();
-      if (!editable) return;
-      const json = JSON.stringify(doc);
-      if (json === lastSaved.current) {
-        setStatus("saved");
-        return;
-      }
-      setStatus("saving");
-      try {
-        await saveRef.current({ nodeId: live.current.nodeId, sessionId: live.current.sessionId, doc });
-        lastSaved.current = json;
-        setStatus(JSON.stringify(store.getState().doc) === json ? "saved" : "unsaved");
-      } catch (err) {
-        setStatus("error");
-        if (err instanceof ApiError && err.status === 409) {
-          live.current.onLockLost();
-          return;
-        }
-        timer.current = setTimeout(() => void flushRef.current(), RETRY_MS);
-      }
+  useEffect(() => {
+    const saver = createAutosaver({
+      read: () => ({ doc: store.getState().doc, editable: store.getState().editable }),
+      save: (doc) => saveRef.current({ nodeId: live.current.nodeId, sessionId: live.current.sessionId, doc }),
+      onStatus: setStatus,
+      onLockLost: () => live.current.onLockLost(),
+      initiallyDirty: live.current.initiallyDirty,
     });
-    inFlight.current = run.catch(() => {});
-    return run;
-  }, [store]);
-  useEffect(() => {
-    flushRef.current = flush;
-  }, [flush]);
-
-  useEffect(() => {
-    const schedule = () => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => void flush(), DEBOUNCE_MS);
-    };
-    if (store.getState().editable && JSON.stringify(store.getState().doc) !== lastSaved.current) schedule();
+    saverRef.current = saver;
+    if (store.getState().editable && saver.isDirty()) saver.schedule();
     const unsubscribe = store.subscribe((s, prev) => {
-      if (s.doc !== prev.doc) {
-        setStatus("unsaved");
-        schedule();
-      } else if (s.editable && !prev.editable && JSON.stringify(s.doc) !== lastSaved.current) {
-        schedule();
-      }
+      if (s.doc !== prev.doc || (s.editable && !prev.editable && saver.isDirty())) saver.schedule();
     });
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saver.isDirty()) e.preventDefault();
+    };
+    const onPopState = () => markLockHandoff(live.current.canvasId);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("popstate", onPopState);
     return () => {
       unsubscribe();
-      if (timer.current) clearTimeout(timer.current);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("popstate", onPopState);
+      saver.dispose();
+      saverRef.current = null;
     };
-  }, [store, flush]);
+  }, [store]);
 
+  const flush = useCallback(() => saverRef.current?.flush() ?? Promise.resolve(), []);
   return { status, flush };
 }

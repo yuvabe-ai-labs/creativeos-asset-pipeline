@@ -9,6 +9,9 @@ import type { Caption, EditDoc } from "./types";
 const MIN_CAPTION_SECONDS = 0.2;
 const EDGE_MARGIN = 0.04;
 const NEW_CAPTION_TEXT = "New caption";
+/** What an edit may hold (EditDocSchema): the editor never builds an edit the server refuses. */
+export const MAX_CAPTION_TEXT = 500;
+export const MAX_CAPTIONS = 1000;
 
 /** Reel times of a caption. A start trimmed out of its piece shows at the piece's nearest edge;
  *  the stored anchor is untouched, so widening the trim again restores it. */
@@ -52,6 +55,7 @@ function nextLook(doc: EditDoc): Pick<Caption, "font" | "size" | "color" | "x" |
 }
 
 export function addCaption(doc: EditDoc, t: number, newId: string): EditDoc {
+  if (doc.captions.length >= MAX_CAPTIONS) return doc;
   const anchor = anchorAt(doc, t);
   if (!anchor) return doc;
   const look = nextLook(doc);
@@ -72,7 +76,7 @@ export function placeCaption(doc: EditDoc, id: string, x: number, y: number): Ed
 }
 
 export function editCaption(doc: EditDoc, id: string, patch: Partial<Pick<Caption, "text" | "font" | "size" | "color">>): EditDoc {
-  return patchCaption(doc, id, patch);
+  return patchCaption(doc, id, patch.text === undefined ? patch : { ...patch, text: patch.text.slice(0, MAX_CAPTION_TEXT) });
 }
 
 export function removeCaption(doc: EditDoc, id: string): EditDoc {
@@ -110,11 +114,11 @@ export function attachCues(doc: EditDoc, cues: SrtCue[], newId: () => string): {
   let dropped = 0;
   for (const cue of cues) {
     const anchor = cue.start < total ? anchorAt(doc, cue.start) : null;
-    if (!anchor) {
+    if (!anchor || doc.captions.length + added.length >= MAX_CAPTIONS) {
       dropped++;
       continue;
     }
-    added.push({ id: newId(), ...anchor, duration: Math.max(MIN_CAPTION_SECONDS, cue.end - cue.start), text: cue.text, ...look });
+    added.push({ id: newId(), ...anchor, duration: Math.max(MIN_CAPTION_SECONDS, cue.end - cue.start), text: cue.text.slice(0, MAX_CAPTION_TEXT), ...look });
   }
   return { doc: added.length ? withCaptions(doc, [...doc.captions, ...added]) : doc, dropped };
 }

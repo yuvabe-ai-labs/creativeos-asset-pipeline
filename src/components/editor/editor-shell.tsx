@@ -74,7 +74,11 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
         title={title}
         status={status}
         readOnly={!lock.canEdit}
-        onBack={() => void navigate(canvasPath, flush)}
+        onBack={() =>
+          navigate(canvasPath, flush).catch((err: Error) =>
+            toast.error(`${err.message} Your latest changes aren't saved yet, so you're still here.`),
+          )
+        }
         actions={<EditorExportButton canvasId={canvasId} nodeId={initialState.editorNodeId} title={title} flush={flush} />}
       />
       <div className="relative flex min-h-0 flex-1 flex-col">

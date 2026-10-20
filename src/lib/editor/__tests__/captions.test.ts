@@ -100,4 +100,15 @@ describe("captions belong to pieces", () => {
     expect(fontCoversText("montserrat", "नमस्ते")).toBe(false);
     expect(fontCoversText("poppins", "नमस्ते")).toBe(true);
   });
+
+  it("keeps imported captions inside what an edit may hold", () => {
+    const long = "x".repeat(600);
+    const { doc: one } = attachCues({ ...doc, captions: [] }, [{ start: 0.5, end: 1, text: long }], () => "l");
+    expect(one.captions[0].text).toHaveLength(500);
+    const many = Array.from({ length: 1005 }, (_, i) => ({ start: (i % 5) * 0.5, end: (i % 5) * 0.5 + 0.3, text: String(i) }));
+    let n = 0;
+    const { doc: capped, dropped } = attachCues({ ...doc, captions: [] }, many, () => `m${++n}`);
+    expect(capped.captions).toHaveLength(1000);
+    expect(dropped).toBe(5);
+  });
 });
