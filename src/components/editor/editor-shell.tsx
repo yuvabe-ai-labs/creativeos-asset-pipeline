@@ -12,6 +12,8 @@ import { EditorHeader } from "./editor-header";
 import { EditorPanel } from "./editor-panel";
 import { EditorPlaybackProvider } from "./editor-playback-context";
 import { EditorStage } from "./editor-stage";
+import { EditorTimeline } from "./editor-timeline";
+import { useEditorShortcuts } from "@/hooks/use-editor-shortcuts";
 import { EditorStoreProvider, useEditorStore } from "./editor-store-provider";
 
 type Props = {
@@ -50,6 +52,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
     onLockLost: lock.reportLockLost,
   });
   const navigate = useLockHandoffNavigation(canvasId);
+  useEditorShortcuts();
 
   // What changed since the edit was last open (a version switch, a disconnect…), said once.
   const told = useRef(false);
@@ -75,7 +78,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
           <EditorStage />
           <EditorPanel label="Properties" />
         </div>
-        <EditorPanel label="Timeline" className="mx-6 mb-5 mt-4 flex-1" />
+        <EditorTimeline />
       </div>
     </div>
   );
