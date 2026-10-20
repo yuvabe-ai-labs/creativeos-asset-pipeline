@@ -2,7 +2,7 @@
 // seconds (D390): trims are kept by time so a lip-synced file at another frame rate still lines
 // up. Every function returns the SAME array for a no-op, so a drag that changes nothing never
 // replaces state (performance rule 4).
-import type { Piece } from "./types";
+import type { EditDoc, Piece } from "./types";
 
 export const snap = (seconds: number, fps: number): number => Math.round(seconds * fps) / fps;
 
@@ -80,6 +80,12 @@ export function movePiece(pieces: Piece[], from: number, to: number): Piece[] {
   const [moved] = out.splice(from, 1);
   out.splice(to, 0, moved);
   return out;
+}
+
+/** The doc with new pieces, or the SAME doc when they didn't change (rule 4: a no-op drag must
+ *  not replace state, re-render the editor or restart the save timer). */
+export function withPieces(doc: EditDoc, pieces: Piece[]): EditDoc {
+  return pieces === doc.pieces ? doc : { ...doc, pieces };
 }
 
 /** MM:SS.ss */

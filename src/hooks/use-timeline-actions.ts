@@ -5,7 +5,7 @@ import { useEditorStoreApi } from "@/components/editor/editor-store-provider";
 import { usePlayback } from "@/components/editor/editor-playback-context";
 import { deletePiece, removeCaption, splitPieceInDoc } from "@/lib/editor/captions";
 import { pieceLimit } from "@/lib/editor/reconcile";
-import { locate, pieceOffsets, setTrim } from "@/lib/editor/timeline";
+import { locate, pieceOffsets, setTrim, withPieces } from "@/lib/editor/timeline";
 
 /** The timeline's edits, shared by its buttons and the keyboard (spec §6). */
 export function useTimelineActions() {
@@ -37,7 +37,7 @@ export function useTimelineActions() {
       const source = piece && sources.find((s) => s.nodeId === piece.sourceNodeId);
       const limit = piece && source && pieceLimit(piece, source);
       if (!limit) return;
-      apply((d) => ({ ...d, pieces: setTrim(d.pieces, pieceId, edge, seconds, limit) }));
+      apply((d) => withPieces(d, setTrim(d.pieces, pieceId, edge, seconds, limit)));
       const next = store.getState().doc.pieces;
       const i = next.findIndex((p) => p.id === pieceId);
       if (i < 0) return;

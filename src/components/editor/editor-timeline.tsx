@@ -6,7 +6,7 @@ import { Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTimelineActions } from "@/hooks/use-timeline-actions";
 import { pieceLimit } from "@/lib/editor/reconcile";
-import { movePiece, pieceOffsets } from "@/lib/editor/timeline";
+import { movePiece, pieceOffsets, withPieces } from "@/lib/editor/timeline";
 import { laneBox, pxPerSecond } from "@/lib/editor/timeline-scale";
 import { useEditorStore } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
@@ -103,7 +103,7 @@ export function EditorTimeline({ captionsLane, tools }: { captionsLane?: (scale:
                     onTrim={(edge, s) => editable && trim(piece.id, edge, s)}
                     onDragStart={() => setDragFrom(i)}
                     onDrop={() => {
-                      if (dragFrom !== null) apply((d) => ({ ...d, pieces: movePiece(d.pieces, dragFrom, i) }));
+                      if (dragFrom !== null) apply((d) => withPieces(d, movePiece(d.pieces, dragFrom, i)));
                       setDragFrom(null);
                     }}
                   />
