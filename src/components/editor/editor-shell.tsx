@@ -9,7 +9,8 @@ import { useLockHandoffNavigation } from "@/hooks/use-lock-handoff-navigation";
 import { useEditorState } from "@/hooks/queries/editor";
 import type { EditorState } from "@/lib/editor/types";
 import { EditorHeader } from "./editor-header";
-import { EditorPanel } from "./editor-panel";
+import { EditorPropsPanel } from "./editor-props-panel";
+import { EditorSourcesPanel } from "./editor-sources-panel";
 import { EditorPlaybackProvider } from "./editor-playback-context";
 import { EditorStage } from "./editor-stage";
 import { EditorTimeline } from "./editor-timeline";
@@ -74,9 +75,9 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
       <div className="relative flex min-h-0 flex-1 flex-col">
         {!lock.canEdit && <LockBanner heldByName={lock.heldByName} canTakeOver={lock.canTakeOver} onTakeOver={lock.takeOver} />}
         <div className="grid h-[min(520px,58dvh)] flex-none grid-cols-[248px_minmax(0,1fr)_340px] gap-4 px-6 pt-4">
-          <EditorPanel label="Sources" />
+          <EditorSourcesPanel />
           <EditorStage />
-          <EditorPanel label="Properties" />
+          <EditorPropsPanel />
         </div>
         <EditorTimeline />
       </div>

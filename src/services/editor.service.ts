@@ -1,6 +1,7 @@
 import type { ExportStatus } from "@/lib/editor/export-run";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
-import { readJson } from "./read-json";
+import { proxyImageSrc } from "@/lib/post/proxy-image-src";
+import { ApiError, readJson } from "./read-json";
 
 // The Rough Cut Editor's API calls (D390). No caching here: src/hooks/queries/editor.ts owns that.
 class EditorService {
@@ -28,6 +29,13 @@ class EditorService {
       body: JSON.stringify({ nodeId }),
     });
     return readJson(res, "Couldn't start the export.");
+  }
+
+  /** A stored file's bytes through the same-origin proxy (storage sends no CORS headers, D245). */
+  async fetchMedia(url: string): Promise<ArrayBuffer> {
+    const res = await fetch(proxyImageSrc(url));
+    if (!res.ok) throw new ApiError("Couldn't read this clip's sound.", res.status);
+    return res.arrayBuffer();
   }
 
   async exportStatus(canvasId: string, jobId: string): Promise<ExportStatus> {

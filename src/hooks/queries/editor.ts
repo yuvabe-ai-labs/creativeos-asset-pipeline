@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ExportStatus } from "@/lib/editor/export-run";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
 import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
+import { rmsWindows } from "@/lib/editor/silence";
 import { editorService } from "@/services/editor.service";
 
 // The Rough Cut Editor through TanStack Query (D300, D390). The keys are built here and nowhere
@@ -53,5 +54,16 @@ export function useExportStatus(canvasId: string, jobId: string | null) {
     queryFn: () => editorService.exportStatus(canvasId, jobId!),
     enabled: Boolean(canvasId && jobId),
     refetchInterval: (q) => (!q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? EXPORT_POLL_MS : false),
+  });
+}
+
+/** A file's loudness per 50 ms, for quiet-section review. Read once per file, kept for the session. */
+export function useQuietWindows(url: string | null) {
+  return useQuery({
+    queryKey: editorKeys.quiet(url ?? ""),
+    queryFn: async () => rmsWindows(await editorService.fetchMedia(url!)),
+    enabled: Boolean(url),
+    staleTime: Infinity,
+    retry: false,
   });
 }
