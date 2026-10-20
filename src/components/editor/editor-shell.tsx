@@ -10,6 +10,8 @@ import { useEditorState } from "@/hooks/queries/editor";
 import type { EditorState } from "@/lib/editor/types";
 import { EditorHeader } from "./editor-header";
 import { EditorPanel } from "./editor-panel";
+import { EditorPlaybackProvider } from "./editor-playback-context";
+import { EditorStage } from "./editor-stage";
 import { EditorStoreProvider, useEditorStore } from "./editor-store-provider";
 
 type Props = {
@@ -26,7 +28,9 @@ type Props = {
 export function EditorShell(props: Props) {
   return (
     <EditorStoreProvider doc={props.initialState.doc} sources={props.initialState.sources}>
-      <EditorShellBody {...props} />
+      <EditorPlaybackProvider>
+        <EditorShellBody {...props} />
+      </EditorPlaybackProvider>
     </EditorStoreProvider>
   );
 }
@@ -68,7 +72,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
         {!lock.canEdit && <LockBanner heldByName={lock.heldByName} canTakeOver={lock.canTakeOver} onTakeOver={lock.takeOver} />}
         <div className="grid h-[min(520px,58dvh)] flex-none grid-cols-[248px_minmax(0,1fr)_340px] gap-4 px-6 pt-4">
           <EditorPanel label="Sources" />
-          <section aria-label="Stage" className="flex min-w-0 flex-col items-center justify-center gap-3.5 rounded-[14px] bg-muted p-[18px]" />
+          <EditorStage />
           <EditorPanel label="Properties" />
         </div>
         <EditorPanel label="Timeline" className="mx-6 mb-5 mt-4 flex-1" />
