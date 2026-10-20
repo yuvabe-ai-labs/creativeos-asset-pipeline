@@ -33,6 +33,13 @@ export function computeGenerationLocks(
   return locks;
 }
 
+/** How many nodes feed the Editor directly (one Editor per canvas): its sources. */
+export function editorSourceCount(locks: Record<string, GenerationLock>): number {
+  let n = 0;
+  for (const k in locks) if (locks[k] === "editor") n++;
+  return n;
+}
+
 /** Same contents, so a recompute that changes nothing keeps the old object (rule 4). */
 export function sameLocks(a: Record<string, GenerationLock>, b: Record<string, GenerationLock>): boolean {
   const ak = Object.keys(a);

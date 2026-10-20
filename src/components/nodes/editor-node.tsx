@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Scissors } from "lucide-react";
@@ -11,7 +12,8 @@ import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useLockHandoffNavigation } from "@/hooks/use-lock-handoff-navigation";
-import { useEditorState } from "@/hooks/queries/editor";
+import { editorKeys, useEditorState } from "@/hooks/queries/editor";
+import { editorSourceCount } from "@/lib/editor/generation-lock";
 import { editSummary } from "@/lib/editor/summary";
 import { formatTime } from "@/lib/editor/timeline";
 import type { EditorNodeData } from "@/lib/canvas-nodes";
@@ -39,6 +41,19 @@ export function EditorNode({ id, data, selected }: NodeProps) {
   const navigate = useLockHandoffNavigation(canvasId);
   const { data: state, isPending } = useEditorState(canvasId);
 
+  // Connecting or disconnecting a source changes what the card summarises. The lock index already
+  // counts the Editor's inputs (O(1) to read: the selector returns the stored object). Refresh once
+  // the canvas has saved the new edge, so the server reads it.
+  const locks = useCanvasStore((s) => s.generationLocks);
+  const sourceCount = useMemo(() => editorSourceCount(locks), [locks]);
+  const queryClient = useQueryClient();
+  const seenCount = useRef(sourceCount);
+  useEffect(() => {
+    if (seenCount.current === sourceCount) return;
+    seenCount.current = sourceCount;
+    void flushAutosave().then(() => queryClient.invalidateQueries({ queryKey: editorKeys.state(canvasId) }));
+  }, [sourceCount, flushAutosave, queryClient, canvasId]);
+
   const open = useCallback(() => {
     void navigate(`${pathname}/edit`, flushAutosave);
   }, [navigate, pathname, flushAutosave]);
@@ -52,7 +67,9 @@ export function EditorNode({ id, data, selected }: NodeProps) {
   }, [focused, open, setFocusedNodeId]);
 
   const summary = state && state.editorNodeId === id ? editSummary(state) : null;
-  const line = summary
+  const line = sourceCount === 0
+    ? EMPTY
+    : summary
     ? summary.sources === 0
       ? EMPTY
       : `${plural(summary.sources, "source")} · ${plural(summary.pieces, "piece")} · ${formatTime(summary.seconds)} · ${summary.shape}`

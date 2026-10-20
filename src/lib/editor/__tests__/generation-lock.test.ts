@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeGenerationLocks, GENERATION_LOCK_COPY } from "../generation-lock";
+import { computeGenerationLocks, editorSourceCount, GENERATION_LOCK_COPY } from "../generation-lock";
 
 const n = (id: string, type: string) => ({ id, type });
 const e = (source: string, target: string) => ({ source, target });
@@ -31,5 +31,11 @@ describe("computeGenerationLocks", () => {
   it("says why, in place of the action", () => {
     expect(GENERATION_LOCK_COPY.editor.short).toBe("In use by the Editor · Disconnect to generate");
     expect(GENERATION_LOCK_COPY.dub.short).toBe("Locked by its dub · feeds the Editor");
+  });
+
+  it("counts the Editor's sources from the index (the card refreshes when it changes)", () => {
+    const nodes = [n("vg", "video-gen"), n("vg2", "video-gen"), n("dub", "dubbing"), n("ed", "editor")];
+    expect(editorSourceCount(computeGenerationLocks(nodes, [e("vg", "dub"), e("dub", "ed"), e("vg2", "ed")]))).toBe(2);
+    expect(editorSourceCount({})).toBe(0);
   });
 });
