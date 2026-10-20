@@ -81,8 +81,12 @@ function assignTitleTracks(titles: PlanTitle[]): void {
 
 export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
   const byId = new Map(sources.map((s) => [s.nodeId, s]));
-  const pieces = doc.pieces.filter((p) => byId.has(p.sourceNodeId));
+  const pieces = doc.pieces;
   if (pieces.length === 0) return { ok: false, reason: EMPTY_REEL };
+  // Never drop a piece silently: the package would differ from the reel on screen.
+  if (pieces.some((p) => !byId.has(p.sourceNodeId))) {
+    return { ok: false, reason: "A clip in the reel has no finished take now, so the reel can't be exported. Remove its pieces or give it a take on the canvas." };
+  }
 
   const media: PlanMedia[] = [];
   const mediaFor = (f: MediaFile, role: MediaRole, source: SourceView): PlanMedia => {

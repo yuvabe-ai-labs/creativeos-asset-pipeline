@@ -43,7 +43,8 @@ export async function loadEditorState(canvasId: string): Promise<EditorState | n
   });
   const urls = drafts.flatMap((d) => [d.urls.original, d.urls.lipSynced, d.urls.dubAudio]).filter((u): u is string => !!u);
   const sources = attachFacts(drafts, await ensureMediaFacts(urls));
-  const { doc, notices } = reconcile(prev, sources, () => crypto.randomUUID());
+  const connected = new Map(incoming.map((e) => [e.sourceNodeId, e.id]));
+  const { doc, notices } = reconcile(prev, sources, () => crypto.randomUUID(), connected);
 
   return {
     canvasId,

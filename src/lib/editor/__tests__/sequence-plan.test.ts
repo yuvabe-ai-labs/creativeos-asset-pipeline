@@ -112,4 +112,11 @@ describe("planSequence", () => {
     const dub = source("d", { kind: "dubbing", dubAudio: file("https://storage.googleapis.com/b/d.wav", audioFacts(5.02)) });
     expect(ok(planSequence(doc([piece("p", "d", 0, 121, { sound: "dubbed" })]), [dub])).clips[0].dub?.out).toBe(120);
   });
+
+  it("refuses rather than silently dropping a piece whose clip has no take", () => {
+    expect(planSequence(doc([piece("p1", "a", 0, 24), piece("p2", "gone", 0, 24)]), [A])).toEqual({
+      ok: false,
+      reason: "A clip in the reel has no finished take now, so the reel can't be exported. Remove its pieces or give it a take on the canvas.",
+    });
+  });
 });

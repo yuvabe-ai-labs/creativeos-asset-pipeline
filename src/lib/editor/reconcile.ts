@@ -28,19 +28,32 @@ function shapeOf(source: SourceView | undefined): ReelShape {
   return v && v.width > v.height ? "16:9" : "9:16";
 }
 
-export function reconcile(prev: EditDoc | null, sources: SourceView[], newId: () => string): { doc: EditDoc; notices: EditorNotice[] } {
+/** `connected`: every source node still wired to the Editor, by edge id, including ones with no
+ *  readable take right now. Their pieces are kept: a missing take is never read as "disconnected"
+ *  (rule 13), so a bad read can't delete trims and captions. */
+export function reconcile(
+  prev: EditDoc | null,
+  sources: SourceView[],
+  newId: () => string,
+  connected: Map<string, string> = new Map(sources.map((s) => [s.nodeId, s.edgeId])),
+): { doc: EditDoc; notices: EditorNotice[] } {
   const notices: EditorNotice[] = [];
   const current = new Map(sources.map((s) => [s.nodeId, s]));
   let changed = prev === null;
   let pieces = prev?.pieces ?? [];
   let captions = prev?.captions ?? [];
   const kept: EditSource[] = [];
+  const waiting: EditSource[] = [];
 
   // 1. Sources that left, or came back on a new edge.
   for (const saved of prev?.sources ?? []) {
     const now = current.get(saved.nodeId);
     if (now && now.edgeId === saved.edgeId) {
       kept.push(saved);
+      continue;
+    }
+    if (!now && connected.get(saved.nodeId) === saved.edgeId) {
+      waiting.push(saved); // still wired, take unreadable: leave its pieces alone
       continue;
     }
     changed = true;
@@ -82,6 +95,8 @@ export function reconcile(prev: EditDoc | null, sources: SourceView[], newId: ()
     if (soundFell) notices.push({ kind: "sound-fallback", sourceNodeId: now.nodeId, message: `${now.handle}'s current version has no dub, so its pieces play the original sound.` });
     return { ...saved, versionId: now.versionId };
   });
+
+  sourcesOut.push(...waiting);
 
   // 3. New sources: one full-length piece each, by shot order (first open: shot order throughout).
   const known = new Set(sourcesOut.map((s) => s.nodeId));

@@ -106,4 +106,14 @@ describe("reconcile", () => {
     const shortLip = source("d", { kind: "dubbing", versionId: "v-d2", lipSynced: file("https://storage.googleapis.com/b/d-lip2.mp4", videoFacts({ fps: 25, frames: 100 })) });
     expect(reconcile(lip, [shortLip], newId).doc.pieces[0].out).toBeCloseTo(4, 9);
   });
+
+  it("keeps the pieces of a source still connected but without a take (never deletes on a bad read)", () => {
+    const cap: Caption = { id: "c", pieceId: pieceOf(base, "b").id, at: 0, duration: 1, text: "t", x: 0.5, y: 0.5, font: "anton", size: 84, color: "#ffffff" };
+    const prev = { ...base, captions: [cap] };
+    const { doc, notices } = reconcile(prev, [s1], newId, new Map([["a", "e-a"], ["b", "e-b"]]));
+    expect(doc).toBe(prev);
+    expect(notices).toEqual([]);
+    // Reconnected on a new edge, it still goes.
+    expect(reconcile(prev, [s1], newId, new Map([["a", "e-a"], ["b", "e-b2"]])).doc.pieces.map((p) => p.sourceNodeId)).toEqual(["a"]);
+  });
 });
