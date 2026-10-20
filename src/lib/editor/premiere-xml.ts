@@ -15,7 +15,7 @@
 // unzipped, so Premiere needs at most one relink. Element meanings: Apple's (retired) FCP XML
 // Interchange Format element catalog.
 import { titleClipitem } from "./premiere-title";
-import type { PlanMedia, SequencePlan } from "./sequence-plan";
+import { framesWithin, type PlanMedia, type SequencePlan } from "./sequence-plan";
 import { rate, serialize, timecode, x, type XNode } from "./xml-node";
 
 export { rateParts } from "./xml-node";
@@ -36,7 +36,7 @@ function fileElement(m: PlanMedia, seqFps: number): XNode {
       x("name", null, m.fileName),
       x("pathurl", null, mediaUrl(m.fileName)),
       rate(seqFps),
-      x("duration", null, Math.round(m.facts.durationSeconds * seqFps)),
+      x("duration", null, framesWithin(m.facts.durationSeconds, seqFps)),
       x("media", null, audioMedia),
     );
   }
@@ -91,7 +91,7 @@ export function buildPremiereXml(plan: SequencePlan): string {
   const mediaById = new Map(plan.media.map((m) => [m.id, m]));
   const media = (id: number) => mediaById.get(id)!;
   const lengthInSeq = (m: PlanMedia) =>
-    m.facts.video ? Math.round((m.facts.video.frames / m.facts.video.fps) * seqFps) : Math.round(m.facts.durationSeconds * seqFps);
+    framesWithin(m.facts.video ? m.facts.video.frames / m.facts.video.fps : m.facts.durationSeconds, seqFps);
   const pairOf = (channels: number) => Math.min(2, channels);
 
   const written = new Set<number>();

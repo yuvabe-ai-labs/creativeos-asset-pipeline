@@ -64,6 +64,8 @@ const extOf = (url: string) => {
   return m ? m[1].toLowerCase() : ".mp4";
 };
 const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Whole frames of a file at the sequence rate, never rounded up past its last real frame. */
+export const framesWithin = (seconds: number, fps: number) => Math.floor(seconds * fps + 1e-6);
 
 export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
   const byId = new Map(sources.map((s) => [s.nodeId, s]));
@@ -109,7 +111,7 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
       const picture = pictureOf(p.sourceNodeId, p.picture === "lipSynced");
       const video = picture.facts.video!;
       const inF = Math.round(p.in * fps);
-      const fileEnd = Math.round((video.frames / video.fps) * fps);
+      const fileEnd = framesWithin(video.frames / video.fps, fps);
       const len = Math.max(1, Math.min(Math.round(p.out * fps) - inF, fileEnd - inF));
 
       const original = mediaFor(source.files.original, "take", source);
@@ -118,7 +120,7 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
       let dub: PlanClip["dub"] = null;
       if (p.sound === "dubbed" && source.files.dubAudio) {
         const d = mediaFor(source.files.dubAudio, "dub-audio", source);
-        const out = Math.min(inF + len, Math.round(d.facts.durationSeconds * fps));
+        const out = Math.min(inF + len, framesWithin(d.facts.durationSeconds, fps));
         dub = { media: d.id, in: Math.min(inF, Math.max(0, out - 1)), out, channels: d.facts.audio?.channels ?? 2 };
       }
 

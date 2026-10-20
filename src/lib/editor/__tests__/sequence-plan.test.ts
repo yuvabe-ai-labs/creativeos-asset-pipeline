@@ -102,4 +102,14 @@ describe("planSequence", () => {
     expect(plan.clips[0].sound).toBeNull();
     expect(audioFacts(1).video).toBeNull();
   });
+
+  it("never rounds a file's end up past its last frame", () => {
+    // 126 frames at 25 fps = 5.04 s = 120.96 frames at 24: the piece ends at 120, not 121.
+    const lip = source("d", { kind: "dubbing", lipSynced: file("https://storage.googleapis.com/b/d-lip.mp4", videoFacts({ fps: 25, frames: 126 })) });
+    const plan = ok(planSequence(doc([piece("p0", "a", 0, 24), piece("p", "d", 0, 121, { picture: "lipSynced" })]), [A, lip]));
+    expect(plan.clips[1].end - plan.clips[1].start).toBe(120);
+    // A 5.02 s dub is 120.48 frames: it ends at 120.
+    const dub = source("d", { kind: "dubbing", dubAudio: file("https://storage.googleapis.com/b/d.wav", audioFacts(5.02)) });
+    expect(ok(planSequence(doc([piece("p", "d", 0, 121, { sound: "dubbed" })]), [dub])).clips[0].dub?.out).toBe(120);
+  });
 });
