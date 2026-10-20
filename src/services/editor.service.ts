@@ -1,3 +1,4 @@
+import type { ExportStatus } from "@/lib/editor/export-run";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
 import { readJson } from "./read-json";
 
@@ -17,6 +18,21 @@ class EditorService {
       body: JSON.stringify(body),
     });
     await readJson(res, "Couldn't save the edit.");
+  }
+
+  /** Starts a Premiere export of the saved edit (D391). */
+  async startExport(canvasId: string, nodeId: string): Promise<{ jobId: string }> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/exports`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ nodeId }),
+    });
+    return readJson(res, "Couldn't start the export.");
+  }
+
+  async exportStatus(canvasId: string, jobId: string): Promise<ExportStatus> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/exports/${jobId}`);
+    return readJson(res, "Couldn't read the export.");
   }
 }
 

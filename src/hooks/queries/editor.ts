@@ -1,7 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ExportStatus } from "@/lib/editor/export-run";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
+import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
 import { editorService } from "@/services/editor.service";
 
 // The Rough Cut Editor through TanStack Query (D300, D390). The keys are built here and nowhere
@@ -14,6 +16,7 @@ export const editorKeys = {
 };
 
 const STATE_STALE_MS = 30_000;
+const EXPORT_POLL_MS = 1500;
 
 /** The edit and its sources. The editor page seeds it from its server render. */
 export function useEditorState(canvasId: string, opts: { initialData?: EditorState; enabled?: boolean } = {}) {
@@ -36,5 +39,19 @@ export function useSaveEdit(canvasId: string) {
         prev ? { ...prev, doc: body.doc, changed: false, notices: [] } : prev,
       );
     },
+  });
+}
+
+export function useStartExport(canvasId: string) {
+  return useMutation({ mutationFn: (nodeId: string) => editorService.startExport(canvasId, nodeId) });
+}
+
+/** An export's progress, polled until it finishes. */
+export function useExportStatus(canvasId: string, jobId: string | null) {
+  return useQuery<ExportStatus>({
+    queryKey: editorKeys.export(canvasId, jobId ?? ""),
+    queryFn: () => editorService.exportStatus(canvasId, jobId!),
+    enabled: Boolean(canvasId && jobId),
+    refetchInterval: (q) => (!q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? EXPORT_POLL_MS : false),
   });
 }

@@ -532,6 +532,14 @@ export async function signClientReviewUpload(args: {
 }
 
 // D338 — one storyboard panel's bytes, stored as the provider returned them.
+/** D391 — the Rough Cut Editor's finished package, saved with its download name. */
+export async function uploadEditorExport(path: string, bytes: Uint8Array): Promise<UploadResult> {
+  await _put(path, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), "application/zip", {
+    contentDisposition: 'attachment; filename="creativeos-reel.zip"',
+  });
+  return { path, url: publicUrlFor(path) };
+}
+
 export async function uploadScriptPanel(args: {
   clientId: string;
   scriptId: string;
