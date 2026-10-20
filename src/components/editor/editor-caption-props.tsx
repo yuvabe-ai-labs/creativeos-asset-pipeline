@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CAPTION_FONTS, captionFont, fontCoversText } from "@/lib/editor/caption-fonts";
+import { CAPTION_FONTS, captionFont, coveringFonts, missingChars } from "@/lib/editor/caption-fonts";
 import { captionTimes, editCaption } from "@/lib/editor/captions";
 import { formatTime } from "@/lib/editor/timeline";
 import { cn } from "@/lib/utils";
@@ -47,9 +47,18 @@ export function EditorCaptionProps({ captionId }: { captionId: string }) {
             {formatTime(t.start)} → {formatTime(t.end)} · moves with piece {pieceIndex + 1}{handle ? ` (${handle})` : ""}
           </span>
         )}
-        {!fontCoversText(caption.font, caption.text) && (
-          <span className="text-xs text-destructive">{captionFont(caption.font).label} has no letters for this script. Poppins does.</span>
-        )}
+        {(() => {
+          const missing = missingChars(caption.font, caption.text);
+          if (missing.length === 0) return null;
+          const shown = missing.slice(0, 4).join(" ");
+          const others = coveringFonts(caption.text).map((k) => captionFont(k).label);
+          return (
+            <span className="text-xs text-destructive">
+              {captionFont(caption.font).label} has no {shown}.{" "}
+              {others.length ? `${others.join(", ")} ${others.length === 1 ? "has" : "have"} them.` : "No caption font has them; Premiere will substitute one."}
+            </span>
+          );
+        })()}
       </div>
 
       <div className="flex flex-col gap-2">

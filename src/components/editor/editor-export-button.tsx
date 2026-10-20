@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useStartExport } from "@/hooks/queries/editor";
 import { dubLanguageLabel } from "@/lib/dubbing/types";
+import { fontCoversText } from "@/lib/editor/caption-fonts";
 import { ApiError } from "@/services/read-json";
 import { EditorExportDialog } from "./editor-export-dialog";
 import { useEditorStore } from "./editor-store-provider";
@@ -16,9 +17,15 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
   const start = useStartExport(canvasId);
   const [jobId, setJobId] = useState<string | null>(null);
   const hasPieces = useEditorStore((s) => s.doc.pieces.length > 0);
+  const captions = useEditorStore((s) => s.doc.captions);
   const dubLanguage = useEditorStore((s) => s.sources.find((x) => x.language && s.doc.pieces.some((p) => p.sourceNodeId === x.nodeId && p.sound === "dubbed"))?.language ?? null);
 
   const run = async () => {
+    // D392 — a caption whose font lacks some of its letters arrives in a substitute font.
+    const uncovered = captions.filter((c) => !fontCoversText(c.font, c.text)).length;
+    if (uncovered > 0) {
+      toast.warning(`${uncovered} caption${uncovered === 1 ? " uses" : "s use"} letters ${uncovered === 1 ? "its" : "their"} font doesn't have. Premiere will show those in another font.`);
+    }
     try {
       await flush();
       const { jobId: id } = await start.mutateAsync(nodeId);

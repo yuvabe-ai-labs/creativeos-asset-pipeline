@@ -39,3 +39,73 @@ function readNameTable(view: DataView, table: number): string | null {
   }
   return null;
 }
+
+// ── Character coverage (D392) ────────────────────────────────────────────────
+// The fonts' `cmap` tables say which characters they can draw. caption-font-coverage.ts is
+// generated from them (scripts/gen-caption-font-coverage.mjs) and a test holds it to the files, so
+// the editor can warn about any letter a caption's font lacks, in any script.
+
+/** Every codepoint a font maps to a glyph (cmap formats 4 and 12, Unicode subtables). */
+export function readCmapCodepoints(ttf: Uint8Array): number[] {
+  const view = new DataView(ttf.buffer, ttf.byteOffset, ttf.byteLength);
+  const numTables = view.getUint16(4);
+  let cmap = -1;
+  for (let i = 0; i < numTables; i++) {
+    const rec = 12 + i * 16;
+    if (String.fromCharCode(ttf[rec], ttf[rec + 1], ttf[rec + 2], ttf[rec + 3]) === "cmap") cmap = view.getUint32(rec + 8);
+  }
+  if (cmap < 0) return [];
+  const out = new Set<number>();
+  const count = view.getUint16(cmap + 2);
+  for (let i = 0; i < count; i++) {
+    const rec = cmap + 4 + i * 8;
+    const platform = view.getUint16(rec);
+    const encoding = view.getUint16(rec + 2);
+    if (!(platform === 0 || (platform === 3 && (encoding === 1 || encoding === 10)))) continue;
+    const sub = cmap + view.getUint32(rec + 4);
+    const format = view.getUint16(sub);
+    if (format === 4) {
+      const segX2 = view.getUint16(sub + 6);
+      const ends = sub + 14;
+      const starts = ends + segX2 + 2;
+      const deltas = starts + segX2;
+      const offsets = deltas + segX2;
+      for (let s = 0; s < segX2 / 2; s++) {
+        const end = view.getUint16(ends + s * 2);
+        const start = view.getUint16(starts + s * 2);
+        const delta = view.getInt16(deltas + s * 2);
+        const rangeOffset = view.getUint16(offsets + s * 2);
+        for (let c = start; c <= end && c !== 0xffff; c++) {
+          let glyph: number;
+          if (rangeOffset === 0) glyph = (c + delta) & 0xffff;
+          else {
+            const at = offsets + s * 2 + rangeOffset + (c - start) * 2;
+            glyph = view.getUint16(at);
+            if (glyph !== 0) glyph = (glyph + delta) & 0xffff;
+          }
+          if (glyph !== 0) out.add(c);
+        }
+      }
+    } else if (format === 12) {
+      const groups = view.getUint32(sub + 12);
+      for (let g = 0; g < groups; g++) {
+        const at = sub + 16 + g * 12;
+        const start = view.getUint32(at);
+        const end = view.getUint32(at + 4);
+        for (let c = start; c <= end; c++) out.add(c);
+      }
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** Sorted codepoints as inclusive [start, end] ranges. */
+export function codepointRanges(codepoints: number[]): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  for (const c of codepoints) {
+    const last = ranges[ranges.length - 1];
+    if (last && c === last[1] + 1) last[1] = c;
+    else ranges.push([c, c]);
+  }
+  return ranges;
+}
