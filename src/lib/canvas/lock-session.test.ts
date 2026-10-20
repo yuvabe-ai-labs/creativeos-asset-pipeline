@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readOrCreateLockSessionId } from "./lock-session";
+import { LOCK_HANDOFF_MS, markLockHandoff, readOrCreateLockSessionId, takeLockHandoff } from "./lock-session";
 
 // A minimal stand-in for sessionStorage — per-tab storage that survives a reload.
 function fakeStorage(seed: Record<string, string> = {}) {
@@ -56,5 +56,49 @@ describe("readOrCreateLockSessionId", () => {
       },
     };
     expect(readOrCreateLockSessionId("canvas-1", hostile, freshId)).toBeTruthy();
+  });
+});
+
+// D390 — moving between the canvas and its editor in one tab keeps the lock: the page being left
+// marks a handoff and skips its unmount release, so that release can't land after the next page
+// has taken the lock.
+function fullStorage() {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+    removeItem: (k: string) => void map.delete(k),
+  };
+}
+
+describe("lock handoff", () => {
+  it("a fresh mark is taken once", () => {
+    const storage = fullStorage();
+    markLockHandoff("canvas-1", storage, 1_000);
+    expect(takeLockHandoff("canvas-1", storage, 2_000)).toBe(true);
+    expect(takeLockHandoff("canvas-1", storage, 2_001)).toBe(false);
+  });
+
+  it("a stale mark doesn't skip a real release", () => {
+    const storage = fullStorage();
+    markLockHandoff("canvas-1", storage, 1_000);
+    expect(takeLockHandoff("canvas-1", storage, 1_000 + LOCK_HANDOFF_MS + 1_000)).toBe(false);
+  });
+
+  it("is per canvas", () => {
+    const storage = fullStorage();
+    markLockHandoff("canvas-1", storage, 1_000);
+    expect(takeLockHandoff("canvas-2", storage, 1_001)).toBe(false);
+  });
+
+  it("survives storage that throws", () => {
+    const broken = {
+      getItem: () => { throw new Error("denied"); },
+      setItem: () => { throw new Error("denied"); },
+      removeItem: () => { throw new Error("denied"); },
+    };
+    expect(() => markLockHandoff("canvas-1", broken, 1)).not.toThrow();
+    expect(takeLockHandoff("canvas-1", broken, 2)).toBe(false);
+    expect(takeLockHandoff("canvas-1", null, 2)).toBe(false);
   });
 });

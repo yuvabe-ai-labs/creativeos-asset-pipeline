@@ -50,3 +50,40 @@ export function getLockSessionId(canvasId: string): string {
     typeof window === "undefined" ? null : window.sessionStorage;
   return readOrCreateLockSessionId(canvasId, storage, () => crypto.randomUUID());
 }
+
+// ── Handoff between the canvas and its editor (D390) ─────────────────────────
+//
+// The canvas page and its editor page (`…/edit`) are two pages in one tab sharing the tab's lock
+// session id. Each releases the lock on unmount with a beacon; navigating between them would
+// race that release against the next page's acquire, and a release landing second wipes the lock
+// the next page now holds. So the page being left marks a handoff first, and its unmount skips
+// the release. A mark older than LOCK_HANDOFF_MS is ignored, so a stale one can never skip a real
+// release later.
+
+const HANDOFF_PREFIX = "canvas-lock-handoff:";
+export const LOCK_HANDOFF_MS = 10_000;
+
+type HandoffStorage = ReadWriteStorage & Pick<Storage, "removeItem">;
+
+const tabStorage = (): HandoffStorage | null => (typeof window === "undefined" ? null : window.sessionStorage);
+
+export function markLockHandoff(canvasId: string, storage: HandoffStorage | null = tabStorage(), nowMs = Date.now()): void {
+  try {
+    storage?.setItem(`${HANDOFF_PREFIX}${canvasId}`, String(nowMs));
+  } catch {
+    // No storage: the release goes out as before, and the next page re-acquires.
+  }
+}
+
+/** True when a fresh handoff was marked for this canvas. Always clears the mark. */
+export function takeLockHandoff(canvasId: string, storage: HandoffStorage | null = tabStorage(), nowMs = Date.now()): boolean {
+  if (!storage) return false;
+  try {
+    const key = `${HANDOFF_PREFIX}${canvasId}`;
+    const at = Number(storage.getItem(key));
+    storage.removeItem(key);
+    return Number.isFinite(at) && at > 0 && nowMs - at <= LOCK_HANDOFF_MS;
+  } catch {
+    return false;
+  }
+}
