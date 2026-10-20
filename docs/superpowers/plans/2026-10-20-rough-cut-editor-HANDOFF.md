@@ -15,9 +15,10 @@ about the Rough Cut Editor, then the design doc. Start that conversation **in th
 | Spike | **Built and verified in the user's Windows Premiere.** The XML imports, captions land as styled titles on V2, the dub sits on its own tracks. Lives **only** on the spike branch (§2, §3) and is **never merged**. Its code is reused by porting files (§3). |
 | Architecture + feasibility page | https://claude.ai/artifact/88wWK2tgPUk3o2tHYKQPEn |
 | Screen mockups (design canvas) | https://claude.ai/artifact/SseUKVaihCKMsHZscoQDCR: canvas + Editor node, editor with a clip / caption / dubbed clip selected, export dialog |
-| Implementation plan | **Not written.** Next step (§7). |
-| ADRs | **Not written.** Proposed list in §8. Next free number: **D387** (origin/staging 26abaea5). |
-| Migration | None yet. Next free number: **0059**. Staging has 0057 and 0058. |
+| Implementation plan | **Written and executed** (inline, 2026-10-20): [2026-10-20-rough-cut-editor.md](2026-10-20-rough-cut-editor.md), 23 tasks. Ledger with every ruling: `.superpowers/sdd/2026-10-20-rough-cut-editor/progress.md` (git-ignored). |
+| ADRs | **D387–D393** written in the roadmap's ADR log §7. |
+| Migration | **0059_rough_cut_editor.sql written, NOT applied.** Apply it to staging only with the user's go-ahead. |
+| Build | Tasks 1–22 committed on `feat/rough-cut-editor`. Full suite green (4,543 tests), 0 type errors. Hand checks and the Premiere acceptance are still to do (§7a). |
 
 Both artifacts are private to the user. Share them from the page's Share menu before sending
 them to anyone.
@@ -174,6 +175,26 @@ All in the design doc (§3–§10 and §12). In short:
   back a link.
 - **Acceptance:** a manual check on the user's Windows Premiere (2025+, the version with the
   Import screen).
+
+## 7a. Verification still to do (needs migration 0059 applied, and `npm run dev`)
+
+**Call counts** (performance checklist), read from the code for a 300-node canvas whose Editor has 20 sources:
+- Canvas load: +1 request, the Editor state GET (its card's one query; there is one Editor per canvas). The first load also probes each source file's header once (about 288 KB each), then reads `media_facts`.
+- Editor open: the page loads everything server-side (nodes, edges, edit; then incoming edges and facts). In the browser: the lock acquire and its heartbeat; the state query is seeded, so no refetch. No per-piece or per-source requests; a source row loads no media.
+- Selecting a piece: one proxied download of its sound file, once per file per session (quiet sections).
+- Node drag on the canvas: no generation-lock recompute (it follows edges only; a store test pins it).
+- Export: one POST, then one status GET every 1.5 s until it finishes.
+
+**Hand checks** (spec §13, each deferred from its task):
+- [ ] `E` adds an Editor; a second is refused (palette, key, duplicate). Video Gen and Dubbing connect; a generating or take-less clip is refused with its reason.
+- [ ] A connected clip can't generate or change voice, with the reason on the node and in the focus view; a clip behind a connected dub too; disconnecting frees it; History restore still works.
+- [ ] Open editor → `/edit` keeps the lock; a second tab is read-only; Back to canvas keeps the lock (no read-only flash).
+- [ ] Trim, split (S), delete (⌫), reorder, Space; the preview plays the chosen picture and sound (dub audible, lip-synced picture shown).
+- [ ] Captions: add, retime, drag on the stage, fonts, size, colour; Hindi in Montserrat warns; Windows SRT import; reload reopens exactly.
+- [ ] Switch a source's version on the canvas, reopen: trims pulled in or choices fall back, with a toast.
+- [ ] Export runs with progress; the zip is named creativeos-reel.zip and contains the fonts (proves `additionalFiles` + the font path in dev and in deploy).
+
+**Premiere acceptance** (with the user, Windows Premiere 2025+): plan Task 23 Step 4.
 
 ## 7. Next steps, in order
 
