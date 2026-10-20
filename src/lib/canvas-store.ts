@@ -161,6 +161,7 @@ function defaultData(type: string): AppNode["data"] {
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
     case "dubbing":
+    case "editor":
       return { title: "" };
     case "post":
       // 4:5 portrait, not square: it's Instagram's best-performing feed size and takes the

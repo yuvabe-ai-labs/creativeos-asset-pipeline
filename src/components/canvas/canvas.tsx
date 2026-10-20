@@ -40,6 +40,7 @@ import { CompositeNode } from "@/components/nodes/composite-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { DubbingNode } from "@/components/nodes/dubbing-node";
+import { EditorNode } from "@/components/nodes/editor-node";
 import { PostNode } from "@/components/nodes/post-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { useAnyFocusViewOpen } from "@/hooks/use-focus-view-open";
@@ -85,6 +86,7 @@ const nodeTypes: NodeTypes = {
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
   dubbing: DubbingNode,
+  editor: EditorNode,
   post: PostNode,
   "client-review": ClientReviewNode,
 };

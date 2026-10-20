@@ -278,6 +278,10 @@ export type ClientReviewNodeData = { title?: string };
 // `voice` / `pace` (D379): the last Advanced picks; absent voice = the presenter's own.
 export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; voice?: DubVoiceChoice; pace?: DubPace; parsed?: unknown };
 
+// D387 — the Rough Cut Editor: assembles its connected clips into a reel on its own page
+// (…/edit). Its edit lives in editor_edits (D390), never in node data; only the title is here.
+export type EditorNodeData = { title?: string };
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
@@ -295,7 +299,8 @@ export type AppNode =
   | Node<VideoGenNodeData, "video-gen">
   | Node<PostNodeData, "post">
   | Node<ClientReviewNodeData, "client-review">
-  | Node<DubbingNodeData, "dubbing">;
+  | Node<DubbingNodeData, "dubbing">
+  | Node<EditorNodeData, "editor">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
@@ -329,8 +334,10 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "multishot", "post", "composite"],
   "video-prompt":     ["video-gen"],
   "multishot-prompt": ["video-gen"],
-  "video-gen":        ["dubbing"],
-  "dubbing":          [],
+  // D387 — a clip, or its dub, feeds the Rough Cut Editor. Dubbing's first output is the Editor.
+  "video-gen":        ["dubbing", "editor"],
+  "dubbing":          ["editor"],
+  "editor":           [],
   "post":             [],
   "client-review":    [],
 } as const;
