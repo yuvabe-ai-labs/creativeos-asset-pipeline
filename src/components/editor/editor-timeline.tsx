@@ -22,7 +22,7 @@ const LANES = [
   { label: "Captions", h: "h-[26px] mt-1" },
 ];
 
-export function EditorTimeline({ captionsLane }: { captionsLane?: (scale: number) => ReactNode }) {
+export function EditorTimeline({ captionsLane, tools }: { captionsLane?: (scale: number) => ReactNode; tools?: ReactNode }) {
   const doc = useEditorStore((s) => s.doc);
   const sources = useEditorStore((s) => s.sources);
   const selection = useEditorStore((s) => s.selection);
@@ -60,6 +60,7 @@ export function EditorTimeline({ captionsLane }: { captionsLane?: (scale: number
         <span className="text-eyebrow text-muted-foreground">Timeline</span>
         <span className="flex-1" />
         <span className="text-xs text-muted-foreground">Drag edges to trim · drag to reorder · S split · ⌫ delete · Space play</span>
+        {tools}
         <Button variant="outline" size="sm" onClick={split} disabled={!editable || total === 0} className="gap-1.5">
           <Scissors className="size-3.5" strokeWidth={1.5} />
           Split

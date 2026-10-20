@@ -12,8 +12,11 @@ import { EditorHeader } from "./editor-header";
 import { EditorPropsPanel } from "./editor-props-panel";
 import { EditorSourcesPanel } from "./editor-sources-panel";
 import { EditorPlaybackProvider } from "./editor-playback-context";
-import { EditorStage } from "./editor-stage";
 import { EditorTimeline } from "./editor-timeline";
+import { EditorCaptionLane } from "./editor-caption-lane";
+import { EditorCaptionProps } from "./editor-caption-props";
+import { EditorCaptionsToolbar } from "./editor-captions-toolbar";
+import { EditorStageWithCaption } from "./editor-stage-with-caption";
 import { useEditorShortcuts } from "@/hooks/use-editor-shortcuts";
 import { EditorStoreProvider, useEditorStore } from "./editor-store-provider";
 
@@ -76,10 +79,10 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
         {!lock.canEdit && <LockBanner heldByName={lock.heldByName} canTakeOver={lock.canTakeOver} onTakeOver={lock.takeOver} />}
         <div className="grid h-[min(520px,58dvh)] flex-none grid-cols-[248px_minmax(0,1fr)_340px] gap-4 px-6 pt-4">
           <EditorSourcesPanel />
-          <EditorStage />
-          <EditorPropsPanel />
+          <EditorStageWithCaption />
+          <EditorPropsPanel caption={(id) => <EditorCaptionProps captionId={id} />} />
         </div>
-        <EditorTimeline />
+        <EditorTimeline captionsLane={(scale) => <EditorCaptionLane scale={scale} />} tools={<EditorCaptionsToolbar />} />
       </div>
     </div>
   );
