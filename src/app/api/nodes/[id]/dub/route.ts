@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { editorLockResponse } from "@/lib/editor/lock-guard";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
@@ -36,10 +37,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!process.env.SARVAM_API_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
 
       // Independent reads run side by side (performance rule 5).
-      const [source, running] = await Promise.all([
+      const [source, running, locked] = await Promise.all([
         resolveDubSource(nodeId, { getUpstreamOutputs, getVersionById }),
         hasRunningGeneration(nodeId),
+        editorLockResponse(nodeId), // D389
       ]);
+      if (locked) return locked;
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       if (!source.ok) return apiError(source.reason, 400);
 

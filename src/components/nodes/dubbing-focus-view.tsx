@@ -7,6 +7,8 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useGenerationLock } from "@/hooks/use-generation-lock";
+import { GENERATION_LOCK_COPY } from "@/lib/editor/generation-lock";
 import { useGenerationStatus } from "@/hooks/use-generation-status";
 import { useStartDub, useStartLipSync, startErrorMessage } from "@/hooks/queries/node-generation";
 import { useDubbingVersions } from "@/hooks/use-dubbing-versions";
@@ -39,6 +41,7 @@ type Props = {
 // versions) is held back until the view is open, so a closed card costs nothing.
 export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, style, voice, pace, onPatch }: Props) {
   const editable = useCanvasEditable();
+  const generationLock = useGenerationLock(nodeId);
   const [selected, setSelected] = useState<DubbingRailSelection>("dubbing");
   const source = useDubbingSource(nodeId, open);
   const sourceName = source ? nodeLabel({ id: source.id, type: source.type, data: source.data }).name : "";
@@ -123,6 +126,7 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
               ) : (
                 <DubbingControls
                   nodeId={nodeId}
+                  locked={generationLock ? GENERATION_LOCK_COPY[generationLock].short : null}
                   language={lang}
                   onLanguageChange={(l) => onPatch({ language: l })}
                   style={dubStyle}

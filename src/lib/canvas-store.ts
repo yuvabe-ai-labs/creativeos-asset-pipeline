@@ -14,6 +14,8 @@ import {
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
 import { editorConnectRefusal } from "@/lib/editor/rules";
+import { computeGenerationLocks, sameLocks } from "@/lib/editor/generation-lock";
+import type { GenerationLock } from "@/lib/editor/types";
 import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
@@ -96,6 +98,8 @@ export type CanvasState = {
   // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
   // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
   latestJobByNode: Record<string, GenerationFeedRow>;
+  /** D389 — which nodes can't generate because they feed the Editor. Updated when edges change. */
+  generationLocks: Record<string, GenerationLock>;
   generationStarts: Record<string, GenerationStartMark>;
   generationRequestErrors: Record<string, string>;
   /** `generationId`, when the start response names it, lets the mark clear on exactly that job's
@@ -187,8 +191,9 @@ export function createCanvasStore(
   initialEdges: Edge[] = [],
   initialCanvasName: string = "",
 ) {
-  return createStore<CanvasState>((set, get) => ({
+  const store = createStore<CanvasState>((set, get) => ({
     canvasName: initialCanvasName,
+    generationLocks: computeGenerationLocks(initialNodes, initialEdges),
     nodes: initialNodes,
     edges: initialEdges,
     removedNodeIds: [],
@@ -909,6 +914,15 @@ export function createCanvasStore(
     kbJustReady: false,
     setKbJustReady: (v) => set({ kbJustReady: v }),
   }));
+
+  // D389 — the generation-lock index follows the edges: recomputed only when the edges array
+  // changes (a node drag changes nodes, not edges), and replaced only when its contents change.
+  store.subscribe((s, prev) => {
+    if (s.edges === prev.edges) return;
+    const next = computeGenerationLocks(s.nodes, s.edges);
+    if (!sameLocks(next, s.generationLocks)) store.setState({ generationLocks: next });
+  });
+  return store;
 }
 
 export type CanvasStore = ReturnType<typeof createCanvasStore>;

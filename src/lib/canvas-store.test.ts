@@ -1179,3 +1179,23 @@ describe("generation status feed (D366)", () => {
     expect(store.getState().generationRequestErrors.n1).toBeUndefined();
   });
 });
+
+// D389 — the generation-lock index follows the edges, and only the edges.
+describe("generationLocks", () => {
+  const vg: AppNode = { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { parsed: "https://s/a.mp4" } } as AppNode;
+  const ed: AppNode = { id: "ed", type: "editor", position: { x: 0, y: 0 }, data: {} } as AppNode;
+
+  it("locks a clip connected to the Editor", () => {
+    const store = createCanvasStore([vg, ed], []);
+    expect(store.getState().generationLocks).toEqual({});
+    store.getState().connectNodes("vg", "ed");
+    expect(store.getState().generationLocks).toEqual({ vg: "editor" });
+  });
+
+  it("keeps the same index while a node is dragged", () => {
+    const store = createCanvasStore([vg, ed], [{ id: "e1", source: "vg", target: "ed" }]);
+    const before = store.getState().generationLocks;
+    store.getState().onNodesChange([{ type: "position", id: "vg", position: { x: 40, y: 10 } }]);
+    expect(store.getState().generationLocks).toBe(before);
+  });
+});

@@ -10,8 +10,11 @@ export function dubBlockedReason(a: {
   hasSource: boolean;
   sourceLoading: boolean;
   sourceSeconds: number;
+  /** D389 — why generation is locked (it feeds the Editor), or null. */
+  locked?: string | null;
 }): string | null {
   if (!a.editable) return READ_ONLY;
+  if (a.locked) return a.locked;
   if (a.running === "dub") return "A dub is already running.";
   if (a.running === "lipsync") return "Wait for lip sync to finish.";
   if (!a.hasSource) return "Connect a video to dub first.";
@@ -27,8 +30,10 @@ export function lipSyncBlockedReason(a: {
   running: "dub" | "lipsync" | null;
   hasDub: boolean;
   dubSeconds: number;
+  locked?: string | null;
 }): string | null {
   if (!a.editable) return READ_ONLY;
+  if (a.locked) return a.locked;
   if (a.running === "lipsync") return "Lip sync is already running.";
   if (a.running === "dub") return "Wait for the dub to finish.";
   if (!a.hasDub) return LIP_SYNC_NEEDS_DUB;

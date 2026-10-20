@@ -30,6 +30,8 @@ type Props = {
   activeDub: DubbingOutput | null;
   running: "dub" | "lipsync" | null;
   editable: boolean;
+  /** D389 — why Dub and Lip sync are off while the node is in the Editor's reel, or null. */
+  locked?: string | null;
   onDub: () => void;
   onLipSync: () => void;
 };
@@ -37,7 +39,7 @@ type Props = {
 // D378 — the Dubbing view's controls as two tabs, Dub | Lip sync, so each shows one primary action.
 // Opens on Lip sync only when one is running. Lip sync is disabled until there is a dub, and its
 // tab says why on hover.
-export function DubbingControls({ sourceLoading = false, activeDub, running, onLipSync, ...rest }: Props) {
+export function DubbingControls({ sourceLoading = false, activeDub, running, onLipSync, locked = null, ...rest }: Props) {
   const [tab, setTab] = useState<Tab>(running === "lipsync" ? "lipsync" : "dub");
   // A dub disappearing (a restore to nothing) falls back to the Dub tab.
   const current: Tab = activeDub ? tab : "dub";
@@ -66,6 +68,7 @@ export function DubbingControls({ sourceLoading = false, activeDub, running, onL
           hasDub={Boolean(activeDub)}
           running={running}
           editable={rest.editable}
+          locked={locked}
           onDub={rest.onDub}
         />
       </TabsContent>
@@ -76,6 +79,7 @@ export function DubbingControls({ sourceLoading = false, activeDub, running, onL
             activeDubSeconds={rest.activeDubSeconds}
             running={running}
             editable={rest.editable}
+            locked={locked}
             onLipSync={onLipSync}
           />
         </TabsContent>

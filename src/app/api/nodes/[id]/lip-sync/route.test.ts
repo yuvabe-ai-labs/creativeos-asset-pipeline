@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { lipSyncCredits } from "@/lib/dubbing/cost";
 
 vi.mock("server-only", () => ({}));
+const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
+vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
   getVersion: vi.fn(),
   running: vi.fn(async () => false),
@@ -57,5 +59,21 @@ describe("POST /api/nodes/[id]/lip-sync", () => {
     mocks.running.mockResolvedValueOnce(true);
     expect((await post({ versionId: "ver-1" })).status).toBe(409);
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+});
+
+// D389 — a clip in the Editor's reel can't generate, whoever asks.
+describe("the Editor's generation lock", () => {
+  it("refuses with the reason and records nothing", async () => {
+    editorLock.value = "editor";
+    try {
+      const res = await post({ versionId: "ver-1" });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "This clip is in the Editor's reel. Disconnect it from the Editor to generate." });
+      expect(mocks.insertGeneration).not.toHaveBeenCalled();
+      expect(mocks.trigger).not.toHaveBeenCalled();
+    } finally {
+      editorLock.value = null;
+    }
   });
 });

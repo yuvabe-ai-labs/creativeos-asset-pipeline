@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { editorLockResponse } from "@/lib/editor/lock-guard";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers";
 import { getVersionById } from "@/lib/db/versions";
@@ -24,7 +25,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!process.env.FAL_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
       if (node.active_version_id !== versionId) return apiError("Lip sync runs on the dub you're viewing. Reopen the node and try again.", 400);
 
-      const [version, running] = await Promise.all([getVersionById(versionId), hasRunningGeneration(nodeId)]);
+      const [version, running, locked] = await Promise.all([getVersionById(versionId), hasRunningGeneration(nodeId), editorLockResponse(nodeId)]);
+      if (locked) return locked; // D389
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       const output = version && version.node_id === nodeId ? readDubbingOutput(version.output) : null;
       const durationSeconds = version ? durationOfParams(version.params_used ?? {}) : 0;

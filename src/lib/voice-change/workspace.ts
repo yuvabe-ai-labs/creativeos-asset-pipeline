@@ -14,7 +14,10 @@ export function canApplyVoiceChange(a: {
   voice: boolean;
   saving: boolean;
   running: boolean;
+  /** D389 — why generation is locked (the clip is in the Editor's reel), or null. */
+  locked?: string | null;
 }): { ok: boolean; reason?: string } {
+  if (a.locked) return { ok: false, reason: a.locked };
   if (!a.sourceId) return { ok: false, reason: "Show a finished version first — pick one in History." };
   if (!a.voice) return { ok: false, reason: "Pick a voice." };
   if (a.saving) return { ok: false, reason: "Adding the voice to your ElevenLabs account…" };
