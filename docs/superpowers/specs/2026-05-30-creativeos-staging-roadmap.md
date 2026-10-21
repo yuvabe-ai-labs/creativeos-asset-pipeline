@@ -7433,3 +7433,25 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 **Rejected.** Inferring coverage automatically from code (fragile). Leaving unconnected spend only inside the gap total (hides which feature to fix).
 
 **Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D383 — Clicking a version views it; restoring is a separate button *(recorded 2026-10-21)*
+
+**Decision.** In the History tab of the Video Gen, Image Gen, Composite and Dubbing focus views, a row click opens that version in the main preview without changing the node. A bar above the preview says which version is on screen and which one the node uses, with **Back to vN** and **Restore vN**. Restore lives only there; rows no longer carry it. A stepper and ↑ / ↓ move through versions. Closing the focus view returns to the active version. While an older version is on screen, controls that act on the node's current output (approval, annotate, Change voice, Edit) are disabled. Thumbnails keep each version's real shape. Dubbing moves onto the shared `VersionHistoryList`. The prompt nodes keep the old expand-and-restore behaviour for now.
+
+**Why.** The only way to look at an old take was to restore it, which changes the node for everyone and triggers a save. Viewing is local, makes no requests (every version is already loaded) and writes nothing.
+
+**Rejected.** A full-screen viewer over the focus view (hides the list; slower to compare takes). Keeping Restore in each row as well as the bar (two places for one action). Letting approval or annotate act on the viewed version (they would silently act on a version the node does not use).
+
+**Refines →** D180, D375.
+
+**Originated →** docs/superpowers/specs/2026-10-21-version-viewing-and-media-fit-design.md.
+
+### D384 — Node cards and previews take the media's own shape; nothing is cropped *(recorded 2026-10-21)*
+
+**Decision.** Image Gen, Composite, Video Gen, File, Draw and Dubbing cards show their media whole, at its own aspect ratio. Media width is `clamp(254, 500 × ratio, 454)` px and the card is 26px wider, so landscape cards stay 480 wide and portrait cards get narrower. Only media taller than about 1:2.4 is letterboxed. The size is measured when the media loads and saved on the node as `mediaWidth`/`mediaHeight`, only when it changed and only by the canvas lock holder, so reloads lay out without jumping. The Video Gen focus-view player and the loading placeholders use the real or chosen aspect ratio instead of a fixed 9:16. The Avatar node keeps its designed 3:4 crop. Existing canvases are not rearranged.
+
+**Why.** Generated output is mostly portrait video, and the old 16:9 crop and 64px strips hid most of it. A narrower card shows the whole picture without making the canvas much taller.
+
+**Rejected.** Fixed 480px cards with letterboxing (portrait media fills under half the card). Free-height cards at 480 wide (a 9:16 card would be about 850px tall). Moving nodes on old canvases to avoid new overlaps (surprising; overlaps are easy to fix by dragging).
+
+**Originated →** docs/superpowers/specs/2026-10-21-version-viewing-and-media-fit-design.md.
