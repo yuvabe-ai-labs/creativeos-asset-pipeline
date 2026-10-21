@@ -178,3 +178,25 @@ describe("PromptHistoryPane", () => {
     expect(html).toContain('role="listbox"');
   });
 });
+
+import { asViewablePlan } from "@/lib/nodes/multishot-plan";
+
+describe("asViewablePlan", () => {
+  it("keeps a valid plan", () => {
+    const p = asViewablePlan({ version: 1, look: "Warm", beats: [{ cutId: "c1", text: "Push in" }] });
+    expect(p?.look).toBe("Warm");
+    expect(p?.beats).toHaveLength(1);
+  });
+  it("defaults a missing look to empty", () => {
+    expect(asViewablePlan({ beats: [{ cutId: "c1", text: "x" }] })?.look).toBe("");
+  });
+  it("drops malformed beats and fills a missing cutId", () => {
+    const p = asViewablePlan({ look: "", beats: [null, { cutId: "c1" }, { text: "ok" }] });
+    expect(p?.beats).toEqual([{ text: "ok", cutId: "0" }]);
+  });
+  it("rejects non-plans", () => {
+    expect(asViewablePlan({ look: "x", beats: "no" })).toBeNull();
+    expect(asViewablePlan(null)).toBeNull();
+    expect(asViewablePlan("text")).toBeNull();
+  });
+});

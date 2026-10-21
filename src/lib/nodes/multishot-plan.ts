@@ -499,3 +499,19 @@ export function planCoverage(
     orphaned: plan.beats.filter((b) => !cutIds.has(b.cutId)).map((b) => b.cutId),
   };
 }
+
+/**
+ * A stored version's output, narrowed to something safe to render (D383). Returns null when the
+ * output is not a plan object with a beats array; otherwise a copy whose `look` is a string and
+ * whose beats are only the entries that are objects with a string `text` (and a cutId).
+ */
+export function asViewablePlan(output: unknown): MultishotPlan | null {
+  if (!output || typeof output !== "object") return null;
+  const p = output as Partial<MultishotPlan>;
+  if (!Array.isArray(p.beats)) return null;
+  const beats = (p.beats as unknown[]).filter(
+    (b): b is MultishotPlan["beats"][number] =>
+      !!b && typeof b === "object" && typeof (b as { text?: unknown }).text === "string",
+  ).map((b, i) => ({ ...b, cutId: typeof b.cutId === "string" ? b.cutId : String(i) }));
+  return { ...(p as MultishotPlan), look: typeof p.look === "string" ? p.look : "", beats };
+}

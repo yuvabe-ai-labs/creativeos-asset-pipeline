@@ -562,7 +562,9 @@ export function VideoPromptFocusView({
       outputIcon={<Clapperboard className="size-3.5 text-primary" />}
       renderVersionOutput={renderVersionOutput}
     >
-      {({ versionStepper, viewingBar, viewedVersion, isViewingOther, approvalControls }) => (
+      {({ versionStepper, viewingBar, viewedVersion, isViewingOther, approvalControls }) => {
+        const shownRequest = isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest;
+        return (
         <>
           {/* Prompt — the compose editor: compose (left) + generated output (right) */}
           {selected === "prompt" && (
@@ -805,8 +807,8 @@ export function VideoPromptFocusView({
             {/* Sent to model — the exact request the active version sent (standalone) */}
             {selected === "request" && (
               <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
-                {(isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest) ? (
-                  <ModelRequestPanel request={(isViewingOther ? viewedVersion?.inputsUsed?.request : activeRequest)!} />
+                {shownRequest ? (
+                  <ModelRequestPanel request={shownRequest} />
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     No request recorded for this version — generate a motion prompt to capture
@@ -816,7 +818,8 @@ export function VideoPromptFocusView({
               </div>
             )}
         </>
-      )}
+        );
+      }}
     </PromptFocusShell>
   );
 }

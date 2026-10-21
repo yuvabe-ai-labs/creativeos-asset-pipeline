@@ -66,6 +66,7 @@ import {
   planCoverage,
   setBeatText,
   type MultishotPlan,
+  asViewablePlan,
 } from "@/lib/nodes/multishot-plan";
 import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
 import type { VoLine } from "@/lib/nodes/reel-script";
@@ -649,8 +650,8 @@ export function MultishotPromptFocusView({
   // D383 — one version's plan, read-only (the History pane, and the prompt pane while an older
   // version is on screen). A version's output is the plan object the restore route returns.
   const renderVersionOutput = (v: VersionSummary) => {
-    const plan = v.output as unknown as MultishotPlan | null;
-    if (!plan || !Array.isArray(plan.beats)) return <VersionOutputEmpty noun="plan" />;
+    const plan = asViewablePlan(v.output);
+    if (!plan) return <VersionOutputEmpty noun="plan" />;
     return (
       <div className="flex flex-col gap-3">
         {plan.look.trim() && (
@@ -716,7 +717,9 @@ export function MultishotPromptFocusView({
       outputIcon={<ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />}
       renderVersionOutput={renderVersionOutput}
     >
-      {({ versionStepper, viewingBar, viewedVersion, isViewingOther, approvalControls }) => (
+      {({ versionStepper, viewingBar, viewedVersion, isViewingOther, approvalControls }) => {
+        const shownRequest = isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest;
+        return (
         <>
           {selected === "prompt" && (
             // Grid for the same reason as the body below: `minmax(0, 1fr)` bounds the second row
@@ -744,8 +747,27 @@ export function MultishotPromptFocusView({
               </div>
 
               {outputView === "prompt" ? (
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-                  {planDraft ? (
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
+                  {/* Same heading row as the Breakup tab: the stepper and viewing bar belong to
+                      the output column whichever tab is showing. */}
+                  <div className="flex shrink-0 items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />
+                      <span className="text-eyebrow">Generated plan</span>
+                    </div>
+                    {versionStepper}
+                  </div>
+                  {viewingBar}
+                  {isViewingOther && viewedVersion ? (
+                    (() => {
+                      const viewedPlan = asViewablePlan(viewedVersion.output);
+                      return viewedPlan ? (
+                        <GeneratedPromptBody text={renderPlan(viewedPlan, cuts, cap, refIds, sequenceVoiceover)} images={promptRefImages} />
+                      ) : (
+                        <VersionOutputEmpty noun="plan" />
+                      );
+                    })()
+                  ) : planDraft ? (
                     <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap, refIds, sequenceVoiceover)} images={promptRefImages} />
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -1202,8 +1224,8 @@ export function MultishotPromptFocusView({
 
           {selected === "request" && (
             <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
-              {(isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest) ? (
-                <ModelRequestPanel request={(isViewingOther ? viewedVersion?.inputsUsed?.request : activeRequest)!} />
+              {shownRequest ? (
+                <ModelRequestPanel request={shownRequest} />
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No request recorded for this version — generate a multishot prompt to capture
@@ -1213,7 +1235,8 @@ export function MultishotPromptFocusView({
             </div>
           )}
         </>
-      )}
+        );
+      }}
     </PromptFocusShell>
   );
 }
