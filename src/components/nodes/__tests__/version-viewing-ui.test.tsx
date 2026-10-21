@@ -7,6 +7,7 @@ import { VersionOutputEmpty } from "../version-output-empty";
 import { ActiveOnlyNotice } from "../active-only-notice";
 import { VersionList, arrowKeyTarget } from "../version-list";
 import { ImageGenVersionHistory } from "../image-gen-version-history";
+import { DubbingVersionHistory } from "../dubbing-version-history";
 
 // No DOM environment in this repo: render to static markup and read text and attributes.
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -134,5 +135,17 @@ describe("ImageGenVersionHistory", () => {
     expect(html).toContain('<img src="https://x/b.png"');
     expect(text(html)).toContain("GPT Image");
     expect(text(html)).toContain("Failed");
+  });
+});
+
+describe("DubbingVersionHistory", () => {
+  it("views on click (shared list) and keeps the three stage marks in the open row", () => {
+    const versions = [
+      { id: "b", createdAt: now, error: null, lipSyncRuns: 0, creditsCharged: null, dubbing: { language: "hi-IN" as const, original: "https://x/o.mp4", dubbed: "https://x/d.mp4", dubbedAudio: "a", lipSynced: null } },
+    ];
+    const html = renderToStaticMarkup(<DubbingVersionHistory versions={versions} activeVersionId="b" viewedVersionId={null} onView={vi.fn()} />);
+    expect(html).toContain('role="listbox"');
+    expect(html).toContain("https://x/d.mp4#t=0.1");
+    expect(text(html)).toContain("Lip-synced");
   });
 });
