@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useClientId, useClientSlug } from "@/components/canvas/client-id-context";
+import { useNodeMediaSize } from "@/hooks/use-node-media-size";
+import { nodeMediaBox } from "@/lib/canvas/media-fit";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useAvatar } from "@/hooks/queries/avatars";
@@ -18,17 +20,22 @@ import type { AvatarNodeData } from "@/lib/canvas-nodes";
 import { AvatarFocusView } from "./avatar-focus-view";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeMedia } from "./node-media";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 // D298 — an avatar on the canvas. The node holds only the avatar's id; everything shown is read
 // live, so a name, face or voice changed in the Avatar Studio shows here without re-dropping. It
 // is a source only: it presents a Script.
 export function AvatarNode({ id, data, selected }: NodeProps) {
-  const { avatarId } = data as AvatarNodeData;
+  const d = data as AvatarNodeData;
+  const { avatarId } = d;
   const clientId = useClientId();
   const clientSlug = useClientSlug();
   const lookup = useAvatar(clientId, avatarId);
   const avatar = lookup.avatar;
+  // D384 — the whole front view, at its own shape (it was cropped to the head).
+  const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, 3 / 4);
+  const box = avatar?.front ? nodeMediaBox(media.ratio, "input") : null;
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
@@ -53,8 +60,10 @@ export function AvatarNode({ id, data, selected }: NodeProps) {
             e.stopPropagation();
             setFocusOpen(true);
           }}
+          style={box ? { width: box.cardWidth } : undefined}
           className={cn(
-            "group w-44 rounded-lg border border-border bg-card shadow-card",
+            !box && "w-44",
+            "group rounded-lg border border-border bg-card shadow-card",
             "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
             selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
             connState === "invalid" && "pointer-events-none opacity-60",
@@ -68,7 +77,17 @@ export function AvatarNode({ id, data, selected }: NodeProps) {
             placeholder={lookup.status === "gone" ? "Avatar" : "Avatar…"}
           />
 
-          <div className="flex flex-col gap-2 px-3 pb-3">
+          {avatar?.front && box && (
+            <NodeMedia kind="image" src={avatar.front.url} alt="" box={box} onMeasured={media.onMeasured} edge>
+              {avatar.archivedAt && (
+                <Badge variant="outline" className="absolute inset-x-1.5 bottom-1.5 justify-center bg-card text-[0.65rem]">
+                  Archived — still works here
+                </Badge>
+              )}
+            </NodeMedia>
+          )}
+
+          <div className="flex flex-col gap-2 px-3 py-3">
             {lookup.status === "loading" && <Skeleton className="aspect-[3/4] w-full rounded-md" />}
 
             {lookup.status === "gone" && (
@@ -79,19 +98,11 @@ export function AvatarNode({ id, data, selected }: NodeProps) {
 
             {avatar && (
               <>
-                <div className="relative aspect-[3/4] overflow-hidden rounded-md bg-muted">
-                  {avatar.front ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatar.front.url} alt="" className="size-full object-cover object-top" />
-                  ) : (
-                    <UserRound className="absolute inset-0 m-auto size-8 text-muted-foreground/40" strokeWidth={1.5} />
-                  )}
-                  {avatar.archivedAt && (
-                    <Badge variant="outline" className="absolute inset-x-1.5 bottom-1.5 justify-center bg-card text-[0.65rem]">
-                      Archived — still works here
-                    </Badge>
-                  )}
-                </div>
+                {!avatar.front && (
+                  <div className="relative flex aspect-[3/4] items-center justify-center rounded-md bg-muted">
+                    <UserRound className="size-8 text-muted-foreground/40" strokeWidth={1.5} />
+                  </div>
+                )}
                 <p className="truncate text-xs text-muted-foreground">{avatarVoiceLine(avatar.voice)}</p>
                 <div className="flex items-center justify-between gap-1">
                   <Button
