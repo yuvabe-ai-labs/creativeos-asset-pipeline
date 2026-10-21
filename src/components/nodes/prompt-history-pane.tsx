@@ -23,6 +23,7 @@ export function PromptHistoryPane({
   canRestore,
   restoring,
   onRestore,
+  emptyNoun = "prompt",
 }: {
   versions: VersionSummary[];
   activeVersionId: string | null;
@@ -33,6 +34,7 @@ export function PromptHistoryPane({
   canRestore: boolean;
   restoring: boolean;
   onRestore: (versionId: string) => void;
+  emptyNoun?: string;
 }) {
   if (versions.length === 0) {
     return (
@@ -67,7 +69,7 @@ export function PromptHistoryPane({
             onRestore={() => onRestore(viewed.id)}
           />
         )}
-        {viewed && (viewed.error || !viewed.output ? <VersionOutputEmpty noun="prompt" /> : renderVersionOutput(viewed))}
+        {viewed && (viewed.error || !viewed.output ? <VersionOutputEmpty noun={emptyNoun} /> : renderVersionOutput(viewed))}
       </div>
     </div>
   );

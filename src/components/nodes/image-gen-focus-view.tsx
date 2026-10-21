@@ -991,6 +991,8 @@ export function ImageGenFocusView({
     mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
 
   const outputSettingsBody = (
+    <>
+    {viewing.isViewingOther && activeTab !== "edit" && <ActiveOnlyNotice label={viewedLabel} />}
     <ImageGenOutputSettingsBody
       model={model}
       values={paramValues}
@@ -1008,6 +1010,7 @@ export function ImageGenFocusView({
       estimatedCredits={estimatedCredits}
       estimating={estimating}
     />
+    </>
   );
 
   return (

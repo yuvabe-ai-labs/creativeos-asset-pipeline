@@ -48,6 +48,7 @@ import { storedRefDialect, renderRefs, missingRefsMessage } from "@/lib/nodes/re
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import { ActiveOnlyNotice } from "./active-only-notice";
 import {
   useNodeVersions,
   useRefreshNodeVersions,
@@ -562,7 +563,7 @@ export function VideoPromptFocusView({
       outputIcon={<Clapperboard className="size-3.5 text-primary" />}
       renderVersionOutput={renderVersionOutput}
     >
-      {({ versionStepper, viewingBar, viewedVersion, isViewingOther, approvalControls }) => {
+      {({ versionStepper, viewingBar, viewedVersion, viewedLabel, isViewingOther, approvalControls }) => {
         const shownRequest = isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest;
         return (
         <>
@@ -640,6 +641,7 @@ export function VideoPromptFocusView({
 
                   {/* Generate — flows after the controls, reached via the scrollbar */}
                   <div className="border-t border-border px-6 py-4">
+                    {isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                     <Button
                       className="w-full"
                       size="default"

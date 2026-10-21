@@ -177,6 +177,25 @@ describe("PromptHistoryPane", () => {
     expect(t).toContain("Restore v1");
     expect(html).toContain('role="listbox"');
   });
+
+  it("names the empty noun when the viewed version has no output", () => {
+    const empty = { ...versions[1], output: null };
+    const html = renderToStaticMarkup(
+      <PromptHistoryPane
+        versions={[versions[0], empty]}
+        activeVersionId="b"
+        viewing={{ ...viewing, viewed: empty }}
+        outputLabel="Generated plan"
+        outputIcon={null}
+        emptyNoun="plan"
+        renderVersionOutput={(v) => <p>{v.output}</p>}
+        canRestore
+        restoring={false}
+        onRestore={vi.fn()}
+      />,
+    );
+    expect(text(html)).toContain("No plan from this attempt");
+  });
 });
 
 import { asViewablePlan } from "@/lib/nodes/multishot-plan";

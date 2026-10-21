@@ -46,6 +46,7 @@ import { GeneratedPromptBody } from "./generated-prompt-body";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import { ActiveOnlyNotice } from "./active-only-notice";
 import {
   useNodeVersions,
   useRefreshNodeVersions,
@@ -715,9 +716,10 @@ export function MultishotPromptFocusView({
       onLiveVersionUpdate={() => void fetchVersions({ preserveEvalDraft: true })}
       outputLabel="Generated plan"
       outputIcon={<ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />}
+      emptyNoun="plan"
       renderVersionOutput={renderVersionOutput}
     >
-      {({ versionStepper, viewingBar, viewedVersion, isViewingOther, approvalControls }) => {
+      {({ versionStepper, viewingBar, viewedVersion, viewedLabel, isViewingOther, approvalControls }) => {
         const shownRequest = isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest;
         return (
         <>
@@ -881,6 +883,7 @@ export function MultishotPromptFocusView({
                     {/* Generate, at the foot of the column it acts on — same placement as the
                         image and video prompt views. */}
                     <div className="shrink-0 border-t border-border px-5 py-3">
+                      {isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                       {unwritten.size > 0 && (
                         <p className="mb-2 text-[0.7rem] text-destructive">
                           {unwritten.size === 1

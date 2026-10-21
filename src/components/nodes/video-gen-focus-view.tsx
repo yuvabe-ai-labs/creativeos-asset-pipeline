@@ -1761,6 +1761,7 @@ export function VideoGenFocusView({
                       it used to sit in the page header, far from the controls that
                       decide what it will cost and whether it is even legal to run. */}
                   <div className="border-t border-border pt-4">
+                    {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                     <Tooltip>
                       <TooltipTrigger render={<span className="block w-full" />}>
                         <Button
@@ -1768,7 +1769,7 @@ export function VideoGenFocusView({
                           className="w-full"
                           onClick={handleGenerate}
                           disabled={
-                            isGenerating || disableGenerate || !editable
+                            isGenerating || disableGenerate || !editable || viewing.isViewingOther
                           }
                         >
                           <Sparkles className="size-4" strokeWidth={1.5} />

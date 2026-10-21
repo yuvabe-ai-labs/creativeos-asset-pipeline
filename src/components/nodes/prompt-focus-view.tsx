@@ -79,6 +79,7 @@ import { VersionStepper } from "./version-stepper";
 import { VersionViewingBar } from "./version-viewing-bar";
 import { VersionOutputEmpty } from "./version-output-empty";
 import { ActiveOnlyNotice } from "./active-only-notice";
+import { RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import {
@@ -234,7 +235,7 @@ export function PromptFocusView({
   }
 
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
-  const isNodeSelected = !["prompt", "history", "details", "request"].includes(selected);
+  const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
@@ -532,7 +533,7 @@ export function PromptFocusView({
   }
 
   // "Sent to model" reports on the version on screen (D383).
-  const activeRequest = viewed?.inputsUsed?.request ?? null;
+  const shownRequest = viewed?.inputsUsed?.request ?? null;
 
   const reviewBadge =
     mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
@@ -749,6 +750,7 @@ export function PromptFocusView({
 
                     {/* Generate — flows after the controls, reached via the scrollbar */}
                     <div className="border-t border-border px-6 py-4">
+                      {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                       <Button
                         className="w-full"
                         size="default"
@@ -920,8 +922,8 @@ export function PromptFocusView({
             {/* Sent to model — the exact request the active version sent (standalone) */}
             {selected === "request" && (
               <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
-                {activeRequest ? (
-                  <ModelRequestPanel request={activeRequest} />
+                {shownRequest ? (
+                  <ModelRequestPanel request={shownRequest} />
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     No request recorded for this version — generate a prompt to capture the

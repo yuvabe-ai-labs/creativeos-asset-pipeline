@@ -51,6 +51,8 @@ export type PromptFocusShellSlots = {
   viewingBar: ReactNode;
   // The version on screen (the active one unless another is being viewed).
   viewedVersion: VersionSummary | null;
+  // The viewed version's label ("v1"); empty while nothing is viewed.
+  viewedLabel: string;
   isViewingOther: boolean;
   // A ready-wired <InlineApprovalBar> (gated on the viewer's role, and on viewing the active
   // version) — the caller places it beside its own eval bar.
@@ -97,6 +99,8 @@ export type PromptFocusShellProps = {
   // version's result (built from the same code that renders the active result).
   outputLabel: string;
   outputIcon: ReactNode;
+  // Noun for a viewed version with no output ("No prompt…"); defaults to "prompt".
+  emptyNoun?: string;
   renderVersionOutput: (version: VersionSummary) => ReactNode;
   // The fixed tabs ("prompt" / "details" / "request") switch on `selected` internally —
   // everything about their content is per-prompt-type. The two panes generic enough to live
@@ -174,6 +178,7 @@ export function PromptFocusShell({
   onLiveVersionUpdate,
   outputLabel,
   outputIcon,
+  emptyNoun,
   renderVersionOutput,
   children,
 }: PromptFocusShellProps) {
@@ -382,7 +387,7 @@ export function PromptFocusShell({
               Still no overflow-hidden: it would crop the raised column's left shadow. The panes
               inside own their scrolling. */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {children({ versionStepper, viewingBar, viewedVersion: viewed, isViewingOther: viewing.isViewingOther, approvalControls })}
+            {children({ versionStepper, viewingBar, viewedVersion: viewed, viewedLabel, isViewingOther: viewing.isViewingOther, approvalControls })}
 
             {selected === "history" && (
               <PromptHistoryPane
@@ -391,6 +396,7 @@ export function PromptFocusShell({
                 viewing={viewing}
                 outputLabel={outputLabel}
                 outputIcon={outputIcon}
+                emptyNoun={emptyNoun}
                 renderVersionOutput={renderVersionOutput}
                 canRestore={editable}
                 restoring={restoring}

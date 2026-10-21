@@ -31,6 +31,8 @@ export function useVersionViewing<V extends { id: string }>(
 ): VersionViewing<V> {
   const [viewedId, setViewedId] = useState<string | null>(null);
   const [seen, setSeen] = useState({ open, activeVersionId });
+  // Intended: if a new version becomes active (a teammate's generation lands) while an older one
+  // is on screen, the view stays on the older one; the viewing bar names the version the node now uses.
   if (seen.open !== open || seen.activeVersionId !== activeVersionId) {
     setSeen({ open, activeVersionId });
     if (!open || activeVersionId === viewedId) setViewedId(null);

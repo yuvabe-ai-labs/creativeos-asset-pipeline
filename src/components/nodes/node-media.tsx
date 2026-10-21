@@ -41,6 +41,7 @@ export function NodeMedia({
             src={`${src}#t=0.1`}
             preload="metadata"
             muted
+            aria-label={alt}
             playsInline
             className="size-full object-contain"
             onLoadedMetadata={(e) => onMeasured(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
