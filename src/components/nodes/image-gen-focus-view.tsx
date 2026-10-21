@@ -60,6 +60,12 @@ import type { MentionUpstream } from "@/lib/nodes/resolve-mention-tokens";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
+import { useVersionViewing } from "@/hooks/use-version-viewing";
+import { VersionViewingBar } from "./version-viewing-bar";
+import { VersionStepper } from "./version-stepper";
+import { VersionOutputEmpty } from "./version-output-empty";
+import { ActiveOnlyNotice } from "./active-only-notice";
+import { versionLabelsById } from "@/lib/generations/version-labels";
 import { ApprovalSkeleton } from "./approval-skeleton";
 import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { setVersionLabelAction } from "@/lib/actions/eval";
@@ -241,6 +247,12 @@ export function ImageGenFocusView({
     NodeVersionsResponse<ImageGenVersionSummary> | undefined
   >(undefined);
   const [restoring, setRestoring] = useState(false);
+  // D383 — which version the output column shows. Leaving the active version ends annotate and
+  // Edit, which act on the active image.
+  const viewing = useVersionViewing(versions, activeVersionId, open, () => {
+    setReviewAnnotating(false);
+    setActiveTab("generate");
+  });
   const [zoomOpen, setZoomOpen] = useState(false);
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(
     null
@@ -618,6 +630,11 @@ export function ImageGenFocusView({
     : imageUrl
     ? "result"
     : "empty";
+
+  const labelById = versionLabelsById(versions);
+  const viewed = viewing.viewed;
+  const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
+  const activeLabel = activeVersionId ? labelById.get(activeVersionId) ?? null : null;
 
   // D244 read path: the standing change request on the ACTIVE version, and the
   // annotations attached to it. Derived from the versions list the history panel
@@ -1234,8 +1251,8 @@ export function ImageGenFocusView({
                     <ImageGenVersionHistory
                       versions={versions}
                       activeVersionId={activeVersionId}
-                      onRestore={handleRestoreVersion}
-                      restoring={restoring}
+                      viewedVersionId={viewed?.id ?? null}
+                      onView={viewing.view}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -1268,18 +1285,19 @@ export function ImageGenFocusView({
                             writes only to node_versions, so it is not in the class of
                             writes the D33 lock serialises — a senior signs off while a
                             junior keeps editing. */}
+                        {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                         <InlineApprovalBar
                           status={approvalStatus}
                           note={approvalNote}
                           approvedByName={approvedByName}
                           approvedAt={approvedAt}
                           saving={approvalSaving}
-                          canApprove={identity?.role === "senior"}
+                          canApprove={identity?.role === "senior" && !viewing.isViewingOther}
                           onSet={saveApproval}
                           annotationCount={reviewDrafts.drafts.length}
                           annotating={reviewAnnotating}
                           onToggleAnnotate={
-                            imageUrl ? () => setReviewAnnotating((v) => !v) : undefined
+                            imageUrl && !viewing.isViewingOther ? () => setReviewAnnotating((v) => !v) : undefined
                           }
                           onConfirmDiscardDrafts={async () => {
                             const ok = await discardConfirm.confirm(
@@ -1355,6 +1373,7 @@ export function ImageGenFocusView({
                     Edit
                     <Switch
                       id={`image-edit-mode-${nodeId}`}
+                      disabled={viewing.isViewingOther}
                       checked={activeTab === "edit"}
                       onCheckedChange={(checked) => {
                         setActiveTab(checked ? "edit" : "generate");
@@ -1363,9 +1382,34 @@ export function ImageGenFocusView({
                     />
                   </Label>
                 )}
+                {!loadingVersions && (
+                  <div className="ml-auto">
+                    <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
+                  </div>
+                )}
               </div>
+              {viewing.isViewingOther && viewed && (
+                <VersionViewingBar
+                  viewedLabel={viewedLabel}
+                  viewedCreatedAt={viewed.createdAt}
+                  activeLabel={activeLabel}
+                  canRestore={editable && !viewed.error && Boolean(viewed.output)}
+                  restoring={restoring}
+                  onBack={viewing.backToActive}
+                  onRestore={() => void handleRestoreVersion(viewed.id)}
+                />
+              )}
               <div className="min-h-0 flex-1">
-                {activeTab === "edit" && editBaseUrl && !editing ? (
+                {viewing.isViewingOther && viewed ? (
+                  viewed.output ? (
+                    <div className="relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={viewed.output} alt={`${title || "Generated image"}, ${viewedLabel}`} className="h-full w-auto max-w-full object-contain" />
+                    </div>
+                  ) : (
+                    <VersionOutputEmpty noun="image" />
+                  )
+                ) : activeTab === "edit" && editBaseUrl && !editing ? (
                   editMode === "paint" ? (
                     <ImageGenAnnotationCanvas
                       key={editBaseUrl}

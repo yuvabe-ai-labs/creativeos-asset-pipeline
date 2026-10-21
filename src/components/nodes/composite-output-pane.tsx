@@ -4,7 +4,8 @@ import { Combine, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
+import { VersionOutputEmpty } from "./version-output-empty";
 import { ImageGenAnnotationCanvas, type AnnotationHandle } from "./image-gen-annotation-canvas";
 
 type Props = {
@@ -21,10 +22,16 @@ type Props = {
   /** Remounts the canvas (clearing strokes) when the picture or model changes. */
   paintKey: string;
   onMarksChange: (has: boolean) => void;
+  /** D383 — the version stepper, beside the heading. */
+  stepper?: ReactNode;
+  /** D383 — the viewing bar, under the heading. */
+  banner?: ReactNode;
+  /** D383 — the version on screen failed. */
+  viewingFailed?: boolean;
 };
 
 /** D312 — the composite's current image, or what is about to fill it, under Image Gen's header. */
-export function CompositeOutputPane({ nodeId, imageUrl, generating, canEdit, editMode, onEditModeChange, painting, paintRef, paintKey, onMarksChange }: Props) {
+export function CompositeOutputPane({ nodeId, imageUrl, generating, canEdit, editMode, onEditModeChange, painting, paintRef, paintKey, onMarksChange, stepper, banner, viewingFailed }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
       <div className="flex items-center gap-6">
@@ -41,10 +48,14 @@ export function CompositeOutputPane({ nodeId, imageUrl, generating, canEdit, edi
             <Switch id={`composite-edit-mode-${nodeId}`} checked={editMode} onCheckedChange={onEditModeChange} />
           </Label>
         )}
+        {stepper && <div className="ml-auto">{stepper}</div>}
       </div>
+      {banner}
       {/* Left-aligned under the header, like Image Gen's output column. */}
       <div className="flex min-h-0 flex-1 items-start justify-start overflow-y-auto">
-        {generating ? (
+        {viewingFailed ? (
+          <VersionOutputEmpty noun="image" />
+        ) : generating ? (
           <Skeleton className="aspect-[9/16] w-full max-w-sm rounded-xl" />
         ) : painting && imageUrl ? (
           // Image Gen's paint mode: a clean base, the painted region sent as a separate mask.

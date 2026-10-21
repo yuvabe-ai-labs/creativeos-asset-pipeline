@@ -6,6 +6,7 @@ import { VersionStepper } from "../version-stepper";
 import { VersionOutputEmpty } from "../version-output-empty";
 import { ActiveOnlyNotice } from "../active-only-notice";
 import { VersionList, arrowKeyTarget } from "../version-list";
+import { ImageGenVersionHistory } from "../image-gen-version-history";
 
 // No DOM environment in this repo: render to static markup and read text and attributes.
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -117,5 +118,21 @@ describe("VideoGenVersionHistory", () => {
     expect(html).toContain("h-12 w-auto max-w-20 object-contain");
     expect(text(html)).toContain("Kling 2.1");
     expect(text(html)).not.toContain("Restore");
+  });
+});
+
+describe("ImageGenVersionHistory", () => {
+  it("renders through the shared list with a real-shape image thumb", () => {
+    const versions = [
+      { id: "b", output: "https://x/b.png", error: null, paramsUsed: { modelId: "openai:GPT Image" }, createdAt: now, decision: null, note: null },
+      { id: "a", output: null, error: "x", paramsUsed: {}, createdAt: now, decision: null, note: null },
+    ];
+    const html = renderToStaticMarkup(
+      <ImageGenVersionHistory versions={versions} activeVersionId="b" viewedVersionId={null} onView={vi.fn()} />,
+    );
+    expect(html).toContain('role="listbox"');
+    expect(html).toContain('<img src="https://x/b.png"');
+    expect(text(html)).toContain("GPT Image");
+    expect(text(html)).toContain("Failed");
   });
 });
