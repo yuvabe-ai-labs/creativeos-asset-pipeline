@@ -15,10 +15,10 @@ about the Rough Cut Editor, then the design doc. Start that conversation **in th
 | Spike | **Built and verified in the user's Windows Premiere.** The XML imports, captions land as styled titles on V2, the dub sits on its own tracks. Lives **only** on the spike branch (§2, §3) and is **never merged**. Its code is reused by porting files (§3). |
 | Architecture + feasibility page | https://claude.ai/artifact/88wWK2tgPUk3o2tHYKQPEn |
 | Screen mockups (design canvas) | https://claude.ai/artifact/SseUKVaihCKMsHZscoQDCR: canvas + Editor node, editor with a clip / caption / dubbed clip selected, export dialog |
-| Implementation plan | **Written and executed** (inline, 2026-10-20): [2026-10-20-rough-cut-editor.md](2026-10-20-rough-cut-editor.md), 23 tasks. Ledger with every ruling: `.superpowers/sdd/2026-10-20-rough-cut-editor/progress.md` (git-ignored). |
+| Implementation plan | **Written and executed** (inline, 2026-10-20): [2026-10-20-rough-cut-editor.md](2026-10-20-rough-cut-editor.md), 23 tasks, then a fresh whole-branch review and one fix pass. The rulings and deferred items are in §7b. |
 | ADRs | **D387–D393** written in the roadmap's ADR log §7. |
 | Migration | **0059_rough_cut_editor.sql written, NOT applied.** Apply it to staging only with the user's go-ahead. |
-| Build | Tasks 1–22 committed on `feat/rough-cut-editor`. Full suite green (4,543 tests), 0 type errors. Hand checks and the Premiere acceptance are still to do (§7a). |
+| Build | All tasks and review fixes committed on `feat/rough-cut-editor` (not pushed). Full suite green (4,560 tests), 0 type errors, `next build` passes. Hand checks and the Premiere acceptance are still to do (§7a). |
 
 Both artifacts are private to the user. Share them from the page's Share menu before sending
 them to anyone.
@@ -180,7 +180,7 @@ All in the design doc (§3–§10 and §12). In short:
 
 **Call counts** (performance checklist), read from the code for a 300-node canvas whose Editor has 20 sources:
 - Canvas load: +1 request, the Editor state GET (its card's one query; there is one Editor per canvas). The first load also probes each source file's header once (about 288 KB each), then reads `media_facts`.
-- Editor open: the page loads everything server-side (nodes, edges, edit; then incoming edges and facts). In the browser: the lock acquire and its heartbeat; the state query is seeded, so no refetch. No per-piece or per-source requests; a source row loads no media.
+- Editor open: the page loads everything server-side (nodes, edges, edit; then incoming edges and facts). In the browser: the lock acquire and its heartbeat. The state query is seeded from the server render, but when the canvas card's cached copy is older than 30 s it refetches once (a deferred minor, §7b). No per-piece or per-source requests; a source row loads no media.
 - Selecting a piece: one proxied download of its sound file, once per file per session (quiet sections).
 - Node drag on the canvas: no generation-lock recompute (it follows edges only; a store test pins it).
 - Export: one POST, then one status GET every 1.5 s until it finishes.
@@ -195,6 +195,32 @@ All in the design doc (§3–§10 and §12). In short:
 - [ ] Export runs with progress; the zip is named creativeos-reel.zip and contains the fonts (proves `additionalFiles` + the font path in dev and in deploy).
 
 **Premiere acceptance** (with the user, Windows Premiere 2025+): plan Task 23 Step 4.
+
+## 7b. Rulings made during the build, and deferred minors
+
+**Rulings** (decisions the plan didn't settle, each with its cost if wrong):
+- The UI follows the mockup artifact, at the user's request mid-build. Card: Scissors icon, two-row strip, count chips, no "Exported" chip. Caption panel: font chips in their own faces, White/Yellow/Black swatches plus a custom hex field. Export dialog: the Export artboard. Colours come from design tokens, not the artboard's hex values; the stage guide is white, not brand yellow (AGENTS.md). Cost: layout edits.
+- Card lock row shows the spec's full copy, with the part after " · " muted (the artboard shows only "In use by the Editor").
+- The editor page title is the Editor's title (else the canvas name) + " · rough cut", not editable there.
+- Playfair Display Bold is Google Fonts' served static instance (the upstream repo was unreachable). Its PostScript name is verified, but it's a Latin subset with no ₹; the caption panel warns.
+- `shadcn add toggle-group` installed an unrelated npm package `cn`; it was removed and the imports fixed.
+- The canvas page and its skeleton moved into `[cid]/(canvas)/` so its skeleton never wraps `/edit` (the URL is unchanged).
+- Review re-grades: "a connected clip without a readable take loses its pieces" and "a no-op trim replaces the edit" were promoted to Important and fixed.
+
+**Fixed in the review pass:** a failed save now stops Back and Export, a 400 is final, and pending edits are saved on unmount; overlapping captions get their own title tracks; font coverage is read from each font's cmap; file ends are floored to whole frames; the card refreshes on connect; caption text and count are capped; still-connected no-take clips keep their pieces; no-op trims leave the edit alone.
+
+**Deferred minors:**
+- Editor open can refetch the state once (stale card cache) and on window refocus.
+- The timeline re-renders every frame during playback.
+- Up to about 0.04 frame of caption drift per 25 fps piece on mixed-rate reels.
+- A dub ending before its piece's in-point becomes a one-frame dub clip.
+- The OTIO dub track isn't gap-padded.
+- Media facts are cached forever, so a take deleted after measuring fails only at export download.
+- Exports near 700 MB may exceed medium-1x memory.
+- The caption Size field resists typing below 8.
+- UTF-16 SRT files aren't read.
+- Smaller items: a non-UUID job id returns 500; `listIncomingEdges` is an extra sequential read; the handoff mark lingers ≤10 s from a read-only page; the dialog's check icon uses stroke 2.
+- Pre-existing, not this branch: 7 React Compiler lint errors in `use-canvas-lock.ts`; occasional 5 s test timeouts under full-suite load (`kling-provider`, `upstream-images`).
 
 ## 7. Next steps, in order
 
