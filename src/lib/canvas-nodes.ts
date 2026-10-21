@@ -45,6 +45,9 @@ export type ScriptNodeData = {
 /** D298 — an avatar on the canvas. Only the id: the avatar is read live, so a name, face or
  *  voice changed in the Avatar Studio reaches every canvas without re-dropping. */
 export type AvatarNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   avatarId: string;
 };
 
@@ -58,6 +61,9 @@ export type KBNodeData = {
 };
 
 export type FileNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   filename?: string;             // original filename shown in the focus view
   fileExt?: string;              // "txt" | "png" | "jpg" | "jpeg" | "webp" | "pdf" | "docx"
@@ -84,6 +90,9 @@ export type TextNodeData = {
 };
 
 export type DrawNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   fileUrl?: string; // flattened sketch PNG — the image handed downstream (reuses File field)
   fileKind?: "image"; // always "image" when present
@@ -104,6 +113,9 @@ export type PromptNodeData = {
 };
 
 export type ImageGenNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   modelId?: string;                   // e.g. "openai:gpt-image-2" — saved on node
   params?: Record<string, unknown>;   // last-used param values for selected model
@@ -117,6 +129,9 @@ export type ImageGenNodeData = {
 /** D312 — a shot's picture made in one step: wired references in, an instruction typed here,
  *  one image out. The instruction stores references as `@[Label](nodeId)` chips (D272). */
 export type CompositeNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   instruction?: string;
   /** Seedream by default; locked to SEEDANCE_FACE_MODEL_ID while an avatar is wired. */
@@ -137,6 +152,9 @@ export type VideoPromptNodeData = {
 };
 
 export type VideoGenNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   modelId?: string;
   params?: Record<string, unknown>;
@@ -263,13 +281,13 @@ export type PostNodeData = {
 
 // D309: an uploaded cut shared with the client by link. The video, token and comments
 // live in canvas_reviews / canvas_review_comments — only the title is node data.
-export type ClientReviewNodeData = { title?: string };
+export type ClientReviewNodeData = { title?: string; mediaWidth?: number; mediaHeight?: number };
 
 // D374 — dubs its one connected Video Gen take. `language` is the select's last value; each
 // version records its own. `parsed` is the active version's DubbingOutput (display only, D19).
 // `style` is the last translation style picked (DUB_STYLES); each version records its own.
 // `voice` / `pace` (D379): the last Advanced picks; absent voice = the presenter's own.
-export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; voice?: DubVoiceChoice; pace?: DubPace; parsed?: unknown };
+export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; voice?: DubVoiceChoice; pace?: DubPace; parsed?: unknown; mediaWidth?: number; mediaHeight?: number };
 
 export type AppNode =
   | Node<ScriptNodeData, "script">
