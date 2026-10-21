@@ -99,33 +99,3 @@ export function segmentByTerms(text: string, terms: Array<string | RegExp>): Bea
   if (pos < text.length) segments.push({ text: text.slice(pos), highlighted: false });
   return segments;
 }
-
-export type VersionChip = {
-  id: string;
-  label: string; // "v3"
-  isActive: boolean;
-  isError: boolean;
-  disabled: boolean; // active OR error OR restoring
-};
-
-// Compact chip model, newest-first (index 0 = highest generation number), mirroring the
-// numbering PromptVersionHistory uses (genNumber = total - index). Structural input type keeps
-// this lib module free of a component dependency; VersionSummary[] satisfies it.
-export function buildVersionChips(
-  versions: { id: string; error: string | null }[],
-  activeVersionId: string | null,
-  restoring: boolean,
-): VersionChip[] {
-  const total = versions.length;
-  return versions.map((v, i) => {
-    const isActive = v.id === activeVersionId;
-    const isError = !!v.error;
-    return {
-      id: v.id,
-      label: `v${total - i}`,
-      isActive,
-      isError,
-      disabled: isActive || isError || restoring,
-    };
-  });
-}

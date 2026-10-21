@@ -21,7 +21,7 @@ export type VersionViewing<V> = {
  * output (annotate, edit, change voice).
  *
  * `useState` + compare-during-render, not an effect or a ref read: the same idiom
- * VersionHistoryList used for its expanded set (react-hooks/refs forbids reading refs in render).
+ * VersionList used for its expanded set (react-hooks/refs forbids reading refs in render).
  */
 export function useVersionViewing<V extends { id: string }>(
   versions: V[],

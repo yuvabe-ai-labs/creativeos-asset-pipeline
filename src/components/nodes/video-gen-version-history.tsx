@@ -57,7 +57,7 @@ type Props = {
 // D180/D383: the row shell lives in VersionList. This file supplies only what is specific to a
 // video version: the thumbnail, the summary line and the generation metadata.
 export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersionId, onView, hideHeader = false }: Props) {
-  // D284 — version id → `v{n}`, the same numbering VersionHistoryList renders on each row, so
+  // D284 — version id → `v{n}`, the same numbering VersionList renders on each row, so
   // "changed from v3" in a voice change's provenance line matches the row the operator sees.
   const labelById = versionLabelsById(versions);
 
