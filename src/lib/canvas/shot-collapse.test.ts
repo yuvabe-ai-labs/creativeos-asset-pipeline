@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Edge } from "@xyflow/react";
+import type { MultishotNodeData, ShotNodeData } from "@/lib/canvas-nodes";
+import { multishotDataToShot, shotDataToMultishot } from "@/lib/nodes/multishot-convert";
 import {
   COLLAPSED_SHOT_HANDLE,
   buildCollapseModel,
@@ -57,13 +59,14 @@ describe("buildCollapseModel — ownership", () => {
   });
 
   it("gives a node reached equally from two shots both owners", () => {
+    // Two shots both feed one composite as context (D320); what it feeds is shared too.
     const g = graph(
-      { nodes: [node("s1", "shot"), node("s2", "shot"), node("ms", "multishot"), node("mp", "multishot-prompt")], edges: [] },
-      { nodes: [], edges: [edge("s1", "ms"), edge("s2", "ms"), edge("ms", "mp")] },
+      { nodes: [node("s1", "shot"), node("s2", "shot"), node("cmp", "composite"), node("vp", "video-prompt")], edges: [] },
+      { nodes: [], edges: [edge("s1", "cmp"), edge("s2", "cmp"), edge("cmp", "vp")] },
     );
     const m = buildCollapseModel(g.nodes, g.edges);
-    expect(m.owners.get("ms")).toEqual(["s1", "s2"]);
-    expect(m.owners.get("mp")).toEqual(["s1", "s2"]);
+    expect(m.owners.get("cmp")).toEqual(["s1", "s2"]);
+    expect(m.owners.get("vp")).toEqual(["s1", "s2"]);
   });
 
   it("Case 2: a file used by one shot is owned; a file used by several is shared", () => {
@@ -93,6 +96,69 @@ describe("buildCollapseModel — ownership", () => {
     const m = buildCollapseModel(g.nodes, g.edges);
     expect(m.owners.has("script")).toBe(false);
     expect(m.owners.has("kb")).toBe(false);
+  });
+});
+
+// The multishot lane: multishot → multishot-prompt → video-gen → dubbing, with its storyboard panel.
+function multishotChain(n: number): { nodes: N[]; edges: E[] } {
+  return {
+    nodes: [
+      node(`ms${n}`, "multishot"),
+      node(`msp${n}`, "multishot-prompt"),
+      node(`msv${n}`, "video-gen"),
+      node(`dub${n}`, "dubbing"),
+      node(`panel${n}`, "file"),
+    ],
+    edges: [
+      edge(`ms${n}`, `msp${n}`),
+      edge(`msp${n}`, `msv${n}`),
+      edge(`msv${n}`, `dub${n}`),
+      edge(`panel${n}`, `ms${n}`, "image"),
+    ],
+  };
+}
+
+describe("multishot workflow", () => {
+  it("collapses a Multishot's whole lane, panel included, like a Shot", () => {
+    const g = graph(multishotChain(1));
+    const m = buildCollapseModel(g.nodes, g.edges);
+    expect(m.shotIds.has("ms1")).toBe(true);
+    expect(sorted(hiddenNodeIds(m, new Set(["ms1"])))).toEqual(["dub1", "msp1", "msv1", "panel1"]);
+  });
+
+  it("reads the collapsed flag off a Multishot", () => {
+    expect(sorted(collapsedShotIds([node("ms1", "multishot", { collapsed: true })]))).toEqual(["ms1"]);
+  });
+
+  it("keeps a Shot's Image Gen used by a Multishot with its Shot, and labels the link", () => {
+    // A still from Shot 1 sits on Multishot 2 (D383) and feeds its prompt.
+    const g = graph(chain(1), multishotChain(2), {
+      nodes: [],
+      edges: [edge("img1", "ms2", "image"), edge("img1", "msp2")],
+    });
+    const m = buildCollapseModel(g.nodes, g.edges);
+    expect(m.owners.get("msp2")).toEqual(["ms2"]);
+    const out = rerouteEdges(g.edges, m, hiddenNodeIds(m, new Set(["s1", "ms2"])), label);
+    const link = out.find((e) => e.source === "s1" && e.target === "ms2")!;
+    expect(link.targetHandle).toBe("image"); // the real edge into the Multishot keeps its handle
+    expect(link.label).toBe("IMG1 → MS2 +1"); // and the hidden prompt link folds into it
+  });
+
+  it("lands expanded after a Shot ↔ Multishot flip (its lane is dropped by the flip)", () => {
+    const asShot = { order: 1, collapsed: true } as unknown as ShotNodeData;
+    const asMultishot = { order: 1, cuts: [], collapsed: true } as unknown as MultishotNodeData;
+    expect(shotDataToMultishot(asShot)).not.toHaveProperty("collapsed");
+    expect(multishotDataToShot(asMultishot)).not.toHaveProperty("collapsed");
+  });
+
+  it("shares a reference used by a Shot and a Multishot", () => {
+    const g = graph(chain(1), multishotChain(2), {
+      nodes: [node("front", "file")],
+      edges: [edge("front", "img1"), edge("front", "msp2")],
+    });
+    const m = buildCollapseModel(g.nodes, g.edges);
+    expect(m.owners.get("front")).toEqual(["ms2", "s1"]);
+    expect(hiddenNodeIds(m, new Set(["s1", "ms2"])).has("front")).toBe(false);
   });
 });
 

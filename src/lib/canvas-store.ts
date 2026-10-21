@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
-import { isShotCollapsed, withoutCollapsed } from "@/lib/canvas/shot-collapse";
+import { isCollapsibleType, isShotCollapsed, withoutCollapsed } from "@/lib/canvas/shot-collapse";
 import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
@@ -76,7 +76,7 @@ export type CanvasState = {
   clearRemoved: (nodeIds: string[], edgeIds: string[]) => void;
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
-  /** D387 — collapse or expand Shot nodes in one update. Shots already in that state are left alone. */
+  /** D387 — collapse or expand Shot / Multishot nodes in one update. Those already in that state are left alone. */
   setShotsCollapsed: (shotIds: string[], collapsed: boolean) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
   disconnectNodes: (sourceId: string, targetId: string) => void;
@@ -314,7 +314,7 @@ export function createCanvasStore(
       // Saved as a flag on the Shot (expanding removes it); what hides is derived from the graph.
       const ids = new Set(shotIds);
       const changes = get().nodes.filter(
-        (n) => ids.has(n.id) && n.type === "shot" && isShotCollapsed(n) !== collapsed,
+        (n) => ids.has(n.id) && isCollapsibleType(n.type) && isShotCollapsed(n) !== collapsed,
       );
       if (changes.length === 0) return; // never replace the array when nothing changed
       const changed = new Set(changes.map((n) => n.id));

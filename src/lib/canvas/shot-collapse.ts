@@ -4,13 +4,23 @@ import type { Edge } from "@xyflow/react";
 // hide is derived here from the graph on every render, so there is no membership list to keep in
 // sync as nodes are added, rewired or deleted.
 //
+// "Shot" here means either lane's root: a Shot (single take) or a Multishot (a cut sequence). Fan
+// out makes one or the other per generation and the Script's toggle flips between them (D229), so
+// both own their pipeline the same way.
+//
 // A node's OWNERS are the Shots nearest upstream of it (shortest path; a tie gives several). An
 // input File or Draw that no Shot reaches takes the owners of whatever it feeds. A node hides iff
-// it has exactly one owner and that Shot is collapsed — so shared files and multi-shot nodes never
-// hide.
+// it has exactly one owner and that Shot is collapsed — so shared files and nodes fed by several
+// shots never hide.
 
 /** The top handle a collapsed Shot shows for the lines rerouted into it. */
 export const COLLAPSED_SHOT_HANDLE = "collapsed";
+
+const COLLAPSIBLE_TYPES = new Set(["shot", "multishot"]);
+
+export function isCollapsibleType(type: string | undefined): boolean {
+  return COLLAPSIBLE_TYPES.has(type ?? "");
+}
 
 // Inputs a single shot can own outright (a reference image, a sketch).
 const INPUT_TYPES = new Set(["file", "draw"]);
@@ -25,7 +35,7 @@ export type CollapseModel = {
 };
 
 export function isShotCollapsed(node: GraphNode): boolean {
-  return node.type === "shot" && (node.data as { collapsed?: unknown } | undefined)?.collapsed === true;
+  return isCollapsibleType(node.type) && (node.data as { collapsed?: unknown } | undefined)?.collapsed === true;
 }
 
 export function collapsedShotIds(nodes: GraphNode[]): Set<string> {
@@ -44,7 +54,7 @@ export function withoutCollapsed<T extends Record<string, unknown>>(data: T): T 
 
 export function buildCollapseModel(nodes: GraphNode[], edges: GraphEdge[]): CollapseModel {
   const typeById = new Map(nodes.map((n) => [n.id, n.type]));
-  const shotIds = new Set(nodes.filter((n) => n.type === "shot").map((n) => n.id));
+  const shotIds = new Set(nodes.filter((n) => isCollapsibleType(n.type)).map((n) => n.id));
   const owners = new Map<string, string[]>();
   if (shotIds.size === 0) return { shotIds, owners };
 

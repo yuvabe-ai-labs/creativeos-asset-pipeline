@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { ChevronsDownUp, ChevronsUpDown, Clapperboard, Sparkles } from "lucide-react";
+import { Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,12 +10,12 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
-import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
-import { useShotHiddenCount } from "@/components/canvas/shot-collapse-context";
-import { COLLAPSED_SHOT_HANDLE } from "@/lib/canvas/shot-collapse";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
+import { CollapseToggle } from "./collapse-toggle";
+import { CollapsedInHandle } from "./collapsed-in-handle";
+import { HiddenCountNote } from "./hidden-count-note";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { VoLinesEditor } from "./vo-lines-editor";
@@ -37,9 +37,6 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
   const [composeOpen, setComposeOpen] = useState(false);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
-  const setShotsCollapsed = useCanvasStore((s) => s.setShotsCollapsed);
-  const canEdit = useCanvasEditable();
-  const hiddenCount = useShotHiddenCount(id);
   const d = data as {
     script?: ReelScript;
     order?: number;
@@ -111,26 +108,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
               {shot?.duration && (
                 <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
               )}
-              <Button
-                variant="ghost"
-                size="xs"
-                disabled={!canEdit}
-                aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
-                aria-expanded={!collapsed}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShotsCollapsed([id], !collapsed);
-                }}
-                onDoubleClick={(e) => e.stopPropagation()}
-                className="nodrag h-6 px-1.5 text-[0.65rem] text-muted-foreground"
-              >
-                {collapsed ? (
-                  <ChevronsUpDown strokeWidth={1.5} />
-                ) : (
-                  <ChevronsDownUp strokeWidth={1.5} />
-                )}
-                {collapsed ? "Expand" : "Collapse"}
-              </Button>
+              <CollapseToggle nodeId={id} collapsed={collapsed} label={label} />
             </div>
           }
         />
@@ -161,26 +139,10 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
               <Sparkles className="size-3" strokeWidth={1.5} /> Compose
             </Button>
             <GuidedNextButton sourceId={id} variant="chip" />
-            {collapsed && hiddenCount > 0 && (
-              <span className="ml-auto text-[0.6rem] text-muted-foreground">
-                {hiddenCount} hidden
-              </span>
-            )}
+            <HiddenCountNote nodeId={id} collapsed={collapsed} />
           </div>
         </div>
-        {/* D387 — where lines rerouted into a collapsed shot arrive. Always rendered (so React
-            Flow has measured it before any rerouted edge needs it) but only shown while collapsed;
-            never connectable, since those lines are display-only. */}
-        <Handle
-          id={COLLAPSED_SHOT_HANDLE}
-          type="target"
-          position={Position.Top}
-          isConnectable={false}
-          className={cn(
-            "size-3! border-2! border-card! bg-muted-foreground!",
-            !collapsed && "invisible",
-          )}
-        />
+        <CollapsedInHandle collapsed={collapsed} />
         {/* lineage target (dashed Script->Shot edge) */}
         <Handle
           type="target"

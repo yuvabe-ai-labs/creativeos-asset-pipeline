@@ -80,6 +80,15 @@ describe("setShotsCollapsed", () => {
     expect(data(store, "s2")).toEqual({ order: 2 });
   });
 
+  it("collapses a Multishot the same way", () => {
+    const store = createCanvasStore(
+      [{ id: "ms", type: "multishot", position: { x: 0, y: 0 }, data: { order: 1 } }] as unknown as AppNode[],
+      [],
+    );
+    store.getState().setShotsCollapsed(["ms"], true);
+    expect(store.getState().nodes[0].data).toEqual({ order: 1, collapsed: true });
+  });
+
   it("leaves the nodes array untouched when nothing changes", () => {
     const store = shots();
     const before = store.getState().nodes;

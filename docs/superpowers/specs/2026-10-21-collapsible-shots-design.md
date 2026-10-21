@@ -11,6 +11,12 @@ reload.
 
 ## Behavior
 
+"Shot" below means either lane's root: a **Shot** (one take) or a **Multishot** (a cut sequence).
+Fan-out makes one or the other per generation and the Script's toggle flips between them (D229), so
+both collapse the same way. A Multishot hides its Multishot prompt → Video Gen → Dubbing lane and
+its own panel. A flip lands expanded: the converters rebuild the node's data and the flip already
+drops its outgoing lane, so there is nothing left to hide.
+
 - Each Shot header has a **Collapse** button; once collapsed it reads **Expand**.
 - A collapsed Shot stays where it is and looks like a small stack of cards, with a "N hidden"
   chip naming how much is inside.
@@ -35,7 +41,8 @@ two shots has both as owners. The walk never enters a Shot (a Shot owns only its
 
 - Shot 2's Image Gen is 2 hops from Shot 2 and 3 hops from Shot 1 (through Shot 1's Image Gen
   used as a reference), so Shot 2 owns it alone.
-- A Multishot node fed by several shots has several owners.
+- A Composite that two shots both feed as context (D320) has both as owners, and so does what it
+  feeds.
 
 **Input nodes** (File, Draw) that no Shot reaches take the union of the owners of the nodes they
 feed. If any node they feed has no owner, they have none. A file wired only into Shot 1's nodes
