@@ -41,6 +41,7 @@ import { ActiveOnlyNotice } from "./active-only-notice";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { CompositeOutputPane } from "./composite-output-pane";
+import { parseAspectRatio } from "@/lib/canvas/media-fit";
 
 type Props = {
   open: boolean;
@@ -222,6 +223,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
               nodeId={nodeId}
               imageUrl={shownImageUrl}
               generating={generating}
+              placeholderRatio={parseAspectRatio(values.aspect_ratio) ?? 9 / 16}
               canEdit={canEditPicture}
               editMode={editMode}
               painting={editing && edit.paintMode}

@@ -28,10 +28,12 @@ type Props = {
   banner?: ReactNode;
   /** D383 — the version on screen failed. */
   viewingFailed?: boolean;
+  /** D384 — the chosen aspect ratio, for the placeholder while generating. */
+  placeholderRatio?: number;
 };
 
 /** D312 — the composite's current image, or what is about to fill it, under Image Gen's header. */
-export function CompositeOutputPane({ nodeId, imageUrl, generating, canEdit, editMode, onEditModeChange, painting, paintRef, paintKey, onMarksChange, stepper, banner, viewingFailed }: Props) {
+export function CompositeOutputPane({ nodeId, imageUrl, generating, canEdit, editMode, onEditModeChange, painting, paintRef, paintKey, onMarksChange, stepper, banner, viewingFailed, placeholderRatio = 9 / 16 }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
       <div className="flex items-center gap-6">
@@ -56,7 +58,7 @@ export function CompositeOutputPane({ nodeId, imageUrl, generating, canEdit, edi
         {viewingFailed ? (
           <VersionOutputEmpty noun="image" />
         ) : generating ? (
-          <Skeleton className="aspect-[9/16] w-full max-w-sm rounded-xl" />
+          <Skeleton className="w-full max-w-sm rounded-xl" style={{ aspectRatio: placeholderRatio }} />
         ) : painting && imageUrl ? (
           // Image Gen's paint mode: a clean base, the painted region sent as a separate mask.
           <ImageGenAnnotationCanvas

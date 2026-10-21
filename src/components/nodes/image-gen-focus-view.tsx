@@ -21,6 +21,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { parseAspectRatio } from "@/lib/canvas/media-fit";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { EditableField } from "./editable-field";
 import { GenerationErrorBadge } from "./generation-error-badge";
@@ -1439,9 +1440,9 @@ export function ImageGenFocusView({
                 ) : (
                   <>
                     {mode === "skeleton" && (
-                      // 9:16, centred — the same footprint the result frame will occupy,
+                      // the chosen shape, centred — the same footprint the result will occupy,
                       // so the swap to the real image doesn't change shape.
-                      <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                      <div className="h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" style={{ aspectRatio: parseAspectRatio(paramValues.aspect_ratio) ?? 9 / 16 }} />
                     )}
 
                     {mode === "empty" && !editing && (

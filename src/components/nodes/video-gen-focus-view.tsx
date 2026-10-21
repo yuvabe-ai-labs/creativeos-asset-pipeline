@@ -7,7 +7,9 @@ import {
   useMemo,
   useRef,
   type ReactNode,
+  type SyntheticEvent,
 } from "react";
+import { parseAspectRatio } from "@/lib/canvas/media-fit";
 import {
   ArrowLeft,
   AudioLines,
@@ -545,6 +547,8 @@ export function VideoGenFocusView({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoPaused, setVideoPaused] = useState(true);
   const [videoDurationMs, setVideoDurationMs] = useState(0);
+  // D384 — the player's shape: measured from the video, else the version's setting, else 9:16.
+  const [playerShape, setPlayerShape] = useState<{ url: string; ratio: number } | null>(null);
   const [reviewAnnotating, setReviewAnnotating] = useState(false);
   // D284 — the right column's video-vs-workspace mode; the two never combine (see the toggle
   // below the version history's annotate control).
@@ -1363,6 +1367,16 @@ export function VideoGenFocusView({
   const viewed = viewing.viewed;
   const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
   const activeLabel = activeVersionId ? labelById.get(activeVersionId) ?? null : null;
+  const shownVideoUrl = viewing.isViewingOther ? viewed?.output ?? null : videoUrl;
+  const playerRatio =
+    (playerShape && playerShape.url === shownVideoUrl ? playerShape.ratio : null) ??
+    parseAspectRatio(viewed?.paramsUsed?.aspect_ratio) ??
+    parseAspectRatio(params.aspect_ratio) ??
+    9 / 16;
+  const measurePlayer = (e: SyntheticEvent<HTMLVideoElement>) => {
+    const { videoWidth, videoHeight } = e.currentTarget;
+    if (videoWidth > 0 && videoHeight > 0 && shownVideoUrl) setPlayerShape({ url: shownVideoUrl, ratio: videoWidth / videoHeight });
+  };
 
   // D244 read path: the standing change request on the active version and its stored
   // frame annotations — derived from the versions list the history panel already has.
@@ -2015,7 +2029,9 @@ export function VideoGenFocusView({
                       src={viewed.output}
                       controls
                       playsInline
-                      className="h-full w-auto max-w-full rounded-xl border border-border bg-muted/20"
+                      onLoadedMetadata={measurePlayer}
+                      className="h-full max-w-full rounded-xl border border-border bg-muted/20"
+                      style={{ aspectRatio: playerRatio }}
                     />
                   ) : (
                     <VersionOutputEmpty noun="video" />
@@ -2023,8 +2039,8 @@ export function VideoGenFocusView({
                 ) : (
                 <>
                 {mode === "skeleton" && (
-                  // 9:16, flush left — the same footprint the result frame will occupy.
-                  <div className="aspect-[9/16] h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" />
+                  // the chosen shape, flush left — the same footprint the result frame will occupy.
+                  <div className="h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" style={{ aspectRatio: parseAspectRatio(params.aspect_ratio) ?? 9 / 16 }} />
                 )}
                 {mode === "empty" && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">
@@ -2123,7 +2139,7 @@ export function VideoGenFocusView({
                 )}
 
                 {mode === "result" && videoUrl && !capturedFrame && (
-                  // Height-driven 9:16 frame, flush left — same treatment as the
+                  // Height-driven frame at the video's own shape, flush left — same treatment as the
                   // image-gen result: the border hugs the video instead of a
                   // width-forced box painting gutters inside it.
                   <div className="flex h-full min-h-0 flex-col">
@@ -2170,14 +2186,16 @@ export function VideoGenFocusView({
                           setOpenTimecode(null);
                           setOpenAnnotationSeq(null);
                         }}
-                        onLoadedMetadata={(e) =>
+                        onLoadedMetadata={(e) => {
                           setVideoDurationMs(
                             Number.isFinite(e.currentTarget.duration)
                               ? e.currentTarget.duration * 1000
                               : 0,
-                          )
-                        }
-                        className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20"
+                          );
+                          measurePlayer(e);
+                        }}
+                        className="h-full max-w-full rounded-xl border border-border bg-muted/20"
+                        style={{ aspectRatio: playerRatio }}
                       />
 
                       {/* D284 — the take being re-voiced stays in place under a veil, the same
