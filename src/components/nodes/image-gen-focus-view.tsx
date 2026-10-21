@@ -1000,7 +1000,7 @@ export function ImageGenFocusView({
       refValidation={refValidation}
       showGenerate={activeTab !== "edit"}
       onGenerate={handleGenerate}
-      generating={generating}
+      generating={generating || viewing.isViewingOther}
       editing={editing}
       hasPrompt={Boolean(promptUpstream)}
       hasImage={Boolean(imageUrl)}
@@ -1194,7 +1194,7 @@ export function ImageGenFocusView({
                         upstream={upstreamForCard}
                         finalPrompt={finalPrompt}
                         editing={editing}
-                        canEdit={canEditBase && editable}
+                        canEdit={canEditBase && editable && !viewing.isViewingOther}
                         referenceWarning={referenceWarning}
                         suggestGemini={suggestGemini}
                         onPickChip={handlePickChip}
@@ -1272,11 +1272,12 @@ export function ImageGenFocusView({
                       <ApprovalSkeleton />
                     ) : mode === "result" && !!activeVersionId ? (
                       <div className="flex flex-col gap-3">
+                        {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                         <InlineEvalBar
                           decision={evalDecision}
                           note={evalNote}
                           saving={evalSaving}
-                          visible={mode === "result" && !!activeVersionId}
+                          visible={mode === "result" && !!activeVersionId && !viewing.isViewingOther}
                           onDecision={handleEvalDecision}
                           onNote={setEvalNote}
                           onNoteBlur={handleEvalNoteBlur}
@@ -1285,7 +1286,6 @@ export function ImageGenFocusView({
                             writes only to node_versions, so it is not in the class of
                             writes the D33 lock serialises — a senior signs off while a
                             junior keeps editing. */}
-                        {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                         <InlineApprovalBar
                           status={approvalStatus}
                           note={approvalNote}

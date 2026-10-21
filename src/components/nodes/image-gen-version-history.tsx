@@ -4,6 +4,7 @@ import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 import type { VersionDecisionSummary } from "@/lib/approval";
+import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VersionList } from "./version-list";
 import { VersionThumb } from "./version-thumb";
 
@@ -49,9 +50,8 @@ type Props = {
 // D180/D383: the row shell lives in VersionList. This file supplies only what is specific to an
 // image version: the thumbnail, the summary line and the generation metadata.
 export function ImageGenVersionHistory({ versions, activeVersionId, viewedVersionId, onView }: Props) {
-  const total = versions.length;
   // versionId → "vN" label, so an edit can name the version it was derived from.
-  const labelById = new Map(versions.map((v, i) => [v.id, `v${total - i}`]));
+  const labelById = versionLabelsById(versions);
 
   const rows = versions.map((v) => {
     const versionModelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
