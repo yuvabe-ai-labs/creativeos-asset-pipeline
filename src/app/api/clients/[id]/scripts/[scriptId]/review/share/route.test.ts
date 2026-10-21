@@ -49,23 +49,24 @@ describe("POST …/review/share", () => {
   it("is only offered In review (spec 4 §3)", async () => {
     vi.mocked(getScript).mockResolvedValue(script("visualise"));
     const { POST } = await import("./route");
-    const res = await POST(post({ scope: "script" }), { params });
+    const res = await POST(post({}), { params });
     expect(res.status).toBe(409);
     expect(ensureScriptReview).not.toHaveBeenCalled();
   });
 
-  it("shares version 1 with no changes, and returns the link's code", async () => {
+  // D386: one way to share. Every share freezes the script, the avatars and the storyboard.
+  it("shares version 1 with everything in it, with no changes, and returns the link's code", async () => {
     vi.mocked(getScript).mockResolvedValue(script("in_review"));
     vi.mocked(getLatestVersion).mockResolvedValue(null);
-    vi.mocked(shareVersion).mockResolvedValue({ status: "ok", version: { ...content(), id: "v1", number: 1, sharedAt: "t1" } });
+    vi.mocked(shareVersion).mockResolvedValue({ status: "ok", version: { ...content(), scope: "panels", id: "v1", number: 1, sharedAt: "t1" } });
     const { POST } = await import("./route");
-    const res = await POST(post({ scope: "script" }), { params });
+    const res = await POST(post({}), { params });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ version: { number: 1, scope: "script", sharedAt: "t1" }, shareToken: "6f1c" });
+    expect(await res.json()).toEqual({ version: { number: 1, scope: "panels", sharedAt: "t1" }, shareToken: "6f1c" });
     expect(shareVersion).toHaveBeenCalledWith(expect.objectContaining({
-      reviewId: "r1", expectedLatest: 0, scope: "script", changes: [], sharedBy: "u1", actorName: "Arun", visuals: NO_VISUALS,
+      reviewId: "r1", expectedLatest: 0, scope: "panels", changes: [], sharedBy: "u1", actorName: "Arun", visuals: NO_VISUALS,
     }));
-    expect(collectVisuals).toHaveBeenCalledWith("c1", expect.objectContaining({ id: SCRIPT_ID }), "script");
+    expect(collectVisuals).toHaveBeenCalledWith("c1", expect.objectContaining({ id: SCRIPT_ID }), "panels");
   });
 
   it("names what changed against the version before", async () => {
@@ -75,7 +76,7 @@ describe("POST …/review/share", () => {
     vi.mocked(getLatestVersion).mockResolvedValue({ ...content(), id: "v1", number: 1, sharedAt: "t1" });
     vi.mocked(shareVersion).mockResolvedValue({ status: "ok", version: { ...content(), id: "v2", number: 2, sharedAt: "t2" } });
     const { POST } = await import("./route");
-    await POST(post({ scope: "script" }), { params });
+    await POST(post({}), { params });
     expect(vi.mocked(shareVersion).mock.calls[0][0]).toMatchObject({
       expectedLatest: 1,
       changes: [{ part: { kind: "shot", shotId: "s01" }, change: "revised", label: "S1" }],
@@ -87,13 +88,17 @@ describe("POST …/review/share", () => {
     vi.mocked(getLatestVersion).mockResolvedValue(null);
     vi.mocked(shareVersion).mockResolvedValue({ status: "stale" });
     const { POST } = await import("./route");
-    const res = await POST(post({ scope: "panels" }), { params });
+    const res = await POST(post({}), { params });
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("Someone else shared a version just now. Reload, then share again.");
   });
 
-  it("400s an unknown scope", async () => {
+  it("shares everything even when a page from before D386 still asks for the script only", async () => {
+    vi.mocked(getScript).mockResolvedValue(script("in_review"));
+    vi.mocked(getLatestVersion).mockResolvedValue(null);
+    vi.mocked(shareVersion).mockResolvedValue({ status: "ok", version: { ...content(), scope: "panels", id: "v1", number: 1, sharedAt: "t1" } });
     const { POST } = await import("./route");
-    expect((await POST(post({ scope: "everything" }), { params })).status).toBe(400);
+    expect((await POST(post({ scope: "script" }), { params })).status).toBe(201);
+    expect(vi.mocked(shareVersion).mock.calls[0][0]).toMatchObject({ scope: "panels" });
   });
 });

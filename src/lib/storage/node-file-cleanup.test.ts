@@ -97,4 +97,11 @@ describe("removeNodeFileObject", () => {
     expect(result).toEqual({ removed: false, reason: "unverified" });
     expect(_remove).not.toHaveBeenCalled();
   });
+
+  // Review focus 5 — a storyboard panel on the canvas is the script's image, not the node's upload.
+  it("never deletes a storyboard panel when its File node goes", async () => {
+    const panelUrl = url("clients/c1/scripts/sc1/panels/s01/panel__a.png");
+    expect(await removeNodeFileObject(NODE, panelUrl)).toEqual({ removed: false, reason: "not-this-nodes-file" });
+    expect(_remove).not.toHaveBeenCalled();
+  });
 });

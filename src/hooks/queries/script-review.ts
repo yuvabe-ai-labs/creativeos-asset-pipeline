@@ -7,7 +7,7 @@ import { scriptKeys } from "@/hooks/queries/scripts";
 import { visualiseKeys } from "@/hooks/queries/visualise";
 import { upsertComment } from "@/lib/script-review/utils";
 import type { PublicScriptReview, TeamScriptReview } from "@/lib/script-review/assemble";
-import type { ShareScope, TeamStageMove } from "@/lib/script-review/constants";
+import type { TeamStageMove } from "@/lib/script-review/constants";
 import type { Part, ScriptComment } from "@/lib/script-review/types";
 
 // Script copilot spec 4, through TanStack Query (CLAUDE.md, "Data fetching"). Keys are built here
@@ -31,7 +31,7 @@ export function useTeamScriptReview(clientId: string, scriptId: string, initial?
 export function useMoveScriptStage(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ move, scope }: { move: TeamStageMove; scope?: ShareScope }) => scriptReviewService.moveStage(clientId, scriptId, move, scope),
+    mutationFn: ({ move }: { move: TeamStageMove }) => scriptReviewService.moveStage(clientId, scriptId, move),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: scriptReviewKeys.team(clientId, scriptId) });
       // The library's stage filter and the gallery's Scripts tab (approved scripts) read these.
@@ -45,7 +45,7 @@ export function useMoveScriptStage(clientId: string, scriptId: string) {
 export function useShareScript(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (scope: ShareScope) => scriptReviewService.share(clientId, scriptId, scope),
+    mutationFn: () => scriptReviewService.share(clientId, scriptId),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: scriptReviewKeys.team(clientId, scriptId) }),
   });
 }

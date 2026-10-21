@@ -29,6 +29,12 @@ export type SceneBeat = {
 };
 
 export type ReelShot = {
+  /**
+   * D380 — the shot's own name as the script writes it ("S3", "Shot 3", "Scene 3"). "" or absent =
+   * the script names none. A copilot script's names are S1, S2…, which is how a row finds its
+   * approved storyboard panel; they live in the text, so they survive edits and re-parses.
+   */
+  label?: string;
   description?: string;
   /** Timing exactly as written in the script — "0-3 sec". Display only. */
   duration?: string;

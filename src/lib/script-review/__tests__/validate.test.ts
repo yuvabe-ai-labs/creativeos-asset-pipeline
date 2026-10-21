@@ -1,7 +1,7 @@
 // src/lib/script-review/__tests__/validate.test.ts
 import { describe, it, expect } from "vitest";
 import {
-  parseApproval, parseNewScriptComment, parseReply, parseResolve, parseShare, parseStageMove,
+  parseApproval, parseNewScriptComment, parseReply, parseResolve, parseStageMove,
 } from "../validate";
 
 describe("parseNewScriptComment", () => {
@@ -36,20 +36,15 @@ describe("team bodies", () => {
     expect(parseResolve({ resolved: "yes" }).ok).toBe(false);
   });
 
-  it("parseShare knows the three scopes", () => {
-    expect(parseShare({ scope: "avatars" })).toEqual({ ok: true, value: { scope: "avatars" } });
-    expect(parseShare({ scope: "everything" })).toEqual({ ok: false, error: "Choose what the share includes." });
-  });
-
   it("parseStageMove knows the three team moves, never approve", () => {
     expect(parseStageMove({ move: "back_to_visualise" })).toEqual({ ok: true, value: { move: "back_to_visualise" } });
     expect(parseStageMove({ move: "approve" }).ok).toBe(false);
   });
 
-  it("parseStageMove needs a share scope to move into In review, because that move also shares", () => {
-    expect(parseStageMove({ move: "to_review", scope: "panels" })).toEqual({ ok: true, value: { move: "to_review", scope: "panels" } });
-    expect(parseStageMove({ move: "to_review" })).toEqual({ ok: false, error: "Choose what to share with the client." });
-    expect(parseStageMove({ move: "to_review", scope: "everything" }).ok).toBe(false);
+  // D386: one way to share, so moving into In review (which shares) needs nothing but the move.
+  it("parseStageMove takes the move into In review alone, ignoring any old share scope", () => {
+    expect(parseStageMove({ move: "to_review" })).toEqual({ ok: true, value: { move: "to_review" } });
+    expect(parseStageMove({ move: "to_review", scope: "script" })).toEqual({ ok: true, value: { move: "to_review" } });
   });
 });
 

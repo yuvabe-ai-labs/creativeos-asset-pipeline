@@ -17,10 +17,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDeleteScript } from "@/hooks/queries/script-generate";
 import { cn } from "@/lib/utils";
+import type { ScriptDeleteBlock } from "@/lib/scripts/constants";
+import { deleteDialogCopy } from "./delete-script-copy";
 
-/** Delete for a script the copilot has not written yet, behind a confirm. The library is
- *  server-rendered, so it re-reads once the script is gone. */
-export function DeleteScriptButton({ clientId, scriptId, title, className }: { clientId: string; scriptId: string; title: string; className?: string }) {
+/** D384 — delete a script for good, behind a confirm. A blocked script keeps the icon, and the
+ *  dialog says why instead; the server re-checks either way and its reason arrives as a toast.
+ *  The library is server-rendered, so it re-reads once the script is gone. */
+export function DeleteScriptButton({ clientId, scriptId, title, block = null, className }: {
+  clientId: string;
+  scriptId: string;
+  title: string;
+  block?: ScriptDeleteBlock | null;
+  className?: string;
+}) {
+  const copy = deleteDialogCopy(block);
   const router = useRouter();
   const remove = useDeleteScript(clientId);
   const confirm = () => remove.mutate(scriptId, {
@@ -45,12 +55,18 @@ export function DeleteScriptButton({ clientId, scriptId, title, className }: { c
       />
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete this script?</AlertDialogTitle>
-          <AlertDialogDescription>The brief and the copilot conversation go with it.</AlertDialogDescription>
+          <AlertDialogTitle>{copy.title}</AlertDialogTitle>
+          <AlertDialogDescription>{copy.description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={confirm}>Delete</AlertDialogAction>
+          {copy.canDelete ? (
+            <>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={confirm}>Delete</AlertDialogAction>
+            </>
+          ) : (
+            <AlertDialogCancel>Got it</AlertDialogCancel>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

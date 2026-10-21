@@ -7079,6 +7079,8 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §3, §8; question 4.4.
 
+**Superseded by →** D386: one way to share, everything (D385 had first let Approve show on every scope).
+
 ### D351 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
 
 **Decision.** Four tables (`script_reviews`, `script_review_versions`, `script_review_comments`, `script_review_events`; migration 0054) hold the review. Spec 4 never writes `client_scripts.doc`; it changes only `stage` / `approved_at`, inside three plpgsql functions that lock the script row so a share, an approval and a stage move never interleave. The activity is derived from append-only rows.
@@ -7184,6 +7186,8 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 **Rejected.** Delete at every stage: a drafted script owns storyboard generations, a client review link and the append-only activity log (spec 4 §7), so deleting it needs product rules (a live review link, an approved script) not yet decided. A hard `DELETE`: it cascades through those tables and can't be undone.
 
 **Originated →** this conversation; no spec section.
+
+**Superseded by →** D384.
 
 ### D361 — The copilot's questions never repeat their chips *(recorded 2026-10-09)*
 
@@ -7401,6 +7405,110 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 **Refines →** D378.
 
 **Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D380 — Shots are named in the script text, and the parse keeps the names *(recorded 2026-10-16)*
+
+**Decision.** The canvas copy of a copilot script names its shots in a Shot column (S1, S2…, the names the copilot already shows). The Script node's parse (v12) returns each row's `label` as written, and a script that names its shots ("S3", "Shot 3", "Scene 3", "CLIP 3") gets exactly one row per named shot, in order. A bare timecode is not a name. Measured with real parses: 12/12 runs kept every name in order — a 14-shot copilot script, "Shot N" headings, "Scene N" headings, and an unnamed script that got no invented names (scripts/probe-shot-names.itest.ts, gpt-5.4-mini). The copilot writer reads printed scripts as examples, so it now sees the Shot column too: on fresh drafts from the production writer (gemini-3.1-pro-preview, Reel 04 + Founder-led, 1 run each, scripts/probe-script-writer.itest.ts) every row kept its name in order (S1–S10, S1–S9); its other failures — a 10-shot draft, "medicine" from the never-list — were already seen before this change (9-shot drafts on 2 of 3 runs, "medicine" on two models, 8–9 Oct), so no regression is visible at this sample size.
+
+**Why.** The canvas threw away which shot a row was: the copilot's shot ids are not in the text, and the parse had no name field, so nothing on the canvas could say "this is shot 3". A name printed into the text survives every edit, paste and re-parse, which hidden ids cannot once editing is free. It also helps uploaded scripts that number their shots.
+
+**Rejected.** A deterministic copilot → parsed-script converter that skips the LLM (two paths producing rows that drift, and edits would fall back to the LLM anyway). Printing the copilot's internal ids (unreadable in a script). Matching rows to shots by position (a merge or split shifts every later row).
+
+**Refines →** D372, D286.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D381 — A script arrives on the canvas with the storyboard the client approved, frozen on the node *(recorded 2026-10-16)*
+
+**Decision.** Adding an approved script (Create canvas or the gallery) also hands over its approved panels: the ones frozen in the script's latest review version — the only version approval can approve — named by the script's order. The Script node keeps them as `storyboard`, never refreshed. A script with none gets no key.
+
+**Why.** The panels the client signed off are the point; live picks can be redrawn during review or after a reopen. Keeping them on the node makes the canvas self-contained (Fan out and the gallery read the node, no extra fetch), and the node is already a frozen copy of the script (spec 1 §5.4).
+
+**Rejected.** Reading `script_panel_picks` (not what the client approved). Fetching panels on demand from the canvas (a second source that can disagree with the text on the node).
+
+**Refines →** D372, D351.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+**Refined by →** D385: the canvas takes the script's current picks, not the approved version's frozen panels.
+
+### D382 — Fan out wires each new shot's panel into it, and nothing further *(recorded 2026-10-16)*
+
+**Decision.** For each node Fan out creates, every row it covers whose name matches a panel gets a File node pointing at the panel's stored image (no copy), placed under the shot and wired into its `image` handle. Only new nodes: a re-run adds no second panel, and a panel the person deleted stays deleted. Rows are spaced 360px instead of 170 when the script has a storyboard. Nothing is wired into prompt, Image Gen, Composite, the video prompt or Video Gen.
+
+**Why.** On a Shot, an image on the image handle grounds the Shot Composer and nothing paid: the panel is three levels from Video Gen, which looks two up. Wiring past the shot is a choice the team should make after using this (operator, 2026-10-16).
+
+**Rejected.** Wiring the panel into the image prompt automatically (deferred), or into Video Gen as a reference (reference support varies by model, and it skips the still).
+
+**Refines →** D228, D28.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D383 — A Multishot node shows an image; the gallery shows the whole storyboard *(recorded 2026-10-16)*
+
+**Decision.** File, Draw, Image Gen and Composite may connect to a Multishot node, on an `image` handle with the Shot's id (so the wire survives a shot ↔ multishot flip). Nothing reads it: the multishot prompt resolves only its own direct upstream. The gallery's References tab shows a Storyboard group per Script node with panels, in shot order, labelled "S3 · HOOK — storyboard", even without a Drive folder.
+
+**Why.** A Multishot row should carry its panel like any shot, but the multishot lane deliberately has no still (D230); reading the panel there is a separate decision. The gallery keeps every panel reachable when an edit unlinks one, which is why no warning is needed.
+
+**Rejected.** Letting the multishot prompt read the panel now (deferred). A separate Storyboard gallery tab (the panels are references).
+
+**Refines →** D230, D300.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D384 — A script is deleted for good, unless a canvas, the client or a running draw depends on it *(recorded 2026-10-19)*
+
+**Decision.** Every card in a client's Scripts library has a delete icon, at every stage. Deleting erases the script for good: its brief, copilot chat, storyboard (panel takes, picks and the generations behind them) and any review rows go through the existing cascades. One database function (`delete_client_script`, migration 0057) locks the script row and checks three blocks, in order; the first that applies wins and nothing is removed:
+- a canvas was started from the script (D372's link), "has_canvas";
+- it has a client review link, made on its first share, which never expires, "shared";
+- a panel draw under way, "drawing": one of the script's generations is still running (at any age; the reconcile sweep fails and refunds a crashed one within about an hour, and erasing it first would orphan its reservation where the sweep can't refund it), or a panel take is still running and under 5 minutes old (the panel route's `maxDuration`), which covers the moment before the generation row exists.
+
+The library loads the first two once for the page, so a blocked card's icon opens a dialog that gives the reason. The route returns the same reason with a 409 whenever its own check, made on fresh data, disagrees with the page. **Storage is never touched:** the panel image files stay. Scripts already archived under D360 stay hidden and are not purged. There is no role check, as before.
+
+**Why.** User, 19 Oct: delete a script and "the storyboards should also be deleted, nothing else"; "if a script has at least one canvas then don't allow a delete"; a live client link, "block that one too"; deleted "for good". Canvases point straight at panel files: Fan out's File nodes, panels dragged from the gallery, and frozen Script-node storyboards (D381–D383 on their branch). Keeping the files keeps them all working, including canvases the script was only dragged onto. The lock comes before the checks, so a canvas, review or take insert at the same moment queues on its foreign key. The result is never "script gone, canvas unlinked".
+
+**Rejected.**
+- Looking inside every canvas for dragged copies: its cost grows with nodes, and the user picked the single check.
+- Deleting the panel files: they would break images on canvases.
+- Letting a delete go ahead mid-draw: the settle step would lose its generation row, and a draw the provider was already paid for would be refunded.
+- Archive only: the user chose "for good".
+- A way to turn off a client link so a shared script can be deleted: out of scope.
+
+**Supersedes →** D360.
+
+**Originated →** docs/superpowers/specs/2026-10-19-delete-script-design.md.
+
+### D385 — The client may approve any share; the canvas takes the script's storyboard as it is now *(recorded 2026-10-19)*
+
+**Decision.**
+- Approve appears on the client's link for every share: the script only, the script and avatars, or the script, avatars and panels. The other approval rules (D354) stay: a typed name, the version on screen, refused when a newer version was shared, open threads named first, only the client approves. A partial share's note still says what the share holds, and no longer says approval comes later.
+- When an approved script goes onto a canvas, it brings each shot's current pick, read when it is added, not the panels frozen in the approved version. A script with no picks arrives without a storyboard. The panels still freeze on the Script node once added (D381).
+
+**Why.** User, 19 Oct: "approve needs to come for all types of share"; a script shared as script only had no way to be approved. And "what comes to the canvas is the current version, doesn't have to be the approved one, as the designer can decide to make changes post approval"; "don't complicate it".
+
+**Rejected.**
+- Keeping Approve on the full share only (D350): it left a script-only share with no way forward.
+- Reading the approved version's frozen panels (D381's choice): it hides changes the designer makes after approval.
+- A warning when a narrower re-share replaces a full one: no longer needed, since every share can be approved.
+
+**Supersedes →** D350 in part (Approve only on a full share). **Refines →** D381, D354.
+
+**Originated →** this conversation (no spec; a small change). Migration 0058 redefines `script_review_approve`.
+
+### D386 — One way to share: the script, avatars and storyboard, every time *(recorded 2026-10-19)*
+
+**Decision.** The Share dialog and the move into In review no longer ask what to include. Every new share freezes the script, its avatars and its storyboard as they are now, and the client approves that. The request carries no scope; the server always shares the full scope and ignores a scope an older page still sends. Versions shared before this keep the scope they were shared with, and still read as what they were (with their note), because a frozen version is a record of what the client saw.
+
+**Why.** User, 19 Oct: "remove the extra ways of sharing, remove all that". A script-only share that the client approved (allowed by D385) left the approved page with no avatars or storyboard, which looked like they had been erased.
+
+**Rejected.**
+- Keeping three scopes and showing the current avatars and storyboard on the approved page: more rules for the team to keep in mind, and the approved page would no longer match what the client approved.
+- Making the client link live instead of frozen: it would undo versions, and comments and approvals are tied to a version.
+- Rewriting old partial versions to full: a version is a record of what the client saw.
+
+**Supersedes →** D350 (three share scopes). **Refines →** D385 (Approve on any share is now moot for new shares), D349.
+
+**Originated →** this conversation (no spec; a small change). No migration: the scope column stays, and new rows always say `panels`.
 
 ### D380 — An internal cost dashboard on production admin, fed by a nightly sync plus Refresh now *(recorded 2026-10-16)*
 

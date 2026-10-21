@@ -12,13 +12,13 @@ import {
 import { useMoveScriptStage, useShareScript } from "@/hooks/queries/script-review";
 import { errorMessage } from "@/lib/avatars/utils";
 import type { TeamScriptReview } from "@/lib/script-review/assemble";
-import { TEAM_STAGE_MOVES, type ShareScope } from "@/lib/script-review/constants";
+import { TEAM_STAGE_MOVES } from "@/lib/script-review/constants";
 import { scriptSharePathFor } from "@/lib/script-review/paths";
 import type { Script } from "@/lib/scripts/schema";
-import { ScopeOptions } from "./scope-options";
 import { ShareLinkField } from "./share-link-field";
 
-/** Spec 4 §3 steps 2–4: choose what the share includes, share it as the next version, get the link.
+/** Spec 4 §3 steps 2–4: share the script, its avatars and storyboard as the next version (one way to
+ *  share, D386), get the link.
  *  At Visualise it is the Move to In review button: moving into In review also shares (D349, refined),
  *  so the client's link never shows a version older than the one the team sent for review. The
  *  caller keeps this one element mounted across the move, so the link stays on screen after it. */
@@ -32,14 +32,13 @@ export function ShareDialog({ clientId, script, latest, moving = false }: {
   const share = useShareScript(clientId, script.id);
   const move = useMoveScriptStage(clientId, script.id);
   const [open, setOpen] = useState(false);
-  const [scope, setScope] = useState<ShareScope>(latest?.scope ?? "script");
   const [done, setDone] = useState<{ number: number; path: string } | null>(null);
   const next = (latest?.number ?? 0) + 1;
   const pending = share.isPending || move.isPending;
 
   async function submit() {
     try {
-      const out = moving ? await move.mutateAsync({ move: "to_review", scope }) : await share.mutateAsync(scope);
+      const out = moving ? await move.mutateAsync({ move: "to_review" }) : await share.mutateAsync();
       if (out.version && out.shareToken) {
         setDone({ number: out.version.number, path: scriptSharePathFor(out.shareToken, script.doc.header.title) });
       } else setOpen(false);
@@ -72,11 +71,11 @@ export function ShareDialog({ clientId, script, latest, moving = false }: {
             {done
               ? "The link stays the same for every version. Send it however you usually reach the client."
               : moving
-                ? "Moving into In review shares the script as it is now. The client sees this version, frozen, until you share again."
-                : "The client sees this version, frozen, until you share again. Edits after this stay with the team until the next share."}
+                ? "Moving into In review shares the script, the avatars and the storyboard as they are now. The client sees this version, frozen, until you share again."
+                : "Shares the script, the avatars and the storyboard as they are now. The client sees this version, frozen, until you share again; edits after this stay with the team until the next share."}
           </DialogDescription>
         </DialogHeader>
-        {done ? <ShareLinkField path={done.path} /> : <ScopeOptions value={scope} onChange={setScope} />}
+        {done && <ShareLinkField path={done.path} />}
         <DialogFooter>
           {done ? (
             <DialogClose render={<Button variant="outline" />}>Done</DialogClose>

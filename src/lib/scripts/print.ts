@@ -1,11 +1,12 @@
 import type { ScriptDoc } from "./schema";
 import { formatRange, timeShots } from "./timeline";
 import { reelLabel } from "./utils";
+import { shotLabel } from "./storyboard";
 
 // Spec 1 §5 — the handoff prints the script in the layout of the team's existing outlines
 // (docs/sample-scripts/Jackfruit365_Reel_Script_Outlines_Oct26-Mar27.docx.md), which the Script
-// node's parse already handles, so the parse needs no change. ONE ROW PER SHOT: the parse makes
-// one shot per row, so the canvas gets exactly the shots the client approved.
+// node's parse already handles. ONE ROW PER SHOT, each named in a Shot column (S1, S2…, D380): the
+// parse keeps one row per named shot and its name, so a row can find its approved storyboard panel.
 
 const HEADER_SEP = "   ·   ";
 
@@ -37,11 +38,11 @@ export function printScript(doc: ScriptDoc): string {
   lines.push(`**Character.**  ${character(doc)}`, "");
   if (context.settingAndCamera.trim()) lines.push(`**Setting and camera.**  ${context.settingAndCamera.trim()}`, "");
 
-  lines.push("| Beat | Visual | VO | On-screen text |", "| :---- | :---- | :---- | :---- |");
-  for (const t of timeShots(doc.shots)) {
+  lines.push("| Shot | Beat | Visual | VO | On-screen text |", "| :---- | :---- | :---- | :---- | :---- |");
+  timeShots(doc.shots).forEach((t, i) => {
     const beat = `${t.shot.beat.trim().toUpperCase()} ${formatRange(t.start, t.end)}`.trim();
-    lines.push(`| **${cell(beat)}** | ${cell(t.shot.visual)} | ${cell(t.shot.vo)} | ${bold(t.shot.onScreenText)} |`);
-  }
+    lines.push(`| ${shotLabel(i)} | **${cell(beat)}** | ${cell(t.shot.visual)} | ${cell(t.shot.vo)} | ${bold(t.shot.onScreenText)} |`);
+  });
   lines.push("");
 
   if (context.disclaimers.trim()) lines.push(`**Disclaimers.**  ${context.disclaimers.trim()}`, "");

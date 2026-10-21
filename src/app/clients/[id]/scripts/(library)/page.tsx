@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
-import { listScripts } from "@/lib/db/scripts";
+import { listScriptDeleteBlocks, listScripts } from "@/lib/db/scripts";
 import { listUnwrittenScripts } from "@/lib/db/script-generate";
 import { listFeedbackCounts } from "@/lib/db/script-reviews";
 import { resolveOrgId } from "@/lib/dal";
@@ -19,8 +19,8 @@ export default async function ScriptsPage({ params }: { params: Promise<{ id: st
   // Org isolation, as the Avatars page: a client outside the caller's org redirects like a missing one.
   if (!client || client.org_id !== effectiveOrgId) redirect("/");
 
-  const [scripts, unwritten, feedback] = await Promise.all([
-    listScripts(client.id), listUnwrittenScripts(client.id), listFeedbackCounts(client.id),
+  const [scripts, unwritten, feedback, deleteBlocks] = await Promise.all([
+    listScripts(client.id), listUnwrittenScripts(client.id), listFeedbackCounts(client.id), listScriptDeleteBlocks(client.id),
   ]);
 
   return (
@@ -34,7 +34,7 @@ export default async function ScriptsPage({ params }: { params: Promise<{ id: st
           <BreadcrumbItem><BreadcrumbPage>Scripts</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <ScriptsLibrary clientId={client.id} clientName={client.name} clientSlug={client.slug} scripts={scripts} unwritten={unwritten} feedback={feedback} />
+      <ScriptsLibrary clientId={client.id} clientName={client.name} clientSlug={client.slug} scripts={scripts} unwritten={unwritten} feedback={feedback} deleteBlocks={deleteBlocks} />
     </main>
   );
 }

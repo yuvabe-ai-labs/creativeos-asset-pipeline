@@ -3,7 +3,7 @@
 import type { ScriptStage } from "@/lib/scripts/constants";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import { buildActivity } from "./activity";
-import { FULL_SHARE, type ShareScope } from "./constants";
+import type { ShareScope } from "./constants";
 import { removedShots } from "./threads";
 import type { ActivityLine, RemovedShot, ScriptComment, ScriptReviewEvent, VersionVisuals } from "./types";
 import type { ScriptVersion } from "./wire";
@@ -24,9 +24,10 @@ export function commentsOpen(latest: ScriptVersion | null, approval: Approval | 
   return latest !== null && approval === null;
 }
 
-/** Spec 4 §8: Approve on a full share, while the script is In review, once. */
+/** Spec 4 §8: Approve on any share (D385, superseding D350's full share only), while the script
+ *  is In review, once. */
 export function canApprove(stage: ScriptStage, latest: ScriptVersion | null, approval: Approval | null): boolean {
-  return stage === "in_review" && latest?.scope === FULL_SHARE && approval === null;
+  return stage === "in_review" && latest !== null && approval === null;
 }
 
 /** Spec 4 §6: client comments plus approvals, a total with no seen-state (as D310). */
