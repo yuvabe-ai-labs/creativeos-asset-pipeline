@@ -18,11 +18,17 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { CompositeFocusView } from "./composite-focus-view";
 import { ProcessingPill } from "./processing-pill";
+import { useNodeMediaSize } from "@/hooks/use-node-media-size";
+import { nodeMediaBox, parseAspectRatio } from "@/lib/canvas/media-fit";
+import { NodeMedia } from "./node-media";
 
 // D312 — the Composite card: the current image and a way in. Generation runs in the focus view.
 export function CompositeNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const d = data as CompositeNodeData;
   const imageUrl = typeof d.parsed === "string" ? d.parsed : null;
+  // D384 — the card takes the image's shape. Before the first load, the chosen aspect ratio.
+  const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, parseAspectRatio((d.params as Record<string, unknown> | undefined)?.aspect_ratio));
+  const box = imageUrl ? nodeMediaBox(media.ratio, "output") : null;
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
@@ -54,8 +60,10 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
           onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
           onDragOver={drop.onDragOver}
           onDrop={drop.onDrop}
+          style={box ? { width: box.cardWidth } : undefined}
           className={cn(
-            "w-[480px] rounded-lg border border-border bg-card shadow-card",
+            !box && "w-[480px]",
+            "rounded-lg border border-border bg-card shadow-card",
             "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
             selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
           )}
@@ -69,10 +77,9 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
             onCommitTitle={(t) => updateNodeData(id, { title: t })}
           />
           <div className="px-3 py-3">
-            {imageUrl && (
-              <div className="mb-2 overflow-hidden rounded-md border border-border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imageUrl} alt="Composite" className="aspect-video w-full object-cover" />
+            {imageUrl && box && (
+              <div className="mb-2">
+                <NodeMedia kind="image" src={imageUrl} alt="Composite" box={box} onMeasured={media.onMeasured} />
               </div>
             )}
             {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
