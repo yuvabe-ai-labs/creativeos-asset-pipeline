@@ -7563,3 +7563,13 @@ The library loads the first two once for the page, so a blocked card's icon open
 **Rejected.** Fixed 480px cards with letterboxing (portrait media fills under half the card). Free-height cards at 480 wide (a 9:16 card would be about 850px tall). One size range for every node (reference tiles would grow 2–3× and crowd existing canvases). Moving nodes on old canvases to avoid new overlaps (surprising; overlaps are easy to fix by dragging). Keeping the Avatar's 3:4 head crop as an exception (consistency across nodes was asked for explicitly).
 
 **Originated →** docs/superpowers/specs/2026-10-21-version-viewing-and-media-fit-design.md.
+
+### D387 — Shots collapse; what hides is derived from the graph, only the flag is saved *(recorded 2026-10-21)*
+
+**Decision.** Each Shot can be collapsed (and Collapse all / Expand all tidy the whole canvas). The only saved state is `data.collapsed` on the Shot, persisted with the canvas, so everyone opening it sees the same layout. What hides is derived at render time: a node's owners are the Shots nearest upstream of it (ties give several owners); an input File or Draw takes the owners of what it feeds. A node hides iff it has exactly one owner and that Shot is collapsed, so shared files and multi-shot nodes never hide. Edges to hidden nodes are redrawn to the collapsed Shot (display only, never saved); a cross-shot reference keeps a label naming the two original nodes. A node never becomes hidden except by a collapse: new or newly wired nodes under a collapsed Shot expand it, and anything the tray, review drawer or copilot opens reveals its Shot first.
+
+**Why.** Canvases with many shots are hard to read. Deriving membership from the graph means there is no membership list to keep in sync when nodes are added, rewired or deleted.
+
+**Rejected.** Per-person collapsed state in a new table or localStorage (collapse is a tidy-up of a shared document, like positions). Storing `hidden` on each child node (rewrites many rows per toggle and drifts as the graph changes). React Flow sub-flows / parent nodes (would move nodes into shot-relative coordinates). Hiding shared files once every shot using them is collapsed (the prototype says shared files never hide or move).
+
+**Originated →** docs/superpowers/specs/2026-10-21-collapsible-shots-design.md.
