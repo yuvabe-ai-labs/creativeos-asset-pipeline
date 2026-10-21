@@ -8,6 +8,7 @@ import { ActiveOnlyNotice } from "../active-only-notice";
 import { VersionList, arrowKeyTarget } from "../version-list";
 import { ImageGenVersionHistory } from "../image-gen-version-history";
 import { DubbingVersionHistory } from "../dubbing-version-history";
+import { PromptHistoryPane } from "../prompt-history-pane";
 
 // No DOM environment in this repo: render to static markup and read text and attributes.
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -147,5 +148,33 @@ describe("DubbingVersionHistory", () => {
     expect(html).toContain('role="listbox"');
     expect(html).toContain("https://x/d.mp4#t=0.1");
     expect(text(html)).toContain("Lip-synced");
+  });
+});
+
+describe("PromptHistoryPane", () => {
+  const versions = [
+    { id: "b", output: "Push in on Riya.", error: null, paramsUsed: {}, createdAt: now, decision: null, note: null, modelUsed: "Gemini" },
+    { id: "a", output: "Riya opens a box.", error: null, paramsUsed: {}, createdAt: now, decision: null, note: null, modelUsed: "Gemini" },
+  ];
+  const viewing = { viewed: versions[1], index: 1, total: 2, isViewingOther: true, view: vi.fn(), step: vi.fn(), backToActive: vi.fn() };
+  it("puts the list beside the viewed version's read-only output, with the bar", () => {
+    const html = renderToStaticMarkup(
+      <PromptHistoryPane
+        versions={versions}
+        activeVersionId="b"
+        viewing={viewing}
+        outputLabel="Generated prompt"
+        outputIcon={null}
+        renderVersionOutput={(v) => <p>{v.output}</p>}
+        canRestore
+        restoring={false}
+        onRestore={vi.fn()}
+      />,
+    );
+    const t = text(html);
+    expect(t).toContain("Riya opens a box.");
+    expect(t).toContain("The node still uses v2.");
+    expect(t).toContain("Restore v1");
+    expect(html).toContain('role="listbox"');
   });
 });

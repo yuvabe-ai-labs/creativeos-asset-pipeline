@@ -2,7 +2,8 @@
 
 import type { ModelRequestRecord } from "@/lib/nodes/model-request";
 import type { VersionDecisionSummary } from "@/lib/approval";
-import { VersionHistoryList } from "./version-history-list";
+import { VersionList } from "./version-list";
+import { VersionThumb } from "./version-thumb";
 
 export type VersionSummary = {
   id: string;
@@ -36,20 +37,17 @@ export type VersionSummary = {
 type PromptVersionHistoryProps = {
   versions: VersionSummary[];
   activeVersionId: string | null;
-  onRestore: (versionId: string) => void;
-  restoring: boolean;
+  viewedVersionId: string | null;
+  onView: (versionId: string) => void;
 };
 
-// D180: was the last node type still on the old flat list — a whole-row restore button, a
-// duplicate local relative-time helper, a plain dot instead of the shared status icon, a
-// nested max-h-52 scroller, and no decision thread. It now renders the same shell as
-// image-gen and video-gen, supplying only the model and instruction lines. A prompt
-// version has no thumbnail.
+// D180/D383: renders the same shell (VersionList) as image-gen and video-gen, supplying only
+// the model and instruction lines. A prompt version has a text tile for a thumbnail.
 export function PromptVersionHistory({
   versions,
   activeVersionId,
-  onRestore,
-  restoring,
+  viewedVersionId,
+  onView,
 }: PromptVersionHistoryProps) {
   const rows = versions.map((v) => ({
     id: v.id,
@@ -58,13 +56,10 @@ export function PromptVersionHistory({
     approvalStatus: v.approvalStatus,
     makerName: v.makerName,
     decisions: v.decisions,
+    thumb: <VersionThumb kind="text" />,
+    summary: v.modelUsed ?? undefined,
     meta: (
       <>
-        {v.modelUsed && (
-          <p className="line-clamp-1 text-[0.7rem] leading-snug text-muted-foreground">
-            {v.modelUsed}
-          </p>
-        )}
         {v.paramsUsed.instruction && (
           <p className="mt-0.5 line-clamp-2 text-[0.7rem] leading-snug text-muted-foreground">
             {v.paramsUsed.instruction}
@@ -74,12 +69,5 @@ export function PromptVersionHistory({
     ),
   }));
 
-  return (
-    <VersionHistoryList
-      rows={rows}
-      activeVersionId={activeVersionId}
-      onRestore={onRestore}
-      restoring={restoring}
-    />
-  );
+  return <VersionList rows={rows} activeVersionId={activeVersionId} viewedVersionId={viewedVersionId} onView={onView} />;
 }

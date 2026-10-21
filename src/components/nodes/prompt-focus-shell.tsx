@@ -29,9 +29,14 @@ import {
   type ConnectedPreview,
 } from "./connected-inputs-card";
 import { UsagePopover } from "./prompt-usage-popover";
-import { PromptVersionChips } from "./prompt-version-chips";
 import { InlineApprovalBar } from "./inline-approval-bar";
-import { PromptVersionHistory, type VersionSummary } from "./prompt-version-history";
+import type { VersionSummary } from "./prompt-version-history";
+import { PromptHistoryPane } from "./prompt-history-pane";
+import { VersionStepper } from "./version-stepper";
+import { VersionViewingBar } from "./version-viewing-bar";
+import { ActiveOnlyNotice } from "./active-only-notice";
+import { useVersionViewing } from "@/hooks/use-version-viewing";
+import { versionLabelsById } from "@/lib/generations/version-labels";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useIdentity } from "@/hooks/use-identity";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
@@ -39,11 +44,16 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
 
 export type PromptFocusShellSlots = {
-  // A ready-wired <PromptVersionChips> — the caller places it wherever its own "Generated
-  // ___" header lives; the layout of that header is per-prompt-type.
-  versionChips: ReactNode;
-  // A ready-wired <InlineApprovalBar> (gated on the viewer's role) — the caller places it
-  // beside its own eval bar, which is NOT part of this shell (see the module note below).
+  // D383 — `‹ vN of M ›`, placed beside the caller's own "Generated ___" heading. Views, never
+  // restores (it replaced the v1/v2 chips, which restored on click).
+  versionStepper: ReactNode;
+  // D383 — the viewing bar, placed directly under that heading; null while on the active version.
+  viewingBar: ReactNode;
+  // The version on screen (the active one unless another is being viewed).
+  viewedVersion: VersionSummary | null;
+  isViewingOther: boolean;
+  // A ready-wired <InlineApprovalBar> (gated on the viewer's role, and on viewing the active
+  // version) — the caller places it beside its own eval bar.
   approvalControls: ReactNode;
 };
 
@@ -83,6 +93,11 @@ export type PromptFocusShellProps = {
   // Fired by the live-refresh subscription below — the caller's own re-fetch (still its own
   // versions/eval/approval state) runs here, exactly as it did before the wiring moved.
   onLiveVersionUpdate: () => void;
+  // D383 — the History pane's output column: its heading, and a read-only rendering of one
+  // version's result (built from the same code that renders the active result).
+  outputLabel: string;
+  outputIcon: ReactNode;
+  renderVersionOutput: (version: VersionSummary) => ReactNode;
   // The fixed tabs ("prompt" / "details" / "request") switch on `selected` internally —
   // everything about their content is per-prompt-type. The two panes generic enough to live
   // here are rendered by the shell itself: the connected-node detail (when a connected input is
@@ -103,8 +118,8 @@ export const RESERVED_RAIL_KEYS = ["prompt", "history", "details", "request"] as
 // The scaffolding every prompt-type focus view shares: the bottom-sheet frame (back button,
 // editable title, usage popover, guided-next button, error badge, discard-unsaved-changes
 // confirm), the rail (the caller's own primary tab + the connected-inputs list + the fixed
-// Details/Sent-to-model tabs), the connected-node read-only detail pane, the version chips,
-// the approval control, and the useNodeVersionUpdates live-refresh wiring.
+// Details/Sent-to-model tabs), the connected-node read-only detail pane, the version viewing
+// state (stepper, viewing bar, History pane), the approval control, and the useNodeVersionUpdates live-refresh wiring.
 //
 // Extracted from video-prompt-focus-view.tsx (Task 12) so the Multishot Prompt node is built
 // against this instead of a copy of it — video-prompt-focus-view.tsx and prompt-focus-view.tsx
@@ -157,6 +172,9 @@ export function PromptFocusShell({
   approvalSaving,
   onSetApproval,
   onLiveVersionUpdate,
+  outputLabel,
+  outputIcon,
+  renderVersionOutput,
   children,
 }: PromptFocusShellProps) {
   const { identity } = useIdentity();
@@ -176,6 +194,12 @@ export function PromptFocusShell({
   // another node. Gated on the canvas lock like every other write (D33). A disconnected row that
   // was selected falls back to the node's own tab rather than a preview of a node no longer here.
   const editable = useCanvasEditable();
+  // D383 — the version on screen, shared by the prompt pane and the History pane.
+  const viewing = useVersionViewing(versions, activeVersionId, open);
+  const labelById = versionLabelsById(versions);
+  const viewed = viewing.viewed;
+  const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
+  const canRestore = editable && Boolean(viewed && !viewed.error && viewed.output);
   const { removeFor } = useRailDisconnect(nodeId, (sourceId) => {
     if (selected === sourceId) onSelectedChange("prompt");
   });
@@ -195,27 +219,35 @@ export function PromptFocusShell({
     onOpenChange(false);
   }
 
-  const versionChips = (
-    <PromptVersionChips
-      versions={versions}
-      activeVersionId={activeVersionId}
-      restoring={restoring}
-      onSwitch={onRestoreVersion}
-    />
-  );
+  const versionStepper = <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />;
+  const viewingBar =
+    viewing.isViewingOther && viewed ? (
+      <VersionViewingBar
+        viewedLabel={viewedLabel}
+        viewedCreatedAt={viewed.createdAt}
+        activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
+        canRestore={canRestore}
+        restoring={restoring}
+        onBack={viewing.backToActive}
+        onRestore={() => onRestoreVersion(viewed.id)}
+      />
+    ) : null;
 
   const approvalControls = (
-    <InlineApprovalBar
-      status={approvalStatus}
-      note={approvalNote}
-      saving={approvalSaving}
-      // R7.1/D160: not gated on `editable` — approval writes only to node_versions, outside
-      // what the D33 lock serialises.
-      canApprove={identity?.role === "senior"}
-      onSet={onSetApproval}
-      approvedByName={approvedByName}
-      approvedAt={approvedAt}
-    />
+    <>
+      {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
+      <InlineApprovalBar
+        status={approvalStatus}
+        note={approvalNote}
+        saving={approvalSaving}
+        // R7.1/D160: not gated on `editable` — approval writes only to node_versions, outside
+        // what the D33 lock serialises. D383: gated on viewing the active version.
+        canApprove={identity?.role === "senior" && !viewing.isViewingOther}
+        onSet={onSetApproval}
+        approvedByName={approvedByName}
+        approvedAt={approvedAt}
+      />
+    </>
   );
 
   return (
@@ -316,12 +348,10 @@ export function PromptFocusShell({
             <PresenterSwitch promptNodeId={nodeId} />
 
             <div className="mx-2.5 my-2 h-px bg-border" />
-            {/* Every other versioned node type (Image Gen, Video Gen) carries History in its
-                rail; the prompt nodes had only the v1/v2 chips, and PromptVersionHistory —
-                built for exactly this in D180, on the same VersionHistoryList shell — was
-                rendered nowhere. It lives on the shell rather than in each view because it
-                needs nothing per-prompt-type: the shell already holds versions, the active id,
-                and the restore handler. */}
+            {/* D383: History shows the list beside the version on screen, like every other
+                versioned node. It lives on the shell rather than in each view: the shell holds
+                versions, the active id, the viewing state and the restore handler; each view
+                supplies only how one version's output reads. */}
             <RailItem
               icon={<History className="size-4 text-primary" />}
               label="History"
@@ -352,26 +382,20 @@ export function PromptFocusShell({
               Still no overflow-hidden: it would crop the raised column's left shadow. The panes
               inside own their scrolling. */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {children({ versionChips, approvalControls })}
+            {children({ versionStepper, viewingBar, viewedVersion: viewed, isViewingOther: viewing.isViewingOther, approvalControls })}
 
-            {/* A plain block, not a flex column: its one child is a list that sizes itself, and
-                a flex child with `overflow-hidden` would be squashed to fit instead of
-                overflowing, leaving the scroller with nothing to scroll. */}
             {selected === "history" && (
-              <div className="min-h-0 w-full max-w-3xl flex-1 overflow-y-auto px-6 py-6">
-                {versions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No versions yet — generate once and every run is kept here.
-                  </p>
-                ) : (
-                  <PromptVersionHistory
-                    versions={versions}
-                    activeVersionId={activeVersionId}
-                    onRestore={onRestoreVersion}
-                    restoring={restoring}
-                  />
-                )}
-              </div>
+              <PromptHistoryPane
+                versions={versions}
+                activeVersionId={activeVersionId}
+                viewing={viewing}
+                outputLabel={outputLabel}
+                outputIcon={outputIcon}
+                renderVersionOutput={renderVersionOutput}
+                canRestore={editable}
+                restoring={restoring}
+                onRestore={onRestoreVersion}
+              />
             )}
 
             {/* Connected node — read-only detail. While the inputs are still being resolved,
