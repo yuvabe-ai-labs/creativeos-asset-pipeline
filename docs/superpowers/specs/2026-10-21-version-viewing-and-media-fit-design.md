@@ -38,9 +38,10 @@ point: an operator learns one History and one card shape and never re-learns the
   metadata. "Restore this version" sits inside the expanded row.
 - Thumbnails are 28px squares with `object-cover`, so every version is cropped.
 - Dubbing has its own `DubbingVersionHistory`, where a row click restores immediately.
-- The prompt nodes (Prompt, Video Prompt, Multishot Prompt, all on `prompt-focus-shell.tsx`)
-  have History as a full-width pane that replaces the output, and a separate row of `v1 v2 v3`
-  chips (`PromptVersionChips`) where a click restores ("Click to switch").
+- Video Prompt and Multishot Prompt (on `prompt-focus-shell.tsx`) have History as a full-width
+  pane that replaces the output. The image Prompt node (`prompt-focus-view.tsx`, its own copy
+  of the shell) has no History at all. All three have a row of `v1 v2 v3` chips
+  (`PromptVersionChips`) where a click restores ("Click to switch").
 - The only way to see an older output is to restore it, which changes the node for everyone
   on the canvas and triggers autosave.
 
@@ -68,8 +69,9 @@ point: an operator learns one History and one card shape and never re-learns the
 - **What stays on the active version:** the Details tab's approval controls, the annotate
   toggle, Change voice (Video Gen), Edit mode (Image Gen, Composite), the dub and lip-sync
   actions (Dubbing) and prompt editing and regenerating (prompt nodes). These act on the
-  node's current output, so while a non-active version is viewed they are **disabled**, with
-  one tooltip wording: "Restore this version to change it." Turning one of them on is never
+  node's current output, so while a non-active version is viewed they are **disabled**, and one
+  muted line sits above them: "You're viewing v3. Restore it to review or change it." (A visible
+  line rather than a tooltip: tooltips on disabled controls do not open reliably.) Turning one of them on is never
   possible while viewing an older version, so they never act on a different version than the
   one on screen.
 - **Thumbnails** are 48px tall and keep the version's real aspect ratio (`h-12 w-auto
@@ -87,7 +89,8 @@ point: an operator learns one History and one card shape and never re-learns the
 | Image Gen | Shared pattern. |
 | Composite | Shared pattern (uses `ImageGenVersionHistory`). |
 | Dubbing | Shared pattern. `DubbingVersionHistory` becomes an adapter onto `VersionHistoryList`: video thumb, with its Original / Dubbed / Lip-synced steps as row meta. A row click views instead of restoring. `DubbingPlayer` plays the viewed version. |
-| Prompt, Video Prompt, Multishot Prompt | Shared pattern. `prompt-focus-shell.tsx`'s History pane becomes two columns, list on the left and the viewed version's output on the right, read-only, matching the media nodes. `PromptVersionChips` is deleted. The `VersionStepper` takes its place in the result header and views instead of restoring. When the prompt pane shows an older version (stepped there), the result is that version, read-only, under the viewing bar. |
+| Prompt (image) | Shared pattern. Its focus view (`prompt-focus-view.tsx`) is not on `PromptFocusShell` and has **no History tab today**, only chips. It gains the History rail item and uses the same `PromptHistoryPane` the shell uses. |
+| Video Prompt, Multishot Prompt | Shared pattern. `prompt-focus-shell.tsx`'s History pane becomes two columns, list on the left and the viewed version's output on the right, read-only, matching the media nodes. `PromptVersionChips` is deleted. The `VersionStepper` takes its place in the result header and views instead of restoring. When the prompt pane shows an older version (stepped there), the result is that version, read-only, under the viewing bar. |
 
 ### Units
 
@@ -162,9 +165,20 @@ History tab is open (as today) and load metadata only.
 
 - The media box takes the media's own aspect ratio and shows the whole picture
   (`object-contain` inside a box of exactly that ratio, so there are no bands).
-- **Media width** = `clamp(254, 500 × ratio, 454)` px; **card width** = media width + 26
-  (12px body padding each side, plus the 1px borders). Media height = media width ÷ ratio.
-  - 16:9 → card 480, media 270 tall. 1:1 → card 480, media 454. 4:5 → card 426, media 500.
+- **One rule, two size tiers.** Today input nodes are small reference tiles (File, Draw and
+  Avatar at 176px; Post and Client review at 224px) and output nodes are large. Putting every node
+  in one size range would make reference tiles 2–3× larger and crowd existing canvases, so the
+  same rule runs at two scales:
+
+  | Tier | Nodes | Card width | Media height cap | Hard cap (letterbox) | Media inset |
+  |---|---|---|---|---|---|
+  | `output` | Image Gen, Composite, Video Gen, Dubbing | 280–480 | 500 | 600 | 26 (inside the `px-3` body) |
+  | `input` | File, Draw, Avatar, Post, Client review | 176–280 | 300 | 360 | 2 (edge to edge under the header, borders only) |
+
+- **Media width** = `clamp(minCard − inset, cap × ratio, maxCard − inset)`; **card width** =
+  media width + inset. Media height = media width ÷ ratio. The numbers below are for the output
+  tier.
+  - 16:9 → card 480, media 255 tall. 1:1 → card 480, media 454. 4:5 → card 426, media 500.
     9:16 → card 307, media 500.
   - Very wide media (21:9 and beyond) stays at 480 and is simply shorter. Media taller than
     about 1:2 hits the 280 minimum card width, so its height goes past 500. Once the ratio drops
@@ -196,9 +210,8 @@ History tab is open (as today) and load metadata only.
 ### Units
 
 - **`src/lib/canvas/media-fit.ts`** (new, pure): `parseAspectRatio("9:16") → 0.5625 | null`,
-  `nodeMediaBox(ratio) → { cardWidth, mediaWidth, mediaHeight, letterboxed }`, constants
-  `NODE_CARD_MAX_WIDTH = 480`, `NODE_CARD_MIN_WIDTH = 280`, `NODE_MEDIA_MAX_HEIGHT = 500`,
-  `NODE_MEDIA_HARD_MAX_HEIGHT = 600`.
+  `nodeMediaBox(ratio, tier) → { cardWidth, mediaWidth, mediaHeight, letterboxed }`, and the
+  `MEDIA_TIERS` table above as a constant.
 - **`src/hooks/use-node-media-size.ts`** (new). `useNodeMediaSize(nodeId, saved, fallbackAspect, editable)
   → { ratio, onMeasured(w, h) }`. Holds the measured size in local state, saves it to node data
   under the rules above, and resolves the ratio from measured, then saved, then fallback, then
