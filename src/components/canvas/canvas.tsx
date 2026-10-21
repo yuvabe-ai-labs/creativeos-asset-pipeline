@@ -429,7 +429,7 @@ export function Canvas({
   }, [nodes]);
   // Selecting a node highlights everything that feeds it, all the way up the chain, plus its
   // own outgoing connections; selecting a connection highlights just that one. Nothing else
-  // changes.
+  // changes — a lit connection keeps its layer, so it still runs behind the nodes it passes.
   const highlighted = useMemo(() => highlightedEdgeIds(nodes, edges), [nodes, edges]);
   // D387 — collapsed shots: their own nodes hidden, lines to them redrawn to the Shot.
   const collapse = useShotCollapse(nodes, edges);
@@ -444,7 +444,6 @@ export function Canvas({
         if (members.length > 0) {
           return {
             ...e,
-            zIndex: lit ? 1000 : e.zIndex,
             labelStyle: { fill: "var(--muted-foreground)", fontSize: 11, fontWeight: 500 },
             labelBgStyle: { fill: "var(--card)", stroke: "var(--border)" },
             labelBgPadding: [6, 3] as [number, number],
@@ -456,7 +455,6 @@ export function Canvas({
         return {
           ...e,
           animated: lineage || e.animated,
-          zIndex: lit ? 1000 : e.zIndex,
           style: {
             ...e.style,
             ...(lineage ? { strokeDasharray: "6 4", stroke: "var(--muted-foreground)" } : null),
