@@ -4,12 +4,28 @@
 **Decisions:** D383, D384 (roadmap §7)
 **Mockup:** https://claude.ai/artifact/6ZzcYtPqCSoErvVZo68u71 (approved 2026-10-21)
 
-Two changes that ship together because both are about seeing generated media properly:
+Two changes that ship together because both are about seeing generated media properly. Both
+apply to **every** node they can apply to, with no per-node exceptions. Consistency is the
+point: an operator learns one History and one card shape and never re-learns them per node.
 
-1. **Version viewing.** In a focus view's History tab, clicking a version opens it in the main
-   preview. The node's active version does not change until the operator presses **Restore**.
+1. **Version viewing.** Every versioned node's focus view has the same History: clicking a
+   version opens it in the output column. The node's active version does not change until the
+   operator presses **Restore**.
 2. **Media fit.** Every node card and focus-view preview shows its image or video at the
    media's own aspect ratio. Nothing is cropped and nothing is forced into a fixed shape.
+
+### The shared pattern (every versioned node)
+
+1. **History in the rail**, same icon, with the version count beside it.
+2. **List beside output.** The version list sits in the middle column. The output column on
+   the right always shows the version on screen.
+3. **Same row everywhere.** Thumbnail in its real shape (a text tile for prompt nodes), `vN`,
+   relative time, model, review status, Active tag.
+4. **Click views, never restores.** A row click, the `‹ vN of M ›` stepper or ↑ / ↓ only change
+   what is on screen.
+5. **One viewing bar**, with one wording and the only Restore button.
+6. **Active-only tools wait.** Anything that acts on the node's current output is disabled
+   while an older version is on screen.
 
 ---
 
@@ -22,6 +38,9 @@ Two changes that ship together because both are about seeing generated media pro
   metadata. "Restore this version" sits inside the expanded row.
 - Thumbnails are 28px squares with `object-cover`, so every version is cropped.
 - Dubbing has its own `DubbingVersionHistory`, where a row click restores immediately.
+- The prompt nodes (Prompt, Video Prompt, Multishot Prompt, all on `prompt-focus-shell.tsx`)
+  have History as a full-width pane that replaces the output, and a separate row of `v1 v2 v3`
+  chips (`PromptVersionChips`) where a click restores ("Click to switch").
 - The only way to see an older output is to restore it, which changes the node for everyone
   on the canvas and triggers autosave.
 
@@ -47,26 +66,28 @@ Two changes that ship together because both are about seeing generated media pro
 - **What follows the viewed version:** the media preview, the "Sent to model" tab (it already
   takes a version) and the viewing bar.
 - **What stays on the active version:** the Details tab's approval controls, the annotate
-  toggle, Change voice (Video Gen) and Edit mode (Image Gen). These act on the node's current
-  output, so while a non-active version is viewed they are **disabled**, with the tooltip
-  "Restore this version to annotate it" (or to edit it, or to change its voice). Turning one of
-  them on is never possible while viewing an older version, so they never act on a different
-  version than the one on screen.
+  toggle, Change voice (Video Gen), Edit mode (Image Gen, Composite), the dub and lip-sync
+  actions (Dubbing) and prompt editing and regenerating (prompt nodes). These act on the
+  node's current output, so while a non-active version is viewed they are **disabled**, with
+  one tooltip wording: "Restore this version to change it." Turning one of them on is never
+  possible while viewing an older version, so they never act on a different version than the
+  one on screen.
 - **Thumbnails** are 48px tall and keep the version's real aspect ratio (`h-12 w-auto
   max-w-20 object-contain`). Videos use `preload="metadata"` with `#t=0.1` for a poster frame
-  and a small play mark. A failed version gets a dashed red box with an `XCircle` icon.
-- **Restore** is no longer inside rows. It lives only in the viewing bar, so there is one place
-  to do it.
+  and a small play mark. Prompt versions get a 40px text tile (`FileText` icon). A failed
+  version gets a dashed red box with an `XCircle` icon.
+- **Restore** is no longer inside rows or chips. It lives only in the viewing bar, so there is
+  one place to do it on every node.
 
-### Scope
+### Scope: every versioned node
 
-| Node | In this change |
+| Node | What changes |
 |---|---|
-| Video Gen | Yes |
-| Image Gen | Yes |
-| Composite | Yes (uses `ImageGenVersionHistory`) |
-| Dubbing | Yes. `DubbingVersionHistory` moves onto `VersionHistoryList`: video thumb plus its Original / Dubbed / Lip-synced steps as row meta. A row click views instead of restoring. |
-| Prompt, Video Prompt, Multishot Prompt | **No.** Each lays out its result differently. They keep today's expand-and-restore behaviour (see *Shared list API*). Follow-up ticket. |
+| Video Gen | Shared pattern. |
+| Image Gen | Shared pattern. |
+| Composite | Shared pattern (uses `ImageGenVersionHistory`). |
+| Dubbing | Shared pattern. `DubbingVersionHistory` becomes an adapter onto `VersionHistoryList`: video thumb, with its Original / Dubbed / Lip-synced steps as row meta. A row click views instead of restoring. `DubbingPlayer` plays the viewed version. |
+| Prompt, Video Prompt, Multishot Prompt | Shared pattern. `prompt-focus-shell.tsx`'s History pane becomes two columns, list on the left and the viewed version's output on the right, read-only, matching the media nodes. `PromptVersionChips` is deleted. The `VersionStepper` takes its place in the result header and views instead of restoring. When the prompt pane shows an older version (stepped there), the result is that version, read-only, under the viewing bar. |
 
 ### Units
 
@@ -87,19 +108,28 @@ Two changes that ship together because both are about seeing generated media pro
   Props: `viewedLabel`, `viewedWhen`, `activeLabel`, `canRestore`, `restoring`, `onBack`,
   `onRestore`.
 - **`src/components/nodes/version-stepper.tsx`** (new). `‹ vN of M ›`, two icon `Button`s.
-- **`VersionHistoryList`** (changed). New optional props `viewedVersionId` and `onView(id)`.
-  - When `onView` is given: a row click calls `onView`, the viewed row is highlighted and
-    expanded, no restore button renders in rows, and ↑ / ↓ step.
-  - When `onView` is absent (prompt nodes): today's behaviour, unchanged, including the in-row
-    restore button. This is the only reason the old path stays, and it goes when the prompt
-    nodes move over.
-- **`ImageGenVersionHistory`, `VideoGenVersionHistory`** pass the new props through and render
-  the new thumbnails. **`DubbingVersionHistory`** becomes a thin adapter onto
-  `VersionHistoryList`, like the other two.
-- **Focus views** (`video-gen-focus-view.tsx`, `image-gen-focus-view.tsx`,
-  `composite-focus-view.tsx`, `dubbing-focus-view.tsx`) call `useVersionViewing`, render the
-  viewed version's output in the preview, mount the bar and stepper, and disable the
-  active-only controls while `isViewingOther`.
+- **`VersionHistoryList`** (changed). `onRestore`/`restoring` are replaced by required
+  `viewedVersionId` and `onView(id)`. A row click calls `onView`; the viewed row is highlighted
+  and expanded; rows render no restore button; ↑ / ↓ step. There is one behaviour, with no
+  legacy mode.
+- **Adapters.** `ImageGenVersionHistory`, `VideoGenVersionHistory` and
+  `PromptVersionHistory` pass the new props through and render their thumbnails.
+  `DubbingVersionHistory` becomes an adapter of the same kind. Each adapter only maps a version
+  to `{ thumb, meta }` (D180).
+- **`src/components/nodes/version-output-empty.tsx`** (new). The failed-version frame,
+  "No {video|image|prompt|dub} from this attempt", shared by every output column.
+- **Media focus views** (`video-gen-focus-view.tsx`, `image-gen-focus-view.tsx`,
+  `composite-focus-view.tsx` + `CompositeOutputPane`, `dubbing-focus-view.tsx` +
+  `DubbingPlayer`) call `useVersionViewing`, render the viewed version's output in the output
+  column, mount the bar and stepper above it, and disable the active-only controls while
+  `isViewingOther`.
+- **Prompt focus shell** (`prompt-focus-shell.tsx`) owns `useVersionViewing` for all three
+  prompt views and passes `{ viewed, isViewingOther, stepper, viewingBar }` to `children` in
+  place of `versionChips`. Each prompt view adds a `renderVersionOutput(version)` prop, the
+  read-only rendering of one version's result, built from the code that already renders the
+  active result. The shell uses it in the History pane's right column, and the view uses it in
+  its own result area while `isViewingOther`. `PromptVersionChips` and
+  `buildVersionChips` are deleted.
 
 ### Performance
 
@@ -121,6 +151,10 @@ History tab is open (as today) and load metadata only.
 | File node (image or video) | `h-16 w-full object-cover`: 64px strip |
 | Draw node | `h-24 w-full object-cover`: 96px strip |
 | Dubbing node | `h-16 w-full object-cover`: 64px strip |
+| Avatar node | `aspect-[3/4] object-cover object-top`: cropped to the head |
+| Client review node | `h-32 object-contain`: 128px box with black bars |
+| Post node | full card width, box shaped by the format, `object-contain` (no crop, but a Story card is very tall) |
+| KB node brand images | `size-16 object-cover`: 64px squares, cropped |
 | Video Gen focus-view player | `aspect-[9/16]`: landscape video sits in a tall box |
 | Image Gen and Video Gen loading placeholders | always 9:16 |
 
@@ -175,10 +209,20 @@ History tab is open (as today) and load metadata only.
   `box`'s size and calls `onMeasured` from `onLoad` / `onLoadedMetadata`. Video shows a poster
   frame (`preload="metadata"`, `#t=0.1`, muted, no controls) with a decorative play mark.
 - **Nodes changed:** `image-gen-node`, `composite-node`, `video-gen-node`, `file-node`,
-  `draw-node`, `dubbing-node`. Each swaps its `<img>`/`<video>` for `NodeMedia` and sets its
-  card `style={{ width: cardWidth }}` in place of `w-[480px]`.
+  `draw-node`, `dubbing-node`, `avatar-node`, `client-review-node`, `post-node`. Each swaps its
+  `<img>`/`<video>` for `NodeMedia` and sets its card `style={{ width: cardWidth }}` in place
+  of its fixed width class.
+  - **Avatar** shows the whole front view.
+  - **Client review** shows the cut at its own shape on the card's neutral media box. The black
+    bar background goes.
+  - **Post** knows its ratio from its format spec (`spec.width / spec.height`), so it never
+    measures. Its existing live-layer and thumbnail fallbacks render inside the same box.
+- **KB node brand images** are a contact strip, not a hero, so they follow the History
+  thumbnail rule instead: 64px tall, real shape (`h-16 w-auto max-w-32 object-contain`), with no
+  measurement or saving.
 - **Node data types** (`src/lib/canvas-nodes.ts`): add optional `mediaWidth`/`mediaHeight` to
-  the Image Gen, Composite, Video Gen, Draw, Dubbing and File node data.
+  the Image Gen, Composite, Video Gen, Draw, Dubbing, File, Avatar and Client review node
+  data.
 - **Focus views:**
   - Video Gen player: drop `aspect-[9/16]`. The `<video>` gets `style={{ aspectRatio }}` from
     the viewed version's measured size, else its `params_used.aspect_ratio`, else 9:16, inside
@@ -188,8 +232,7 @@ History tab is open (as today) and load metadata only.
 
 ### Out of scope
 
-- **Avatar node.** It keeps its 3:4 head-and-shoulders crop on purpose; it is a designed
-  portrait layout, not generated output.
+- **Nodes with no media**, such as Script, Shot and Text. They are unchanged.
 - **Existing canvases.** Nodes are never moved. A card that grows taller may overlap the node
   below on canvases built before this change, and the operator drags it if needed.
 
@@ -201,13 +244,20 @@ History tab is open (as today) and load metadata only.
   16:9, 1:1, 4:5, 9:16 and 1:4 (letterboxed).
 - `useVersionViewing`: starts on active; `view` / `step` bounds; resets on close; follows
   active after a restore; falls back when the viewed id disappears.
-- `VersionHistoryList`: with `onView`, a row click calls `onView` and never `onRestore`, and
-  ↑ / ↓ move the selection; without `onView`, today's restore button still works.
+- `VersionHistoryList`: a row click calls `onView`, rows render no restore button, and
+  ↑ / ↓ move the selection.
+- Prompt focus shell: the History pane shows list and read-only output side by side; the
+  stepper views, never restores; editing and Generate are disabled while viewing another
+  version. One test per prompt view checks that `renderVersionOutput` renders a non-active
+  version.
+- Dubbing focus view: a row click no longer restores; the player plays the viewed dub.
 - `VersionViewingBar`: Restore is hidden for a failed version; Back calls `onBack`.
 - `useNodeMediaSize`: writes `mediaWidth`/`mediaHeight` once when they differ, never when they
   match, never when not editable; ratio falls back measured → saved → param → 16:9.
 - Video Gen focus view: while viewing a non-active version, annotate, Change voice and approval
   controls are disabled; the preview shows the viewed output.
-- Manual: on a staging canvas, a 9:16 Kling video, a 16:9 image and a 1:1 image each render
-  uncropped on the card and in the focus view; a reload does not jump; opening a fully measured
+- Manual: on a staging canvas, a 9:16 Kling video, a 16:9 image, a 1:1 image, an avatar, a
+  Story post and a client-review cut each render uncropped on the card and in the focus view;
+  History looks and behaves the same on a Video Gen, an Image Gen, a Dubbing and a Video Prompt
+  node; a reload does not jump; opening a fully measured
   canvas causes no autosave.
