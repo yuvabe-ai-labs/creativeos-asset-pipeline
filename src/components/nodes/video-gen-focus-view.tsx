@@ -104,6 +104,11 @@ import {
   VideoGenVersionHistory,
   type VideoGenVersionSummary,
 } from "./video-gen-version-history";
+import { useVersionViewing } from "@/hooks/use-version-viewing";
+import { VersionViewingBar } from "./version-viewing-bar";
+import { VersionStepper } from "./version-stepper";
+import { VersionOutputEmpty } from "./version-output-empty";
+import { ActiveOnlyNotice } from "./active-only-notice";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
@@ -564,6 +569,14 @@ export function VideoGenFocusView({
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  // D383 — which version the output column shows. Moving off the active version switches off
+  // the modes that act on the active output.
+  const viewing = useVersionViewing(versions, activeVersionId, open, () => {
+    setReviewAnnotating(false);
+    setChangeVoiceOpen(false);
+    setCapturedFrame(null);
+    setOpenTimecode(null);
+  });
   // D216 — true while the `duration` param is showing a value derived from the upstream Shot's
   // own beats rather than the model spec's flat default. Cleared the instant the operator edits
   // duration directly, so their edit is never silently overwritten by a later re-derivation.
@@ -1346,6 +1359,10 @@ export function VideoGenFocusView({
   // focus views. Undefined until the versions fetch lands, or on a node that never generated.
   const activeVersion = versions.find((v) => v.id === activeVersionId);
   const activeVoice = readVoiceMeta(activeVersion?.paramsUsed?.voice);
+  const labelById = versionLabelsById(versions);
+  const viewed = viewing.viewed;
+  const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
+  const activeLabel = activeVersionId ? labelById.get(activeVersionId) ?? null : null;
 
   // D244 read path: the standing change request on the active version and its stored
   // frame annotations — derived from the versions list the history panel already has.
@@ -1802,8 +1819,8 @@ export function VideoGenFocusView({
                     <VideoGenVersionHistory
                       versions={versions}
                       activeVersionId={activeVersionId}
-                      onRestore={handleRestoreVersion}
-                      restoring={restoring}
+                      viewedVersionId={viewed?.id ?? null}
+                      onView={viewing.view}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -1829,6 +1846,7 @@ export function VideoGenFocusView({
                       <ApprovalSkeleton />
                     ) : activeVersionId ? (
                       <div className="flex flex-col gap-3">
+                        {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                         <InlineApprovalBar
                           status={approvalStatus}
                           note={approvalNote}
@@ -1837,13 +1855,13 @@ export function VideoGenFocusView({
                           saving={approvalSaving}
                           // R7.1/D160: not gated on `editable` — approval writes only to
                           // node_versions, outside what the D33 lock serialises.
-                          canApprove={identity?.role === "senior"}
+                          canApprove={identity?.role === "senior" && !viewing.isViewingOther}
                           onSet={saveApproval}
                           annotationCount={reviewDrafts.drafts.length}
                           annotating={reviewAnnotating}
                           annotateLabel="Annotate a frame"
                           onToggleAnnotate={
-                            videoUrl
+                            videoUrl && !viewing.isViewingOther
                               ? () => {
                                   // D284: annotating and the Change voice workspace don't combine.
                                   const next = !reviewAnnotating;
@@ -1930,8 +1948,8 @@ export function VideoGenFocusView({
                       />
                     ))}
                   </div>
-                ) : activeVersion ? (
-                  <VideoGenRequestPanel version={activeVersion} labelById={versionLabelsById(versions)} />
+                ) : viewed ? (
+                  <VideoGenRequestPanel version={viewed} labelById={labelById} />
                 ) : (
                   <p className="px-6 py-5 text-sm text-muted-foreground">
                     No request recorded yet — generate a video to capture the prompt, images and
@@ -1957,7 +1975,7 @@ export function VideoGenFocusView({
                     checked={changeVoiceOpen}
                     // Free during a voice change — that's the mode it runs in — but not while a
                     // new video is generating.
-                    disabled={!editable || (isGenerating && !isChangingVoice)}
+                    disabled={!editable || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
                     onCheckedChange={(next) => {
                       setChangeVoiceOpen(next);
                       if (next) {
@@ -1970,8 +1988,39 @@ export function VideoGenFocusView({
                     }}
                   />
                 )}
+                {!loadingVersions && (
+                  <div className="ml-auto">
+                    <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
+                  </div>
+                )}
               </div>
+              {viewing.isViewingOther && viewed && (
+                <VersionViewingBar
+                  viewedLabel={viewedLabel}
+                  viewedCreatedAt={viewed.createdAt}
+                  activeLabel={activeLabel}
+                  canRestore={editable && !viewed.error && Boolean(viewed.output)}
+                  restoring={restoring}
+                  onBack={viewing.backToActive}
+                  onRestore={() => void handleRestoreVersion(viewed.id)}
+                />
+              )}
               <div className="min-h-0 flex-1">
+                {viewing.isViewingOther && viewed ? (
+                  viewed.output ? (
+                    // Plain playback of the viewed take: annotations, markers and the voice
+                    // workspace belong to the active version only.
+                    <video
+                      key={viewed.id}
+                      src={viewed.output}
+                      controls
+                      playsInline
+                      className="h-full w-auto max-w-full rounded-xl border border-border bg-muted/20"
+                    />
+                  ) : (
+                    <VersionOutputEmpty noun="video" />
+                  )
+                ) : (
                 <>
                 {mode === "skeleton" && (
                   // 9:16, flush left — the same footprint the result frame will occupy.
@@ -2243,6 +2292,7 @@ export function VideoGenFocusView({
                   </div>
                 )}
                 </>
+                )}
               </div>
 
             </div>

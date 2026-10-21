@@ -5,7 +5,8 @@ import { describeVersionParams } from "@/lib/generations/version-params";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { describeVoiceChange } from "@/lib/voice-change/describe";
 import { versionLabelsById } from "@/lib/generations/version-labels";
-import { VersionHistoryList } from "./version-history-list";
+import { VersionList } from "./version-list";
+import { VersionThumb } from "./version-thumb";
 
 /**
  * The prompt and image roles the generation request was built from, frozen into
@@ -48,21 +49,14 @@ export type VideoGenVersionSummary = {
 type Props = {
   versions: VideoGenVersionSummary[];
   activeVersionId: string | null;
-  onRestore: (versionId: string) => void;
-  restoring: boolean;
+  viewedVersionId: string | null;
+  onView: (versionId: string) => void;
   hideHeader?: boolean;
 };
 
-// D180: the row shell (collapse/expand, status icon, error state, maker, decision thread,
-// restore) lives in VersionHistoryList. This file supplies only what is specific to a
-// video version: the thumbnail and the generation metadata.
-export function VideoGenVersionHistory({
-  versions,
-  activeVersionId,
-  onRestore,
-  restoring,
-  hideHeader = false,
-}: Props) {
+// D180/D383: the row shell lives in VersionList. This file supplies only what is specific to a
+// video version: the thumbnail, the summary line and the generation metadata.
+export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersionId, onView, hideHeader = false }: Props) {
   // D284 — version id → `v{n}`, the same numbering VersionHistoryList renders on each row, so
   // "changed from v3" in a voice change's provenance line matches the row the operator sees.
   const labelById = versionLabelsById(versions);
@@ -92,11 +86,8 @@ export function VideoGenVersionHistory({
       approvalStatus: v.approvalStatus,
       makerName: v.makerName,
       decisions: v.decisions,
-      thumb: v.output ? (
-        <div className="size-7 overflow-hidden rounded-sm border border-border">
-          <video src={v.output} className="size-full object-cover" muted playsInline />
-        </div>
-      ) : undefined,
+      thumb: v.output ? <VersionThumb kind="video" src={v.output} /> : undefined,
+      summary: voiceChange ? voiceChange.title : modelLabel || undefined,
       meta: voiceChange ? (
         <>
           <p className="line-clamp-1 text-[0.7rem] leading-snug text-primary">
@@ -124,11 +115,11 @@ export function VideoGenVersionHistory({
   });
 
   return (
-    <VersionHistoryList
+    <VersionList
       rows={rows}
       activeVersionId={activeVersionId}
-      onRestore={onRestore}
-      restoring={restoring}
+      viewedVersionId={viewedVersionId}
+      onView={onView}
       hideHeader={hideHeader}
     />
   );
