@@ -101,6 +101,11 @@ export function AvatarNode({ id, data, selected }: NodeProps) {
                 {!avatar.front && (
                   <div className="relative flex aspect-[3/4] items-center justify-center rounded-md bg-muted">
                     <UserRound className="size-8 text-muted-foreground/40" strokeWidth={1.5} />
+                    {avatar.archivedAt && (
+                      <Badge variant="outline" className="absolute inset-x-1.5 bottom-1.5 justify-center bg-card text-[0.65rem]">
+                        Archived — still works here
+                      </Badge>
+                    )}
                   </div>
                 )}
                 <p className="truncate text-xs text-muted-foreground">{avatarVoiceLine(avatar.voice)}</p>
