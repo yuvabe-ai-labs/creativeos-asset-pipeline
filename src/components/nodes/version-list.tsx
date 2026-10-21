@@ -28,6 +28,12 @@ export type VersionRow = {
   meta?: ReactNode;
 };
 
+/** The version an arrow key moves to from the open row, or null for other keys and the ends. */
+export function arrowKeyTarget(rows: { id: string }[], openId: string | null, key: string): string | null {
+  if (key !== "ArrowDown" && key !== "ArrowUp") return null;
+  return stepVersionId(rows, openId, key === "ArrowDown" ? 1 : -1);
+}
+
 export function VersionList({
   rows,
   activeVersionId,
@@ -45,10 +51,13 @@ export function VersionList({
   if (total === 0) return null;
   // The row on screen: the viewed one, else the active one.
   const openId = viewedVersionId ?? activeVersionId;
+  // The tab stop is the open row, else the first, so the list is always reachable by keyboard.
+  const tabStopId = rows.some((r) => r.id === openId) ? openId : rows[0].id;
 
   function onKeyDown(e: KeyboardEvent<HTMLUListElement>) {
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-    const next = stepVersionId(rows, openId, e.key === "ArrowDown" ? 1 : -1);
+    // Only a key pressed on a row button steps versions, not one pressed inside the details.
+    if (!(e.target as HTMLElement).hasAttribute("data-version-row")) return;
+    const next = arrowKeyTarget(rows, openId, e.key);
     if (!next) return;
     e.preventDefault();
     onView(next);
@@ -75,6 +84,7 @@ export function VersionList({
           return (
             <li
               key={row.id}
+              role="presentation"
               className={cn(
                 "overflow-hidden rounded-lg border transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
                 isOpen ? "border-primary/30 bg-primary/5" : "border-border",
@@ -85,7 +95,7 @@ export function VersionList({
                 variant="ghost"
                 role="option"
                 aria-selected={isOpen}
-                tabIndex={isOpen ? 0 : -1}
+                tabIndex={row.id === tabStopId ? 0 : -1}
                 data-version-row=""
                 onClick={() => onView(row.id)}
                 className="flex h-auto w-full items-center gap-3 rounded-none border-0 px-2 py-2 text-left font-normal whitespace-normal hover:bg-muted/60 dark:hover:bg-muted/60"
