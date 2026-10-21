@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Clapperboard, Sparkles } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Clapperboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +10,9 @@ import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useShotHiddenCount } from "@/components/canvas/shot-collapse-context";
+import { COLLAPSED_SHOT_HANDLE } from "@/lib/canvas/shot-collapse";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
@@ -34,12 +37,19 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
   const [composeOpen, setComposeOpen] = useState(false);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  const setShotsCollapsed = useCanvasStore((s) => s.setShotsCollapsed);
+  const canEdit = useCanvasEditable();
+  const hiddenCount = useShotHiddenCount(id);
   const d = data as {
     script?: ReelScript;
     order?: number;
     shot_type?: string;
     seededFrom?: { scriptTitle?: string };
+    collapsed?: boolean;
   };
+  // D387 — collapsing hides this shot's own pipeline; the card stays put as a small stack.
+  const collapsed = d.collapsed === true;
+  const label = `Shot${d.order ? ` ${d.order}` : ""}`;
   // ONE row: a Shot is one continuous take, merged at fan-out from every script row it covers
   // (BUG-004, mergeShotRows). Its `duration` states the whole take's length.
   const shot = d.script?.visual_script?.shots?.[0];
@@ -83,21 +93,45 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
         }}
         onDragOver={drop.onDragOver}
         onDrop={drop.onDrop}
+        data-selected={selected}
         className={cn(
-          "w-56 rounded-lg border border-border bg-card shadow-card",
+          "w-56 rounded-lg border border-border bg-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
-          selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+          collapsed ? "shot-stacked" : "shadow-card",
+          selected && !collapsed && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
       >
         <NodeCardHeader
           icon={Clapperboard}
           nodeId={id}
           nodeType="shot"
-          title={`Shot${d.order ? ` ${d.order}` : ""}`}
+          title={label}
           status={
-            shot?.duration ? (
-              <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
-            ) : undefined
+            <div className="flex items-center gap-1">
+              {shot?.duration && (
+                <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
+              )}
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={!canEdit}
+                aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
+                aria-expanded={!collapsed}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShotsCollapsed([id], !collapsed);
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                className="nodrag h-6 px-1.5 text-[0.65rem] text-muted-foreground"
+              >
+                {collapsed ? (
+                  <ChevronsUpDown strokeWidth={1.5} />
+                ) : (
+                  <ChevronsDownUp strokeWidth={1.5} />
+                )}
+                {collapsed ? "Expand" : "Collapse"}
+              </Button>
+            </div>
           }
         />
         <div className="p-2">
@@ -127,8 +161,26 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
               <Sparkles className="size-3" strokeWidth={1.5} /> Compose
             </Button>
             <GuidedNextButton sourceId={id} variant="chip" />
+            {collapsed && hiddenCount > 0 && (
+              <span className="ml-auto text-[0.6rem] text-muted-foreground">
+                {hiddenCount} hidden
+              </span>
+            )}
           </div>
         </div>
+        {/* D387 — where lines rerouted into a collapsed shot arrive. Always rendered (so React
+            Flow has measured it before any rerouted edge needs it) but only shown while collapsed;
+            never connectable, since those lines are display-only. */}
+        <Handle
+          id={COLLAPSED_SHOT_HANDLE}
+          type="target"
+          position={Position.Top}
+          isConnectable={false}
+          className={cn(
+            "size-3! border-2! border-card! bg-muted-foreground!",
+            !collapsed && "invisible",
+          )}
+        />
         {/* lineage target (dashed Script->Shot edge) */}
         <Handle
           type="target"

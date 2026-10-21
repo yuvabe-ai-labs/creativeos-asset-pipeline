@@ -48,6 +48,10 @@ import { ConnectionBadge } from "./connection-badge";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
 import { highlightedEdgeIds } from "@/lib/canvas/connection-focus";
+import { reroutedMembers } from "@/lib/canvas/shot-collapse";
+import { useShotCollapse } from "./use-shot-collapse";
+import { ShotHiddenCountProvider } from "./shot-collapse-context";
+import { CollapseShotsPanel } from "./collapse-shots-panel";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
@@ -427,12 +431,27 @@ export function Canvas({
   // own outgoing connections; selecting a connection highlights just that one. Nothing else
   // changes.
   const highlighted = useMemo(() => highlightedEdgeIds(nodes, edges), [nodes, edges]);
+  // D387 — collapsed shots: their own nodes hidden, lines to them redrawn to the Shot.
+  const collapse = useShotCollapse(nodes, edges);
   const displayEdges = useMemo(
     () =>
-      edges.map((e) => {
+      collapse.edges.map((e) => {
         const lineage =
           nodeTypeById.get(e.source) === "script" && nodeTypeById.get(e.target) === "shot";
-        const lit = highlighted.has(e.id);
+        // A redrawn line lights up when any connection it stands for does.
+        const members = reroutedMembers(e);
+        const lit = highlighted.has(e.id) || members.some((id) => highlighted.has(id));
+        if (members.length > 0) {
+          return {
+            ...e,
+            zIndex: lit ? 1000 : e.zIndex,
+            labelStyle: { fill: "var(--muted-foreground)", fontSize: 11, fontWeight: 500 },
+            labelBgStyle: { fill: "var(--card)", stroke: "var(--border)" },
+            labelBgPadding: [6, 3] as [number, number],
+            labelBgBorderRadius: 4,
+            style: { ...e.style, ...(lit ? { stroke: "var(--primary)", strokeWidth: 2 } : null) },
+          };
+        }
         if (!lineage && !lit) return e;
         return {
           ...e,
@@ -445,7 +464,7 @@ export function Canvas({
           },
         };
       }),
-    [edges, nodeTypeById, highlighted],
+    [collapse.edges, nodeTypeById, highlighted],
   );
 
   return (
@@ -455,6 +474,7 @@ export function Canvas({
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
+    <ShotHiddenCountProvider value={collapse.hiddenCounts}>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
@@ -512,7 +532,7 @@ export function Canvas({
       )}
 
       <ReactFlow
-        nodes={nodes}
+        nodes={collapse.nodes}
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -597,11 +617,13 @@ export function Canvas({
           color="rgba(148,163,184,0.45)"
         />
         <Controls showInteractive={false} />
+        <CollapseShotsPanel shotIds={collapse.shotIds} collapsedCount={collapse.collapsedCount} />
       </ReactFlow>
 
       <GenerationTray canvasId={canvasId} />
-      <CopilotPanel canvasId={canvasId} /> 
+      <CopilotPanel canvasId={canvasId} />
     </div>
+    </ShotHiddenCountProvider>
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>

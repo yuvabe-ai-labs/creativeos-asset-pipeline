@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { isShotCollapsed, withoutCollapsed } from "@/lib/canvas/shot-collapse";
 import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
@@ -75,6 +76,8 @@ export type CanvasState = {
   clearRemoved: (nodeIds: string[], edgeIds: string[]) => void;
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
+  /** D387 — collapse or expand Shot nodes in one update. Shots already in that state are left alone. */
+  setShotsCollapsed: (shotIds: string[], collapsed: boolean) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
   disconnectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
@@ -307,6 +310,22 @@ export function createCanvasStore(
         ),
       });
     },
+    setShotsCollapsed: (shotIds, collapsed) => {
+      // Saved as a flag on the Shot (expanding removes it); what hides is derived from the graph.
+      const ids = new Set(shotIds);
+      const changes = get().nodes.filter(
+        (n) => ids.has(n.id) && n.type === "shot" && isShotCollapsed(n) !== collapsed,
+      );
+      if (changes.length === 0) return; // never replace the array when nothing changed
+      const changed = new Set(changes.map((n) => n.id));
+      set({
+        nodes: get().nodes.map((n) => {
+          if (!changed.has(n.id)) return n;
+          const data = n.data as Record<string, unknown>;
+          return { ...n, data: collapsed ? { ...data, collapsed: true } : withoutCollapsed(data) } as AppNode;
+        }),
+      });
+    },
     connectNodes: (sourceId, targetId) => {
       // D298 — the gallery's path keeps one presenter per script too, announced once, here.
       const replaced = replacedPresenterEdges(get().nodes, get().edges, sourceId, targetId);
@@ -362,7 +381,7 @@ export function createCanvasStore(
         }
         const { node: newNode } = await res.json() as { node: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null } };
 
-        const data = { ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) };
+        const data = withoutCollapsed({ ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) });
 
         // Copy only the INCOMING connections (parent → node) so the copy inherits
         // the same inputs/context. Outgoing edges (node → child) are intentionally
@@ -450,7 +469,7 @@ export function createCanvasStore(
         const sourceById = new Map(get().nodes.map((n) => [n.id, n]));
         const newAppNodes = newNodes.map((newNode) => {
           const source = newNode.sourceId ? sourceById.get(newNode.sourceId) : undefined;
-          const data = { ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) };
+          const data = withoutCollapsed({ ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) });
           return {
             ...(source as Partial<AppNode> ?? {}),
             id: newNode.id,
