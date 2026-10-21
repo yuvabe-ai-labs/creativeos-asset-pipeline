@@ -12,7 +12,6 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { CollapseToggle } from "./collapse-toggle";
 import { CollapsedInHandle } from "./collapsed-in-handle";
-import { HiddenCountNote } from "./hidden-count-note";
 import { MultishotFocusView } from "./multishot-focus-view";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
@@ -156,7 +155,6 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
               Open ↗
             </Button>
             <GuidedNextButton sourceId={id} variant="chip" />
-            <HiddenCountNote nodeId={id} collapsed={collapsed} />
           </div>
         </div>
         <CollapsedInHandle collapsed={collapsed} />

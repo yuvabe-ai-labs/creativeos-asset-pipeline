@@ -18,8 +18,9 @@ its own panel. A flip lands expanded: the converters rebuild the node's data and
 drops its outgoing lane, so there is nothing left to hide.
 
 - Each Shot header has a **Collapse** button; once collapsed it reads **Expand**.
-- A collapsed Shot stays where it is and looks like a small stack of cards, with a "N hidden"
-  chip naming how much is inside.
+- A collapsed Shot stays where it is and looks like a small stack of cards. Its Expand button
+  carries a count pill ("Expand 7") naming how much is inside — in the header, so it never
+  crowds the footer's action chips on a narrow card.
 - **Collapse all / Expand all** sit in a small panel at the bottom-left, next to the zoom
   controls. They appear only when the canvas has shots.
 - Expanding restores everything exactly as it was: nodes never move when hidden.

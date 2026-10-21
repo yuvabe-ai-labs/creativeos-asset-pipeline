@@ -15,7 +15,6 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { CollapseToggle } from "./collapse-toggle";
 import { CollapsedInHandle } from "./collapsed-in-handle";
-import { HiddenCountNote } from "./hidden-count-note";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { VoLinesEditor } from "./vo-lines-editor";
@@ -139,7 +138,6 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
               <Sparkles className="size-3" strokeWidth={1.5} /> Compose
             </Button>
             <GuidedNextButton sourceId={id} variant="chip" />
-            <HiddenCountNote nodeId={id} collapsed={collapsed} />
           </div>
         </div>
         <CollapsedInHandle collapsed={collapsed} />
