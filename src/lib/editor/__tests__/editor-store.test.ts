@@ -42,3 +42,56 @@ describe("editor store", () => {
     expect(store.getState().selection).toBeNull();
   });
 });
+
+describe("history (D400)", () => {
+  const make = () => createEditorStore({ doc, sources: [] });
+  const shape = (s: ReturnType<typeof make>, v: "9:16" | "16:9") => s.getState().apply((d) => (d.shape === v ? d : { ...d, shape: v }));
+
+  it("undoes and redoes one apply at a time", () => {
+    const s = make();
+    shape(s, "16:9");
+    s.getState().undo();
+    expect(s.getState().doc.shape).toBe("9:16");
+    expect(s.getState().doc).toBe(doc);
+    s.getState().redo();
+    expect(s.getState().doc.shape).toBe("16:9");
+  });
+
+  it("records nothing for a no-op and clears redo on a new edit", () => {
+    const s = make();
+    shape(s, "9:16");
+    expect(s.getState().past).toHaveLength(0);
+    shape(s, "16:9");
+    s.getState().undo();
+    shape(s, "16:9");
+    expect(s.getState().future).toHaveLength(0);
+  });
+
+  it("records a whole drag as one step", () => {
+    const s = make();
+    s.getState().begin();
+    shape(s, "16:9");
+    shape(s, "9:16");
+    shape(s, "16:9");
+    s.getState().commit();
+    expect(s.getState().past).toHaveLength(1);
+    s.getState().undo();
+    expect(s.getState().doc.shape).toBe("9:16");
+  });
+
+  it("a drag that ends where it started records nothing", () => {
+    const s = make();
+    s.getState().begin();
+    s.getState().commit();
+    expect(s.getState().past).toHaveLength(0);
+  });
+
+  it("keeps at most 100 steps and does nothing while read-only", () => {
+    const s = make();
+    for (let i = 0; i < 120; i++) shape(s, i % 2 ? "9:16" : "16:9");
+    expect(s.getState().past).toHaveLength(100);
+    s.getState().setEditable(false);
+    s.getState().undo();
+    expect(s.getState().past).toHaveLength(100);
+  });
+});

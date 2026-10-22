@@ -7,6 +7,7 @@ import { useRef } from "react";
 import { formatTime } from "@/lib/editor/timeline";
 import type { Piece } from "@/lib/editor/types";
 import { cn } from "@/lib/utils";
+import { useEditorStoreApi } from "./editor-store-provider";
 
 type Edge = "in" | "out";
 
@@ -26,6 +27,7 @@ export function EditorTimelinePiece({ piece, index, label, tone, left, width, sc
   onDragStart(): void;
   onDrop(): void;
 }) {
+  const store = useEditorStoreApi();
   const trim = useRef<{ startX: number; seconds: number } | null>(null);
   const seconds = piece.out - piece.in;
 
@@ -41,6 +43,7 @@ export function EditorTimelinePiece({ piece, index, label, tone, left, width, sc
           e.stopPropagation();
           e.currentTarget.setPointerCapture(e.pointerId);
           trim.current = { startX: e.clientX, seconds: at };
+          store.getState().begin(); // one undo step for the whole trim (D400)
         }}
         onPointerMove={(e) => {
           if (trim.current) onTrim(edge, trim.current.seconds + (e.clientX - trim.current.startX) / scale);
@@ -49,6 +52,7 @@ export function EditorTimelinePiece({ piece, index, label, tone, left, width, sc
           if (!trim.current) return;
           trim.current = null;
           e.currentTarget.releasePointerCapture(e.pointerId);
+          store.getState().commit();
         }}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {

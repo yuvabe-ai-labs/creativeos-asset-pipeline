@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AlertCircle, ArrowLeft, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { EditorHistoryButtons } from "./editor-history-buttons";
 import { useEditorStore } from "./editor-store-provider";
 import { REEL_SHAPES, type ReelShape } from "@/lib/editor/types";
 import type { SaveStatus } from "@/hooks/use-editor-autosave";
@@ -41,6 +42,7 @@ export function EditorHeader({ breadcrumb, title, status, readOnly, onBack, acti
         <span className="truncate text-xs text-muted-foreground">{breadcrumb}</span>
         <span className="truncate font-display text-[17px] font-semibold">{title}</span>
       </div>
+      {!readOnly && <EditorHistoryButtons />}
       <div className="flex-1" />
       <ToggleGroup
         aria-label="Reel shape"

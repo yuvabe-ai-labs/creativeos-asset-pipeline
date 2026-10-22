@@ -5,6 +5,7 @@
 // the piece under its new start (D393).
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
+import { useEditorStoreApi } from "./editor-store-provider";
 
 type Mode = "move" | "start" | "end";
 const MIN_SECONDS = 0.2;
@@ -23,6 +24,7 @@ export function EditorCaptionBlock({ text, start, end, scale, fps, total, select
   onChange(start: number, end: number): void;
   onSelect(): void;
 }) {
+  const store = useEditorStoreApi();
   const drag = useRef<{ mode: Mode; x: number; start: number; end: number; moved: boolean } | null>(null);
   const snap = (t: number) => Math.round(t * fps) / fps;
 
@@ -30,6 +32,7 @@ export function EditorCaptionBlock({ text, start, end, scale, fps, total, select
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { mode, x: e.clientX, start, end, moved: false };
+    store.getState().begin(); // one undo step for the whole drag (D400)
   };
   const move = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
@@ -53,6 +56,7 @@ export function EditorCaptionBlock({ text, start, end, scale, fps, total, select
     if (!d) return;
     drag.current = null;
     e.currentTarget.releasePointerCapture(e.pointerId);
+    store.getState().commit();
     if (!d.moved) onSelect();
   };
 

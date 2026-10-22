@@ -2,18 +2,34 @@
 
 import { useEffect } from "react";
 import { usePlayback } from "@/components/editor/editor-playback-context";
+import { useEditorStoreApi } from "@/components/editor/editor-store-provider";
 import { isEditableTarget } from "@/lib/canvas-node-options";
 import { useTimelineActions } from "./use-timeline-actions";
 
-/** Space plays/pauses, S splits at the playhead, Backspace/Delete removes the selection — never
- *  while typing in a field (spec §6). */
+/** Space plays/pauses, S splits at the playhead, Backspace/Delete removes the selection,
+ *  Ctrl/Cmd+Z undoes and Ctrl/Cmd+Shift+Z or Ctrl+Y redoes (D400) — never while typing in a field
+ *  (spec §6). */
 export function useEditorShortcuts() {
+  const store = useEditorStoreApi();
   const { playing, play, pause } = usePlayback();
   const { split, deleteSelection } = useTimelineActions();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || isEditableTarget(e.target as HTMLElement | null)) return;
+      if (isEditableTarget(e.target as HTMLElement | null)) return;
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === "z") {
+          e.preventDefault();
+          if (e.shiftKey) store.getState().redo();
+          else store.getState().undo();
+        } else if (k === "y") {
+          e.preventDefault();
+          store.getState().redo();
+        }
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === " ") {
         e.preventDefault();
         if (playing) pause();
@@ -28,5 +44,5 @@ export function useEditorShortcuts() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [playing, play, pause, split, deleteSelection]);
+  }, [store, playing, play, pause, split, deleteSelection]);
 }
