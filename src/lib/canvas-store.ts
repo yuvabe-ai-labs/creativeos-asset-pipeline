@@ -5,6 +5,7 @@ import {
   applyNodeChanges,
   type Edge,
   type EdgeRemoveChange,
+  type NodeChange,
   type NodeRemoveChange,
   type OnConnect,
   type OnEdgesChange,
@@ -41,7 +42,9 @@ import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
-import { SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, storyboardPanelNodes } from "@/lib/scripts/storyboard-canvas";
+import {
+  FAN_OUT_SETTLE_MS, SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, settleFanOutRows, storyboardPanelNodes, type FanOutLayout,
+} from "@/lib/scripts/storyboard-canvas";
 import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
@@ -73,6 +76,9 @@ export type CanvasState = {
   onConnect: OnConnect;
   removedNodeIds: string[];
   removedEdgeIds: string[];
+  /** The rows the last storyboard Fan out made, laid out again as their cards are measured
+   *  (settleFanOutRows). Never saved; null once settled, dragged, or timed out. */
+  fanOutLayout: FanOutLayout | null;
   clearRemoved: (nodeIds: string[], edgeIds: string[]) => void;
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
@@ -182,18 +188,39 @@ export function createCanvasStore(
   initialEdges: Edge[] = [],
   initialCanvasName: string = "",
 ) {
+  // D382 amended — while a storyboard Fan out's rows are fresh, a card that reports a new size
+  // (first render, or its panel image loading) lays those rows out again from what rendered. A
+  // drag of any of them hands the layout to the person. Only the layout's own nodes are looked
+  // at, and nothing is written when nothing moves (performance rules 2 and 4).
+  const settleFanOut = (
+    nodes: AppNode[],
+    changes: NodeChange<AppNode>[],
+    layout: FanOutLayout | null,
+  ): { nodes: AppNode[]; layout: FanOutLayout | null } => {
+    if (!layout) return { nodes, layout };
+    const ids = new Set(layout.rows.flatMap((r) => [r.shotId, ...r.panelIds]));
+    if (changes.some((c) => c.type === "position" && c.dragging && ids.has(c.id))) return { nodes, layout: null };
+    if (!changes.some((c) => c.type === "dimensions" && ids.has(c.id))) return { nodes, layout };
+    const mine = new Map(nodes.filter((n) => ids.has(n.id)).map((n) => [n.id, n]));
+    const moves = settleFanOutRows(mine, layout);
+    if (moves.size === 0) return { nodes, layout };
+    return { nodes: nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)), layout };
+  };
+
   return createStore<CanvasState>((set, get) => ({
     canvasName: initialCanvasName,
     nodes: initialNodes,
     edges: initialEdges,
     removedNodeIds: [],
     removedEdgeIds: [],
+    fanOutLayout: null,
     onNodesChange: (changes) => {
       const removedIds = new Set(
         changes.filter((c): c is NodeRemoveChange => c.type === "remove").map((c) => c.id),
       );
       if (removedIds.size === 0) {
-        set({ nodes: applyNodeChanges(changes, get().nodes) });
+        const settled = settleFanOut(applyNodeChanges(changes, get().nodes), changes, get().fanOutLayout);
+        set(settled.layout === get().fanOutLayout ? { nodes: settled.nodes } : { nodes: settled.nodes, fanOutLayout: settled.layout });
         return;
       }
       const cascadedEdges = get().edges.filter(
@@ -645,11 +672,28 @@ export function createCanvasStore(
         target: n.id,
       }));
       const panels = storyboardPanelNodes(created, shots, storyboardPanels);
+      // D382 amended — the rows just made are laid out again from their measured sizes as they
+      // render (settleFanOut), for long enough that every panel image has loaded.
+      const fanOutLayout: FanOutLayout | null = panels.nodes.length > 0
+        ? {
+            top: baseY,
+            rows: created.map((n) => ({
+              shotId: n.id,
+              panelIds: panels.edges.filter((e) => e.target === n.id).map((e) => e.source),
+            })),
+          }
+        : null;
 
       set({
         nodes: [...get().nodes, ...created, ...panels.nodes],
         edges: [...get().edges, ...createdEdges, ...panels.edges],
+        fanOutLayout,
       });
+      if (fanOutLayout) {
+        setTimeout(() => {
+          if (get().fanOutLayout === fanOutLayout) set({ fanOutLayout: null });
+        }, FAN_OUT_SETTLE_MS);
+      }
 
       // The ONLY fan-out toast (BUG-007: the Script node used to add its own, counting script
       // rows). It counts nodes created — one per generation — which is what "clip" means in Help.

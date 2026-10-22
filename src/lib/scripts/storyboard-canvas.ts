@@ -12,16 +12,70 @@ export const FAN_OUT_CARDS = {
   shot: { width: 224, height: 280 },
   multishot: { width: 320, height: 360 },
 } as const;
-/** A panel's File card: a 9:16 panel at the input tier (media-fit.ts) is 176 wide and its
- *  image 309 tall under a ~36px header. Panels are 9:16 on every reel. */
-export const PANEL_CARD = { width: 176, height: 345 } as const;
+/** A panel's File card before it is measured: a 2:3 panel (what GPT Image returns) at the input
+ *  tier is 202 wide, with a header above the image and the filename and Open link below it —
+ *  466 tall as measured on staging, 22 Oct 2026. Only the starting guess: settleFanOutRows
+ *  lays rows out again from what renders. */
+export const PANEL_CARD = { width: 202, height: 466 } as const;
 /** Between a card and the panel under it, and between two panels side by side. */
 export const PANEL_GAP = 24;
+/** Empty canvas between one shot's row and the next. */
+export const ROW_GAP = 96;
+/** A row is never shorter than the chain Next grows along it: Image gen and Video gen with 9:16
+ *  output are about 590 tall. */
+export const CHAIN_ROW_MIN = 600;
 /** Layout A (22 Oct 2026): one row per shot, its panel under it, and the guided chain (image
- *  prompt, image gen, video prompt, video gen) growing right along the row. The pitch clears the
- *  tallest card plus its panel (a Multishot: 360 + 24 + 345) and the chain's tallest card (Image
- *  gen or Video gen with 9:16 output, ~590), with room to spare between rows. */
-export const STORYBOARD_ROW_PITCH = 800;
+ *  prompt, image gen, video prompt, video gen) growing right along the row. The starting pitch,
+ *  from the estimates: the tallest card plus its panel (a Multishot) and the gap. */
+export const STORYBOARD_ROW_PITCH =
+  Math.max(FAN_OUT_CARDS.multishot.height + PANEL_GAP + PANEL_CARD.height, CHAIN_ROW_MIN) + ROW_GAP;
+
+/** How long a Fan out's rows keep settling to their measured sizes: long enough for every panel
+ *  image to load, short enough that a later change (a collapse, an edit) never moves the rows. */
+export const FAN_OUT_SETTLE_MS = 15_000;
+
+/** The rows one Fan out made, in order, for settleFanOutRows. */
+export type FanOutLayout = { top: number; rows: { shotId: string; panelIds: string[] }[] };
+type Placed = { position: { x: number; y: number }; measured?: { width?: number; height?: number }; type?: string };
+
+/**
+ * Fan out places its rows from estimates, before anything has rendered. Once the cards are
+ * measured (and a panel's image has loaded, which changes its card's height) this lays the same
+ * rows out again from the real sizes: each panel centred just under its shot, and each row as
+ * tall as its shot and panel, never less than the chain needs, with a gap before the next. Only
+ * the nodes that are not already in place are returned, so a settled layout writes nothing.
+ */
+export function settleFanOutRows(nodes: ReadonlyMap<string, Placed>, layout: FanOutLayout): Map<string, { x: number; y: number }> {
+  const moves = new Map<string, { x: number; y: number }>();
+  const move = (id: string, node: Placed, x: number, y: number) => {
+    if (Math.abs(node.position.x - x) > 0.5 || Math.abs(node.position.y - y) > 0.5) moves.set(id, { x, y });
+  };
+  let top = layout.top;
+  for (const row of layout.rows) {
+    const shot = nodes.get(row.shotId);
+    if (!shot) continue;
+    const estimate = shot.type === "multishot" ? FAN_OUT_CARDS.multishot : FAN_OUT_CARDS.shot;
+    const shotWidth = shot.measured?.width ?? estimate.width;
+    const shotHeight = shot.measured?.height ?? estimate.height;
+    move(row.shotId, shot, shot.position.x, top);
+
+    const panels = row.panelIds.flatMap((id) => {
+      const node = nodes.get(id);
+      return node ? [{ id, node, width: node.measured?.width ?? PANEL_CARD.width, height: node.measured?.height ?? PANEL_CARD.height }] : [];
+    });
+    const groupWidth = panels.reduce((sum, p) => sum + p.width, 0) + Math.max(0, panels.length - 1) * PANEL_GAP;
+    let x = shot.position.x + (shotWidth - groupWidth) / 2;
+    const panelTop = top + shotHeight + PANEL_GAP;
+    for (const p of panels) {
+      move(p.id, p.node, x, panelTop);
+      x += p.width + PANEL_GAP;
+    }
+    const tallestPanel = Math.max(0, ...panels.map((p) => p.height));
+    const rowHeight = Math.max(shotHeight + (panels.length ? PANEL_GAP + tallestPanel : 0), CHAIN_ROW_MIN);
+    top += rowHeight + ROW_GAP;
+  }
+  return moves;
+}
 
 function extOf(url: string): string {
   return (url.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i)?.[1] ?? "png").toLowerCase();

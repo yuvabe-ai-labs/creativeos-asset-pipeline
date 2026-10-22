@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { AppNode } from "@/lib/canvas-nodes";
 import {
-  FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, STORYBOARD_ROW_PITCH, storyboardPanelNodes,
+  CHAIN_ROW_MIN, FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, ROW_GAP, STORYBOARD_ROW_PITCH, settleFanOutRows, storyboardPanelNodes,
 } from "../storyboard-canvas";
 import type { StoryboardPanel } from "../storyboard";
 
@@ -58,6 +58,51 @@ describe("storyboardPanelNodes (D382)", () => {
   });
 
   it("does nothing without a storyboard", () => {
+    expect(storyboardPanelNodes([node("a", "shot", [0])], rows, undefined)).toEqual({ nodes: [], edges: [] });
+  });
+});
+
+describe("settleFanOutRows (D382 amended)", () => {
+  const at = (x: number, y: number, w?: number, h?: number) => ({ position: { x, y }, ...(w && h ? { measured: { width: w, height: h } } : {}) });
+
+  it("stacks rows from the cards' measured sizes: each panel just under its shot, rows clear of each other", () => {
+    const nodes = new Map([
+      ["s1", at(400, 0, 224, 295)], ["p1", at(0, 0, 202, 466)],
+      ["s2", at(400, 800, 224, 330)], ["p2", at(0, 0, 202, 466)],
+    ]);
+    const moves = settleFanOutRows(nodes, { top: 0, rows: [{ shotId: "s1", panelIds: ["p1"] }, { shotId: "s2", panelIds: ["p2"] }] });
+    expect(moves.get("p1")).toEqual({ x: 400 + (224 - 202) / 2, y: 295 + PANEL_GAP });
+    const row1Bottom = 295 + PANEL_GAP + 466;
+    expect(moves.get("s2")).toEqual({ x: 400, y: row1Bottom + ROW_GAP });
+    expect(moves.get("p2")?.y).toBe(row1Bottom + ROW_GAP + 330 + PANEL_GAP);
+  });
+
+  it("keeps a row at least as tall as the chain's output cards, even with a short panel", () => {
+    const nodes = new Map([
+      ["s1", at(400, 100, 224, 200)], ["p1", at(0, 0, 280, 160)],
+      ["s2", at(400, 0, 224, 200)],
+    ]);
+    const moves = settleFanOutRows(nodes, { top: 100, rows: [{ shotId: "s1", panelIds: ["p1"] }, { shotId: "s2", panelIds: [] }] });
+    expect(moves.get("s1")).toBeUndefined(); // already where it belongs: no write
+    expect(moves.get("s2")?.y).toBe(100 + CHAIN_ROW_MIN + ROW_GAP);
+  });
+
+  it("falls back to the estimates for a card not measured yet, and skips a node that is gone", () => {
+    const nodes = new Map([["s1", at(400, 0)], ["p1", at(0, 0)]]);
+    const moves = settleFanOutRows(nodes, { top: 0, rows: [{ shotId: "s1", panelIds: ["p1", "gone"] }, { shotId: "gone", panelIds: [] }] });
+    expect(moves.get("p1")?.y).toBe(FAN_OUT_CARDS.shot.height + PANEL_GAP);
+    expect(moves.has("gone")).toBe(false);
+  });
+
+  it("returns nothing when every node already sits where it belongs", () => {
+    const nodes = new Map([["s1", at(400, 0, 224, 295)], ["p1", at(411, 295 + PANEL_GAP, 202, 466)]]);
+    expect(settleFanOutRows(nodes, { top: 0, rows: [{ shotId: "s1", panelIds: ["p1"] }] }).size).toBe(0);
+  });
+});
+
+describe("storyboardPanelNodes, without a storyboard", () => {
+  const rows = [{ label: "S1" }];
+  it("does nothing", () => {
     expect(storyboardPanelNodes([node("a", "shot", [0])], rows, undefined)).toEqual({ nodes: [], edges: [] });
   });
 });
