@@ -100,7 +100,7 @@ export async function runEditorExport(input: ExportJobInput, deps: ExportDeps): 
       clips: count("take"),
       lipSynced: count("lip-synced"),
       dubs: count("dub-audio"),
-      captions: plan.titles.length,
+      captions: plan.lines.length,
       fonts: fontKeys.length,
       durationSeconds: frames / plan.fps,
       shape: plan.shape,

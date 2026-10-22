@@ -3,9 +3,10 @@
 // at the first piece's picture rate, read from the file (CreativeOS clips are 24 fps, never an
 // assumed 25). A piece never asks for frames past the end of the file it shows.
 import { captionFont, type CaptionFontKey } from "./caption-fonts";
-import { sizePx } from "./caption-style";
+import { BOX_OPACITY, boxPadPx, dimColor, displayText, sizePx, strokePx } from "./caption-style";
+import { wordFrames } from "./caption-words";
 import { captionTimes } from "./captions";
-import type { TitleSpec } from "./premiere-title";
+import type { TextRun, TitleSpec } from "./premiere-title";
 import type { EditDoc, MediaFacts, MediaFile, ReelShape, SourceView } from "./types";
 
 export const SEQUENCE_NAME = "CreativeOS Rough Cut";
@@ -42,6 +43,9 @@ export type PlanClip = {
 /** track: which caption track (V2 + track) it sits on, so overlapping captions never share one. */
 export type PlanTitle = TitleSpec & { start: number; end: number; fontKey: CaptionFontKey; track: number };
 
+/** One caption as a line, in sequence frames: what the SRT and the manifest carry. */
+export type PlanLine = { start: number; end: number; text: string };
+
 export type SequencePlan = {
   name: string;
   shape: ReelShape;
@@ -52,6 +56,7 @@ export type SequencePlan = {
   media: PlanMedia[];
   clips: PlanClip[];
   titles: PlanTitle[];
+  lines: PlanLine[];
 };
 
 export type PlanResult = { ok: true; plan: SequencePlan } | { ok: false; reason: string };
@@ -154,33 +159,55 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
       cursor += len;
     }
 
+    // D398 — the reel's one caption style; with word by word, one title per word, each holding the
+    // whole line with the word being said coloured and the words not said yet dimmed or hidden.
     const titles: PlanTitle[] = [];
+    const lines: PlanLine[] = [];
     const reel = { ...doc, pieces };
     const style = doc.captionStyle;
     const shortEdge = Math.min(frame.width, frame.height);
+    const look = {
+      fontKey: style.font,
+      fontPostScript: captionFont(style.font).postScript,
+      sizePx: sizePx(style, shortEdge),
+      color: style.color,
+      x: style.x,
+      y: style.y,
+      ...(style.outline ? { stroke: { color: "#000000", widthPx: strokePx(style, shortEdge) } } : {}),
+      ...(style.box ? { box: { color: style.boxColor, opacity: BOX_OPACITY, sizePx: boxPadPx(style, shortEdge) } } : {}),
+      track: 0,
+    };
+    const dim = dimColor(style);
     for (const c of doc.captions) {
       const t = captionTimes(reel, c);
       if (!t) continue;
       const start = Math.round(t.start * fps);
       const end = Math.min(cursor, Math.round(t.end * fps));
       if (end <= start) continue;
-      titles.push({
-        start,
-        end,
-        text: c.text,
-        fontKey: style.font,
-        fontPostScript: captionFont(style.font).postScript,
-        sizePx: sizePx(style, shortEdge),
-        color: style.color,
-        x: style.x,
-        y: style.y,
-        track: 0,
+      const frames = wordFrames(reel, c, fps);
+      const text = displayText(frames && frames.length ? frames.map((f) => f.text).join(" ") : c.text, style);
+      lines.push({ start, end, text });
+      if (!style.wordByWord || !frames || frames.length === 0) {
+        titles.push({ ...look, start, end, text });
+        continue;
+      }
+      frames.forEach((f, i) => {
+        const s = i === 0 ? start : Math.max(start, f.start);
+        const e = i === frames.length - 1 ? end : Math.min(end, f.end);
+        if (e <= s) return;
+        const runs: TextRun[] = [{ start: f.charStart, end: f.charEnd, color: style.activeColor }];
+        if (style.upcoming !== "show") {
+          for (const later of frames.slice(i + 1)) {
+            runs.push(style.upcoming === "hide" ? { start: later.charStart, end: later.charEnd, hidden: true } : { start: later.charStart, end: later.charEnd, color: dim });
+          }
+        }
+        titles.push({ ...look, start: s, end: e, text, runs });
       });
     }
     assignTitleTracks(titles);
 
     const sampleRate = media.find((m) => m.facts.audio)?.facts.audio?.sampleRate ?? FALLBACK_SAMPLE_RATE;
-    return { ok: true, plan: { name: SEQUENCE_NAME, shape: doc.shape, fps, ...frame, sampleRate, media, clips, titles } };
+    return { ok: true, plan: { name: SEQUENCE_NAME, shape: doc.shape, fps, ...frame, sampleRate, media, clips, titles, lines } };
   } catch (err) {
     if (err instanceof Unreadable) return { ok: false, reason: err.message };
     throw err;

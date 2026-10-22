@@ -19,7 +19,7 @@ export function fontsUsed(plan: SequencePlan): CaptionFontKey[] {
 /** Premiere's Import screen ignores sequence XML: the README says where to drag it (D389). */
 export function packageReadme(plan: SequencePlan): string {
   const dubbed = plan.clips.some((c) => c.dub);
-  const titled = plan.titles.length > 0;
+  const titled = plan.lines.length > 0;
   const lastTitleTrack = 2 + Math.max(0, ...plan.titles.map((t) => t.track));
   const captionTracks = lastTitleTrack > 2 ? `V2–V${lastTitleTrack}` : "V2";
   return [
@@ -62,7 +62,8 @@ export function packageManifest(plan: SequencePlan, createdAt: Date): Record<str
     sequence: { name: plan.name, shape: plan.shape, fps: plan.fps, width: plan.width, height: plan.height, frames, duration: formatTime(frames / plan.fps) },
     media: plan.media.map((m) => ({ fileName: m.fileName, role: m.role, source: m.sourceHandle, facts: m.facts })),
     clips: plan.clips.map((c, i) => ({ order: i + 1, source: c.label, start: c.start, end: c.end, picture: c.picture, sound: c.sound, dub: c.dub, scale: c.scale })),
-    captions: plan.titles.map((t) => ({ text: t.text, start: t.start, end: t.end, font: t.fontPostScript, size: t.sizePx, color: t.color, x: t.x, y: t.y })),
+    captions: plan.lines.map((l) => ({ text: l.text, start: l.start, end: l.end })),
+    captionStyle: plan.titles[0] ? { font: plan.titles[0].fontPostScript, size: plan.titles[0].sizePx, color: plan.titles[0].color, x: plan.titles[0].x, y: plan.titles[0].y } : null,
   };
 }
 
@@ -84,8 +85,8 @@ export function packageEntries(
     "README.txt": strToU8(packageReadme(plan)),
     media,
   };
-  if (plan.titles.length > 0) {
-    dir["captions.srt"] = strToU8(toSrt(plan.titles.map((t) => ({ start: t.start / plan.fps, end: t.end / plan.fps, text: t.text }))));
+  if (plan.lines.length > 0) {
+    dir["captions.srt"] = strToU8(toSrt(plan.lines.map((l) => ({ start: l.start / plan.fps, end: l.end / plan.fps, text: l.text }))));
     dir.fonts = Object.fromEntries(bytes.fonts.map((f) => [f.name, f.bytes]));
   }
   return { [PACKAGE_DIR]: dir };

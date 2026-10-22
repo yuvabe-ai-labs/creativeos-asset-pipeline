@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { planSequence, type SequencePlan } from "../sequence-plan";
 import type { Caption, EditDoc, Piece } from "../types";
 import { audioFacts, file, source, videoFacts } from "./fixtures";
-import { DEFAULT_CAPTION_STYLE } from "../caption-style";
+import { CAPTION_PRESETS, DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const A = source("a", { handle: "VID-AAAA" });
 const B = source("b", { handle: "VID-BBBB" });
@@ -75,11 +75,49 @@ describe("planSequence", () => {
 
   it("turns captions into titles", () => {
     const cap = (id: string, at: number): Caption => ({ id, pieceId: "p1", at, duration: 2, text: id });
-    const plan = ok(planSequence(doc([piece("p1", "a", 0, 121)], [cap("in", 1), cap("past", 99)]), [A]));
+    const clean = (d: EditDoc): EditDoc => ({ ...d, captionStyle: { ...DEFAULT_CAPTION_STYLE, ...CAPTION_PRESETS.clean.look, font: "montserrat", size: 84 } });
+    const plan = ok(planSequence(clean(doc([piece("p1", "a", 0, 121)], [cap("in", 1), cap("past", 99)])), [A]));
     expect(plan.titles).toHaveLength(1);
     expect(plan.titles[0]).toMatchObject({ start: 24, end: 72, sizePx: 56, fontPostScript: "Montserrat-ExtraBold", fontKey: "montserrat", text: "in" });
-    const clipped = ok(planSequence(doc([piece("p1", "a", 0, 24)], [cap("late", 0.999)]), [A]));
+    const clipped = ok(planSequence(clean(doc([piece("p1", "a", 0, 24)], [cap("late", 0.999)])), [A]));
     expect(clipped.titles).toEqual([]);
+  });
+
+  describe("captions in the reel's style (D398)", () => {
+    // A 720 px wide picture: sizes scale by 720 / 1080.
+    const words = [{ text: "make", at: 1, duration: 0.5 }, { text: "dosa", at: 1.5, duration: 0.5 }];
+    const withLook = (look: Partial<EditDoc["captionStyle"]>) =>
+      ok(planSequence({ ...doc([piece("p1", "a", 0, 121)], [{ id: "c", pieceId: "p1", at: 1, duration: 1.3, text: "make dosa", words }]), captionStyle: { ...DEFAULT_CAPTION_STYLE, ...look } }, [A]));
+
+    it("writes one title per line when word by word is off, upper-cased by the style", () => {
+      const plan = withLook({ ...CAPTION_PRESETS.clean.look, upper: true });
+      expect(plan.titles).toHaveLength(1);
+      expect(plan.titles[0]).toMatchObject({ text: "MAKE DOSA", start: 24, end: 55 });
+      expect(plan.titles[0].runs).toBeUndefined();
+      expect(plan.lines).toEqual([{ start: 24, end: 55, text: "MAKE DOSA" }]);
+    });
+
+    it("writes one title per word: the said word coloured, upcoming dimmed, in a box", () => {
+      const plan = withLook(CAPTION_PRESETS.boxed.look);
+      expect(plan.titles.map((t) => [t.start, t.end])).toEqual([[24, 36], [36, 55]]);
+      expect(plan.titles[0].runs).toEqual([{ start: 0, end: 4, color: "#c4b5fd" }, { start: 5, end: 9, color: "#7c7c7c" }]);
+      expect(plan.titles[1].runs).toEqual([{ start: 5, end: 9, color: "#c4b5fd" }]);
+      expect(plan.titles[0].box).toEqual({ color: "#111111", opacity: 72, sizePx: 8 });
+      expect(plan.titles[0].stroke).toBeUndefined();
+      expect(plan.lines).toHaveLength(1);
+    });
+
+    it("hides upcoming words for Karaoke and outlines the text", () => {
+      const plan = withLook(CAPTION_PRESETS.karaoke.look);
+      expect(plan.titles[0]).toMatchObject({ text: "MAKE DOSA", stroke: { color: "#000000", widthPx: 6 } });
+      expect(plan.titles[0].runs).toEqual([{ start: 0, end: 4, color: "#ffca2d" }, { start: 5, end: 9, hidden: true }]);
+    });
+
+    it("keeps the words a line holds when its piece is trimmed", () => {
+      const plan = ok(planSequence({ ...doc([piece("p1", "a", 36, 121)], [{ id: "c", pieceId: "p1", at: 1, duration: 1.3, text: "make dosa", words }]), captionStyle: DEFAULT_CAPTION_STYLE }, [A]));
+      // "make" (source 1.0 s) is trimmed off; "dosa" (1.5 s) is the first frame of the reel.
+      expect(plan.titles.map((t) => [t.text, t.start])).toEqual([["DOSA", 0]]);
+    });
   });
 
   it("refuses when a used file can't be read", () => {
