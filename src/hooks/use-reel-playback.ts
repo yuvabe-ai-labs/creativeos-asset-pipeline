@@ -3,21 +3,22 @@
 // cuts between different files), ported from the rough-cut spike. While playing, the clock
 // follows the video's own frames, so the preview never runs ahead of buffered media.
 //
-// D397 — the clock reads the frame actually on screen: requestVideoFrameCallback's mediaTime where
-// the browser has it (currentTime read per animation frame can be a frame off), the animation-frame
-// loop otherwise. A watchdog re-arms the frame callback when a source swap at a cut drops it.
+// D402 — an animation-frame loop drives the clock, so playback carries on through every cut. Where
+// the browser has requestVideoFrameCallback, it only REPORTS the presented frame's time (and which
+// file it belongs to); the loop uses that for the current file, else currentTime (D397's
+// precision without its stall: the frame callback never fires on an ended video).
 //
 // Added for the product (spec §6): the preview plays the CHOSEN picture and sound. When a piece's
 // sound comes from another file (a dub, or the original under a lip-synced picture), the video is
 // muted and a second <audio> plays that sound, re-seeked whenever it drifts from the clock.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { advanceClock } from "@/lib/editor/clock";
 import { locate, pieceSeconds, totalSeconds } from "@/lib/editor/timeline";
 import type { PieceMedia } from "@/lib/editor/playback";
 import type { Piece } from "@/lib/editor/types";
 
 const SEEK_TOLERANCE_SECONDS = 0.12;
 const FALLBACK_FPS = 24;
-const WATCHDOG_MS = 400;
 
 type VideoWithFrames = HTMLVideoElement & {
   requestVideoFrameCallback?(cb: (now: number, meta: { mediaTime: number }) => void): number;
@@ -31,8 +32,8 @@ export function useReelPlayback(pieces: Piece[], media: (p: Piece) => PieceMedia
   const timeRef = useRef(0);
   const playingRef = useRef(false);
   const rafRef = useRef(0);
-  const frameTimeRef = useRef<number | null>(null);
-  const lastFrameAt = useRef(0);
+  /** The last frame the video presented: its file and time (D402). */
+  const frameRef = useRef<{ src: string; mediaTime: number } | null>(null);
   const piecesRef = useRef(pieces);
   const mediaRef = useRef(media);
   const tickRef = useRef<() => void>(() => {});
@@ -46,32 +47,48 @@ export function useReelPlayback(pieces: Piece[], media: (p: Piece) => PieceMedia
     audioRef.current?.pause();
   }, []);
 
-  /** The next tick: on the next frame shown when the browser can tell us, else the next paint.
-   *  Only the latest callback acts, so a watchdog re-arm never leaves two loops running. */
-  const tokenRef = useRef(0);
   const schedule = useCallback(() => {
+    rafRef.current = requestAnimationFrame(() => tickRef.current());
+  }, []);
+
+  // The frame reporter: re-arms itself on every frame, and again whenever a new file starts
+  // playing (a source swap or a seek can leave no callback pending).
+  useEffect(() => {
     const v = videoRef.current as VideoWithFrames | null;
-    if (v?.requestVideoFrameCallback) {
-      const token = ++tokenRef.current;
-      v.requestVideoFrameCallback((_now, meta) => {
-        if (token !== tokenRef.current) return;
-        lastFrameAt.current = performance.now();
-        frameTimeRef.current = meta.mediaTime;
-        tickRef.current();
+    if (!v?.requestVideoFrameCallback) return;
+    let alive = true;
+    let pending = false;
+    const arm = () => {
+      if (!alive || pending) return;
+      pending = true;
+      v.requestVideoFrameCallback!((_now, meta) => {
+        pending = false;
+        frameRef.current = { src: v.dataset.src ?? "", mediaTime: meta.mediaTime };
+        arm();
       });
-    } else {
-      rafRef.current = requestAnimationFrame(() => tickRef.current());
-    }
+    };
+    arm();
+    v.addEventListener("play", arm);
+    v.addEventListener("loadeddata", arm);
+    return () => {
+      alive = false;
+      v.removeEventListener("play", arm);
+      v.removeEventListener("loadeddata", arm);
+    };
   }, []);
 
   /** Points one element at a file and time, playing or paused to match the clock. */
   const point = useCallback((el: HTMLMediaElement, url: string, target: number) => {
     const apply = () => {
-      if (Math.abs(el.currentTime - target) > SEEK_TOLERANCE_SECONDS) el.currentTime = target;
+      if (Math.abs(el.currentTime - target) > SEEK_TOLERANCE_SECONDS) {
+        el.currentTime = target;
+        frameRef.current = null; // a frame from before the seek would move the clock
+      }
       if (playingRef.current && el.paused) el.play().catch(() => {});
       if (!playingRef.current && !el.paused) el.pause();
     };
     if (el.dataset.src !== url) {
+      frameRef.current = null;
       el.dataset.src = url;
       el.src = url;
       el.addEventListener("loadedmetadata", apply, { once: true });
@@ -103,8 +120,6 @@ export function useReelPlayback(pieces: Piece[], media: (p: Piece) => PieceMedia
 
   useEffect(() => {
     tickRef.current = () => {
-      const frameTime = frameTimeRef.current;
-      frameTimeRef.current = null;
       if (!playingRef.current) return;
       const ps = piecesRef.current;
       const v = videoRef.current;
@@ -112,37 +127,30 @@ export function useReelPlayback(pieces: Piece[], media: (p: Piece) => PieceMedia
       const m = at ? mediaRef.current(ps[at.index]) : null;
       if (!at || !v || !m) return stop();
       const piece = ps[at.index];
-      const d = pieceSeconds(piece);
-      let next = timeRef.current; // waiting for media: hold the clock
-      if (v.dataset.src === m.pictureUrl && v.readyState >= 2 && !v.seeking) {
-        const local = (frameTime ?? v.currentTime) - piece.in;
-        next = v.ended ? at.offset + d : at.offset + Math.min(d, Math.max(at.local, local));
-      }
-      const end = totalSeconds(ps);
-      if (next >= end) {
-        timeRef.current = end;
-        setTime(end);
+      const ready = v.dataset.src === m.pictureUrl && v.readyState >= 2 && !v.seeking;
+      const frame = frameRef.current;
+      const fileTime = !ready ? null : frame && frame.src === m.pictureUrl ? frame.mediaTime : v.currentTime;
+      const step = advanceClock({
+        offset: at.offset,
+        length: pieceSeconds(piece),
+        local: at.local,
+        sourceIn: piece.in,
+        fileTime,
+        ended: ready && v.ended,
+        total: totalSeconds(ps),
+        fps: m.pictureFps,
+      });
+      if (step.done) {
+        timeRef.current = step.time;
+        setTime(step.time);
         return stop();
       }
-      timeRef.current = next;
-      setTime(next);
-      sync();
+      timeRef.current = step.time;
+      setTime(step.time);
+      sync(); // at a cut, points the video at the next piece's file and plays it
       schedule();
     };
   }, [stop, sync, schedule]);
-
-  // A source swap at a cut can drop the pending frame callback: start it again if frames stop.
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      const v = videoRef.current as VideoWithFrames | null;
-      if (!v?.requestVideoFrameCallback || !playingRef.current || v.paused) return;
-      if (performance.now() - lastFrameAt.current > WATCHDOG_MS) {
-        lastFrameAt.current = performance.now();
-        schedule();
-      }
-    }, WATCHDOG_MS);
-    return () => window.clearInterval(id);
-  }, [schedule]);
 
   // Edits (trim, split, reorder, delete, picture/sound choice) re-point the preview and keep the
   // playhead in range.
@@ -167,7 +175,6 @@ export function useReelPlayback(pieces: Piece[], media: (p: Piece) => PieceMedia
     }
     playingRef.current = true;
     setPlaying(true);
-    lastFrameAt.current = performance.now();
     sync();
     schedule();
   }, [sync, schedule]);
