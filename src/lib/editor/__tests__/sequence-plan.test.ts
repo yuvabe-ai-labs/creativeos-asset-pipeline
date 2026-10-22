@@ -37,7 +37,10 @@ describe("planSequence", () => {
     const snd = plan.media.find((m) => m.id === plan.clips[0].sound!.media)!;
     expect(pic.role).toBe("lip-synced");
     expect(snd.role).toBe("take");
-    expect(plan.clips[0].dub).toBeNull();
+    // D409 — the dub it doesn't play is kept, switched off; the original picture is the alternative
+    expect(plan.clips[0].dub).not.toBeNull();
+    expect(plan.clips[0].dubOn).toBe(false);
+    expect(plan.media.find((m) => m.id === plan.clips[0].altPicture!.media)!.role).toBe("take");
   });
 
   it("puts a chosen dub on the plan, clamped to the dub's length", () => {

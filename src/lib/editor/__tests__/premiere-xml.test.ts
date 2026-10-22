@@ -84,7 +84,7 @@ describe("buildPremiereXml", () => {
     expect(block("clipitem-v1")).toContain("<pathurl>media/001_DUB-DDDD_lip-synced.mp4</pathurl>");
     expect(block("clipitem-a1-1")).toContain("<masterclipid>masterclip-2</masterclipid>"); // original sound
     expect(block("clipitem-a1-1")).toContain("<pathurl>media/002_DUB-DDDD_take.mp4</pathurl>");
-    expect(block("clipitem-a1-1").match(/<link>/g)).toHaveLength(3);
+    expect(block("clipitem-a1-1").match(/<link>/g)).toHaveLength(5); // picture, A1/A2, and the dub (off) on A3/A4
   });
 
   it("scales only the clip that needs it", () => {
@@ -92,6 +92,43 @@ describe("buildPremiereXml", () => {
     const x = buildPremiereXml(plan([piece("1", "a", 0, 24), piece("2", "w", 0, 24)], [A, wide]));
     expect(x.match(/<effectid>basic<\/effectid>/g)).toHaveLength(1);
     expect(x).toContain("<value>56.25</value>");
+  });
+
+  describe("the choice not made stays in the sequence, switched off (D409)", () => {
+    const D = source("d", { kind: "dubbing", handle: "DUB-DDDD", language: "hi-IN" });
+    const block = (x: string, id: string) => x.match(new RegExp(`<clipitem id="${id}">[\\s\\S]*?</clipitem>`))![0];
+
+    it("keeps a dub the clip doesn't play on A3/A4, off, with the original on", () => {
+      const x = buildPremiereXml(plan([piece("1", "d", 0, 120)], [D]));
+      expect(block(x, "clipitem-d1-1")).toMatch(/<enabled>FALSE<\/enabled>/);
+      expect(block(x, "clipitem-a1-1")).toMatch(/<enabled>TRUE<\/enabled>/);
+    });
+
+    it("puts the picture not chosen on its own track above the captions, off", () => {
+      const x = buildPremiereXml(plan([piece("1", "d", 0, 120, { picture: "lipSynced", sound: "dubbed" })], [D]));
+      const alt = block(x, "clipitem-alt1");
+      // the original take, already written in full for the sound, referenced by id
+      expect(alt).toMatch(/<masterclipid>masterclip-2<\/masterclipid>[\s\S]*<file id="file-2"\/>/);
+      expect(alt).toMatch(/<enabled>FALSE<\/enabled>/);
+      // its own track after V1 (and after any caption tracks), before the audio tracks
+      expect(x.indexOf('<clipitem id="clipitem-alt1">')).toBeGreaterThan(x.indexOf('<clipitem id="clipitem-v1">'));
+      expect(x.indexOf('<clipitem id="clipitem-alt1">')).toBeLessThan(x.indexOf('<clipitem id="clipitem-a1-1">'));
+    });
+
+    it("marks each dubbed or lip-synced clip, and each pause, on the sequence", () => {
+      const p = planSequence(
+        { v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape: "9:16", sources: [], captions: [], pieces: [piece("1", "d", 0, 120, { picture: "lipSynced", sound: "dubbed" })] },
+        [D],
+        { pauses: new Map([[D.files.dubAudio!.url, [[2, 2.8]] as Array<[number, number]>]]) },
+      );
+      if (!p.ok) throw new Error(p.reason);
+      expect(p.plan.markers).toEqual([
+        { start: 0, end: null, name: "1. DUB-DDDD: dubbed (Hindi), lip-synced" },
+        { start: 48, end: 67, name: "Pause 0.8 s" },
+      ]);
+      const x = buildPremiereXml(p.plan);
+      expect(x).toMatch(/<marker>\s*<name>Pause 0.8 s<\/name>[\s\S]*?<in>48<\/in>\s*<out>67<\/out>/);
+    });
   });
 
   it("dumps the XML for eyeballing", async () => {

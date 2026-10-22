@@ -6,6 +6,8 @@ import { captionFont, type CaptionFontKey } from "./caption-fonts";
 import { BOX_OPACITY, boxPadPx, dimColor, displayText, sizePx, strokePx } from "./caption-style";
 import { wordFrames } from "./caption-words";
 import { captionTimes } from "./captions";
+import { pieceSoundFile } from "./playback";
+import { dubLanguageLabel } from "@/lib/dubbing/types";
 import type { TextRun, TitleSpec } from "./premiere-title";
 import type { EditDoc, MediaFacts, MediaFile, ReelShape, SourceView } from "./types";
 
@@ -35,13 +37,20 @@ export type PlanClip = {
   end: number;
   picture: { media: number; in: number };
   sound: { media: number; in: number; channels: number } | null;
+  /** The source's dub whenever it has one (D409); `dubOn` says whether the clip plays it. */
   dub: { media: number; in: number; out: number; channels: number } | null;
+  dubOn: boolean;
+  /** The picture not chosen (original or lip-synced), kept on its own track, switched off (D409). */
+  altPicture: { media: number; in: number; len: number } | null;
   /** Basic Motion scale in percent, so a clip of another size fits the frame; null = native. */
   scale: number | null;
 };
 
 /** track: which caption track (V2 + track) it sits on, so overlapping captions never share one. */
 export type PlanTitle = TitleSpec & { start: number; end: number; fontKey: CaptionFontKey; track: number };
+
+/** A sequence marker (D409): a clip's dub and lip sync, or a pause. end null: a point marker. */
+export type PlanMarker = { start: number; end: number | null; name: string };
 
 /** One caption as a line, in sequence frames: what the SRT and the manifest carry. */
 export type PlanLine = { start: number; end: number; text: string };
@@ -57,6 +66,7 @@ export type SequencePlan = {
   clips: PlanClip[];
   titles: PlanTitle[];
   lines: PlanLine[];
+  markers: PlanMarker[];
 };
 
 export type PlanResult = { ok: true; plan: SequencePlan } | { ok: false; reason: string };
@@ -85,7 +95,8 @@ function assignTitleTracks(titles: PlanTitle[]): void {
   }
 }
 
-export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
+/** pauses: per sound file URL, pauses in that file's seconds (from its transcript, D409). */
+export function planSequence(doc: EditDoc, sources: SourceView[], opts: { pauses?: ReadonlyMap<string, Array<[number, number]>> } = {}): PlanResult {
   const byId = new Map(sources.map((s) => [s.nodeId, s]));
   const pieces = doc.pieces;
   if (pieces.length === 0) return { ok: false, reason: EMPTY_REEL };
@@ -127,8 +138,9 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
     const frame = firstShape === doc.shape ? { width: first.width, height: first.height } : STANDARD_FRAME[doc.shape];
 
     const clips: PlanClip[] = [];
+    const markers: PlanMarker[] = [];
     let cursor = 0;
-    for (const p of pieces) {
+    for (const [n, p] of pieces.entries()) {
       const source = byId.get(p.sourceNodeId)!;
       const picture = pictureOf(p.sourceNodeId, p.picture === "lipSynced");
       const video = picture.facts.video!;
@@ -140,10 +152,19 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
       const sound = original.facts.audio ? { media: original.id, in: inF, channels: original.facts.audio.channels } : null;
 
       let dub: PlanClip["dub"] = null;
-      if (p.sound === "dubbed" && source.files.dubAudio) {
+      const dubOn = p.sound === "dubbed" && Boolean(source.files.dubAudio);
+      if (source.files.dubAudio) {
         const d = mediaFor(source.files.dubAudio, "dub-audio", source);
         const out = Math.min(inF + len, framesWithin(d.facts.durationSeconds, fps));
         dub = { media: d.id, in: Math.min(inF, Math.max(0, out - 1)), out, channels: d.facts.audio?.channels ?? 2 };
+      }
+
+      // The other picture, when the source has both, for the editor to switch to in Premiere.
+      let altPicture: PlanClip["altPicture"] = null;
+      if (source.files.lipSynced) {
+        const alt = pictureOf(p.sourceNodeId, p.picture !== "lipSynced");
+        const altVideo = alt.facts.video;
+        if (alt.id !== picture.id && altVideo) altPicture = { media: alt.id, in: inF, len: Math.max(1, Math.min(len, framesWithin(altVideo.frames / altVideo.fps, fps) - inF)) };
       }
 
       const fits = video.width === frame.width && video.height === frame.height;
@@ -154,8 +175,24 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
         picture: { media: picture.id, in: inF },
         sound,
         dub,
+        dubOn,
+        altPicture,
         scale: fits ? null : round2(Math.min(frame.width / video.width, frame.height / video.height) * 100),
       });
+
+      const lang = source.language ? dubLanguageLabel(source.language) : "the";
+      const notes = [
+        dub && (dubOn ? `dubbed (${lang})` : `${lang} dub on A3/A4, off`),
+        source.files.lipSynced && (p.picture === "lipSynced" ? "lip-synced" : "lip-synced picture on its own track, off"),
+      ].filter(Boolean);
+      if (notes.length) markers.push({ start: cursor, end: null, name: `${n + 1}. ${source.handle}: ${notes.join(", ")}` });
+      const soundUrl = pieceSoundFile(p, source).url;
+      for (const [a, b] of opts.pauses?.get(soundUrl) ?? []) {
+        if (b <= p.in || a >= p.out) continue;
+        const s = cursor + Math.round((Math.max(a, p.in) - p.in) * fps);
+        const e = cursor + Math.round((Math.min(b, p.out) - p.in) * fps);
+        if (e > s) markers.push({ start: s, end: e, name: `Pause ${(Math.min(b, p.out) - Math.max(a, p.in)).toFixed(1)} s` });
+      }
       cursor += len;
     }
 
@@ -207,7 +244,7 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
     assignTitleTracks(titles);
 
     const sampleRate = media.find((m) => m.facts.audio)?.facts.audio?.sampleRate ?? FALLBACK_SAMPLE_RATE;
-    return { ok: true, plan: { name: SEQUENCE_NAME, shape: doc.shape, fps, ...frame, sampleRate, media, clips, titles, lines } };
+    return { ok: true, plan: { name: SEQUENCE_NAME, shape: doc.shape, fps, ...frame, sampleRate, media, clips, titles, lines, markers } };
   } catch (err) {
     if (err instanceof Unreadable) return { ok: false, reason: err.message };
     throw err;

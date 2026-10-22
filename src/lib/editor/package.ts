@@ -22,6 +22,8 @@ export function packageReadme(plan: SequencePlan): string {
   const titled = plan.lines.length > 0;
   const lastTitleTrack = 2 + Math.max(0, ...plan.titles.map((t) => t.track));
   const captionTracks = lastTitleTrack > 2 ? `V2–V${lastTitleTrack}` : "V2";
+  const altTrack = titled ? lastTitleTrack + 1 : 2;
+  const alternates = plan.clips.some((c) => c.altPicture);
   return [
     "CreativeOS rough cut: Premiere Pro package",
     "",
@@ -37,8 +39,8 @@ export function packageReadme(plan: SequencePlan): string {
     "- A1/A2: each clip's own sound, linked to its picture.",
     ...(dubbed
       ? [
-          "- A3/A4: the dubbed sound, linked to its picture. The original sound is still",
-          "  on A1/A2, switched off, so it can be brought back.",
+          "- A3/A4: the dubbed sound, linked to its picture. Whichever a clip doesn't play,",
+          "  dub or original, is still there, switched off: turn it on to swap.",
         ]
       : []),
     ...(titled
@@ -48,6 +50,12 @@ export function packageReadme(plan: SequencePlan): string {
           "  caption track instead).",
           "- fonts/: the caption fonts. Install them if Premiere doesn't have them.",
         ]
+      : []),
+    ...(alternates
+      ? [`- V${altTrack}: the other picture of lip-synced clips (original or lip-synced), switched off.`]
+      : []),
+    ...(plan.markers.length
+      ? ["- Markers: each dubbed or lip-synced clip, and each pause in speech of 0.6 s or more."]
       : []),
     "- media/: exactly the files this reel uses.",
     "",

@@ -5,6 +5,9 @@ import { resolveOrgId } from "@/lib/dal";
 import type { ExportJobInput } from "@/lib/editor/export-run";
 import { loadEditorState } from "@/lib/editor/load-state";
 import { planSequence } from "@/lib/editor/sequence-plan";
+import { planTranscription } from "@/lib/editor/transcribe-plan";
+import { pausesFromWords } from "@/lib/editor/pauses";
+import { listTranscripts } from "@/lib/db/media-transcripts";
 import { failJob, failStaleJobs, insertJob, setJobRunId } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
 
@@ -25,7 +28,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
 
       const [state, orgId] = await Promise.all([loadEditorState(canvasId), resolveOrgId()]);
       if (!state || state.editorNodeId !== nodeId) return apiError("Editor not found.", 404);
-      const planned = planSequence(state.doc, state.sources);
+      // D409 — pauses in speech become markers, from the transcripts already stored (no audio here).
+      const { files } = planTranscription(state.doc, state.sources);
+      const transcripts = await listTranscripts(files.map((f) => f.url));
+      const pauses = new Map([...transcripts].map(([url, t]) => [url, pausesFromWords(t.words)] as const));
+      const planned = planSequence(state.doc, state.sources, { pauses });
       if (!planned.ok) return apiError(planned.reason, 422);
 
       const clientId = canvas.client_id;

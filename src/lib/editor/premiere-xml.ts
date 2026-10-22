@@ -11,6 +11,9 @@
 //     sound), each with its own masterclip.
 //  4. A dub sits on its own audio tracks (group 2); the original sound stays, switched off.
 //  5. Captions are styled Graphic titles on V2 (premiere-title.ts).
+//  6. D409 — the choice not made stays, switched off: a dub the clip doesn't play sits on A3/A4,
+//     and the other picture (original or lip-synced) on its own track above the captions. Markers
+//     name each dubbed or lip-synced clip and each pause in speech.
 // Media paths are relative (media/…): a package built in the cloud can't know where it will be
 // unzipped, so Premiere needs at most one relink. Element meanings: Apple's (retired) FCP XML
 // Interchange Format element catalog.
@@ -137,14 +140,14 @@ export function buildPremiereXml(plan: SequencePlan): string {
     );
   };
 
-  // The original sound stays in the sequence but is switched off under a dub.
+  // The original sound stays in the sequence but is switched off under a dub it plays.
   const audioItem = (p: Placed, self: LinkRef, ch: number) => {
     const m = media(p.clip.sound!.media);
     const inn = p.clip.sound!.in;
     return x("clipitem", { id: self.id },
       x("masterclipid", null, `masterclip-${m.id}`),
       x("name", null, m.fileName),
-      x("enabled", null, p.clip.dub ? "FALSE" : "TRUE"),
+      x("enabled", null, p.clip.dubOn ? "FALSE" : "TRUE"),
       x("duration", null, lengthInSeq(m)),
       rate(seqFps),
       x("start", null, p.clip.start), x("end", null, p.clip.end), x("in", null, inn), x("out", null, inn + p.len),
@@ -160,7 +163,7 @@ export function buildPremiereXml(plan: SequencePlan): string {
     return x("clipitem", { id: self.id },
       x("masterclipid", null, `masterclip-${m.id}`),
       x("name", null, m.fileName),
-      x("enabled", null, "TRUE"),
+      x("enabled", null, p.clip.dubOn ? "TRUE" : "FALSE"),
       x("duration", null, lengthInSeq(m)),
       rate(seqFps),
       x("start", null, p.clip.start), x("end", null, p.clip.start + (d.out - d.in)), x("in", null, d.in), x("out", null, d.out),
@@ -185,12 +188,37 @@ export function buildPremiereXml(plan: SequencePlan): string {
     }));
   });
 
+  // The picture not chosen, on its own track above the captions, switched off (D409).
+  const altItems = placed.flatMap((p, n) => {
+    const alt = p.clip.altPicture;
+    if (!alt) return [];
+    const m = media(alt.media);
+    return [
+      x("clipitem", { id: `clipitem-alt${n + 1}` },
+        x("masterclipid", null, `masterclip-${m.id}`),
+        x("name", null, m.fileName),
+        x("enabled", null, "FALSE"),
+        x("duration", null, lengthInSeq(m)),
+        rate(seqFps),
+        x("start", null, p.clip.start), x("end", null, p.clip.start + alt.len), x("in", null, alt.in), x("out", null, alt.in + alt.len),
+        fileRef(m),
+        x("sourcetrack", null, x("mediatype", null, "video"), x("trackindex", null, 1)),
+        p.clip.scale !== null && basicMotion(p.clip.scale),
+      ),
+    ];
+  });
+
+  const markers = plan.markers.map((mk) =>
+    x("marker", null, x("name", null, mk.name), x("comment", null, ""), x("in", null, mk.start), x("out", null, mk.end ?? -1)),
+  );
+
   const duration = plan.clips.length ? plan.clips[plan.clips.length - 1].end : 0;
   const sequence = x("sequence", { id: "sequence-1" },
     x("name", null, plan.name),
     x("duration", null, duration),
     rate(seqFps),
     timecode(seqFps),
+    ...markers,
     x("media", null,
       x("video", null,
         x("format", null,
@@ -198,6 +226,7 @@ export function buildPremiereXml(plan: SequencePlan): string {
         ),
         x("track", null, ...placed.map(videoItem)),
         ...titleTracks.map((items) => x("track", null, ...items)),
+        altItems.length > 0 && x("track", null, ...altItems),
       ),
       x("audio", null,
         x("numOutputChannels", null, 2),

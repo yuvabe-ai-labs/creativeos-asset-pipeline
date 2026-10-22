@@ -15,6 +15,8 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/lib/editor/load-state", () => ({ loadEditorState: vi.fn() }));
 vi.mock("@/lib/editor/sequence-plan", () => ({ planSequence: vi.fn() }));
+vi.mock("@/lib/editor/transcribe-plan", () => ({ planTranscription: vi.fn(() => ({ files: [], noSound: [] })) }));
+vi.mock("@/lib/db/media-transcripts", () => ({ listTranscripts: vi.fn(async () => new Map()) }));
 vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
 vi.mock("@/lib/jobs/db", () => ({
   insertJob: vi.fn(), failStaleJobs: vi.fn(), setJobRunId: vi.fn(), failJob: vi.fn(), getJob: vi.fn(),
