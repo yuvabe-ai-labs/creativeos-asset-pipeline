@@ -1,5 +1,7 @@
 import type { ExportStatus } from "@/lib/editor/export-run";
+import type { TranscribeStatus } from "@/lib/editor/transcribe-plan";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
+import type { Transcript } from "@/lib/transcribe/types";
 import { proxyImageSrc } from "@/lib/post/proxy-image-src";
 import { ApiError, readJson } from "./read-json";
 
@@ -41,6 +43,27 @@ class EditorService {
   async exportStatus(canvasId: string, jobId: string): Promise<ExportStatus> {
     const res = await fetch(`/api/canvases/${canvasId}/editor/exports/${jobId}`);
     return readJson(res, "Couldn't read the export.");
+  }
+
+  /** Starts Auto captions (D399). jobId null: every file was already transcribed. */
+  async startTranscribe(canvasId: string, body: { nodeId: string; pieceIds?: string[] }): Promise<{ jobId: string | null; noSound: string[] }> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/transcribe`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return readJson(res, "Couldn't start captions.");
+  }
+
+  async transcribeStatus(canvasId: string, jobId: string): Promise<TranscribeStatus> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/transcribe/${jobId}`);
+    return readJson(res, "Couldn't read the captions run.");
+  }
+
+  /** The stored transcripts for this reel's sound files (D395). */
+  async transcripts(canvasId: string): Promise<Transcript[]> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/transcripts`);
+    return (await readJson<{ transcripts: Transcript[] }>(res, "Couldn't read the captions.")).transcripts;
   }
 }
 

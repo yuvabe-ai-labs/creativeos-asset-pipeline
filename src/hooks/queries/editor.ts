@@ -2,7 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ExportStatus } from "@/lib/editor/export-run";
+import type { TranscribeStatus } from "@/lib/editor/transcribe-plan";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
+import type { Transcript } from "@/lib/transcribe/types";
 import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
 import { rmsWindows } from "@/lib/editor/silence";
 import { editorService } from "@/services/editor.service";
@@ -13,6 +15,8 @@ export const editorKeys = {
   all: (canvasId: string) => ["editor", canvasId] as const,
   state: (canvasId: string) => [...editorKeys.all(canvasId), "state"] as const,
   export: (canvasId: string, jobId: string) => [...editorKeys.all(canvasId), "export", jobId] as const,
+  transcripts: (canvasId: string) => [...editorKeys.all(canvasId), "transcripts"] as const,
+  transcribe: (canvasId: string, jobId: string) => [...editorKeys.all(canvasId), "transcribe", jobId] as const,
   quiet: (url: string) => ["editor-quiet", url] as const,
 };
 
@@ -54,6 +58,38 @@ export function useExportStatus(canvasId: string, jobId: string | null) {
     queryFn: () => editorService.exportStatus(canvasId, jobId!),
     enabled: Boolean(canvasId && jobId),
     refetchInterval: (q) => (!q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? EXPORT_POLL_MS : false),
+  });
+}
+
+const TRANSCRIBE_POLL_MS = 1500;
+
+/** Stored transcripts for this reel's sound files, keyed by URL (D395). One read for the page. */
+export function useTranscripts(canvasId: string) {
+  return useQuery({
+    queryKey: editorKeys.transcripts(canvasId),
+    queryFn: async (): Promise<ReadonlyMap<string, Transcript>> => new Map((await editorService.transcripts(canvasId)).map((t) => [t.url, t])),
+    enabled: Boolean(canvasId),
+    staleTime: Infinity,
+  });
+}
+
+export function useStartTranscribe(canvasId: string) {
+  return useMutation({ mutationFn: (body: { nodeId: string; pieceIds?: string[] }) => editorService.startTranscribe(canvasId, body) });
+}
+
+/** A captions run's progress, polled until it ends. Each poll also refreshes the transcripts, so
+ *  clips fill as their transcripts land. */
+export function useTranscribeStatus(canvasId: string, jobId: string | null) {
+  const queryClient = useQueryClient();
+  return useQuery<TranscribeStatus>({
+    queryKey: editorKeys.transcribe(canvasId, jobId ?? ""),
+    queryFn: async () => {
+      const status = await editorService.transcribeStatus(canvasId, jobId!);
+      await queryClient.invalidateQueries({ queryKey: editorKeys.transcripts(canvasId) });
+      return status;
+    },
+    enabled: Boolean(canvasId && jobId),
+    refetchInterval: (q) => (!q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? TRANSCRIBE_POLL_MS : false),
   });
 }
 

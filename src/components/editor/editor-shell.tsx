@@ -8,6 +8,7 @@ import { useEditorAutosave } from "@/hooks/use-editor-autosave";
 import { useLockHandoffNavigation } from "@/hooks/use-lock-handoff-navigation";
 import { useEditorState } from "@/hooks/queries/editor";
 import type { EditorState } from "@/lib/editor/types";
+import { AutoCaptionsProvider } from "./auto-captions-context";
 import { EditorExportButton } from "./editor-export-button";
 import { EditorHeader } from "./editor-header";
 import { EditorPropsPanel } from "./editor-props-panel";
@@ -36,7 +37,9 @@ export function EditorShell(props: Props) {
   return (
     <EditorStoreProvider doc={props.initialState.doc} sources={props.initialState.sources}>
       <EditorPlaybackProvider>
-        <EditorShellBody {...props} />
+        <AutoCaptionsProvider canvasId={props.canvasId} nodeId={props.initialState.editorNodeId}>
+          <EditorShellBody {...props} />
+        </AutoCaptionsProvider>
       </EditorPlaybackProvider>
     </EditorStoreProvider>
   );
