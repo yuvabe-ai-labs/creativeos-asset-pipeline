@@ -21,9 +21,9 @@ type Props = {
   columns?: 2 | 4;
 };
 
-// D340 — the sheet's four views as four tiles, Front, Left, Right, Back. Client review shows
-// these, since a client comments on one view at a time; the operator sees the one sheet image
-// they are cut from (AvatarSheetImage, D395).
+// D340 — the sheet's four views as four tiles, Front, Left, Right, Back. Since D395 everyone sees
+// the one sheet image instead (AvatarSheetImage); these tiles remain for a review version shared
+// before a sheet was frozen with it.
 export function AvatarSheetViews({ name, views, generating, stale = false, columns = 4 }: Props) {
   const [zoomed, setZoomed] = useState<AvatarViewId | null>(null);
 

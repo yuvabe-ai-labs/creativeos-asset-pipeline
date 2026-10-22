@@ -11,7 +11,8 @@ import type { AvatarImage } from "@/lib/avatars/schema";
 type Props = {
   /** The person's name, for alt text and the zoom title. */
   name: string;
-  sheet: AvatarImage | null;
+  /** Only the URL is drawn, so a live avatar's sheet and a shared version's frozen one both fit. */
+  sheet: Pick<AvatarImage, "url"> | null;
   /** The sheet is being made right now. */
   generating: boolean;
   /** The sheet shows an older front image: dimmed until it is remade. */
@@ -20,7 +21,8 @@ type Props = {
 
 // D395 — the profile sheet as the one turnaround image it is made as: Front, Left, Right and Back
 // side by side. The four views cut from it still feed panels and client review; this is how the
-// operator sees the sheet. Shared by the Avatar Studio's sheet step and Visualise's cast slot.
+// operator and the client see the sheet. Shared by the Avatar Studio's sheet step, Visualise's
+// cast slot and the client review's cast card.
 export function AvatarSheetImage({ name, sheet, generating, stale = false }: Props) {
   const [zoomed, setZoomed] = useState(false);
 
