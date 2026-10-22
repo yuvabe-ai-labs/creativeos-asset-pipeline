@@ -20,6 +20,7 @@ export function EditorStage({ overlay, overlayCaptionId }: { overlay?: ReactNode
       <div className="flex min-h-0 w-full flex-1 items-center justify-center">
         <div
           aria-label={`Reel preview, ${shape}`}
+          data-stage-frame=""
           className={cn(
             "relative overflow-hidden rounded-2xl bg-black shadow-md [container-type:size]",
             portrait ? "aspect-[9/16] h-full max-w-full" : "aspect-video max-h-full w-full",
