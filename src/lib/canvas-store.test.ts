@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
 import { sceneFingerprint } from "./nodes/scene-beats";
 import { generationKey } from "./nodes/group-shots";
+import { FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, STORYBOARD_ROW_PITCH } from "./scripts/storyboard-canvas";
 import { nodeGenerationStatus } from "./generations/node-status";
 
 vi.mock("sonner", () => ({
@@ -376,16 +377,19 @@ describe("fanOutShots with an approved storyboard (D382)", () => {
   ];
   const panelNodes = (s: ReturnType<typeof createCanvasStore>) => s.getState().nodes.filter((n) => n.type === "file");
 
-  it("wires each new shot's panel into its image handle, spaced so panels sit under their shots", () => {
+  it("wires each new shot's panel into its image handle: one row per shot, its panel under it", () => {
     const store = createCanvasStore([scriptNode(rows)], []);
     store.getState().fanOutShots("sb");
     const shots = store.getState().nodes.filter((n) => n.type === "shot");
-    expect(shots.map((s) => s.position.y)).toEqual([0, 360]);
+    expect(shots.map((s) => s.position.y)).toEqual([0, STORYBOARD_ROW_PITCH]);
     const files = panelNodes(store);
     expect(files).toHaveLength(2);
     const imageEdges = store.getState().edges.filter((e) => e.targetHandle === "image");
     expect(imageEdges.map((e) => e.target).sort()).toEqual(shots.map((s) => s.id).sort());
-    expect(files.map((f) => f.position.y)).toEqual([190, 550]);
+    const under = FAN_OUT_CARDS.shot.height + PANEL_GAP;
+    expect(files.map((f) => f.position.y)).toEqual([under, STORYBOARD_ROW_PITCH + under]);
+    // Each panel ends before the next row begins.
+    expect(files[0].position.y + PANEL_CARD.height).toBeLessThan(shots[1].position.y);
   });
 
   it("wires a row fanned out as a Multishot too", () => {

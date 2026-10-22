@@ -7440,6 +7440,8 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 
 **Rejected.** Wiring the panel into the image prompt automatically (deferred), or into Video Gen as a reference (reference support varies by model, and it skips the still).
 
+**Amended (22 Oct 2026) — the layout.** Rows were 360px apart with each panel 190px under its shot, which assumed a 130px File card. A 9:16 panel's card is 345px, so every panel landed on the next shot. Fan out now makes one row per shot, 800px apart. The panel is centred under its Shot or Multishot card, 24px below it; several panels sit side by side as a centred group. The guided chain (image prompt, image gen, video prompt, video gen) grows right along each row. The pitch clears the tallest card with its panel (Multishot, 729px) and the chain's tallest card (9:16 Image gen or Video gen, about 590px). Chosen by the user from drawn options. Rejected: the panel to the left of its shot (it moves every Shot's image handle off its bottom edge), and shots left to right (each shot's chain grows right and would run into the next shot).
+
 **Refines →** D228, D28.
 
 **Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.

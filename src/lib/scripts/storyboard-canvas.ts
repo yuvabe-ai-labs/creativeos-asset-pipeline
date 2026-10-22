@@ -3,14 +3,25 @@ import type { AppNode } from "@/lib/canvas-nodes";
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import { panelForRow, panelTitle, type StoryboardPanel } from "./storyboard";
 
-/** Fan out's row pitch, and with a storyboard the pitch that leaves room for a panel under each
- *  shot (a Shot card ~150px, a File card with its thumbnail ~130px). */
+/** Fan out's row pitch without a storyboard. */
 export const SHOT_ROW_PITCH = 170;
-export const STORYBOARD_ROW_PITCH = 360;
-/** How far below its shot a panel sits — under the shot's bottom image handle. */
-export const PANEL_DY = 190;
-/** A second panel on one node (a generation covering several rows) sits beside the first. */
-const PANEL_DX = 220;
+
+/** The cards Fan out makes, as they render: a Shot (`w-56`) and a Multishot (`w-80`), at their
+ *  usual height with a seeded description. */
+export const FAN_OUT_CARDS = {
+  shot: { width: 224, height: 280 },
+  multishot: { width: 320, height: 360 },
+} as const;
+/** A panel's File card: a 9:16 panel at the input tier (media-fit.ts) is 176 wide and its
+ *  image 309 tall under a ~36px header. Panels are 9:16 on every reel. */
+export const PANEL_CARD = { width: 176, height: 345 } as const;
+/** Between a card and the panel under it, and between two panels side by side. */
+export const PANEL_GAP = 24;
+/** Layout A (22 Oct 2026): one row per shot, its panel under it, and the guided chain (image
+ *  prompt, image gen, video prompt, video gen) growing right along the row. The pitch clears the
+ *  tallest card plus its panel (a Multishot: 360 + 24 + 345) and the chain's tallest card (Image
+ *  gen or Video gen with 9:16 output, ~590), with room to spare between rows. */
+export const STORYBOARD_ROW_PITCH = 800;
 
 function extOf(url: string): string {
   return (url.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i)?.[1] ?? "png").toLowerCase();
@@ -35,16 +46,23 @@ export function storyboardPanelNodes(
   for (const target of created) {
     if (target.type !== "shot" && target.type !== "multishot") continue;
     const indexes = (target.data as { seededFrom?: { shotIndexes?: number[] } }).seededFrom?.shotIndexes ?? [];
-    const placed = new Set<string>();
+    const matched: StoryboardPanel[] = [];
     for (const index of indexes) {
       const panel = panelForRow(panels, rows[index]);
-      if (!panel || placed.has(panel.shotId)) continue;
+      if (panel && !matched.some((m) => m.shotId === panel.shotId)) matched.push(panel);
+    }
+    // Centred under the card, side by side when one node covers several rows.
+    const card = FAN_OUT_CARDS[target.type];
+    const groupWidth = matched.length * PANEL_CARD.width + (matched.length - 1) * PANEL_GAP;
+    const left = target.position.x + (card.width - groupWidth) / 2;
+    const top = target.position.y + card.height + PANEL_GAP;
+    for (const [i, panel] of matched.entries()) {
       const ext = extOf(panel.url);
       const id = crypto.randomUUID();
       nodes.push({
         id,
         type: "file",
-        position: { x: target.position.x + placed.size * PANEL_DX, y: target.position.y + PANEL_DY },
+        position: { x: left + i * (PANEL_CARD.width + PANEL_GAP), y: top },
         data: {
           title: panelTitle(panel),
           filename: `${panel.label}-storyboard.${ext}`,
@@ -54,7 +72,6 @@ export function storyboardPanelNodes(
         },
       } as AppNode);
       edges.push({ id: crypto.randomUUID(), source: id, target: target.id, targetHandle: "image" });
-      placed.add(panel.shotId);
     }
   }
   return { nodes, edges };
