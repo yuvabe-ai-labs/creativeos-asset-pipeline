@@ -61,6 +61,24 @@ describe("sourceDrafts", () => {
     expect(dub.urls).toEqual({ original: "https://s/o.mp4", lipSynced: "https://s/l.mp4", dubAudio: "https://s/d.wav" });
     expect(dub).toMatchObject({ kind: "dubbing", language: "hi-IN", edgeId: "e4", versionId: "v-dub" });
   });
+  it("plays a Dubbing node's input video until it has a dub (D407)", () => {
+    const fresh = [...nodes, node("vgC", "video-gen", { parsed: "https://s/c.mp4" }), node("dubNew", "dubbing", {})];
+    const r = sourceDrafts({
+      incoming: [{ id: "e9", sourceNodeId: "dubNew", createdAt: "2026-10-23T10:00:00Z" }],
+      nodes: fresh,
+      edges: [edge("vgC", "dubNew")],
+      activeVersionOf: (id) => (id === "dubNew" ? null : `v-${id}`),
+    });
+    expect(r.notices).toEqual([]);
+    expect(r.drafts[0]).toMatchObject({ nodeId: "dubNew", kind: "dubbing", versionId: "input:v-vgC", language: null, urls: { original: "https://s/c.mp4", lipSynced: null, dubAudio: null } });
+  });
+
+  it("skips a Dubbing node with no dub and no input take", () => {
+    const r = sourceDrafts({ incoming: [{ id: "e9", sourceNodeId: "dubNew", createdAt: "x" }], nodes: [node("dubNew", "dubbing", {})], edges: [], activeVersionOf: () => null });
+    expect(r.drafts).toEqual([]);
+    expect(r.notices[0]).toMatchObject({ kind: "no-take", sourceNodeId: "dubNew" });
+  });
+
   it("attaches measured facts, null where unreadable", () => {
     const views = attachFacts(run().drafts, new Map([["https://s/a.mp4", videoFacts()], ["https://s/b.mp4", null]]));
     expect(views[0].files.original.facts?.video?.fps).toBe(24);

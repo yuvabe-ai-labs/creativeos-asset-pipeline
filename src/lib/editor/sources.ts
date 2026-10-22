@@ -28,8 +28,18 @@ export function sourceDrafts({ incoming, nodes, edges, activeVersionOf }: DraftA
     const node = nodes.find((n) => n.id === e.sourceNodeId);
     if (!node || (node.type !== "video-gen" && node.type !== "dubbing")) continue;
     const handle = nodeHandle({ id: node.id, type: node.type });
-    const versionId = activeVersionOf(node.id);
-    const urls = versionId ? takeUrls(node) : null;
+    let versionId = activeVersionOf(node.id);
+    let urls = versionId ? takeUrls(node) : null;
+    // D407 — a Dubbing node without a dub plays its input video's take, so its clips stay put.
+    if (node.type === "dubbing" && !urls) {
+      const input = inputVideo(node.id, nodes, edges);
+      const inputVersion = input && activeVersionOf(input.id);
+      const inputUrls = input && inputVersion ? takeUrls(input) : null;
+      if (inputUrls) {
+        versionId = `input:${inputVersion}`;
+        urls = inputUrls;
+      }
+    }
     if (!versionId || !urls) {
       notices.push({ kind: "no-take", sourceNodeId: node.id, message: `${handle} has no finished take yet, so it isn't on the timeline.` });
       continue;
@@ -44,11 +54,17 @@ export function sourceDrafts({ incoming, nodes, edges, activeVersionOf }: DraftA
       versionId,
       shotOrder: shot.order,
       shotLabel: shot.label,
-      language: node.type === "dubbing" ? (readDubbingOutput(node.data.parsed)?.language ?? null) : null,
+      language: node.type === "dubbing" && !versionId.startsWith("input:") ? (readDubbingOutput(node.data.parsed)?.language ?? null) : null,
       urls,
     });
   }
   return { drafts, notices };
+}
+
+/** The Video Gen wired into a Dubbing node. */
+function inputVideo(dubbingId: string, nodes: EditorGraphNode[], edges: Edge[]): EditorGraphNode | null {
+  const e = edges.find((x) => x.target === dubbingId && nodes.find((n) => n.id === x.source)?.type === "video-gen");
+  return e ? (nodes.find((n) => n.id === e.source) ?? null) : null;
 }
 
 function takeUrls(node: EditorGraphNode): SourceDraft["urls"] | null {
