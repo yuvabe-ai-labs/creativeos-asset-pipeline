@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { scriptGenerateService, type TurnMessage } from "@/services/script-generate.service";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
 import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
+import { withField } from "@/lib/scripts/copilot/fields";
 import { scriptKeys } from "./scripts";
 
 // Script copilot spec 2 — the Generate workspace through TanStack Query. Every write returns the
@@ -51,9 +52,30 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
   });
 }
 
+/** Typing and Undo. The field changes in the cache at once (spec 2 §9); the server's state lands
+ *  only when no later write is still in flight, so a slow reply never puts back an older value. */
 export function useSetScriptField(clientId: string, scriptId: string) {
-  return useStateWrite(clientId, scriptId, ({ path, value }: { path: string; value: string }) =>
-    scriptGenerateService.setField(clientId, scriptId, path, value));
+  const queryClient = useQueryClient();
+  const key = scriptKeys.generate(clientId, scriptId);
+  const mutationKey = [...key, "set-field"];
+  return useMutation({
+    mutationKey,
+    mutationFn: ({ path, value }: { path: string; value: string }) =>
+      scriptGenerateService.setField(clientId, scriptId, path, value),
+    onMutate: async ({ path, value }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<GenerateState>(key);
+      const next = previous ? withField(previous, path, value) : null;
+      if (next) queryClient.setQueryData(key, next.state);
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    },
+    onSuccess: (state) => {
+      if (queryClient.isMutating({ mutationKey }) <= 1) queryClient.setQueryData(key, state);
+    },
+  });
 }
 
 export function useInlineEdit(clientId: string, scriptId: string) {
