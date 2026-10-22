@@ -1,3 +1,4 @@
+import { DEFAULT_CAPTION_STYLE } from "@/lib/editor/caption-style";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -26,7 +27,7 @@ import { GET, PATCH } from "./route";
 
 const params = Promise.resolve({ cid: "cv1" });
 const NODE = "11111111-1111-4111-8111-111111111111";
-const doc = { v: 1, shape: "9:16", sources: [], pieces: [], captions: [] };
+const doc = { v: 2, shape: "9:16", sources: [], pieces: [], captions: [], captionStyle: DEFAULT_CAPTION_STYLE };
 const patch = (body: unknown) =>
   PATCH(new Request("http://x/api/canvases/cv1/editor", { method: "PATCH", body: JSON.stringify(body) }), { params });
 
@@ -47,7 +48,7 @@ describe("GET /api/canvases/[cid]/editor", () => {
 
 describe("PATCH /api/canvases/[cid]/editor", () => {
   it("rejects an invalid doc", async () => {
-    expect((await patch({ nodeId: NODE, sessionId: "s1", doc: { v: 2 } })).status).toBe(400);
+    expect((await patch({ nodeId: NODE, sessionId: "s1", doc: { v: 3 } })).status).toBe(400);
   });
 
   it("404s for a node that isn't this canvas's Editor", async () => {
