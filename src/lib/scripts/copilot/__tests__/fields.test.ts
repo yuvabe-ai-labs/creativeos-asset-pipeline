@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
-import { fieldLabel, parseFieldPath, readField, writeField } from "../fields";
-import { EMPTY_NOTES } from "../schema";
+import { fieldLabel, parseFieldPath, readField, withField, writeField } from "../fields";
+import { EMPTY_NOTES, type GenerateState } from "../schema";
 
 const doc = scriptDocSchema.parse(reel01);
 const notes = { brief: "Brief", confirmations: [{ id: "c1", text: "Sun 11 Oct is day one", confirmed: false }] };
@@ -84,5 +84,25 @@ describe("fieldLabel", () => {
     expect(fieldLabel(doc, parseFieldPath("context.settingAndCamera")!)).toBe("Setting and camera");
     expect(fieldLabel(doc, parseFieldPath("cast.meenakshi.description")!)).toBe("Meenakshi's description");
     expect(fieldLabel(doc, parseFieldPath("notes.brief")!)).toBe("the reel's notes");
+  });
+});
+
+describe("withField (the change the Generate pane shows at once)", () => {
+  const state = { script: { doc, notes }, messages: [], openItems: [], avatars: [], formats: [] } as unknown as GenerateState;
+
+  it("returns the state with one field changed, and the value it replaced", () => {
+    const out = withField(state, "shots.s03.vo", "New line.");
+    expect(out?.before).toBe(doc.shots[2].vo);
+    expect(out?.state.script.doc!.shots[2].vo).toBe("New line.");
+    expect(out?.state.messages).toBe(state.messages);
+  });
+
+  it("writes the notes too", () => {
+    expect(withField(state, "notes.brief", "Changed")?.state.script.notes.brief).toBe("Changed");
+  });
+
+  it("returns null for a path or value the server would refuse", () => {
+    expect(withField(state, "doc.title", "x")).toBeNull();
+    expect(withField(state, "shots.s01.lengthSeconds", "forever")).toBeNull();
   });
 });

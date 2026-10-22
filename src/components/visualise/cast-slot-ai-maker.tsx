@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
 import { estimateSheetCredits } from "@/lib/avatars/generation";
-import { missingViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
 import { estimateMakeCredits, nextMakerStep } from "@/lib/scripts/visualise/maker";
 
@@ -24,7 +23,6 @@ export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
   const id = useId();
   const next = nextMakerStep(avatar);
   const hasFace = Boolean(avatar?.front);
-  const viewCount = avatar ? missingViews(avatar).length : 4;
 
   return (
     <div className="flex flex-col gap-2">
@@ -49,7 +47,7 @@ export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
           <>
             {next === "views" && (
               <Button className="w-full" disabled={busy} onClick={() => onMake("", false)}>
-                Make the four views <AvatarCreditCost credits={estimateSheetCredits(modelId, viewCount)} />
+                Make the four views <AvatarCreditCost credits={estimateSheetCredits(modelId)} />
               </Button>
             )}
             {next === "save" && <Button className="w-full" disabled={busy} onClick={() => onMake("", false)}>Save to Avatars</Button>}

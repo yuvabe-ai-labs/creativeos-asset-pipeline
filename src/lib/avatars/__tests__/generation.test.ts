@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarImageParams, avatarWorksWith, buildAvatarFrontPrompt, buildAvatarViewPrompt,
-  estimateSheetCredits,
+  avatarImageParams, avatarWorksWith, buildAvatarFrontPrompt, estimateSheetCredits,
   estimateAvatarImageCostUsd, estimateAvatarImageCredits, groupCandidatesByBatch,
   imageModelWorksWith, isSeedanceFaceModel, listSentence, mergeCandidates,
 } from "../generation";
@@ -13,51 +12,35 @@ import { GENERATED, makeAvatar, makeImage } from "./fixtures";
 import type { AvatarCandidate } from "../schema";
 
 describe("buildAvatarFrontPrompt", () => {
-  it("joins the description, the chosen attributes, the style and the fixed framing", () => {
+  it("states who the person is first, then the description, the style and the fixed framing", () => {
     const prompt = buildAvatarFrontPrompt({
       description: "  Runs a small bakery, flour on her apron.  ",
       attributes: { gender: "Female", age: "25–34" },
       styleId: "photoreal",
     });
-    expect(prompt.startsWith("Runs a small bakery, flour on her apron.")).toBe(true);
-    expect(prompt).toContain("Female");
-    expect(prompt).toContain("aged 25–34");
+    // D395: identity leads, so nothing later in the description can override it.
+    expect(prompt.startsWith("Subject: Female, aged 25–34.")).toBe(true);
+    expect(prompt).toContain("Runs a small bakery, flour on her apron.");
     expect(prompt).toContain("Photorealistic");
     expect(prompt.endsWith(AVATAR_FRAMING_CLAUSE)).toBe(true);
   });
 
   it("adds nothing for attributes that were not chosen", () => {
     const prompt = buildAvatarFrontPrompt({ description: "A chef.", attributes: {}, styleId: "3d" });
+    expect(prompt.startsWith("A chef.")).toBe(true);
+    expect(prompt).not.toContain("Subject");
     expect(prompt).not.toContain("aged");
     expect(prompt).not.toContain("undefined");
   });
 });
 
-describe("buildAvatarViewPrompt (D340)", () => {
-  it("states which edge of the frame each profile faces, so the two never face the same way", () => {
-    expect(buildAvatarViewPrompt("left")).toContain("nose points to the LEFT edge");
-    expect(buildAvatarViewPrompt("right")).toContain("nose points to the RIGHT edge");
-    expect(buildAvatarViewPrompt("back")).toContain("facing directly away");
-    expect(buildAvatarViewPrompt("front")).toContain("facing the camera");
-  });
-
-  it("asks for the same person, head to toe, on a plain backdrop, with no text", () => {
-    for (const view of ["front", "left", "right", "back"] as const) {
-      const prompt = buildAvatarViewPrompt(view);
-      expect(prompt).toContain("same person as the reference image");
-      expect(prompt).toContain("head to toe");
-      expect(prompt).toContain("identity markers");
-      expect(prompt).toContain("No text");
-    }
-  });
-});
-
-describe("estimateSheetCredits", () => {
-  it("is one view's estimate times the number of views", () => {
-    const one = estimateSheetCredits("gemini:gemini-3.1-flash-image", 1);
-    expect(one).toBeGreaterThan(0);
-    expect(estimateSheetCredits("gemini:gemini-3.1-flash-image", 4)).toBe(one! * 4);
-    expect(estimateSheetCredits("nope:none", 4)).toBeNull();
+describe("estimateSheetCredits (D395)", () => {
+  it("is one 16:9 image with the front as its reference, whatever it holds", () => {
+    expect(estimateSheetCredits("gemini:gemini-3.1-flash-image")).toBe(estimateAvatarImageCredits({
+      modelId: "gemini:gemini-3.1-flash-image", aspect: AVATAR_SHEET_ASPECT, referenceCount: 1,
+    }));
+    expect(estimateSheetCredits("gemini:gemini-3.1-flash-image")).toBeGreaterThan(0);
+    expect(estimateSheetCredits("nope:none")).toBeNull();
   });
 });
 

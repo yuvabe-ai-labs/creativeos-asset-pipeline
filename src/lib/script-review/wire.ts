@@ -79,6 +79,7 @@ const versionVisualsSchema = z.object({
       avatarId: z.string(),
       name: z.string(),
       views: z.object({ front: viewUrl, left: viewUrl, right: viewUrl, back: viewUrl }),
+      sheet: viewUrl.optional(),
       voice: z.object({ name: z.string().nullable(), sampleUrl: z.string().nullable() }).nullable(),
     }),
   ),

@@ -18,6 +18,9 @@ export type AvatarSnapshot = {
   avatarId: string;
   name: string;
   views: Record<AvatarView, string | null>;
+  /** D395 — the one turnaround image the views were cut from, which the client is shown. Absent
+   *  on a version shared before it was frozen; such a version shows the views instead. */
+  sheet?: string | null;
   voice: { name: string | null; sampleUrl: string | null } | null;
 };
 

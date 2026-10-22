@@ -3,6 +3,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { AvatarSheetImage } from "@/components/avatars/avatar-sheet-image";
 import { AvatarSheetViews } from "@/components/avatars/avatar-sheet-views";
 import { castAnchor } from "@/lib/scripts/anchors";
 import type { CastMember } from "@/lib/scripts/schema";
@@ -33,8 +34,15 @@ export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMem
       </header>
       {showAvatar &&
         (avatar ? (
-          <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
-            <AvatarSheetViews columns={2} name={member.name} views={snapshotViewImages(avatar.views)} generating={[]} />
+          <div className="flex flex-col gap-4">
+            {/* D395: the one sheet image; a version shared before it was frozen shows its views. */}
+            {avatar.sheet ? (
+              <AvatarSheetImage name={member.name} sheet={{ url: avatar.sheet }} generating={false} />
+            ) : (
+              <div className="max-w-44">
+                <AvatarSheetViews columns={2} name={member.name} views={snapshotViewImages(avatar.views)} generating={[]} />
+              </div>
+            )}
             <div className="flex min-w-0 flex-col gap-4">
               {avatar.voice && (
                 <div className="flex flex-col gap-1.5 text-sm">

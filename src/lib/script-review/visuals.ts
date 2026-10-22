@@ -15,6 +15,8 @@ export function toAvatarSnapshot(avatar: Avatar): AvatarSnapshot {
     avatarId: avatar.id,
     name: avatar.name,
     views: avatarViewUrls(avatar),
+    // Only the four-view sheet: an older single image without views is not what the views show.
+    sheet: avatar.sheetViews ? avatar.sheet?.url ?? null : null,
     voice: named || sampleUrl ? { name: named?.name ?? null, sampleUrl } : null,
   };
 }

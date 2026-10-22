@@ -120,13 +120,12 @@ class AvatarsService {
     return (await readJson<{ avatar: Avatar }>(res, "Could not set the front image.")).avatar;
   }
 
-  /** D340 — makes the sheet's views (all four, or only `views` when the sheet is current).
-   *  `failed` names any view that did not come back; the others are kept. */
+  /** D395 — makes the one turnaround sheet and the four views cut from it. `failed` names the
+   *  views when the sheet was made but could not be cut. */
   async generateSheet(
     clientId: string,
     avatarId: string,
     modelId: string,
-    views?: AvatarViewId[],
   ): Promise<{
     avatar: Avatar;
     creditsCharged: number;
@@ -134,7 +133,7 @@ class AvatarsService {
     failed: { view: AvatarViewId; label: string; error: string }[];
   }> {
     const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/sheet`, {
-      method: "POST", headers: JSON_HEADERS, body: JSON.stringify(views ? { modelId, views } : { modelId }),
+      method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ modelId }),
     });
     return readJson(res, "Could not generate the profile sheet.");
   }
