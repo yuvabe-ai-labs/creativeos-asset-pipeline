@@ -3,6 +3,7 @@
 // computed by sequence-plan.ts, on export.
 import * as z from "zod";
 import { CAPTION_FONT_KEYS, type CaptionFontKey } from "./caption-fonts";
+import { CaptionStyleSchema, DEFAULT_CAPTION_STYLE, MAX_SIZE, MIN_SIZE, type CaptionStyle } from "./caption-style";
 
 export const REEL_SHAPES = ["9:16", "16:9"] as const;
 export type ReelShape = (typeof REEL_SHAPES)[number];
@@ -23,26 +24,33 @@ export type Piece = {
   sound: SoundChoice;
 };
 
-/** at: SOURCE seconds in its piece's source; size: px on a 1080 short edge; x/y: centre, 0–1. */
+/** A word's time inside its caption's piece, in SOURCE seconds like Caption.at (D397). */
+export type CaptionWord = { text: string; at: number; duration: number };
+
+/** at: SOURCE seconds in its piece's source. The look is the reel's (D396). */
 export type Caption = {
   id: string;
   pieceId: string;
   at: number;
   duration: number;
   text: string;
-  x: number;
-  y: number;
-  font: CaptionFontKey;
-  size: number;
-  color: string;
+  /** Present for auto captions, and once a line is retimed or split (D397). */
+  words?: CaptionWord[];
+  /** Written by Auto captions (D399). */
+  auto?: true;
+  /** Changed by the user since; Auto captions never rewrites it (D399). */
+  edited?: true;
+  /** The sound URL its words came from (D401). */
+  from?: string;
 };
 
 export type EditDoc = {
-  v: 1;
+  v: 2;
   shape: ReelShape;
   sources: EditSource[];
   pieces: Piece[];
   captions: Caption[];
+  captionStyle: CaptionStyle;
 };
 
 const seconds = z.number().finite().min(0);
@@ -59,26 +67,54 @@ const PieceSchema = z
   })
   .refine((p) => p.out > p.in, { message: "A piece must end after it starts." });
 
+const WordSchema = z.object({ text: z.string().min(1).max(100), at: seconds, duration: z.number().finite().min(0) });
+
 const CaptionSchema = z.object({
   id: z.string().min(1),
   pieceId: z.string().min(1),
   at: seconds,
   duration: z.number().finite().min(0.2),
   text: z.string().max(500),
+  words: z.array(WordSchema).max(200).optional(),
+  auto: z.literal(true).optional(),
+  edited: z.literal(true).optional(),
+  from: z.string().max(2048).optional(),
+});
+
+const docBase = {
+  shape: z.enum(REEL_SHAPES),
+  sources: z.array(z.object({ nodeId: z.string().min(1), edgeId: z.string().min(1), versionId: z.string().min(1) })).max(500),
+  pieces: z.array(PieceSchema).max(500),
+};
+
+const V2Schema = z.object({ v: z.literal(2), ...docBase, captions: z.array(CaptionSchema).max(1000), captionStyle: CaptionStyleSchema });
+
+// v1 (before D396): each caption carried its own look. The first caption's look becomes the reel's.
+const V1CaptionSchema = CaptionSchema.extend({
   x: unit,
   y: unit,
   font: z.enum(CAPTION_FONT_KEYS as [CaptionFontKey, ...CaptionFontKey[]]),
   size: z.number().finite().min(8).max(400),
   color: z.string().regex(/^#[0-9a-f]{6}$/i),
 });
-
-export const EditDocSchema: z.ZodType<EditDoc> = z.object({
-  v: z.literal(1),
-  shape: z.enum(REEL_SHAPES),
-  sources: z.array(z.object({ nodeId: z.string().min(1), edgeId: z.string().min(1), versionId: z.string().min(1) })).max(500),
-  pieces: z.array(PieceSchema).max(500),
-  captions: z.array(CaptionSchema).max(1000),
+const V1Schema = z.object({ v: z.literal(1), ...docBase, captions: z.array(V1CaptionSchema).max(1000) }).transform((d): EditDoc => {
+  const first = d.captions[0];
+  const captionStyle: CaptionStyle = first
+    ? {
+        ...DEFAULT_CAPTION_STYLE,
+        font: first.font,
+        size: Math.min(MAX_SIZE, Math.max(MIN_SIZE, first.size)),
+        color: first.color.toLowerCase(),
+        x: first.x,
+        y: first.y,
+      }
+    : DEFAULT_CAPTION_STYLE;
+  const captions = d.captions.map(({ x: _x, y: _y, font: _f, size: _s, color: _c, ...c }) => c);
+  return { v: 2, shape: d.shape, sources: d.sources, pieces: d.pieces, captions, captionStyle };
 });
+
+/** Reads v1 and v2 edits; always returns v2 (D396). */
+export const EditDocSchema = z.union([V2Schema, V1Schema]) as unknown as z.ZodType<EditDoc>;
 
 /** What the server measured in a file's header (D392). */
 export type MediaFacts = {

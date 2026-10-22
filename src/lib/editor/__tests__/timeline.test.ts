@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Piece } from "../types";
 import { formatTime, locate, movePiece, pieceOffsets, setTrim, splitPiece, totalSeconds, withPieces } from "../timeline";
 import type { EditDoc } from "../types";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const piece = (id: string, inS: number, outS: number): Piece => ({
   id, sourceNodeId: `src-${id}`, in: inS, out: outS, picture: "original", sound: "original",
@@ -59,7 +60,7 @@ describe("timeline maths in seconds", () => {
   });
 
   it("keeps the same doc when the pieces didn't change (rule 4)", () => {
-    const doc: EditDoc = { v: 1, shape: "9:16", sources: [], pieces: ps, captions: [] };
+    const doc: EditDoc = { v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape: "9:16", sources: [], pieces: ps, captions: [] };
     expect(withPieces(doc, setTrim(ps, "C", "in", 1, lim))).toBe(doc);
     expect(withPieces(doc, movePiece(ps, 1, 1))).toBe(doc);
     expect(withPieces(doc, movePiece(ps, 2, 0)).pieces.map((p) => p.id)).toEqual(["C", "A", "B"]);

@@ -1,12 +1,14 @@
 "use client";
 
-import { captionTimes, placeCaption } from "@/lib/editor/captions";
+import { captionTimes } from "@/lib/editor/captions";
+import { applyCaptionStyle } from "@/lib/editor/caption-style";
 import { EditorCaptionOverlay } from "./editor-caption-overlay";
 import { useEditorStore } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
 import { EditorStage } from "./editor-stage";
 
-/** The stage, with the selected caption draggable on it while the playhead is inside it. */
+/** The stage, with the selected caption draggable on it while the playhead is inside it. Dragging
+ *  moves every caption: position belongs to the reel's caption style (D396). */
 export function EditorStageWithCaption() {
   const doc = useEditorStore((s) => s.doc);
   const selection = useEditorStore((s) => s.selection);
@@ -21,7 +23,7 @@ export function EditorStageWithCaption() {
   return (
     <EditorStage
       overlayCaptionId={showing ? caption.id : null}
-      overlay={showing ? <EditorCaptionOverlay caption={caption} editable={editable} onMove={(x, y) => apply((d) => placeCaption(d, caption.id, x, y))} /> : null}
+      overlay={showing ? <EditorCaptionOverlay caption={caption} style={doc.captionStyle} editable={editable} onMove={(x, y) => apply((d) => applyCaptionStyle(d, { x, y }))} /> : null}
     />
   );
 }

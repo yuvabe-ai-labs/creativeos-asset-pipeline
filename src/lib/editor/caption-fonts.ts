@@ -17,9 +17,6 @@ export type CaptionFontKey = CaptionFont["key"];
 
 export const CAPTION_FONT_KEYS: readonly CaptionFontKey[] = CAPTION_FONTS.map((f) => f.key);
 
-/** A new caption's look. `size` is px on a frame 1080 px on its short edge (the D123 convention). */
-export const CAPTION_DEFAULTS = { font: "montserrat", size: 84, color: "#ffffff", x: 0.5, y: 0.82, duration: 2 } as const;
-
 export function captionFont(key: CaptionFontKey): CaptionFont {
   return CAPTION_FONTS.find((f) => f.key === key) ?? CAPTION_FONTS[0];
 }

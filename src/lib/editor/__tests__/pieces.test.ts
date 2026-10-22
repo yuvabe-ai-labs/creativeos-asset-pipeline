@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { addSourceAgain, setPicture, setSound } from "../pieces";
 import type { EditDoc } from "../types";
 import { file, source, videoFacts } from "./fixtures";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const D = source("d", { kind: "dubbing", lipSynced: file("https://storage.googleapis.com/b/d-lip.mp4", videoFacts({ fps: 25, frames: 100 })) });
 const A = source("a");
 const doc: EditDoc = {
-  v: 1, shape: "9:16", sources: [], captions: [],
+  v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape: "9:16", sources: [], captions: [],
   pieces: [
     { id: "p1", sourceNodeId: "d", in: 1, out: 5, picture: "original", sound: "original" },
     { id: "p2", sourceNodeId: "a", in: 0, out: 2, picture: "original", sound: "original" },

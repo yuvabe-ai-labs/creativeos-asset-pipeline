@@ -3,6 +3,7 @@ import { buildOtio } from "../otio";
 import { planSequence, type SequencePlan } from "../sequence-plan";
 import type { Piece } from "../types";
 import { source, videoFacts } from "./fixtures";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const piece = (id: string, src: string, inF: number, outF: number, o: Partial<Piece> = {}): Piece => ({
   id, sourceNodeId: src, in: inF / 24, out: outF / 24, picture: "original", sound: "original", ...o,
@@ -13,7 +14,7 @@ describe("buildOtio", () => {
   const A = source("a", { handle: "VID-AAAA" });
   const S = source("s", { handle: "VID-SILENT", facts: { ...videoFacts(), audio: null } });
   const D = source("d", { kind: "dubbing", handle: "DUB-DDDD" });
-  const r = planSequence({ v: 1, shape: "9:16", sources: [], captions: [], pieces: [
+  const r = planSequence({ v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape: "9:16", sources: [], captions: [], pieces: [
     piece("1", "a", 0, 48), piece("2", "s", 0, 24), piece("3", "d", 0, 72, { sound: "dubbed" }),
   ] }, [A, S, D]);
   const plan = (r as { plan: SequencePlan }).plan;

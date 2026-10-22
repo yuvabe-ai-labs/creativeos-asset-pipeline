@@ -4,6 +4,7 @@
 //   original picture or sound when the new version lacks lip sync or a dub;
 // - a new source gets one full-length piece at its shot position.
 // Returns `prev` itself when nothing changes, so opening the editor never writes a no-op.
+import { DEFAULT_CAPTION_STYLE } from "./caption-style";
 import type { EditDoc, EditorNotice, EditSource, Piece, ReelShape, SourceView } from "./types";
 
 const EPS = 1e-9;
@@ -120,5 +121,6 @@ export function reconcile(
 
   if (!changed && prev) return { doc: prev, notices };
   const shape = prev?.shape ?? shapeOf(current.get(pieces[0]?.sourceNodeId ?? ""));
-  return { doc: { v: 1, shape, sources: sourcesOut, pieces, captions }, notices };
+  const captionStyle = prev?.captionStyle ?? DEFAULT_CAPTION_STYLE;
+  return { doc: { v: 2, shape, sources: sourcesOut, pieces, captions, captionStyle }, notices };
 }

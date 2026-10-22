@@ -22,9 +22,9 @@ export function EditorExportDialog({ canvasId, jobId, title, dubLabel, onClose, 
 }) {
   const { data } = useExportStatus(canvasId, jobId);
   const pieces = useEditorStore((s) => s.doc.pieces.length);
-  // Select the stored array, derive outside: a selector that builds a new array loops the store.
-  const captions = useEditorStore((s) => s.doc.captions);
-  const fonts = useMemo(() => [...new Set(captions.map((c) => captionFont(c.font).label))], [captions]);
+  const hasCaptions = useEditorStore((s) => s.doc.captions.length > 0);
+  const font = useEditorStore((s) => s.doc.captionStyle.font);
+  const fonts = useMemo(() => (hasCaptions ? [captionFont(font).label] : []), [hasCaptions, font]);
   const result = data?.status === "succeeded" ? data.result : null;
   const failed = data?.status === "failed";
 

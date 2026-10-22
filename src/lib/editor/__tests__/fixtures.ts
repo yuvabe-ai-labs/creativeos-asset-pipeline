@@ -1,7 +1,12 @@
 // Shared builders for the editor's pure-library tests.
 import type { Edge } from "@xyflow/react";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 import type { EditorGraphNode } from "../shot-order";
-import type { MediaFacts, MediaFile, SourceView } from "../types";
+import type { Caption, EditDoc, MediaFacts, MediaFile, SourceView } from "../types";
+
+/** A caption; its text is its id unless given. */
+export const cap = (id: string, pieceId: string, at: number, duration = 1, extra: Partial<Caption> = {}): Caption => ({ id, pieceId, at, duration, text: id, ...extra });
+export const emptyDoc = (o: Partial<EditDoc> = {}): EditDoc => ({ v: 2, shape: "9:16", sources: [], pieces: [], captions: [], captionStyle: DEFAULT_CAPTION_STYLE, ...o });
 
 export const node = (id: string, type: string, data: Record<string, unknown> = {}): EditorGraphNode => ({ id, type, data });
 export const edge = (source: string, target: string, id = `${source}->${target}`): Edge => ({ id, source, target });

@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/services/read-json";
 import { createAutosaver, SaveFailure, type SaveStatus } from "../autosave";
 import type { EditDoc } from "../types";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
-const doc = (shape: EditDoc["shape"] = "9:16"): EditDoc => ({ v: 1, shape, sources: [], pieces: [], captions: [] });
+const doc = (shape: EditDoc["shape"] = "9:16"): EditDoc => ({ v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape, sources: [], pieces: [], captions: [] });
 
 function setup(o: { save?: (d: EditDoc) => Promise<void>; dirty?: boolean } = {}) {
   let current = doc();

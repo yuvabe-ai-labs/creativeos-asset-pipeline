@@ -2,17 +2,18 @@ import { describe, expect, it } from "vitest";
 import { editSummary } from "../summary";
 import type { Caption, EditorState, Piece } from "../types";
 import { source } from "./fixtures";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const piece = (id: string, src: string, inS: number, outS: number, o: Partial<Piece> = {}): Piece => ({
   id, sourceNodeId: src, in: inS, out: outS, picture: "original", sound: "original", ...o,
 });
 const cap = (id: string, pieceId: string, at: number): Caption => ({
-  id, pieceId, at, duration: 1, text: id, x: 0.5, y: 0.8, font: "anton", size: 84, color: "#ffffff",
+  id, pieceId, at, duration: 1, text: id,
 });
 const state = (pieces: Piece[], captions: Caption[] = []): EditorState => ({
   canvasId: "cv", editorNodeId: "ed", editorTitle: "Editor", changed: false, notices: [],
   sources: [source("a"), source("b"), source("c")],
-  doc: { v: 1, shape: "9:16", sources: [], pieces, captions },
+  doc: { v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape: "9:16", sources: [], pieces, captions },
 });
 
 describe("editSummary", () => {

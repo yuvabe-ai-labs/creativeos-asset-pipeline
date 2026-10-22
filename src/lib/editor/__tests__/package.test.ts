@@ -2,15 +2,17 @@ import { strFromU8, unzipSync, zipSync, type Zippable } from "fflate";
 import { describe, expect, it } from "vitest";
 import { fontsUsed, packageEntries, packageManifest, packageReadme } from "../package";
 import { planSequence, type SequencePlan } from "../sequence-plan";
+import type { CaptionFontKey } from "../caption-fonts";
 import type { Caption, Piece } from "../types";
 import { source } from "./fixtures";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const piece = (id: string, src: string, o: Partial<Piece> = {}): Piece => ({
   id, sourceNodeId: src, in: 0, out: 2, picture: "original", sound: "original", ...o,
 });
-const cap = (font: Caption["font"]): Caption => ({ id: font, pieceId: "1", at: 0.2, duration: 1, text: font, x: 0.5, y: 0.8, font, size: 84, color: "#ffffff" });
-const planOf = (pieces: Piece[], captions: Caption[] = []): SequencePlan => {
-  const r = planSequence({ v: 1, shape: "9:16", sources: [], pieces, captions }, [source("a", { handle: "VID-AAAA" }), source("d", { kind: "dubbing", handle: "DUB-DDDD" })]);
+const cap = (id: string): Caption => ({ id, pieceId: "1", at: 0.2, duration: 1, text: id });
+const planOf = (pieces: Piece[], captions: Caption[] = [], font: CaptionFontKey = "anton"): SequencePlan => {
+  const r = planSequence({ v: 2, captionStyle: { ...DEFAULT_CAPTION_STYLE, font }, shape: "9:16", sources: [], pieces, captions }, [source("a", { handle: "VID-AAAA" }), source("d", { kind: "dubbing", handle: "DUB-DDDD" })]);
   if (!r.ok) throw new Error(r.reason);
   return r.plan;
 };
@@ -34,14 +36,14 @@ describe("package", () => {
     ]);
   });
 
-  it("adds captions.srt and only the fonts used", () => {
-    const plan = planOf([piece("1", "a")], [cap("anton"), cap("anton"), cap("poppins")]);
-    expect(fontsUsed(plan)).toEqual(["anton", "poppins"]);
+  it("adds captions.srt and only the reel's caption font", () => {
+    const plan = planOf([piece("1", "a")], [cap("one"), cap("two")], "poppins");
+    expect(fontsUsed(plan)).toEqual(["poppins"]);
     const files = names(packageEntries(plan, bytesFor(plan), NOW));
     expect(files).toContain("creativeos-reel/captions.srt");
-    expect(files).toContain("creativeos-reel/fonts/anton.ttf");
+    expect(files).toContain("creativeos-reel/fonts/poppins.ttf");
     expect(files).toContain("creativeos-reel/fonts/poppins-OFL.txt");
-    expect(files.filter((f) => f.includes("/fonts/"))).toHaveLength(4);
+    expect(files.filter((f) => f.includes("/fonts/"))).toHaveLength(2);
   });
 
   it("stores media without compression", () => {

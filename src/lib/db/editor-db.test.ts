@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_CAPTION_STYLE } from "@/lib/editor/caption-style";
 
 vi.mock("server-only", () => ({}));
 const mockFrom = vi.fn();
@@ -73,7 +74,7 @@ describe("editor edits", () => {
   it("upserts on the node id", async () => {
     const upsert = vi.fn(async () => ({ error: null }));
     mockFrom.mockImplementation(() => ({ upsert }));
-    const doc = { v: 1 as const, shape: "9:16" as const, sources: [], pieces: [], captions: [] };
+    const doc = { v: 2 as const, shape: "9:16" as const, sources: [], pieces: [], captions: [], captionStyle: DEFAULT_CAPTION_STYLE };
     await saveEditorEdit({ nodeId: "ed", canvasId: "cv", doc });
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ node_id: "ed", canvas_id: "cv", doc }), { onConflict: "node_id" });
   });

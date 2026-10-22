@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createEditorStore } from "../editor-store";
 import type { EditDoc } from "../types";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const doc: EditDoc = {
-  v: 1, shape: "9:16", sources: [],
+  v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape: "9:16", sources: [],
   pieces: [{ id: "p1", sourceNodeId: "a", in: 0, out: 2, picture: "original", sound: "original" }],
   captions: [],
 };

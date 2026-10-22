@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { fontCoversText } from "../caption-fonts";
 import {
-  addCaption, attachCues, captionTimes, deletePiece, docToCues, editCaption, placeCaption, removeCaption,
+  addCaption, attachCues, captionTimes, deletePiece, docToCues, editCaption, removeCaption,
   retimeCaption, splitPieceInDoc,
 } from "../captions";
 import { movePiece } from "../timeline";
 import type { Caption, EditDoc, Piece } from "../types";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const piece = (id: string, inS: number, outS: number): Piece => ({
   id, sourceNodeId: `src-${id}`, in: inS, out: outS, picture: "original", sound: "original",
 });
 const c1: Caption = {
-  id: "c1", pieceId: "B", at: 1.5, duration: 1, text: "Fresh jackfruit", x: 0.4, y: 0.7,
-  font: "anton", size: 90, color: "#ffd60a",
+  id: "c1", pieceId: "B", at: 1.5, duration: 1, text: "Fresh jackfruit",
 };
-const doc: EditDoc = { v: 1, shape: "9:16", sources: [], pieces: [piece("A", 0, 4), piece("B", 1, 3)], captions: [c1] };
+const doc: EditDoc = { v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape: "9:16", sources: [], pieces: [piece("A", 0, 4), piece("B", 1, 3)], captions: [c1] };
 
 describe("captions belong to pieces", () => {
   it("times a caption from its piece", () => {
@@ -37,15 +37,11 @@ describe("captions belong to pieces", () => {
     expect(captionTimes(doc, { ...c1, pieceId: "gone" })).toBeNull();
   });
 
-  it("adds at the playhead with defaults, then copies the last caption's look", () => {
+  it("adds at the playhead, in the piece under it", () => {
     const first = addCaption({ ...doc, captions: [] }, 4.5, "c2");
-    expect(first.captions[0]).toMatchObject({
-      pieceId: "B", at: 1.5, duration: 2, text: "New caption", font: "montserrat", size: 84, color: "#ffffff", x: 0.5, y: 0.82,
-    });
+    expect(first.captions[0]).toEqual({ id: "c2", pieceId: "B", at: 1.5, duration: 2, text: "New caption" });
     const second = addCaption(doc, 1, "c3");
-    expect(second.captions.find((c) => c.id === "c3")).toMatchObject({
-      pieceId: "A", at: 1, font: "anton", size: 90, color: "#ffd60a", x: 0.4, y: 0.7,
-    });
+    expect(second.captions.find((c) => c.id === "c3")).toMatchObject({ pieceId: "A", at: 1 });
   });
 
   it("re-attaches to the piece under a new start, with a 0.2 s minimum", () => {
@@ -87,13 +83,8 @@ describe("captions belong to pieces", () => {
   });
 
   it("returns the same doc for a no-op", () => {
-    expect(placeCaption(doc, "c1", c1.x, c1.y)).toBe(doc);
-    expect(editCaption(doc, "c1", { text: c1.text })).toBe(doc);
+    expect(editCaption(doc, "c1", c1.text)).toBe(doc);
     expect(removeCaption(doc, "missing")).toBe(doc);
-  });
-
-  it("keeps captions inside the frame", () => {
-    expect(placeCaption(doc, "c1", 2, -1).captions[0]).toMatchObject({ x: 0.96, y: 0.04 });
   });
 
   it("knows which fonts cover Devanagari", () => {

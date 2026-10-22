@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { reconcile } from "../reconcile";
 import type { Caption, EditDoc } from "../types";
 import { file, source, videoFacts } from "./fixtures";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 let n = 0;
 const newId = () => `id${++n}`;
@@ -31,7 +32,7 @@ describe("reconcile", () => {
   const pieceOf = (doc: EditDoc, id: string) => doc.pieces.find((p) => p.sourceNodeId === id)!;
 
   it("removes a disconnected source with its captions", () => {
-    const cap: Caption = { id: "c", pieceId: pieceOf(base, "b").id, at: 0, duration: 1, text: "t", x: 0.5, y: 0.5, font: "anton", size: 84, color: "#ffffff" };
+    const cap: Caption = { id: "c", pieceId: pieceOf(base, "b").id, at: 0, duration: 1, text: "t" };
     const { doc, notices } = reconcile({ ...base, captions: [cap] }, [s1], newId);
     expect(doc.pieces.map((p) => p.sourceNodeId)).toEqual(["a"]);
     expect(doc.captions).toEqual([]);
@@ -108,7 +109,7 @@ describe("reconcile", () => {
   });
 
   it("keeps the pieces of a source still connected but without a take (never deletes on a bad read)", () => {
-    const cap: Caption = { id: "c", pieceId: pieceOf(base, "b").id, at: 0, duration: 1, text: "t", x: 0.5, y: 0.5, font: "anton", size: 84, color: "#ffffff" };
+    const cap: Caption = { id: "c", pieceId: pieceOf(base, "b").id, at: 0, duration: 1, text: "t" };
     const prev = { ...base, captions: [cap] };
     const { doc, notices } = reconcile(prev, [s1], newId, new Map([["a", "e-a"], ["b", "e-b"]]));
     expect(doc).toBe(prev);

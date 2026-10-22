@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CAPTION_DEFAULTS, CAPTION_FONT_KEYS, CAPTION_FONTS, captionFont, coveringFonts, fontCoversText, missingChars } from "../caption-fonts";
+import { CAPTION_FONT_KEYS, CAPTION_FONTS, captionFont, coveringFonts, fontCoversText, missingChars } from "../caption-fonts";
 import { CAPTION_FONT_COVERAGE } from "../caption-font-coverage";
 import { codepointRanges, readCmapCodepoints, readPostScriptName } from "../font-name";
 
@@ -16,7 +16,6 @@ describe("caption fonts", () => {
 
   it("lists five fonts, the default among them", () => {
     expect(CAPTION_FONT_KEYS).toHaveLength(5);
-    expect(CAPTION_FONT_KEYS).toContain(CAPTION_DEFAULTS.font);
     expect(captionFont("anton").postScript).toBe("Anton-Regular");
   });
 

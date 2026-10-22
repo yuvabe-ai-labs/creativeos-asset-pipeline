@@ -6,12 +6,13 @@ import { buildPremiereXml, mediaUrl, rateParts } from "../premiere-xml";
 import { planSequence, type SequencePlan } from "../sequence-plan";
 import type { Caption, EditDoc, Piece } from "../types";
 import { audioFacts, file, source, videoFacts } from "./fixtures";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const piece = (id: string, src: string, inF: number, outF: number, o: Partial<Piece> = {}): Piece => ({
   id, sourceNodeId: src, in: inF / 24, out: outF / 24, picture: "original", sound: "original", ...o,
 });
 const plan = (pieces: Piece[], sources = [A, B], captions: Caption[] = [], shape: EditDoc["shape"] = "9:16"): SequencePlan => {
-  const r = planSequence({ v: 1, shape, sources: [], pieces, captions }, sources);
+  const r = planSequence({ v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape, sources: [], pieces, captions }, sources);
   if (!r.ok) throw new Error(r.reason);
   return r.plan;
 };
@@ -53,12 +54,13 @@ describe("buildPremiereXml", () => {
 
   it("puts captions on V2 as Graphic titles, clipped to the cut", () => {
     const cap = (id: string, pieceId: string, at: number, extra: Partial<Caption> = {}): Caption => ({
-      id, pieceId, at, duration: 2, text: id, x: 0.25, y: 0.3, font: "montserrat", size: 84, color: "#ffffff", ...extra,
+      id, pieceId, at, duration: 2, text: id, ...extra,
     });
     const withTitles = buildPremiereXml(plan(three, [A, B], [cap("Hi", "1", 1), cap("past", "3", 99)]));
     expect(withTitles.match(/<mediaSource>GraphicAndType<\/mediaSource>/g)).toHaveLength(1);
     expect(withTitles).toMatch(/<clipitem id="clipitem-t1">[\s\S]*?<start>24<\/start>\s*<end>72<\/end>/);
-    expect(withTitles).toContain("-91445760000000000,0.25:0.3,0,0,0,0,0,0,5,4,0,0,0,0");
+    // the reel's caption position (D396)
+    expect(withTitles).toContain("-91445760000000000,0.5:0.72,0,0,0,0,0,0,5,4,0,0,0,0");
     expect(withTitles.match(/<track>/g)).toHaveLength(2 + 2); // V1, V2, A1, A2
   });
 
@@ -98,7 +100,7 @@ describe("buildPremiereXml", () => {
   });
 
   it("puts overlapping captions on their own title tracks", () => {
-    const cap = (id: string, at: number): Caption => ({ id, pieceId: "1", at, duration: 2, text: id, x: 0.5, y: 0.8, font: "anton", size: 84, color: "#ffffff" });
+    const cap = (id: string, at: number): Caption => ({ id, pieceId: "1", at, duration: 2, text: id });
     const p = plan(three, [A, B], [cap("a", 0), cap("b", 1), cap("c", 2.5)]);
     expect(p.titles.map((t) => t.track)).toEqual([0, 1, 0]);
     const x = buildPremiereXml(p);

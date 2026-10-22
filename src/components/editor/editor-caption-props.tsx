@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_FONTS, captionFont, coveringFonts, missingChars } from "@/lib/editor/caption-fonts";
 import { captionTimes, editCaption, MAX_CAPTION_TEXT } from "@/lib/editor/captions";
+import { applyCaptionStyle, type CaptionStyle } from "@/lib/editor/caption-style";
 import { formatTime } from "@/lib/editor/timeline";
 import { cn } from "@/lib/utils";
 import { CAPTION_FONT_CSS } from "./caption-font-faces";
@@ -33,28 +34,29 @@ export function EditorCaptionProps({ captionId }: { captionId: string }) {
   const t = captionTimes(doc, caption);
   const pieceIndex = doc.pieces.findIndex((p) => p.id === caption.pieceId);
   const handle = sources.find((s) => s.nodeId === doc.pieces[pieceIndex]?.sourceNodeId)?.handle ?? "";
-  const patch = (p: Parameters<typeof editCaption>[2]) => apply((d) => editCaption(d, caption.id, p));
-  const custom = !SWATCHES.some((s) => s.value === caption.color.toLowerCase());
+  const style = doc.captionStyle;
+  const patch = (p: Partial<CaptionStyle>) => apply((d) => applyCaptionStyle(d, p));
+  const custom = !SWATCHES.some((s) => s.value === style.color.toLowerCase());
 
   return (
     <div className="flex flex-col gap-[18px]">
       <div className="flex flex-col gap-2">
         <span className="text-eyebrow text-muted-foreground">Caption</span>
         <Label htmlFor="cap-text" className="text-[13px] font-semibold">Text</Label>
-        <Textarea id="cap-text" rows={2} maxLength={MAX_CAPTION_TEXT} value={caption.text} disabled={!editable} onChange={(e) => patch({ text: e.target.value })} />
+        <Textarea id="cap-text" rows={2} maxLength={MAX_CAPTION_TEXT} value={caption.text} disabled={!editable} onChange={(e) => apply((d) => editCaption(d, caption.id, e.target.value))} />
         {t && (
           <span className="text-xs tabular-nums text-muted-foreground">
             {formatTime(t.start)} → {formatTime(t.end)} · moves with piece {pieceIndex + 1}{handle ? ` (${handle})` : ""}
           </span>
         )}
         {(() => {
-          const missing = missingChars(caption.font, caption.text);
+          const missing = missingChars(style.font, caption.text);
           if (missing.length === 0) return null;
           const shown = missing.slice(0, 4).join(" ");
           const others = coveringFonts(caption.text).map((k) => captionFont(k).label);
           return (
             <span className="text-xs text-destructive">
-              {captionFont(caption.font).label} has no {shown}.{" "}
+              {captionFont(style.font).label} has no {shown}.{" "}
               {others.length ? `${others.join(", ")} ${others.length === 1 ? "has" : "have"} them.` : "No caption font has them; Premiere will substitute one."}
             </span>
           );
@@ -68,12 +70,12 @@ export function EditorCaptionProps({ captionId }: { captionId: string }) {
             <Button
               key={f.key}
               role="radio"
-              aria-checked={caption.font === f.key}
+              aria-checked={style.font === f.key}
               variant="outline"
               disabled={!editable}
               onClick={() => patch({ font: f.key })}
               style={{ fontFamily: CAPTION_FONT_CSS[f.key] }}
-              className={cn("h-[34px] justify-start px-3 text-[15px]", caption.font === f.key && "border-[1.5px] border-primary bg-primary/5")}
+              className={cn("h-[34px] justify-start px-3 text-[15px]", style.font === f.key && "border-[1.5px] border-primary bg-primary/5")}
             >
               {f.label}
             </Button>
@@ -90,7 +92,7 @@ export function EditorCaptionProps({ captionId }: { captionId: string }) {
               type="number"
               min={8}
               max={400}
-              value={caption.size}
+              value={style.size}
               disabled={!editable}
               onChange={(e) => {
                 const n = Number(e.target.value);
@@ -107,14 +109,14 @@ export function EditorCaptionProps({ captionId }: { captionId: string }) {
               <Button
                 key={s.value}
                 role="radio"
-                aria-checked={caption.color.toLowerCase() === s.value}
+                aria-checked={style.color.toLowerCase() === s.value}
                 aria-label={s.label}
                 variant="outline"
                 size="icon"
                 disabled={!editable}
                 onClick={() => patch({ color: s.value })}
                 style={{ background: s.value }}
-                className={cn("size-[26px] rounded-full", caption.color.toLowerCase() === s.value && "border-2 border-primary")}
+                className={cn("size-[26px] rounded-full", style.color.toLowerCase() === s.value && "border-2 border-primary")}
               />
             ))}
             <Button
@@ -135,7 +137,7 @@ export function EditorCaptionProps({ captionId }: { captionId: string }) {
           <InputGroupAddon><InputGroupText>#</InputGroupText></InputGroupAddon>
           <InputGroupInput
             aria-label="Custom colour, hex"
-            defaultValue={caption.color.replace("#", "")}
+            defaultValue={style.color.replace("#", "")}
             disabled={!editable}
             onChange={(e) => HEX.test(e.target.value) && patch({ color: `#${e.target.value.replace("#", "").toLowerCase()}` })}
           />

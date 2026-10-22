@@ -4,13 +4,15 @@
 // anywhere on the frame like motion-graphics text, keeping the grab offset. A dashed frame with
 // corner handles marks it; a guide and a hint show when it sits on the centre line.
 import { useRef } from "react";
+import type { CaptionStyle } from "@/lib/editor/caption-style";
 import type { Caption } from "@/lib/editor/types";
 import { captionTextStyle } from "./editor-stage-captions";
 
 const EDGE_MARGIN = 0.04;
 const CENTRE_SNAP = 0.01;
 
-export function EditorCaptionOverlay({ caption, editable, onMove }: { caption: Caption; editable: boolean; onMove(x: number, y: number): void }) {
+export function EditorCaptionOverlay({ caption: c, style, editable, onMove }: { caption: Caption; style: CaptionStyle; editable: boolean; onMove(x: number, y: number): void }) {
+  const caption = { ...c, ...style };
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const clamp = (v: number) => Math.min(1 - EDGE_MARGIN, Math.max(EDGE_MARGIN, v));
   const frameRect = (el: HTMLElement) => el.parentElement!.getBoundingClientRect();

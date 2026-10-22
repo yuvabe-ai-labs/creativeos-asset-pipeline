@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { planSequence, type SequencePlan } from "../sequence-plan";
 import type { Caption, EditDoc, Piece } from "../types";
 import { audioFacts, file, source, videoFacts } from "./fixtures";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const A = source("a", { handle: "VID-AAAA" });
 const B = source("b", { handle: "VID-BBBB" });
@@ -10,7 +11,7 @@ const D = source("d", { kind: "dubbing", handle: "DUB-DDDD" });
 const piece = (id: string, src: string, inF: number, outF: number, o: Partial<Piece> = {}): Piece => ({
   id, sourceNodeId: src, in: inF / 24, out: outF / 24, picture: "original", sound: "original", ...o,
 });
-const doc = (pieces: Piece[], captions: Caption[] = [], shape: EditDoc["shape"] = "9:16"): EditDoc => ({ v: 1, shape, sources: [], pieces, captions });
+const doc = (pieces: Piece[], captions: Caption[] = [], shape: EditDoc["shape"] = "9:16"): EditDoc => ({ v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape, sources: [], pieces, captions });
 const ok = (r: ReturnType<typeof planSequence>): SequencePlan => {
   if (!r.ok) throw new Error(r.reason);
   return r.plan;
@@ -73,7 +74,7 @@ describe("planSequence", () => {
   });
 
   it("turns captions into titles", () => {
-    const cap = (id: string, at: number): Caption => ({ id, pieceId: "p1", at, duration: 2, text: id, x: 0.5, y: 0.82, font: "montserrat", size: 84, color: "#ffffff" });
+    const cap = (id: string, at: number): Caption => ({ id, pieceId: "p1", at, duration: 2, text: id });
     const plan = ok(planSequence(doc([piece("p1", "a", 0, 121)], [cap("in", 1), cap("past", 99)]), [A]));
     expect(plan.titles).toHaveLength(1);
     expect(plan.titles[0]).toMatchObject({ start: 24, end: 72, sizePx: 56, fontPostScript: "Montserrat-ExtraBold", fontKey: "montserrat", text: "in" });

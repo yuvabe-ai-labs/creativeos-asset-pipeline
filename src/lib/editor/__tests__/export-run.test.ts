@@ -4,11 +4,12 @@ import { DownloadError, ExportFailure, MAX_PACKAGE_MEDIA_BYTES, runEditorExport,
 import { planSequence, type SequencePlan } from "../sequence-plan";
 import type { Caption, Piece } from "../types";
 import { source } from "./fixtures";
+import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 const piece = (id: string, src: string, o: Partial<Piece> = {}): Piece => ({ id, sourceNodeId: src, in: 0, out: 2, picture: "original", sound: "original", ...o });
-const cap: Caption = { id: "c", pieceId: "2", at: 0.5, duration: 1, text: "Hi", x: 0.5, y: 0.8, font: "anton", size: 84, color: "#ffffff" };
+const cap: Caption = { id: "c", pieceId: "2", at: 0.5, duration: 1, text: "Hi" };
 const plan: SequencePlan = (() => {
-  const r = planSequence({ v: 1, shape: "9:16", sources: [], captions: [cap], pieces: [
+  const r = planSequence({ v: 2, captionStyle: { ...DEFAULT_CAPTION_STYLE, font: "anton" }, shape: "9:16", sources: [], captions: [cap], pieces: [
     piece("1", "a"), piece("2", "d", { picture: "lipSynced", sound: "dubbed" }),
   ] }, [source("a", { handle: "VID-AAAA" }), source("d", { kind: "dubbing", handle: "DUB-DDDD" })]);
   if (!r.ok) throw new Error(r.reason);

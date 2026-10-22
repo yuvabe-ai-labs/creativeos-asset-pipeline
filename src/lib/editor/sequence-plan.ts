@@ -3,6 +3,7 @@
 // at the first piece's picture rate, read from the file (CreativeOS clips are 24 fps, never an
 // assumed 25). A piece never asks for frames past the end of the file it shows.
 import { captionFont, type CaptionFontKey } from "./caption-fonts";
+import { sizePx } from "./caption-style";
 import { captionTimes } from "./captions";
 import type { TitleSpec } from "./premiere-title";
 import type { EditDoc, MediaFacts, MediaFile, ReelShape, SourceView } from "./types";
@@ -155,6 +156,8 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
 
     const titles: PlanTitle[] = [];
     const reel = { ...doc, pieces };
+    const style = doc.captionStyle;
+    const shortEdge = Math.min(frame.width, frame.height);
     for (const c of doc.captions) {
       const t = captionTimes(reel, c);
       if (!t) continue;
@@ -165,12 +168,12 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult {
         start,
         end,
         text: c.text,
-        fontKey: c.font,
-        fontPostScript: captionFont(c.font).postScript,
-        sizePx: Math.round((c.size * Math.min(frame.width, frame.height)) / 1080),
-        color: c.color,
-        x: c.x,
-        y: c.y,
+        fontKey: style.font,
+        fontPostScript: captionFont(style.font).postScript,
+        sizePx: sizePx(style, shortEdge),
+        color: style.color,
+        x: style.x,
+        y: style.y,
         track: 0,
       });
     }
