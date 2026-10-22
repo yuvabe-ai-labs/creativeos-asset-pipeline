@@ -1,6 +1,7 @@
 // Captions belong to the piece they start in (D393, spec §7). A caption stores its start as a
 // SOURCE time inside that piece (`at`), so trimming or reordering an earlier piece never knocks
 // it out of sync with the speech. Every function returns the SAME doc for a no-op.
+import { captionWords, retextCaption } from "./caption-words";
 import type { SrtCue } from "./srt";
 import { locate, pieceOffsets, pieceSeconds, splitPiece, totalSeconds } from "./timeline";
 import type { Caption, EditDoc } from "./types";
@@ -54,15 +55,47 @@ export function addCaption(doc: EditDoc, t: number, newId: string): EditDoc {
   return withCaptions(doc, [...doc.captions, caption]);
 }
 
-/** New reel times; the caption moves to whichever piece is under its new start. */
+/** New reel times; the caption moves to whichever piece is under its new start. Its words move
+ *  with it, and scale when its length changes (D397). */
 export function retimeCaption(doc: EditDoc, id: string, start: number, end: number): EditDoc {
   const anchor = anchorAt(doc, start);
-  if (!anchor) return doc;
-  return patchCaption(doc, id, { ...anchor, duration: Math.max(MIN_CAPTION_SECONDS, end - start) });
+  const current = doc.captions.find((c) => c.id === id);
+  if (!anchor || !current) return doc;
+  const duration = Math.max(MIN_CAPTION_SECONDS, end - start);
+  if (anchor.pieceId === current.pieceId && Math.abs(anchor.at - current.at) < 1e-9 && Math.abs(duration - current.duration) < 1e-9) return doc;
+  const k = duration / current.duration;
+  const words = current.words?.map((w) => ({ ...w, at: anchor.at + (w.at - current.at) * k, duration: w.duration * k }));
+  return patchCaption(doc, id, { ...anchor, duration, ...(words ? { words } : {}), edited: true });
 }
 
-export function editCaption(doc: EditDoc, id: string, text: string): EditDoc {
-  return patchCaption(doc, id, { text: text.slice(0, MAX_CAPTION_TEXT) });
+/** Text edits keep word times when the count is unchanged (spec §5). Empty text removes it. */
+export function editCaption(doc: EditDoc, id: string, text: string): { doc: EditDoc; spread: boolean } {
+  const c = doc.captions.find((x) => x.id === id);
+  if (!c) return { doc, spread: false };
+  const r = retextCaption(c, text);
+  if (!r) return { doc: removeCaption(doc, id), spread: false };
+  if (r.caption === c) return { doc, spread: false };
+  return { doc: withCaptions(doc, doc.captions.map((x) => (x.id === id ? r.caption : x))), spread: r.spread };
+}
+
+/** Splits a line before the first word at or after reel time t (the middle word otherwise). */
+export function splitCaption(doc: EditDoc, id: string, t: number, newId: string): EditDoc {
+  const c = doc.captions.find((x) => x.id === id);
+  const index = c ? doc.pieces.findIndex((p) => p.id === c.pieceId) : -1;
+  if (!c || index < 0) return doc;
+  const words = captionWords(c);
+  if (words.length < 2) return doc;
+  const local = doc.pieces[index].in + (t - pieceOffsets(doc.pieces)[index]);
+  let k = words.findIndex((w) => w.at >= local - 1e-9);
+  if (k <= 0) k = Math.ceil(words.length / 2);
+  const a = words.slice(0, k);
+  const b = words.slice(k);
+  const end = c.at + c.duration;
+  const first: Caption = { ...c, text: a.map((w) => w.text).join(" "), words: a, duration: Math.max(MIN_CAPTION_SECONDS, b[0].at - c.at), edited: true };
+  const second: Caption = { ...c, id: newId, at: b[0].at, text: b.map((w) => w.text).join(" "), words: b, duration: Math.max(MIN_CAPTION_SECONDS, end - b[0].at), edited: true };
+  const captions = doc.captions.slice();
+  captions.splice(doc.captions.indexOf(c), 1, first, second);
+  return withCaptions(doc, captions);
 }
 
 export function removeCaption(doc: EditDoc, id: string): EditDoc {

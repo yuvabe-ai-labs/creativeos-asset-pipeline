@@ -43,7 +43,7 @@ export function EditorCaptionProps({ captionId }: { captionId: string }) {
       <div className="flex flex-col gap-2">
         <span className="text-eyebrow text-muted-foreground">Caption</span>
         <Label htmlFor="cap-text" className="text-[13px] font-semibold">Text</Label>
-        <Textarea id="cap-text" rows={2} maxLength={MAX_CAPTION_TEXT} value={caption.text} disabled={!editable} onChange={(e) => apply((d) => editCaption(d, caption.id, e.target.value))} />
+        <Textarea id="cap-text" rows={2} maxLength={MAX_CAPTION_TEXT} value={caption.text} disabled={!editable} onChange={(e) => apply((d) => editCaption(d, caption.id, e.target.value).doc)} />
         {t && (
           <span className="text-xs tabular-nums text-muted-foreground">
             {formatTime(t.start)} → {formatTime(t.end)} · moves with piece {pieceIndex + 1}{handle ? ` (${handle})` : ""}

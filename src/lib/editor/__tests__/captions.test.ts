@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { fontCoversText } from "../caption-fonts";
 import {
   addCaption, attachCues, captionTimes, deletePiece, docToCues, editCaption, removeCaption,
-  retimeCaption, splitPieceInDoc,
+  retimeCaption, splitCaption, splitPieceInDoc,
 } from "../captions";
+import { cap, emptyDoc } from "./fixtures";
 import { movePiece } from "../timeline";
 import type { Caption, EditDoc, Piece } from "../types";
 import { DEFAULT_CAPTION_STYLE } from "../caption-style";
@@ -83,7 +84,7 @@ describe("captions belong to pieces", () => {
   });
 
   it("returns the same doc for a no-op", () => {
-    expect(editCaption(doc, "c1", c1.text)).toBe(doc);
+    expect(editCaption(doc, "c1", c1.text).doc).toBe(doc);
     expect(removeCaption(doc, "missing")).toBe(doc);
   });
 
@@ -101,5 +102,40 @@ describe("captions belong to pieces", () => {
     const { doc: capped, dropped } = attachCues({ ...doc, captions: [] }, many, () => `m${++n}`);
     expect(capped.captions).toHaveLength(1000);
     expect(dropped).toBe(5);
+  });
+});
+
+describe("caption ops keep words in sync", () => {
+  const p: Piece = { id: "A", sourceNodeId: "s", in: 0, out: 8, picture: "original", sound: "original" };
+  const c = cap("c", "A", 1, 2, { text: "one two three", words: [{ text: "one", at: 1, duration: 0.5 }, { text: "two", at: 1.6, duration: 0.4 }, { text: "three", at: 2.1, duration: 0.6 }], auto: true });
+  const wdoc = emptyDoc({ pieces: [p], captions: [c] });
+
+  it("moves words with the line and scales them when an edge is dragged", () => {
+    const moved = retimeCaption(wdoc, "c", 2, 4).captions[0];
+    expect(moved.words!.map((x) => x.at)).toEqual([2, 2.6, 3.1]);
+    const stretched = retimeCaption(wdoc, "c", 1, 5).captions[0];
+    expect(stretched.words![1].at).toBeCloseTo(2.2, 9);
+    expect(stretched.edited).toBe(true);
+    expect(retimeCaption(wdoc, "c", 1, 3)).toBe(wdoc);
+  });
+
+  it("splits at the first word at or after the playhead", () => {
+    const out = splitCaption(wdoc, "c", 1.7, "c2");
+    expect(out.captions.map((x) => x.text)).toEqual(["one two", "three"]);
+    expect(out.captions[1]).toMatchObject({ id: "c2", at: 2.1, edited: true });
+    expect(out.captions[0].at + out.captions[0].duration).toBeCloseTo(2.1, 9);
+  });
+
+  it("splits a line in the middle when the playhead is outside it, and leaves one-word lines alone", () => {
+    expect(splitCaption(wdoc, "c", 7, "c2").captions.map((x) => x.text)).toEqual(["one two", "three"]);
+    const one = emptyDoc({ pieces: [p], captions: [cap("o", "A", 1, 1, { text: "solo" })] });
+    expect(splitCaption(one, "o", 1.2, "o2")).toBe(one);
+  });
+
+  it("edits text through retextCaption and reports a spread", () => {
+    expect(editCaption(wdoc, "c", "one two three").doc).toBe(wdoc);
+    expect(editCaption(wdoc, "c", "one 2 three").spread).toBe(false);
+    expect(editCaption(wdoc, "c", "one two").spread).toBe(true);
+    expect(editCaption(wdoc, "c", "").doc.captions).toEqual([]);
   });
 });
