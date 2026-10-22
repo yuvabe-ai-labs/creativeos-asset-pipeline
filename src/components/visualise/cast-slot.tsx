@@ -7,7 +7,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AvatarSheetViews } from "@/components/avatars/avatar-sheet-views";
 import { useCastAvatarMaker } from "@/hooks/use-cast-avatar-maker";
 import { AVATAR_VIEWS } from "@/lib/avatars/constants";
-import { missingViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { CastMember } from "@/lib/scripts/schema";
 import { castSlotLine, reusableFor } from "@/lib/scripts/visualise/maker";
@@ -48,8 +47,8 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, headerE
   const { refresh } = maker;
   const onPreviewSettled = useCallback(() => void refresh(), [refresh]);
   const [mode, setMode] = useState<Mode>(avatar?.front?.source.kind === "upload" ? "photo" : "ai");
-  const generating = maker.step === "views" ? (avatar ? missingViews(avatar) : [...AVATAR_VIEWS])
-    : maker.step === "face" ? [...AVATAR_VIEWS] : [];
+  // One sheet makes all four views at once (D395).
+  const generating = maker.step === "views" || maker.step === "face" ? [...AVATAR_VIEWS] : [];
 
   return (
     <Card id={castAnchor(member.id)} className="flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40">

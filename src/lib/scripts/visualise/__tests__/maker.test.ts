@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { GENERATED, makeAvatar, makeImage, makeViews } from "@/lib/avatars/__tests__/fixtures";
 import type { Avatar } from "@/lib/avatars/schema";
 import {
-  avatarDescriptionFor, castSlotLine, finishAvatar, makeGeneratedAvatar, nextMakerStep, reusableFor, type MakerDeps,
+  castSlotLine, finishAvatar, makeGeneratedAvatar, nextMakerStep, reusableFor, type MakerDeps,
 } from "../maker";
 import { reel01Doc } from "./fixtures";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
@@ -17,7 +17,11 @@ function deps(calls: string[]): MakerDeps {
   const generatedFront = { ...makeImage(GENERATED), url: "https://x/face.png" };
   return {
     createAndLink: vi.fn(async (fields: { name: string; story: string }) => { calls.push(`create:${fields.name}`); return draft(); }),
-    generateFront: vi.fn(async (_id: string, description: string) => { calls.push(`face:${description}`); return { generationId: "g1" }; }),
+    describe: vi.fn(async (instructions: string) => {
+      calls.push(`brief:${instructions}`);
+      return { description: "A 40-year-old South Asian woman.", attributes: { gender: "Female" } };
+    }),
+    generateFront: vi.fn(async (_id: string, front: { description: string }) => { calls.push(`face:${front.description}`); return { generationId: "g1" }; }),
     pickFront: vi.fn(async () => { calls.push("pick"); return draft({ front: generatedFront, sheetStale: true }); }),
     generateViews: vi.fn(async () => { calls.push("views"); return draft({ front: generatedFront, sheetViews: makeViews() }); }),
     markReady: vi.fn(async () => { calls.push("save"); return draft({ front: generatedFront, sheetViews: makeViews(), status: "ready" }); }),
@@ -26,11 +30,19 @@ function deps(calls: string[]): MakerDeps {
 }
 
 describe("makeGeneratedAvatar (D339)", () => {
-  it("makes and links a new avatar, then the face, the four views, and saves it to Avatars", async () => {
+  it("makes and links a new avatar, then the brief, the face from it, the four views, and saves it", async () => {
     const calls: string[] = [];
     const avatar = await makeGeneratedAvatar(deps(calls), { member: meenakshi, avatar: null, instructions: "", fresh: false });
-    expect(calls).toEqual(["create:Meenakshi", `face:${meenakshi.description}`, "pick", "views", "save"]);
+    expect(calls).toEqual(["create:Meenakshi", "brief:", "face:A 40-year-old South Asian woman.", "pick", "views", "save"]);
     expect(avatar.status).toBe("ready");
+  });
+
+  it("draws the face from the brief, attributes and all, never from the script's raw words (D395)", async () => {
+    const d = deps([]);
+    await makeGeneratedAvatar(d, { member: meenakshi, avatar: null, instructions: "", fresh: false });
+    expect(d.generateFront).toHaveBeenCalledWith("new", {
+      description: "A 40-year-old South Asian woman.", attributes: { gender: "Female" },
+    });
   });
 
   it("resumes a linked draft from the first step not done, so a failed view is retried without a new face", async () => {
@@ -41,11 +53,11 @@ describe("makeGeneratedAvatar (D339)", () => {
     expect(calls).toEqual(["views", "save"]);
   });
 
-  it("Regenerate avatar always makes a new face, from the description and the instructions", async () => {
+  it("Regenerate avatar always makes a new face, briefed with the instructions", async () => {
     const calls: string[] = [];
     const ready = makeAvatar({ front: makeImage(GENERATED), sheetViews: makeViews(), status: "ready" });
     await makeGeneratedAvatar(deps(calls), { member: meenakshi, avatar: ready, instructions: "Greyer at the temples", fresh: true });
-    expect(calls[0]).toBe(`face:${meenakshi.description} Greyer at the temples`);
+    expect(calls.slice(0, 2)).toEqual(["brief:Greyer at the temples", "face:A 40-year-old South Asian woman."]);
   });
 
   it("makes a new avatar rather than turning a real person's photo into a generated face", async () => {
@@ -88,10 +100,6 @@ describe("the slot's rules", () => {
     expect(reusableFor("ai", makeAvatar({ archivedAt: "2026-10-08T00:00:00.000Z" }))).toBeNull();
   });
 
-  it("avatarDescriptionFor adds the instructions and stays within what the front route takes", () => {
-    expect(avatarDescriptionFor({ ...meenakshi, description: "x".repeat(1490) }, "Greyer at the temples")).toHaveLength(1500);
-  });
-
   it("castSlotLine says where the avatar stands", () => {
     expect(castSlotLine(null)).toBe("No avatar yet");
     expect(castSlotLine(makeAvatar({ sheetViews: makeViews(), createdAt: "2026-10-09T10:00:00.000Z" }))).toMatch(/^Made .+ · saved to Avatars$/);
@@ -101,17 +109,18 @@ describe("the slot's rules", () => {
   });
 });
 
-describe("finishAvatar asks only for the missing views (review finding 1)", () => {
-  it("retries just the view that failed, so it costs what the button shows and keeps the good views", async () => {
-    const d = deps([]);
-    await finishAvatar(d, draft({ front: makeImage(GENERATED), sheetViews: { ...makeViews(), back: null } }));
-    expect(d.generateViews).toHaveBeenCalledWith("new", ["back"]);
-  });
-
-  it("asks for all four for a face with no views yet", async () => {
+describe("finishAvatar makes the one sheet (D395)", () => {
+  it("makes the sheet for a face with no views yet, once", async () => {
     const d = deps([]);
     await finishAvatar(d, draft({ front: makeImage(GENERATED) }));
-    expect(d.generateViews).toHaveBeenCalledWith("new", ["front", "left", "right", "back"]);
+    expect(d.generateViews).toHaveBeenCalledTimes(1);
+    expect(d.generateViews).toHaveBeenCalledWith("new");
+  });
+
+  it("makes it again when a view is missing: the views come only from a whole sheet", async () => {
+    const d = deps([]);
+    await finishAvatar(d, draft({ front: makeImage(GENERATED), sheetViews: { ...makeViews(), back: null } }));
+    expect(d.generateViews).toHaveBeenCalledWith("new");
   });
 });
 
@@ -127,11 +136,11 @@ describe("Make avatar shows its first step at once (testing: no loading, repeat 
 });
 
 describe("estimateMakeCredits for the chosen model", () => {
-  it("is one face plus four views, on that model", () => {
+  it("is one face plus one sheet, on that model", () => {
     const gpt = "openai:gpt-image-2";
     const face = estimateAvatarImageCredits({ modelId: gpt, aspect: "3:4", referenceCount: 0 })!;
-    const views = estimateSheetCredits(gpt, 4)!;
-    expect(estimateMakeCredits(gpt)).toBe(face + views);
+    const sheet = estimateSheetCredits(gpt)!;
+    expect(estimateMakeCredits(gpt)).toBe(face + sheet);
   });
 
   it("makes Visualise avatars with GPT Image 2 by default", () => {

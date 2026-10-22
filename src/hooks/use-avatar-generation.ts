@@ -145,13 +145,14 @@ export function useAvatarGeneration({
     }
   }, [clientId, avatarId, picking, generatingSheet, onAvatar]);
 
-  const generateSheet = useCallback(async (modelId: string, views?: AvatarViewId[]) => {
+  const generateSheet = useCallback(async (modelId: string) => {
     if (!avatarId || generatingSheet) return;
-    setGeneratingViews(views ?? [...AVATAR_VIEWS]);
+    setGeneratingViews([...AVATAR_VIEWS]);
     try {
-      const { avatar, spentCredits: total, failed } = await avatarsService.generateSheet(clientId, avatarId, modelId, views);
+      const { avatar, spentCredits: total, failed } = await avatarsService.generateSheet(clientId, avatarId, modelId);
       onAvatar(avatar);
-      for (const f of failed) toast.error(`The ${f.label} view failed: ${f.error}`);
+      // One sheet: its views fail together, for one reason, so it is said once.
+      for (const error of new Set(failed.map((f) => f.error))) toast.error(error);
       if (total === null) void refreshSpentCredits(avatarId);
       else applySpent(total);
     } catch (e) {
