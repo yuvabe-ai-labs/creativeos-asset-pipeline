@@ -20,6 +20,7 @@ import { EditorCaptionLane } from "./editor-caption-lane";
 import { EditorTimelineCaptionTools } from "./editor-auto-captions-button";
 import { EditorStageWithCaption } from "./editor-stage-with-caption";
 import { EditorDivider } from "./editor-divider";
+import { EditorDubProvider } from "./editor-dub-context";
 import { EditorPanelRail } from "./editor-panel-rail";
 import { EditorSessionProvider } from "./editor-session-context";
 import { EditorUiProvider } from "./editor-ui-context";
@@ -91,6 +92,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
 
   return (
     <EditorSessionProvider value={session}>
+      <EditorDubProvider>
       <EditorUiProvider inspectorShown={inspectorOpen} showInspector={layout.toggleInspector} goToCanvas={goToCanvas}>
         <div className="flex h-dvh flex-col overflow-hidden bg-background">
           <EditorHeader
@@ -121,6 +123,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
           </div>
         </div>
       </EditorUiProvider>
+      </EditorDubProvider>
     </EditorSessionProvider>
   );
 }

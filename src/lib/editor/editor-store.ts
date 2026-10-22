@@ -26,6 +26,10 @@ export type EditorStoreState = {
   commit(): void;
   select(selection: Selection): void;
   setEditable(editable: boolean): void;
+  /** Fresh sources from the server (a dub landed, D406). */
+  setSources(sources: SourceView[]): void;
+  /** Adopt an edit the server rewrote after a canvas change (D406). Undo can't cross it. */
+  replaceAll(doc: EditDoc, sources: SourceView[]): void;
 };
 
 const stillThere = (doc: EditDoc, s: Selection): Selection => {
@@ -79,6 +83,11 @@ export function createEditorStore(init: { doc: EditDoc; sources: SourceView[] })
     },
     setEditable: (editable) => {
       if (get().editable !== editable) set({ editable });
+    },
+    setSources: (sources) => set({ sources }),
+    replaceAll: (doc, sources) => {
+      dragFrom = null;
+      set({ doc, sources, past: [], future: [], selection: stillThere(doc, get().selection) });
     },
   }));
 }

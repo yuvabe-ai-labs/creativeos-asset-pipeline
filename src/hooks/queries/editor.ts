@@ -17,6 +17,7 @@ export const editorKeys = {
   export: (canvasId: string, jobId: string) => [...editorKeys.all(canvasId), "export", jobId] as const,
   transcripts: (canvasId: string) => [...editorKeys.all(canvasId), "transcripts"] as const,
   transcribe: (canvasId: string, jobId: string) => [...editorKeys.all(canvasId), "transcribe", jobId] as const,
+  dubs: (canvasId: string) => [...editorKeys.all(canvasId), "dubs"] as const,
   quiet: (url: string) => ["editor-quiet", url] as const,
 };
 
@@ -90,6 +91,18 @@ export function useTranscribeStatus(canvasId: string, jobId: string | null) {
     },
     enabled: Boolean(canvasId && jobId),
     refetchInterval: (q) => (!q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? TRANSCRIBE_POLL_MS : false),
+  });
+}
+
+const DUB_POLL_MS = 3000;
+
+/** The latest dub or lip sync of each clip feeding the Editor (D406), polled while one runs. */
+export function useDubStatus(canvasId: string, editorNodeId: string, live: boolean) {
+  return useQuery({
+    queryKey: editorKeys.dubs(canvasId),
+    queryFn: () => editorService.dubStatus(canvasId, editorNodeId),
+    enabled: Boolean(canvasId && editorNodeId),
+    refetchInterval: live ? DUB_POLL_MS : false,
   });
 }
 

@@ -1,4 +1,6 @@
 import type { ExportStatus } from "@/lib/editor/export-run";
+import type { DubLanguage, DubStyle } from "@/lib/dubbing/types";
+import type { EditorDubJob } from "@/lib/editor/dub-jobs";
 import type { TranscribeStatus } from "@/lib/editor/transcribe-plan";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
 import type { Transcript } from "@/lib/transcribe/types";
@@ -80,6 +82,30 @@ class EditorService {
   async transcribeStatus(canvasId: string, jobId: string): Promise<TranscribeStatus> {
     const res = await fetch(`/api/canvases/${canvasId}/editor/transcribe/${jobId}`);
     return readJson(res, "Couldn't read the captions run.");
+  }
+
+  /** D406 — put a Dubbing node between a Video Gen clip and the Editor; returns the rewritten state. */
+  async dubSource(canvasId: string, body: { nodeId: string; sessionId: string; sourceNodeId: string }): Promise<{ dubbingNodeId: string; state: EditorState }> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/dub-source`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return readJson(res, "Couldn't set up the dub.");
+  }
+
+  /** The latest dub or lip sync of each clip feeding the Editor (D406). */
+  async dubStatus(canvasId: string, nodeId: string): Promise<EditorDubJob[]> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/dub-status?nodeId=${encodeURIComponent(nodeId)}`);
+    return (await readJson<{ jobs: EditorDubJob[] }>(res, "Couldn't read the dubs.")).jobs;
+  }
+
+  /** Dub a Dubbing node from the editor (D408). Voice: the presenter's own. */
+  async startDub(nodeId: string, body: { language: DubLanguage; style: DubStyle; editorSessionId: string }): Promise<{ generationId: string }> {
+    const res = await fetch(`/api/nodes/${nodeId}/dub`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return readJson(res, "Couldn't start the dub.");
+  }
+
+  /** Lip sync a Dubbing node's current dub from the editor (D408). */
+  async startLipSync(nodeId: string, body: { versionId: string; editorSessionId: string }): Promise<{ generationId: string }> {
+    const res = await fetch(`/api/nodes/${nodeId}/lip-sync`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return readJson(res, "Couldn't start lip sync.");
   }
 
   /** The stored transcripts for this reel's sound files (D395). */

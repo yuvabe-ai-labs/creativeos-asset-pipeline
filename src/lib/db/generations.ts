@@ -157,6 +157,30 @@ export async function hasRunningGeneration(nodeId: string, nowMs: number = Date.
   return (data ?? []).length > 0;
 }
 
+/** The latest generation of the given types for each node, newest first per node (one query). */
+export async function listLatestGenerations(
+  nodeIds: string[],
+  types: GenerationRow["type"][],
+): Promise<Array<Pick<GenerationRow, "node_id" | "type" | "status" | "error" | "created_at">>> {
+  if (nodeIds.length === 0) return [];
+  const { data, error } = await createServerSupabase()
+    .from("generations")
+    .select("node_id, type, status, error, created_at")
+    .in("node_id", nodeIds)
+    .in("type", types)
+    .order("created_at", { ascending: false })
+    .limit(nodeIds.length * 10);
+  if (error) throw error;
+  const seen = new Set<string>();
+  const out: Array<Pick<GenerationRow, "node_id" | "type" | "status" | "error" | "created_at">> = [];
+  for (const row of (data ?? []) as Array<Pick<GenerationRow, "node_id" | "type" | "status" | "error" | "created_at">>) {
+    if (!row.node_id || seen.has(row.node_id)) continue;
+    seen.add(row.node_id);
+    out.push(row);
+  }
+  return out;
+}
+
 export async function listGenerations(nodeId: string): Promise<GenerationRow[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase

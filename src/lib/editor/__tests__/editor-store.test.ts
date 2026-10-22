@@ -95,3 +95,16 @@ describe("history (D400)", () => {
     expect(s.getState().past).toHaveLength(100);
   });
 });
+
+describe("adopting a server edit (D406)", () => {
+  it("replaces the doc and sources and clears history", () => {
+    const s = createEditorStore({ doc, sources: [] });
+    s.getState().apply((d) => ({ ...d, shape: "16:9" }));
+    const next = { ...doc, pieces: [] };
+    s.getState().replaceAll(next, []);
+    expect(s.getState().doc).toBe(next);
+    expect(s.getState().past).toHaveLength(0);
+    s.getState().undo();
+    expect(s.getState().doc).toBe(next);
+  });
+});

@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { pieceOffsets } from "@/lib/editor/timeline";
 import { followScroll } from "@/lib/editor/timeline-view";
+import { useEditorDubContext } from "./editor-dub-context";
 import { useEditorStore } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
 import { AUDIO_LANE_PX, DUB_LANE_PX, EditorAudioLane, EditorDubLane, type LaneRow } from "./editor-timeline-lanes";
@@ -16,7 +17,6 @@ import { useTimelineDrag } from "./use-timeline-drag";
 
 const CAPTION_LANE_PX = 34;
 const END_ROOM_PX = 200;
-const NO_BUSY: ReadonlyMap<string, "dub" | "lipsync"> = new Map();
 
 const LANES = [
   { label: "", h: RULER_PX },
@@ -26,12 +26,8 @@ const LANES = [
   { label: "Captions", h: CAPTION_LANE_PX },
 ];
 
-export function EditorTimeline({ height, captionsLane, tools, dubBusy = NO_BUSY }: {
-  height: number;
-  captionsLane?: (scale: number) => ReactNode;
-  tools?: ReactNode;
-  dubBusy?: ReadonlyMap<string, "dub" | "lipsync">;
-}) {
+export function EditorTimeline({ height, captionsLane, tools }: { height: number; captionsLane?: (scale: number) => ReactNode; tools?: ReactNode }) {
+  const { busy: dubBusy } = useEditorDubContext();
   const pieces = useEditorStore((s) => s.doc.pieces);
   const sources = useEditorStore((s) => s.sources);
   const selection = useEditorStore((s) => s.selection);
