@@ -6,6 +6,22 @@ import { proxyImageSrc } from "@/lib/post/proxy-image-src";
 import { ApiError, readJson } from "./read-json";
 
 // The Rough Cut Editor's API calls (D391). No caching here: src/hooks/queries/editor.ts owns that.
+
+/** A tiny semaphore: at most `n` media reads in flight. */
+function slots(n: number) {
+  let free = n;
+  const waiting: Array<() => void> = [];
+  return {
+    acquire: () => (free > 0 ? (free--, Promise.resolve()) : new Promise<void>((res) => waiting.push(res))),
+    release: () => {
+      const next = waiting.shift();
+      if (next) next();
+      else free++;
+    },
+  };
+}
+const mediaSlots = slots(2);
+
 class EditorService {
   /** The canvas's edit, reconciled with its current sources. */
   async state(canvasId: string): Promise<EditorState> {
@@ -33,11 +49,17 @@ class EditorService {
     return readJson(res, "Couldn't start the export.");
   }
 
-  /** A stored file's bytes through the same-origin proxy (storage sends no CORS headers, D245). */
+  /** A stored file's bytes through the same-origin proxy (storage sends no CORS headers, D245).
+   *  Two at a time for the page, so opening a reel never fires one big read per clip at once. */
   async fetchMedia(url: string): Promise<ArrayBuffer> {
-    const res = await fetch(proxyImageSrc(url));
-    if (!res.ok) throw new ApiError("Couldn't read this clip's sound.", res.status);
-    return res.arrayBuffer();
+    await mediaSlots.acquire();
+    try {
+      const res = await fetch(proxyImageSrc(url));
+      if (!res.ok) throw new ApiError("Couldn't read this clip's sound.", res.status);
+      return await res.arrayBuffer();
+    } finally {
+      mediaSlots.release();
+    }
   }
 
   async exportStatus(canvasId: string, jobId: string): Promise<ExportStatus> {

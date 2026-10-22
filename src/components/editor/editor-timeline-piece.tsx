@@ -1,107 +1,68 @@
 "use client";
-// One piece on the Video lane (mockup "Editor, clip selected"). Drag an edge to trim (snapped to
-// the picture's frames by setTrim), drag the body to reorder, click to select and move the
-// playhead there. Arrow keys nudge a focused edge by a frame (Shift: 10). Pointer handling ported
-// from the rough-cut spike's timeline-clip.
-import { useRef } from "react";
+// One piece on the Video lane: its own frames, its badges (dub, lip sync), edges to trim. Pointer
+// handling lives in useTimelineDrag (D404); right-click opens the clip's menu (D405).
+import { dubLanguageLabel } from "@/lib/dubbing/types";
 import { formatTime } from "@/lib/editor/timeline";
-import type { Piece } from "@/lib/editor/types";
+import type { Piece, SourceView } from "@/lib/editor/types";
 import { cn } from "@/lib/utils";
-import { useEditorStoreApi } from "./editor-store-provider";
+import { EditorClipMenu } from "./editor-clip-menu";
+import { EditorFilmstrip } from "./editor-filmstrip";
 
-type Edge = "in" | "out";
+export const VIDEO_LANE_PX = 64;
 
-export function EditorTimelinePiece({ piece, index, label, tone, left, width, scale, fps, selected, onSelectAt, onTrim, onDragStart, onDrop }: {
+export function EditorTimelinePiece({ piece, index, source, left, width, selected, moving, onBegin }: {
   piece: Piece;
   index: number;
-  label: string;
-  tone: string;
+  source: SourceView | undefined;
   left: number;
   width: number;
-  /** Pixels per second. */
-  scale: number;
-  fps: number;
   selected: boolean;
-  onSelectAt(localSeconds: number): void;
-  onTrim(edge: Edge, sourceSeconds: number): void;
-  onDragStart(): void;
-  onDrop(): void;
+  moving: boolean;
+  onBegin(e: React.PointerEvent, edge: "in" | "out" | null): void;
 }) {
-  const store = useEditorStoreApi();
-  const trim = useRef<{ startX: number; seconds: number } | null>(null);
-  const seconds = piece.out - piece.in;
-
-  const handle = (edge: Edge) => {
-    const at = edge === "in" ? piece.in : piece.out;
-    return (
-      <div
-        role="slider"
-        tabIndex={0}
-        aria-label={edge === "in" ? `Trim start of piece ${index + 1}` : `Trim end of piece ${index + 1}`}
-        aria-valuenow={Math.round(at * fps)}
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          e.currentTarget.setPointerCapture(e.pointerId);
-          trim.current = { startX: e.clientX, seconds: at };
-          store.getState().begin(); // one undo step for the whole trim (D400)
-        }}
-        onPointerMove={(e) => {
-          if (trim.current) onTrim(edge, trim.current.seconds + (e.clientX - trim.current.startX) / scale);
-        }}
-        onPointerUp={(e) => {
-          if (!trim.current) return;
-          trim.current = null;
-          e.currentTarget.releasePointerCapture(e.pointerId);
-          store.getState().commit();
-        }}
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-          e.preventDefault();
-          e.stopPropagation();
-          const frames = (e.shiftKey ? 10 : 1) * (e.key === "ArrowLeft" ? -1 : 1);
-          onTrim(edge, at + frames / fps);
-        }}
-        className={cn(
-          "absolute inset-y-0 z-10 w-2 cursor-ew-resize outline-none transition-colors duration-200",
-          "group-hover/piece:bg-primary/20 hover:bg-primary/35 focus-visible:bg-primary/35",
-          selected && "bg-primary/35",
-          edge === "in" ? "left-0 rounded-l-md" : "right-0 rounded-r-md",
-        )}
-      />
-    );
-  };
+  const picture = piece.picture === "lipSynced" && source?.files.lipSynced ? source.files.lipSynced : source?.files.original;
+  const duration = picture?.facts?.durationSeconds ?? 0;
+  const w = Math.max(4, width - 2);
+  const h = VIDEO_LANE_PX - 8;
+  const edge = (which: "in" | "out") => (
+    <span
+      aria-hidden
+      onPointerDown={(e) => onBegin(e, which)}
+      className={cn(
+        "absolute inset-y-0 z-10 w-2 cursor-ew-resize transition-colors duration-200 group-hover/piece:bg-primary/25 hover:bg-primary/45",
+        selected && "bg-primary/40",
+        which === "in" ? "left-0 rounded-l-md" : "right-0 rounded-r-md",
+      )}
+    />
+  );
 
   return (
-    <div
-      draggable
-      onDragStart={(e) => {
-        if (trim.current) return e.preventDefault();
-        e.dataTransfer.effectAllowed = "move";
-        onDragStart();
-      }}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        onDrop();
-      }}
-      onClick={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        onSelectAt(Math.max(0, (e.clientX - rect.left) / scale));
-      }}
-      style={{ left, width: Math.max(4, width - 2) }}
-      className={cn(
-        "group/piece absolute top-0 h-[60px] cursor-pointer select-none overflow-hidden rounded-lg",
-        tone,
-        selected ? "border-2 border-primary" : "border border-border hover:border-foreground/20",
-      )}
-    >
-      {handle("in")}
-      <div className="flex h-full flex-col justify-between px-3 py-2">
-        <span className={cn("truncate text-xs", selected && "font-semibold")}>{label}</span>
-        <span className="truncate text-[11px] tabular-nums text-muted-foreground">{formatTime(seconds)}</span>
+    <EditorClipMenu piece={piece} source={source}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={`Clip ${index + 1}, ${source?.handle ?? "missing"}, ${formatTime(piece.out - piece.in)}`}
+        aria-pressed={selected}
+        onPointerDown={(e) => onBegin(e, null)}
+        style={{ left, width: w, height: h }}
+        className={cn(
+          "group/piece absolute top-1 cursor-grab touch-none select-none overflow-hidden rounded-lg bg-muted active:cursor-grabbing",
+          selected ? "ring-2 ring-primary" : "ring-1 ring-border hover:ring-foreground/20",
+          moving && "opacity-40",
+        )}
+      >
+        {picture && <EditorFilmstrip url={picture.url} from={piece.in} to={piece.out} duration={duration} width={w} height={h} />}
+        <span className="pointer-events-none absolute left-2 top-1.5 flex max-w-[calc(100%-1rem)] items-center gap-1 truncate text-[11px] font-semibold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.75)]">
+          {index + 1}. {source?.handle ?? "Missing clip"}
+          {piece.sound === "dubbed" && (
+            <span className="rounded-full bg-emerald-100 px-1.5 text-[9.5px] text-emerald-800 [text-shadow:none]">{source?.language ? dubLanguageLabel(source.language) : "Dub"}</span>
+          )}
+          {piece.picture === "lipSynced" && <span className="rounded-full bg-primary/90 px-1.5 text-[9.5px] text-primary-foreground [text-shadow:none]">LIP</span>}
+        </span>
+        <span className="pointer-events-none absolute bottom-1 left-2 text-[10px] tabular-nums text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,.75)]">{formatTime(piece.out - piece.in)}</span>
+        {edge("in")}
+        {edge("out")}
       </div>
-      {handle("out")}
-    </div>
+    </EditorClipMenu>
   );
 }

@@ -4,15 +4,13 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { unsureWordIndexes } from "@/lib/editor/auto-captions";
 import { addCaption, captionTimes } from "@/lib/editor/captions";
-import { pieceOffsets } from "@/lib/editor/timeline";
+import { formatTime, pieceOffsets } from "@/lib/editor/timeline";
 import { useAutoCaptionsContext } from "./auto-captions-context";
 import { EditorAutoCaptionsButton } from "./editor-auto-captions-button";
 import { EditorCaptionLine } from "./editor-caption-line";
 import { EditorCaptionsMoreMenu } from "./editor-captions-more-menu";
 import { useEditorStore } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
-
-const clock = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
 /** The Text tab (spec §9): every line with its start, grouped by clip, as in VEED's list. */
 export function EditorCaptionsText() {
@@ -77,7 +75,7 @@ export function EditorCaptionsText() {
                 <EditorCaptionLine
                   key={c.id}
                   caption={c}
-                  start={clock(t ? t.start : offsets[i])}
+                  start={formatTime(t ? t.start : offsets[i])}
                   selected={c.id === selectedId}
                   playing={c.id === showing?.id}
                   unsure={unsureWordIndexes(c, c.from ? transcripts?.get(c.from) : undefined)}

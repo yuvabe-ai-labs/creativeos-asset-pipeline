@@ -37,6 +37,15 @@ export function setSound(doc: EditDoc, pieceId: string, choice: SoundChoice, sou
   });
 }
 
+/** A copy of a piece right after it, with its trims and choices. Captions stay with the original. */
+export function duplicatePiece(doc: EditDoc, pieceId: string, newId: string): EditDoc {
+  const i = doc.pieces.findIndex((p) => p.id === pieceId);
+  if (i < 0) return doc;
+  const pieces = doc.pieces.slice();
+  pieces.splice(i + 1, 0, { ...doc.pieces[i], id: newId });
+  return { ...doc, pieces };
+}
+
 /** A fresh, full-length piece of a source at the end of the reel. */
 export function addSourceAgain(doc: EditDoc, sourceNodeId: string, sources: SourceView[], newId: string): EditDoc {
   const video = sources.find((s) => s.nodeId === sourceNodeId)?.files.original.facts?.video;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addSourceAgain, setPicture, setSound } from "../pieces";
+import { addSourceAgain, duplicatePiece, setPicture, setSound } from "../pieces";
 import type { EditDoc } from "../types";
 import { file, source, videoFacts } from "./fixtures";
 import { DEFAULT_CAPTION_STYLE } from "../caption-style";
@@ -43,5 +43,22 @@ describe("addSourceAgain", () => {
 
   it("does nothing for a source it can't read", () => {
     expect(addSourceAgain(doc, "x", [source("x", { facts: null })], "p3")).toBe(doc);
+  });
+});
+
+describe("duplicatePiece", () => {
+  const doc: EditDoc = {
+    v: 2, captionStyle: DEFAULT_CAPTION_STYLE, shape: "9:16", sources: [], captions: [],
+    pieces: [
+      { id: "a", sourceNodeId: "s", in: 1, out: 3, picture: "original", sound: "dubbed" },
+      { id: "b", sourceNodeId: "t", in: 0, out: 2, picture: "original", sound: "original" },
+    ],
+  };
+  it("puts a copy right after the piece, with its trims and choices", () => {
+    expect(duplicatePiece(doc, "a", "a2").pieces.map((p) => p.id)).toEqual(["a", "a2", "b"]);
+    expect(duplicatePiece(doc, "a", "a2").pieces[1]).toEqual({ ...doc.pieces[0], id: "a2" });
+  });
+  it("returns the same doc for a piece that isn't there", () => {
+    expect(duplicatePiece(doc, "zz", "x")).toBe(doc);
   });
 });
