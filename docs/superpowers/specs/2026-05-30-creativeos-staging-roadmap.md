@@ -7705,3 +7705,75 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 - Rewriting the writers from scratch: it would lose the tests and the details verified in Premiere.
 
 **Originated →** docs/superpowers/plans/2026-10-20-rough-cut-editor-HANDOFF.md (§3).
+
+### D395 — Auto captions come from ElevenLabs Scribe v2 with word timing, once per stored file *(recorded 2026-10-22)*
+
+**Decision.** The Rough Cut Editor transcribes the sound each piece plays (the dub audio when its sound is Dubbed, else the take's file) with ElevenLabs Speech-to-Text, `scribe_v2`, by URL (`source_url`), with word timestamps and the language detected. Results are stored in `media_transcripts`, keyed by the file URL, so a file is never paid for twice. A run is one `generations` row (`type: "transcribe"`, owned by the Editor node) and one `background_jobs` row (`kind: "editor-transcribe"`); the task pays each file once (`maxAttempts: 1`), writes each transcript as it lands, and settles credits for the seconds that succeeded. The engine sits behind an interface in `src/lib/transcribe/`; no vendor name reaches the UI.
+
+**Why.** A test on five Reel 2 clips returned every word with a start and end time, English at 94–99% confidence, in about 4 s per clip, and the times landed within a frame at 24 fps. Scribe covers the Indian languages our dubs use, the key is already held (voice change, D284), and reading by URL means no media passes through our functions (rule 8). Keying by URL follows `media_facts` (D392): takes are immutable files.
+
+**Rejected.** OpenAI Whisper (looser word times; its newer models give none). Sarvam's dub SRT (line timing only, dubs only). Transcribing in the browser (storage sends no CORS headers, D245). One generation per file (a five-clip reel would round up to five minimum charges).
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§3, §4).
+
+### D396 — One caption style for the reel; presets are looks and never move or retime *(recorded 2026-10-22; refines D393)*
+
+**Decision.** The edit carries one `captionStyle` (font, size, colour, word by word and its colour, plus outline, box, caps and upcoming-word treatment set by four presets, and the x/y position). Every caption uses it; there are no per-line styles. Dragging a caption on the preview moves every caption, a corner handle resizes, both snap to the centre lines. Presets change the look only. The edit document becomes `v: 2`; a v1 edit takes its first caption's look.
+
+**Why.** Other editors treat captions as one layer (Descript's captions layer, CapCut's "apply to all", on by default). Styling one line at a time made a reel's captions drift apart and was the main source of confusion in the first mock. The user asked for only the controls that are needed.
+
+**Rejected.** Per-line overrides and an "apply to all" switch (removed after review as rarely used). A preset that also sets position (picking a look would undo the user's drag). A position slider (dragging is what editors expect).
+
+**Refines →** D393 (font, size and colour were per caption).
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§5, §7).
+
+### D397 — Word times are stored in source seconds; one frame rule serves the preview and Premiere *(recorded 2026-10-22; refines D393)*
+
+**Decision.** A caption may carry `words` (`text`, `at`, `duration`), in seconds of its piece's source, like the caption's own `at`. `wordFrames` turns them into sequence frames (start = round(at × fps), active until the next word starts) and is the only place that does, for both the preview and the export. The preview's clock follows `requestVideoFrameCallback` (`mediaTime` of the frame on screen) while playing.
+
+**Why.** Source seconds keep words in sync when earlier pieces are trimmed or moved, as captions already are. A shared rounding rule means a word cannot appear a frame apart in the preview and Premiere. The frame callback reports the frame actually shown, where `currentTime` read per animation frame can be a frame off.
+
+**Rejected.** Reel-time word times (break on every trim). Rounding separately in each renderer.
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§5, §6).
+
+### D398 — Word by word reaches Premiere as one editable title per word *(recorded 2026-10-22; extends D393)*
+
+**Decision.** With word by word on, each caption is written as one Graphic clip per word, timed by `wordFrames`, each holding the whole line with per-character style runs: the word being said in its colour, upcoming words dimmed (a solid mixed colour) or hidden (no fill, no stroke) so the layout matches the preview. Off: one clip per line. Outline, box and caps map onto the title's stroke, back-fill and text. Before building on any of this, a probe file is opened in the user's Premiere; whatever Premiere doesn't read is replaced (for hidden words: each clip holds only the words said so far).
+
+**Why.** Premiere titles carry per-character runs (the format D393 decoded), so every clip stays retypable text, which the user required. Premiere has no per-character opacity, hence a solid dim colour shared with the preview.
+
+**Rejected.** A rendered transparent overlay video (not retypable). Essential Graphics templates driven by a Premiere extension (a separate install, fragile APIs). SRT only (no styling).
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§8).
+
+### D399 — Auto captions is one button with its cost on it; edited lines are never rewritten *(recorded 2026-10-22)*
+
+**Decision.** "Auto captions · N credits" (or "· free" when every file is transcribed) runs at once: no dialog, language detected, the reel's style applied. A toast offers Undo. Re-running rewrites only lines Auto captions wrote and nobody edited; lines added or edited by hand stay. A clip that fails says why in place, offers Try again, and is refunded; the others are captioned.
+
+**Why.** The user asked for the simplest path. The figure on the button is the reservation (D377), so a confirmation step adds nothing, and Undo covers a mistaken click.
+
+**Rejected.** A dialog with language, look and cost (cut in review). Re-running that overwrites edits.
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§2, §4).
+
+### D400 — The editor has undo and redo *(recorded 2026-10-22)*
+
+**Decision.** The editor store keeps up to 100 earlier documents. Each `apply` is one step, each drag one step, and a no-op is not recorded (rule 4). Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z and Ctrl+Y, never while typing. History lasts for the page visit.
+
+**Why.** Every editor the user compared has it, and one-click Auto captions is only safe to offer without a dialog when it can be undone.
+
+**Rejected.** Undo for captions only (two models of "undo" on one page). Persisting history (no request; the edit is saved anyway).
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§10).
+
+### D401 — A new take keeps its captions and offers to caption it again *(recorded 2026-10-22)*
+
+**Decision.** Each auto caption records the sound URL its words came from (`from`). When a piece's sound changes (a new take, or its sound switched to the dub), its captions stay and its lane segment offers "Caption this clip · N credits". Nothing is re-transcribed or charged on its own.
+
+**Why.** Silent re-transcription would spend credits the user didn't ask to spend, and hiding the old captions would look like lost work.
+
+**Rejected.** Re-transcribing on version switch. Deleting the old captions.
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§2).
