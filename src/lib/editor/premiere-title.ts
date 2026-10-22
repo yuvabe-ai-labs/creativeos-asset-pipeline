@@ -14,9 +14,23 @@
 // with __tests__/caption-probe.test.ts (D393).
 import { rate, timecode, x, type XNode } from "./xml-node";
 
-/** What one caption looks like as a Premiere title. sizePx is at the sequence's frame size. */
-export type TitleSpec = { text: string; fontPostScript: string; sizePx: number; color: string; x: number; y: number };
-type TitleStyle = Pick<TitleSpec, "fontPostScript" | "sizePx" | "color">;
+/** A stretch of characters [start, end) styled apart from the rest (D398): the word being said,
+ *  a dimmed word, or a word not said yet (hidden: no fill, no stroke, still taking its space). */
+export type TextRun = { start: number; end: number; color?: string; hidden?: boolean };
+
+/** What one caption looks like as a Premiere title. sizePx, widthPx are at the sequence's frame size. */
+export type TitleSpec = {
+  text: string;
+  fontPostScript: string;
+  sizePx: number;
+  color: string;
+  x: number;
+  y: number;
+  runs?: TextRun[];
+  stroke?: { color: string; widthPx: number };
+  box?: { color: string; opacity: number; sizePx: number };
+};
+type TitleStyle = Pick<TitleSpec, "fontPostScript" | "sizePx" | "color" | "runs" | "stroke" | "box">;
 
 const PARAM_TIME = "-91445760000000000";
 /** Generator length Premiere wrote for a title (frames); in/out sit inside it. */
@@ -32,17 +46,41 @@ export function hexToInt(hex: string): number {
 const run = <T>(value: T) => ({ mParamValues: [[0, value]] });
 const runs = <T>(value: T, length: number) => ({ mParamValues: [[0, value], [length, value]] });
 
+/** A per-character property as Premiere stores it: one entry where each value starts, then a
+ *  closing entry at the text length. `at` gives a character's value. */
+function charRuns<T>(length: number, at: (i: number) => T) {
+  const values: [number, T][] = [];
+  for (let i = 0; i < length; i++) {
+    const v = at(i);
+    if (!values.length || values[values.length - 1][1] !== v) values.push([i, v]);
+  }
+  if (!values.length) return { mParamValues: [[0, at(0)]] };
+  values.push([length, values[values.length - 1][1]]);
+  return { mParamValues: values };
+}
+
 export function sourceTextJson(text: string, style: TitleStyle) {
   const mText = text.replace(/\r?\n/g, "\r");
   const n = mText.length;
+  const spans = style.runs ?? [];
+  const runAt = (i: number) => spans.find((r) => i >= r.start && i < r.end);
+  const baseColor = hexToInt(style.color);
+  const hidden = (i: number) => runAt(i)?.hidden === true;
+  const fillColor = charRuns(n, (i) => {
+    const c = runAt(i)?.color;
+    return c ? hexToInt(c) : baseColor;
+  });
+  const stroked = style.stroke !== undefined;
+  // Premiere draws a shadow under every title we write unless it has an outline or a box (D398).
+  const shadow = !stroked && !style.box;
   return {
     mShadowFontMapHash: crypto.randomUUID(),
     mTextParam: {
       mAlignment: ALIGN_CENTER,
-      mBackFillColor: 0x000000,
-      mBackFillOpacity: 60,
-      mBackFillSize: 0,
-      mBackFillVisible: false,
+      mBackFillColor: style.box ? hexToInt(style.box.color) : 0x000000,
+      mBackFillOpacity: style.box ? style.box.opacity : 60,
+      mBackFillSize: style.box ? style.box.sizePx : 0,
+      mBackFillVisible: style.box !== undefined,
       mDefaultRun: [],
       mHeight: 0,
       mHindiDigits: false,
@@ -57,14 +95,14 @@ export function sourceTextJson(text: string, style: TitleStyle) {
       mMiterLimit: 2.5,
       mNumStrokes: 1,
       mRTL: false,
-      // No box: a soft drop shadow keeps light text readable over bright frames.
+      // No outline or box: a soft drop shadow keeps light text readable over bright frames.
       mShadowAngle: 90,
       mShadowBlur: 30,
       mShadowColor: 0x000000,
       mShadowOffset: 3,
       mShadowOpacity: 60,
       mShadowSize: 0,
-      mShadowVisible: true,
+      mShadowVisible: shadow,
       mStyleSheet: {
         mAdditionalStrokeColor: [],
         mAdditionalStrokeVisible: [],
@@ -74,15 +112,15 @@ export function sourceTextJson(text: string, style: TitleStyle) {
         mCapsOption: run(0),
         mFauxBold: run(false),
         mFauxItalic: run(false),
-        mFillColor: runs(hexToInt(style.color), n),
+        mFillColor: fillColor,
         mFillOverStroke: run(true),
-        mFillVisible: run(true),
+        mFillVisible: spans.some((r) => r.hidden) ? charRuns(n, (i) => !hidden(i)) : run(true),
         mFontName: runs(style.fontPostScript, n),
         mFontSize: run(style.sizePx),
         mKerning: run(0),
-        mStrokeColor: runs(0x000000, n),
-        mStrokeVisible: runs(false, n),
-        mStrokeWidth: run(1),
+        mStrokeColor: runs(stroked ? hexToInt(style.stroke!.color) : 0x000000, n),
+        mStrokeVisible: stroked ? charRuns(n, (i) => !hidden(i)) : runs(false, n),
+        mStrokeWidth: run(stroked ? style.stroke!.widthPx : 1),
         mText,
         mTracking: run(0),
         mTsumi: run(0),
