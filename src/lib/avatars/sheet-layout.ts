@@ -1,38 +1,44 @@
 // D395 — where to cut the one turnaround sheet into its four views. Pure, so it is tested
-// without sharp: the caller turns the image into a column profile (how much of each column is
-// figure rather than backdrop) and cuts where this says.
+// without sharp: the caller turns the image into a texture profile (how much fine detail each
+// column has) and cuts where this says.
+//
+// Texture, not colour: a model's backdrop is often a gradient, lighter in the middle, so a gap
+// between two figures can differ from the edge colour as much as a figure does (Radha's sheet,
+// 22 Oct 2026, merged two views that way). A backdrop is smooth whatever its shade; people,
+// fabric and hair are not.
 
-const FIGURES = 4;
-/** A column counts as figure when more than this share of it differs from the backdrop. */
-const FIGURE_COLUMN = 0.02;
-/** Gaps narrower than this share of the width are inside one figure (between the legs, an arm). */
-const MERGE_GAP = 0.01;
-/** Runs narrower than this share of the width are specks, not a person. */
-const MIN_FIGURE = 0.02;
+const VIEWS = 4;
+/** Each cut is looked for within this share of the width either side of where the prompt asks
+ *  the figures to part (the quarter lines), so the windows tile the sheet without overlapping. */
+const WINDOW = 1 / (2 * VIEWS);
+/** A column counts as gap when its detail is within this share of the window's range above the
+ *  window's smoothest column. */
+const GAP_LEVEL = 0.2;
 
-/** Four [start, end) column ranges, left to right, covering the whole width. Each cut sits in the
- *  middle of the gap between two figures; when four figures cannot be told apart, the sheet is
- *  cut in equal quarters, which is where the prompt asks them to stand. */
-export function figureCuts(profile: readonly number[]): [number, number][] {
-  const width = profile.length;
-  const quarters = Array.from({ length: FIGURES + 1 }, (_, i) => Math.floor((width * i) / FIGURES));
-
-  const runs: [number, number][] = [];
-  for (let x = 0; x < width; x++) {
-    if (profile[x] <= FIGURE_COLUMN) continue;
-    const last = runs.at(-1);
-    if (last && x - last[1] < width * MERGE_GAP) last[1] = x + 1;
-    else runs.push([x, x + 1]);
+/** Four [start, end) column ranges, left to right, covering the whole width. Each cut is the
+ *  middle of the widest smooth stretch near its quarter line; with no stretch smoother than the
+ *  rest, that is the quarter line itself. */
+export function gapCuts(texture: readonly number[]): [number, number][] {
+  const width = texture.length;
+  const edges = [0];
+  for (let i = 1; i < VIEWS; i++) {
+    const a = Math.floor(width * (i / VIEWS - WINDOW));
+    const b = Math.floor(width * (i / VIEWS + WINDOW));
+    const window = texture.slice(a, b);
+    const low = Math.min(...window);
+    const level = low + (Math.max(...window) - low) * GAP_LEVEL;
+    let best: [number, number] = [a, a];
+    let run: [number, number] | null = null;
+    for (let x = a; x <= b; x++) {
+      if (x < b && texture[x] <= level) run = run ? [run[0], x + 1] : [x, x + 1];
+      else if (run) {
+        if (run[1] - run[0] > best[1] - best[0]) best = run;
+        run = null;
+      }
+    }
+    edges.push(Math.round((best[0] + best[1]) / 2));
   }
-  const figures = runs
-    .filter(([a, b]) => b - a >= width * MIN_FIGURE)
-    .sort((p, q) => (q[1] - q[0]) - (p[1] - p[0]))
-    .slice(0, FIGURES)
-    .sort((p, q) => p[0] - q[0]);
-
-  const edges = figures.length === FIGURES
-    ? [0, ...figures.slice(1).map(([start], i) => Math.round((figures[i][1] + start) / 2)), width]
-    : quarters;
+  edges.push(width);
   return edges.slice(0, -1).map((start, i) => [start, edges[i + 1]]);
 }
 
