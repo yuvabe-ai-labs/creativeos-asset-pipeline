@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useEditorStoreApi } from "@/components/editor/editor-store-provider";
 import { usePlayback } from "@/components/editor/editor-playback-context";
-import { deletePiece, removeCaption, splitPieceInDoc } from "@/lib/editor/captions";
+import { deletePiece, removeCaption, splitCaption, splitPieceInDoc } from "@/lib/editor/captions";
 import { pieceLimit } from "@/lib/editor/reconcile";
 import { locate, pieceOffsets, setTrim, withPieces } from "@/lib/editor/timeline";
 
@@ -13,7 +13,12 @@ export function useTimelineActions() {
   const { time, seek } = usePlayback();
 
   const split = useCallback(() => {
-    const { doc, sources, apply } = store.getState();
+    const { doc, sources, apply, selection } = store.getState();
+    // A selected caption splits at the playhead; otherwise the clip under it does.
+    if (selection?.kind === "caption") {
+      apply((d) => splitCaption(d, selection.id, time, crypto.randomUUID()));
+      return;
+    }
     const at = locate(doc.pieces, time);
     if (!at) return;
     const piece = doc.pieces[at.index];

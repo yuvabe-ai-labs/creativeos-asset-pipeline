@@ -1,17 +1,18 @@
 "use client";
 
 import { useRef } from "react";
-import { Plus } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { addCaption, attachCues, docToCues } from "@/lib/editor/captions";
 import { parseSrt, toSrt } from "@/lib/editor/srt";
 import { useEditorStore, useEditorStoreApi } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
 
-/** Add a caption at the playhead, or bring captions in and out as SRT (spec §7). */
-export function EditorCaptionsToolbar() {
+/** The Text tab's ⋯: add a caption by hand, and bring captions in and out as SRT (spec §7, §9). */
+export function EditorCaptionsMoreMenu() {
   const store = useEditorStoreApi();
   const editable = useEditorStore((s) => s.editable);
   const hasPieces = useEditorStore((s) => s.doc.pieces.length > 0);
@@ -54,13 +55,20 @@ export function EditorCaptionsToolbar() {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={add} disabled={!editable || !hasPieces} className="gap-1 border-dashed border-primary/40 text-primary hover:bg-primary/5">
-        <Plus className="size-3.5" strokeWidth={1.5} />
-        Caption
-      </Button>
-      <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={!editable || !hasPieces}>
-        Import SRT
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="ghost" size="icon" aria-label="More caption actions" className="size-7">
+              <MoreHorizontal className="size-4" strokeWidth={1.5} />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem disabled={!editable || !hasPieces} onClick={add}>Add a caption at the playhead</DropdownMenuItem>
+          <DropdownMenuItem disabled={!editable || !hasPieces} onClick={() => fileRef.current?.click()}>Import SRT…</DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasCaptions} onClick={exportSrt}>Export SRT</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Input
         ref={fileRef}
         type="file"
@@ -72,9 +80,6 @@ export function EditorCaptionsToolbar() {
           if (file) void importSrt(file);
         }}
       />
-      <Button variant="outline" size="sm" onClick={exportSrt} disabled={!hasCaptions}>
-        Export SRT
-      </Button>
     </>
   );
 }

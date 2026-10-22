@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { reconcile } from "../reconcile";
 import type { Caption, EditDoc } from "../types";
 import { file, source, videoFacts } from "./fixtures";
-import { DEFAULT_CAPTION_STYLE } from "../caption-style";
 
 let n = 0;
 const newId = () => `id${++n}`;

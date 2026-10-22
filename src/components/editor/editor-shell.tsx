@@ -16,8 +16,7 @@ import { EditorSourcesPanel } from "./editor-sources-panel";
 import { EditorPlaybackProvider } from "./editor-playback-context";
 import { EditorTimeline } from "./editor-timeline";
 import { EditorCaptionLane } from "./editor-caption-lane";
-import { EditorCaptionProps } from "./editor-caption-props";
-import { EditorCaptionsToolbar } from "./editor-captions-toolbar";
+import { EditorTimelineCaptionTools } from "./editor-auto-captions-button";
 import { EditorStageWithCaption } from "./editor-stage-with-caption";
 import { useEditorShortcuts } from "@/hooks/use-editor-shortcuts";
 import { EditorStoreProvider, useEditorStore } from "./editor-store-provider";
@@ -89,9 +88,9 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
         <div className="grid h-[min(520px,58dvh)] flex-none grid-cols-[248px_minmax(0,1fr)_340px] gap-4 px-6 pt-4">
           <EditorSourcesPanel />
           <EditorStageWithCaption />
-          <EditorPropsPanel caption={(id) => <EditorCaptionProps captionId={id} />} />
+          <EditorPropsPanel />
         </div>
-        <EditorTimeline captionsLane={(scale) => <EditorCaptionLane scale={scale} />} tools={<EditorCaptionsToolbar />} />
+        <EditorTimeline captionsLane={(scale) => <EditorCaptionLane scale={scale} />} tools={<EditorTimelineCaptionTools />} />
       </div>
     </div>
   );
