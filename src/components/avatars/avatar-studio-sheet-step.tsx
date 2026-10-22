@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { sheetKind } from "@/lib/avatars/utils";
 import { AvatarSheetGenerate } from "./avatar-sheet-generate";
-import { AvatarSheetViews } from "./avatar-sheet-views";
+import { AvatarSheetImage } from "./avatar-sheet-image";
 
 type Props = {
   studio: ReturnType<typeof useAvatarStudio>;
@@ -41,10 +41,10 @@ export function AvatarStudioSheetStep({ studio: s, generation: g }: Props) {
           </Button>
         </p>
       )}
-      <AvatarSheetViews
+      <AvatarSheetImage
         name={s.name.trim() || "This avatar"}
-        views={avatar?.sheetViews ?? null}
-        generating={g.generatingViews}
+        sheet={kind === "four-view" ? avatar?.sheet ?? null : null}
+        generating={g.generatingSheet}
         stale={avatar?.sheetStale ?? false}
       />
       <AvatarSheetGenerate
