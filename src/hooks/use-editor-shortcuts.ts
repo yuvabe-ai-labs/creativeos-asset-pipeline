@@ -6,12 +6,13 @@ import { useEditorStoreApi } from "@/components/editor/editor-store-provider";
 import { isEditableTarget } from "@/lib/canvas-node-options";
 import { useTimelineActions } from "./use-timeline-actions";
 
-/** Space plays/pauses, S splits at the playhead, Backspace/Delete removes the selection,
+/** Space plays/pauses, S splits at the playhead, Backspace/Delete removes the selection, ←/→ step a
+ *  frame (Shift: a second),
  *  Ctrl/Cmd+Z undoes and Ctrl/Cmd+Shift+Z or Ctrl+Y redoes (D400) — never while typing in a field
  *  (spec §6). */
 export function useEditorShortcuts() {
   const store = useEditorStoreApi();
-  const { playing, play, pause } = usePlayback();
+  const { playing, play, pause, step, fps } = usePlayback();
   const { split, deleteSelection } = useTimelineActions();
 
   useEffect(() => {
@@ -40,9 +41,14 @@ export function useEditorShortcuts() {
       } else if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
         deleteSelection();
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        // One frame, or one second with Shift: checking a word lands on its frame (D397).
+        e.preventDefault();
+        const dir = e.key === "ArrowLeft" ? -1 : 1;
+        step(e.shiftKey ? dir * Math.round(fps) : dir);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [store, playing, play, pause, split, deleteSelection]);
+  }, [store, playing, play, pause, split, deleteSelection, step, fps]);
 }
