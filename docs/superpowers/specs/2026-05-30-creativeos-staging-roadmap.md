@@ -7777,3 +7777,67 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Re-transcribing on version switch. Deleting the old captions.
 
 **Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§2).
+
+### D402 — The preview clock is an animation-frame loop; the frame callback only reports time *(recorded 2026-10-23; refines D397)*
+
+**Decision.** `useReelPlayback` advances on `requestAnimationFrame`. `requestVideoFrameCallback`, where present, records the presented frame's `mediaTime` and the file it belongs to; the loop uses it for the current file and falls back to `currentTime`. The clock maths is a pure `advanceClock`.
+
+**Why.** D397's frame-callback clock stopped playback at every cut: the callback never fires on an ended video, and an ended video is paused, so nothing re-armed it. The animation-frame loop played through cuts before; the frame callback keeps its precision.
+
+**Rejected.** Driving the clock from the frame callback with a watchdog (the shipped version that broke).
+
+### D403 — The editor fills the screen: collapsible side panels and a resizable timeline *(recorded 2026-10-23)*
+
+**Decision.** The page never scrolls. Sources and Inspector collapse to rails (chevrons, a View menu, Ctrl/⌘+1/2); a divider resizes the timeline, whose body scrolls on its own. Sizes are remembered per browser. The timeline zooms (10–220 px/s, Fit, Ctrl/⌘+wheel) and follows the playhead while playing.
+
+**Why.** On a laptop the fixed-height top area pushed the timeline's actions off screen. Descript's View menu and CapCut's zoom/fit are what editors expect.
+
+**Rejected.** A scrolling page (the timeline and the preview leave the screen together). A fixed 20 s window (D388's "no zoom this phase").
+
+### D404 — Clips move by pointer dragging with edge auto-scroll; trims snap *(recorded 2026-10-23)*
+
+**Decision.** Reorder uses pointer events with a ghost, a drop marker and auto-scroll within 50 px of the timeline's edges. Trims snap to the playhead and clip edges within 8 px, with a Snap toggle and an In/Out tooltip.
+
+**Why.** HTML drag-and-drop can't scroll the timeline, so a clip couldn't be dragged past the visible window (the user's finding).
+
+**Rejected.** Keeping HTML drag-and-drop with a scroll hack (no control over the ghost or the drop position).
+
+### D405 — A selected clip has an inspector: Clip, Captions, Dub & lip sync; right-click menus everywhere *(recorded 2026-10-23)*
+
+**Decision.** Selecting a clip shows its tabs: Clip (trims, picture, sound, quiet stretches), Captions (its lines), Dub & lip sync. Right-click menus on clips, captions, quiet stretches and the ruler carry the same actions. Quiet stretches move onto the Audio lane, shaded over a waveform.
+
+**Why.** The user expected a clip's captions, dub and actions where they work on the clip, as in desktop editors.
+
+**Rejected.** Separate dialogs per action.
+
+### D406 — "Dub this clip" puts a Dubbing node on the canvas, between the clip and the Editor *(recorded 2026-10-23)*
+
+**Decision.** From the editor, dubbing a Video Gen clip creates a Dubbing node beside it on the canvas, wires Video Gen → Dubbing → Editor, removes Video Gen → Editor, and moves that clip's pieces to the Dubbing node with their trims, choices and captions. One route does the canvas change and the edit rewrite under the canvas lock; the editor adopts the result and clears undo history. The node is visible and behaves like any Dubbing node.
+
+**Why.** The canvas stays a true picture of the reel, and the dub reuses the Dubbing node's versions, tasks and credits (D374–D379). The user chose a node on the canvas over editor-only dubs, and asked for it to be visible.
+
+**Rejected.** Editor-only dubs (a second dub pipeline; the canvas no longer shows what's in the reel). A hidden node (the user asked for it to be visible). Sending the user to the canvas (leaving the editor).
+
+### D407 — A Dubbing node without a dub plays its input's take *(recorded 2026-10-23)*
+
+**Decision.** For the Editor, a Dubbing node with no take is a source whose original file is its connected Video Gen's current take, with version id `input:<version id>`.
+
+**Why.** Otherwise the clip would leave the timeline the moment its Dubbing node is connected. With the same file, trims, captions and transcripts carry over, and reconcile treats the finished dub as a version switch.
+
+**Rejected.** Waiting to connect the Dubbing node until the dub finishes (the canvas would be wrong while it runs, and lip sync would need a second rewiring).
+
+### D408 — The open editor may dub and lip sync the nodes that feed it *(recorded 2026-10-23; refines D390)*
+
+**Decision.** The dub and lip-sync routes accept `editorSessionId`. A node that feeds the Editor may start one only when that session holds the canvas lock. All other starts stay refused.
+
+**Why.** D390 exists so a reel doesn't change under an open editor. When the editor itself asks, it knows and follows the new version.
+
+**Rejected.** Lifting the lock for Dubbing nodes entirely (a teammate on the canvas could change the reel under the editor).
+
+### D409 — The Premiere sequence keeps the choice not made, switched off, and marks pauses *(recorded 2026-10-23; extends D389)*
+
+**Decision.** The picture not chosen (original or lip-synced) goes on its own video track above the captions, disabled; a dub not chosen goes on A3/A4, disabled. Each clip carries a marker naming its dub and lip sync; the sequence carries a marker for each pause over 0.6 s in a clip's transcript. The README lists them.
+
+**Why.** Finishing editors swap picture and sound and hunt dead air in Premiere; with the alternatives in place and pauses marked, they don't need to come back to CreativeOS.
+
+**Rejected.** Exporting only the chosen picture and sound (forces a round trip). Pauses from audio analysis on the server (no audio there; transcripts already exist).
