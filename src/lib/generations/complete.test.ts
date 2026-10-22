@@ -49,7 +49,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-import { completeGeneration } from "./complete";
+import { completeGeneration, isVideoSucceeded, type CompleteGenerationInput } from "./complete";
 import { IMAGE_GENERATION_FAILED_MESSAGE, IMAGE_PROMPT_DECLINED_MESSAGE } from "@/lib/image-gen/failure-copy";
 import { computeImageCost } from "@/lib/image-gen/cost";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
@@ -453,5 +453,16 @@ describe("completeGeneration — image (D366)", () => {
     await completeGeneration(succeeded);
     expect(mocks.insertVersion).not.toHaveBeenCalled();
     expect(mocks.settleGeneration).not.toHaveBeenCalled();
+  });
+});
+
+describe("isVideoSucceeded", () => {
+  const base = { generationId: "g", status: "succeeded" as const, durationSeconds: 5 };
+  it("accepts a plain or explicit video and rejects dub, lip sync, image and failure", () => {
+    expect(isVideoSucceeded({ ...base, videoUrl: "u" })).toBe(true);
+    expect(isVideoSucceeded({ ...base, kind: "video", videoUrl: "u" })).toBe(true);
+    expect(isVideoSucceeded({ ...base, kind: "lipsync", stored: true, videoUrl: "u", vendorRequestId: "r" })).toBe(false);
+    expect(isVideoSucceeded({ ...base, kind: "dub", stored: true, dubbedUrl: "u", dubbedAudioUrl: "a", vendorJobId: "j" })).toBe(false);
+    expect(isVideoSucceeded({ generationId: "g", status: "failed", error: "x" } as CompleteGenerationInput)).toBe(false);
   });
 });

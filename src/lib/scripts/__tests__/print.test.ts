@@ -2,10 +2,11 @@ import { describe, it, expect } from "vitest";
 import { printScript } from "../print";
 import { scriptDocSchema, type ScriptDoc } from "../schema";
 import reel01 from "../fixtures/reel-01.json";
+import { shotLabel } from "../storyboard";
 
 const doc = scriptDocSchema.parse(reel01);
 const tableRows = (text: string) =>
-  text.split("\n").filter((l) => l.startsWith("| **") && !l.startsWith("| **Beat"));
+  text.split("\n").filter((l) => /^\| S\d+ \| /.test(l));
 
 describe("printScript", () => {
   const text = printScript(doc);
@@ -25,12 +26,13 @@ describe("printScript", () => {
     expect(text).toContain("**Setting and camera.**  Chennai flat with a Golu");
   });
 
-  it("prints the outlines' table header and one row per shot", () => {
-    expect(text).toContain("| Beat | Visual | VO | On-screen text |\n| :---- | :---- | :---- | :---- |");
+  it("prints the table with a Shot column naming every shot S1, S2… in order (D380)", () => {
+    expect(text).toContain("| Shot | Beat | Visual | VO | On-screen text |\n| :---- | :---- | :---- | :---- | :---- |");
     const rows = tableRows(text);
     expect(rows).toHaveLength(14);
-    expect(rows[0]).toBe("| **HOOK 0-3s** | First morning of Golu. Early light in the hall. Meenakshi straightens the last doll on the steps. | Golu starts today. | **Golu starts today.** |");
-    expect(rows[8]).toContain("| **BODY 33-35.5s** |");
+    expect(rows[0]).toBe("| S1 | **HOOK 0-3s** | First morning of Golu. Early light in the hall. Meenakshi straightens the last doll on the steps. | Golu starts today. | **Golu starts today.** |");
+    expect(rows[8]).toContain("| S9 | **BODY 33-35.5s** |");
+    expect(rows.map((r) => r.split(" | ")[0])).toEqual(doc.shots.map((_, i) => `| S${i + 1}`));
   });
 
   it("leaves a carried card empty, not bold markers: the beat's first shot holds it", () => {
@@ -46,12 +48,12 @@ describe("printScript", () => {
     expect(text).toContain("* Sundal on the Golu tray, no mithai.");
   });
 
-  it("keeps four cells when text holds a pipe or a line break", () => {
+  it("keeps five cells when text holds a pipe or a line break", () => {
     const tricky: ScriptDoc = structuredClone(doc);
     tricky.shots[0] = { ...tricky.shots[0], visual: "Left | right\nnext line", vo: "A | B" };
     const row = tableRows(printScript(tricky))[0];
-    expect(row).toBe("| **HOOK 0-3s** | Left \\| right next line | A \\| B | **Golu starts today.** |");
-    expect(row.split(/(?<!\\)\|/).length).toBe(6); // 4 cells between 5 pipes
+    expect(row).toBe("| S1 | **HOOK 0-3s** | Left \\| right next line | A \\| B | **Golu starts today.** |");
+    expect(row.split(/(?<!\\)\|/).length).toBe(7); // 5 cells between 6 pipes
   });
 
   it("omits empty sections and a missing reel number", () => {
@@ -68,5 +70,12 @@ describe("printScript", () => {
     const named: ScriptDoc = structuredClone(doc);
     named.cast[1] = { ...named.cast[1], description: "" };
     expect(printScript(named)).toContain("a Tamil lilt. Meenakshi's husband.");
+  });
+});
+
+describe("shotLabel", () => {
+  it("names shots S1, S2… from a zero-based index", () => {
+    expect(shotLabel(0)).toBe("S1");
+    expect(shotLabel(13)).toBe("S14");
   });
 });

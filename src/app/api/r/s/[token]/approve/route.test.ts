@@ -51,10 +51,8 @@ describe("POST /api/r/s/[token]/approve", () => {
     expect((await res.json()).error).toBe("A newer version was shared. Reload to see it.");
   });
 
-  it("refuses a partial share and a script not In review", async () => {
+  it("refuses a script not In review", async () => {
     const { POST } = await import("./route");
-    vi.mocked(approveVersion).mockResolvedValue("partial");
-    expect((await POST(post({ approverName: "Priya", versionNumber: 1 }), { params })).status).toBe(409);
     vi.mocked(approveVersion).mockResolvedValue("not_in_review");
     expect((await POST(post({ approverName: "Priya", versionNumber: 1 }), { params })).status).toBe(409);
   });

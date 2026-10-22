@@ -27,6 +27,12 @@ describe("rowToVersion", () => {
     expect(v?.visuals.avatars.meenakshi.views.front).toBe("https://cdn/front.png");
   });
 
+  it("reads the sheet a version froze, and a version shared before there was one (D395)", () => {
+    const withSheet = versionRow({ visuals: { avatars: { meenakshi: { ...avatarSnapshot(), sheet: "https://cdn/sheet.png" } }, panels: {} } });
+    expect(rowToVersion(withSheet)?.visuals.avatars.meenakshi.sheet).toBe("https://cdn/sheet.png");
+    expect(rowToVersion(versionRow())?.visuals.avatars.meenakshi.sheet).toBeUndefined();
+  });
+
   it("skips a row with a broken doc, visuals or scope, with a warning", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(rowToVersion(versionRow({ doc: { header: {} } }))).toBeNull();

@@ -2,11 +2,15 @@
 import type { CastMember, ScriptDoc, Shot } from "@/lib/scripts/schema";
 import { scopeIncludes } from "./constants";
 import { partLabel } from "./parts";
-import type { ChangedPart, Part, VersionContent } from "./types";
+import type { AvatarSnapshot, ChangedPart, Part, VersionContent } from "./types";
 
 const shotText = (s: Shot) => JSON.stringify([s.beat, s.lengthSeconds, s.visual, s.vo, s.onScreenText, s.onScreen]);
 const memberText = (c: CastMember) => JSON.stringify([c.name, c.description, c.isLead]);
 const contextText = (d: ScriptDoc) => JSON.stringify([d.header, d.context]);
+/** An avatar as compared between shares. The sheet is left out: it changes exactly when its views
+ *  do, and a version from before D395 has none, which is not a change to the person. */
+const avatarText = (a: AvatarSnapshot | undefined) =>
+  a ? JSON.stringify([a.avatarId, a.name, a.views, a.voice]) : "null";
 
 /** Spec 4 §7: which parts changed between two shares, for the activity line "S1, S4, S5 and the
  *  avatar revised". A new picked panel or new avatar images count as a change to that shot or cast
@@ -50,8 +54,7 @@ export function diffVersions(prev: VersionContent | null, next: VersionContent):
       continue;
     }
     const avatarChanged =
-      avatarsInBoth &&
-      JSON.stringify(prev.visuals.avatars[member.id] ?? null) !== JSON.stringify(next.visuals.avatars[member.id] ?? null);
+      avatarsInBoth && avatarText(prev.visuals.avatars[member.id]) !== avatarText(next.visuals.avatars[member.id]);
     if (memberText(before) !== memberText(member) || avatarChanged) add(part, "revised", next.doc);
   }
   const nextCastIds = new Set(next.doc.cast.map((c) => c.id));

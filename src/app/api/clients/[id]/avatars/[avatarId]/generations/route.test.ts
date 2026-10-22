@@ -84,7 +84,8 @@ describe("POST generations", () => {
       clientId: "c1", avatarId: "a1", orgId: "org-1", userId: "user-9", userEmail: "op@x.com",
       slot: "front", modelId: "seedream:seedream-5-0-lite", aspect: "3:4", referenceUrls: [], batchId: "b1",
     });
-    expect(call.prompt.startsWith("A chef.")).toBe(true);
+    // D395: who the person is comes first, then the description.
+    expect(call.prompt.startsWith("Subject: Male. A chef.")).toBe(true);
     expect(call.prompt.endsWith(AVATAR_FRAMING_CLAUSE)).toBe(true);
     const json = await res.json();
     expect(json.candidate.generationId).toBe("g1");

@@ -73,13 +73,13 @@ export function CopilotChat({ scriptId, messages, actions, suggestions, avatars 
             {messages.map((m) => <CopilotChatMessage key={m.id} message={m} actions={actions} avatars={avatars} />)}
             {actions.busy && (
               <li>
-                <CopilotThinking />
+                <CopilotThinking writing={actions.writing} />
               </li>
             )}
           </ol>
           {/* Under the newest message, so the options sit right below the question they answer. Hidden
               while the copilot works: the thinking line stands in their place. */}
-          {!actions.busy && <CopilotSuggestions suggestions={suggestions} onSend={actions.send} onFill={setText} />}
+          {!actions.busy && <CopilotSuggestions suggestions={suggestions} onSend={actions.send} onFill={setText} onLink={actions.link} />}
           <div ref={end} />
         </ScrollArea>
         <CopilotComposer busy={actions.busy} text={text} onTextChange={setText} onSend={actions.send} />

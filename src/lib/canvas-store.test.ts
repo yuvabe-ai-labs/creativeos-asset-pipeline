@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
 import { sceneFingerprint } from "./nodes/scene-beats";
+import { generationKey } from "./nodes/group-shots";
+import { FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, ROW_GAP, STORYBOARD_ROW_PITCH } from "./scripts/storyboard-canvas";
 import { nodeGenerationStatus } from "./generations/node-status";
 
 vi.mock("sonner", () => ({
@@ -49,6 +51,50 @@ describe("updateNodeData", () => {
     const store = createCanvasStore(nodes, []);
     const before = store.getState().nodes;
     store.getState().updateNodeData("missing", { title: "x" });
+    expect(store.getState().nodes).toBe(before);
+  });
+});
+
+describe("setShotsCollapsed", () => {
+  const shots = () =>
+    createCanvasStore(
+      [
+        { id: "s1", type: "shot", position: { x: 0, y: 0 }, data: { order: 1 } },
+        { id: "s2", type: "shot", position: { x: 0, y: 0 }, data: { order: 2, collapsed: true } },
+        { id: "f", type: "file", position: { x: 0, y: 0 }, data: { title: "" } },
+      ] as unknown as AppNode[],
+      [],
+    );
+  const data = (store: ReturnType<typeof shots>, id: string) =>
+    store.getState().nodes.find((n) => n.id === id)?.data as Record<string, unknown>;
+
+  it("collapses only shots, in one update", () => {
+    const store = shots();
+    store.getState().setShotsCollapsed(["s1", "s2", "f"], true);
+    expect(data(store, "s1")).toEqual({ order: 1, collapsed: true });
+    expect(data(store, "f")).toEqual({ title: "" });
+  });
+
+  it("removes the flag on expand rather than saving false", () => {
+    const store = shots();
+    store.getState().setShotsCollapsed(["s2"], false);
+    expect(data(store, "s2")).toEqual({ order: 2 });
+  });
+
+  it("collapses a Multishot the same way", () => {
+    const store = createCanvasStore(
+      [{ id: "ms", type: "multishot", position: { x: 0, y: 0 }, data: { order: 1 } }] as unknown as AppNode[],
+      [],
+    );
+    store.getState().setShotsCollapsed(["ms"], true);
+    expect(store.getState().nodes[0].data).toEqual({ order: 1, collapsed: true });
+  });
+
+  it("leaves the nodes array untouched when nothing changes", () => {
+    const store = shots();
+    const before = store.getState().nodes;
+    store.getState().setShotsCollapsed(["s2"], true);
+    store.getState().setShotsCollapsed(["s1"], false);
     expect(store.getState().nodes).toBe(before);
   });
 });
@@ -312,6 +358,89 @@ describe("fanOutShots", () => {
     const data = multishots[0].data as { cuts?: { voiceover?: unknown }[]; sequenceVoiceover?: unknown };
     expect(data.sequenceVoiceover).toEqual(vo);
     expect(data.cuts?.every((c) => c.voiceover === undefined)).toBe(true);
+  });
+});
+
+describe("fanOutShots with an approved storyboard (D382)", () => {
+  const panels = [1, 2].map((n) => ({
+    label: `S${n}`, beat: "HOOK", shotId: `s0${n}`,
+    url: `https://x.supabase.co/storage/v1/object/public/assets/clients/c/scripts/s/panels/s0${n}/panel__a.png`,
+  }));
+  const scriptNode = (rows: object[], extra: object = {}): AppNode =>
+    ({
+      id: "sb", type: "script", position: { x: 0, y: 0 },
+      data: { title: "Reel 12", groupingVersion: 3, parsed: { visual_script: { shots: rows } }, storyboard: { scriptId: "script-1", panels }, ...extra },
+    }) as AppNode;
+  const rows = [
+    { label: "S1", description: "a", duration_seconds: 3 },
+    { label: "S2", description: "b", duration_seconds: 4 },
+  ];
+  const panelNodes = (s: ReturnType<typeof createCanvasStore>) => s.getState().nodes.filter((n) => n.type === "file");
+
+  it("wires each new shot's panel into its image handle: one row per shot, its panel under it", () => {
+    const store = createCanvasStore([scriptNode(rows)], []);
+    store.getState().fanOutShots("sb");
+    const shots = store.getState().nodes.filter((n) => n.type === "shot");
+    expect(shots.map((s) => s.position.y)).toEqual([0, STORYBOARD_ROW_PITCH]);
+    const files = panelNodes(store);
+    expect(files).toHaveLength(2);
+    const imageEdges = store.getState().edges.filter((e) => e.targetHandle === "image");
+    expect(imageEdges.map((e) => e.target).sort()).toEqual(shots.map((s) => s.id).sort());
+    const under = FAN_OUT_CARDS.shot.height + PANEL_GAP;
+    expect(files.map((f) => f.position.y)).toEqual([under, STORYBOARD_ROW_PITCH + under]);
+    // Each panel ends before the next row begins.
+    expect(files[0].position.y + PANEL_CARD.height).toBeLessThan(shots[1].position.y);
+  });
+
+  it("lays the new rows out again from the cards' measured sizes, until a node is dragged", () => {
+    const store = createCanvasStore([scriptNode(rows)], []);
+    store.getState().fanOutShots("sb");
+    const [s1, s2] = store.getState().nodes.filter((n) => n.type === "shot");
+    const [p1] = panelNodes(store);
+    const dims = (id: string, width: number, height: number) =>
+      ({ type: "dimensions" as const, id, dimensions: { width, height }, setAttributes: true });
+
+    // The panel's image loads and its card is taller than the estimate.
+    store.getState().onNodesChange([dims(s1.id, 224, 295), dims(p1.id, 202, 520)]);
+    const after = (id: string) => store.getState().nodes.find((n) => n.id === id)!.position;
+    expect(after(p1.id).y).toBe(295 + PANEL_GAP);
+    expect(after(s2.id).y).toBe(295 + PANEL_GAP + 520 + ROW_GAP);
+
+    // Once the person drags one of them, the layout is theirs.
+    store.getState().onNodesChange([{ type: "position", id: s2.id, position: { x: 900, y: 50 }, dragging: true }]);
+    store.getState().onNodesChange([dims(p1.id, 202, 700)]);
+    expect(after(s2.id)).toEqual({ x: 900, y: 50 });
+  });
+
+  it("wires a row fanned out as a Multishot too", () => {
+    const store = createCanvasStore([scriptNode(rows, { groupModes: { [generationKey([1])]: true } })], []);
+    store.getState().fanOutShots("sb");
+    const ms = store.getState().nodes.find((n) => n.type === "multishot")!;
+    expect(store.getState().edges.some((e) => e.target === ms.id && e.targetHandle === "image")).toBe(true);
+  });
+
+  it("adds no second panel when fanned out again", () => {
+    const store = createCanvasStore([scriptNode(rows)], []);
+    store.getState().fanOutShots("sb");
+    store.getState().fanOutShots("sb");
+    expect(panelNodes(store)).toHaveLength(2);
+  });
+
+  it("gives a renamed row no panel", () => {
+    const store = createCanvasStore([scriptNode([rows[0], { ...rows[1], label: "Shot 2" }])], []);
+    store.getState().fanOutShots("sb");
+    expect(panelNodes(store).map((f) => (f.data as { title: string }).title)).toEqual(["S1 · HOOK — storyboard"]);
+  });
+
+  it("is unchanged for a script without a storyboard, or a parse without names", () => {
+    const plain = createCanvasStore([scriptNode(rows, { storyboard: undefined })], []);
+    plain.getState().fanOutShots("sb");
+    expect(panelNodes(plain)).toEqual([]);
+    expect(plain.getState().nodes.filter((n) => n.type === "shot").map((s) => s.position.y)).toEqual([0, 170]);
+
+    const unnamed = createCanvasStore([scriptNode(rows.map(({ description, duration_seconds }) => ({ description, duration_seconds })))], []);
+    unnamed.getState().fanOutShots("sb");
+    expect(panelNodes(unnamed)).toEqual([]);
   });
 });
 

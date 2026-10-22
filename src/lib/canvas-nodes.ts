@@ -12,7 +12,9 @@ import type { PostFormat, PostLayer } from "@/lib/post/types";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
 import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
+import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
+import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 
 export type ScriptNodeData = {
   title?: string;
@@ -39,11 +41,20 @@ export type ScriptNodeData = {
   sceneBeats?: SceneBeatCache;
   signalIds?: string[]; // market signals flavouring the parse (D204); undefined = none
   signalMode?: SignalMode; // tint | rewrite; undefined = "tint"
+  /**
+   * D381 — the approved storyboard this script arrived with, frozen when it was added: what Fan
+   * out wires into each new shot (by the row's name) and what the gallery's Storyboard group
+   * shows. Absent = it came with none. Saved with the node (only `parsed` is display-only).
+   */
+  storyboard?: ScriptStoryboard;
 };
 
 /** D298 — an avatar on the canvas. Only the id: the avatar is read live, so a name, face or
  *  voice changed in the Avatar Studio reaches every canvas without re-dropping. */
 export type AvatarNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   avatarId: string;
 };
 
@@ -57,6 +68,9 @@ export type KBNodeData = {
 };
 
 export type FileNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   filename?: string;             // original filename shown in the focus view
   fileExt?: string;              // "txt" | "png" | "jpg" | "jpeg" | "webp" | "pdf" | "docx"
@@ -83,6 +97,9 @@ export type TextNodeData = {
 };
 
 export type DrawNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   fileUrl?: string; // flattened sketch PNG — the image handed downstream (reuses File field)
   fileKind?: "image"; // always "image" when present
@@ -103,6 +120,9 @@ export type PromptNodeData = {
 };
 
 export type ImageGenNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   modelId?: string;                   // e.g. "openai:gpt-image-2" — saved on node
   params?: Record<string, unknown>;   // last-used param values for selected model
@@ -116,6 +136,9 @@ export type ImageGenNodeData = {
 /** D312 — a shot's picture made in one step: wired references in, an instruction typed here,
  *  one image out. The instruction stores references as `@[Label](nodeId)` chips (D272). */
 export type CompositeNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   instruction?: string;
   /** Seedream by default; locked to SEEDANCE_FACE_MODEL_ID while an avatar is wired. */
@@ -136,6 +159,9 @@ export type VideoPromptNodeData = {
 };
 
 export type VideoGenNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   modelId?: string;
   params?: Record<string, unknown>;
@@ -262,7 +288,13 @@ export type PostNodeData = {
 
 // D309: an uploaded cut shared with the client by link. The video, token and comments
 // live in canvas_reviews / canvas_review_comments — only the title is node data.
-export type ClientReviewNodeData = { title?: string };
+export type ClientReviewNodeData = { title?: string; mediaWidth?: number; mediaHeight?: number };
+
+// D374 — dubs its one connected Video Gen take. `language` is the select's last value; each
+// version records its own. `parsed` is the active version's DubbingOutput (display only, D19).
+// `style` is the last translation style picked (DUB_STYLES); each version records its own.
+// `voice` / `pace` (D379): the last Advanced picks; absent voice = the presenter's own.
+export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; voice?: DubVoiceChoice; pace?: DubPace; parsed?: unknown; mediaWidth?: number; mediaHeight?: number };
 
 export type AppNode =
   | Node<ScriptNodeData, "script">
@@ -280,7 +312,8 @@ export type AppNode =
   | Node<VideoPromptNodeData, "video-prompt">
   | Node<VideoGenNodeData, "video-gen">
   | Node<PostNodeData, "post">
-  | Node<ClientReviewNodeData, "client-review">;
+  | Node<ClientReviewNodeData, "client-review">
+  | Node<DubbingNodeData, "dubbing">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
@@ -301,17 +334,21 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   // The multishot lane skips the still entirely: a start frame fixes ONE composition and
   // this node is a sequence of several. A composite made for one of its shots is the exception.
   multishot:          ["multishot-prompt", "composite"],
-  file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
-  draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "post", "composite"],
+  // D383 — an image may sit on a Multishot (its storyboard panel, or any picture) to be SEEN there.
+  // Nothing reads it: the multishot prompt resolves only its own direct upstream, so an image must
+  // still be wired to the prompt to reach the writer or the video.
+  file:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "multishot", "post", "composite"],
+  draw:               ["prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "shot", "multishot", "post", "composite"],
   text:               ["prompt", "video-prompt", "multishot-prompt"],
   prompt:             ["prompt", "image-gen"],
-  "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
+  "image-gen":        ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "multishot", "post", "composite"],
   // D312 — a composite is a reference image: Image Gen's outputs, plus another composite (a
   // location sheet made first becomes the background of an avatar composite).
-  composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "post", "composite"],
+  composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "multishot", "post", "composite"],
   "video-prompt":     ["video-gen"],
   "multishot-prompt": ["video-gen"],
-  "video-gen":        [],
+  "video-gen":        ["dubbing"],
+  "dubbing":          [],
   "post":             [],
   "client-review":    [],
 } as const;
@@ -321,6 +358,15 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
 // Ordered on purpose — connection direction is meaningful; there is no symmetric variant.
 export function canConnect(sourceType: string, targetType: string): boolean {
   return (VALID_CONNECTIONS[sourceType] ?? []).includes(targetType);
+}
+
+// D374 — targets that take a fixed number of inputs. One place, checked wherever a wire is made
+// (manual drag, the + picker, the copilot).
+export const MAX_INCOMING: Record<string, number> = { dubbing: 1 };
+
+export function canAcceptIncoming(targetType: string, currentIncoming: number): boolean {
+  const max = MAX_INCOMING[targetType];
+  return max === undefined || currentIncoming < max;
 }
 
 // A node row joined with its active version's output (canvas-load shape).

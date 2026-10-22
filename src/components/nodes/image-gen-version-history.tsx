@@ -4,7 +4,9 @@ import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 import type { VersionDecisionSummary } from "@/lib/approval";
-import { VersionHistoryList } from "./version-history-list";
+import { versionLabelsById } from "@/lib/generations/version-labels";
+import { VersionList } from "./version-list";
+import { VersionThumb } from "./version-thumb";
 
 export type ImageGenVersionSummary = {
   id: string;
@@ -41,22 +43,15 @@ export type ImageGenVersionSummary = {
 type Props = {
   versions: ImageGenVersionSummary[];
   activeVersionId: string | null;
-  onRestore: (versionId: string) => void;
-  restoring: boolean;
+  viewedVersionId: string | null;
+  onView: (versionId: string) => void;
 };
 
-// D180: the row shell (collapse/expand, status icon, error state, maker, decision thread,
-// restore) lives in VersionHistoryList. This file supplies only what is specific to an
-// image version: the thumbnail and the generation metadata.
-export function ImageGenVersionHistory({
-  versions,
-  activeVersionId,
-  onRestore,
-  restoring,
-}: Props) {
-  const total = versions.length;
+// D180/D383: the row shell lives in VersionList. This file supplies only what is specific to an
+// image version: the thumbnail, the summary line and the generation metadata.
+export function ImageGenVersionHistory({ versions, activeVersionId, viewedVersionId, onView }: Props) {
   // versionId → "vN" label, so an edit can name the version it was derived from.
-  const labelById = new Map(versions.map((v, i) => [v.id, `v${total - i}`]));
+  const labelById = versionLabelsById(versions);
 
   const rows = versions.map((v) => {
     const versionModelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
@@ -78,12 +73,8 @@ export function ImageGenVersionHistory({
       approvalStatus: v.approvalStatus,
       makerName: v.makerName,
       decisions: v.decisions,
-      thumb: v.output ? (
-        <div className="size-7 overflow-hidden rounded-sm border border-border">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={v.output} alt="" className="size-full object-cover" />
-        </div>
-      ) : undefined,
+      thumb: v.output ? <VersionThumb kind="image" src={v.output} /> : undefined,
+      summary: modelLabel || undefined,
       meta: (
         <>
           {modelLabel && (
@@ -111,12 +102,5 @@ export function ImageGenVersionHistory({
     };
   });
 
-  return (
-    <VersionHistoryList
-      rows={rows}
-      activeVersionId={activeVersionId}
-      onRestore={onRestore}
-      restoring={restoring}
-    />
-  );
+  return <VersionList rows={rows} activeVersionId={activeVersionId} viewedVersionId={viewedVersionId} onView={onView} />;
 }

@@ -23,14 +23,14 @@ export async function getCreditsChargedByVersionIds(
     .in("version_id", versionIds)
     .not("credits_charged", "is", null);
   if (error) throw error;
-  return new Map(
-    (data as { version_id: string | null; credits_charged: number | null }[])
-      .filter(
-        (r): r is { version_id: string; credits_charged: number } =>
-          r.version_id !== null && r.credits_charged !== null,
-      )
-      .map((r) => [r.version_id, r.credits_charged]),
-  );
+  // A version can be charged by several generations (a dub, then each lip sync on it, D375):
+  // sum them, never keep the last.
+  const sums = new Map<string, number>();
+  for (const r of data as { version_id: string | null; credits_charged: number | null }[]) {
+    if (r.version_id === null || r.credits_charged === null) continue;
+    sums.set(r.version_id, (sums.get(r.version_id) ?? 0) + r.credits_charged);
+  }
+  return sums;
 }
 
 export async function insertGeneration(input: {

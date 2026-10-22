@@ -64,10 +64,11 @@ export async function probeDurationSeconds(media: Buffer, ext: string): Promise<
 }
 
 /** The same picture (stream-copied) with `audio` as its only audio track. */
-export async function replaceAudio(video: Buffer, audio: Buffer): Promise<Buffer> {
+/** `audioExt` names the audio file so ffmpeg reads it by its real format (the dub arrives as WAV). */
+export async function replaceAudio(video: Buffer, audio: Buffer, audioExt: "mp3" | "wav" = "mp3"): Promise<Buffer> {
   return inTempDir(async (dir) => {
     const videoIn = path.join(dir, "in.mp4");
-    const audioIn = path.join(dir, "voice.mp3");
+    const audioIn = path.join(dir, `voice.${audioExt}`);
     const output = path.join(dir, "out.mp4");
     await writeFile(videoIn, video);
     await writeFile(audioIn, audio);

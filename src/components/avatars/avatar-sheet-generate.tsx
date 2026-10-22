@@ -7,23 +7,21 @@ import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarAdvancedSettings } from "./avatar-advanced-settings";
 import { AvatarModelSelect } from "./avatar-model-select";
 
-// D340 — makes the four views from the front image: all four, or only the missing ones when the
-// sheet is current. The model defaults to Nano Banana 2 and sits under Advanced; the choice lives
-// in useAvatarGeneration so it survives leaving the step.
+// D395 — makes the turnaround sheet from the front image, and the four views cut from it. The
+// model defaults to Nano Banana 2 and sits under Advanced; the choice lives in useAvatarGeneration
+// so it survives leaving the step.
 export function AvatarSheetGenerate({
-  label, count, generating, disabled, modelId, onModelChange, onGenerate,
+  label, generating, disabled, modelId, onModelChange, onGenerate,
 }: {
-  /** "Generate the four views", "Regenerate the four views", "Make the missing view". */
+  /** "Generate the four views" or "Regenerate the four views". */
   label: string;
-  /** How many views the click makes, for its cost. */
-  count: number;
   generating: boolean;
   disabled: boolean;
   modelId: string;
   onModelChange: (modelId: string) => void;
   onGenerate: (modelId: string) => void;
 }) {
-  const credits = estimateSheetCredits(modelId, count);
+  const credits = estimateSheetCredits(modelId);
   return (
     <div className="flex flex-col items-start gap-1">
       <Button disabled={disabled || generating || credits === null} onClick={() => onGenerate(modelId)}>

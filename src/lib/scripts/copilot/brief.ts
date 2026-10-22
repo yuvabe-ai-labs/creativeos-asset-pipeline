@@ -127,9 +127,13 @@ export function normalizeCard(
       const member = { ...c, isLead: i === lead, avatarId: c.avatarId && opts.avatarIds.has(c.avatarId) ? c.avatarId : null };
       return i === lead && opts.lead ? { ...member, name: opts.lead.name, avatarId: opts.lead.avatarId } : member;
     }),
-    toConfirm: raw.toConfirm.map((t) => t.trim()).filter(Boolean),
+    toConfirm: raw.toConfirm.map((t) => t.trim()).filter((t) => t && !NOTHING_TO_CONFIRM.test(t)),
   };
 }
+
+/** The model's way of saying the list is empty ("None", "N/A", "Nothing to confirm."): kept, it
+ *  became an unticked item that held Mark final open. */
+const NOTHING_TO_CONFIRM = /^(none|n\/?a|nothing|nil|-+|—)( (needed|required|to confirm))?\.?$/i;
 
 export function questionFor(piece: "format" | "occasion" | "lead", ctx: { formats: string[]; avatars: CopilotAvatar[] }): string {
   switch (piece) {

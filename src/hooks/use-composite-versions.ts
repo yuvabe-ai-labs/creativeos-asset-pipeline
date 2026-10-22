@@ -10,6 +10,8 @@ import {
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
 import { useGenerationStatus } from "@/hooks/use-generation-status";
+import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { paramsForRestore } from "@/lib/generations/version-params";
 import {
   useStartCompositeGeneration,
   useRestoreNodeVersion,
@@ -83,13 +85,28 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
     }
   }
 
+  // YUV-295 — restoring puts back the model and settings that version ran with, not only its
+  // image, so the next Generate does not silently use whatever was set afterwards.
   async function restore(versionId: string) {
     const toastId = toast.loading("Restoring version…");
     try {
       const json = await restoreVersion.mutateAsync(versionId);
-      if (json.output) onPatch({ parsed: json.output });
+      const restoredModelId =
+        (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
+        json.modelUsed ??
+        null;
+      const restoredParams = restoredModelId
+        ? paramsForRestore(imageGenClientModelMap[restoredModelId]?.params, json.paramsUsed ?? {})
+        : null;
+      onPatch({
+        ...(json.output ? { parsed: json.output } : {}),
+        ...(restoredModelId && restoredParams ? { modelId: restoredModelId, params: restoredParams } : {}),
+      });
       setActiveVersionId(versionId);
-      toast.success("Version restored", { id: toastId });
+      toast.success(
+        restoredParams ? "Version restored with its model and settings" : "Image restored. Its settings are no longer available.",
+        { id: toastId },
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Restore failed", { id: toastId });
     }

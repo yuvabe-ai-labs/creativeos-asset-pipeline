@@ -154,6 +154,10 @@ describe("script writer probe", () => {
             const parsed = JSON.parse(completion.choices[0]?.message?.content ?? "{}");
             const parsedShots: number = parsed?.visual_script?.shots?.length ?? 0;
             checks.push({ name: "parse round trip", pass: parsedShots === doc.shots.length, detail: `${parsedShots} parsed for ${doc.shots.length} written` });
+            // D380 — and each row keeps its shot's name, in order.
+            const names: string[] = (parsed?.visual_script?.shots ?? []).map((s: { label?: string }) => (s.label ?? "").trim().toUpperCase());
+            const want = doc.shots.map((_, i) => `S${i + 1}`);
+            checks.push({ name: "shot names", pass: JSON.stringify(names) === JSON.stringify(want), detail: names.join(" ") });
 
             const passed = checks.filter((c) => c.pass).length;
             writeFileSync(path.join(OUT, `${model}-${run.key}-${n}.md`), [`# ${label}`, "", printed, "", "## Checks", ...checks.map((c) => `- ${c.pass ? "PASS" : "FAIL"} ${c.name}: ${c.detail}`), "", `Edit asked: ${run.edit}`, `Edit reply: ${edit.reply}`].join("\n"));

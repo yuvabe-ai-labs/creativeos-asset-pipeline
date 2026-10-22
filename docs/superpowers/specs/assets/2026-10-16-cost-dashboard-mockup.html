@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CreativeOS Cost Ledger</title>
+<style>
+
+/* Layout: one admin page. Numbers, then accounts → clients → canvases, then providers. Plan below. */
+:root {
+  --bg: #fcfcfd; --card: #ffffff; --ink: #111827; --ink-2: #374151; --muted: #6b7280;
+  --border: #e5e7eb; --grid: #f1f2f4; --soft: #f8f8fa; --primary: #5829c7; --primary-soft: rgba(88,41,199,.07);
+  --prod: #1baf7a; --staging: #eda100; --bar: #2a78d6;
+  --good: #0a7d0a; --warn: #a86f00; --bad: #c43535;
+  --shadow: 0 1px 2px rgba(11,15,25,.08), 0 6px 14px rgba(11,15,25,.1);
+  --display: "Clash Display", "Gilroy", system-ui, sans-serif;
+  --sans: "Gilroy", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d0f14; --card: #161a22; --ink: #f1f2f4; --ink-2: #d1d5db; --muted: #9ca3af;
+  --border: #2a303b; --grid: #20252e; --soft: #1b2029; --primary: #9b7bf0; --primary-soft: rgba(155,123,240,.12);
+  --prod: #199e70; --staging: #c98500; --bar: #3987e5; --good: #2fbf2f; --warn: #fab219; --bad: #e66767;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 14px rgba(0,0,0,.35); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0d0f14; --card: #161a22; --ink: #f1f2f4; --ink-2: #d1d5db; --muted: #9ca3af;
+  --border: #2a303b; --grid: #20252e; --soft: #1b2029; --primary: #9b7bf0; --primary-soft: rgba(155,123,240,.12);
+  --prod: #199e70; --staging: #c98500; --bar: #3987e5; --good: #2fbf2f; --warn: #fab219; --bad: #e66767;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 14px rgba(0,0,0,.35); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 400 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+h1, h2 { font-family: var(--display); font-weight: 600; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+h1 { font-size: 28px; } h2 { font-size: 19px; }
+h3 { font-size: 15px; font-weight: 600; margin: 0; }
+p { margin: 0; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+
+.banner { padding: 10px 14px; border: 1px dashed color-mix(in srgb, var(--primary) 45%, transparent); background: var(--primary-soft); border-radius: 10px; font-size: 13px; }
+.banner b { color: var(--primary); }
+
+.head { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; padding: 2px; background: var(--card); }
+.seg button { font: 600 13px var(--sans); color: var(--muted); background: none; border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--border); }
+.ctl { font: 600 13px var(--sans); border: 1px solid var(--border); background: var(--card); border-radius: 8px; padding: 7px 12px; color: var(--ink); }
+.ctl.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 20px; min-width: 0; }
+.card-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.card-head p { font-size: 13px; color: var(--muted); max-width: 64ch; margin-top: 4px; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.kpi { display: grid; gap: 6px; align-content: start; }
+.kpi .value { font: 600 26px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.kpi .sub { font-size: 12.5px; color: var(--muted); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; color: var(--ink-2); }
+.chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.chip.good { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+.chip.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.up { color: var(--bad); } .down { color: var(--good); }
+
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+.legend .sw { display: inline-block; height: 10px; width: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+svg text { font-family: var(--sans); }
+.chart { width: 100%; height: auto; display: block; }
+
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow); border-radius: 8px; padding: 8px 10px; font-size: 12px; min-width: 160px; opacity: 0; transition: opacity .2s cubic-bezier(.22,1,.36,1); }
+.tip.on { opacity: 1; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 820px; }
+th { text-align: left; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+.r { text-align: right; font-variant-numeric: tabular-nums; }
+tfoot td { font-weight: 600; border-top: 1px solid var(--border); border-bottom: 0; }
+tr.lvl0 td { background: var(--soft); }
+tr.lvl0 td:first-child { font-weight: 600; }
+.namecell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tog { width: 22px; height: 22px; display: inline-grid; place-items: center; border: 1px solid var(--border); background: var(--card); border-radius: 6px; color: var(--muted); cursor: pointer; font: 600 12px var(--sans); padding: 0; flex: none; transition: transform .2s cubic-bezier(.22,1,.36,1); }
+.tog[aria-expanded="true"] { transform: rotate(90deg); }
+.tog-space { width: 22px; flex: none; }
+.namecell small { color: var(--muted); font-size: 11.5px; font-weight: 400; margin-left: 4px; }
+.share { display: inline-block; height: 6px; border-radius: 0 3px 3px 0; background: var(--bar); vertical-align: middle; }
+.limit { display: grid; gap: 3px; min-width: 110px; font-size: 12px; }
+.limit .track { height: 5px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+.limit .fill { height: 100%; background: var(--ink-2); border-radius: 3px; }
+.limit .fill.hot { background: var(--bad); }
+.src { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--soft); border: 1px solid var(--border); white-space: nowrap; }
+
+.gap-notes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.gap-notes div { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: var(--ink-2); display: grid; gap: 2px; }
+.gap-notes b { font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* plan */
+.divider { margin-top: 28px; display: grid; gap: 6px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.card ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; color: var(--ink-2); }
+.flow { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.flow div { flex: 1 1 180px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--soft); color: var(--ink-2); }
+.flow div b { display: block; color: var(--ink); }
+.flow span { align-self: center; color: var(--muted); }
+ol.steps { margin: 0; padding-left: 20px; display: grid; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
+ol.steps b { color: var(--ink); }
+
+@media (max-width: 900px) {
+  .kpis, .gap-notes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .flow span { display: none; }
+}
+@media (max-width: 520px) { .kpis, .gap-notes { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner"><b>Mockup for approval.</b> All numbers are sample data. Client and canvas names are made up.</div>
+
+  <div class="head">
+    <div style="display:grid;gap:4px">
+      <span class="eyebrow">Admin · Costs</span>
+      <h1>Costs, October 2026</h1>
+      <p class="muted" id="freshness">1–16 Oct so far, in rupees. Updated every night at 2:00 am. <span id="lastUpdate">Last update: today, 2:00 am (nightly).</span></p>
+    </div>
+    <div class="filters">
+      <button type="button" class="ctl" id="refreshBtn">↻ Refresh now</button>
+      <span class="ctl">Oct 2026 ▾</span>
+      <div class="seg" role="group" aria-label="Environment" id="envSeg">
+        <button type="button" data-env="all" aria-pressed="true">Both</button>
+        <button type="button" data-env="prod" aria-pressed="false">Production</button>
+        <button type="button" data-env="staging" aria-pressed="false">Staging</button>
+      </div>
+      <span class="ctl">Download CSV</span>
+    </div>
+  </div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Accounts and clients</h2>
+        <p>What each account spent, and inside it each client. A client opens to its canvases, plus its avatars and scripts, which aren't on a canvas. Compared with the same days last month.</p>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table id="acctTable"></table></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Providers</h2>
+        <p>What each provider actually billed us, next to what CreativeOS recorded. The difference is spend we didn't record.</p>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table id="provTable"></table></div>
+    <div class="gap-notes" id="gapNotes"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Credit coverage</h2>
+        <p>Which features charge credits and which still spend money without recording it. Anything not charging credits ends up in “Not recorded” above.</p>
+      </div>
+      <div class="legend" id="coverSummary"></div>
+    </div>
+    <div class="tbl-wrap"><table id="coverTable"></table></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Last six months</h2>
+        <p>Provider bill per month. October shows spend so far, with the expected total on top.</p>
+      </div>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--prod)"></span>Production</span>
+        <span><span class="sw" style="background:var(--staging)"></span>Staging</span>
+        <span><span class="sw" style="border:1px dashed var(--muted)"></span>Expected</span>
+      </div>
+    </div>
+    <svg class="chart" id="trendChart" viewBox="0 0 1080 260" role="img" aria-label="Spend per month for six months"></svg>
+  </section>
+
+  <!-- ===================== PLAN ===================== -->
+  <div class="divider">
+    <span class="eyebrow">The plan</span>
+    <h1>How it works</h1>
+  </div>
+
+  <section class="card">
+    <h3 style="margin-bottom:12px">Where the numbers come from</h3>
+    <div class="flow">
+      <div><b>Our records</b>Every generation in production and staging already records its cost in credits.</div>
+      <span aria-hidden="true">+</span>
+      <div><b>Provider bills</b>Pulled from each provider's billing API. If a provider has none, we type the monthly invoice in.</div>
+      <span aria-hidden="true">→</span>
+      <div><b>Nightly job, or Refresh now</b>Adds everything up per day, account, client, canvas and provider, and converts to rupees. Runs at 2:00 am, or straight away when someone clicks Refresh now.</div>
+      <span aria-hidden="true">→</span>
+      <div><b>This page</b>Production admin, super-admins only. Shows both environments.</div>
+    </div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h3 style="margin-bottom:12px">What it covers</h3>
+      <ul>
+        <li><b>Accounts → clients → canvases</b>, with this month, last month, the change, and how much of each account's credit limit is used.</li>
+        <li><b>Providers</b>: real bill vs what we recorded, and why they differ.</li>
+        <li><b>Credit coverage</b>: every feature that costs money (canvas, avatars, scripts, brand kit, research) and whether it charges credits yet.</li>
+        <li><b>Production and staging</b>, together or one at a time.</li>
+        <li><b>Any past month</b>, picked from the month menu. Past months never change.</li>
+        <li><b>CSV download</b> of the accounts table for finance.</li>
+        <li><b>Refresh now</b> recalculates the current month on the spot. It takes about a minute, only one refresh runs at a time, and the page shows when it last updated and who refreshed it.</li>
+      </ul>
+    </section>
+    <section class="card">
+      <h3 style="margin-bottom:12px">Rules to agree on</h3>
+      <ul>
+        <li>Account, client and canvas figures come from our records. Providers only tell us totals, so they can't be split by client.</li>
+        <li>Rupees use one exchange rate per month, saved with that month.</li>
+        <li>If staging and production share a provider key, its bill is split by how much each one used.</li>
+        <li>AI providers only for now. Hosting (Vercel, Supabase, Trigger.dev) comes later.</li>
+        <li>Refresh now always pulls our own records. Some provider bills only change once a day on the provider's side, so a refresh may not move those.</li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="card">
+    <h3 style="margin-bottom:12px">Build order</h3>
+    <ol class="steps">
+      <li><b>Our records.</b> Totals, the accounts and clients table, six-month chart, CSV. Useful from day one.</li>
+      <li><b>Provider bills.</b> Billing APIs where they exist (OpenAI, Apify, BytePlus, fal), monthly entry for the rest (Google, Sarvam), balance checks for Kling and ElevenLabs.</li>
+      <li><b>Close the gap.</b> Connect the features marked “Not recorded” to the credit system (script copilot, canvas assistant, knowledge base, research, file reading, dubbing voice preview), start charging the ones that only save usage, and count failed jobs the provider still charged for.</li>
+    </ol>
+  </section>
+
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+(function () {
+  "use strict";
+  // ---------- sample data (₹) ----------
+  // now = 1–16 Oct, last = 1–16 Sep. limit = monthly credit limit in ₹ (null = no limit).
+  var ACCOUNTS = [
+    { name: "Digital Marketing", env: "prod", limit: 150000, now: 89600, last: 61000, clients: [
+      { name: "Brightline Apparel", now: 41200, last: 24900, canvases: [
+        { name: "Diwali reel v3", now: 22800, last: 0, top: "Veo 3.1 Quality, 64%" },
+        { name: "Winter drop UGC", now: 12100, last: 14300, top: "Kling 2.5, 52%" },
+        { name: "Product stills", now: 3100, last: 6000, top: "Seedream 4, 88%" },
+        { name: "Avatars", kind: "avatar", now: 2100, last: 3100, top: "3 avatars, mostly images" },
+        { name: "Scripts", kind: "script", now: 1100, last: 1500, top: "2 scripts, storyboard panels" } ] },
+      { name: "Kova Skincare", now: 28900, last: 21300, canvases: [
+        { name: "Serum launch", now: 17400, last: 12200, top: "Kling 2.5, 58%" },
+        { name: "Founder story", now: 11500, last: 9100, top: "Veo 3.1 Fast, 47%" } ] },
+      { name: "Monsoon Travel", now: 19500, last: 14800, canvases: [
+        { name: "Kerala ads", now: 19500, last: 14800, top: "Seedance, 44%" } ] } ] },
+    { name: "Agency B", env: "prod", limit: 40000, now: 29300, last: 17500, clients: [
+      { name: "Northfield Foods", now: 18700, last: 9900, canvases: [
+        { name: "Recipe shorts", now: 13200, last: 6100, top: "Veo 3.1 Quality, 71%" },
+        { name: "Pack shots", now: 5500, last: 3800, top: "Seedream 4, 90%" } ] },
+      { name: "Arc Studios", now: 10600, last: 7600, canvases: [
+        { name: "Brand film", now: 10600, last: 7600, top: "Kling 2.5, 60%" } ] } ] },
+    { name: "Agency C", env: "prod", limit: null, now: 9500, last: 7000, clients: [
+      { name: "Pebble Toys", now: 9500, last: 7000, canvases: [
+        { name: "Holiday UGC", now: 9500, last: 7000, top: "OmniHuman, 55%" } ] } ] },
+    { name: "Yuvabe QA", env: "staging", limit: null, now: 21400, last: 14200, clients: [
+      { name: "Test client", now: 21400, last: 14200, canvases: [
+        { name: "Dubbing tests", now: 12800, last: 3900, top: "Sarvam dubbing, 41%" },
+        { name: "Regression canvas", now: 8600, last: 10300, top: "Veo 3.1 Fast, 50%" } ] } ] },
+    { name: "Digital Marketing", env: "staging", limit: null, now: 12100, last: 7700, clients: [
+      { name: "Brightline Apparel", now: 12100, last: 7700, canvases: [
+        { name: "Diwali reel drafts", now: 12100, last: 7700, top: "Veo 3.1 Fast, 62%" } ] } ] }
+  ];
+  // a = provider bill, t = tracked; *s = staging part
+  var PROVIDERS = [
+    { name: "Google", sub: "Veo, Gemini", src: "Monthly entry", a: 78400, t: 71200, as: 18900, ts: 16200 },
+    { name: "Kling", sub: "Video", src: "Balance check", a: 41600, t: 39800, as: 8200, ts: 7600 },
+    { name: "OpenAI", sub: "Text, image, Sora", src: "Billing API", a: 22900, t: 17300, as: 6400, ts: 3100 },
+    { name: "BytePlus", sub: "Seedream, Seedance, OmniHuman", src: "Billing API", a: 17800, t: 16900, as: 3100, ts: 2900 },
+    { name: "fal", sub: "Hosted models", src: "Billing API", a: 11200, t: 10700, as: 2300, ts: 2100 },
+    { name: "ElevenLabs", sub: "Voice", src: "Balance check", a: 7900, t: 4100, as: 2600, ts: 900 },
+    { name: "Sarvam", sub: "Dubbing", src: "Monthly entry", a: 3100, t: 1900, as: 1600, ts: 700 },
+    { name: "Apify", sub: "Market research scraping", src: "Billing API", a: 1400, t: 0, as: 0, ts: 0 }
+  ];
+  var GAP = [
+    ["₹8,200", "AI calls we don't record yet (prompt helpers, knowledge base, Apify)"],
+    ["₹6,800", "Failed jobs the provider still charged for"],
+    ["₹4,100", "ElevenLabs monthly plan fee"],
+    ["₹3,300", "Developers testing locally, and small differences"]
+  ];
+  // status: charged = reserves + settles credits; logged = saves token usage, charges nothing; none = no record at all
+  var COVERAGE = [
+    ["Canvas", "Video generation", "Google, Kling, OpenAI, BytePlus", "charged", 98400],
+    ["Canvas", "Image generation and composite", "Google, OpenAI, BytePlus", "charged", 27600],
+    ["Canvas", "Dubbing and lip sync", "Sarvam, ElevenLabs, fal", "charged", 8100],
+    ["Canvas", "Prompt, video prompt, multishot", "OpenAI, Google", "charged", 3900],
+    ["Canvas", "Voice change", "ElevenLabs", "charged", 1700],
+    ["Canvas", "Script parsing, split scene, compose ideas", "OpenAI", "logged", 400],
+    ["Canvas", "Dubbing voice preview", "ElevenLabs, Sarvam", "none", null],
+    ["Canvas", "Canvas assistant (copilot)", "OpenAI", "none", null],
+    ["Canvas", "Reading uploaded files", "OpenAI, Google", "none", null],
+    ["Avatars", "Avatar images (front, sheet, variations)", "Google, OpenAI, BytePlus", "charged", 11300],
+    ["Avatars", "Avatar voice preview", "ElevenLabs", "charged", 1100],
+    ["Scripts", "Storyboard panels (Visualise)", "Google, OpenAI, BytePlus", "charged", 9800],
+    ["Scripts", "Script writing copilot (chat, inline edits)", "OpenAI, Google", "none", null],
+    ["Brand kit", "Knowledge base build and image analysis", "OpenAI, Google", "none", null],
+    ["Research", "Market research and social import", "Apify", "none", null]
+  ];
+  var STATUS = {
+    charged: '<span class="chip good">● Charges credits</span>',
+    logged: '<span class="chip warn">◐ Usage saved, not charged</span>',
+    none: '<span class="chip bad">○ Not recorded</span>'
+  };
+  var LAST_BILL ={ all: 121500, prod: 92300, staging: 29200 };
+  var EXPECTED = { all: 357000, prod: 273500, staging: 83500 };
+  var TREND = [
+    { m: "May", p: 62000, s: 18000 }, { m: "Jun", p: 88000, s: 21000 }, { m: "Jul", p: 132000, s: 29000 },
+    { m: "Aug", p: 171000, s: 38000 }, { m: "Sep", p: 189000, s: 52000 },
+    { m: "Oct", p: 141200, s: 43100, fp: 273500, fs: 83500 }
+  ];
+
+  // ---------- helpers ----------
+  var env = "all";
+  var fmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+  function rs(v) { return (v < 0 ? "−₹" : "₹") + fmt.format(Math.abs(Math.round(v))); }
+  function short(v) {
+    if (v >= 100000) return "₹" + (v / 100000).toFixed(2).replace(/\.?0+$/, "") + "L";
+    if (v >= 1000) return "₹" + (v / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+    return "₹" + v;
+  }
+  function change(now, last) {
+    if (!last) return '<span class="chip">New</span>';
+    var p = (now - last) / last * 100;
+    return '<span class="' + (p >= 0 ? "up" : "down") + '">' + (p >= 0 ? "▲ " : "▼ ") + Math.abs(p).toFixed(0) + "%</span>";
+  }
+  function pick(p, k) { return env === "all" ? p[k] : env === "staging" ? p[k + "s"] : p[k] - p[k + "s"]; }
+  function totals() {
+    var a = 0, t = 0;
+    PROVIDERS.forEach(function (p) { a += pick(p, "a"); t += pick(p, "t"); });
+    return { a: a, t: t, g: a - t };
+  }
+  function accounts() { return ACCOUNTS.filter(function (x) { return env === "all" || x.env === env; }); }
+  var tip = document.getElementById("tip");
+  function showTip(html, ev) {
+    tip.innerHTML = html; tip.classList.add("on");
+    var x = ev.clientX + 14, y = ev.clientY + 14;
+    if (x + tip.offsetWidth > innerWidth - 8) x = ev.clientX - tip.offsetWidth - 14;
+    tip.style.left = Math.max(8, x) + "px"; tip.style.top = y + "px";
+  }
+  function hideTip() { tip.classList.remove("on"); }
+
+  // ---------- numbers ----------
+  function renderKpis() {
+    var T = totals(), gp = T.g / T.a * 100, vs = (T.a - LAST_BILL[env]) / LAST_BILL[env] * 100;
+    var split = "";
+    if (env === "all") {
+      var pa = 0, sa = 0;
+      PROVIDERS.forEach(function (p) { pa += p.a - p.as; sa += p.as; });
+      split = '<span class="sub"><span class="dot" style="background:var(--prod)"></span>Production ' + short(pa) + ' &nbsp; <span class="dot" style="background:var(--staging)"></span>Staging ' + short(sa) + "</span>";
+    }
+    document.getElementById("kpis").innerHTML =
+      '<div class="card kpi"><span class="eyebrow">Spent this month</span><span class="value">' + rs(T.a) + '</span><span class="sub"><span class="up">▲ ' + vs.toFixed(0) + "%</span> vs same days last month</span>" + split + "</div>" +
+      '<div class="card kpi"><span class="eyebrow">Recorded by CreativeOS</span><span class="value">' + rs(T.t) + '</span><span class="sub">From our credit records</span></div>' +
+      '<div class="card kpi"><span class="eyebrow">Not recorded</span><span class="value">' + rs(T.g) + '</span><span class="sub">' + gp.toFixed(0) + "% of the bill</span><div>" + (gp > 10 ? '<span class="chip warn">Over 10%, check providers</span>' : '<span class="chip good">Under 10%</span>') + "</div></div>" +
+      '<div class="card kpi"><span class="eyebrow">Expected for October</span><span class="value">' + rs(EXPECTED[env]) + '</span><span class="sub">At this month\'s pace so far</span></div>';
+  }
+
+  // ---------- accounts table ----------
+  var open = { "Digital Marketing|prod": true, "Digital Marketing|prod|Brightline Apparel": true };
+  function renderAccts() {
+    var list = accounts().slice().sort(function (a, b) { return b.now - a.now; });
+    var total = list.reduce(function (s, a) { return s + a.now; }, 0);
+    var totalLast = list.reduce(function (s, a) { return s + a.last; }, 0);
+    var max = Math.max.apply(null, list.map(function (a) { return a.now; }));
+    var h = "<thead><tr><th>Account / client / canvas</th><th class='r'>This month</th><th class='r'>Last month</th><th class='r'>Change</th><th>Share</th><th>Credit limit used</th><th>Biggest cost</th></tr></thead><tbody>";
+    function tog(key, label) { return '<button type="button" class="tog" data-key="' + key + '" aria-expanded="' + !!open[key] + '" aria-label="Show ' + label + '">›</button>'; }
+    list.forEach(function (a) {
+      var key = a.name + "|" + a.env;
+      var envChip = env === "all" ? ' <span class="chip"><span class="dot" style="background:var(--' + a.env + ')"></span>' + (a.env === "prod" ? "Production" : "Staging") + "</span>" : "";
+      var lim = a.limit
+        ? '<div class="limit"><span>' + short(a.now) + " of " + short(a.limit) + '</span><div class="track"><div class="fill' + (a.now / a.limit > .7 ? " hot" : "") + '" style="width:' + Math.min(100, a.now / a.limit * 100) + '%"></div></div></div>'
+        : '<span class="muted">No limit</span>';
+      h += '<tr class="lvl0"><td><div class="namecell">' + tog(key, a.name + " clients") + a.name + envChip + "<small>" + a.clients.length + " client" + (a.clients.length > 1 ? "s" : "") + "</small></div></td><td class='r'>" + rs(a.now) + "</td><td class='r muted'>" + rs(a.last) + "</td><td class='r'>" + change(a.now, a.last) + "</td><td><span class='share' style='width:" + (a.now / max * 90) + "px'></span> <span class='muted num'>" + (a.now / total * 100).toFixed(0) + "%</span></td><td>" + lim + "</td><td></td></tr>";
+      if (!open[key]) return;
+      a.clients.forEach(function (c) {
+        var ck = key + "|" + c.name;
+        var nc = c.canvases.filter(function (v) { return !v.kind; }).length;
+        var extra = c.canvases.filter(function (v) { return v.kind; }).map(function (v) { return v.name.toLowerCase(); });
+        var subtitle = nc + " canvas" + (nc > 1 ? "es" : "") + (extra.length ? ", " + extra.join(", ") : "");
+        h += '<tr><td><div class="namecell" style="padding-left:28px">' + tog(ck, c.name + " details") + c.name + "<small>" + subtitle + "</small></div></td><td class='r'>" + rs(c.now) + "</td><td class='r muted'>" + rs(c.last) + "</td><td class='r'>" + change(c.now, c.last) + "</td><td><span class='muted num'>" + (c.now / a.now * 100).toFixed(0) + "% of account</span></td><td></td><td></td></tr>";
+        if (!open[ck]) return;
+        c.canvases.forEach(function (v) {
+          h += '<tr><td><div class="namecell" style="padding-left:56px"><span class="tog-space"></span><span class="muted">' + (v.kind === "avatar" ? "◯" : v.kind === "script" ? "≡" : "▢") + "</span> " + v.name + "</div></td><td class='r'>" + rs(v.now) + "</td><td class='r muted'>" + (v.last ? rs(v.last) : "—") + "</td><td class='r'>" + change(v.now, v.last) + "</td><td><span class='muted num'>" + (v.now / c.now * 100).toFixed(0) + "% of client</span></td><td></td><td class='muted'>" + v.top + "</td></tr>";
+        });
+      });
+    });
+    var T = totals();
+    h += "</tbody><tfoot><tr><td>Recorded total</td><td class='r'>" + rs(total) + "</td><td class='r'>" + rs(totalLast) + "</td><td class='r'>" + change(total, totalLast) + "</td><td colspan='3' class='muted' style='font-weight:400'>Plus " + rs(T.g) + " we didn't record, shown under Providers.</td></tr></tfoot>";
+    var tbl = document.getElementById("acctTable");
+    tbl.innerHTML = h;
+    tbl.querySelectorAll(".tog").forEach(function (b) {
+      b.addEventListener("click", function () { var k = b.getAttribute("data-key"); open[k] = !open[k]; renderAccts(); });
+    });
+  }
+
+  // ---------- providers ----------
+  function renderProv() {
+    var T = totals();
+    var h = "<thead><tr><th>Provider</th><th class='r'>Billed</th><th class='r'>Recorded</th><th class='r'>Not recorded</th><th>Where the bill comes from</th></tr></thead><tbody>";
+    PROVIDERS.forEach(function (p) {
+      var a = pick(p, "a"), t = pick(p, "t"), g = a - t, gp = a ? g / a * 100 : 0;
+      var flag = t === 0 && a > 0 ? '<span class="chip bad">Not recorded at all</span>' : gp > 15 ? '<span class="chip warn">' + gp.toFixed(0) + "%</span>" : '<span class="chip">' + gp.toFixed(0) + "%</span>";
+      h += "<tr><td><b>" + p.name + "</b> <span class='muted' style='font-size:12px'>" + p.sub + "</span></td><td class='r'>" + rs(a) + "</td><td class='r'>" + rs(t) + "</td><td class='r'>" + rs(g) + " " + flag + "</td><td><span class='src'>" + p.src + "</span></td></tr>";
+    });
+    h += "</tbody><tfoot><tr><td>Total</td><td class='r'>" + rs(T.a) + "</td><td class='r'>" + rs(T.t) + "</td><td class='r'>" + rs(T.g) + "</td><td></td></tr></tfoot>";
+    document.getElementById("provTable").innerHTML = h;
+    document.getElementById("gapNotes").innerHTML = env === "all"
+      ? GAP.map(function (g) { return "<div><b>" + g[0] + "</b>" + g[1] + "</div>"; }).join("")
+      : "";
+  }
+
+  // ---------- six months ----------
+  function renderTrend() {
+    var svg = document.getElementById("trendChart"), NS = "http://www.w3.org/2000/svg";
+    svg.innerHTML = "";
+    function el(t, a) { var n = document.createElementNS(NS, t); for (var k in a) n.setAttribute(k, a[k]); svg.appendChild(n); return n; }
+    function text(x, y, s, a) { var n = el("text", Object.assign({ x: x, y: y, "font-size": 12, fill: "var(--muted)" }, a || {})); n.textContent = s; return n; }
+    var W = 1080, H = 260, L = 52, R = 10, Tp = 24, B = 28, top = 400000, slot = (W - L - R) / TREND.length, bw = Math.min(84, slot * .5);
+    var y = function (v) { return Tp + (1 - v / top) * (H - Tp - B); };
+    for (var v = 0; v <= top; v += 100000) {
+      el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: v ? "var(--grid)" : "var(--border)" });
+      text(L - 10, y(v) + 4, v ? short(v) : "₹0", { "text-anchor": "end" });
+    }
+    var sp = env !== "staging", ss = env !== "prod";
+    TREND.forEach(function (m, i) {
+      var cx = L + slot * i + slot / 2, x0 = cx - bw / 2, p = sp ? m.p : 0, s = ss ? m.s : 0, now = p + s, end = now;
+      if (p) el("rect", { x: x0, y: y(p), width: bw, height: y(0) - y(p), fill: "var(--prod)" });
+      if (s) el("rect", { x: x0, y: y(now), width: bw, height: Math.max(0, y(p) - y(now) - (p ? 2 : 0)), fill: "var(--staging)", rx: p ? 0 : 0 });
+      if (m.fp) {
+        end = (sp ? m.fp : 0) + (ss ? m.fs : 0);
+        el("rect", { x: x0 + .5, y: y(end), width: bw - 1, height: Math.max(0, y(now) - y(end) - 2), fill: "none", stroke: "var(--muted)", "stroke-dasharray": "4 3", rx: 4 });
+      }
+      text(cx, y(end) - 8, short(end) + (m.fp ? " expected" : ""), { "text-anchor": "middle", fill: "var(--ink)", "font-weight": 600 });
+      text(cx, H - 8, m.m, { "text-anchor": "middle", fill: "var(--ink-2)" });
+      var hit = el("rect", { x: cx - slot / 2, y: Tp, width: slot, height: H - Tp - B, fill: "transparent" });
+      hit.addEventListener("mousemove", function (ev) {
+        var t = "<b>" + m.m + (m.fp ? ", so far" : "") + "</b>";
+        if (sp) t += '<div class="r"><span>Production</span><b>' + rs(m.p) + "</b></div>";
+        if (ss) t += '<div class="r"><span>Staging</span><b>' + rs(m.s) + "</b></div>";
+        if (m.fp) t += '<div class="r"><span>Expected total</span><b>' + rs(end) + "</b></div>";
+        showTip(t, ev);
+      });
+      hit.addEventListener("mouseleave", hideTip);
+    });
+  }
+
+  document.getElementById("envSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    this.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    env = b.getAttribute("data-env"); render();
+  });
+  // ---------- credit coverage (env-independent: same code runs in both) ----------
+  (function renderCoverage() {
+    var n = { charged: 0, logged: 0, none: 0 };
+    COVERAGE.forEach(function (c) { n[c[3]]++; });
+    document.getElementById("coverSummary").innerHTML =
+      "<span>" + n.charged + " charge credits</span><span>" + n.logged + " save usage only</span><span class='up'>" + n.none + " not recorded</span>";
+    var h = "<thead><tr><th>Area</th><th>Feature</th><th>Provider</th><th>Status</th><th class='r'>This month</th></tr></thead><tbody>", prev = "";
+    COVERAGE.forEach(function (c) {
+      var amt = c[3] === "charged" ? rs(c[4]) : c[3] === "logged" ? "about " + rs(c[4]) : "<span class='muted'>Unknown until connected</span>";
+      h += "<tr><td><b>" + (c[0] !== prev ? c[0] : "") + "</b></td><td>" + c[1] + "</td><td class='muted'>" + c[2] + "</td><td>" + STATUS[c[3]] + "</td><td class='r'>" + amt + "</td></tr>";
+      prev = c[0];
+    });
+    document.getElementById("coverTable").innerHTML = h + "</tbody>";
+  })();
+
+  // ---------- refresh now (mock: steps take a few seconds; the real job takes about a minute) ----------
+  var refreshBtn = document.getElementById("refreshBtn"), lastUpdate = document.getElementById("lastUpdate");
+  refreshBtn.addEventListener("click", function () {
+    var steps = ["Reading our records…", "Getting provider bills…", "Adding it all up…"], i = 0;
+    refreshBtn.disabled = true; refreshBtn.style.cursor = "progress";
+    function next() {
+      if (i < steps.length) { refreshBtn.textContent = "↻ " + steps[i++]; setTimeout(next, 1100); return; }
+      var t = new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+      lastUpdate.innerHTML = "Last update: today, " + t + " (refreshed by you). <span class='chip good'>Up to date</span>";
+      refreshBtn.textContent = "↻ Refresh now"; refreshBtn.disabled = false; refreshBtn.style.cursor = "";
+    }
+    next();
+  });
+
+  function render() { renderKpis(); renderAccts(); renderProv(); renderTrend(); }
+  render();
+})();
+</script>
+</body>
+</html>

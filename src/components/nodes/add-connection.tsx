@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { canConnect, type AppNode } from "@/lib/canvas-nodes";
+import { canAcceptIncoming, canConnect, type AppNode } from "@/lib/canvas-nodes";
 import { nodeLabel } from "@/lib/nodes/describe-node";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
@@ -42,6 +42,9 @@ export function AddConnection({
   const [open, setOpen] = useState(false);
   const nodes = useCanvasStore((s) => s.nodes);
   const connectNodes = useCanvasStore((s) => s.connectNodes);
+
+  // D374 — a one-input target that already has its input offers no more (and renders nothing).
+  if (!canAcceptIncoming(targetType, connectedIds.length)) return null;
 
   const candidates = nodes.filter(
     (n) =>

@@ -8,6 +8,8 @@ export type GenerationStatus = {
   isGenerating: boolean;
   /** D284 — true while the running job is a voice change rather than a fresh video. */
   isChangingVoice: boolean;
+  /** The kind of the running job, so a view can tell Dubbing from Lip-syncing. */
+  runningKind: GenerationJobKind | null;
   lastError: string | null;
   setGenerating: (v: boolean, kind?: GenerationJobKind) => void;
   setLastError: (v: string | null) => void;
@@ -31,6 +33,7 @@ export function useGenerationStatus(nodeId: string): GenerationStatus {
   return {
     isGenerating: status.isGenerating,
     isChangingVoice: status.isGenerating && status.kind === "voice",
+    runningKind: status.isGenerating ? status.kind : null,
     lastError: status.lastError,
     setGenerating: (v, kind = "video") => (v ? mark(nodeId, kind) : clear(nodeId)),
     setLastError: (v) => setRequestError(nodeId, v),

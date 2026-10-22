@@ -4,7 +4,7 @@ import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import { isImageStartFailure } from "@/lib/image-gen/failure-copy";
 import { IMAGE_RUN_MAX_AGE_MS } from "@/lib/image-gen/constants";
 
-export type GenerationJobKind = "image" | "video" | "voice";
+export type GenerationJobKind = "image" | "video" | "voice" | "dub" | "lipsync";
 
 export type NodeGenerationStatus = {
   isGenerating: boolean;
@@ -13,7 +13,8 @@ export type NodeGenerationStatus = {
 };
 
 export function jobKindOf(type: GenerationFeedRow["type"]): GenerationJobKind {
-  return type === "voice" ? "voice" : type === "image" ? "image" : "video";
+  if (type === "voice" || type === "image" || type === "dub" || type === "lipsync") return type;
+  return "video";
 }
 
 /** Whether `candidate` should replace `current` as a node's latest job: the same job updated, or
@@ -67,10 +68,24 @@ export function nodeGenerationStatus(
   return { isGenerating: false, kind: null, lastError: requestError ?? jobError };
 }
 
+const SUCCESS: Partial<Record<GenerationFeedRow["type"], string>> = {
+  voice: "Voice changed and added as a new version",
+  image: "Image ready",
+  dub: "Dub ready",
+  lipsync: "Lip sync ready",
+};
+const FAILURE: Partial<Record<GenerationFeedRow["type"], string>> = {
+  voice: "Voice change failed",
+  dub: "Dubbing failed",
+  lipsync: "Lip sync failed",
+};
+
 export type CompletionEffect = {
   toast: { tone: "success" | "error"; message: string };
   /** An image to put on the node's card (the job finished in the background). */
   cardImage: string | null;
+  /** A dub or lip sync finished: its node's card should show the new active version, read once. */
+  refreshVersions?: true;
 };
 
 /** The completion effects a batch of loaded rows implies, judged against the jobs already stored:
@@ -96,16 +111,15 @@ export function completionEffect(
   if (previous?.status !== "running" || next.status === "running") return null;
   // A start that failed in its request already showed that request's toast: one is enough.
   if (next.type === "image" && next.status === "failed" && isImageStartFailure(next.error)) return null;
-  const voice = next.type === "voice";
   if (next.status === "succeeded") {
-    const message = voice ? "Voice changed and added as a new version" : next.type === "image" ? "Image ready" : "Video ready";
     return {
-      toast: { tone: "success", message },
+      toast: { tone: "success", message: SUCCESS[next.type] ?? "Video ready" },
       cardImage: next.type === "image" ? next.output_snapshot : null,
+      ...(next.type === "dub" || next.type === "lipsync" ? { refreshVersions: true as const } : {}),
     };
   }
   return {
-    toast: { tone: "error", message: next.error ?? (voice ? "Voice change failed" : "Generation failed") },
+    toast: { tone: "error", message: next.error ?? FAILURE[next.type] ?? "Generation failed" },
     cardImage: null,
   };
 }

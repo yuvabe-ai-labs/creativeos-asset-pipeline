@@ -26,7 +26,8 @@ export function useVoicePreview() {
   useEffect(() => shared.subscribe(setPlayingId), []);
 
   const stop = useCallback(() => shared.stop(owner), [owner]);
-  const toggle = useCallback((voice: PickerVoice) => shared.toggle(owner, voice), [owner]);
+  // Any voice with an id and a preview URL: an ElevenLabs PickerVoice, or a dubbing preset (D379).
+  const toggle = useCallback((voice: Pick<PickerVoice, "voiceId" | "previewUrl">) => shared.toggle(owner, voice), [owner]);
 
   useEffect(() => stop, [stop]);
 

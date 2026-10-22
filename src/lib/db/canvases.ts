@@ -51,6 +51,8 @@ export async function createCanvas(input: {
   clientId: string;
   orgId: string;
   name: string;
+  /** D372 — set when the canvas is created from an approved script. */
+  sourceScriptId?: string | null;
 }): Promise<CanvasRow> {
   const supabase = createServerSupabase();
   const { data: existing, error: readErr } = await supabase
@@ -65,11 +67,24 @@ export async function createCanvas(input: {
 
   const { data, error } = await supabase
     .from("canvases")
-    .insert({ client_id: input.clientId, org_id: input.orgId, slug, name: input.name })
+    .insert({ client_id: input.clientId, org_id: input.orgId, slug, name: input.name, source_script_id: input.sourceScriptId ?? null })
     .select()
     .single();
   if (error) throw error;
   return data as CanvasRow;
+}
+
+/** D372 — the canvas an approved script started, if it still exists (deleting a canvas frees it). */
+export async function getScriptCanvas(clientId: string, scriptId: string): Promise<CanvasRow | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("canvases")
+    .select("*")
+    .eq("client_id", clientId)
+    .eq("source_script_id", scriptId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as CanvasRow) ?? null;
 }
 
 // Recency-sorted canvases within the caller's org (for the Clients-home "Recent

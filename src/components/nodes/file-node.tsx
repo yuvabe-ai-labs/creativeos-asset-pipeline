@@ -6,6 +6,8 @@ import { AlertTriangle, Loader2, Paperclip, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useNodeMediaSize } from "@/hooks/use-node-media-size";
+import { nodeMediaBox } from "@/lib/canvas/media-fit";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import type { FileNodeData } from "@/lib/canvas-nodes";
@@ -13,6 +15,7 @@ import { FileFocusView } from "./file-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
+import { NodeMedia } from "./node-media";
 
 const KIND_LABELS = { text: "TXT", image: "IMG", document: "DOC" } as const;
 
@@ -25,21 +28,28 @@ export function FileNode({ id, data, selected }: NodeProps) {
   const d = data as FileNodeData;
   const [focusOpen, setFocusOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  // Measured from the loaded thumbnail so dimensions show for EVERY image source
-  // (upload, paste, Drive, gallery, and pre-existing nodes) — not just ones whose
-  // width/height were captured server-side.
-  const [measuredDims, setMeasuredDims] = useState<{ w: number; h: number } | null>(null);
   const connState = useNodeConnectionState(id, "file");
 
   const hasFile = !!d.filename;
   const showUploading = isUploading || d.uploading === true;
   const uploadError = d.uploadError;
 
+  // D384 — the tile takes the image's shape. Upload already stored imageWidth/imageHeight.
+  const media = useNodeMediaSize(
+    id,
+    { width: d.mediaWidth ?? d.imageWidth, height: d.mediaHeight ?? d.imageHeight },
+    null,
+  );
+  const showImage = d.fileKind === "image" && Boolean(d.fileUrl) && !showUploading && !uploadError;
+  const box = showImage ? nodeMediaBox(media.ratio, "input") : null;
+
   // Pixel dimensions for image files: the loaded thumbnail is the source of truth
   // (works for any origin); stored width/height are a same-frame fallback.
-  const dims =
-    measuredDims ??
-    (d.imageWidth && d.imageHeight ? { w: d.imageWidth, h: d.imageHeight } : null);
+  const dims = media.measured
+    ? { w: media.measured.width, h: media.measured.height }
+    : d.imageWidth && d.imageHeight
+      ? { w: d.imageWidth, h: d.imageHeight }
+      : null;
   const sizeLabel = d.fileKind === "image" && dims ? `${dims.w} × ${dims.h}` : "";
 
   // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
@@ -62,8 +72,10 @@ export function FileNode({ id, data, selected }: NodeProps) {
         e.stopPropagation();
         setFocusOpen(true);
       }}
+      style={box ? { width: box.cardWidth } : undefined}
       className={cn(
-        "group w-44 rounded-lg border border-border bg-card shadow-card",
+        !box && "w-44",
+        "group rounded-lg border border-border bg-card shadow-card",
         "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         connState === "invalid" && "opacity-60 pointer-events-none",
@@ -101,7 +113,9 @@ export function FileNode({ id, data, selected }: NodeProps) {
       />
 
       {/* image thumbnail slot: loader while uploading, error if failed, image if ready */}
-      {(d.fileKind === "image" || showUploading) && (
+      {box && d.fileUrl ? (
+        <NodeMedia kind="image" src={d.fileUrl} alt={d.filename ?? "image"} box={box} onMeasured={media.onMeasured} edge />
+      ) : (d.fileKind === "image" || showUploading) && (
         <div className="flex h-16 items-center justify-center overflow-hidden border-b border-border bg-muted/40">
           {showUploading ? (
             <Loader2
@@ -118,19 +132,6 @@ export function FileNode({ id, data, selected }: NodeProps) {
                 Upload failed
               </p>
             </div>
-          ) : d.fileUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={d.fileUrl}
-              alt={d.filename ?? "image"}
-              className="h-16 w-full object-cover"
-              onLoad={(e) =>
-                setMeasuredDims({
-                  w: e.currentTarget.naturalWidth,
-                  h: e.currentTarget.naturalHeight,
-                })
-              }
-            />
           ) : null}
         </div>
       )}

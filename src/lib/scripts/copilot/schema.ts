@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { shotSchema, type ScriptDoc } from "../schema";
+import { scriptDocSchema, shotSchema, type ScriptDoc } from "../schema";
 import type { ScriptStage } from "../constants";
 import { angleOutputSchema, cardOutputSchema, editOpSchema } from "./output";
 
@@ -34,13 +34,15 @@ export const briefSchema = z.object({
   narrative: pieceSchema,
   angles: z.array(angleSchema),
   card: confirmationCardSchema.nullable(),
+  /** The draft came from a pasted script (paste-a-script spec), so the copilot asks who plays whom. */
+  imported: z.boolean().default(false),
 });
 export type Brief = z.infer<typeof briefSchema>;
 
 const unset = (): Piece => ({ value: "", status: null });
 export const EMPTY_BRIEF: Brief = {
   phase: "pieces", reelNumber: null, format: unset(), occasion: unset(), postDate: "",
-  lead: unset(), leadAvatarId: null, narrative: unset(), angles: [], card: null,
+  lead: unset(), leadAvatarId: null, narrative: unset(), angles: [], card: null, imported: false,
 };
 
 /** The reel's own notes (spec 2 §4.2): the confirmed brief as editable text, and the items the
@@ -51,6 +53,9 @@ export const scriptNotesSchema = z.object({
     id: z.string().min(1).max(16),
     text: z.string().max(500),
     confirmed: z.boolean(),
+    /** A guess's fields (paste-a-script §4.3), as fields.ts paths: changing any of them settles it.
+     *  Absent on items to confirm from the card, which only a tick or the copilot settles. */
+    paths: z.array(z.string().max(120)).max(200).optional(),
   })),
 });
 export type ScriptNotes = z.infer<typeof scriptNotesSchema>;
@@ -66,6 +71,22 @@ export const proposalCardSchema = z.object({
 });
 export type ProposalCard = z.infer<typeof proposalCardSchema>;
 
+/** Paste-a-script spec §3 — a whole script pasted over a draft. It is read first (§8 Q1), so the card
+ *  can say what it holds and accepting is instant; it keeps the read script until the person decides. */
+export const importCardSchema = z.object({
+  kind: z.literal("import"),
+  status: z.enum(["pending", "accepted", "rejected"]),
+  /** "Reel 07 · 9 shots · 50s" */
+  summary: z.string(),
+  /** The draft it would replace: "13 shots · 62s". */
+  replacing: z.string(),
+  doc: scriptDocSchema,
+  notes: scriptNotesSchema,
+  /** The import's reply, posted when the person accepts. */
+  reply: z.string(),
+});
+export type ImportCard = z.infer<typeof importCardSchema>;
+
 export const messageCardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("angles"), angles: z.array(angleSchema) }),
   z.object({
@@ -75,6 +96,7 @@ export const messageCardSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("confirmation"), card: confirmationCardSchema }),
   proposalCardSchema,
+  importCardSchema,
 ]);
 export type MessageCard = z.infer<typeof messageCardSchema>;
 

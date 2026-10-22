@@ -51,7 +51,8 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const groupingVersion = d.groupingVersion;
   const sceneBeats = d.sceneBeats;
   const [focusOpen, setFocusOpen] = useState(false);
-  const [isParsing, setIsParsing] = useState(false);
+  // Set by whoever parses — this node's view, the gallery, the Create-canvas hand-off (D373).
+  const isParsing = useCanvasStore((s) => s.scriptParsing[id] === true);
   const connState = useNodeConnectionState(id, "script");
   const addAvatarNode = useAddAvatarNode();
 
@@ -106,7 +107,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
         onCommitTitle={(t) => updateNodeData(id, { title: t })}
         status={
           isParsing ? (
-            <ProcessingPill processing />
+            <ProcessingPill processing label="Parsing" />
           ) : (
             <div className="flex items-center gap-1">
               <span
@@ -128,6 +129,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
 
       {isParsing ? (
         <div className="space-y-2 px-3 py-3">
+          <p className="text-xs text-muted-foreground">Parsing script…</p>
           <div className="h-2.5 w-3/5 animate-pulse rounded-md bg-muted" />
           <div className="space-y-1.5 pt-0.5">
             <div className="h-1.5 w-full animate-pulse rounded bg-muted/80" />
@@ -178,7 +180,6 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       signalIds={d.signalIds ?? []}
       signalMode={d.signalMode ?? DEFAULT_SIGNAL_MODE}
       onPatch={(patch) => updateNodeData(id, patch)}
-      onParsingChange={setIsParsing}
       onSaveOutput={(output) => saveScriptOutputAction(id, output)}
       onFanOut={() => {
         // fanOutShots reports the outcome itself — including "already on the canvas".

@@ -9,7 +9,7 @@ import { rowToGenerateScript, rowToMessage, type GenerateScriptRow, type ScriptM
 import { fillToFinal } from "@/lib/scripts/copilot/fill-to-final";
 import {
   briefSchema, type Brief, type CopilotAvatar, type GenerateScript, type GenerateState, type MessageCard,
-  type ProposalCard, type ScriptMessage, type ScriptNotes, type ScriptPatch, type UnwrittenScript,
+  type ImportCard, type ProposalCard, type ScriptMessage, type ScriptNotes, type ScriptPatch, type UnwrittenScript,
 } from "@/lib/scripts/copilot/schema";
 
 // Spec 2 (Generate). Every query filters on client_id as well as the script id: withClient
@@ -102,9 +102,9 @@ export async function setMessageCard(clientId: string, scriptId: string, message
   if (error) throw error;
 }
 
-/** Settles a before-and-after card (accepted or rejected) only while it is still pending, so two
+/** Settles a before-and-after or replace card (accepted or rejected) only while it is still pending, so two
  *  accepts racing (two tabs, a retry) cannot both apply it. False when it was already settled. */
-export async function claimProposalCard(clientId: string, scriptId: string, messageId: string, card: ProposalCard): Promise<boolean> {
+export async function claimProposalCard(clientId: string, scriptId: string, messageId: string, card: ProposalCard | ImportCard): Promise<boolean> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("client_script_messages").update({ card })
@@ -129,24 +129,6 @@ export async function listUnwrittenScripts(clientId: string): Promise<UnwrittenS
     const title = b?.card?.title.trim() || b?.occasion.value.trim() || "New script";
     return { id: r.id, title, updatedAt: r.updated_at };
   });
-}
-
-/** Delete from the library: archives a script the copilot has not written yet. One conditional
- *  update, so a draft landing at the same moment wins and nothing is archived. A drafted script
- *  owns storyboards, a review link and an append-only activity log, so it is never deleted here.
- *  False when nothing matched. */
-export async function archiveUnwrittenScript(clientId: string, scriptId: string): Promise<boolean> {
-  if (!isUuid(scriptId)) return false;
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("client_scripts")
-    .update({ archived_at: new Date().toISOString() })
-    .eq("id", scriptId).eq("client_id", clientId).eq("stage", "generate")
-    .is("doc", null).is("archived_at", null)
-    .select("id")
-    .maybeSingle();
-  if (error) throw error;
-  return Boolean(data);
 }
 
 /** Generate → Visualise (spec 2 §10), only for a drafted script still at Generate on the version the

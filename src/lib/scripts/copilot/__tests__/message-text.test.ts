@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { messageParagraphs } from "../message-text";
+import { isLongText, messageParagraphs } from "../message-text";
 import { openingMessage, questionFor } from "../brief";
 
 describe("messageParagraphs", () => {
@@ -22,5 +22,16 @@ describe("messageParagraphs", () => {
     expect(messageParagraphs("I tightened the hook. Want the payoff warmer too?")).toEqual([
       { kind: "text", text: "I tightened the hook. Want the payoff warmer too?" },
     ]);
+  });
+});
+
+describe("isLongText", () => {
+  it("is false for an ordinary message", () => {
+    expect(isLongText("Make the hook punchier")).toBe(false);
+    expect(isLongText("one\ntwo\nthree")).toBe(false);
+  });
+  it("is true past six lines or 600 characters (a pasted script)", () => {
+    expect(isLongText(["1", "2", "3", "4", "5", "6", "7"].join("\n"))).toBe(true);
+    expect(isLongText("x".repeat(601))).toBe(true);
   });
 });

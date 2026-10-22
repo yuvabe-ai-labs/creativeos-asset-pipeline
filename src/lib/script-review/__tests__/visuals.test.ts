@@ -1,6 +1,6 @@
 // src/lib/script-review/__tests__/visuals.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makeAvatar, makeImage } from "@/lib/avatars/__tests__/fixtures";
+import { makeAvatar, makeImage, makeViews } from "@/lib/avatars/__tests__/fixtures";
 import type { Script } from "@/lib/scripts/schema";
 import { AVATAR_ID, reelDoc } from "./fixtures";
 
@@ -66,6 +66,14 @@ describe("toAvatarSnapshot", () => {
     );
     expect(snap.views).toEqual({ front: makeImage().url, left: null, right: null, back: null });
     expect(snap.voice).toEqual({ name: "Kavya", sampleUrl: "https://cdn/kavya.mp3" });
+  });
+
+  it("freezes the one sheet image beside the views, once the views exist (D395)", () => {
+    const sheet = { ...makeImage(), url: "https://cdn/sheet.png" };
+    const withViews = makeAvatar({ sheet, sheetViews: makeViews() });
+    expect(toAvatarSnapshot(withViews).sheet).toBe("https://cdn/sheet.png");
+    // An older single-image sheet with no views is not the four-view sheet the client is shown.
+    expect(toAvatarSnapshot(makeAvatar({ sheet, sheetViews: null })).sheet).toBeNull();
   });
 
   it("keeps a native voice's sample with no name, and no voice when there is none", () => {

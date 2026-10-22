@@ -18,3 +18,9 @@ export function messageParagraphs(content: string): MessageParagraph[] {
       return m ? { kind: "question", question: m[1].trim(), hint: m[2].trim() } : { kind: "text", text };
     });
 }
+
+/** A message long enough to show clipped (a pasted script): the message box and the sent bubble
+ *  show its first few lines, fading out, never the whole script (paste-a-script spec §3). */
+export function isLongText(text: string): boolean {
+  return text.length > 600 || text.split("\n").length > 6;
+}

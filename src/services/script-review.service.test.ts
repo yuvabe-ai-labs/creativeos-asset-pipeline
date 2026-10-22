@@ -29,16 +29,26 @@ describe("scriptReviewService", () => {
       .rejects.toThrow("A newer version was shared. Reload to see it.");
   });
 
-  it("moves into In review with the share scope, and returns the shared version and link token", async () => {
+  it("moves into In review, which shares everything, and returns the shared version and link token", async () => {
     const version = { number: 2, scope: "panels", sharedAt: "t" };
     vi.mocked(fetch).mockResolvedValue(json({ stage: "in_review", version, shareToken: "tok" }));
-    expect(await scriptReviewService.moveStage("c1", "s1", "to_review", "panels")).toEqual({ stage: "in_review", version, shareToken: "tok" });
+    expect(await scriptReviewService.moveStage("c1", "s1", "to_review")).toEqual({ stage: "in_review", version, shareToken: "tok" });
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(url).toBe("/api/clients/c1/scripts/s1/review/stage");
-    expect((init as RequestInit).body).toBe(JSON.stringify({ move: "to_review", scope: "panels" }));
+    expect((init as RequestInit).body).toBe(JSON.stringify({ move: "to_review" }));
   });
 
-  it("moves back without a scope", async () => {
+  // D386: one way to share; the request names no scope, the server freezes everything.
+  it("shares without choosing what the share includes", async () => {
+    const version = { number: 3, scope: "panels", sharedAt: "t" };
+    vi.mocked(fetch).mockResolvedValue(json({ version, shareToken: "tok" }));
+    expect(await scriptReviewService.share("c1", "s1")).toEqual({ version, shareToken: "tok" });
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe("/api/clients/c1/scripts/s1/review/share");
+    expect((init as RequestInit).body).toBe(JSON.stringify({}));
+  });
+
+  it("moves back", async () => {
     vi.mocked(fetch).mockResolvedValue(json({ stage: "visualise" }));
     expect(await scriptReviewService.moveStage("c1", "s1", "back_to_visualise")).toEqual({ stage: "visualise" });
     expect((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body).toBe(JSON.stringify({ move: "back_to_visualise" }));

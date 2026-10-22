@@ -73,8 +73,8 @@ function stripLineComments(source: string): string {
 
 describe("every org-scoped page resolves its org via resolveOrgId(), not caller.orgId", () => {
   const pageFiles = [
-    "src/app/page.tsx",
-    "src/app/clients/[id]/page.tsx",
+    "src/app/(home)/page.tsx",
+    "src/app/clients/[id]/(canvases)/page.tsx",
     "src/app/clients/[id]/kb/page.tsx",
     "src/app/clients/[id]/canvases/[cid]/page.tsx",
     "src/app/eval/[canvasId]/page.tsx",

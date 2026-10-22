@@ -95,3 +95,14 @@ export function inlinePrompt(base: CopilotBase, i: { fieldLabel: string; fieldTe
     ].join("\n\n"),
   };
 }
+
+export function detectPrompt(base: CopilotBase, i: { hasDraft: boolean; text: string }): Prompt {
+  return {
+    system: system(base, "detect"),
+    user: [section("Is there a draft already", i.hasDraft ? "Yes" : "No"), section("The person's message", i.text)].join("\n\n"),
+  };
+}
+
+export function importPrompt(base: CopilotBase, i: { text: string }): Prompt {
+  return { system: system(base, "import"), user: section("The pasted script", i.text) };
+}

@@ -53,7 +53,7 @@ lines: Use exactly these labels, in this order where they apply: "Format", "Post
 - Disclaimers: which apply, and why. ${disclaimerNames}
 Mark each "given" when the person said it and "proposed" when you filled it.
 cast: every person, their role in the reel, exactly one lead, and avatarId when they are one of the client's saved avatars (else null).
-toConfirm: each thing only the person can confirm before the script is final: a post date or festival day you proposed, and each occasion custom you proposed (for example "onion and garlic stay off screen"). Do not list the review; the draft holds a placeholder for it.
+toConfirm: each thing only the person can confirm before the script is final: a post date or festival day you proposed, and each occasion custom you proposed (for example "onion and garlic stay off screen"). Do not list the review; the draft holds a placeholder for it. When there is nothing to confirm, return an empty list, never "None".
 title: from the angle's hook. reelNumber: the brief's, else the next free number given below.
 If the person asked for a change, apply it and keep every other line as it was.`;
 
@@ -88,9 +88,25 @@ reply: one line saying what you changed, or the answer.`;
 const inline = `The person selected part of one field and asked for a change to it. Return only the replacement for the selected text: the rest of the field is not yours to change and is kept as it is. Keep any locked line verbatim. Never write a customer review.
 summary: one short line saying what you changed.`;
 
+const detect = `Decide whether the person's message is a whole reel script to import. A whole script has a series of shots or scenes (a shot table, numbered scenes, a scene-by-scene outline), usually with a title, a header line or character detail.
+Not a whole script: a few shots to add to or change in the existing draft ("add these two shots after the hook"), a brief, notes, a pasted review, a question.
+wholeScript: true only for a whole script.`;
+
+const importScript = `The person pasted a whole reel script. Turn it into this app's script, word for word. For this task the pasted script outranks the rules above, the brand KB and the example scripts wherever they differ: never rewrite it to the house rules, and never add, drop, split or merge anything.
+- Every word goes in as written: the title; purpose; setting and camera; each person's description; every shot's visual, vo and onScreenText; watch-outs; disclaimers with their labels as written ("D4, on the pack end card of every reel. …"); and the header (format, region, postDate, theme, aspect, targetLength, production), each as written. Remove only formatting: table borders, bold and other markdown markers, backslash escapes, stray line breaks. Never fix spelling or wording, typos included.
+- One shot per row or scene of the paste, in order. The number of shots equals the number of rows or scenes.
+- beat and lengthSeconds come from the paste: "HOOK 0-4s" is beat "HOOK" and lengthSeconds 4; "0:04-0:09" is 5. When the paste gives a shot no timing, lengthSeconds is 0; the app estimates it. When the paste has no beat labels at all, label each shot yourself (HOOK, INTRO, …) and set guessed.beats.
+- cast: every person the paste names, with their description as written, and exactly one lead (the one the paste calls the lead, else the one on screen most). onScreen lists the keys of who is on screen in the shot. When nobody is named, return one person named "Narrator" as the lead and set guessed.lead.
+- Square-bracket placeholders stay exactly as written.
+- Anything with no place in these fields (a music cue, a props list, a director's note, a link, a disclaimer this reel does not use) goes into kept, word for word: name says in two or three words what it is ("music cue"), text is the piece as written.
+- A field the paste does not give is "" (an empty list for watchOuts). Never invent it.
+- reelNumber: the reel number the paste gives ("Reel 07" is 7), else null.
+- readable is false only when the message has no shots or scenes to read; then problem says in one sentence what is missing.
+summary: one line describing the script.`;
+
 export const scriptCopilotPrompt = {
   id: "script-copilot",
-  version: 2,
+  version: 3,
   rules,
-  tasks: { extract, angles, card, draft, edit, inline },
+  tasks: { extract, angles, card, draft, edit, inline, detect, import: importScript },
 } as const;

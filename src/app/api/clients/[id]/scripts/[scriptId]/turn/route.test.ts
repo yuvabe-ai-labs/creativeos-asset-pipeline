@@ -50,6 +50,16 @@ describe("POST .../turn", () => {
     expect(vi.mocked(structuredCaller).mock.calls.map((c) => c[0]).sort()).toEqual(["gemini-3.1-pro-preview", "gpt-5.4-mini"]);
   });
 
+  it("takes a pasted script longer than an ordinary message, up to 30,000 characters", async () => {
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
+    const { POST } = await import("./route");
+    expect((await POST(send({ text: "x".repeat(4001) }) as never, { params })).status).toBe(200);
+    expect(vi.mocked(prepareTurn).mock.calls[0][0].text).toHaveLength(4001);
+    const res = await POST(send({ text: "x".repeat(30001) }) as never, { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Keep a message under 30,000 characters.");
+  });
+
   it("passes a lead chip's avatar on to the turn, and drops one that is not an id", async () => {
     vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
     const { POST } = await import("./route");

@@ -5,6 +5,7 @@ import {
   applyNodeChanges,
   type Edge,
   type EdgeRemoveChange,
+  type NodeChange,
   type NodeRemoveChange,
   type OnConnect,
   type OnEdgesChange,
@@ -13,6 +14,7 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { isCollapsibleType, isShotCollapsed, withoutCollapsed } from "@/lib/canvas/shot-collapse";
 import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
@@ -40,6 +42,10 @@ import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
 import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
+import {
+  FAN_OUT_SETTLE_MS, SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, settleFanOutRows, storyboardPanelNodes, type FanOutLayout,
+} from "@/lib/scripts/storyboard-canvas";
+import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -70,9 +76,14 @@ export type CanvasState = {
   onConnect: OnConnect;
   removedNodeIds: string[];
   removedEdgeIds: string[];
+  /** The rows the last storyboard Fan out made, laid out again as their cards are measured
+   *  (settleFanOutRows). Never saved; null once settled, dragged, or timed out. */
+  fanOutLayout: FanOutLayout | null;
   clearRemoved: (nodeIds: string[], edgeIds: string[]) => void;
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
+  /** D387 — collapse or expand Shot / Multishot nodes in one update. Those already in that state are left alone. */
+  setShotsCollapsed: (shotIds: string[], collapsed: boolean) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
   disconnectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
@@ -94,6 +105,12 @@ export type CanvasState = {
   markGenerationStarted: (nodeId: string, kind: GenerationJobKind, generationId?: string) => void;
   clearGenerationStarted: (nodeId: string) => void;
   setGenerationRequestError: (nodeId: string, error: string | null) => void;
+  // Which Script nodes are parsing right now. Whoever runs the parse (the node's own view, the
+  // gallery, the Create-canvas hand-off) sets it, and the node and its view both read it (D373).
+  // A parse is a request, not a generation, so it has no feed row: this flag is client state,
+  // never saved, so a closed tab cannot leave a node "parsing".
+  scriptParsing: Record<string, true>;
+  setScriptParsing: (nodeId: string, parsing: boolean) => void;
   // Generation Tray — live job rows for this canvas (fed by the tray's Realtime hook),
   // keyed by generation id. The tray derives its list from these + the node graph (D9).
   trayJobs: Record<string, GenerationFeedRow>;
@@ -152,6 +169,8 @@ function defaultData(type: string): AppNode["data"] {
       return { title: "", modelId: COMPOSITE_DEFAULT_MODEL_ID };
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
+    case "dubbing":
+      return { title: "" };
     case "post":
       // 4:5 portrait, not square: it's Instagram's best-performing feed size and takes the
       // most vertical space in the feed. Only affects NEW nodes — resolveFormat's fallback
@@ -169,18 +188,39 @@ export function createCanvasStore(
   initialEdges: Edge[] = [],
   initialCanvasName: string = "",
 ) {
+  // D382 amended — while a storyboard Fan out's rows are fresh, a card that reports a new size
+  // (first render, or its panel image loading) lays those rows out again from what rendered. A
+  // drag of any of them hands the layout to the person. Only the layout's own nodes are looked
+  // at, and nothing is written when nothing moves (performance rules 2 and 4).
+  const settleFanOut = (
+    nodes: AppNode[],
+    changes: NodeChange<AppNode>[],
+    layout: FanOutLayout | null,
+  ): { nodes: AppNode[]; layout: FanOutLayout | null } => {
+    if (!layout) return { nodes, layout };
+    const ids = new Set(layout.rows.flatMap((r) => [r.shotId, ...r.panelIds]));
+    if (changes.some((c) => c.type === "position" && c.dragging && ids.has(c.id))) return { nodes, layout: null };
+    if (!changes.some((c) => c.type === "dimensions" && ids.has(c.id))) return { nodes, layout };
+    const mine = new Map(nodes.filter((n) => ids.has(n.id)).map((n) => [n.id, n]));
+    const moves = settleFanOutRows(mine, layout);
+    if (moves.size === 0) return { nodes, layout };
+    return { nodes: nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)), layout };
+  };
+
   return createStore<CanvasState>((set, get) => ({
     canvasName: initialCanvasName,
     nodes: initialNodes,
     edges: initialEdges,
     removedNodeIds: [],
     removedEdgeIds: [],
+    fanOutLayout: null,
     onNodesChange: (changes) => {
       const removedIds = new Set(
         changes.filter((c): c is NodeRemoveChange => c.type === "remove").map((c) => c.id),
       );
       if (removedIds.size === 0) {
-        set({ nodes: applyNodeChanges(changes, get().nodes) });
+        const settled = settleFanOut(applyNodeChanges(changes, get().nodes), changes, get().fanOutLayout);
+        set(settled.layout === get().fanOutLayout ? { nodes: settled.nodes } : { nodes: settled.nodes, fanOutLayout: settled.layout });
         return;
       }
       const cascadedEdges = get().edges.filter(
@@ -297,6 +337,22 @@ export function createCanvasStore(
         ),
       });
     },
+    setShotsCollapsed: (shotIds, collapsed) => {
+      // Saved as a flag on the Shot (expanding removes it); what hides is derived from the graph.
+      const ids = new Set(shotIds);
+      const changes = get().nodes.filter(
+        (n) => ids.has(n.id) && isCollapsibleType(n.type) && isShotCollapsed(n) !== collapsed,
+      );
+      if (changes.length === 0) return; // never replace the array when nothing changed
+      const changed = new Set(changes.map((n) => n.id));
+      set({
+        nodes: get().nodes.map((n) => {
+          if (!changed.has(n.id)) return n;
+          const data = n.data as Record<string, unknown>;
+          return { ...n, data: collapsed ? { ...data, collapsed: true } : withoutCollapsed(data) } as AppNode;
+        }),
+      });
+    },
     connectNodes: (sourceId, targetId) => {
       // D298 — the gallery's path keeps one presenter per script too, announced once, here.
       const replaced = replacedPresenterEdges(get().nodes, get().edges, sourceId, targetId);
@@ -352,7 +408,7 @@ export function createCanvasStore(
         }
         const { node: newNode } = await res.json() as { node: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null } };
 
-        const data = { ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) };
+        const data = withoutCollapsed({ ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) });
 
         // Copy only the INCOMING connections (parent → node) so the copy inherits
         // the same inputs/context. Outgoing edges (node → child) are intentionally
@@ -440,7 +496,7 @@ export function createCanvasStore(
         const sourceById = new Map(get().nodes.map((n) => [n.id, n]));
         const newAppNodes = newNodes.map((newNode) => {
           const source = newNode.sourceId ? sourceById.get(newNode.sourceId) : undefined;
-          const data = { ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) };
+          const data = withoutCollapsed({ ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) });
           return {
             ...(source as Partial<AppNode> ?? {}),
             id: newNode.id,
@@ -476,6 +532,10 @@ export function createCanvasStore(
     //
     // INCREMENTAL. A generation already on canvas is skipped, so pressing Fan out twice does
     // nothing the second time instead of duplicating the whole row.
+    //
+    // With an approved storyboard (D382) each NEW node also gets its panel, wired into its image
+    // handle. Only new nodes: a re-run never adds a second panel, and one the person deleted
+    // stays deleted (spec A5).
     fanOutShots: (scriptNodeId) => {
       const script = get().nodes.find((n) => n.id === scriptNodeId);
       if (!script) return;
@@ -485,12 +545,16 @@ export function createCanvasStore(
         groupModes?: Record<string, boolean>;
         groupingVersion?: GroupingVersion;
         sceneBeats?: SceneBeatCache;
+        storyboard?: ScriptStoryboard;
       };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
       if (shots.length === 0) return;
 
       const scriptTitle = data.title || parsed?.title || "";
+      // D382 — with an approved storyboard each shot gets its panel underneath, so rows need room.
+      const storyboardPanels = data.storyboard?.panels;
+      const pitch = storyboardPanels?.length ? STORYBOARD_ROW_PITCH : SHOT_ROW_PITCH;
       const generations = describeGenerations(
         shots,
         data.groupModes,
@@ -532,7 +596,7 @@ export function createCanvasStore(
       );
       const baseY =
         seeded.length > 0
-          ? Math.max(...seeded.map((n) => n.position.y)) + 170
+          ? Math.max(...seeded.map((n) => n.position.y)) + pitch
           : script.position.y;
       const baseX = script.position.x + 360;
 
@@ -542,7 +606,7 @@ export function createCanvasStore(
           shotIndexes: generation.shotIndexes,
           scriptTitle,
         };
-        const position = { x: baseX, y: baseY + i * 170 };
+        const position = { x: baseX, y: baseY + i * pitch };
         const groupShots = generation.shotIndexes.map((shotIndex) => shots[shotIndex]);
 
         if (generation.multishot) {
@@ -607,11 +671,29 @@ export function createCanvasStore(
         source: scriptNodeId,
         target: n.id,
       }));
+      const panels = storyboardPanelNodes(created, shots, storyboardPanels);
+      // D382 amended — the rows just made are laid out again from their measured sizes as they
+      // render (settleFanOut), for long enough that every panel image has loaded.
+      const fanOutLayout: FanOutLayout | null = panels.nodes.length > 0
+        ? {
+            top: baseY,
+            rows: created.map((n) => ({
+              shotId: n.id,
+              panelIds: panels.edges.filter((e) => e.target === n.id).map((e) => e.source),
+            })),
+          }
+        : null;
 
       set({
-        nodes: [...get().nodes, ...created],
-        edges: [...get().edges, ...createdEdges],
+        nodes: [...get().nodes, ...created, ...panels.nodes],
+        edges: [...get().edges, ...createdEdges, ...panels.edges],
+        fanOutLayout,
       });
+      if (fanOutLayout) {
+        setTimeout(() => {
+          if (get().fanOutLayout === fanOutLayout) set({ fanOutLayout: null });
+        }, FAN_OUT_SETTLE_MS);
+      }
 
       // The ONLY fan-out toast (BUG-007: the Script node used to add its own, counting script
       // rows). It counts nodes created — one per generation — which is what "clip" means in Help.
@@ -770,6 +852,15 @@ export function createCanvasStore(
       set((s) => {
         const rest = omitKey(s.generationRequestErrors, nodeId);
         return { generationRequestErrors: error ? { ...rest, [nodeId]: error } : rest };
+      }),
+
+    scriptParsing: {},
+    setScriptParsing: (nodeId, parsing) =>
+      set((s) => {
+        if (parsing) return { scriptParsing: { ...s.scriptParsing, [nodeId]: true } };
+        const rest = { ...s.scriptParsing };
+        delete rest[nodeId];
+        return { scriptParsing: rest };
       }),
 
     trayJobs: {},

@@ -1,16 +1,21 @@
 import { cn } from "@/lib/utils";
 import type { CopilotAvatar, ScriptMessage } from "@/lib/scripts/copilot/schema";
-import { messageParagraphs } from "@/lib/scripts/copilot/message-text";
+import { isLongText, messageParagraphs } from "@/lib/scripts/copilot/message-text";
 import { CopilotResearchCard, researchRows } from "./copilot-research-card";
 import { CopilotAnglesCard } from "./copilot-angles-card";
 import { CopilotConfirmationCard } from "./copilot-confirmation-card";
 import { CopilotProposalCard } from "./copilot-proposal-card";
+import { CopilotImportCard } from "./copilot-import-card";
 
 export type ChatActions = {
   busy: boolean;
+  /** The first draft is being written, its skeleton on the right (D367). */
+  writing?: boolean;
   /** `leadAvatarId` when a lead chip sends the message (D362). */
   send: (text: string, leadAvatarId?: string) => void;
   resolve: (messageId: string, decision: "accept" | "reject") => void;
+  /** Links an avatar to a character, from a chip after an import (paste-a-script §4.3). */
+  link: (castId: string, avatarId: string) => void;
 };
 
 export function CopilotChatMessage({ message, actions, avatars }: { message: ScriptMessage; actions: ChatActions; avatars: CopilotAvatar[] }) {
@@ -22,7 +27,7 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
   return (
     <li className={cn("flex flex-col gap-2", mine ? "items-end" : "items-start")}>
       {message.content && (mine ? (
-        <div className="max-w-[92%] whitespace-pre-wrap rounded-2xl bg-muted px-3.5 py-2.5 text-sm leading-relaxed">{message.content}</div>
+        <PersonText content={message.content} />
       ) : (
         <CopilotText content={message.content} />
       ))}
@@ -30,6 +35,7 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
       {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} disabled={actions.busy} onPick={(id) => actions.send(`Go with ${id}.`)} />}
       {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={actions.busy} onWrite={() => actions.send("Write it.")} />}
       {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
+      {card?.kind === "import" && <CopilotImportCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
     </li>
   );
 }
@@ -49,6 +55,22 @@ function CopilotText({ content }: { content: string }) {
           <p key={i} className="whitespace-pre-wrap">{p.text}</p>
         ),
       )}
+    </div>
+  );
+}
+
+/** The person's words. A pasted script shows its first lines, fading out, as in the message box. */
+function PersonText({ content }: { content: string }) {
+  const long = isLongText(content);
+  return (
+    <div
+      data-clipped={long}
+      className={cn(
+        "max-w-[92%] whitespace-pre-wrap rounded-2xl bg-muted px-3.5 py-2.5 text-sm leading-relaxed",
+        long && "max-h-40 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_55%,transparent)]",
+      )}
+    >
+      {content}
     </div>
   );
 }

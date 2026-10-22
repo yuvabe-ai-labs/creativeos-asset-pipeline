@@ -1,10 +1,9 @@
 import {
-  AVATAR_DESCRIPTION_MAX,
-  AVATAR_FRONT_ASPECT, AVATAR_NAME_MAX, AVATAR_STORY_MAX,
+  AVATAR_FRONT_ASPECT, AVATAR_NAME_MAX, AVATAR_STORY_MAX, type AvatarAttributes,
 } from "@/lib/avatars/constants";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
-import { hasFourViews, missingViews, needsLikenessConsent } from "@/lib/avatars/utils";
-import type { Avatar, AvatarViewId } from "@/lib/avatars/schema";
+import { hasFourViews, needsLikenessConsent } from "@/lib/avatars/utils";
+import type { Avatar } from "@/lib/avatars/schema";
 import { formatDate } from "@/lib/kb/utils";
 import type { CastMember } from "@/lib/scripts/schema";
 import { VISUALISE_AVATAR_MODEL_ID } from "./constants";
@@ -15,22 +14,21 @@ import { VISUALISE_AVATAR_MODEL_ID } from "./constants";
 
 export type MakerStep = "face" | "views" | "save";
 
+/** What the front route draws a face from. */
+export type FrontInput = { description: string; attributes: AvatarAttributes };
+
 export type MakerDeps = {
   /** Creates a draft avatar and links it to the cast member. */
   createAndLink: (fields: { name: string; story: string }) => Promise<Avatar>;
-  generateFront: (avatarId: string, description: string) => Promise<{ generationId: string }>;
+  /** D395 — the cast member and these instructions as a clean character brief (server-side). */
+  describe: (instructions: string) => Promise<FrontInput>;
+  generateFront: (avatarId: string, front: FrontInput) => Promise<{ generationId: string }>;
   pickFront: (avatarId: string, generationId: string) => Promise<Avatar>;
-  /** Makes these views; the sheet route makes all four anyway when the views show an older front. */
-  generateViews: (avatarId: string, views: AvatarViewId[]) => Promise<Avatar>;
+  /** D395 — makes the one turnaround sheet and the four views cut from it. */
+  generateViews: (avatarId: string) => Promise<Avatar>;
   markReady: (avatarId: string) => Promise<Avatar>;
   onStep: (step: MakerStep) => void;
 };
-
-/** The words a generated face is made from: the person as the script describes them, then the
- *  operator's instructions ("Greyer at the temples"), cut to what the front route accepts. */
-export function avatarDescriptionFor(member: CastMember, instructions: string): string {
-  return [member.description.trim() || member.name, instructions.trim()].filter(Boolean).join(" ").slice(0, AVATAR_DESCRIPTION_MAX);
-}
 
 export function avatarFieldsFor(member: CastMember): { name: string; story: string } {
   return { name: member.name.slice(0, AVATAR_NAME_MAX), story: member.description.slice(0, AVATAR_STORY_MAX) };
@@ -62,9 +60,7 @@ export async function finishAvatar(d: MakerDeps, avatar: Avatar): Promise<Avatar
   let current = avatar;
   if (!hasFourViews(current)) {
     d.onStep("views");
-    // Only the gaps: a retry after one failed view costs one view, as the button says, and keeps
-    // the three good ones (review of D340).
-    current = await d.generateViews(current.id, missingViews(current));
+    current = await d.generateViews(current.id);
     if (!hasFourViews(current)) throw new Error("A view is still missing. Make the four views again.");
   }
   if (current.status !== "ready") {
@@ -74,9 +70,9 @@ export async function finishAvatar(d: MakerDeps, avatar: Avatar): Promise<Avatar
   return current;
 }
 
-/** AI-generated: one face from the description and instructions, its four views, then saved.
- *  `fresh` (Regenerate avatar) always makes a new face; otherwise the run resumes from the
- *  first step not done. */
+/** AI-generated: one face from the character brief (the script's person and the operator's
+ *  instructions, D395), its four views, then saved. `fresh` (Regenerate avatar) always makes a
+ *  new face; otherwise the run resumes from the first step not done. */
 export async function makeGeneratedAvatar(
   d: MakerDeps,
   input: { member: CastMember; avatar: Avatar | null; instructions: string; fresh: boolean },
@@ -87,7 +83,7 @@ export async function makeGeneratedAvatar(
   if (needsFace) d.onStep("face");
   let avatar = reusable ?? (await d.createAndLink(avatarFieldsFor(input.member)));
   if (needsFace) {
-    const { generationId } = await d.generateFront(avatar.id, avatarDescriptionFor(input.member, input.instructions));
+    const { generationId } = await d.generateFront(avatar.id, await d.describe(input.instructions));
     avatar = await d.pickFront(avatar.id, generationId);
   }
   return finishAvatar(d, avatar);
@@ -102,9 +98,9 @@ export function castSlotLine(avatar: Avatar | null): string {
   return hasFourViews(avatar) ? made : `${made} · needs its four views`;
 }
 
-/** What Make avatar costs: one face, then four views. */
+/** What Make avatar costs: one face, then one sheet. */
 export function estimateMakeCredits(modelId: string = VISUALISE_AVATAR_MODEL_ID): number | null {
   const face = estimateAvatarImageCredits({ modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
-  const views = estimateSheetCredits(modelId, 4);
-  return face === null || views === null ? null : face + views;
+  const sheet = estimateSheetCredits(modelId);
+  return face === null || sheet === null ? null : face + sheet;
 }

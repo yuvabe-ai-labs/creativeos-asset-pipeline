@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   FileInput,
   ExternalLink,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -73,7 +74,14 @@ import { useRailDisconnect } from "./use-rail-disconnect";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
-import { PromptVersionChips } from "./prompt-version-chips";
+import { PromptHistoryPane } from "./prompt-history-pane";
+import { VersionStepper } from "./version-stepper";
+import { VersionViewingBar } from "./version-viewing-bar";
+import { VersionOutputEmpty } from "./version-output-empty";
+import { ActiveOnlyNotice } from "./active-only-notice";
+import { RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import { useVersionViewing } from "@/hooks/use-version-viewing";
+import { versionLabelsById } from "@/lib/generations/version-labels";
 import {
   splitSentenceBeats,
   segmentByTerms,
@@ -154,6 +162,11 @@ export function PromptFocusView({
     NodeVersionsResponse<VersionSummary> | undefined
   >(undefined);
   const [restoring, setRestoring] = useState(false);
+  // D383 — the version on screen (this view had chips only, and no History tab).
+  const viewing = useVersionViewing(versions, activeVersionId, open);
+  const labelById = versionLabelsById(versions);
+  const viewed = viewing.viewed;
+  const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
   // Seeded from `open`, not `false` — see the note in video-prompt-focus-view.tsx: a node
   // created by the guided button mounts with its focus view already open, so the false → true
   // transition the seed block arms on never happens and the panel showed its empty state
@@ -222,7 +235,7 @@ export function PromptFocusView({
   }
 
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
-  const isNodeSelected = !["prompt", "details", "request"].includes(selected);
+  const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
     ? preview.connected.find((c) => c.nodeId === selected) ?? null
     : null;
@@ -519,11 +532,42 @@ export function PromptFocusView({
     onPatch({ kbSlices: next });
   }
 
-  const activeRequest =
-    versions.find((v) => v.id === activeVersionId)?.inputsUsed?.request ?? null;
+  // "Sent to model" reports on the version on screen (D383).
+  const shownRequest = viewed?.inputsUsed?.request ?? null;
 
   const reviewBadge =
     mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
+
+  const renderBeats = (text: string) => (
+    <span className="block space-y-2.5">
+      {splitSentenceBeats(text).map((beat, i) => (
+        <span key={i} className="block">
+          {segmentByTerms(beat, highlightTerms).map((seg, j) =>
+            seg.highlighted ? (
+              <span key={j} className="rounded bg-primary/10 px-0.5 font-bold">{seg.text}</span>
+            ) : (
+              <span key={j}>{seg.text}</span>
+            ),
+          )}
+        </span>
+      ))}
+    </span>
+  );
+  const renderVersionOutput = (v: { output: string | null }) => (
+    <div className="max-w-[65ch] rounded-xl p-4 text-base leading-7">{renderBeats(v.output ?? "")}</div>
+  );
+  const viewingBar =
+    viewing.isViewingOther && viewed ? (
+      <VersionViewingBar
+        viewedLabel={viewedLabel}
+        viewedCreatedAt={viewed.createdAt}
+        activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
+        canRestore={editable && !viewed.error && Boolean(viewed.output)}
+        restoring={restoring}
+        onBack={viewing.backToActive}
+        onRestore={() => void handleRestoreVersion(viewed.id)}
+      />
+    ) : null;
 
   return (
     <Sheet
@@ -624,6 +668,12 @@ export function PromptFocusView({
 
             <div className="mx-2.5 my-2 h-px bg-border" />
             <RailItem
+              icon={<History className="size-4 text-primary" />}
+              label="History"
+              active={selected === "history"}
+              onClick={() => setSelected("history")}
+            />
+            <RailItem
               icon={<SlidersHorizontal className="size-4 text-primary" />}
               label="Details"
               active={selected === "details"}
@@ -700,11 +750,12 @@ export function PromptFocusView({
 
                     {/* Generate — flows after the controls, reached via the scrollbar */}
                     <div className="border-t border-border px-6 py-4">
+                      {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                       <Button
                         className="w-full"
                         size="default"
                         onClick={runGenerate}
-                        disabled={generating || !editable}
+                        disabled={generating || !editable || viewing.isViewingOther}
                       >
                         <Sparkles className="size-4" />
                         {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
@@ -727,13 +778,14 @@ export function PromptFocusView({
                           <Sparkles className="size-3.5 text-primary" />
                           <span className="text-eyebrow">Generated prompt</span>
                         </div>
-                        <PromptVersionChips
-                          versions={versions}
-                          activeVersionId={activeVersionId}
-                          restoring={restoring}
-                          onSwitch={handleRestoreVersion}
-                        />
+                        <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
                       </div>
+                      {viewingBar}
+
+                      {viewing.isViewingOther && viewed ? (
+                        viewed.output ? renderVersionOutput(viewed) : <VersionOutputEmpty noun="prompt" />
+                      ) : (
+                        <>
 
                       {mode === "skeleton" && (
                         <div className="space-y-2.5 pt-1">
@@ -774,23 +826,7 @@ export function PromptFocusView({
                             onCommit={setDraft}
                             readOnly={!editable}
                             placeholder="Empty — click to edit"
-                            renderDisplay={(text) => (
-                              <span className="block space-y-2.5">
-                                {splitSentenceBeats(text).map((beat, i) => (
-                                  <span key={i} className="block">
-                                    {segmentByTerms(beat, highlightTerms).map((seg, j) =>
-                                      seg.highlighted ? (
-                                        <span key={j} className="rounded bg-primary/10 px-0.5 font-bold">
-                                          {seg.text}
-                                        </span>
-                                      ) : (
-                                        <span key={j}>{seg.text}</span>
-                                      ),
-                                    )}
-                                  </span>
-                                ))}
-                              </span>
-                            )}
+                            renderDisplay={renderBeats}
                             className="min-h-64 max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
                           />
                           <div className="flex shrink-0 items-center gap-2 self-start">
@@ -805,9 +841,25 @@ export function PromptFocusView({
                           </div>
                         </>
                       )}
+                        </>
+                      )}
                     </div>
                 </div>
               </div>
+            )}
+
+            {selected === "history" && (
+              <PromptHistoryPane
+                versions={versions}
+                activeVersionId={activeVersionId}
+                viewing={viewing}
+                outputLabel="Generated prompt"
+                outputIcon={<Sparkles className="size-3.5 text-primary" />}
+                renderVersionOutput={renderVersionOutput}
+                canRestore={editable}
+                restoring={restoring}
+                onRestore={(id) => void handleRestoreVersion(id)}
+              />
             )}
 
             {/* Details — Brand KB + Review (eval, approval) */}
@@ -836,11 +888,12 @@ export function PromptFocusView({
                 <LeftSection icon={BadgeCheck} label="Review">
                   {mode === "result" && !!activeVersionId ? (
                     <div className="flex flex-col gap-3">
+                      {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                       <InlineEvalBar
                         decision={evalDecision}
                         note={evalNote}
                         saving={evalSaving}
-                        visible={mode === "result" && !!activeVersionId}
+                        visible={mode === "result" && !!activeVersionId && !viewing.isViewingOther}
                         onDecision={handleEvalDecision}
                         onNote={setEvalNote}
                         onNoteBlur={handleEvalNoteBlur}
@@ -851,7 +904,7 @@ export function PromptFocusView({
                         saving={approvalSaving}
                         // R7.1/D160: not gated on `editable` — approval writes only to
                         // node_versions, outside what the D33 lock serialises.
-                        canApprove={identity?.role === "senior"}
+                        canApprove={identity?.role === "senior" && !viewing.isViewingOther}
                         onSet={saveApproval}
                         approvedByName={approvedByName}
                         approvedAt={approvedAt}
@@ -869,8 +922,8 @@ export function PromptFocusView({
             {/* Sent to model — the exact request the active version sent (standalone) */}
             {selected === "request" && (
               <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
-                {activeRequest ? (
-                  <ModelRequestPanel request={activeRequest} />
+                {shownRequest ? (
+                  <ModelRequestPanel request={shownRequest} />
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     No request recorded for this version — generate a prompt to capture the

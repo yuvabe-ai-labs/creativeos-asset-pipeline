@@ -188,8 +188,8 @@ export function useCopilotChat(canvasId: string) {
   // RECIPE — wire @from… → @to. Cheap/reversible/structural → runs instantly (no gate).
   // Validation lives here because store.connectNodes is a dumb addEdge (no rule check).
   function connectHandles(fromHandles: string[], toHandle: string) {
-    const { nodes, connectNodes } = storeApi.getState();
-    const plan = planConnections(fromHandles, toHandle, nodes);
+    const { nodes, edges, connectNodes } = storeApi.getState();
+    const plan = planConnections(fromHandles, toHandle, nodes, edges);
     if (!plan.target) {
       setMessages((m) => [...m, { role: "assistant", content: `I couldn't find a node called ${toHandle}.` }]);
       return;

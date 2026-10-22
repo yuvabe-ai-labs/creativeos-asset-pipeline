@@ -20,7 +20,7 @@ export function ScriptDocumentSkeleton({
           that is about to replace a document already on screen. */}
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 aria-hidden className="size-4 animate-spin text-primary" strokeWidth={1.5} />
-        {reextracting ? "Reading the script again…" : "Reading the script…"}
+        {reextracting ? "Reading the script again…" : "Parsing script…"}
       </p>
 
       {/* title + eyebrow */}

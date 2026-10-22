@@ -1,5 +1,5 @@
 import type { XYPosition } from "@xyflow/react";
-import { canConnect, type AppNode } from "@/lib/canvas-nodes";
+import { canAcceptIncoming, canConnect, type AppNode } from "@/lib/canvas-nodes";
 import { nodeHandle } from "@/lib/nodes/describe-node";
 
 // The action the copilot's `/api/copilot/actions` call may return — a DECISION the
@@ -79,6 +79,7 @@ export function planConnections(
   fromHandles: string[],
   toHandle: string,
   nodes: AppNode[],
+  edges: readonly { target: string }[] = [],
 ): ConnectPlan {
   const target = resolveNodeTarget(nodes, toHandle);
   const plan: ConnectPlan = { target, wired: [], rejected: [], unknown: [] };
@@ -87,6 +88,8 @@ export function planConnections(
     const source = resolveNodeTarget(nodes, handle);
     if (!source) plan.unknown.push(handle);
     else if (!canConnect(source.type ?? "", target.type ?? "")) plan.rejected.push({ handle });
+    // D374 — a one-input target (Dubbing) is full once an edge, or an earlier source in this batch, took it.
+    else if (!canAcceptIncoming(target.type ?? "", edges.filter((e) => e.target === target.id).length + plan.wired.length)) plan.rejected.push({ handle });
     else plan.wired.push({ handle, sourceId: source.id });
   }
   return plan;

@@ -1,4 +1,5 @@
 import { readJson } from "./read-json";
+import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
 
 /** D366 — a started background generation; its result arrives through the node's status. */
 export type StartedGeneration = { generationId: string };
@@ -27,6 +28,16 @@ class NodeGenerationService {
   /** Composite: generate or edit. Answers once the job is started (202). */
   async startComposite(nodeId: string, body: Record<string, unknown>): Promise<StartedGeneration> {
     return readJson<StartedGeneration>(await post(`/api/nodes/${nodeId}/composite-generate`, body), "Generation failed");
+  }
+
+  /** Dubbing node (D374): dub the connected take. Answers once the job is started (202). */
+  async startDub(nodeId: string, body: { language: DubLanguage; style: DubStyle; voice: DubVoiceChoice; pace: DubPace }): Promise<StartedGeneration> {
+    return readJson<StartedGeneration>(await post(`/api/nodes/${nodeId}/dub`, body), "Couldn't start the dub.");
+  }
+
+  /** Dubbing node (D375): lip-sync the active dub. */
+  async startLipSync(nodeId: string, body: { versionId: string }): Promise<StartedGeneration> {
+    return readJson<StartedGeneration>(await post(`/api/nodes/${nodeId}/lip-sync`, body), "Couldn't start lip sync.");
   }
 
   async restoreVersion(nodeId: string, versionId: string): Promise<RestoredVersion> {

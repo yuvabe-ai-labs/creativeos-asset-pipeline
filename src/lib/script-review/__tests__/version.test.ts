@@ -62,6 +62,12 @@ describe("diffVersions", () => {
     expect(describeChanges(diffVersions(prev, next))).toBe("S7 revised");
   });
 
+  it("does not count the sheet appearing in a snapshot as a change: it follows the views (D395)", () => {
+    const prev = content({ scope: "avatars", visuals: { avatars: { meenakshi: avatarSnapshot() }, panels: {} } });
+    const next = content({ scope: "avatars", visuals: { avatars: { meenakshi: { ...avatarSnapshot(), sheet: "https://cdn/sheet.png" } }, panels: {} } });
+    expect(diffVersions(prev, next)).toEqual([]);
+  });
+
   it("counts new avatar images as a change to that cast member when both shares had avatars", () => {
     const prev = content({ scope: "avatars", visuals: { avatars: { meenakshi: avatarSnapshot({ front: "f1" }) }, panels: {} } });
     const next = content({ scope: "avatars", visuals: { avatars: { meenakshi: avatarSnapshot({ front: "f2" }) }, panels: {} } });

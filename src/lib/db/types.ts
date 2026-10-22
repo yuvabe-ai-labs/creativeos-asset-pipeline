@@ -69,6 +69,8 @@ export type CanvasRow = {
   viewport: { x: number; y: number; zoom: number };
   created_at: string;
   updated_at: string;
+  /** D372 — the approved script this canvas was created from (one canvas per script). */
+  source_script_id: string | null;
   // D33 pessimistic lock — null when no one holds it.
   editing_session_id: string | null;
   editing_name: string | null;
@@ -128,7 +130,7 @@ export type GenerationRow = {
   script_id?: string | null;
   org_id: string; // RLS backstop (D78), added in migration 0014
   client_id: string | null; // forward-looking, added in 0016 — nullable, not backfilled
-  type: "image" | "video" | "prompt" | "voice";
+  type: "image" | "video" | "prompt" | "voice" | "dub" | "lipsync";
   status: "running" | "succeeded" | "failed";
   provider_job_id: string | null;
   model_used: string | null;

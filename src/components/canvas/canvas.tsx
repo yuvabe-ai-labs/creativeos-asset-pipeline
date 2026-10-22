@@ -19,7 +19,7 @@ import {
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
-import { canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
+import { canAcceptIncoming, canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { fileNodeService } from "@/services/file-node.service";
@@ -39,6 +39,7 @@ import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { CompositeNode } from "@/components/nodes/composite-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
+import { DubbingNode } from "@/components/nodes/dubbing-node";
 import { PostNode } from "@/components/nodes/post-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { useAnyFocusViewOpen } from "@/hooks/use-focus-view-open";
@@ -46,6 +47,11 @@ import { CanvasAutosave } from "./canvas-autosave";
 import { ConnectionBadge } from "./connection-badge";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
+import { highlightedEdgeIds } from "@/lib/canvas/connection-focus";
+import { reroutedMembers } from "@/lib/canvas/shot-collapse";
+import { useShotCollapse } from "./use-shot-collapse";
+import { ShotHiddenCountProvider } from "./shot-collapse-context";
+import { CollapseShotsPanel } from "./collapse-shots-panel";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
@@ -62,6 +68,7 @@ import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { useDeleteConfirmation } from "@/hooks/use-delete-confirmation";
 import { CanvasKBStatus, CanvasKBBadge } from "./canvas-kb-status";
 import { GalleryDrawerIntegration } from "./gallery-drawer-integration";
+import { AddScriptFromUrl } from "./add-script-from-url";
 import { ReviewDrawer } from "./review-drawer/review-drawer";
 import type { GalleryPaneDropHandlers } from "@/hooks/use-gallery-pane-drop";
 import type { ClientKBJobRow } from "@/lib/db/types";
@@ -82,12 +89,14 @@ const nodeTypes: NodeTypes = {
   composite: CompositeNode,
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
+  dubbing: DubbingNode,
   post: PostNode,
   "client-review": ClientReviewNode,
 };
 
 // The node types whose focus view opens on a version history — what hovering one prefetches.
 const VERSIONED_NODE_TYPES = new Set([
+  "dubbing",
   "prompt",
   "multishot-prompt",
   "image-gen",
@@ -97,6 +106,8 @@ const VERSIONED_NODE_TYPES = new Set([
 ]);
 // How long the pointer must rest on a node before its versions are prefetched.
 const HOVER_PREFETCH_DELAY_MS = 200;
+// How far out the canvas zooms: 20%, so a canvas of many nodes fits on one screen.
+const MIN_ZOOM = 0.2;
 
 export function Canvas({
   canvasId,
@@ -375,6 +386,8 @@ export function Canvas({
       const target = nodes.find((n) => n.id === connection.target);
       if (!source || !target) return false;
       if (!canConnect(source.type ?? "", target.type ?? "")) return false;
+      const incoming = edges.filter((e) => e.target === connection.target).length;
+      if (!canAcceptIncoming(target.type ?? "", incoming)) return false;
       // script → prompt: one script can only wire to a single prompt
       if (source.type === "script" && target.type === "prompt") {
         const alreadyConnected = edges.some(
@@ -414,22 +427,42 @@ export function Canvas({
     for (const n of nodes) m.set(n.id, n.type);
     return m;
   }, [nodes]);
+  // Selecting a node highlights everything that feeds it, all the way up the chain, plus its
+  // own outgoing connections; selecting a connection highlights just that one. Nothing else
+  // changes — a lit connection keeps its layer, so it still runs behind the nodes it passes.
+  const highlighted = useMemo(() => highlightedEdgeIds(nodes, edges), [nodes, edges]);
+  // D387 — collapsed shots: their own nodes hidden, lines to them redrawn to the Shot.
+  const collapse = useShotCollapse(nodes, edges);
   const displayEdges = useMemo(
     () =>
-      edges.map((e) =>
-        nodeTypeById.get(e.source) === "script" &&
-        nodeTypeById.get(e.target) === "shot"
-          ? {
-              ...e,
-              animated: true,
-              style: {
-                strokeDasharray: "6 4",
-                stroke: "var(--muted-foreground)",
-              },
-            }
-          : e,
-      ),
-    [edges, nodeTypeById],
+      collapse.edges.map((e) => {
+        const lineage =
+          nodeTypeById.get(e.source) === "script" && nodeTypeById.get(e.target) === "shot";
+        // A redrawn line lights up when any connection it stands for does.
+        const members = reroutedMembers(e);
+        const lit = highlighted.has(e.id) || members.some((id) => highlighted.has(id));
+        if (members.length > 0) {
+          return {
+            ...e,
+            labelStyle: { fill: "var(--muted-foreground)", fontSize: 11, fontWeight: 500 },
+            labelBgStyle: { fill: "var(--card)", stroke: "var(--border)" },
+            labelBgPadding: [6, 3] as [number, number],
+            labelBgBorderRadius: 4,
+            style: { ...e.style, ...(lit ? { stroke: "var(--primary)", strokeWidth: 2 } : null) },
+          };
+        }
+        if (!lineage && !lit) return e;
+        return {
+          ...e,
+          animated: lineage || e.animated,
+          style: {
+            ...e.style,
+            ...(lineage ? { strokeDasharray: "6 4", stroke: "var(--muted-foreground)" } : null),
+            ...(lit ? { stroke: "var(--primary)", strokeWidth: 2 } : null),
+          },
+        };
+      }),
+    [collapse.edges, nodeTypeById, highlighted],
   );
 
   return (
@@ -439,6 +472,7 @@ export function Canvas({
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
+    <ShotHiddenCountProvider value={collapse.hiddenCounts}>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
@@ -451,6 +485,9 @@ export function Canvas({
 
       {/* Headless KB status subscriber — drives kbStatus in the canvas store */}
       <CanvasKBStatus clientId={clientId} initialJob={initialKBJob} hasActiveKB={hasActiveKB} />
+
+      {/* D373 — adds the approved script this canvas was created for (?addScript) */}
+      <AddScriptFromUrl />
 
       {/* Top-right overlay: KB badge */}
       <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
@@ -493,7 +530,7 @@ export function Canvas({
       )}
 
       <ReactFlow
-        nodes={nodes}
+        nodes={collapse.nodes}
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -514,6 +551,8 @@ export function Canvas({
         panOnScroll
         panOnDrag={[1]}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        // React Flow's default floor is 0.5, too close to see a large canvas whole.
+        minZoom={MIN_ZOOM}
         proOptions={{ hideAttribution: true }}
         className="!bg-transparent"
         onInit={(instance) => {
@@ -576,11 +615,13 @@ export function Canvas({
           color="rgba(148,163,184,0.45)"
         />
         <Controls showInteractive={false} />
+        <CollapseShotsPanel shotIds={collapse.shotIds} collapsedCount={collapse.collapsedCount} />
       </ReactFlow>
 
       <GenerationTray canvasId={canvasId} />
-      <CopilotPanel canvasId={canvasId} /> 
+      <CopilotPanel canvasId={canvasId} />
     </div>
+    </ShotHiddenCountProvider>
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>

@@ -36,6 +36,8 @@ import { ScriptSignalsPicker } from "./script-signals-picker";
 import { ScriptPresenterBlock } from "./script-presenter";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { scriptViewMode } from "@/lib/nodes/script-view-mode";
 
 type Path = (string | number)[];
 
@@ -56,7 +58,6 @@ type ScriptFocusViewProps = {
   onPatch: (patch: Record<string, unknown>) => void;
   onSaveOutput: (output: ReelScript) => Promise<void>;
   onFanOut: () => void;
-  onParsingChange?: (parsing: boolean) => void;
 };
 
 // The Script node's surface — a full-width bottom sheet. A three-state machine:
@@ -78,12 +79,14 @@ export function ScriptFocusView({
   onPatch,
   onSaveOutput,
   onFanOut,
-  onParsingChange,
 }: ScriptFocusViewProps) {
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const [draft, setDraft] = useState<ReelScript>(parsed ?? {});
   const [showOriginal, setShowOriginal] = useState(false);
-  const [parsing, setParsing] = useState(false);
+  // Shared with the node card and set by whoever parses (D373): opened mid-parse, the view shows
+  // the skeleton, never the upload screen.
+  const parsing = useCanvasStore((s) => s.scriptParsing[nodeId] === true);
+  const setScriptParsing = useCanvasStore((s) => s.setScriptParsing);
   const [replacing, setReplacing] = useState(false);
   const [seed, setSeed] = useState<{ open: boolean; parsed: ReelScript | null }>({
     open,
@@ -109,11 +112,7 @@ export function ScriptFocusView({
   }
 
   const hasParsed = !!parsed && looksLikeReelScript(parsed as Record<string, unknown>);
-  const mode: "skeleton" | "parsed" | "empty" = parsing
-    ? "skeleton"
-    : hasParsed && !replacing
-      ? "parsed"
-      : "empty";
+  const mode = scriptViewMode({ parsing, hasParsed, replacing });
 
   const dirty = hasParsed && JSON.stringify(draft) !== JSON.stringify(parsed);
   const shotCount = parsed?.visual_script?.shots?.length ?? 0;
@@ -144,8 +143,7 @@ export function ScriptFocusView({
   async function runParse(src: string) {
     if (!editable) return; // D33: read-only session cannot parse (a write)
     if (!src.trim()) return;
-    setParsing(true);
-    onParsingChange?.(true);
+    setScriptParsing(nodeId, true);
     try {
       const res = await fetch(`/api/nodes/${nodeId}/parse`, {
         method: "POST",
@@ -167,8 +165,7 @@ export function ScriptFocusView({
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Extraction failed");
     } finally {
-      setParsing(false);
-      onParsingChange?.(false);
+      setScriptParsing(nodeId, false);
     }
   }
 

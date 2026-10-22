@@ -23,8 +23,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
           return apiOk({ approved: true });
         case "stale":
           return apiError(STALE_VERSION_ERROR, 409);
-        case "partial":
-          return apiError("This share is for comments. You approve the full reel: script, avatars and panels.", 409);
         case "not_in_review":
           return apiError("This reel is not waiting for your approval right now.", 409);
         case "not_found":

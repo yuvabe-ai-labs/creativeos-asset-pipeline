@@ -143,6 +143,14 @@ describe("normalising what the model proposed", () => {
     expect(card.toConfirm).toEqual(["a"]);
   });
 
+  it("reads a placeholder such as \"None\" as nothing to confirm", () => {
+    const card = normalizeCard(
+      { title: "t", reelNumber: 1, lines: [], cast: [], toConfirm: ["None", " n/a ", "Nothing.", "-", "None needed", "Sun 1 Nov is Kerala Piravi"] },
+      { reelNumber: 4, avatarIds: new Set() },
+    );
+    expect(card.toConfirm).toEqual(["Sun 1 Nov is Kerala Piravi"]);
+  });
+
   it("puts the avatar the person picked on the card's lead, whatever the model wrote", () => {
     const card = normalizeCard(
       { title: "t", reelNumber: 1, lines: [], toConfirm: [], cast: [{ name: "Meenakshi", role: "lead", isLead: true, avatarId: null }] },

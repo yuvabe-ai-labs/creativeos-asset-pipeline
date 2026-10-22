@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { ListSkeleton } from "@/components/skeletons/list-skeleton";
 
-// Mirrors the Agencies page's real layout (src/app/admin/page.tsx) — max-w-3xl, a plain
+// Mirrors the Agencies page's real layout (src/app/admin/(agencies)/page.tsx) — max-w-3xl, a plain
 // 2xl header (not the clients page's oversized 5xl one), a trailing button-sized skeleton
 // standing in for the "+ New agency" trigger.
 export function OrgsListSkeleton() {

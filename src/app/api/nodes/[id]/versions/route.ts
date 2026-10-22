@@ -5,6 +5,7 @@ import { getAnnotationsByDecisionIds } from "@/lib/db/annotations";
 import { annotationAssetUrls } from "@/lib/review-annotations/storage";
 import { resolveDisplayNames } from "@/lib/db/profiles";
 import type { ModelRequestRecord } from "@/lib/nodes/model-request";
+import { readDubbingOutput, readLipSyncRecord } from "@/lib/dubbing/types";
 import { apiOk, withNode } from "@/lib/api/route-helpers";
 
 // GET /api/nodes/:id/versions — return all generate versions + active pointer.
@@ -57,6 +58,10 @@ export async function GET(
         // D22: the model's frozen raw output. Lets Step 3's viewer render the
         // generated -> shipped diff (generatedOutput vs output).
         generatedOutput: typeof v.generated_output === "string" ? v.generated_output : null,
+        // D375 — a Dubbing version's three stages (null for every other node), and how many lip
+        // syncs it has had, for its History row and usage popover. `output` above stays a string.
+        dubbing: readDubbingOutput(v.output),
+        lipSyncRuns: readLipSyncRecord((v.inputs_used ?? {}).lipSync)?.runs ?? 0,
         error: v.error,
         modelUsed: v.model_used ?? null,
         paramsUsed: (v.params_used ?? {}) as {

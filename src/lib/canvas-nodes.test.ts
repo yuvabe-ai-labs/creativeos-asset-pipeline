@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   canConnect,
+  canAcceptIncoming,
   nodeRowToFlow,
   flowToPersisted,
   VALID_CONNECTIONS,
@@ -226,5 +227,35 @@ describe("the two lanes never cross", () => {
     for (const source of ["file", "draw", "image-gen", "text"]) {
       expect(canConnect(source, "multishot-prompt")).toBe(true);
     }
+  });
+});
+
+describe("dubbing connections", () => {
+  it("takes a Video Gen input only, and only one", () => {
+    expect(canConnect("video-gen", "dubbing")).toBe(true);
+    expect(canConnect("image-gen", "dubbing")).toBe(false);
+    expect(canConnect("dubbing", "video-gen")).toBe(false);
+    expect(canAcceptIncoming("dubbing", 0)).toBe(true);
+    expect(canAcceptIncoming("dubbing", 1)).toBe(false);
+    expect(canAcceptIncoming("composite", 9)).toBe(true);
+  });
+  it("hydrates the active output as parsed", () => {
+    const out = { language: "hi-IN", original: "o", dubbed: "d", dubbedAudio: "a", lipSynced: null };
+    const n = nodeRowToFlow({ id: "n", type: "dubbing", position: { x: 0, y: 0 }, data: { language: "hi-IN" }, active: { output: out } } as never);
+    expect(n.type).toBe("dubbing");
+    expect((n.data as { parsed: unknown }).parsed).toEqual(out);
+  });
+});
+
+describe("VALID_CONNECTIONS — an image into a Multishot (D383)", () => {
+  it("lets a file, draw, image-gen or composite connect to a multishot", () => {
+    for (const source of ["file", "draw", "image-gen", "composite"]) {
+      expect(canConnect(source, "multishot")).toBe(true);
+    }
+  });
+
+  it("still feeds a multishot nothing else", () => {
+    expect(canConnect("text", "multishot")).toBe(false);
+    expect(canConnect("prompt", "multishot")).toBe(false);
   });
 });

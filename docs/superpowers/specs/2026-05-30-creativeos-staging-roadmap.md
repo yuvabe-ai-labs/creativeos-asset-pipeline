@@ -6966,7 +6966,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §5.2, §14 (3.1).
 
-### D340 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
+### D340 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet; **how the views are made SUPERSEDED by D395** (one sheet, cut into the four views))*
 
 **Decision.** The sheet is four separate 3:4 images made from the front image (`client_avatars.sheet_views`), each prompt stating which edge of the frame the person faces. Once all four exist they are also composed side by side into `sheet`, so everything that sends the sheet (D308) is unchanged. A view that fails is refunded and named; the others are kept and the missing one can be made alone. Sheets are no longer uploaded: the Studio's sheet upload is removed and the image routes take only the front. Avatars made before keep their three-view or uploaded `sheet` until their four views are generated. A Specific person's face photo is still an upload.
 
@@ -7079,6 +7079,8 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 4 §3, §8; question 4.4.
 
+**Superseded by →** D386: one way to share, everything (D385 had first let Approve show on every scope).
+
 ### D351 — Versions, comments and activity live beside the script, keyed by script, version and part *(recorded 2026-10-08)*
 
 **Decision.** Four tables (`script_reviews`, `script_review_versions`, `script_review_comments`, `script_review_events`; migration 0054) hold the review. Spec 4 never writes `client_scripts.doc`; it changes only `stage` / `approved_at`, inside three plpgsql functions that lock the script row so a share, an approval and a stage move never interleave. The activity is derived from append-only rows.
@@ -7185,6 +7187,8 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** this conversation; no spec section.
 
+**Superseded by →** D384.
+
 ### D361 — The copilot's questions never repeat their chips *(recorded 2026-10-09)*
 
 **Decision.** When the copilot asks for a piece of the brief, the one-tap chips under the message carry the options and the skip; the message only asks, plus what no chip can do ("describe your own", "name someone new"). The format question offers the formats in the client's finished scripts as chips (carried in the Generate state while there is no draft), and the lead question offers every saved avatar, not the first three. The opening is three short lines: what the copilot works from, the four pieces, the format question. The Jackfruit-only "option" hint and the two demo starters are gone.
@@ -7251,3 +7255,337 @@ still bound by the function time limit and no retries. A task that writes to the
 duplicates the completion logic outside the authenticated webhook (D89) and its org check (D79).
 
 **Originated →** `2026-10-12-async-image-generation-design.md`.
+
+### D367 — The first draft's skeleton shows the moment writing starts *(recorded 2026-10-12)*
+
+**Decision.** When the person confirms the brief, the turn sends an empty draft line (`EMPTY_PARTIAL_DRAFT`) before the writer is called, over the existing NDJSON `{type:"draft"}` channel. On it, the Generate workspace's right pane shows the script's skeleton (context card, two cast placeholders, five shot rows, laid out as `ScriptView` lays them out). Once the header arrives, the real view replaces it, with placeholder rows kept below the last shot (`ScriptView`'s `pendingShots`) until the draft is saved. While a draft is being written, the copilot's thinking pill uses writing verbs ("Writing the first draft", …) instead of "Mulling angles".
+
+**Why.** The writer (Gemini 3.1 Pro) thinks for about 25 s before its first token, and the pane stayed on its empty state through all of it, with a pill that still said "Mulling angles". The server knows it is writing as soon as the quick model reads the confirm, so the signal costs nothing and never guesses.
+
+**Rejected.** Showing the skeleton on the client when the message reads like "write it": the server decides (a confirm can fail to read), and its signal arrives about a second later anyway. Shortening the wait with a lower thinking budget: tried on 2026-10-09, drafts lost shots. Streaming the model's thought summaries: bigger than the problem.
+
+**Refines →** D337 (the first draft streams into the right pane).
+
+**Originated →** this conversation.
+
+### D368 — A pasted script is imported, not written *(recorded 2026-10-12)*
+
+**Decision.** A long, many-line message goes to the quick model's `script_detect`, and a whole script goes to the writer's `script_import`, which reads the paste in the draft's shape and streams it into the pane. Plain code (`buildImport`, with `NARRATOR` in `constants.ts`) cleans the markdown, estimates missing lengths, resolves the reel number, keeps leftovers in the notes under "From the pasted script", and writes the reply. All word-for-word mismatches are grouped into ONE open item carrying every mismatched field path. When the kept text exceeds the 8,000-character notes cap, the reply says so and an open item is added. After an import, avatar chips ask who plays each character; they link via the existing cast PATCH route, and only on a tap.
+
+**Why.** Agencies already have scripts, and the rule "use it exactly, else guess and ask" is only trustworthy where it can be checked.
+
+**Rejected.** The brief reader also classifying (it doesn't run once a draft exists); letting the model estimate lengths (code is repeatable and testable); a heuristic-only detector (it can't tell "add these two shots" from a script).
+
+**Refines →** D337, D367.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
+
+### D369 — Every imported VO and card is checked against the paste *(recorded 2026-10-12)*
+
+**Decision.** `unmatchedShots` compares every imported VO and card with the paste, ignoring spacing, quote style and markdown formatting only. Mismatches are named in the reply and become one open item listing every mismatched field path.
+
+**Why.** "Word for word" is shown, not trusted.
+
+**Rejected.** Fuzzy matching (it would hide a changed word).
+
+**Refines →** D368.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
+
+### D370 — A guess is an item to confirm with the fields it filled *(recorded 2026-10-12)*
+
+**Decision.** Confirmations gain `paths`. `changeWithRetry` settles a guess when an edit changes one of its fields, and a patch marked `replaces` (an accepted import) is exempt.
+
+**Why.** Spec A2, "until answered or edited", and every write already passes through `changeWithRetry`.
+
+**Rejected.** A separate guesses list (a second open-items mechanism); settling in each route (five places to forget).
+
+**Refines →** D368.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
+
+### D371 — A paste over a draft is read first, then offered on a replace card *(recorded 2026-10-12)*
+
+**Decision.** The card is `kind: "import"` and is settled by the proposals route. The paste limit is 30,000 characters (`MAX_PASTE_CHARS`); a non-script message keeps 4,000 (`MAX_MESSAGE_CHARS`).
+
+**Why.** Spec Q1 (a), so accepting is instant and the card says what it holds.
+
+**Rejected.** A card first and parsing on accept (the card couldn't summarise the paste).
+
+**Refines →** D368.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-copilot-paste-a-script-design.md.
+
+### D372 — An approved script starts one canvas, and the canvas remembers it *(recorded 2026-10-13)*
+
+**Decision.** `canvases.source_script_id` (migration 0056: unique when set, `on delete set null`) records the approved script a canvas was created from. `createCanvasFromScriptAction` makes that canvas, or returns the existing one, including when a second request races the first (the unique index). The approved script's page shows **Create canvas** (the New canvas dialog, name pre-filled with the script's title), then **Open canvas** once the canvas exists. Deleting the canvas (a hard delete) frees the script to make another.
+
+**Why.** After approval the next step was four moves across three pages, and nothing stopped a second canvas for the same reel.
+
+**Rejected.** A column on `client_scripts` (a deleted canvas would leave a dangling pointer). Finding the canvas by scanning Script nodes (the node holds a copy of the script, not its id).
+
+**Refines →** spec 1 §5.2 (an approved script onto a canvas).
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-to-canvas-design.md.
+
+### D373 — "Parsing" is canvas-store state, and the canvas adds the script itself *(recorded 2026-10-13)*
+
+**Decision.** A transient `scriptParsing` flag in the canvas store replaces the Script node's local parsing state. Whoever parses sets it: the node's own view, the gallery, or the Create-canvas hand-off. While it is on, the node reads "Parsing script…" and its view, if opened, shows the "Parsing script…" skeleton, never the upload screen. The dialog hands off through `?addScript=<id>`. The headless `AddScriptFromUrl` removes the parameter, then runs the existing `useAddScriptNode`, which fills the new canvas's seeded empty Script node (keeping its KB wire) or adds a node at the viewport centre when there is none.
+
+**Why.** A gallery-started parse showed "Not extracted" and the empty upload screen while it ran. One path for every add keeps the parse, the avatar attach and the toasts in `addScriptToCanvas`.
+
+**Rejected.** Seeding the Script node with the script on the server (a second copy of the parse and avatar logic). Saving "parsing" in node data (a closed tab would leave the node stuck). Opening the script's view automatically when the parse ends (the spec keeps it openable, not opened).
+
+**Refines →** D372; spec 1 §5.2.
+
+**Originated →** docs/superpowers/specs/2026-10-12-script-to-canvas-design.md.
+
+### D374 — A Dubbing node dubs one connected video's current take *(recorded 2026-10-15)*
+
+**Decision.** A new `dubbing` node accepts exactly one Video Gen input (the first per-target incoming limit, `MAX_INCOMING`); Video Gen gains an output handle for it, and the rail's Add chip works as in other views until that one input is wired. The server reads that node's active version when Dub runs and uses it as-is, so a voice-changed take is dubbed in its changed voice. The focus view has one control, **Dub into** (a language), plus Dub and Lip sync buttons. The source's spoken language is English.
+
+**Why.** Localising an ad is a step of its own on the canvas. The smallest useful version is one input and one choice.
+
+**Rejected.** Voice, settings and model pickers (not needed for a first version). Several inputs per node (the rail's Add chip hides once one video is wired). Taking the source version from the client (rule 10).
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D375 — A Dubbing version holds original, dubbed and lip-synced *(recorded 2026-10-15)*
+
+**Decision.** Each Dub run creates a version whose output is `{ language, original, dubbed, dubbedAudio, lipSynced }`. Lip sync writes `lipSynced` into the active version and overrides it on each run. It does not make a new version. Re-dubbing makes a new version, so earlier dubs stay in History.
+
+**Why.** The three stages of one dub belong together. A lip sync redone on the same dub replaces the last attempt rather than piling up.
+
+**Rejected.** A new version per lip sync (History fills with near-duplicates). One version that every run overrides (earlier dubs are lost). An approval gate before lip sync (an extra step and new state for little gain).
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D376 — One engine each for now: Sarvam dubbing, sync lipsync-2-pro via fal *(recorded 2026-10-15)*
+
+**Decision.** Dubbing runs on Sarvam's Dubbing API with `voice_cloning: true`. Lip sync runs on `fal-ai/sync-lipsync/v2` with `lipsync-2-pro`. Each sits behind a small engine interface in `src/lib/dubbing/`. No model or vendor is shown in the UI.
+
+**Why.** Sarvam covers the Indian languages our clients need, and it clones the presenter's voice in the same job. lipsync-2-pro takes our own video and audio URLs. The interface lets a second model or vendor be added without touching the node, routes or versions.
+
+**Rejected.** ElevenLabs Dubbing (weaker coverage of Indian languages). Our own transcribe → translate → TTS pipeline (a far larger build). Kling lip sync (one face per pass, Indian languages undocumented).
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D377 — Dub and lip sync are background jobs that pay their vendor once *(recorded 2026-10-15)*
+
+**Decision.** Two Trigger tasks follow the voice-change pattern: `video-dub` and `video-lip-sync`, with generation types `dub` and `lipsync` (no migration: `generations.type` is free text). Each makes its paid vendor call once. Polling uses `wait.for`, and polls and downloads retry in place. The task itself never retries (`maxAttempts: 1`). `failed` is reported through `onFailure` and refunds the credits. Polls give up after 12 minutes. The button's credit figure is the reservation, computed by the same pure cost function.
+
+**Why.** Performance rule 12: long or paid work runs in the background and never pays twice.
+
+**Rejected.** Vendor webhooks straight into our app (a second completion path beside the generation webhook). Task-level retries (they would create a second vendor job).
+
+**Refines →** D284 (the voice-change task this copies).
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D378 — Dubbing offers a translation style; the dub is audio in, audio out *(recorded 2026-10-15)*
+
+**Decision.** The Dubbing view's controls are two tabs, **Dub | Lip sync**, so each shows one primary action; the Lip sync tab is disabled until there is a dub, and every disabled control says why on hover. The Dub tab adds a **Translation style** select under "Dub into". It maps to Sarvam's `register`: Everyday (`modern-colloquial`, the default), Simple (`common-indic`), Formal, Traditional (`classic-colloquial`), Technical (`academic`), and Let it decide (`auto`). Each option shows a one-line hint, and an info tooltip explains the setting. The node remembers the last pick, and each version records its own style. The dub sends Sarvam only the clip's audio and asks for audio back (`export_options: ["audio", "srt"]`). The "Dubbed" stage is the original picture with that WAV laid in by ffmpeg.
+
+**Why.** Research runs showed the translation's tone varies and matters (Tanglish versus formal Tamil), and the style is the one lever Sarvam's API offers. Uploading audio is about 6× smaller than video, the WAV is uncompressed, and the picture never leaves us. A real run also showed Sarvam's video job lists only the video export, not the mp3 its docs describe.
+
+**Rejected.** Exposing the vendor's names (`register` values) in the UI. Voice, pace and preset-voice options (no request yet). Uploading the video and extracting the audio from Sarvam's dubbed copy (bigger upload, compressed audio).
+
+**Refines →** D374 (one select became two), D376.
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D379 — Dubbing can use a preset voice, picked with previews, at a chosen pace *(recorded 2026-10-15)*
+
+**Decision.** Under **Advanced** (closed by default, the section Avatars and Visualise use), the Dub tab offers **Voice**: the presenter's own (cloned, the default) or one of the 15 preset voices Sarvam accepts (amit, dev, ishita, kavya, manan, pooja, priya, rahul, ratan, ritu, rohan, shreya, shubh, simran, sumit; the list came from the API itself). The picker matches Change voice's: a field showing the name and gender with a play button, opening a dialog (All / Female / Male) of rows with a preview and **Use**. With a preset, **Pace** appears (slow, moderate, normal by default, fast). A preset sends `voice_cloning: false`, `voice_id` and `pace_preset`; the presenter's voice sends `voice_cloning: true` and no pace. Previews are generated on first play with Sarvam text-to-speech (`bulbul:v3`, the same speakers) in the dub language (English for Assamese, which its TTS lacks), stored once at `dubbing/voice-previews/v1/<voice>-<lang>.wav`, then served from storage.
+
+**Why.** A presenter's clone suits most dubs, but noisy or very short takes clone badly, and some clients want a different voice. Pace does not change the dub's length: Sarvam fits each line to the original timing, and our ffmpeg step keeps the video's length.
+
+**Rejected.** A plain select without previews (voices can't be judged by name). Generating previews ahead of time for all 165 voice-language pairs (paid for unused samples). Exposing pace with the cloned voice (Sarvam ignores it there).
+
+**Refines →** D378.
+
+**Originated →** docs/superpowers/specs/2026-10-15-dubbing-node-design.md.
+
+### D380 — Shots are named in the script text, and the parse keeps the names *(recorded 2026-10-16)*
+
+**Decision.** The canvas copy of a copilot script names its shots in a Shot column (S1, S2…, the names the copilot already shows). The Script node's parse (v12) returns each row's `label` as written, and a script that names its shots ("S3", "Shot 3", "Scene 3", "CLIP 3") gets exactly one row per named shot, in order. A bare timecode is not a name. Measured with real parses: 12/12 runs kept every name in order — a 14-shot copilot script, "Shot N" headings, "Scene N" headings, and an unnamed script that got no invented names (scripts/probe-shot-names.itest.ts, gpt-5.4-mini). The copilot writer reads printed scripts as examples, so it now sees the Shot column too: on fresh drafts from the production writer (gemini-3.1-pro-preview, Reel 04 + Founder-led, 1 run each, scripts/probe-script-writer.itest.ts) every row kept its name in order (S1–S10, S1–S9); its other failures — a 10-shot draft, "medicine" from the never-list — were already seen before this change (9-shot drafts on 2 of 3 runs, "medicine" on two models, 8–9 Oct), so no regression is visible at this sample size.
+
+**Why.** The canvas threw away which shot a row was: the copilot's shot ids are not in the text, and the parse had no name field, so nothing on the canvas could say "this is shot 3". A name printed into the text survives every edit, paste and re-parse, which hidden ids cannot once editing is free. It also helps uploaded scripts that number their shots.
+
+**Rejected.** A deterministic copilot → parsed-script converter that skips the LLM (two paths producing rows that drift, and edits would fall back to the LLM anyway). Printing the copilot's internal ids (unreadable in a script). Matching rows to shots by position (a merge or split shifts every later row).
+
+**Refines →** D372, D286.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D381 — A script arrives on the canvas with the storyboard the client approved, frozen on the node *(recorded 2026-10-16)*
+
+**Decision.** Adding an approved script (Create canvas or the gallery) also hands over its approved panels: the ones frozen in the script's latest review version — the only version approval can approve — named by the script's order. The Script node keeps them as `storyboard`, never refreshed. A script with none gets no key.
+
+**Why.** The panels the client signed off are the point; live picks can be redrawn during review or after a reopen. Keeping them on the node makes the canvas self-contained (Fan out and the gallery read the node, no extra fetch), and the node is already a frozen copy of the script (spec 1 §5.4).
+
+**Rejected.** Reading `script_panel_picks` (not what the client approved). Fetching panels on demand from the canvas (a second source that can disagree with the text on the node).
+
+**Refines →** D372, D351.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+**Refined by →** D385: the canvas takes the script's current picks, not the approved version's frozen panels.
+
+### D382 — Fan out wires each new shot's panel into it, and nothing further *(recorded 2026-10-16)*
+
+**Decision.** For each node Fan out creates, every row it covers whose name matches a panel gets a File node pointing at the panel's stored image (no copy), placed under the shot and wired into its `image` handle. Only new nodes: a re-run adds no second panel, and a panel the person deleted stays deleted. Rows are spaced 360px instead of 170 when the script has a storyboard. Nothing is wired into prompt, Image Gen, Composite, the video prompt or Video Gen.
+
+**Why.** On a Shot, an image on the image handle grounds the Shot Composer and nothing paid: the panel is three levels from Video Gen, which looks two up. Wiring past the shot is a choice the team should make after using this (operator, 2026-10-16).
+
+**Rejected.** Wiring the panel into the image prompt automatically (deferred), or into Video Gen as a reference (reference support varies by model, and it skips the still).
+
+**Amended (22 Oct 2026) — the layout.** Rows were 360px apart with each panel 190px under its shot, which assumed a 130px File card. A 9:16 panel's card is 345px, so every panel landed on the next shot. Fan out now makes one row per shot. The panel is centred under its Shot or Multishot card, 24px below it; several panels sit side by side as a centred group. The guided chain (image prompt, image gen, video prompt, video gen) grows right along each row. Rows are placed from estimates, then **laid out again from the cards' measured sizes** as they render and their panel images load (`settleFanOutRows`). Each row is as tall as its shot and panel, never less than 600px (a 9:16 Image gen or Video gen), with 96px before the next. A first version used fixed estimates. The real panel card, a 2:3 GPT image plus its filename footer, was 202 × 466 rather than 176 × 345, and the rows touched. Settling stops when one of those nodes is dragged, or after 15 seconds, so a later collapse or edit never moves the rows. It is never saved. Chosen by the user from drawn options. Rejected: the panel to the left of its shot (it moves every Shot's image handle off its bottom edge), and shots left to right (each shot's chain grows right and would run into the next shot).
+
+**Refines →** D228, D28.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D383 — A Multishot node shows an image; the gallery shows the whole storyboard *(recorded 2026-10-16)*
+
+**Decision.** File, Draw, Image Gen and Composite may connect to a Multishot node, on an `image` handle with the Shot's id (so the wire survives a shot ↔ multishot flip). Nothing reads it: the multishot prompt resolves only its own direct upstream. The gallery's References tab shows a Storyboard group per Script node with panels, in shot order, labelled "S3 · HOOK — storyboard", even without a Drive folder.
+
+**Why.** A Multishot row should carry its panel like any shot, but the multishot lane deliberately has no still (D230); reading the panel there is a separate decision. The gallery keeps every panel reachable when an edit unlinks one, which is why no warning is needed.
+
+**Rejected.** Letting the multishot prompt read the panel now (deferred). A separate Storyboard gallery tab (the panels are references).
+
+**Refines →** D230, D300.
+
+**Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
+
+### D384 — A script is deleted for good, unless a canvas, the client or a running draw depends on it *(recorded 2026-10-19)*
+
+**Decision.** Every card in a client's Scripts library has a delete icon, at every stage. Deleting erases the script for good: its brief, copilot chat, storyboard (panel takes, picks and the generations behind them) and any review rows go through the existing cascades. One database function (`delete_client_script`, migration 0057) locks the script row and checks three blocks, in order; the first that applies wins and nothing is removed:
+- a canvas was started from the script (D372's link), "has_canvas";
+- it has a client review link, made on its first share, which never expires, "shared";
+- a panel draw under way, "drawing": one of the script's generations is still running (at any age; the reconcile sweep fails and refunds a crashed one within about an hour, and erasing it first would orphan its reservation where the sweep can't refund it), or a panel take is still running and under 5 minutes old (the panel route's `maxDuration`), which covers the moment before the generation row exists.
+
+The library loads the first two once for the page, so a blocked card's icon opens a dialog that gives the reason. The route returns the same reason with a 409 whenever its own check, made on fresh data, disagrees with the page. **Storage is never touched:** the panel image files stay. Scripts already archived under D360 stay hidden and are not purged. There is no role check, as before.
+
+**Why.** User, 19 Oct: delete a script and "the storyboards should also be deleted, nothing else"; "if a script has at least one canvas then don't allow a delete"; a live client link, "block that one too"; deleted "for good". Canvases point straight at panel files: Fan out's File nodes, panels dragged from the gallery, and frozen Script-node storyboards (D381–D383 on their branch). Keeping the files keeps them all working, including canvases the script was only dragged onto. The lock comes before the checks, so a canvas, review or take insert at the same moment queues on its foreign key. The result is never "script gone, canvas unlinked".
+
+**Rejected.**
+- Looking inside every canvas for dragged copies: its cost grows with nodes, and the user picked the single check.
+- Deleting the panel files: they would break images on canvases.
+- Letting a delete go ahead mid-draw: the settle step would lose its generation row, and a draw the provider was already paid for would be refunded.
+- Archive only: the user chose "for good".
+- A way to turn off a client link so a shared script can be deleted: out of scope.
+
+**Supersedes →** D360.
+
+**Originated →** docs/superpowers/specs/2026-10-19-delete-script-design.md.
+
+### D385 — The client may approve any share; the canvas takes the script's storyboard as it is now *(recorded 2026-10-19)*
+
+**Decision.**
+- Approve appears on the client's link for every share: the script only, the script and avatars, or the script, avatars and panels. The other approval rules (D354) stay: a typed name, the version on screen, refused when a newer version was shared, open threads named first, only the client approves. A partial share's note still says what the share holds, and no longer says approval comes later.
+- When an approved script goes onto a canvas, it brings each shot's current pick, read when it is added, not the panels frozen in the approved version. A script with no picks arrives without a storyboard. The panels still freeze on the Script node once added (D381).
+
+**Why.** User, 19 Oct: "approve needs to come for all types of share"; a script shared as script only had no way to be approved. And "what comes to the canvas is the current version, doesn't have to be the approved one, as the designer can decide to make changes post approval"; "don't complicate it".
+
+**Rejected.**
+- Keeping Approve on the full share only (D350): it left a script-only share with no way forward.
+- Reading the approved version's frozen panels (D381's choice): it hides changes the designer makes after approval.
+- A warning when a narrower re-share replaces a full one: no longer needed, since every share can be approved.
+
+**Supersedes →** D350 in part (Approve only on a full share). **Refines →** D381, D354.
+
+**Originated →** this conversation (no spec; a small change). Migration 0058 redefines `script_review_approve`.
+
+### D386 — One way to share: the script, avatars and storyboard, every time *(recorded 2026-10-19)*
+
+**Decision.** The Share dialog and the move into In review no longer ask what to include. Every new share freezes the script, its avatars and its storyboard as they are now, and the client approves that. The request carries no scope; the server always shares the full scope and ignores a scope an older page still sends. Versions shared before this keep the scope they were shared with, and still read as what they were (with their note), because a frozen version is a record of what the client saw.
+
+**Why.** User, 19 Oct: "remove the extra ways of sharing, remove all that". A script-only share that the client approved (allowed by D385) left the approved page with no avatars or storyboard, which looked like they had been erased.
+
+**Rejected.**
+- Keeping three scopes and showing the current avatars and storyboard on the approved page: more rules for the team to keep in mind, and the approved page would no longer match what the client approved.
+- Making the client link live instead of frozen: it would undo versions, and comments and approvals are tied to a version.
+- Rewriting old partial versions to full: a version is a record of what the client saw.
+
+**Supersedes →** D350 (three share scopes). **Refines →** D385 (Approve on any share is now moot for new shares), D349.
+
+**Originated →** this conversation (no spec; a small change). No migration: the scope column stays, and new rows always say `panels`.
+
+### D380 — An internal cost dashboard on production admin, fed by a nightly sync plus Refresh now *(recorded 2026-10-16)*
+
+**Decision.** `/admin/costs` on production, super-admin only, shows both environments: Billed vs Recorded in rupees, accounts → clients → canvases (plus each client's avatars and scripts), providers, credit coverage, and six months. The page reads only summary tables in the production DB. A Trigger.dev task `cost-sync` fills them nightly at 02:00 IST (yesterday plus month to date; the previous month again on the 1st–3rd, then frozen), and on demand from **Refresh now** (current month, one run at a time, 10-minute window). Staging's records come from an aggregate-only RPC `cost_recorded_rollup` on the staging DB, called with a staging key held only in production's Trigger.dev environment. The web app never connects to staging.
+
+**Why.** Balance-only providers (Kling, ElevenLabs) need a daily snapshot history, so a scheduled job is needed anyway, and provider bills lag about a day. Summary tables keep the page to one round trip per table regardless of generation volume (performance rules 1 and 5). Refresh now covers "I need today's number" without making the page call providers.
+
+**Rejected.** Live queries on page load (slow, cross-region, provider rate limits, no balance history). An external BI tool (still needs the provider sync; another login; no links back into CreativeOS). Copying raw staging rows into production (only aggregates are needed).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D381 — "Recorded" is `generations.cost_usd`; providers bill only to provider × environment; one FX rate per month *(recorded 2026-10-16)*
+
+**Decision.** Recorded = summed raw `generations.cost_usd` of succeeded generations (before the credit round-up). Credits appear only against `monthly_credit_limit`. Account, client, canvas, avatar and script figures are always Recorded: providers report totals, so Billed stops at provider × environment and the difference shows as "Not recorded". Where one key serves both environments, its bill is stored as `shared` and split at read time by each environment's share of Recorded, labelled as split. Rupees = USD × the month's stored rate (`cost_fx_rates`); a new month defaults to the previous rate. Providers without a billing API (Google AI Studio, Sarvam, plan fees) use a monthly manual entry. A failed provider fetch never writes zero; the old rows stay and the UI says they are stale. Tracking starts 1 Nov 2026, when OpenAI, fal and Kling have separate staging and production keys and their billing APIs attribute cost per key (OpenAI `group_by=api_key_id`, fal `auth_method`, Kling `api_key_name` on each deduction), so those three split exactly; nothing before November is synced. Only keys listed in `src/lib/costs/provider-keys.ts` count, because the OpenAI project and the Kling account also hold keys for other uses.
+
+**Why.** `cost_usd` is the closest record to true provider cost; credits include round-up. Pretending to split a provider bill per canvas would be invented precision. A stored rate keeps past months stable.
+
+**Rejected.** Recorded from credits (overstates by the round-up). Live FX (past months would drift). Including card forex fees and GST (not needed yet).
+
+**Refines →** D77 (reads its ledger for the limit column).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D382 — A credit coverage registry lists every money-spending feature and whether it charges credits *(recorded 2026-10-16)*
+
+**Decision.** `src/lib/costs/coverage.ts` lists each paid feature (area, label, providers, status `charged | logged | none`). The sync stores a `feature` key on every recorded row, and a test fails if a key has no registry entry. The dashboard shows the registry with this month's spend per feature. At recording: canvas generation tools, avatars and storyboard panels charge credits. Script parsing, split scene and compose save usage without charging. The script copilot, canvas assistant, knowledge base and image analysis, Apify research and import, uploaded-file reading and dubbing voice preview are not recorded at all.
+
+**Why.** Unconnected features are the largest explainable part of "Not recorded", and listing them keeps connecting them visible work rather than something rediscovered later.
+
+**Rejected.** Inferring coverage automatically from code (fragile). Leaving unconnected spend only inside the gap total (hides which feature to fix).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D383 — Clicking a version views it; restoring is a separate button *(recorded 2026-10-21)*
+
+**Decision.** Every versioned node (Video Gen, Image Gen, Composite, Dubbing, Prompt, Video Prompt, Multishot Prompt) gets one History pattern: the list in the middle column and the version on screen in the output column. A row click, the `‹ vN of M ›` stepper or ↑ / ↓ views a version without changing the node. A bar above the output says which version is on screen and which one the node uses, with **Back to vN** and **Restore vN**. Restore lives only there; rows and chips no longer carry it. Closing the focus view returns to the active version. While an older version is on screen, everything that acts on the node's current output (approval, annotate, Change voice, Edit, dub and lip sync, prompt editing and Generate) is disabled. Thumbnails keep each version's real shape. Dubbing moves onto the shared `VersionHistoryList`. The prompt nodes' History pane gets the same two-column layout, and their `v1 v2` chips are replaced by the stepper.
+
+**Why.** The only way to look at an old take was to restore it, which changes the node for everyone and triggers a save. Viewing is local, makes no requests (every version is already loaded) and writes nothing.
+
+**Rejected.** A full-screen viewer over the focus view (hides the list; slower to compare takes). Keeping Restore in each row as well as the bar (two places for one action). Letting approval or annotate act on the viewed version (they would silently act on a version the node does not use). Leaving the prompt nodes on their own History and chips (the operator would learn two version models).
+
+**Refines →** D180, D375.
+
+**Originated →** docs/superpowers/specs/2026-10-21-version-viewing-and-media-fit-design.md.
+
+### D384 — Node cards and previews take the media's own shape; nothing is cropped *(recorded 2026-10-21)*
+
+**Decision.** Image Gen, Composite, Video Gen, File, Draw, Dubbing, Avatar, Client review and Post cards show their media whole, at its own aspect ratio. KB brand images and History thumbnails keep their real shape at a fixed height. One rule at two scales: output nodes (Image Gen, Composite, Video Gen, Dubbing) are 280–480px wide with media up to 500px tall; input tiles (File, Draw, Avatar, Post, Client review) are 176–280px wide with media up to 300px tall, edge to edge. Landscape cards hit the maximum width and portrait cards get narrower. Only extremely tall media is letterboxed. The size is measured when the media loads and saved on the node as `mediaWidth`/`mediaHeight`, only when it changed and only by the canvas lock holder, so reloads lay out without jumping. The Video Gen focus-view player and the loading placeholders use the real or chosen aspect ratio instead of a fixed 9:16. No node is an exception. Existing canvases are not rearranged.
+
+**Why.** Generated output is mostly portrait video, and the old 16:9 crop and 64px strips hid most of it. A narrower card shows the whole picture without making the canvas much taller.
+
+**Rejected.** Fixed 480px cards with letterboxing (portrait media fills under half the card). Free-height cards at 480 wide (a 9:16 card would be about 850px tall). One size range for every node (reference tiles would grow 2–3× and crowd existing canvases). Moving nodes on old canvases to avoid new overlaps (surprising; overlaps are easy to fix by dragging). Keeping the Avatar's 3:4 head crop as an exception (consistency across nodes was asked for explicitly).
+
+**Originated →** docs/superpowers/specs/2026-10-21-version-viewing-and-media-fit-design.md.
+
+### D387 — Shots collapse; what hides is derived from the graph, only the flag is saved *(recorded 2026-10-21)*
+
+**Decision.** Each Shot and each Multishot can be collapsed (and Collapse all / Expand all tidy the whole canvas); they are the same root in either lane, so they behave alike, and a Shot ↔ Multishot flip lands expanded. The only saved state is `data.collapsed` on that node, persisted with the canvas, so everyone opening it sees the same layout. What hides is derived at render time: a node's owners are the Shots nearest upstream of it (ties give several owners); an input File or Draw takes the owners of what it feeds. A node hides iff it has exactly one owner and that Shot is collapsed, so shared files and multi-shot nodes never hide. Edges to hidden nodes are redrawn to the collapsed Shot (display only, never saved); a cross-shot reference keeps a label naming the two original nodes. A node never becomes hidden except by a collapse: new or newly wired nodes under a collapsed Shot expand it, and anything the tray, review drawer or copilot opens reveals its Shot first.
+
+**Why.** Canvases with many shots are hard to read. Deriving membership from the graph means there is no membership list to keep in sync when nodes are added, rewired or deleted.
+
+**Rejected.** Per-person collapsed state in a new table or localStorage (collapse is a tidy-up of a shared document, like positions). Storing `hidden` on each child node (rewrites many rows per toggle and drifts as the graph changes). React Flow sub-flows / parent nodes (would move nodes into shot-relative coordinates). Hiding shared files once every shot using them is collapsed (the prototype says shared files never hide or move).
+
+**Originated →** docs/superpowers/specs/2026-10-21-collapsible-shots-design.md.
+
+### D395 — A face is drawn from a character brief; the four views are cut from one turnaround sheet *(recorded 2026-10-22; refines D339, supersedes how D340 makes the views)*
+
+**Decision.** Two changes to how an avatar is made.
+(1) **The brief.** Before Visualise draws a generated face, a quick-model call (`SCRIPT_QUICK_MODEL`, system prompt `AVATAR_BRIEF_SYSTEM` in `src/prompts/avatar-character.ts`) restates the cast member as one self-contained character brief. Its input is the person's name and description *as the stored script holds them*, the script's region, and the operator's avatar instructions. Its output is the Studio's own attributes (gender, age band, ethnicity) plus appearance, wardrobe and identity markers, in visual terms only. The operator's instructions override the script. Other people's pronouns and positions ("her husband, behind her") are never carried over, and voice and manner are dropped. The front prompt now states the identity first (`Subject: …`), for the Studio too. If the call fails, the face is still drawn from the operator's words first, then the script's, with no attributes claimed. Route: `POST …/scripts/:id/cast/:castId/brief`.
+(2) **One sheet.** The sheet is **one** 16:9 turnaround image made from the front (`buildAvatarSheetPrompt`): front, left, right and back in a row, each figure centred in its own quarter, with gaps between them and no shadows or lines joining them. The server finds the gaps by **texture**, not colour: near each quarter line it takes the widest stretch of the smoothest columns and cuts in its middle (at the quarter line itself if no stretch is smoother). Each cut is centred on a 3:4 canvas padded by repeating its own edge pixels. These become `sheet_views`. The generated image itself is kept as `sheet`, so D308's senders are unchanged. Everyone sees that one image: the Studio, Visualise's cast card and client review, where a share freezes its URL as `sheet` beside the views. Versions shared before this change keep their four tiles.
+
+**Amended (22 Oct 2026).** The first cutter matched each column against the backdrop colour sampled from the sheet's borders. Radha's sheet had a gradient backdrop, darker at the edges and lighter in the middle, so the gap between her Front and Left figures read as figure. The two views merged, and the Right view came out as an empty sliver. A backdrop is smooth whatever its shade; fabric, hair and folds are not. Checked on that sheet and on the Waiter's: every view now holds one whole figure. One image is billed. The views are always made together, so a single view can no longer be remade on its own.
+
+**Why.** (1) On staging (21 Oct 2026) a man was drawn as a woman. His description, "Her husband Rajan, 58, in a white mundu and shirt, behind her. Warm, a little teasing, English with a Malayalam lilt.", went to the image model verbatim with no attributes, and the operator's correction was appended after it. The model read the pronouns as the picture. (2) Four separate edits of the front could drift between views (face, outfit, scale), and cost four images. The single sheet the avatar had before D340 held together (user, 22 Oct 2026). Cutting it keeps what D340 rejected the four-up image for: each view can still be sent and commented on alone.
+
+**Rejected.** Prompt tweaks alone (the conflicting words would still be sent). Sending the operator's instructions only as attributes (they hold more than gender). A brief in the browser (it would trust the client's copy of the script). A 2×2 grid sheet (a lineup at one scale is the turnaround convention, and every figure sits on the same baseline). Remaking one view from the front, as D340 allowed (that brings back the drift this fixes). Dropping the views and sending only the sheet (panels, review and readiness, D341, are built on views).
+
+**Originated →** user request, 22 Oct 2026 (avatar gender mismatch; "a single sheet instead of separate and then merged").

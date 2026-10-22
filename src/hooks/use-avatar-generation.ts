@@ -7,9 +7,8 @@ import { mergeCandidates, type PendingCandidate } from "@/lib/avatars/generation
 import { errorMessage } from "@/lib/avatars/utils";
 import {
   AVATAR_BATCH_DEFAULT, AVATAR_DEFAULT_FRONT_MODEL_ID, AVATAR_DEFAULT_SHEET_MODEL_ID, AVATAR_STYLES,
-  AVATAR_VIEWS,
 } from "@/lib/avatars/constants";
-import type { Avatar, AvatarCandidate, AvatarViewId, GenerateFrontInput } from "@/lib/avatars/schema";
+import type { Avatar, AvatarCandidate, GenerateFrontInput } from "@/lib/avatars/schema";
 
 const DEFAULT_COMPOSER: GenerateFrontInput = {
   description: "", attributes: {}, styleId: AVATAR_STYLES[0].id,
@@ -38,8 +37,8 @@ export function useAvatarGeneration({
   const [pending, setPending] = useState<PendingCandidate[]>([]);
   const [spentCredits, setSpentCredits] = useState(() => initial?.spentCredits ?? 0);
   const [picking, setPicking] = useState<string | null>(null);
-  const [generatingViews, setGeneratingViews] = useState<AvatarViewId[]>([]);
-  const generatingSheet = generatingViews.length > 0;
+  // One sheet makes all four views at once (D395), so it is busy or it is not.
+  const [generatingSheet, setGeneratingSheet] = useState(false);
   const [composer, setComposerState] = useState<GenerateFrontInput>(DEFAULT_COMPOSER);
   const [sheetModelId, setSheetModelId] = useState(AVATAR_DEFAULT_SHEET_MODEL_ID);
   // Seeded from the server, the first avatar is already loaded.
@@ -145,13 +144,14 @@ export function useAvatarGeneration({
     }
   }, [clientId, avatarId, picking, generatingSheet, onAvatar]);
 
-  const generateSheet = useCallback(async (modelId: string, views?: AvatarViewId[]) => {
+  const generateSheet = useCallback(async (modelId: string) => {
     if (!avatarId || generatingSheet) return;
-    setGeneratingViews(views ?? [...AVATAR_VIEWS]);
+    setGeneratingSheet(true);
     try {
-      const { avatar, spentCredits: total, failed } = await avatarsService.generateSheet(clientId, avatarId, modelId, views);
+      const { avatar, spentCredits: total, failed } = await avatarsService.generateSheet(clientId, avatarId, modelId);
       onAvatar(avatar);
-      for (const f of failed) toast.error(`The ${f.label} view failed: ${f.error}`);
+      // One sheet: its views fail together, for one reason, so it is said once.
+      for (const error of new Set(failed.map((f) => f.error))) toast.error(error);
       if (total === null) void refreshSpentCredits(avatarId);
       else applySpent(total);
     } catch (e) {
@@ -159,12 +159,12 @@ export function useAvatarGeneration({
       // A 409 (the front changed mid-generation) has already charged for what the server made.
       await refreshSpentCredits(avatarId);
     } finally {
-      setGeneratingViews([]);
+      setGeneratingSheet(false);
     }
   }, [clientId, avatarId, generatingSheet, onAvatar, refreshSpentCredits, applySpent]);
 
   return {
-    candidates, pending, spentCredits, picking, generatingSheet, generatingViews,
+    candidates, pending, spentCredits, picking, generatingSheet,
     composer, setComposer, sheetModelId, setSheetModelId,
     generate, pickFront, generateSheet, refreshSpentCredits,
   };

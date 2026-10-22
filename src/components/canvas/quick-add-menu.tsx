@@ -15,6 +15,7 @@ import {
   Images,
   LayoutTemplate,
   MessageSquareText,
+  Languages,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -48,13 +49,14 @@ const ICONS: Record<AddNodeType, LucideIcon> = {
   "video-gen": Clapperboard,
   post: LayoutTemplate,
   "client-review": MessageSquareText,
+  dubbing: Languages,
 };
 
 const MENU_W = 240;
 // Tall enough to show the input + every row of ADD_NODE_OPTIONS (+ the optional paste row)
 // without the list scrolling. Kept in sync with CommandList's max-h below — raise BOTH when
 // a node type is added, or the last row falls below the fold and reads as missing.
-const MENU_H = 564; // 12 option rows + input + paste row
+const MENU_H = 600; // 13 option rows + input + paste row
 
 interface QuickAddMenuProps {
   screenX: number;
@@ -114,7 +116,7 @@ export function QuickAddMenu({
         <CommandInput autoFocus placeholder="Add node…" />
         {/* Override shadcn's default max-h-72 (288px) so every node type fits
             without the list scrolling; still caps height on short viewports. */}
-        <CommandList className="max-h-[564px]">
+        <CommandList className="max-h-[600px]">
           <CommandEmpty>No node type found.</CommandEmpty>
           <CommandGroup>
             {canPasteImage && onPasteImage && (

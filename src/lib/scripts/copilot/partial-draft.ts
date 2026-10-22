@@ -13,6 +13,10 @@ export type PartialDraft = {
   shots: ShotFields[];
 };
 
+/** Nothing yet: sent the moment the writing starts, so the page can show the script's skeleton
+ *  through the writer's silent thinking (~25 s) before the first part arrives. */
+export const EMPTY_PARTIAL_DRAFT: PartialDraft = { header: {}, context: {}, cast: [], shots: [] };
+
 /** Closes whatever is open (a string, objects, arrays) and drops a dangling comma, colon or key, so
  *  the prefix parses. Backs off to an earlier comma when the end is not yet a whole value. */
 export function completeJson(text: string): string {
