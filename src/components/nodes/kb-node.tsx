@@ -211,7 +211,7 @@ function KBSheetContent({
                       src={img.storageUrl}
                       alt={img.filename}
                       title={img.filename}
-                      className="size-16 rounded-md object-cover border border-border"
+                      className="h-16 w-auto max-w-32 rounded-md border border-border bg-muted object-contain"
                     />
                   ))}
                 </div>

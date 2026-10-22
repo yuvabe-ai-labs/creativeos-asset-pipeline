@@ -69,7 +69,7 @@ export function resolveNodeTarget(nodes: AppNode[], handle: string): AppNode | n
 export type ConnectPlan = {
   target: AppNode | null;
   wired: { handle: string; sourceId: string }[];
-  /** reason: why, when the rule has one to give (the Editor, D389). */
+  /** reason: why, when the rule has one to give (the Editor, D390). */
   rejected: { handle: string; reason?: string }[];
   unknown: string[];
 };

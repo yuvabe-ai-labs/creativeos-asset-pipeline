@@ -1,5 +1,5 @@
 // trigger/editor-export.ts
-// Builds the Rough Cut Editor's Premiere package (D391): downloads the reel's media from storage,
+// Builds the Rough Cut Editor's Premiere package (D392): downloads the reel's media from storage,
 // writes the sequence, OTIO, SRT, README and fonts, zips, and uploads the zip. Progress and the
 // result go on the background_jobs row the export dialog polls.
 //

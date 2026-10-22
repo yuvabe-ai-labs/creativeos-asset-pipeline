@@ -36,6 +36,7 @@ import { type UpstreamNode, type ConnectedPreview } from "./connected-inputs-car
 import type { VersionSummary } from "./prompt-version-history";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { ModelRequestPanel } from "./model-request-panel";
+import { VersionOutputEmpty } from "./version-output-empty";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -47,6 +48,7 @@ import { storedRefDialect, renderRefs, missingRefsMessage } from "@/lib/nodes/re
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import { ActiveOnlyNotice } from "./active-only-notice";
 import {
   useNodeVersions,
   useRefreshNodeVersions,
@@ -507,6 +509,24 @@ export function VideoPromptFocusView({
   const reviewBadge =
     mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
 
+  // D383 — one version's motion prompt, read-only: the History pane's output column, and the
+  // prompt pane while an older version is on screen.
+  const renderVersionOutput = (v: VersionSummary) =>
+    omniRefs ? (
+      <MentionInstructionEditor
+        value={v.output ?? ""}
+        onChange={() => {}}
+        upstream={mentionUpstream}
+        disabled
+        dialect={omniRefs}
+        className="min-h-[16rem] max-w-[65ch] flex-1 text-base"
+      />
+    ) : (
+      <div className="max-w-[65ch] rounded-xl p-4 text-base leading-7">
+        <GeneratedPromptBody text={v.output ?? ""} images={promptRefImages} />
+      </div>
+    );
+
   return (
     <PromptFocusShell
       open={open}
@@ -539,8 +559,13 @@ export function VideoPromptFocusView({
       approvalSaving={approvalSaving}
       onSetApproval={saveApproval}
       onLiveVersionUpdate={() => void fetchVersions({ preserveEvalDraft: true })}
+      outputLabel="Generated motion prompt"
+      outputIcon={<Clapperboard className="size-3.5 text-primary" />}
+      renderVersionOutput={renderVersionOutput}
     >
-      {({ versionChips, approvalControls }) => (
+      {({ versionStepper, viewingBar, viewedVersion, viewedLabel, isViewingOther, approvalControls }) => {
+        const shownRequest = isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest;
+        return (
         <>
           {/* Prompt — the compose editor: compose (left) + generated output (right) */}
           {selected === "prompt" && (
@@ -616,11 +641,12 @@ export function VideoPromptFocusView({
 
                   {/* Generate — flows after the controls, reached via the scrollbar */}
                   <div className="border-t border-border px-6 py-4">
+                    {isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                     <Button
                       className="w-full"
                       size="default"
                       onClick={runGenerate}
-                      disabled={generating || !editable}
+                      disabled={generating || !editable || isViewingOther}
                     >
                       <Clapperboard className="size-4" />
                       {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
@@ -638,16 +664,21 @@ export function VideoPromptFocusView({
                     intrinsic width without it, so the prompt text held this column open, the row
                     overflowed, and the parent's overflow-hidden cropped the output off-screen. */}
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
-                  {/* items-start: the title wraps and the version chips row can wrap
-                      too — both anchor to the top instead of drifting vertically. */}
+                  {/* items-start: the title wraps — the stepper anchors to the top instead of
+                      drifting vertically. */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       <Clapperboard className="size-3.5 text-primary" />
                       <span className="text-eyebrow">Generated motion prompt</span>
                     </div>
-                    {versionChips}
+                    {versionStepper}
                   </div>
+                  {viewingBar}
 
+                  {isViewingOther && viewedVersion ? (
+                    viewedVersion.output ? renderVersionOutput(viewedVersion) : <VersionOutputEmpty noun="prompt" />
+                  ) : (
+                    <>
                   {mode === "skeleton" && (
                     <div className="space-y-2.5 pt-1">
                       {Array.from({ length: 9 }).map((_, i) => (
@@ -723,6 +754,8 @@ export function VideoPromptFocusView({
                       </div>
                     </>
                   )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -757,7 +790,7 @@ export function VideoPromptFocusView({
                         decision={evalDecision}
                         note={evalNote}
                         saving={evalSaving}
-                        visible={mode === "result" && !!activeVersionId}
+                        visible={mode === "result" && !!activeVersionId && !isViewingOther}
                         onDecision={handleEvalDecision}
                         onNote={setEvalNote}
                         onNoteBlur={handleEvalNoteBlur}
@@ -776,8 +809,8 @@ export function VideoPromptFocusView({
             {/* Sent to model — the exact request the active version sent (standalone) */}
             {selected === "request" && (
               <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
-                {activeRequest ? (
-                  <ModelRequestPanel request={activeRequest} />
+                {shownRequest ? (
+                  <ModelRequestPanel request={shownRequest} />
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     No request recorded for this version — generate a motion prompt to capture
@@ -787,7 +820,8 @@ export function VideoPromptFocusView({
               </div>
             )}
         </>
-      )}
+        );
+      }}
     </PromptFocusShell>
   );
 }

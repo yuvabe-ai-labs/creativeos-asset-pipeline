@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
+import { isCollapsibleType, isShotCollapsed, withoutCollapsed } from "@/lib/canvas/shot-collapse";
 import { editorConnectRefusal } from "@/lib/editor/rules";
 import { computeGenerationLocks, sameLocks } from "@/lib/editor/generation-lock";
 import type { GenerationLock } from "@/lib/editor/types";
@@ -84,6 +85,8 @@ export type CanvasState = {
   clearRemoved: (nodeIds: string[], edgeIds: string[]) => void;
   addNode: (type: string, position: XYPosition, id?: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
+  /** D387 — collapse or expand Shot / Multishot nodes in one update. Those already in that state are left alone. */
+  setShotsCollapsed: (shotIds: string[], collapsed: boolean) => void;
   connectNodes: (sourceId: string, targetId: string) => void;
   disconnectNodes: (sourceId: string, targetId: string) => void;
   deleteNode: (id: string) => void;
@@ -98,7 +101,7 @@ export type CanvasState = {
   // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
   // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
   latestJobByNode: Record<string, GenerationFeedRow>;
-  /** D389 — which nodes can't generate because they feed the Editor. Updated when edges change. */
+  /** D390 — which nodes can't generate because they feed the Editor. Updated when edges change. */
   generationLocks: Record<string, GenerationLock>;
   generationStarts: Record<string, GenerationStartMark>;
   generationRequestErrors: Record<string, string>;
@@ -235,7 +238,7 @@ export function createCanvasStore(
         toast.error("That connection would create a loop.");
         return;
       }
-      // D389 — the Editor refuses a clip that is generating or has no finished take, and says why.
+      // D390 — the Editor refuses a clip that is generating or has no finished take, and says why.
       const editorTarget = get().nodes.find((n) => n.id === target);
       if (source && editorTarget?.type === "editor") {
         const editorSource = get().nodes.find((n) => n.id === source);
@@ -330,6 +333,22 @@ export function createCanvasStore(
         ),
       });
     },
+    setShotsCollapsed: (shotIds, collapsed) => {
+      // Saved as a flag on the Shot (expanding removes it); what hides is derived from the graph.
+      const ids = new Set(shotIds);
+      const changes = get().nodes.filter(
+        (n) => ids.has(n.id) && isCollapsibleType(n.type) && isShotCollapsed(n) !== collapsed,
+      );
+      if (changes.length === 0) return; // never replace the array when nothing changed
+      const changed = new Set(changes.map((n) => n.id));
+      set({
+        nodes: get().nodes.map((n) => {
+          if (!changed.has(n.id)) return n;
+          const data = n.data as Record<string, unknown>;
+          return { ...n, data: collapsed ? { ...data, collapsed: true } : withoutCollapsed(data) } as AppNode;
+        }),
+      });
+    },
     connectNodes: (sourceId, targetId) => {
       // D298 — the gallery's path keeps one presenter per script too, announced once, here.
       const replaced = replacedPresenterEdges(get().nodes, get().edges, sourceId, targetId);
@@ -385,7 +404,7 @@ export function createCanvasStore(
         }
         const { node: newNode } = await res.json() as { node: { id: string; position: { x: number; y: number }; type: string; data: Record<string, unknown>; active_version_id: string | null } };
 
-        const data = { ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) };
+        const data = withoutCollapsed({ ...(node.data as Record<string, unknown>), ...(newNode.data as Record<string, unknown>) });
 
         // Copy only the INCOMING connections (parent → node) so the copy inherits
         // the same inputs/context. Outgoing edges (node → child) are intentionally
@@ -473,7 +492,7 @@ export function createCanvasStore(
         const sourceById = new Map(get().nodes.map((n) => [n.id, n]));
         const newAppNodes = newNodes.map((newNode) => {
           const source = newNode.sourceId ? sourceById.get(newNode.sourceId) : undefined;
-          const data = { ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) };
+          const data = withoutCollapsed({ ...(source?.data as Record<string, unknown> ?? {}), ...(newNode.data as Record<string, unknown>) });
           return {
             ...(source as Partial<AppNode> ?? {}),
             id: newNode.id,
@@ -915,7 +934,7 @@ export function createCanvasStore(
     setKbJustReady: (v) => set({ kbJustReady: v }),
   }));
 
-  // D389 — the generation-lock index follows the edges: recomputed only when the edges array
+  // D390 — the generation-lock index follows the edges: recomputed only when the edges array
   // changes (a node drag changes nodes, not edges), and replaced only when its contents change.
   store.subscribe((s, prev) => {
     if (s.edges === prev.edges) return;

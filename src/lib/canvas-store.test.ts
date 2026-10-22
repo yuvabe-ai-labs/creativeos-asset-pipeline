@@ -54,6 +54,50 @@ describe("updateNodeData", () => {
   });
 });
 
+describe("setShotsCollapsed", () => {
+  const shots = () =>
+    createCanvasStore(
+      [
+        { id: "s1", type: "shot", position: { x: 0, y: 0 }, data: { order: 1 } },
+        { id: "s2", type: "shot", position: { x: 0, y: 0 }, data: { order: 2, collapsed: true } },
+        { id: "f", type: "file", position: { x: 0, y: 0 }, data: { title: "" } },
+      ] as unknown as AppNode[],
+      [],
+    );
+  const data = (store: ReturnType<typeof shots>, id: string) =>
+    store.getState().nodes.find((n) => n.id === id)?.data as Record<string, unknown>;
+
+  it("collapses only shots, in one update", () => {
+    const store = shots();
+    store.getState().setShotsCollapsed(["s1", "s2", "f"], true);
+    expect(data(store, "s1")).toEqual({ order: 1, collapsed: true });
+    expect(data(store, "f")).toEqual({ title: "" });
+  });
+
+  it("removes the flag on expand rather than saving false", () => {
+    const store = shots();
+    store.getState().setShotsCollapsed(["s2"], false);
+    expect(data(store, "s2")).toEqual({ order: 2 });
+  });
+
+  it("collapses a Multishot the same way", () => {
+    const store = createCanvasStore(
+      [{ id: "ms", type: "multishot", position: { x: 0, y: 0 }, data: { order: 1 } }] as unknown as AppNode[],
+      [],
+    );
+    store.getState().setShotsCollapsed(["ms"], true);
+    expect(store.getState().nodes[0].data).toEqual({ order: 1, collapsed: true });
+  });
+
+  it("leaves the nodes array untouched when nothing changes", () => {
+    const store = shots();
+    const before = store.getState().nodes;
+    store.getState().setShotsCollapsed(["s2"], true);
+    store.getState().setShotsCollapsed(["s1"], false);
+    expect(store.getState().nodes).toBe(before);
+  });
+});
+
 describe("onConnect", () => {
   it("assigns a UUID id to the new edge (the DB edges.id column is uuid)", () => {
     const store = createCanvasStore(nodes, []);
@@ -1180,7 +1224,7 @@ describe("generation status feed (D366)", () => {
   });
 });
 
-// D389 — the generation-lock index follows the edges, and only the edges.
+// D390 — the generation-lock index follows the edges, and only the edges.
 describe("generationLocks", () => {
   const vg: AppNode = { id: "vg", type: "video-gen", position: { x: 0, y: 0 }, data: { parsed: "https://s/a.mp4" } } as AppNode;
   const ed: AppNode = { id: "ed", type: "editor", position: { x: 0, y: 0 }, data: {} } as AppNode;

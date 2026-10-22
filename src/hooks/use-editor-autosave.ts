@@ -11,7 +11,7 @@ export type { SaveStatus };
 type Autosaver = ReturnType<typeof createAutosaver>;
 
 /**
- * The editor page's autosave (D390), the React side of lib/editor/autosave.ts. `flush` saves now
+ * The editor page's autosave (D391), the React side of lib/editor/autosave.ts. `flush` saves now
  * and rejects when it couldn't, so Back and Export stop rather than go ahead on an edit the server
  * doesn't have. Closing the tab with changes unsaved asks first. The browser's Back keeps the lock
  * (it marks the handoff) so the last pending save still lands.

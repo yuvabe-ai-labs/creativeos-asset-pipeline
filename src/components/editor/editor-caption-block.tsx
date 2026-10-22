@@ -2,7 +2,7 @@
 // A caption on the Captions lane, ported from the rough-cut spike. Drag the body to move it in
 // time, drag an edge to change when it starts or ends. Times snap to sequence frames; a release
 // without movement selects it. Reel times go to retimeCaption, which re-attaches the caption to
-// the piece under its new start (D392).
+// the piece under its new start (D393).
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
 

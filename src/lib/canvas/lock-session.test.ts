@@ -59,7 +59,7 @@ describe("readOrCreateLockSessionId", () => {
   });
 });
 
-// D390 — moving between the canvas and its editor in one tab keeps the lock: the page being left
+// D391 — moving between the canvas and its editor in one tab keeps the lock: the page being left
 // marks a handoff and skips its unmount release, so that release can't land after the next page
 // has taken the lock.
 function fullStorage() {

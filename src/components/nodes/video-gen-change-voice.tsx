@@ -23,7 +23,7 @@ type Props = {
   /** The version showing in the output column — the take this re-voices (null if it has no video). */
   sourceId: string | null;
   running: boolean;
-  /** D389 — why the clip can't generate (it is in the Editor's reel), or null. */
+  /** D390 — why the clip can't generate (it is in the Editor's reel), or null. */
   locked?: string | null;
   /** A voice change is running on this node right now — the button shows it, like Image Gen's Edit. */
   changing: boolean;

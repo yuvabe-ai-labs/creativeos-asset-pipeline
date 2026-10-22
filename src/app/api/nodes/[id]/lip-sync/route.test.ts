@@ -62,7 +62,7 @@ describe("POST /api/nodes/[id]/lip-sync", () => {
   });
 });
 
-// D389 — a clip in the Editor's reel can't generate, whoever asks.
+// D390 — a clip in the Editor's reel can't generate, whoever asks.
 describe("the Editor's generation lock", () => {
   it("refuses with the reason and records nothing", async () => {
     editorLock.value = "editor";

@@ -35,6 +35,7 @@ import type { UpstreamNode, ConnectedPreview } from "./connected-inputs-card";
 import type { VersionSummary } from "./prompt-version-history";
 import { InlineEvalBar } from "./inline-eval-bar";
 import { ModelRequestPanel } from "./model-request-panel";
+import { VersionOutputEmpty } from "./version-output-empty";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
 import { savePromptOutputAction } from "@/lib/actions/nodes";
@@ -45,6 +46,7 @@ import { GeneratedPromptBody } from "./generated-prompt-body";
 import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { PromptFocusShell, RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
+import { ActiveOnlyNotice } from "./active-only-notice";
 import {
   useNodeVersions,
   useRefreshNodeVersions,
@@ -65,6 +67,7 @@ import {
   planCoverage,
   setBeatText,
   type MultishotPlan,
+  asViewablePlan,
 } from "@/lib/nodes/multishot-plan";
 import { storedRefDialect, missingRefsMessage } from "@/lib/nodes/ref-binding";
 import type { VoLine } from "@/lib/nodes/reel-script";
@@ -645,6 +648,31 @@ export function MultishotPromptFocusView({
   const reviewBadge =
     mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
 
+  // D383 — one version's plan, read-only (the History pane, and the prompt pane while an older
+  // version is on screen). A version's output is the plan object the restore route returns.
+  const renderVersionOutput = (v: VersionSummary) => {
+    const plan = asViewablePlan(v.output);
+    if (!plan) return <VersionOutputEmpty noun="plan" />;
+    return (
+      <div className="flex flex-col gap-3">
+        {plan.look.trim() && (
+          <div className="rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
+            <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
+            <MentionInstructionEditor value={plan.look} onChange={() => {}} upstream={mentionUpstream} dialect={beatDialect} disabled />
+          </div>
+        )}
+        <ol className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+          {plan.beats.map((b, i) => (
+            <li key={b.cutId} className="flex flex-col gap-1 border-b border-border px-4 py-3 last:border-b-0">
+              <span className="text-eyebrow">{`Shot ${i + 1}`}</span>
+              <MentionInstructionEditor value={b.text} onChange={() => {}} upstream={mentionUpstream} dialect={beatDialect} disabled />
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  };
+
   return (
     <PromptFocusShell
       open={open}
@@ -686,8 +714,14 @@ export function MultishotPromptFocusView({
       approvalSaving={approvalSaving}
       onSetApproval={saveApproval}
       onLiveVersionUpdate={() => void fetchVersions({ preserveEvalDraft: true })}
+      outputLabel="Generated plan"
+      outputIcon={<ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />}
+      emptyNoun="plan"
+      renderVersionOutput={renderVersionOutput}
     >
-      {({ versionChips, approvalControls }) => (
+      {({ versionStepper, viewingBar, viewedVersion, viewedLabel, isViewingOther, approvalControls }) => {
+        const shownRequest = isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest;
+        return (
         <>
           {selected === "prompt" && (
             // Grid for the same reason as the body below: `minmax(0, 1fr)` bounds the second row
@@ -705,7 +739,7 @@ export function MultishotPromptFocusView({
                     <RefineWithAI
                       scope="all"
                       busy={refining?.scope === "all"}
-                      disabled={isReadOnly || !!refining || dirty || !connected}
+                      disabled={isReadOnly || !!refining || dirty || !connected || isViewingOther}
                       onSubmit={(note) => runRefine("all", { note })}
                       mentionables={planMentions}
                       label="Refine the whole sequence with AI"
@@ -715,8 +749,27 @@ export function MultishotPromptFocusView({
               </div>
 
               {outputView === "prompt" ? (
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-                  {planDraft ? (
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
+                  {/* Same heading row as the Breakup tab: the stepper and viewing bar belong to
+                      the output column whichever tab is showing. */}
+                  <div className="flex shrink-0 items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />
+                      <span className="text-eyebrow">Generated plan</span>
+                    </div>
+                    {versionStepper}
+                  </div>
+                  {viewingBar}
+                  {isViewingOther && viewedVersion ? (
+                    (() => {
+                      const viewedPlan = asViewablePlan(viewedVersion.output);
+                      return viewedPlan ? (
+                        <GeneratedPromptBody text={renderPlan(viewedPlan, cuts, cap, refIds, sequenceVoiceover)} images={promptRefImages} />
+                      ) : (
+                        <VersionOutputEmpty noun="plan" />
+                      );
+                    })()
+                  ) : planDraft ? (
                     <GeneratedPromptBody text={renderPlan(planDraft, cuts, cap, refIds, sequenceVoiceover)} images={promptRefImages} />
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -830,6 +883,7 @@ export function MultishotPromptFocusView({
                     {/* Generate, at the foot of the column it acts on — same placement as the
                         image and video prompt views. */}
                     <div className="shrink-0 border-t border-border px-5 py-3">
+                      {isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                       {unwritten.size > 0 && (
                         <p className="mb-2 text-[0.7rem] text-destructive">
                           {unwritten.size === 1
@@ -840,7 +894,7 @@ export function MultishotPromptFocusView({
                       <Button
                         className="w-full"
                         onClick={runGenerate}
-                        disabled={generating || isReadOnly || cuts.length === 0 || !!refining || dirty}
+                        disabled={generating || isReadOnly || cuts.length === 0 || !!refining || dirty || isViewingOther}
                       >
                         <ListVideo className="size-4" />
                         {generating
@@ -872,8 +926,9 @@ export function MultishotPromptFocusView({
                         <ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />
                         <span className="text-eyebrow">Generated plan</span>
                       </div>
-                      {versionChips}
+                      {versionStepper}
                     </div>
+                    {viewingBar}
 
                     {/* D236/D237 — the plan on screen was written for one model and the Multishot
                         node now says another. STATED, not clamped and not blocked: the beats stay
@@ -912,6 +967,10 @@ export function MultishotPromptFocusView({
                       </p>
                     )}
 
+                    {isViewingOther && viewedVersion ? (
+                      viewedVersion.output ? renderVersionOutput(viewedVersion) : <VersionOutputEmpty noun="plan" />
+                    ) : (
+                    <>
                     {mode === "skeleton" && (
                       <div className="space-y-2.5 pt-1">
                         {Array.from({ length: 6 }).map((_, i) => (
@@ -1080,12 +1139,14 @@ export function MultishotPromptFocusView({
                         )}
                       </>
                     )}
+                    </>
+                    )}
                     </div>
 
                     {/* Save, at the foot of the column it acts on — the same placement rule the
                         Generate button follows at the foot of the Input column. Rendered only
                         with a plan on screen, which is also the only state that can be dirty. */}
-                    {mode === "result" && (
+                    {mode === "result" && !isViewingOther && (
                       <div className="shrink-0 border-t border-border px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Button variant="outline" onClick={handleSavePlan} disabled={!dirty}>
@@ -1148,7 +1209,7 @@ export function MultishotPromptFocusView({
                       decision={evalDecision}
                       note={evalNote}
                       saving={evalSaving}
-                      visible={mode === "result" && !!activeVersionId}
+                      visible={mode === "result" && !!activeVersionId && !isViewingOther}
                       onDecision={handleEvalDecision}
                       onNote={setEvalNote}
                       onNoteBlur={handleEvalNoteBlur}
@@ -1166,8 +1227,8 @@ export function MultishotPromptFocusView({
 
           {selected === "request" && (
             <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
-              {activeRequest ? (
-                <ModelRequestPanel request={activeRequest} />
+              {shownRequest ? (
+                <ModelRequestPanel request={shownRequest} />
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No request recorded for this version — generate a multishot prompt to capture
@@ -1177,7 +1238,8 @@ export function MultishotPromptFocusView({
             </div>
           )}
         </>
-      )}
+        );
+      }}
     </PromptFocusShell>
   );
 }

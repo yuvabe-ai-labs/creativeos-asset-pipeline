@@ -1,4 +1,4 @@
-// Whether a node may generate while it feeds the Editor (D389), in one round trip (migration 0059).
+// Whether a node may generate while it feeds the Editor (D390), in one round trip (migration 0059).
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { GenerationLock } from "@/lib/editor/types";

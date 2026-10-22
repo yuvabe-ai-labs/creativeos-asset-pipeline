@@ -142,7 +142,7 @@ describe("flowToPersisted (image-gen edit fields)", () => {
 });
 
 describe("canConnect", () => {
-  // D387 — the Editor takes Video Gen and Dubbing, and connects onward to nothing.
+  // D388 — the Editor takes Video Gen and Dubbing, and connects onward to nothing.
   it("lets Video Gen and Dubbing feed the Editor, and nothing leave it", () => {
     expect(canConnect("video-gen", "editor")).toBe(true);
     expect(canConnect("dubbing", "editor")).toBe(true);

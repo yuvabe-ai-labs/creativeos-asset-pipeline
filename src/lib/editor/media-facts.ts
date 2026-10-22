@@ -1,4 +1,4 @@
-// Media facts for the files a reel uses, measured once per file on first use (D391). Cached rows
+// Media facts for the files a reel uses, measured once per file on first use (D392). Cached rows
 // come back in one query; the rest are probed from their headers, a few at a time, and saved in
 // one write. A failed probe is NOT cached, so reopening the editor tries again.
 import "server-only";

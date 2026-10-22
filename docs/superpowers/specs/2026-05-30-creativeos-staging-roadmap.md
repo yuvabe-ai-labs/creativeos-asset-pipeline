@@ -7510,11 +7510,75 @@ The library loads the first two once for the page, so a blocked card's icon open
 
 **Originated →** this conversation (no spec; a small change). No migration: the scope column stays, and new rows always say `panels`.
 
-### D387 — An Editor node assembles the connected clips, and opens a full page, not a focus view *(recorded 2026-10-20)*
+### D380 — An internal cost dashboard on production admin, fed by a nightly sync plus Refresh now *(recorded 2026-10-16)*
 
-**Decision.** A new `editor` node type. Its inputs are Video Gen and Dubbing nodes, at any approval status, as many as the user connects. It has no output handle. Dubbing gains its first output handle, which connects only to the Editor. There is **one per canvas**: every way of adding a node (the add menu, a shortcut, paste, duplicate, the copilot) refuses a second one and says why. The card shows its title, its sources, the piece count and total length, a strip of the cut, and **Open editor**; it edits nothing itself. Opening it, from the card or through `open_node`, goes to a full page at the canvas URL plus `/edit`, with **Back to canvas**. What leaves the editor is a Premiere package (D388); CreativeOS renders no video.
+**Decision.** `/admin/costs` on production, super-admin only, shows both environments: Billed vs Recorded in rupees, accounts → clients → canvases (plus each client's avatars and scripts), providers, credit coverage, and six months. The page reads only summary tables in the production DB. A Trigger.dev task `cost-sync` fills them nightly at 02:00 IST (yesterday plus month to date; the previous month again on the 1st–3rd, then frozen), and on demand from **Refresh now** (current month, one run at a time, 10-minute window). Staging's records come from an aggregate-only RPC `cost_recorded_rollup` on the staging DB, called with a staging key held only in production's Trigger.dev environment. The web app never connects to staging.
 
-**Why.** The team assembles CreativeOS clips somewhere else today, one download at a time. A timeline with four lanes, a stage and two side panels needs the whole screen. One Editor per canvas keeps "the reel" unambiguous: one edit, under the canvas's one lock (D390), with one set of generation locks to explain (D389).
+**Why.** Balance-only providers (Kling, ElevenLabs) need a daily snapshot history, so a scheduled job is needed anyway, and provider bills lag about a day. Summary tables keep the page to one round trip per table regardless of generation volume (performance rules 1 and 5). Refresh now covers "I need today's number" without making the page call providers.
+
+**Rejected.** Live queries on page load (slow, cross-region, provider rate limits, no balance history). An external BI tool (still needs the provider sync; another login; no links back into CreativeOS). Copying raw staging rows into production (only aggregates are needed).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D381 — "Recorded" is `generations.cost_usd`; providers bill only to provider × environment; one FX rate per month *(recorded 2026-10-16)*
+
+**Decision.** Recorded = summed raw `generations.cost_usd` of succeeded generations (before the credit round-up). Credits appear only against `monthly_credit_limit`. Account, client, canvas, avatar and script figures are always Recorded: providers report totals, so Billed stops at provider × environment and the difference shows as "Not recorded". Where one key serves both environments, its bill is stored as `shared` and split at read time by each environment's share of Recorded, labelled as split. Rupees = USD × the month's stored rate (`cost_fx_rates`); a new month defaults to the previous rate. Providers without a billing API (Google AI Studio, Sarvam, plan fees) use a monthly manual entry. A failed provider fetch never writes zero; the old rows stay and the UI says they are stale. Tracking starts 1 Nov 2026, when OpenAI, fal and Kling have separate staging and production keys and their billing APIs attribute cost per key (OpenAI `group_by=api_key_id`, fal `auth_method`, Kling `api_key_name` on each deduction), so those three split exactly; nothing before November is synced. Only keys listed in `src/lib/costs/provider-keys.ts` count, because the OpenAI project and the Kling account also hold keys for other uses.
+
+**Why.** `cost_usd` is the closest record to true provider cost; credits include round-up. Pretending to split a provider bill per canvas would be invented precision. A stored rate keeps past months stable.
+
+**Rejected.** Recorded from credits (overstates by the round-up). Live FX (past months would drift). Including card forex fees and GST (not needed yet).
+
+**Refines →** D77 (reads its ledger for the limit column).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D382 — A credit coverage registry lists every money-spending feature and whether it charges credits *(recorded 2026-10-16)*
+
+**Decision.** `src/lib/costs/coverage.ts` lists each paid feature (area, label, providers, status `charged | logged | none`). The sync stores a `feature` key on every recorded row, and a test fails if a key has no registry entry. The dashboard shows the registry with this month's spend per feature. At recording: canvas generation tools, avatars and storyboard panels charge credits. Script parsing, split scene and compose save usage without charging. The script copilot, canvas assistant, knowledge base and image analysis, Apify research and import, uploaded-file reading and dubbing voice preview are not recorded at all.
+
+**Why.** Unconnected features are the largest explainable part of "Not recorded", and listing them keeps connecting them visible work rather than something rediscovered later.
+
+**Rejected.** Inferring coverage automatically from code (fragile). Leaving unconnected spend only inside the gap total (hides which feature to fix).
+
+**Originated →** docs/superpowers/specs/2026-10-16-cost-dashboard-design.md.
+
+### D383 — Clicking a version views it; restoring is a separate button *(recorded 2026-10-21)*
+
+**Decision.** Every versioned node (Video Gen, Image Gen, Composite, Dubbing, Prompt, Video Prompt, Multishot Prompt) gets one History pattern: the list in the middle column and the version on screen in the output column. A row click, the `‹ vN of M ›` stepper or ↑ / ↓ views a version without changing the node. A bar above the output says which version is on screen and which one the node uses, with **Back to vN** and **Restore vN**. Restore lives only there; rows and chips no longer carry it. Closing the focus view returns to the active version. While an older version is on screen, everything that acts on the node's current output (approval, annotate, Change voice, Edit, dub and lip sync, prompt editing and Generate) is disabled. Thumbnails keep each version's real shape. Dubbing moves onto the shared `VersionHistoryList`. The prompt nodes' History pane gets the same two-column layout, and their `v1 v2` chips are replaced by the stepper.
+
+**Why.** The only way to look at an old take was to restore it, which changes the node for everyone and triggers a save. Viewing is local, makes no requests (every version is already loaded) and writes nothing.
+
+**Rejected.** A full-screen viewer over the focus view (hides the list; slower to compare takes). Keeping Restore in each row as well as the bar (two places for one action). Letting approval or annotate act on the viewed version (they would silently act on a version the node does not use). Leaving the prompt nodes on their own History and chips (the operator would learn two version models).
+
+**Refines →** D180, D375.
+
+**Originated →** docs/superpowers/specs/2026-10-21-version-viewing-and-media-fit-design.md.
+
+### D384 — Node cards and previews take the media's own shape; nothing is cropped *(recorded 2026-10-21)*
+
+**Decision.** Image Gen, Composite, Video Gen, File, Draw, Dubbing, Avatar, Client review and Post cards show their media whole, at its own aspect ratio. KB brand images and History thumbnails keep their real shape at a fixed height. One rule at two scales: output nodes (Image Gen, Composite, Video Gen, Dubbing) are 280–480px wide with media up to 500px tall; input tiles (File, Draw, Avatar, Post, Client review) are 176–280px wide with media up to 300px tall, edge to edge. Landscape cards hit the maximum width and portrait cards get narrower. Only extremely tall media is letterboxed. The size is measured when the media loads and saved on the node as `mediaWidth`/`mediaHeight`, only when it changed and only by the canvas lock holder, so reloads lay out without jumping. The Video Gen focus-view player and the loading placeholders use the real or chosen aspect ratio instead of a fixed 9:16. No node is an exception. Existing canvases are not rearranged.
+
+**Why.** Generated output is mostly portrait video, and the old 16:9 crop and 64px strips hid most of it. A narrower card shows the whole picture without making the canvas much taller.
+
+**Rejected.** Fixed 480px cards with letterboxing (portrait media fills under half the card). Free-height cards at 480 wide (a 9:16 card would be about 850px tall). One size range for every node (reference tiles would grow 2–3× and crowd existing canvases). Moving nodes on old canvases to avoid new overlaps (surprising; overlaps are easy to fix by dragging). Keeping the Avatar's 3:4 head crop as an exception (consistency across nodes was asked for explicitly).
+
+**Originated →** docs/superpowers/specs/2026-10-21-version-viewing-and-media-fit-design.md.
+
+### D387 — Shots collapse; what hides is derived from the graph, only the flag is saved *(recorded 2026-10-21)*
+
+**Decision.** Each Shot and each Multishot can be collapsed (and Collapse all / Expand all tidy the whole canvas); they are the same root in either lane, so they behave alike, and a Shot ↔ Multishot flip lands expanded. The only saved state is `data.collapsed` on that node, persisted with the canvas, so everyone opening it sees the same layout. What hides is derived at render time: a node's owners are the Shots nearest upstream of it (ties give several owners); an input File or Draw takes the owners of what it feeds. A node hides iff it has exactly one owner and that Shot is collapsed, so shared files and multi-shot nodes never hide. Edges to hidden nodes are redrawn to the collapsed Shot (display only, never saved); a cross-shot reference keeps a label naming the two original nodes. A node never becomes hidden except by a collapse: new or newly wired nodes under a collapsed Shot expand it, and anything the tray, review drawer or copilot opens reveals its Shot first.
+
+**Why.** Canvases with many shots are hard to read. Deriving membership from the graph means there is no membership list to keep in sync when nodes are added, rewired or deleted.
+
+**Rejected.** Per-person collapsed state in a new table or localStorage (collapse is a tidy-up of a shared document, like positions). Storing `hidden` on each child node (rewrites many rows per toggle and drifts as the graph changes). React Flow sub-flows / parent nodes (would move nodes into shot-relative coordinates). Hiding shared files once every shot using them is collapsed (the prototype says shared files never hide or move).
+
+**Originated →** docs/superpowers/specs/2026-10-21-collapsible-shots-design.md.
+
+### D388 — An Editor node assembles the connected clips, and opens a full page, not a focus view *(recorded 2026-10-20)*
+
+**Decision.** A new `editor` node type. Its inputs are Video Gen and Dubbing nodes, at any approval status, as many as the user connects. It has no output handle. Dubbing gains its first output handle, which connects only to the Editor. There is **one per canvas**: every way of adding a node (the add menu, a shortcut, paste, duplicate, the copilot) refuses a second one and says why. The card shows its title, its sources, the piece count and total length, a strip of the cut, and **Open editor**; it edits nothing itself. Opening it, from the card or through `open_node`, goes to a full page at the canvas URL plus `/edit`, with **Back to canvas**. What leaves the editor is a Premiere package (D389); CreativeOS renders no video.
+
+**Why.** The team assembles CreativeOS clips somewhere else today, one download at a time. A timeline with four lanes, a stage and two side panels needs the whole screen. One Editor per canvas keeps "the reel" unambiguous: one edit, under the canvas's one lock (D391), with one set of generation locks to explain (D390).
 
 **Rejected.**
 - The slide-up focus view every other node opens: too small for a timeline. *(User's call; it departs from the convention on purpose.)*
@@ -7526,17 +7590,17 @@ The library loads the first two once for the page, so a blocked card's icon open
 
 **Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md.
 
-### D388 — The Premiere package is written in TypeScript: FCP7 XML plus OpenTimelineIO JSON *(recorded 2026-10-20)*
+### D389 — The Premiere package is written in TypeScript: FCP7 XML plus OpenTimelineIO JSON *(recorded 2026-10-20)*
 
 **Decision.** The export writes Final Cut Pro 7 XML ("xmeml"), which Premiere imports, and an `.otio` JSON file, both directly in TypeScript. No Python and no OpenTimelineIO install run anywhere. Premiere Pro is the only target. The sequence matches what Premiere's own export contains:
 - V1: the pieces in order, with their trims.
 - A1/A2: each piece's own sound, a stereo pair linked to its picture (`groupindex 1`).
 - A3/A4: the dub, linked to the picture (`groupindex 2`). The original sound under it stays on A1/A2 with `enabled FALSE`, so it can be switched back on.
-- V2: the captions (D392).
+- V2: the captions (D393).
 
-Frame rates and lengths come from each take's measured facts (D391), never a constant. The package also holds an SRT, a manifest, a README, the caption fonts and a `media/` folder with exactly the files the reel uses. The README and the export dialog both say to **drag `creativeos-premiere.xml` into Premiere's Project panel**.
+Frame rates and lengths come from each take's measured facts (D392), never a constant. The package also holds an SRT, a manifest, a README, the caption fonts and a `media/` folder with exactly the files the reel uses. The README and the export dialog both say to **drag `creativeos-premiere.xml` into Premiere's Project panel**.
 
-**Why.** The spike (D393) wrote the export this way, and the package opened in the user's Windows Premiere on 2026-10-20 with linked sound, the dub on its own tracks and styled captions. The prototype's Python service only used OpenTimelineIO's `fcp_xml` adapter, and that adapter writes each clip's audio as an empty stub reusing the video clip's id and drops `<link>`, so sound arrives unlinked. The prototype also assumed 25 fps; our clips are 24 fps (121 frames for 5.04 s), so it asked Premiere for frames past the end of every clip. Premiere's Import screen ignores sequence XML and silently builds "Sequence 01" from the MP4s, which reads as a broken export unless the user is told where to drag it.
+**Why.** The spike (D394) wrote the export this way, and the package opened in the user's Windows Premiere on 2026-10-20 with linked sound, the dub on its own tracks and styled captions. The prototype's Python service only used OpenTimelineIO's `fcp_xml` adapter, and that adapter writes each clip's audio as an empty stub reusing the video clip's id and drops `<link>`, so sound arrives unlinked. The prototype also assumed 25 fps; our clips are 24 fps (121 frames for 5.04 s), so it asked Premiere for frames past the end of every clip. Premiere's Import screen ignores sequence XML and silently builds "Sequence 01" from the MP4s, which reads as a broken export unless the user is told where to drag it.
 
 **Rejected.**
 - A Python service, or a Trigger.dev Python extension, running OpenTimelineIO: its adapter loses linked audio, and a Premiere-only export needs no format hub.
@@ -7545,7 +7609,7 @@ Frame rates and lengths come from each take's measured facts (D391), never a con
 
 **Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§9, §11).
 
-### D389 — A clip connected to the Editor can't generate; switching its version still works *(recorded 2026-10-20)*
+### D390 — A clip connected to the Editor can't generate; switching its version still works *(recorded 2026-10-20)*
 
 **Decision.**
 - While a node feeds the Editor, generation is refused on:
@@ -7568,7 +7632,7 @@ Frame rates and lengths come from each take's measured facts (D391), never a con
 
 **Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§4, §5).
 
-### D390 — The edit has its own record, saved under the canvas lock *(recorded 2026-10-20)*
+### D391 — The edit has its own record, saved under the canvas lock *(recorded 2026-10-20)*
 
 **Decision.**
 - The reel's edit lives in its own row, keyed to the canvas and the Editor node, not in the node's data. It holds the order, the pieces and their trims, each piece's picture and sound choice, the captions with their position and style, and the reel's shape (9:16 or 16:9).
@@ -7588,7 +7652,7 @@ Frame rates and lengths come from each take's measured facts (D391), never a con
 
 **Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§8, §10).
 
-### D391 — Media facts are measured on the server, once per take; the export is a background task *(recorded 2026-10-20)*
+### D392 — Media facts are measured on the server, once per take; the export is a background task *(recorded 2026-10-20)*
 
 **Decision.**
 - Each file the editor can place has its media facts measured once on the server and kept with the take: a Video Gen take's video, and a Dubbing take's original, dub audio and lip-synced files. The facts are frame rate, frame count, duration, picture size, and audio channels and sample rate.
@@ -7610,7 +7674,7 @@ Frame rates and lengths come from each take's measured facts (D391), never a con
 
 **Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§10).
 
-### D392 — Captions reach Premiere as styled Graphic titles, in fonts from a fixed Google Fonts list *(recorded 2026-10-20)*
+### D393 — Captions reach Premiere as styled Graphic titles, in fonts from a fixed Google Fonts list *(recorded 2026-10-20)*
 
 **Decision.**
 - Each caption is exported as a Premiere Graphic: a `GraphicAndType` clipitem on V2 carrying its text, font, size, colour and position.
@@ -7630,7 +7694,7 @@ Frame rates and lengths come from each take's measured facts (D391), never a con
 
 **Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§7, §11).
 
-### D393 — The rough-cut spike stays on its own branch and is never merged *(recorded 2026-10-20)*
+### D394 — The rough-cut spike stays on its own branch and is never merged *(recorded 2026-10-20)*
 
 **Decision.** The spike (`/spike/rough-cut`, branch `spike/rough-cut-editor`, commit `216ed101`) is reference only. The product reuses its writers, timeline maths, playback hook and tests by copying files into their product homes (`git checkout spike/rough-cut-editor -- <file>`, then move them). Nothing is merged or cherry-picked from it. The implementation plan names each file it ports. Once the product ships, the branch is deleted or kept as an archive.
 

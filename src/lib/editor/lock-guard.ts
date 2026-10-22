@@ -1,4 +1,4 @@
-// D389 — the server's half of the generation lock, shared by every start route (video generate,
+// D390 — the server's half of the generation lock, shared by every start route (video generate,
 // voice change, dub, lip sync): a 409 with the reason when the node feeds the Editor, else null.
 // One database call (editor_generation_lock). A failed check throws: it never reads as unlocked.
 import "server-only";

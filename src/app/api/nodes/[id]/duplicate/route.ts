@@ -10,7 +10,7 @@ export async function POST(
     return withTryCatch("Duplicate node failed", async () => {
       const supabase = createServerSupabase();
 
-      // D387 — one Editor per canvas.
+      // D388 — one Editor per canvas.
       if (sourceNode.type === "editor") {
         return apiError(EDITOR_DUPLICATE_REFUSED, 409);
       }

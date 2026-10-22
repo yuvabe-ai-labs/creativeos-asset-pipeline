@@ -49,6 +49,11 @@ import { CanvasAutosave } from "./canvas-autosave";
 import { ConnectionBadge } from "./connection-badge";
 import { QuickAddMenu } from "./quick-add-menu";
 import { mnemonicToType, isEditableTarget } from "@/lib/canvas-node-options";
+import { highlightedEdgeIds } from "@/lib/canvas/connection-focus";
+import { reroutedMembers } from "@/lib/canvas/shot-collapse";
+import { useShotCollapse } from "./use-shot-collapse";
+import { ShotHiddenCountProvider } from "./shot-collapse-context";
+import { CollapseShotsPanel } from "./collapse-shots-panel";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
@@ -104,6 +109,8 @@ const VERSIONED_NODE_TYPES = new Set([
 ]);
 // How long the pointer must rest on a node before its versions are prefetched.
 const HOVER_PREFETCH_DELAY_MS = 200;
+// How far out the canvas zooms: 20%, so a canvas of many nodes fits on one screen.
+const MIN_ZOOM = 0.2;
 
 export function Canvas({
   canvasId,
@@ -269,7 +276,7 @@ export function Canvas({
 
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
-      // D387 — one Editor per canvas, from the palette and the bare key alike.
+      // D388 — one Editor per canvas, from the palette and the bare key alike.
       const refusal = addNodeRefusal(type, nodesRef.current);
       if (refusal) {
         toast.error(refusal);
@@ -429,22 +436,42 @@ export function Canvas({
     for (const n of nodes) m.set(n.id, n.type);
     return m;
   }, [nodes]);
+  // Selecting a node highlights everything that feeds it, all the way up the chain, plus its
+  // own outgoing connections; selecting a connection highlights just that one. Nothing else
+  // changes — a lit connection keeps its layer, so it still runs behind the nodes it passes.
+  const highlighted = useMemo(() => highlightedEdgeIds(nodes, edges), [nodes, edges]);
+  // D387 — collapsed shots: their own nodes hidden, lines to them redrawn to the Shot.
+  const collapse = useShotCollapse(nodes, edges);
   const displayEdges = useMemo(
     () =>
-      edges.map((e) =>
-        nodeTypeById.get(e.source) === "script" &&
-        nodeTypeById.get(e.target) === "shot"
-          ? {
-              ...e,
-              animated: true,
-              style: {
-                strokeDasharray: "6 4",
-                stroke: "var(--muted-foreground)",
-              },
-            }
-          : e,
-      ),
-    [edges, nodeTypeById],
+      collapse.edges.map((e) => {
+        const lineage =
+          nodeTypeById.get(e.source) === "script" && nodeTypeById.get(e.target) === "shot";
+        // A redrawn line lights up when any connection it stands for does.
+        const members = reroutedMembers(e);
+        const lit = highlighted.has(e.id) || members.some((id) => highlighted.has(id));
+        if (members.length > 0) {
+          return {
+            ...e,
+            labelStyle: { fill: "var(--muted-foreground)", fontSize: 11, fontWeight: 500 },
+            labelBgStyle: { fill: "var(--card)", stroke: "var(--border)" },
+            labelBgPadding: [6, 3] as [number, number],
+            labelBgBorderRadius: 4,
+            style: { ...e.style, ...(lit ? { stroke: "var(--primary)", strokeWidth: 2 } : null) },
+          };
+        }
+        if (!lineage && !lit) return e;
+        return {
+          ...e,
+          animated: lineage || e.animated,
+          style: {
+            ...e.style,
+            ...(lineage ? { strokeDasharray: "6 4", stroke: "var(--muted-foreground)" } : null),
+            ...(lit ? { stroke: "var(--primary)", strokeWidth: 2 } : null),
+          },
+        };
+      }),
+    [collapse.edges, nodeTypeById, highlighted],
   );
 
   return (
@@ -454,6 +481,7 @@ export function Canvas({
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
     <AutosaveFlushProvider>
+    <ShotHiddenCountProvider value={collapse.hiddenCounts}>
     <div className="absolute inset-0 bg-[var(--neutral-50)]">
       <CanvasAutosave
         canvasId={canvasId}
@@ -511,7 +539,7 @@ export function Canvas({
       )}
 
       <ReactFlow
-        nodes={nodes}
+        nodes={collapse.nodes}
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -532,6 +560,8 @@ export function Canvas({
         panOnScroll
         panOnDrag={[1]}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        // React Flow's default floor is 0.5, too close to see a large canvas whole.
+        minZoom={MIN_ZOOM}
         proOptions={{ hideAttribution: true }}
         className="!bg-transparent"
         onInit={(instance) => {
@@ -594,11 +624,13 @@ export function Canvas({
           color="rgba(148,163,184,0.45)"
         />
         <Controls showInteractive={false} />
+        <CollapseShotsPanel shotIds={collapse.shotIds} collapsedCount={collapse.collapsedCount} />
       </ReactFlow>
 
       <GenerationTray canvasId={canvasId} />
-      <CopilotPanel canvasId={canvasId} /> 
+      <CopilotPanel canvasId={canvasId} />
     </div>
+    </ShotHiddenCountProvider>
     </AutosaveFlushProvider>
     </CanvasEditableProvider>
     </CanvasIdProvider>

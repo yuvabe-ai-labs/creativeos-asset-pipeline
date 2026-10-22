@@ -30,7 +30,7 @@ type Props = {
   activeDub: DubbingOutput | null;
   running: "dub" | "lipsync" | null;
   editable: boolean;
-  /** D389 — why Dub and Lip sync are off while the node is in the Editor's reel, or null. */
+  /** D390 — why Dub and Lip sync are off while the node is in the Editor's reel, or null. */
   locked?: string | null;
   onDub: () => void;
   onLipSync: () => void;

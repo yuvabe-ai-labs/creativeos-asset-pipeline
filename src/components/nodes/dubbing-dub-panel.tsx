@@ -31,7 +31,7 @@ type Props = {
   hasDub: boolean;
   running: "dub" | "lipsync" | null;
   editable: boolean;
-  /** D389 — why the dub can't run (it is in the Editor's reel), or null. */
+  /** D390 — why the dub can't run (it is in the Editor's reel), or null. */
   locked?: string | null;
   onDub: () => void;
 };

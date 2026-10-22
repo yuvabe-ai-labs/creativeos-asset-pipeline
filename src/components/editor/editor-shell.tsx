@@ -29,9 +29,9 @@ type Props = {
   initialState: EditorState;
 };
 
-// D387 — the Rough Cut Editor page, laid out from the mockups
+// D388 — the Rough Cut Editor page, laid out from the mockups
 // (https://claude.ai/artifact/SseUKVaihCKMsHZscoQDCR): header; Sources | Stage | Properties; the
-// timeline full width below. It holds the canvas lock (D390): read-only without it.
+// timeline full width below. It holds the canvas lock (D391): read-only without it.
 export function EditorShell(props: Props) {
   return (
     <EditorStoreProvider doc={props.initialState.doc} sources={props.initialState.sources}>

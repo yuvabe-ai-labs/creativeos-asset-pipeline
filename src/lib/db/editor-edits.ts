@@ -1,4 +1,4 @@
-// The reel's edit: one row per Editor node (D390, migration 0059).
+// The reel's edit: one row per Editor node (D391, migration 0059).
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { EditDoc } from "@/lib/editor/types";

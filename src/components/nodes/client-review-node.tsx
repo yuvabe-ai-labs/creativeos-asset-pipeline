@@ -7,6 +7,8 @@ import { MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useNodeMediaSize } from "@/hooks/use-node-media-size";
+import { nodeMediaBox } from "@/lib/canvas/media-fit";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { clientReviewKeys, useNodeClientReview } from "@/hooks/queries/client-reviews";
@@ -15,6 +17,7 @@ import type { NodeClientReview } from "@/lib/client-review/wire";
 import { ClientReviewUpload } from "./client-review-upload";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
+import { NodeMedia } from "./node-media";
 import { useClientFeedback } from "@/components/canvas/client-feedback-drawer/client-feedback-context";
 
 // D309: terminal node (no handles) — the cut a client reviews by public link. Clicking the
@@ -47,6 +50,9 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
 
   const count = current?.comments.length ?? 0;
   const cut = current?.review ?? null;
+  // D384 — the cut at its own shape, no black bars.
+  const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, 16 / 9);
+  const box = cut ? nodeMediaBox(media.ratio, "input") : null;
   const showingFeedback = feedbackNodeId === id;
 
   return (
@@ -59,10 +65,12 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
           if ((e.target as HTMLElement).closest("button, input, textarea, a")) return;
           openFeedback(id);
         }}
+        style={box ? { width: box.cardWidth } : undefined}
         className={cn(
+          !box && "w-56",
           // D310: the client accent — amber border + a pale amber header band — so client-facing
           // work reads apart from generation nodes. Selection keeps the purple ring (brand focus).
-          "group w-56 cursor-pointer overflow-hidden rounded-lg border border-client/70 bg-card shadow-card",
+          "group cursor-pointer overflow-hidden rounded-lg border border-client/70 bg-card shadow-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
           showingFeedback && !selected && "ring-2 ring-client/60",
@@ -78,16 +86,8 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
           onCommitTitle={(t) => updateNodeData(id, { title: t })}
         />
         </div>
-        {cut && (
-          <div className="overflow-hidden border-b border-border bg-black">
-            <video
-              src={`${cut.videoUrl}#t=0.1`}
-              preload="metadata"
-              muted
-              playsInline
-              className="h-32 w-full object-contain"
-            />
-          </div>
+        {cut && box && (
+          <NodeMedia kind="video" src={cut.videoUrl} alt={d.title || "Cut"} box={box} onMeasured={media.onMeasured} edge />
         )}
         <div className="flex items-center justify-between gap-2 px-3 py-3">
           {cut ? (

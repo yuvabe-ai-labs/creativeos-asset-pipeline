@@ -24,7 +24,7 @@ import { EditorNodeStrip } from "./editor-node-strip";
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 const EMPTY = "Connect Video Gen or Dubbing nodes.";
 
-// D387 — the Rough Cut Editor's card, laid out from the canvas mockup
+// D388 — the Rough Cut Editor's card, laid out from the canvas mockup
 // (https://claude.ai/artifact/SseUKVaihCKMsHZscoQDCR, "Main"). It edits nothing: it summarises the
 // reel and opens the editor page. One Editor per canvas, so its one state query is one request per
 // canvas, not per node (performance rule 1), and its selectors read no store collection.

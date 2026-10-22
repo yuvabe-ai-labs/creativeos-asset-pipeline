@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (node.active_version_id !== versionId) return apiError("Lip sync runs on the dub you're viewing. Reopen the node and try again.", 400);
 
       const [version, running, locked] = await Promise.all([getVersionById(versionId), hasRunningGeneration(nodeId), editorLockResponse(nodeId)]);
-      if (locked) return locked; // D389
+      if (locked) return locked; // D390
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       const output = version && version.node_id === nodeId ? readDubbingOutput(version.output) : null;
       const durationSeconds = version ? durationOfParams(version.params_used ?? {}) : 0;

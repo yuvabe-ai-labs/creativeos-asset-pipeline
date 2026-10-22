@@ -24,6 +24,11 @@ import { DubbingControls } from "./dubbing-controls";
 import { DubbingPlayer } from "./dubbing-player";
 import { DubbingVersionHistory } from "./dubbing-version-history";
 import { DubbingUsagePopover } from "./dubbing-usage-popover";
+import { useVersionViewing } from "@/hooks/use-version-viewing";
+import { versionLabelsById } from "@/lib/generations/version-labels";
+import { VersionViewingBar } from "./version-viewing-bar";
+import { VersionStepper } from "./version-stepper";
+import { ActiveOnlyNotice } from "./active-only-notice";
 
 type Props = {
   open: boolean;
@@ -65,6 +70,12 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
           ? "lipsync"
           : null;
   const activeDub = active?.dubbing ?? null;
+  // D383 — the dub on screen; the controls act on the active one only.
+  const viewing = useVersionViewing(versions, activeVersionId, open);
+  const labelById = versionLabelsById(versions);
+  const viewed = viewing.viewed;
+  const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
+  const shownDub = viewing.isViewingOther ? viewed?.dubbing ?? null : activeDub;
 
   const onDub = () =>
     startDub.mutate({ language: lang, style: dubStyle, voice: dubVoice, pace: dubPace }, { onError: (e) => toast.error(startErrorMessage(e, "Couldn't start the dub.")) });
@@ -120,38 +131,60 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
               ) : selected === "history" ? (
                 <div className="px-6 py-5">
                   {loading ? <Skeleton className="h-24 w-full rounded-xl" /> : versions.length ? (
-                    <DubbingVersionHistory versions={versions} activeVersionId={activeVersionId} onRestore={(id) => void restore(id)} restoring={restoring} />
+                    <DubbingVersionHistory versions={versions} activeVersionId={activeVersionId} viewedVersionId={viewed?.id ?? null} onView={viewing.view} />
                   ) : <p className="text-sm text-muted-foreground">No dubs yet. Every dub shows up here.</p>}
                 </div>
               ) : (
-                <DubbingControls
-                  nodeId={nodeId}
-                  locked={generationLock ? GENERATION_LOCK_COPY[generationLock].short : null}
-                  language={lang}
-                  onLanguageChange={(l) => onPatch({ language: l })}
-                  style={dubStyle}
-                  onStyleChange={(s) => onPatch({ style: s })}
-                  voice={dubVoice}
-                  onVoiceChange={(v) => onPatch({ voice: v })}
-                  pace={dubPace}
-                  onPaceChange={(p) => onPatch({ pace: p })}
-                  sourceSeconds={source?.seconds ?? 0}
-                  sourceLoading={source?.secondsLoading ?? false}
-                  activeDubSeconds={activeSeconds}
-                  hasSource={Boolean(source?.url)}
-                  activeDub={activeDub}
-                  running={running}
-                  editable={editable}
-                  onDub={onDub}
-                  onLipSync={onLipSync}
-                />
+                <>
+                  {viewing.isViewingOther && (
+                    <div className="px-6 pt-5">
+                      <ActiveOnlyNotice label={viewedLabel} />
+                    </div>
+                  )}
+                  <DubbingControls
+                    nodeId={nodeId}
+                    locked={generationLock ? GENERATION_LOCK_COPY[generationLock].short : null}
+                    language={lang}
+                    onLanguageChange={(l) => onPatch({ language: l })}
+                    style={dubStyle}
+                    onStyleChange={(s) => onPatch({ style: s })}
+                    voice={dubVoice}
+                    onVoiceChange={(v) => onPatch({ voice: v })}
+                    pace={dubPace}
+                    onPaceChange={(p) => onPatch({ pace: p })}
+                    sourceSeconds={source?.seconds ?? 0}
+                    sourceLoading={source?.secondsLoading ?? false}
+                    activeDubSeconds={activeSeconds}
+                    hasSource={Boolean(source?.url)}
+                    activeDub={activeDub}
+                    running={running}
+                    editable={editable && !viewing.isViewingOther}
+                    onDub={onDub}
+                    onLipSync={onLipSync}
+                  />
+                </>
               )}
             </div>
             <DubbingPlayer
-              key={`${activeDub?.dubbed ?? ""}|${activeDub?.lipSynced ?? ""}`}
-              dub={activeDub}
+              key={`${viewed?.id ?? ""}|${shownDub?.dubbed ?? ""}|${shownDub?.lipSynced ?? ""}`}
+              dub={shownDub}
               sourceUrl={source?.url ?? null}
-              workingLabel={running === "dub" ? `Dubbing into ${dubLanguageLabel(lang)}…` : running === "lipsync" ? "Lip-syncing…" : null}
+              workingLabel={viewing.isViewingOther ? null : running === "dub" ? `Dubbing into ${dubLanguageLabel(lang)}…` : running === "lipsync" ? "Lip-syncing…" : null}
+              stepper={loading ? null : <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />}
+              banner={
+                viewing.isViewingOther && viewed ? (
+                  <VersionViewingBar
+                    viewedLabel={viewedLabel}
+                    viewedCreatedAt={viewed.createdAt}
+                    activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
+                    canRestore={editable && !viewed.error && Boolean(viewed.dubbing)}
+                    restoring={restoring}
+                    onBack={viewing.backToActive}
+                    onRestore={() => void restore(viewed.id)}
+                  />
+                ) : null
+              }
+              failed={viewing.isViewingOther && !viewed?.dubbing}
             />
           </div>
         </div>

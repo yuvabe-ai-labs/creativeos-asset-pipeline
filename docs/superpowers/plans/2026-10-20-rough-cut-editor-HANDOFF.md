@@ -16,7 +16,7 @@ about the Rough Cut Editor, then the design doc. Start that conversation **in th
 | Architecture + feasibility page | https://claude.ai/artifact/88wWK2tgPUk3o2tHYKQPEn |
 | Screen mockups (design canvas) | https://claude.ai/artifact/SseUKVaihCKMsHZscoQDCR: canvas + Editor node, editor with a clip / caption / dubbed clip selected, export dialog |
 | Implementation plan | **Written and executed** (inline, 2026-10-20): [2026-10-20-rough-cut-editor.md](2026-10-20-rough-cut-editor.md), 23 tasks, then a fresh whole-branch review and one fix pass. The rulings and deferred items are in §7b. |
-| ADRs | **D387–D393** written in the roadmap's ADR log §7. |
+| ADRs | **D388–D394** written in the roadmap's ADR log §7. |
 | Migration | **0059_rough_cut_editor.sql written, NOT applied.** Apply it to staging only with the user's go-ahead. |
 | Build | All tasks and review fixes committed on `feat/rough-cut-editor` (not pushed). Full suite green (4,560 tests), 0 type errors, `next build` passes. Hand checks and the Premiere acceptance are still to do (§7a). |
 
@@ -245,7 +245,7 @@ All in the design doc (§3–§10 and §12). In short:
 4. Once the product ships, delete the spike worktree and branch, or keep the branch as an archive.
    Removing a worktree can hit Windows MAX_PATH; see the memory note on worktree removal.
 
-## 8. Proposed ADRs (numbers from D387; confirm first)
+## 8. Proposed ADRs (numbers from D388; confirm first)
 
 1. **Rough Cut Editor node.**
    - Video Gen + Dubbing in, any status; no output; one per canvas.

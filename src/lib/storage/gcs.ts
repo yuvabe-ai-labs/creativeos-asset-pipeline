@@ -49,7 +49,7 @@ export async function _put(
 ): Promise<void> {
   await getStorage().bucket(getBucketName()).file(path).save(body, {
     contentType,
-    // A download name for files people save (the editor's package, D391).
+    // A download name for files people save (the editor's package, D392).
     ...(opts.contentDisposition ? { metadata: { contentDisposition: opts.contentDisposition } } : {}),
   });
 }

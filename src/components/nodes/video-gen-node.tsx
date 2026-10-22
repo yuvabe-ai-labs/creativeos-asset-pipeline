@@ -21,6 +21,9 @@ import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
 import { NodeCreditsFooter } from "./node-credits-footer";
+import { useNodeMediaSize } from "@/hooks/use-node-media-size";
+import { nodeMediaBox, parseAspectRatio } from "@/lib/canvas/media-fit";
+import { NodeMedia } from "./node-media";
 
 export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -44,6 +47,9 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const [focusOpen, setFocusOpen] = useState(false);
   const { isGenerating, isChangingVoice } = useGenerationStatus(id);
   const showVideo = Boolean(videoUrl) && (!isGenerating || isChangingVoice);
+  // D384 — the card takes the video's shape; while generating, it reserves the chosen shape.
+  const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, parseAspectRatio((d.params as Record<string, unknown> | undefined)?.aspect_ratio));
+  const box = showVideo || isGenerating ? nodeMediaBox(media.ratio, "output") : null;
 
   // Open when opened locally OR when the Generation Tray points `focusedNodeId` here.
   // Derived during render — no effect — so it never trips the set-state-in-effect rule.
@@ -75,8 +81,10 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
         onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
         onDragOver={drop.onDragOver}
         onDrop={drop.onDrop}
+        style={box ? { width: box.cardWidth } : undefined}
         className={cn(
-          "w-60 rounded-lg border border-border bg-card shadow-card",
+          !box && "w-60",
+          "rounded-lg border border-border bg-card shadow-card",
           "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
@@ -113,23 +121,19 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
             </div>
           )}
           {isGenerating && !showVideo && (
-            <div className="mb-2 h-16 w-full animate-pulse rounded-md bg-primary/10" />
+            <div className="mb-2 animate-pulse rounded-md bg-primary/10" style={box ? { width: box.mediaWidth, height: box.mediaHeight } : undefined} />
           )}
-          {showVideo && (
-            <div className="relative mb-2 overflow-hidden rounded-md border border-border">
-              <video
-                src={videoUrl ?? undefined}
-                className="h-16 w-full object-cover"
-                muted
-                playsInline
-              />
-              {/* D284 — a voice change keeps the take in view, veiled, like the focus view. */}
-              {isChangingVoice && (
-                <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-background/60 text-xs font-medium backdrop-blur-sm">
-                  <AudioLines className="size-3.5 animate-pulse text-primary" strokeWidth={1.5} />
-                  Changing voice…
-                </div>
-              )}
+          {showVideo && videoUrl && box && (
+            <div className="mb-2">
+              <NodeMedia kind="video" src={videoUrl} alt={title || "Generated video"} box={box} onMeasured={media.onMeasured}>
+                {/* D284 — a voice change keeps the take in view, veiled, like the focus view. */}
+                {isChangingVoice && (
+                  <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-background/60 text-xs font-medium backdrop-blur-sm">
+                    <AudioLines className="size-3.5 animate-pulse text-primary" strokeWidth={1.5} />
+                    Changing voice…
+                  </div>
+                )}
+              </NodeMedia>
             </div>
           )}
           {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}

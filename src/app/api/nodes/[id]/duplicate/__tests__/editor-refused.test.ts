@@ -11,7 +11,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
 import { POST } from "../route";
 
 describe("POST /api/nodes/[id]/duplicate", () => {
-  it("refuses to duplicate an Editor (one per canvas, D387)", async () => {
+  it("refuses to duplicate an Editor (one per canvas, D388)", async () => {
     const res = await POST(new Request("http://x", { method: "POST" }), { params: Promise.resolve({ id: "n1" }) });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "An Editor can't be duplicated: each canvas has one." });

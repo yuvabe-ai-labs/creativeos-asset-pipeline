@@ -2,7 +2,7 @@ import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpe
 import type { ExportJobInput, ExportResult, ExportStatus } from "@/lib/editor/export-run";
 import { getJob } from "@/lib/jobs/db";
 
-// The export dialog polls this (D391). A job is only visible through the canvas it exports.
+// The export dialog polls this (D392). A job is only visible through the canvas it exports.
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string; jobId: string }> }) {
   const { cid, jobId } = await params;
   return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>

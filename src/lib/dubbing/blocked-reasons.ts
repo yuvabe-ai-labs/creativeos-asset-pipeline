@@ -10,7 +10,7 @@ export function dubBlockedReason(a: {
   hasSource: boolean;
   sourceLoading: boolean;
   sourceSeconds: number;
-  /** D389 — why generation is locked (it feeds the Editor), or null. */
+  /** D390 — why generation is locked (it feeds the Editor), or null. */
   locked?: string | null;
 }): string | null {
   if (!a.editable) return READ_ONLY;

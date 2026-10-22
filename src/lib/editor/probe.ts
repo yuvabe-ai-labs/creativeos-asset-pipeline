@@ -1,4 +1,4 @@
-// Media facts from a file's header (D391), ported from the rough-cut spike's browser probe to run
+// Media facts from a file's header (D392), ported from the rough-cut spike's browser probe to run
 // on the server. Over a URL, mediabunny reads only what it needs with range requests: measured
 // 2026-10-20, about 288 KB of a 5.15 MB CreativeOS clip in two reads. Frame rates come from the
 // file itself; CreativeOS clips are 24 fps (121 frames for 5.04 s), never an assumed 25.

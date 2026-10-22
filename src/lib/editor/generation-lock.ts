@@ -1,4 +1,4 @@
-// Generation is locked while a clip feeds the Editor (D389): on the connected node, and on the
+// Generation is locked while a clip feeds the Editor (D390): on the connected node, and on the
 // Video Gen behind a connected Dubbing node. Nothing further upstream. The canvas keeps this as an
 // index updated when edges change, so each node reads its lock in O(1) (performance rule 2); the
 // server checks the same rule in editor_generation_lock() (migration 0059).

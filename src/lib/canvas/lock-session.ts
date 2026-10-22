@@ -51,7 +51,7 @@ export function getLockSessionId(canvasId: string): string {
   return readOrCreateLockSessionId(canvasId, storage, () => crypto.randomUUID());
 }
 
-// ── Handoff between the canvas and its editor (D390) ─────────────────────────
+// ── Handoff between the canvas and its editor (D391) ─────────────────────────
 //
 // The canvas page and its editor page (`…/edit`) are two pages in one tab sharing the tab's lock
 // session id. Each releases the lock on unmount with a beacon; navigating between them would

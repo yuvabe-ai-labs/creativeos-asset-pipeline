@@ -7,7 +7,7 @@ import { EditorShell } from "@/components/editor/editor-shell";
 
 export const dynamic = "force-dynamic";
 
-// D387 — the Rough Cut Editor, a full page at the canvas URL plus /edit. Loads the edit and all
+// D388 — the Rough Cut Editor, a full page at the canvas URL plus /edit. Loads the edit and all
 // its sources in one server read (spec §10's call budget); the page then holds the canvas lock.
 export default async function EditorPage({ params }: { params: Promise<{ id: string; cid: string }> }) {
   const { id, cid } = await params; // client slug, canvas slug

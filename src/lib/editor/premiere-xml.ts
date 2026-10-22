@@ -1,4 +1,4 @@
-// Final Cut Pro 7 XML ("xmeml") for Premiere Pro, written directly in TypeScript (D388). Ported
+// Final Cut Pro 7 XML ("xmeml") for Premiere Pro, written directly in TypeScript (D389). Ported
 // from the rough-cut spike, whose output opened in the user's Windows Premiere on 2026-10-20.
 //
 // What differs from OpenTimelineIO's fcp_xml adapter, on purpose:

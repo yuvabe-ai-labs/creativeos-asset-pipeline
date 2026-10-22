@@ -22,9 +22,11 @@ export function ClientsGrid({
 
   const tiles = useMemo(
     () =>
+      // Newest client first, by when it was created — a stable order that doesn't reshuffle
+      // every time someone works on a canvas (it used to sort by last canvas activity).
       filterAndSort(clients, query, "recent", {
         name: (c) => c.name,
-        timestamp: (c) => c.last_active,
+        timestamp: (c) => c.created_at,
       }),
     [clients, query],
   );

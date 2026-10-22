@@ -6,7 +6,7 @@ import { getNodeTypeOnCanvas } from "@/lib/db/nodes";
 import { loadEditorState } from "@/lib/editor/load-state";
 import { EditDocSchema } from "@/lib/editor/types";
 
-// The canvas's reel edit (D390). GET: the edit reconciled with the Editor's current sources and
+// The canvas's reel edit (D391). GET: the edit reconciled with the Editor's current sources and
 // their media facts, in one server read. PATCH: an autosave, accepted only from the session that
 // holds the canvas lock (D33), so nothing changes under an open editor.
 

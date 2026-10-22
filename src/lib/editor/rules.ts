@@ -1,5 +1,5 @@
-// The Editor's canvas rules: one per canvas (D387), and connecting a clip is refused while it
-// generates or has no finished take (D389): a job finishing later would become the current take
+// The Editor's canvas rules: one per canvas (D388), and connecting a clip is refused while it
+// generates or has no finished take (D390): a job finishing later would become the current take
 // and change a reel that was already cut.
 import { readDubbingOutput } from "@/lib/dubbing/types";
 

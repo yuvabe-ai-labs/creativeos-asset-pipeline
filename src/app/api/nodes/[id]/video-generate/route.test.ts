@@ -410,7 +410,7 @@ describe("POST video-generate — references within the cap (D308)", () => {
   });
 });
 
-// D389 — a clip in the Editor's reel can't generate, whoever asks.
+// D390 — a clip in the Editor's reel can't generate, whoever asks.
 describe("the Editor's generation lock", () => {
   it("refuses with the reason and records nothing", async () => {
     editorLock.value = "editor";

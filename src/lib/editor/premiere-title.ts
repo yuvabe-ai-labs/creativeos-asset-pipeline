@@ -11,7 +11,7 @@
 //    multi-run properties end with a run at index = text length.
 //  - parameter 3 "Position" is normalised x:y (0–1) of the frame.
 // Colours are 0xRRGGBB integers. Premiere may read this differently in a future version: re-check
-// with __tests__/caption-probe.test.ts (D392).
+// with __tests__/caption-probe.test.ts (D393).
 import { rate, timecode, x, type XNode } from "./xml-node";
 
 /** What one caption looks like as a Premiere title. sizePx is at the sequence's frame size. */

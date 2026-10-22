@@ -132,7 +132,7 @@ describe("planConnections", () => {
     expect(plan.wired).toEqual([]);
     expect(plan.rejected.map((r) => r.handle)).toEqual(["PRM-CCCC"]);
   });
-  // D389 — the Editor refuses a clip mid-generation, and says why.
+  // D390 — the Editor refuses a clip mid-generation, and says why.
   it("rejects a generating clip with the Editor's reason", () => {
     const vg = { id: "dddd4444", type: "video-gen", position: { x: 0, y: 0 }, data: { parsed: "https://s/a.mp4" } } as never;
     const ed = n("eeee5555", "editor");

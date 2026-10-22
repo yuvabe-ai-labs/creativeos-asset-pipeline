@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildVersionChips,
   splitSentenceBeats,
   segmentByTerms,
   CAMERA_SPEC_PATTERNS,
@@ -139,35 +138,5 @@ describe("splitSentenceBeats", () => {
 
   it("splits on question and exclamation marks too", () => {
     expect(splitSentenceBeats("Is it bold? It is! Ship it.")).toEqual(["Is it bold?", "It is!", "Ship it."]);
-  });
-});
-
-describe("buildVersionChips", () => {
-  const versions = [
-    { id: "c", error: null }, // newest first (index 0) -> highest v number
-    { id: "b", error: "boom" },
-    { id: "a", error: null },
-  ];
-
-  it("numbers newest-first as v{total - index} and marks the active chip", () => {
-    const chips = buildVersionChips(versions, "a", false);
-    expect(chips.map((c) => c.label)).toEqual(["v3", "v2", "v1"]);
-    expect(chips.find((c) => c.id === "a")?.isActive).toBe(true);
-    expect(chips.find((c) => c.id === "c")?.isActive).toBe(false);
-  });
-
-  it("disables the active chip, error chips, and (while restoring) all chips", () => {
-    const chips = buildVersionChips(versions, "a", false);
-    expect(chips.find((c) => c.id === "a")?.disabled).toBe(true); // active
-    expect(chips.find((c) => c.id === "b")?.disabled).toBe(true); // error
-    expect(chips.find((c) => c.id === "b")?.isError).toBe(true);
-    expect(chips.find((c) => c.id === "c")?.disabled).toBe(false); // clickable
-
-    const restoring = buildVersionChips(versions, "a", true);
-    expect(restoring.every((c) => c.disabled)).toBe(true);
-  });
-
-  it("returns an empty array for no versions", () => {
-    expect(buildVersionChips([], null, false)).toEqual([]);
   });
 });

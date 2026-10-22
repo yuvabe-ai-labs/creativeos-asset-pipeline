@@ -1,4 +1,4 @@
-// SRT read/write, ported from the rough-cut spike (D392: the package's caption fallback, and the
+// SRT read/write, ported from the rough-cut spike (D393: the package's caption fallback, and the
 // editor's import/export). Cues carry text and reel timing only; captions.ts attaches them to
 // pieces. Accepts what Windows tools write: CRLF, a UTF-8 BOM, and short fractions (",5").
 

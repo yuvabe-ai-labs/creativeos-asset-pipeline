@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { markLockHandoff } from "@/lib/canvas/lock-session";
 
 /**
- * Navigates between a canvas and its editor without dropping the lock (D390): saves what the
+ * Navigates between a canvas and its editor without dropping the lock (D391): saves what the
  * page being left still holds, marks the handoff, then moves. Neither page flushes on unmount,
  * so the flush is awaited first.
  */

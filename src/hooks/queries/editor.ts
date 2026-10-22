@@ -7,7 +7,7 @@ import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
 import { rmsWindows } from "@/lib/editor/silence";
 import { editorService } from "@/services/editor.service";
 
-// The Rough Cut Editor through TanStack Query (D300, D390). The keys are built here and nowhere
+// The Rough Cut Editor through TanStack Query (D300, D391). The keys are built here and nowhere
 // else. One Editor per canvas, so the canvas card and the editor page share one state query.
 export const editorKeys = {
   all: (canvasId: string) => ["editor", canvasId] as const,

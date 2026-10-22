@@ -54,7 +54,7 @@ export async function POST(
     }
     const body = parsed.data;
 
-    // D389 — a clip in the Editor's reel can't regenerate.
+    // D390 — a clip in the Editor's reel can't regenerate.
     const locked = await editorLockResponse(nodeId);
     if (locked) return locked;
 

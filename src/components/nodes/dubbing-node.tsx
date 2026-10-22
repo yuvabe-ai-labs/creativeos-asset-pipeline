@@ -18,6 +18,9 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { ProcessingPill } from "./processing-pill";
 import { DubbingFocusView } from "./dubbing-focus-view";
+import { useNodeMediaSize } from "@/hooks/use-node-media-size";
+import { nodeMediaBox } from "@/lib/canvas/media-fit";
+import { NodeMedia } from "./node-media";
 
 function stateWord(dub: DubbingOutput | null, running: string | null): string {
   if (running === "dub") return "Dubbing…";
@@ -33,6 +36,9 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
   const d = data as DubbingNodeData;
   const dub = readDubbingOutput(d.parsed);
   const url = dub ? stageUrl(dub, furthestStage(dub)) : null;
+  // D384 — the card takes the dub's shape. Most dubs are of portrait takes, so 9:16 until measured.
+  const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, 9 / 16);
+  const box = url ? nodeMediaBox(media.ratio, "output") : null;
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
@@ -55,17 +61,18 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
       <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
         <div
           onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
+          style={box ? { width: box.cardWidth } : undefined}
           className={cn(
-            "w-[320px] rounded-lg border border-border bg-card shadow-card",
+            !box && "w-[320px]",
+            "rounded-lg border border-border bg-card shadow-card",
             "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
             selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
           )}
         >
           <NodeCardHeader icon={Languages} nodeId={id} nodeType="dubbing" title={d.title ?? ""} placeholder="Dubbing" onCommitTitle={(t) => updateNodeData(id, { title: t })} />
           <div className="flex flex-col gap-2 px-3 py-3">
-            {url && (
-              <div className="relative overflow-hidden rounded-md border border-border">
-                <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="h-16 w-full object-cover" />
+            {url && box && (
+              <NodeMedia kind="video" src={url} alt={d.title || "Dub"} box={box} onMeasured={media.onMeasured}>
                 {/* Like Video Gen's voice change: the take stays in view, veiled, while a job runs. */}
                 {running && (
                   <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-background/60 text-xs font-medium backdrop-blur-sm">
@@ -73,7 +80,7 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
                     {stateWord(dub, running)}
                   </div>
                 )}
-              </div>
+              </NodeMedia>
             )}
             {/* Open ↗ left, status right — the same arrangement as the Video Gen card. */}
             <div className="flex items-center justify-between gap-2">
@@ -92,7 +99,7 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
           <GenerationLockLine nodeId={id} />
           <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(dub)} />
           <Handle type="target" position={Position.Left} className="!size-4 !border-2 !border-card !bg-muted-foreground" />
-          {/* D387 — a dub feeds the Rough Cut Editor. */}
+          {/* D388 — a dub feeds the Rough Cut Editor. */}
           <Handle type="source" position={Position.Right} className="!size-4 !border-2 !border-card !bg-muted-foreground" />
         </div>
       </NodeContextMenu>

@@ -1,6 +1,6 @@
 // NOT unit-tested — next/font/local calls only work through Next's build pipeline. Verified by
 // `next build` and the editor's stage. These are the same TTF files the Premiere package ships
-// (D392), so the stage renders exactly what Premiere will. Caption content only, never UI chrome.
+// (D393), so the stage renders exactly what Premiere will. Caption content only, never UI chrome.
 import localFont from "next/font/local";
 import type { CaptionFontKey } from "@/lib/editor/caption-fonts";
 

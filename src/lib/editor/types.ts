@@ -1,5 +1,5 @@
-// The Rough Cut Editor's data (D387–D393). The edit is one JSON document per Editor node, saved
-// in `editor_edits` (D390). Times in it are SECONDS of a piece's source; frames are only ever
+// The Rough Cut Editor's data (D388–D394). The edit is one JSON document per Editor node, saved
+// in `editor_edits` (D391). Times in it are SECONDS of a piece's source; frames are only ever
 // computed by sequence-plan.ts, on export.
 import * as z from "zod";
 import { CAPTION_FONT_KEYS, type CaptionFontKey } from "./caption-fonts";
@@ -80,7 +80,7 @@ export const EditDocSchema: z.ZodType<EditDoc> = z.object({
   captions: z.array(CaptionSchema).max(1000),
 });
 
-/** What the server measured in a file's header (D391). */
+/** What the server measured in a file's header (D392). */
 export type MediaFacts = {
   durationSeconds: number;
   video: { fps: number; frames: number; width: number; height: number } | null;
@@ -119,5 +119,5 @@ export type EditorState = {
   sources: SourceView[];
 };
 
-/** Why a node can't generate (D389): it feeds the Editor, or it feeds a dub that does. */
+/** Why a node can't generate (D390): it feeds the Editor, or it feeds a dub that does. */
 export type GenerationLock = "editor" | "dub";

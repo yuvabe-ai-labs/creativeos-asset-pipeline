@@ -1,4 +1,4 @@
-// What the Editor card shows on the canvas (D387, the mockup's Editor node): sources, pieces,
+// What the Editor card shows on the canvas (D388, the mockup's Editor node): sources, pieces,
 // length, shape, a strip of the cut with its captions, and counts. From the same state the editor
 // page uses.
 import { captionTimes } from "./captions";

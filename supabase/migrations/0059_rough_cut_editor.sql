@@ -1,10 +1,10 @@
--- Rough Cut Editor (D387–D393). Spec: docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md
+-- Rough Cut Editor (D388–D394). Spec: docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md
 --
--- editor_edits: the reel's edit, one row per Editor node (D390). It is not node data: canvas
+-- editor_edits: the reel's edit, one row per Editor node (D391). It is not node data: canvas
 -- autosave doesn't run on the editor page, and every trim would rewrite the canvas. Deleting the
 -- Editor node deletes its edit (the canvas has no undo).
--- media_facts: what the server measured in a stored file's header, once per file (D391).
--- editor_generation_lock(): whether a node may generate while it feeds the Editor (D389), in one
+-- media_facts: what the server measured in a stored file's header, once per file (D392).
+-- editor_generation_lock(): whether a node may generate while it feeds the Editor (D390), in one
 -- round trip for every generate route.
 
 create table editor_edits (

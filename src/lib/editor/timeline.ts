@@ -1,5 +1,5 @@
 // Pure timeline maths for the reel, ported from the rough-cut spike and moved from frames to
-// seconds (D390): trims are kept by time so a lip-synced file at another frame rate still lines
+// seconds (D391): trims are kept by time so a lip-synced file at another frame rate still lines
 // up. Every function returns the SAME array for a no-op, so a drag that changes nothing never
 // replaces state (performance rule 4).
 import type { EditDoc, Piece } from "./types";

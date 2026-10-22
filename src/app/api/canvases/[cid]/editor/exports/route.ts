@@ -8,7 +8,7 @@ import { planSequence } from "@/lib/editor/sequence-plan";
 import { failJob, failStaleJobs, insertJob, setJobRunId } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
 
-// Starts a Premiere export (D391): plans the reel from the SAVED edit, read fresh here (rule 10),
+// Starts a Premiere export (D392): plans the reel from the SAVED edit, read fresh here (rule 10),
 // then hands the job to the editor-export task. The task payload is the job id only (rule 8); the
 // plan travels in the job's input. One export per Editor at a time.
 

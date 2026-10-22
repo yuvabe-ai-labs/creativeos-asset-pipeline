@@ -4,7 +4,7 @@ import { Lock } from "lucide-react";
 import { useGenerationLock } from "@/hooks/use-generation-lock";
 import { GENERATION_LOCK_COPY } from "@/lib/editor/generation-lock";
 
-/** D389 — the card's lock row (canvas mockup): why this clip can't generate while it is in the
+/** D390 — the card's lock row (canvas mockup): why this clip can't generate while it is in the
  *  Editor's reel. Renders nothing for a free node. O(1): reads the canvas's lock index. */
 export function GenerationLockLine({ nodeId }: { nodeId: string }) {
   const lock = useGenerationLock(nodeId);

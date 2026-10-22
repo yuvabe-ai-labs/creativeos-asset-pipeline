@@ -40,7 +40,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const [source, running, locked] = await Promise.all([
         resolveDubSource(nodeId, { getUpstreamOutputs, getVersionById }),
         hasRunningGeneration(nodeId),
-        editorLockResponse(nodeId), // D389
+        editorLockResponse(nodeId), // D390
       ]);
       if (locked) return locked;
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);

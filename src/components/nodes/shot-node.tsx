@@ -13,6 +13,8 @@ import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useGalleryNodeDrop } from "@/hooks/use-gallery-node-drop";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
+import { CollapseToggle } from "./collapse-toggle";
+import { CollapsedInHandle } from "./collapsed-in-handle";
 import { ShotComposeSheet } from "./shot-compose-sheet";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { VoLinesEditor } from "./vo-lines-editor";
@@ -39,7 +41,11 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
     order?: number;
     shot_type?: string;
     seededFrom?: { scriptTitle?: string };
+    collapsed?: boolean;
   };
+  // D387 — collapsing hides this shot's own pipeline; the card stays put as a small stack.
+  const collapsed = d.collapsed === true;
+  const label = `Shot${d.order ? ` ${d.order}` : ""}`;
   // ONE row: a Shot is one continuous take, merged at fan-out from every script row it covers
   // (BUG-004, mergeShotRows). Its `duration` states the whole take's length.
   const shot = d.script?.visual_script?.shots?.[0];
@@ -83,21 +89,26 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
         }}
         onDragOver={drop.onDragOver}
         onDrop={drop.onDrop}
+        data-selected={selected}
         className={cn(
-          "w-56 rounded-lg border border-border bg-card shadow-card",
+          "w-56 rounded-lg border border-border bg-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
-          selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+          collapsed ? "shot-stacked" : "shadow-card",
+          selected && !collapsed && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
       >
         <NodeCardHeader
           icon={Clapperboard}
           nodeId={id}
           nodeType="shot"
-          title={`Shot${d.order ? ` ${d.order}` : ""}`}
+          title={label}
           status={
-            shot?.duration ? (
-              <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
-            ) : undefined
+            <div className="flex items-center gap-1">
+              {shot?.duration && (
+                <span className="text-[0.6rem] text-muted-foreground">{shot.duration}</span>
+              )}
+              <CollapseToggle nodeId={id} collapsed={collapsed} label={label} />
+            </div>
           }
         />
         <div className="p-2">
@@ -129,6 +140,7 @@ export function ShotNode({ id, data, selected, positionAbsoluteX, positionAbsolu
             <GuidedNextButton sourceId={id} variant="chip" />
           </div>
         </div>
+        <CollapsedInHandle collapsed={collapsed} />
         {/* lineage target (dashed Script->Shot edge) */}
         <Handle
           type="target"

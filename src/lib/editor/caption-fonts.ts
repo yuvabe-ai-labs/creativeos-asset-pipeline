@@ -1,6 +1,6 @@
 import { CAPTION_FONT_COVERAGE } from "./caption-font-coverage";
 
-// The caption fonts (D392): a fixed list of open-licence Google Fonts. They are reel content,
+// The caption fonts (D393): a fixed list of open-licence Google Fonts. They are reel content,
 // not interface: they render only in captions on the editor's stage and ship in the Premiere
 // package (src/fonts/captions/), so what the user sees is what Premiere shows.
 

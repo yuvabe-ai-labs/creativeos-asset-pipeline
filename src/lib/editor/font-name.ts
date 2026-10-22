@@ -1,5 +1,5 @@
 // Reads a font file's PostScript name (name ID 6 in the OpenType `name` table). Premiere picks a
-// caption's font by this name (D392), so a test holds every shipped file to the name we write.
+// caption's font by this name (D393), so a test holds every shipped file to the name we write.
 
 const POSTSCRIPT_NAME_ID = 6;
 
@@ -40,7 +40,7 @@ function readNameTable(view: DataView, table: number): string | null {
   return null;
 }
 
-// ── Character coverage (D392) ────────────────────────────────────────────────
+// ── Character coverage (D393) ────────────────────────────────────────────────
 // The fonts' `cmap` tables say which characters they can draw. caption-font-coverage.ts is
 // generated from them (scripts/gen-caption-font-coverage.mjs) and a test holds it to the files, so
 // the editor can warn about any letter a caption's font lacks, in any script.

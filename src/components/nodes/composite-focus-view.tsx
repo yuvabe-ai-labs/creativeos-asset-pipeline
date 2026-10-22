@@ -34,8 +34,14 @@ import { FieldLabel } from "./field-label";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
 import { ImageGenVersionHistory } from "./image-gen-version-history";
+import { useVersionViewing } from "@/hooks/use-version-viewing";
+import { VersionViewingBar } from "./version-viewing-bar";
+import { VersionStepper } from "./version-stepper";
+import { ActiveOnlyNotice } from "./active-only-notice";
+import { versionLabelsById } from "@/lib/generations/version-labels";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
 import { CompositeOutputPane } from "./composite-output-pane";
+import { parseAspectRatio } from "@/lib/canvas/media-fit";
 
 type Props = {
   open: boolean;
@@ -73,6 +79,12 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   );
   const { versions, activeVersionId, loading, generating, restoring, lastError, generate, restore } =
     useCompositeVersions(nodeId, open, onPatch);
+  // D383 — the version on screen. Leaving the active one ends Edit, which acts on it.
+  const viewing = useVersionViewing(versions, activeVersionId, open, () => setEditMode(false));
+  const labelById = versionLabelsById(versions);
+  const viewed = viewing.viewed;
+  const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
+  const shownImageUrl = viewing.isViewingOther ? viewed?.output ?? null : imageUrl;
 
   // The same images the server will send: an avatar's front and fresh sheet are two.
   const referenceUrls = mentionUpstream.flatMap((u) => (u.fileUrl ? [u.fileUrl] : []));
@@ -84,7 +96,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
     referenceUrls,
   });
   const refValidation = validateReferenceImages(referenceUrls.map((url) => ({ url })), model);
-  const canEditPicture = Boolean(imageUrl && activeVersionId);
+  const canEditPicture = Boolean(imageUrl && activeVersionId) && !viewing.isViewingOther;
   const editing = editMode && canEditPicture;
   const edit = useCompositeEdit({ model, values, activeVersionId, items: mentionUpstream, hasAvatar, generate });
   // An edit sends the current picture plus the references it uses.
@@ -135,6 +147,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                 <ConnectedDetailView node={compositePreviewOf(previewItem)} />
               ) : selected !== "history" ? (
                 <div className="flex flex-col gap-6 px-6 py-5">
+                  {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                   {editing && imageUrl && activeVersionId ? (
                     <CompositeEditSection
                       imageUrl={imageUrl}
@@ -185,7 +198,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       onGenerate={() =>
                         void (editing ? edit.runEdit() : generate({ instruction: draft, modelId: model.id, params: values }))
                       }
-                      generating={generating}
+                      generating={generating || viewing.isViewingOther}
                       editing={false}
                       hasPrompt={editing ? edit.canRun : draft.trim().length > 0}
                       hasImage={Boolean(imageUrl)}
@@ -199,7 +212,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                   {loading ? (
                     <Skeleton className="h-24 w-full rounded-xl" />
                   ) : versions.length ? (
-                    <ImageGenVersionHistory versions={versions} activeVersionId={activeVersionId} onRestore={(id) => void restore(id)} restoring={restoring} />
+                    <ImageGenVersionHistory versions={versions} activeVersionId={activeVersionId} viewedVersionId={viewed?.id ?? null} onView={viewing.view} />
                   ) : (
                     <p className="text-sm text-muted-foreground">No composites yet — every attempt will show up here.</p>
                   )}
@@ -208,8 +221,9 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
             </div>
             <CompositeOutputPane
               nodeId={nodeId}
-              imageUrl={imageUrl}
+              imageUrl={shownImageUrl}
               generating={generating}
+              placeholderRatio={parseAspectRatio(values.aspect_ratio) ?? 9 / 16}
               canEdit={canEditPicture}
               editMode={editMode}
               painting={editing && edit.paintMode}
@@ -220,6 +234,21 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                 setEditMode(next);
                 setSelected("compose"); // the mode's controls live in the middle column
               }}
+              stepper={loading ? null : <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />}
+              banner={
+                viewing.isViewingOther && viewed ? (
+                  <VersionViewingBar
+                    viewedLabel={viewedLabel}
+                    viewedCreatedAt={viewed.createdAt}
+                    activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
+                    canRestore={editable && !viewed.error && Boolean(viewed.output)}
+                    restoring={restoring}
+                    onBack={viewing.backToActive}
+                    onRestore={() => void restore(viewed.id)}
+                  />
+                ) : null
+              }
+              viewingFailed={viewing.isViewingOther && !viewed?.output}
             />
           </div>
         </div>

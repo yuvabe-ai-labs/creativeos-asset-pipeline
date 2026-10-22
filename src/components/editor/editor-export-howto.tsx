@@ -1,6 +1,6 @@
 import type { ExportSummary } from "@/lib/editor/export-run";
 
-/** "Open it in Premiere" (Export artboard; D388): Premiere's Import screen ignores the XML, so the
+/** "Open it in Premiere" (Export artboard; D389): Premiere's Import screen ignores the XML, so the
  *  steps say exactly where to drag it. */
 export function EditorExportHowTo() {
   const steps = [

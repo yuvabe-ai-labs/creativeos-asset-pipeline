@@ -6,7 +6,7 @@ import { CAPTION_FONT_CSS } from "./caption-font-faces";
 import { useEditorStore } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
 
-/** The look of a caption on the stage: the real font, no box, a soft shadow (D392). Size is px on
+/** The look of a caption on the stage: the real font, no box, a soft shadow (D393). Size is px on
  *  a frame 1080 px on its short edge, so it scales with the stage (container query units). */
 export function captionTextStyle(c: Pick<Caption, "font" | "size" | "color">): React.CSSProperties {
   return {

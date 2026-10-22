@@ -1,4 +1,4 @@
-// The editor page's working copy of the edit (D390). Every change goes through apply() with a pure
+// The editor page's working copy of the edit (D391). Every change goes through apply() with a pure
 // function from captions.ts / timeline.ts / pieces.ts; a function that returns the same doc changes
 // nothing (performance rule 4), and a read-only session can't change it at all. The playhead lives
 // in the playback hook, not here, so a playing reel doesn't re-render the panels every frame.

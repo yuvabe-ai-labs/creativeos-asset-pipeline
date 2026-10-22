@@ -1,6 +1,6 @@
 // Quiet-section detection (spec §6), ported from the rough-cut spike: Web Audio RMS, for review
 // only — nothing is removed. Split in two so the analysis is testable: rmsWindows decodes in the
-// browser (the file comes through the same-origin proxy, D245/D391), quietSections reads the
+// browser (the file comes through the same-origin proxy, D245/D392), quietSections reads the
 // windows for one piece. Ranges are SOURCE seconds.
 export const WINDOW_SECONDS = 0.05;
 export const QUIET_RMS = 0.015;

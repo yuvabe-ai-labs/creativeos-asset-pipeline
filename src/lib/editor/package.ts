@@ -1,4 +1,4 @@
-// The Premiere package's contents (D388, spec §9): the sequence, OTIO, SRT, manifest, README,
+// The Premiere package's contents (D389, spec §9): the sequence, OTIO, SRT, manifest, README,
 // caption fonts and exactly the media the reel uses. Pure: the export task supplies the bytes.
 import { strToU8, type Zippable } from "fflate";
 import type { CaptionFontKey } from "./caption-fonts";
@@ -16,7 +16,7 @@ export function fontsUsed(plan: SequencePlan): CaptionFontKey[] {
   return [...new Set(plan.titles.map((t) => t.fontKey))];
 }
 
-/** Premiere's Import screen ignores sequence XML: the README says where to drag it (D388). */
+/** Premiere's Import screen ignores sequence XML: the README says where to drag it (D389). */
 export function packageReadme(plan: SequencePlan): string {
   const dubbed = plan.clips.some((c) => c.dub);
   const titled = plan.titles.length > 0;

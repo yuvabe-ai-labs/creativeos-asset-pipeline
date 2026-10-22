@@ -14,7 +14,7 @@ export function canApplyVoiceChange(a: {
   voice: boolean;
   saving: boolean;
   running: boolean;
-  /** D389 — why generation is locked (the clip is in the Editor's reel), or null. */
+  /** D390 — why generation is locked (the clip is in the Editor's reel), or null. */
   locked?: string | null;
 }): { ok: boolean; reason?: string } {
   if (a.locked) return { ok: false, reason: a.locked };

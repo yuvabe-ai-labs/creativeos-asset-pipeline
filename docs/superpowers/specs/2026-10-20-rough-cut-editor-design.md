@@ -1,9 +1,9 @@
 # Rough Cut Editor: design
 
 *2026-10-20 · branch `feat/rough-cut-editor` · **approved by the user 2026-10-20** · ADRs
-**D387–D393** in the roadmap's ADR log (§7): node and full page D387, TypeScript Premiere export
-D388, generation lock D389, edit record under the canvas lock D390, server-side media facts and the
-export task D391, caption titles and fonts D392, spike never merged D393*
+**D388–D394** in the roadmap's ADR log (§7): node and full page D388, TypeScript Premiere export
+D389, generation lock D390, edit record under the canvas lock D391, server-side media facts and the
+export task D392, caption titles and fonts D393, spike never merged D394*
 
 - Handoff (state, how to resume): [../plans/2026-10-20-rough-cut-editor-HANDOFF.md](../plans/2026-10-20-rough-cut-editor-HANDOFF.md)
 - Implementation plan: [../plans/2026-10-20-rough-cut-editor.md](../plans/2026-10-20-rough-cut-editor.md)

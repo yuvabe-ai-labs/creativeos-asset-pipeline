@@ -1,6 +1,6 @@
 "use client";
 // A selected caption's properties (mockup "Editor, caption selected"): text, timing, font, size,
-// colour. The fonts are reel content shown in their own faces (D392).
+// colour. The fonts are reel content shown in their own faces (D393).
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";

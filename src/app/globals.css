@@ -616,6 +616,28 @@
   box-shadow: var(--shadow-panel);
 }
 
+/* D387 — a collapsed Shot reads as a small stack of cards: two offset card edges behind it,
+   so there is visibly more inside. Plain CSS for the same reason as .panel-raised. */
+.shot-stacked {
+  box-shadow:
+    4px 4px 0 -1px var(--card),
+    4px 4px 0 0 var(--border),
+    8px 8px 0 -1px var(--card),
+    8px 8px 0 0 var(--border),
+    var(--shadow-card);
+}
+/* Unlayered, so it would hide Tailwind's ring: the selected stack draws its own. */
+.shot-stacked[data-selected="true"] {
+  box-shadow:
+    0 0 0 1px var(--background),
+    0 0 0 3px var(--primary),
+    4px 4px 0 -1px var(--card),
+    4px 4px 0 0 var(--border),
+    8px 8px 0 -1px var(--card),
+    8px 8px 0 0 var(--border),
+    var(--shadow-card);
+}
+
 .cam-tile {
   animation-play-state: paused;
 }

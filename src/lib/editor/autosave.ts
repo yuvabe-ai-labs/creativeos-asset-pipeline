@@ -1,4 +1,4 @@
-// The editor's autosave (D390), free of React so its rules are tested:
+// The editor's autosave (D391), free of React so its rules are tested:
 // - saves 800 ms after the last change, and never when nothing changed since the last save (rule 4);
 // - flush() saves now and REJECTS when the save fails, so leaving the page or exporting stops
 //   instead of going ahead on an edit the server doesn't have;

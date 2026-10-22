@@ -52,6 +52,9 @@ export type ScriptNodeData = {
 /** D298 — an avatar on the canvas. Only the id: the avatar is read live, so a name, face or
  *  voice changed in the Avatar Studio reaches every canvas without re-dropping. */
 export type AvatarNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   avatarId: string;
 };
 
@@ -65,6 +68,9 @@ export type KBNodeData = {
 };
 
 export type FileNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   filename?: string;             // original filename shown in the focus view
   fileExt?: string;              // "txt" | "png" | "jpg" | "jpeg" | "webp" | "pdf" | "docx"
@@ -91,6 +97,9 @@ export type TextNodeData = {
 };
 
 export type DrawNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   fileUrl?: string; // flattened sketch PNG — the image handed downstream (reuses File field)
   fileKind?: "image"; // always "image" when present
@@ -111,6 +120,9 @@ export type PromptNodeData = {
 };
 
 export type ImageGenNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   modelId?: string;                   // e.g. "openai:gpt-image-2" — saved on node
   params?: Record<string, unknown>;   // last-used param values for selected model
@@ -124,6 +136,9 @@ export type ImageGenNodeData = {
 /** D312 — a shot's picture made in one step: wired references in, an instruction typed here,
  *  one image out. The instruction stores references as `@[Label](nodeId)` chips (D272). */
 export type CompositeNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   instruction?: string;
   /** Seedream by default; locked to SEEDANCE_FACE_MODEL_ID while an avatar is wired. */
@@ -144,6 +159,9 @@ export type VideoPromptNodeData = {
 };
 
 export type VideoGenNodeData = {
+  // D384 — the card's media size, measured on load and saved once so reloads don't jump.
+  mediaWidth?: number;
+  mediaHeight?: number;
   title?: string;
   modelId?: string;
   params?: Record<string, unknown>;
@@ -270,16 +288,16 @@ export type PostNodeData = {
 
 // D309: an uploaded cut shared with the client by link. The video, token and comments
 // live in canvas_reviews / canvas_review_comments — only the title is node data.
-export type ClientReviewNodeData = { title?: string };
+export type ClientReviewNodeData = { title?: string; mediaWidth?: number; mediaHeight?: number };
 
 // D374 — dubs its one connected Video Gen take. `language` is the select's last value; each
 // version records its own. `parsed` is the active version's DubbingOutput (display only, D19).
 // `style` is the last translation style picked (DUB_STYLES); each version records its own.
 // `voice` / `pace` (D379): the last Advanced picks; absent voice = the presenter's own.
-export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; voice?: DubVoiceChoice; pace?: DubPace; parsed?: unknown };
+export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; voice?: DubVoiceChoice; pace?: DubPace; parsed?: unknown; mediaWidth?: number; mediaHeight?: number };
 
-// D387 — the Rough Cut Editor: assembles its connected clips into a reel on its own page
-// (…/edit). Its edit lives in editor_edits (D390), never in node data; only the title is here.
+// D388 — the Rough Cut Editor: assembles its connected clips into a reel on its own page
+// (…/edit). Its edit lives in editor_edits (D391), never in node data; only the title is here.
 export type EditorNodeData = { title?: string };
 
 export type AppNode =
@@ -334,7 +352,7 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "multishot", "post", "composite"],
   "video-prompt":     ["video-gen"],
   "multishot-prompt": ["video-gen"],
-  // D387 — a clip, or its dub, feeds the Rough Cut Editor. Dubbing's first output is the Editor.
+  // D388 — a clip, or its dub, feeds the Rough Cut Editor. Dubbing's first output is the Editor.
   "video-gen":        ["dubbing", "editor"],
   "dubbing":          ["editor"],
   "editor":           [],
@@ -350,7 +368,7 @@ export function canConnect(sourceType: string, targetType: string): boolean {
 }
 
 // Nodes that are never duplicated: the KB anchors the canvas, and there is one Editor per canvas
-// (D387). One check for the context menu, Ctrl+D and both duplicate routes.
+// (D388). One check for the context menu, Ctrl+D and both duplicate routes.
 const NOT_DUPLICABLE = new Set(["kb", "editor"]);
 export function canDuplicateNode(type: string | undefined): boolean {
   return !NOT_DUPLICABLE.has(type ?? "");

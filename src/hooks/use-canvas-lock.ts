@@ -81,7 +81,7 @@ export function useCanvasLock(canvasId: string) {
       clearInterval(id);
       window.removeEventListener("beforeunload", release);
       // Also release on unmount (navigating away in-app), unless this tab is handing the lock
-      // to the canvas's editor or back (D390): that page acquires with the same session id.
+      // to the canvas's editor or back (D391): that page acquires with the same session id.
       if (!takeLockHandoff(canvasId)) release();
     };
   }, [isEditor, canvasId, sessionId]);

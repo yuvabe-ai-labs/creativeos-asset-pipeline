@@ -1,6 +1,6 @@
 // The Editor's sources: the Video Gen and Dubbing nodes connected to it, at their current
 // version (spec §4). Drafts name the files each source offers; attachFacts adds what the server
-// measured in them (D391).
+// measured in them (D392).
 import type { Edge } from "@xyflow/react";
 import { readDubbingOutput } from "@/lib/dubbing/types";
 import { describeNode, nodeHandle } from "@/lib/nodes/describe-node";

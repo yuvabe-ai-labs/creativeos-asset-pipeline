@@ -6,6 +6,8 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useNodeMediaSize } from "@/hooks/use-node-media-size";
+import { nodeMediaBox } from "@/lib/canvas/media-fit";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import type { DrawNodeData } from "@/lib/canvas-nodes";
@@ -13,6 +15,7 @@ import { DrawFocusView } from "./draw-focus-view";
 import { useNodeConnectionState } from "./use-node-connection-state";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
+import { NodeMedia } from "./node-media";
 
 export function DrawNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -25,6 +28,10 @@ export function DrawNode({ id, data, selected }: NodeProps) {
   const connState = useNodeConnectionState(id, "draw");
 
   const hasSketch = !!d.fileUrl;
+
+  // D384 — the tile takes the sketch's shape.
+  const media = useNodeMediaSize(id, { width: d.mediaWidth ?? d.imageWidth, height: d.mediaHeight ?? d.imageHeight }, null);
+  const box = hasSketch ? nodeMediaBox(media.ratio, "input") : null;
 
   // Open locally (double-click / "Open ↗") OR when a shared signal points here — the
   // Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
@@ -46,8 +53,10 @@ export function DrawNode({ id, data, selected }: NodeProps) {
           e.stopPropagation();
           setFocusOpen(true);
         }}
+        style={box ? { width: box.cardWidth } : undefined}
         className={cn(
-          "group w-44 rounded-lg border border-border bg-card shadow-card",
+          !box && "w-44",
+          "group rounded-lg border border-border bg-card shadow-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
           connState === "invalid" && "opacity-60 pointer-events-none",
@@ -71,15 +80,8 @@ export function DrawNode({ id, data, selected }: NodeProps) {
           }
         />
 
-        {hasSketch && (
-          <div className="overflow-hidden border-b border-border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={d.fileUrl}
-              alt={d.title ?? "sketch"}
-              className="h-24 w-full object-cover"
-            />
-          </div>
+        {hasSketch && d.fileUrl && box && (
+          <NodeMedia kind="image" src={d.fileUrl} alt={d.title ?? "sketch"} box={box} onMeasured={media.onMeasured} edge />
         )}
 
         <div className="px-3 py-3">

@@ -8,19 +8,19 @@
 
 **Tech Stack:** Next 16 (app router, async `params`), React 19, zustand (vanilla stores), TanStack Query v5, Supabase (service-role client), Trigger.dev v4, GCS, zod v4, vitest, `mediabunny@1.61.2`, `fflate@0.8.3`, shadcn (Base UI registry), Lucide.
 
-**Spec:** [docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md](../specs/2026-10-20-rough-cut-editor-design.md) (approved 2026-10-20). Decisions **D387–D393** in [the ADR log §7](../specs/2026-05-30-creativeos-staging-roadmap.md). Handoff: [2026-10-20-rough-cut-editor-HANDOFF.md](2026-10-20-rough-cut-editor-HANDOFF.md). Mockups: https://claude.ai/artifact/SseUKVaihCKMsHZscoQDCR.
+**Spec:** [docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md](../specs/2026-10-20-rough-cut-editor-design.md) (approved 2026-10-20). Decisions **D388–D394** in [the ADR log §7](../specs/2026-05-30-creativeos-staging-roadmap.md). Handoff: [2026-10-20-rough-cut-editor-HANDOFF.md](2026-10-20-rough-cut-editor-HANDOFF.md). Mockups: https://claude.ai/artifact/SseUKVaihCKMsHZscoQDCR.
 
 ## Global Constraints
 
 - Work on branch `feat/rough-cut-editor` in `.claude/worktrees/rough-cut-build`. Push only with `git push -u origin feat/rough-cut-editor`, and only when the user asks.
-- **Never `git merge` or `git cherry-pick` spike commit `216ed101`** (D393). Port a spike file with `git checkout spike/rough-cut-editor -- <spike path>`, then `git mv` it to its product path.
-- Migration number **0059**. ADRs are D387–D393 and are already written; a task that changes a decision updates its ADR in place.
+- **Never `git merge` or `git cherry-pick` spike commit `216ed101`** (D394). Port a spike file with `git checkout spike/rough-cut-editor -- <spike path>`, then `git mv` it to its product path.
+- Migration number **0059**. ADRs are D388–D394 and are already written; a task that changes a decision updates its ADR in place.
 - Add dependencies pinned exact: `"mediabunny": "1.61.2"`, `"fflate": "0.8.3"`.
-- **Trims and caption anchors are stored in seconds.** Frames exist only inside `sequence-plan.ts` and the writers (D390).
+- **Trims and caption anchors are stored in seconds.** Frames exist only inside `sequence-plan.ts` and the writers (D391).
 - Package names, verbatim: folder `creativeos-reel/`, zip `creativeos-reel.zip`, sequence `CreativeOS Rough Cut`, files `creativeos-premiere.xml`, `timeline.otio`, `captions.srt`, `manifest.json`, `README.txt`, `media/`, `fonts/`.
 - The opening instruction is always **"Drag creativeos-premiere.xml into Premiere's Project panel."** Never write "File > Import" for the XML.
 - Every interactive control is a shadcn primitive from `src/components/ui/`, composed with `render`, never `asChild`. Lucide icons only, stroke 1.5. Colours only through the CSS variables in `globals.css`. Motion easing is `cubic-bezier(0.22,1,0.36,1)`.
-- The caption fonts (D392) render only in captions on the stage and in the package. They are never used for UI chrome.
+- The caption fonts (D393) render only in captions on the stage and in the package. They are never used for UI chrome.
 - API routes use `apiError` / `apiOk`, `withCanvas` and `withTryCatch` from `src/lib/api/route-helpers.ts`, and never throw.
 - Browser data goes through three layers: `src/services/editor.service.ts`, then `src/hooks/queries/editor.ts` (key factory `editorKeys`), then components.
 - Performance rules (AGENTS.md): nothing per item; O(1) per-node selectors; never write when nothing changed; no file bytes in task payloads or route bodies; independent queries run in `Promise.all`.
@@ -136,7 +136,7 @@ it("reads colours and rates", () => {
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/premiere-title.test.ts`. Expected: FAIL, module not found.
 - [ ] **Step 3: Port the three files** with `git checkout spike/rough-cut-editor -- <path>` and `git mv`. In `premiere-title.ts`, replace the `SpikeCaption` / `CaptionStyle` inputs with `TitleSpec`. Keep every Premiere constant (`PARAM_TIME`, `GRAPHIC_DURATION`, the shadow values, `mBackFillVisible: false`). In the probe test, rename the env vars to `EDITOR_PROBE_OUT` and `EDITOR_PREMIERE_SAMPLE` and keep `describe.skipIf`.
 - [ ] **Step 4: Run** the same command. Expected: PASS (the probe test is skipped).
-- [ ] **Step 5: Commit**: `feat(editor): port Premiere XML primitives and title writer from the spike (D392, D393)`
+- [ ] **Step 5: Commit**: `feat(editor): port Premiere XML primitives and title writer from the spike (D393, D394)`
 
 ### Task 2: Caption fonts (vendored, listed, verified)
 
@@ -180,7 +180,7 @@ export const CAPTION_DEFAULTS = { font: "montserrat", size: 84, color: "#ffffff"
   - Implement both modules. The `name` table is big-endian; platform 3 records are UTF-16BE, platform 1 records are Latin-1.
   - Write `caption-font-faces.tsx` with one `localFont({ src: "../../fonts/captions/<file>", display: "swap" })` per font.
 - [ ] **Step 4: Run** the same test. Expected: PASS. A wrong PostScript name means the wrong file: replace the file, never the constant.
-- [ ] **Step 5: Commit**: `feat(editor): caption font list, vendored static TTFs with licences (D392)`
+- [ ] **Step 5: Commit**: `feat(editor): caption font list, vendored static TTFs with licences (D393)`
 
 ### Task 3: The edit document and timeline maths in seconds
 
@@ -254,7 +254,7 @@ it("formats time", () => expect(formatTime(65.5)).toBe("01:05.50"));
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/timeline.test.ts src/lib/editor/__tests__/types.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.** Port the spike's `timeline.ts` structure (no-op returns the same array; locate is half-open with the last piece inclusive), changed to seconds. `snap` is `Math.round(s * fps) / fps`.
 - [ ] **Step 4: Run** the same tests. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): edit document schema and timeline maths in seconds (D390)`
+- [ ] **Step 5: Commit**: `feat(editor): edit document schema and timeline maths in seconds (D391)`
 
 ### Task 4: Captions tied to pieces, and SRT
 
@@ -301,7 +301,7 @@ it("formats time", () => expect(formatTime(65.5)).toBe("01:05.50"));
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/captions.test.ts src/lib/editor/__tests__/srt.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.** Port `srt.ts`: strip a leading BOM, split cues on `/\r?\n\r?\n/`, and right-pad the fraction to 3 digits. Write `captions.ts` over `timeline.ts`; `splitPieceInDoc` uses `splitPiece`.
 - [ ] **Step 4: Run** the same tests. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): captions belong to pieces; SRT import/export (D392)`
+- [ ] **Step 5: Commit**: `feat(editor): captions belong to pieces; SRT import/export (D393)`
 
 ### Task 5: Measure media facts from file headers (mediabunny, Node)
 
@@ -317,7 +317,7 @@ it("formats time", () => expect(formatTime(65.5)).toBe("01:05.50"));
   - `probeMediaUrl(url: string): Promise<MediaFacts>`, which is `probeMedia(new UrlSource(url))`;
   - `class MediaReadError extends Error`.
 
-Measured on 2026-10-20 (ADR D391): `UrlSource` read about 288 KB of a 5.15 MB CreativeOS clip in two range requests, and gave 24 fps, 121 frames, 720×1280, stereo at 32 kHz.
+Measured on 2026-10-20 (ADR D392): `UrlSource` read about 288 KB of a 5.15 MB CreativeOS clip in two range requests, and gave 24 fps, 121 frames, 720×1280, stereo at 32 kHz.
 
 - [ ] **Step 1: Write the failing test.** In `beforeAll`, generate the fixtures into a temp dir. Use `process.env.FFMPEG_PATH ?? (await import("ffmpeg-static")).default`, the same binary lookup as `src/lib/media/__tests__/ffmpeg.test.ts`.
   - `clip.mp4`: `-f lavfi -i testsrc=size=720x1280:rate=24 -f lavfi -i sine=frequency=440:sample_rate=32000 -ac 2 -frames:v 121 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest`
@@ -336,7 +336,7 @@ Measured on 2026-10-20 (ADR D391): `UrlSource` read about 288 KB of a 5.15 MB Cr
   - Wrap any failure in `MediaReadError`, and always `input.dispose()`.
   - `npm install mediabunny@1.61.2 --save-exact`.
 - [ ] **Step 4: Run** the same test. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): measure media facts from file headers with mediabunny (D391)`
+- [ ] **Step 5: Commit**: `feat(editor): measure media facts from file headers with mediabunny (D392)`
 
 ### Task 6: Sources, shot order, and reconciling the edit
 
@@ -404,7 +404,7 @@ Measured on 2026-10-20 (ADR D391): `UrlSource` read about 288 KB of a 5.15 MB Cr
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/shot-order.test.ts src/lib/editor/__tests__/sources.test.ts src/lib/editor/__tests__/reconcile.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement** the three modules to the rules above.
 - [ ] **Step 4: Run** the same tests. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): sources in shot order; reconcile the edit with connections and versions (D389, D390)`
+- [ ] **Step 5: Commit**: `feat(editor): sources in shot order; reconcile the edit with connections and versions (D390, D391)`
 
 ### Task 7: The sequence plan (the only place frames are computed)
 
@@ -462,7 +462,7 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult;
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/sequence-plan.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement** `planSequence` to the rules above.
 - [ ] **Step 4: Run** the same test. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): frame-exact sequence plan from the edit (D388, D390)`
+- [ ] **Step 5: Commit**: `feat(editor): frame-exact sequence plan from the edit (D389, D391)`
 
 ### Task 8: Port the Premiere XML writer onto the plan
 
@@ -475,7 +475,7 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult;
 - Produces: `buildPremiereXml(plan: SequencePlan): string`, `mediaUrl(fileName: string): string` (`media/<encodeURIComponent>`), and the re-export `rateParts`.
 
 **Changes from the spike:**
-- **Dropped:** `PathMode`, absolute paths, `fileUrl` and `AudioLayout` (D388: relative paths only). Stereo pairing stays `min(2, channels)` tracks.
+- **Dropped:** `PathMode`, absolute paths, `fileUrl` and `AudioLayout` (D389: relative paths only). Stereo pairing stays `min(2, channels)` tracks.
 - **One file element per plan media:** `file-${id}` / `masterclip-${id}`, written in full on first use and by id after that.
 - **The video clipitem** uses the picture media's file and masterclip.
 - **Audio clipitems** use the sound media's file and masterclip, so picture and sound may come from different files.
@@ -493,7 +493,7 @@ export function planSequence(doc: EditDoc, sources: SourceView[]): PlanResult;
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/premiere-xml.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Port and adapt** the writer as described.
 - [ ] **Step 4: Run** the same test. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): Premiere XML from the sequence plan; separate picture/sound files; fit scaling (D388)`
+- [ ] **Step 5: Commit**: `feat(editor): Premiere XML from the sequence plan; separate picture/sound files; fit scaling (D389)`
 
 ### Task 9: OTIO writer and the package (README, manifest, zip entries)
 
@@ -551,7 +551,7 @@ What's in the sequence
   - Port the OTIO writer onto the plan. Source ranges are in sequence frames at `plan.fps`; `available_range` comes from facts.
   - Write `package.ts`.
 - [ ] **Step 4: Run** the same tests. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): OTIO with dub track and gaps; package layout, README and manifest (D388)`
+- [ ] **Step 5: Commit**: `feat(editor): OTIO with dub track and gaps; package layout, README and manifest (D389)`
 
 # Phase B — Data, routes, export
 
@@ -573,10 +573,10 @@ What's in the sequence
   - `listIncomingEdges(nodeId: string): Promise<IncomingEdge[]>`: `id, source_node_id, created_at`, ordered by `created_at`.
   - `getNodeTypeOnCanvas(nodeId: string, canvasId: string): Promise<string | null>`
 
-**Migration** (header comment cites D387–D393 and the spec):
+**Migration** (header comment cites D388–D394 and the spec):
 ```sql
 create table editor_edits (
-  node_id    uuid primary key references nodes(id) on delete cascade,   -- D390: deleting the node deletes its edit
+  node_id    uuid primary key references nodes(id) on delete cascade,   -- D391: deleting the node deletes its edit
   canvas_id  uuid not null references canvases(id) on delete cascade,
   org_id     uuid not null references organizations(id),
   doc        jsonb not null,
@@ -590,7 +590,7 @@ begin if new.org_id is null then select cl.org_id into new.org_id from canvases 
 create trigger editor_edits_set_org_id before insert on editor_edits for each row execute function set_editor_edit_org_id();
 alter table editor_edits enable row level security;  -- service-role only
 
-create table media_facts (            -- D391: one row per stored file, measured once
+create table media_facts (            -- D392: one row per stored file, measured once
   url              text primary key,
   duration_seconds double precision not null,
   video            jsonb,              -- { fps, frames, width, height }
@@ -602,7 +602,7 @@ alter table media_facts enable row level security;
 create index if not exists edges_source_node_id_idx on edges (source_node_id);
 create index if not exists edges_target_node_id_idx on edges (target_node_id);
 
--- D389: one round trip for every generate route
+-- D390: one round trip for every generate route
 create or replace function editor_generation_lock(p_node_id uuid) returns text language sql stable as $$
   select case
     when exists (select 1 from edges e join nodes t on t.id = e.target_node_id
@@ -680,7 +680,7 @@ $$;
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/media-facts.test.ts src/lib/editor/__tests__/load-state.test.ts "src/app/api/canvases/[cid]/editor/route.test.ts"`. Expected: FAIL.
 - [ ] **Step 3: Implement** the modules, the route (`withCanvas(req, Promise.resolve({ id: cid }), …)` wrapped in `withTryCatch`), the service and the hooks.
 - [ ] **Step 4: Run** the same tests. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): load and save the edit; media facts measured on first use (D390, D391)`
+- [ ] **Step 5: Commit**: `feat(editor): load and save the edit; media facts measured on first use (D391, D392)`
 
 ### Task 12: The export job (Trigger.dev task, routes, polling)
 
@@ -752,7 +752,7 @@ export type ExportStatus = { status: JobStatus; phase: string | null; error: str
 - [ ] **Step 3: Implement** as specified. `fetchBytes` reads the public URL (as the dub tasks do).
 - [ ] **Step 4: Run** the same tests, then `npx tsc --noEmit`. Expected: PASS, and no type errors (the latter covers `trigger/`).
 - [ ] **Step 5: Check in dev.** Start `npm run dev`, POST an export for a small edit, and confirm the zip downloads and the fonts are present. This proves `additionalFiles` and `process.cwd()` in the dev runner. Also confirm `npx trigger.dev deploy --dry-run` lists `src/fonts/captions` if the CLI supports it.
-- [ ] **Step 6: Commit**: `feat(editor): export package as a Trigger.dev task with polled progress (D391)`
+- [ ] **Step 6: Commit**: `feat(editor): export package as a Trigger.dev task with polled progress (D392)`
 
 # Phase C — Canvas integration
 
@@ -772,7 +772,7 @@ export function useLockHandoffNavigation(canvasId: string): (href: string, flush
 ```
 - The cleanup of `useCanvasLock`'s heartbeat effect becomes `if (!takeLockHandoff(canvasId)) release();`. The `beforeunload` path is unchanged.
 
-Why (D390): today the canvas sends its release beacon on unmount. Both pages share the tab's session id, so if that beacon lands after the editor page's acquire, it wipes the editor's lock and the editor drops to read-only.
+Why (D391): today the canvas sends its release beacon on unmount. Both pages share the tab's session id, so if that beacon lands after the editor page's acquire, it wipes the editor's lock and the editor drops to read-only.
 
 - [ ] **Step 1: Write the failing tests** in `lock-session.test.ts`:
   - "a fresh mark is taken once": mark, take → true; take again → false.
@@ -781,7 +781,7 @@ Why (D390): today the canvas sends its release beacon on unmount. Both pages sha
 - [ ] **Step 2: Run** `npx vitest run src/lib/canvas/lock-session.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement** both functions (storage injected, as `readOrCreateLockSessionId` is), the cleanup change, and the hook.
 - [ ] **Step 4: Run** the same test. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(canvas): hand the editing lock between canvas and editor in one tab (D390)`
+- [ ] **Step 5: Commit**: `feat(canvas): hand the editing lock between canvas and editor in one tab (D391)`
 
 ### Task 14: The Editor node on the canvas
 
@@ -817,7 +817,7 @@ Why (D390): today the canvas sends its release beacon on unmount. Both pages sha
 - [ ] **Step 3: Implement** the registration checklist above, and the card.
 - [ ] **Step 4: Run** the same tests and `npx tsc --noEmit`. Expected: PASS.
 - [ ] **Step 5: Check by hand** (`npm run dev:next`): `E` adds an Editor; a Video Gen and a Dubbing node connect to it; **Open editor** goes to `/edit` (a 404 until Task 17 is fine).
-- [ ] **Step 6: Commit**: `feat(editor): Editor node type and card; Dubbing gets an output (D387)`
+- [ ] **Step 6: Commit**: `feat(editor): Editor node type and card; Dubbing gets an output (D388)`
 
 ### Task 15: One Editor per canvas; connecting refuses busy or take-less clips
 
@@ -858,7 +858,7 @@ export function editorConnectRefusal(source: { type?: string; data: unknown }, t
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/rules.test.ts src/lib/copilot "src/app/api/nodes/[id]/duplicate"`. Expected: FAIL.
 - [ ] **Step 3: Implement** at every call site listed.
 - [ ] **Step 4: Run** the same tests. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(editor): one Editor per canvas; refuse connecting a generating or take-less clip (D387, D389)`
+- [ ] **Step 5: Commit**: `feat(editor): one Editor per canvas; refuse connecting a generating or take-less clip (D388, D390)`
 
 ### Task 16: Generation is locked while connected (client and server)
 
@@ -904,7 +904,7 @@ export async function editorLockResponse(nodeId: string): Promise<Response | nul
 - [ ] **Step 3: Implement** everything listed. In the UI, the lock reason is the disabled control's tooltip (`DisabledReason`), and the card shows `short` as a muted line.
 - [ ] **Step 4: Run** the same tests. Expected: PASS.
 - [ ] **Step 5: Check by hand:** with a Video Gen connected, Generate and Change voice are off with the reason; after disconnecting they work. Version History restore still works.
-- [ ] **Step 6: Commit**: `feat(editor): lock generation on clips in the reel, enforced in every start route (D389)`
+- [ ] **Step 6: Commit**: `feat(editor): lock generation on clips in the reel, enforced in every start route (D390)`
 
 # Phase D — The editor page (layout from the mockups: 1440 wide; header 60 px; row of 248 px / stage / 340 px with a 16 px gap and 16/24 px padding; timeline full width below)
 
@@ -961,7 +961,7 @@ export function useEditorAutosave(a: { canvasId: string; nodeId: string; session
 - [ ] **Step 2: Run** `npx vitest run src/lib/editor/__tests__/editor-store.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement** the store, the autosave hook, the page, the loading skeleton and the shell with an empty three-column grid and timeline area. Later tasks fill the panels.
 - [ ] **Step 4: Run** the test, then check by hand: open `/edit` from the canvas card. The header shows and the shape toggle saves (`Saved`). A second tab shows the lock banner and read-only. **Back to canvas** returns with the canvas still editable (the handoff works).
-- [ ] **Step 5: Commit**: `feat(editor): editor page shell with autosave under the canvas lock (D387, D390)`
+- [ ] **Step 5: Commit**: `feat(editor): editor page shell with autosave under the canvas lock (D388, D391)`
 
 ### Task 18: Playback and the stage (plays the chosen picture and sound)
 

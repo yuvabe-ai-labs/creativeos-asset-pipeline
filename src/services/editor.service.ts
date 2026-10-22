@@ -3,7 +3,7 @@ import type { EditDoc, EditorState } from "@/lib/editor/types";
 import { proxyImageSrc } from "@/lib/post/proxy-image-src";
 import { ApiError, readJson } from "./read-json";
 
-// The Rough Cut Editor's API calls (D390). No caching here: src/hooks/queries/editor.ts owns that.
+// The Rough Cut Editor's API calls (D391). No caching here: src/hooks/queries/editor.ts owns that.
 class EditorService {
   /** The canvas's edit, reconciled with its current sources. */
   async state(canvasId: string): Promise<EditorState> {
@@ -21,7 +21,7 @@ class EditorService {
     await readJson(res, "Couldn't save the edit.");
   }
 
-  /** Starts a Premiere export of the saved edit (D391). */
+  /** Starts a Premiere export of the saved edit (D392). */
   async startExport(canvasId: string, nodeId: string): Promise<{ jobId: string }> {
     const res = await fetch(`/api/canvases/${canvasId}/editor/exports`, {
       method: "POST",

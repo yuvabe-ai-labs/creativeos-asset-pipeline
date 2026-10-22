@@ -1,5 +1,5 @@
-// The edit turned into a frame-exact plan for the Premiere and OTIO writers (D388). This is the
-// ONLY place frames are computed: the edit keeps seconds (D390). Everything is in sequence frames
+// The edit turned into a frame-exact plan for the Premiere and OTIO writers (D389). This is the
+// ONLY place frames are computed: the edit keeps seconds (D391). Everything is in sequence frames
 // at the first piece's picture rate, read from the file (CreativeOS clips are 24 fps, never an
 // assumed 25). A piece never asks for frames past the end of the file it shows.
 import { captionFont, type CaptionFontKey } from "./caption-fonts";

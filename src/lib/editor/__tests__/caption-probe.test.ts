@@ -1,4 +1,4 @@
-// The caption probe (D392): writes a media-free XML with two sequences, to re-check titles on a
+// The caption probe (D393): writes a media-free XML with two sequences, to re-check titles on a
 // new Premiere version. A = a title written by our code, B = the title clipitem copied verbatim
 // from a Premiere-exported file (OpenTimelineIO's premiere_generators.xml). Runs only when
 // EDITOR_PROBE_OUT (a folder) and EDITOR_PREMIERE_SAMPLE (that file) are set. Import the result

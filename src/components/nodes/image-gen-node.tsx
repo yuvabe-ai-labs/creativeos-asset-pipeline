@@ -20,6 +20,9 @@ import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
 import { NodeCreditsFooter } from "./node-credits-footer";
+import { useNodeMediaSize } from "@/hooks/use-node-media-size";
+import { nodeMediaBox, parseAspectRatio } from "@/lib/canvas/media-fit";
+import { NodeMedia } from "./node-media";
 
 export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -84,6 +87,9 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const d = data as ImageGenNodeData;
   const title    = d.title ?? "";
   const imageUrl = (d.parsed ?? null) as string | null;
+  // D384 — the card takes the image's shape. Before the first load, the chosen aspect ratio.
+  const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, parseAspectRatio((d.params as Record<string, unknown> | undefined)?.aspect_ratio));
+  const box = imageUrl ? nodeMediaBox(media.ratio, "output") : null;
   // D29: active version's approval status (present once a version exists).
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const totalCredits = useNodeCost(id);
@@ -118,8 +124,10 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
         onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
         onDragOver={drop.onDragOver}
         onDrop={drop.onDrop}
+        style={box ? { width: box.cardWidth } : undefined}
         className={cn(
-          "w-[480px] rounded-lg border border-border bg-card shadow-card",
+          !box && "w-[480px]",
+          "rounded-lg border border-border bg-card shadow-card",
           "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
@@ -155,10 +163,9 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
               <ApprovalBadge status={approvalStatus} />
             </div>
           )}
-          {imageUrl && (
-            <div className="mb-2 overflow-hidden rounded-md border border-border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="Generated" className="aspect-video w-full object-cover" />
+          {imageUrl && box && (
+            <div className="mb-2">
+              <NodeMedia kind="image" src={imageUrl} alt="Generated" box={box} onMeasured={media.onMeasured} />
             </div>
           )}
           {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}

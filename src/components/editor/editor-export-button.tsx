@@ -22,7 +22,7 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
   const dubLanguage = useEditorStore((s) => s.sources.find((x) => x.language && s.doc.pieces.some((p) => p.sourceNodeId === x.nodeId && p.sound === "dubbed"))?.language ?? null);
 
   const run = async () => {
-    // D392 — a caption whose font lacks some of its letters arrives in a substitute font.
+    // D393 — a caption whose font lacks some of its letters arrives in a substitute font.
     const uncovered = captions.filter((c) => !fontCoversText(c.font, c.text)).length;
     if (uncovered > 0) {
       toast.warning(`${uncovered} caption${uncovered === 1 ? " uses" : "s use"} letters ${uncovered === 1 ? "its" : "their"} font doesn't have. Premiere will show those in another font.`);

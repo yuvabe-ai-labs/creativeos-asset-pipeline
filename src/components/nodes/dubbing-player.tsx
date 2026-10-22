@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AudioLines, Clapperboard } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VersionOutputEmpty } from "./version-output-empty";
 import { furthestStage, stageUrl, type DubStage, type DubbingOutput } from "@/lib/dubbing/types";
 
 const STAGES: { id: DubStage; label: string }[] = [
@@ -12,16 +13,22 @@ const STAGES: { id: DubStage; label: string }[] = [
 ];
 
 // D375 — the right column, laid out like Video Gen's: an eyebrow, the stage switch beside it, the
-// 9:16 frame below. While a job runs, the video it works on stays in place under the same veil
+// video below at its own shape. While a job runs, the video it works on stays in place under the same veil
 // Video Gen gives a voice change. The parent keys this by the dub's urls, so a new result
 // remounts on the furthest stage instead of syncing state in an effect.
-export function DubbingPlayer({ dub, sourceUrl, workingLabel }: {
+export function DubbingPlayer({ dub, sourceUrl, workingLabel, stepper, banner, failed = false }: {
   dub: DubbingOutput | null;
   sourceUrl: string | null;
   /** "Dubbing into Tamil…" while a job runs, else null. */
   workingLabel: string | null;
+  /** D383 — the version stepper and viewing bar, and whether the version on screen failed. */
+  stepper?: ReactNode;
+  banner?: ReactNode;
+  failed?: boolean;
 }) {
   const [stage, setStage] = useState<DubStage>(dub ? furthestStage(dub) : "original");
+  // D384 — the player's shape: measured from the video, 9:16 until then.
+  const [ratio, setRatio] = useState(9 / 16);
   const url = workingLabel ? (dub?.dubbed && stage !== "original" ? dub.dubbed : sourceUrl) : dub ? stageUrl(dub, stage) : sourceUrl;
 
   return (
@@ -40,11 +47,21 @@ export function DubbingPlayer({ dub, sourceUrl, workingLabel }: {
             </TabsList>
           </Tabs>
         )}
+        {stepper && <div className="ml-auto">{stepper}</div>}
       </div>
+      {banner}
       <div className="min-h-0 flex-1">
-        {url ? (
+        {failed ? (
+          <VersionOutputEmpty noun="dub" />
+        ) : url ? (
           <div className="relative h-full w-fit max-w-full">
-            <video key={url} src={url} controls={!workingLabel} playsInline className="aspect-[9/16] h-full max-w-full rounded-xl border border-border bg-muted/20" />
+            <video key={url} src={url} controls={!workingLabel} playsInline className="h-full max-w-full rounded-xl border border-border bg-muted/20"
+              style={{ aspectRatio: ratio }}
+              onLoadedMetadata={(e) => {
+                const { videoWidth, videoHeight } = e.currentTarget;
+                if (videoWidth > 0 && videoHeight > 0) setRatio(videoWidth / videoHeight);
+              }}
+            />
             {workingLabel && (
               <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm">
                 <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">

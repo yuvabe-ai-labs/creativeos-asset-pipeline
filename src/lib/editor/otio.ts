@@ -1,4 +1,4 @@
-// OpenTimelineIO JSON ("otio_json"), written directly (D388), ported from the rough-cut spike
+// OpenTimelineIO JSON ("otio_json"), written directly (D389), ported from the rough-cut spike
 // (Timeline.1 / Stack.1 / Track.1 / Clip.2 / Gap.1 / ExternalReference.1 / TimeRange.1 /
 // RationalTime.1). Ranges are in sequence frames at the plan's rate. Unlike the spike, sound
 // tracks fill with gaps so they stay in sync with the picture, and the dub has its own track.

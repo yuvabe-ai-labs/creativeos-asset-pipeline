@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { nodeMediaBox } from "@/lib/canvas/media-fit";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import type { PostNodeData } from "@/lib/canvas-nodes";
@@ -65,6 +66,8 @@ export function PostNode({ id, data, selected }: NodeProps) {
 
   const format = resolveFormat(d.format);
   const spec = POST_FORMATS[format];
+  // D384 — the card takes the format's shape (a Story card gets narrower, not taller).
+  const box = nodeMediaBox(spec.width / spec.height, "input");
   const state = renderState({
     fileUrl: d.fileUrl,
     renderedAt: d.renderedAt,
@@ -87,8 +90,9 @@ export function PostNode({ id, data, selected }: NodeProps) {
     >
       <div
         onDoubleClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
+        style={{ width: box.cardWidth }}
         className={cn(
-          "w-56 rounded-lg border border-border bg-card shadow-card",
+          "rounded-lg border border-border bg-card shadow-card",
           "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
           selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
           connState === "invalid" && "opacity-60 pointer-events-none",
@@ -117,7 +121,7 @@ export function PostNode({ id, data, selected }: NodeProps) {
 
         <div
           className="flex items-center justify-center overflow-hidden border-b border-border bg-muted/20"
-          style={{ aspectRatio: `${spec.width} / ${spec.height}` }}
+          style={{ width: box.mediaWidth, height: box.mediaHeight }}
         >
           {/* The exported PNG is the truest preview — real fonts, real photo — but only while
               it still matches the design. Once edited past it (or before the first Download),

@@ -41,7 +41,7 @@ export default defineConfig({
     external: ["sharp"],
     // D282 — the video-voice-change task extracts and replaces audio with ffmpeg. The extension
     // installs the binary into the deploy image and sets FFMPEG_PATH.
-    // D392 — the editor-export task ships the caption fonts in each Premiere package; it reads
+    // D393 — the editor-export task ships the caption fonts in each Premiere package; it reads
     // them from src/fonts/captions at runtime, so they are copied into the deploy image.
     extensions: [ffmpeg(), additionalFiles({ files: ["./src/fonts/captions/**"] })],
   },

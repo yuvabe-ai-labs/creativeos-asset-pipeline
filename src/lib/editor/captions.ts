@@ -1,4 +1,4 @@
-// Captions belong to the piece they start in (D392, spec §7). A caption stores its start as a
+// Captions belong to the piece they start in (D393, spec §7). A caption stores its start as a
 // SOURCE time inside that piece (`at`), so trimming or reordering an earlier piece never knocks
 // it out of sync with the speech. Every function returns the SAME doc for a no-op.
 import { CAPTION_DEFAULTS } from "./caption-fonts";

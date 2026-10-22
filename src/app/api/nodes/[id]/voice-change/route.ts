@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid voice change settings.", 400);
     const { baseVersionId, voiceId, settings } = parsed.data;
-    // D389 — a voice change makes a new take: refused while the clip is in the Editor's reel.
+    // D390 — a voice change makes a new take: refused while the clip is in the Editor's reel.
     const locked = await editorLockResponse(nodeId);
     if (locked) return locked;
     if (!process.env.ELEVEN_LABS_API_KEY) return apiError(VOICE_NOT_SET_UP_MESSAGE, 400);

@@ -10,6 +10,8 @@ import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
+import { CollapseToggle } from "./collapse-toggle";
+import { CollapsedInHandle } from "./collapsed-in-handle";
 import { MultishotFocusView } from "./multishot-focus-view";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
@@ -44,7 +46,10 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const [focusOpen, setFocusOpen] = useState(false);
-  const d = data as MultishotNodeData;
+  const d = data as MultishotNodeData & { collapsed?: boolean };
+  // D387 — collapses like a Shot: its prompt → video lane hides, the card stays as a small stack.
+  const collapsed = d.collapsed === true;
+  const label = `Multishot${d.order ? ` ${d.order}` : ""}`;
 
   const cuts = d.cuts ?? NO_CUTS;
   // D307 — the editor works on one voiceover list for the sequence; an older node's cut lines fold
@@ -85,26 +90,31 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
           e.stopPropagation();
           setFocusOpen(true);
         }}
+        data-selected={selected}
         className={cn(
-          "w-80 rounded-lg border border-border bg-card shadow-card",
+          "w-80 rounded-lg border border-border bg-card",
           "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006]",
-          selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+          collapsed ? "shot-stacked" : "shadow-card",
+          selected && !collapsed && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         )}
       >
         <NodeCardHeader
           icon={Layers}
           nodeId={id}
           nodeType="multishot"
-          title={`Multishot${d.order ? ` ${d.order}` : ""}`}
+          title={label}
           status={
-            <span
-              className={cn(
-                "text-[0.6rem] tabular-nums",
-                !ladder.ok ? "text-destructive" : "text-muted-foreground",
-              )}
-            >
-              {total}s · {cuts.length} cuts
-            </span>
+            <div className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "text-[0.6rem] tabular-nums",
+                  !ladder.ok ? "text-destructive" : "text-muted-foreground",
+                )}
+              >
+                {total}s · {cuts.length} cuts
+              </span>
+              <CollapseToggle nodeId={id} collapsed={collapsed} label={label} />
+            </div>
           }
         />
         <div className="p-2">
@@ -147,6 +157,7 @@ export function MultishotNode({ id, data, selected }: NodeProps) {
             <GuidedNextButton sourceId={id} variant="chip" />
           </div>
         </div>
+        <CollapsedInHandle collapsed={collapsed} />
 
         {/* Lineage target (dashed Script->Multishot edge). */}
         <Handle

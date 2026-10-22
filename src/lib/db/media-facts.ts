@@ -1,4 +1,4 @@
-// What the server measured in a stored file's header, kept once per file (D391, migration 0059).
+// What the server measured in a stored file's header, kept once per file (D392, migration 0059).
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { MediaFacts } from "@/lib/editor/types";

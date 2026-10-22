@@ -1,4 +1,4 @@
-// The Premiere export (D391, spec §9), with its I/O injected so it runs the same in the
+// The Premiere export (D392, spec §9), with its I/O injected so it runs the same in the
 // Trigger.dev task and in tests. It downloads exactly the media the plan uses, builds the
 // package, and uploads the zip LAST: a failure at any step leaves no package that looks
 // complete. Failures carry a plain message the export dialog shows as is.

@@ -1,4 +1,4 @@
-// Brings a saved edit up to date with the Editor's current sources (spec §4, D389/D390):
+// Brings a saved edit up to date with the Editor's current sources (spec §4, D390/D391):
 // - a disconnected or reconnected source loses its pieces; a reconnected one comes back fresh;
 // - a version switch keeps trims by time, pulled in to a shorter take, and falls back to the
 //   original picture or sound when the new version lacks lip sync or a dub;

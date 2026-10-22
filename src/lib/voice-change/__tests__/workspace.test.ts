@@ -17,7 +17,7 @@ describe("workspace helpers", () => {
   });
 });
 
-describe("the Editor's generation lock (D389)", () => {
+describe("the Editor's generation lock (D390)", () => {
   it("refuses Change voice on a clip in the reel", () => {
     expect(canApplyVoiceChange({ sourceId: "b", voice: true, saving: false, running: false, locked: "In use by the Editor · Disconnect to generate" }))
       .toEqual({ ok: false, reason: "In use by the Editor · Disconnect to generate" });
