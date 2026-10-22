@@ -18,7 +18,7 @@ const FAILURE_COPY: Record<TranscribeFailureReason, string> = {
 };
 export const failureCopy = (r: TranscribeFailureReason) => FAILURE_COPY[r];
 
-type Run = { pieces: string[]; added: string[]; replaced: Caption[]; failed: number };
+type Run = { pieces: string[]; added: string[]; replaced: Caption[]; failed: number; error?: string };
 const EMPTY: ReadonlySet<string> = new Set();
 
 /** Auto captions for the editor page (D399, D401): the cost on the button, one run for the reel,
@@ -88,6 +88,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
         setFailed((f) => new Map([...f, ...marks]));
         if (run.current) run.current.failed += marks.size;
       }
+      if (finishedJob.status === "failed" && finishedJob.error && run.current) run.current.error = finishedJob.error;
       setListening(EMPTY);
     })();
   }, [jobId, finishedJob, transcripts, fill, store, setListening]);
@@ -97,6 +98,10 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
     const r = run.current;
     if (!r || jobId || startMutation.isPending || listening.size > 0) return;
     run.current = null;
+    if (r.error && r.added.length === 0) {
+      toast.error(r.error);
+      return;
+    }
     const ok = r.pieces.length - r.failed;
     const message = r.failed
       ? `${ok} clip${ok === 1 ? "" : "s"} captioned. ${r.failed} couldn't be.`

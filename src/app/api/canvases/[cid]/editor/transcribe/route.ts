@@ -8,6 +8,7 @@ import { failGeneration, insertGeneration } from "@/lib/db/generations";
 import { listTranscribedUrls } from "@/lib/db/media-transcripts";
 import { loadEditorState } from "@/lib/editor/load-state";
 import { planTranscription, type TranscribeJobInput } from "@/lib/editor/transcribe-plan";
+import { findLiveTranscribeJob, settleIfRunDead } from "@/lib/editor/transcribe-recovery-server";
 import { failJob, failStaleJobs, insertJob, setJobRunId } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
 import { transcribeCredits } from "@/lib/transcribe/cost";
@@ -56,13 +57,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
         await refundReservation({ orgId, generationId: generation.id }).catch(() => null);
       };
 
+      const input: TranscribeJobInput = { canvasId, nodeId, generationId: generation.id, orgId, files: fresh };
+      const insert = () => insertJob({ orgId, clientId, kind: "editor-transcribe", input, lockKey: `editor-transcribe:${nodeId}`, phaseMessage: "Listening…" });
       let jobId: string;
       try {
         const reservation = await reserveCredits(orgId, generation.id, transcribeCredits(seconds));
         if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_TOAST_MESSAGE);
-        const input: TranscribeJobInput = { canvasId, nodeId, generationId: generation.id, orgId, files: fresh };
-        const job = await insertJob({ orgId, clientId, kind: "editor-transcribe", input, lockKey: `editor-transcribe:${nodeId}`, phaseMessage: "Listening…" });
-        jobId = job.id;
+        try {
+          jobId = (await insert()).id;
+        } catch (err) {
+          if (!(err instanceof JobLockedError)) throw err;
+          // The lock is held. A run that died without reporting is settled and replaced; a run
+          // still going is followed instead of refused (the editor polls it).
+          const live = await findLiveTranscribeJob(clientId, nodeId);
+          if (live && (await settleIfRunDead(live))) {
+            jobId = (await insert()).id;
+          } else if (live) {
+            await giveBack("Already running.");
+            return apiOk({ jobId: live.id, noSound }, 202);
+          } else {
+            throw err;
+          }
+        }
       } catch (err) {
         if (err instanceof CreditLimitError) {
           await giveBack(CREDIT_LIMIT_TOAST_MESSAGE);

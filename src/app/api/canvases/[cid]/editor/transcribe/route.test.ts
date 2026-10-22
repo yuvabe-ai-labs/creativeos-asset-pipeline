@@ -22,16 +22,16 @@ vi.mock("@/lib/db/credit-transactions", () => ({
   refundReservation: vi.fn(async () => {}),
   CreditLimitError: class CreditLimitError extends Error {},
 }));
-vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
-vi.mock("@/lib/jobs/db", () => ({ insertJob: vi.fn(), failStaleJobs: vi.fn(), setJobRunId: vi.fn(), failJob: vi.fn(), getJob: vi.fn() }));
+vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() }, runs: { retrieve: vi.fn() } }));
+vi.mock("@/lib/jobs/db", () => ({ insertJob: vi.fn(), failStaleJobs: vi.fn(), setJobRunId: vi.fn(), failJob: vi.fn(async () => {}), getJob: vi.fn(), listRecentJobs: vi.fn(async () => []) }));
 
-import { tasks } from "@trigger.dev/sdk";
+import { runs, tasks } from "@trigger.dev/sdk";
 import { refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { insertGeneration } from "@/lib/db/generations";
 import { listTranscribedUrls, listTranscripts } from "@/lib/db/media-transcripts";
 import { loadEditorState } from "@/lib/editor/load-state";
 import { planTranscription } from "@/lib/editor/transcribe-plan";
-import { failJob, getJob, insertJob } from "@/lib/jobs/db";
+import { failJob, getJob, insertJob, listRecentJobs } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
 import { GET as getTranscripts } from "../transcripts/route";
 import { GET as getStatus } from "./[jobId]/route";
@@ -84,7 +84,32 @@ describe("POST /api/canvases/[cid]/editor/transcribe", () => {
     expect(insertJob).not.toHaveBeenCalled();
   });
 
-  it("409s while a run is going", async () => {
+  const liveJob = (runId: string) => ({ id: "old-job", kind: "editor-transcribe", status: "queued", trigger_run_id: runId, input: { canvasId: "cv1", nodeId: NODE, orgId: "org-1", generationId: "old-gen" } });
+
+  it("follows the run already going instead of refusing, and gives the new reservation back", async () => {
+    vi.mocked(insertJob).mockRejectedValue(new JobLockedError(`editor-transcribe:${NODE}`));
+    vi.mocked(listRecentJobs).mockResolvedValue([liveJob("run_live")] as never);
+    vi.mocked(runs.retrieve).mockResolvedValue({ status: "EXECUTING" } as never);
+    const res = await post({ nodeId: NODE });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ jobId: "old-job", noSound: [] });
+    expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen1" });
+    expect(tasks.trigger).not.toHaveBeenCalled();
+  });
+
+  it("settles a run that died without reporting, then starts a new one", async () => {
+    vi.mocked(insertJob).mockRejectedValueOnce(new JobLockedError(`editor-transcribe:${NODE}`)).mockResolvedValueOnce({ id: "job2" } as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([liveJob("run_dead")] as never);
+    vi.mocked(runs.retrieve).mockResolvedValue({ status: "SYSTEM_FAILURE" } as never);
+    const res = await post({ nodeId: NODE });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ jobId: "job2", noSound: [] });
+    expect(failJob).toHaveBeenCalledWith("old-job", expect.stringContaining("Your credits were returned"));
+    expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "old-gen" });
+    expect(tasks.trigger).toHaveBeenCalledWith("editor-transcribe", { jobId: "job2" });
+  });
+
+  it("409s only when the lock is held by a run it can't find", async () => {
     vi.mocked(insertJob).mockRejectedValue(new JobLockedError(`editor-transcribe:${NODE}`));
     expect((await post({ nodeId: NODE })).status).toBe(409);
     expect(refundReservation).toHaveBeenCalled();
@@ -113,6 +138,14 @@ describe("GET /api/canvases/[cid]/editor/transcribe/[jobId]", () => {
     expect((await get()).status).toBe(404);
     vi.mocked(getJob).mockResolvedValue({ kind: "editor-export", input: { canvasId: "cv1" } } as never);
     expect((await get()).status).toBe(404);
+  });
+
+  it("settles a live job whose run died, and says so", async () => {
+    vi.mocked(getJob).mockResolvedValue({ id: "job1", kind: "editor-transcribe", status: "queued", trigger_run_id: "run_dead", error: null, result: null, input: { canvasId: "cv1", orgId: "org-1", generationId: "g" } } as never);
+    vi.mocked(runs.retrieve).mockResolvedValue({ status: "SYSTEM_FAILURE" } as never);
+    const body = await (await get()).json();
+    expect(body).toEqual({ status: "failed", result: null, error: expect.stringContaining("Your credits were returned") });
+    expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g" });
   });
 
   it("returns the run's status", async () => {
