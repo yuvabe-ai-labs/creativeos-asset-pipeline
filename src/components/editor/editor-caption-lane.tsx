@@ -52,6 +52,8 @@ export function EditorCaptionLane({ scale }: { scale: number }) {
   return (
     <>
       {doc.captions.map((c) => {
+        // A clip being captioned shows only its listening state; its old lines are about to be replaced.
+        if (listening.has(c.pieceId)) return null;
         const t = captionTimes(doc, c);
         if (!t || t.end <= t.start) return null;
         return (
