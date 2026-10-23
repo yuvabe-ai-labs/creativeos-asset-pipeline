@@ -17,6 +17,7 @@ export type AddNodeType =
   | "multishot-prompt"
   | "video-gen"
   | "dubbing"
+  | "editor"
   | "post"
   | "client-review";
 
@@ -46,6 +47,7 @@ export const ADD_NODE_OPTIONS: readonly AddNodeOption[] = [
   { type: "video-gen", label: "Video Gen", mnemonic: "V" },
   // "B" for duBbing (D374): D is Draw.
   { type: "dubbing", label: "Dubbing", mnemonic: "B" },
+  { type: "editor", label: "Editor", mnemonic: "E" },
   { type: "post", label: "Post", mnemonic: "O" },
   // "R" for Review. The cut a client comments on through a public link (D309).
   { type: "client-review", label: "Client review", mnemonic: "R" },

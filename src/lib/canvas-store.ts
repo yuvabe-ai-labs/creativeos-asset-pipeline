@@ -15,6 +15,9 @@ import {
 import { toast } from "sonner";
 import { wouldCreateCycle } from "@/lib/canvas/graph";
 import { isCollapsibleType, isShotCollapsed, withoutCollapsed } from "@/lib/canvas/shot-collapse";
+import { editorConnectRefusal } from "@/lib/editor/rules";
+import { computeGenerationLocks, sameLocks } from "@/lib/editor/generation-lock";
+import type { GenerationLock } from "@/lib/editor/types";
 import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
@@ -51,9 +54,15 @@ import {
   clearsStartMark,
   isNewerJob,
   mergeJob,
+  nodeGenerationStatus,
   type GenerationJobKind,
   type GenerationStartMark,
 } from "@/lib/generations/node-status";
+
+/** Whether a node has a job running, from the canvas's O(1) job index (D366). */
+export function isNodeGenerating(s: Pick<CanvasState, "latestJobByNode" | "generationStarts">, nodeId: string): boolean {
+  return nodeGenerationStatus(s.latestJobByNode[nodeId], s.generationStarts[nodeId]?.kind, null).isGenerating;
+}
 
 function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
   if (!(key in record)) return record;
@@ -98,6 +107,8 @@ export type CanvasState = {
   // D366 — per-node generation status is DERIVED from the canvas's one generations feed below
   // (trayJobs), never fetched per node. `latestJobByNode` indexes it so a node's selector is O(1).
   latestJobByNode: Record<string, GenerationFeedRow>;
+  /** D390 — which nodes can't generate because they feed the Editor. Updated when edges change. */
+  generationLocks: Record<string, GenerationLock>;
   generationStarts: Record<string, GenerationStartMark>;
   generationRequestErrors: Record<string, string>;
   /** `generationId`, when the start response names it, lets the mark clear on exactly that job's
@@ -170,6 +181,7 @@ function defaultData(type: string): AppNode["data"] {
     case "video-gen":
       return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
     case "dubbing":
+    case "editor":
       return { title: "" };
     case "post":
       // 4:5 portrait, not square: it's Instagram's best-performing feed size and takes the
@@ -207,8 +219,9 @@ export function createCanvasStore(
     return { nodes: nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)), layout };
   };
 
-  return createStore<CanvasState>((set, get) => ({
+  const store = createStore<CanvasState>((set, get) => ({
     canvasName: initialCanvasName,
+    generationLocks: computeGenerationLocks(initialNodes, initialEdges),
     nodes: initialNodes,
     edges: initialEdges,
     removedNodeIds: [],
@@ -251,6 +264,16 @@ export function createCanvasStore(
       if (source && target && wouldCreateCycle(get().edges, source, target)) {
         toast.error("That connection would create a loop.");
         return;
+      }
+      // D390 — the Editor refuses a clip that is generating or has no finished take, and says why.
+      const editorTarget = get().nodes.find((n) => n.id === target);
+      if (source && editorTarget?.type === "editor") {
+        const editorSource = get().nodes.find((n) => n.id === source);
+        const refusal = editorSource && editorConnectRefusal(editorSource, "editor", isNodeGenerating(get(), source));
+        if (refusal) {
+          toast.error(refusal);
+          return;
+        }
       }
       // D236/D239 — coerce the target's STORED modelId to the model the connected plan was
       // WRITTEN for. Filtering the picker is not enforcing a constraint: D216 hid every other chip
@@ -954,6 +977,15 @@ export function createCanvasStore(
     kbJustReady: false,
     setKbJustReady: (v) => set({ kbJustReady: v }),
   }));
+
+  // D390 — the generation-lock index follows the edges: recomputed only when the edges array
+  // changes (a node drag changes nodes, not edges), and replaced only when its contents change.
+  store.subscribe((s, prev) => {
+    if (s.edges === prev.edges) return;
+    const next = computeGenerationLocks(s.nodes, s.edges);
+    if (!sameLocks(next, s.generationLocks)) store.setState({ generationLocks: next });
+  });
+  return store;
 }
 
 export type CanvasStore = ReturnType<typeof createCanvasStore>;

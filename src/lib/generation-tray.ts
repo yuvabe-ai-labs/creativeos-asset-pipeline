@@ -115,6 +115,7 @@ export function deriveTrayItems(
     if (jobRow.node_id === null) continue;
     const node = byId.get(jobRow.node_id);
     if (!node) continue; // node deleted → orphan row
+    if (jobRow.type === "transcribe") continue; // Auto captions show on the editor page (D399)
     const kind = resolveTrayKind(jobRow.type, node.type);
 
     const status: TrayStatus =

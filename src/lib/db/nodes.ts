@@ -69,6 +69,19 @@ export async function getNodeData(
   return (data as { data: Record<string, unknown> | null } | null)?.data ?? null;
 }
 
+/** A node's type, only if it is on this canvas (route ids are checked: rule 14). */
+export async function getNodeTypeOnCanvas(nodeId: string, canvasId: string): Promise<string | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("nodes")
+    .select("type")
+    .eq("id", nodeId)
+    .eq("canvas_id", canvasId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { type: string } | null)?.type ?? null;
+}
+
 export async function listNodes(canvasId: string): Promise<NodeWithActive[]> {
   const supabase = createServerSupabase();
   // Embed the active version's output via the nodes.active_version_id FK

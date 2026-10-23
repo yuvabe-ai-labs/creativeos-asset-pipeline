@@ -1,4 +1,5 @@
 import type { XYPosition } from "@xyflow/react";
+import { editorConnectRefusal } from "@/lib/editor/rules";
 import { canAcceptIncoming, canConnect, type AppNode } from "@/lib/canvas-nodes";
 import { nodeHandle } from "@/lib/nodes/describe-node";
 
@@ -68,7 +69,8 @@ export function resolveNodeTarget(nodes: AppNode[], handle: string): AppNode | n
 export type ConnectPlan = {
   target: AppNode | null;
   wired: { handle: string; sourceId: string }[];
-  rejected: { handle: string }[];
+  /** reason: why, when the rule has one to give (the Editor, D390). */
+  rejected: { handle: string; reason?: string }[];
   unknown: string[];
 };
 
@@ -80,6 +82,7 @@ export function planConnections(
   toHandle: string,
   nodes: AppNode[],
   edges: readonly { target: string }[] = [],
+  isGenerating: (nodeId: string) => boolean = () => false,
 ): ConnectPlan {
   const target = resolveNodeTarget(nodes, toHandle);
   const plan: ConnectPlan = { target, wired: [], rejected: [], unknown: [] };
@@ -90,7 +93,11 @@ export function planConnections(
     else if (!canConnect(source.type ?? "", target.type ?? "")) plan.rejected.push({ handle });
     // D374 — a one-input target (Dubbing) is full once an edge, or an earlier source in this batch, took it.
     else if (!canAcceptIncoming(target.type ?? "", edges.filter((e) => e.target === target.id).length + plan.wired.length)) plan.rejected.push({ handle });
-    else plan.wired.push({ handle, sourceId: source.id });
+    else {
+      const reason = editorConnectRefusal(source, target.type, isGenerating(source.id));
+      if (reason) plan.rejected.push({ handle, reason });
+      else plan.wired.push({ handle, sourceId: source.id });
+    }
   }
   return plan;
 }

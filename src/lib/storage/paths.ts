@@ -129,6 +129,17 @@ export function pathForDubbing(args: {
   return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/dubbing/${args.generationId}-${args.variant}.${ext}`;
 }
 
+// D392 — the Rough Cut Editor's Premiere package, one folder per export job so the file keeps
+// its download name (creativeos-reel.zip).
+export function pathForEditorExport(args: {
+  clientId: string;
+  canvasId: string;
+  nodeId: string;
+  jobId: string;
+}): string {
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/editor/${args.jobId}/creativeos-reel.zip`;
+}
+
 export function pathForClientLogo(args: {
   clientId: string;
   filename: string;

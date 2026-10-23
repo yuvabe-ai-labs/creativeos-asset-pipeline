@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GenerationLockLine } from "./generation-lock-line";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { AudioLines, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -95,8 +96,11 @@ export function DubbingNode({ id, data, selected }: NodeProps) {
               )}
             </div>
           </div>
+          <GenerationLockLine nodeId={id} />
           <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(dub)} />
           <Handle type="target" position={Position.Left} className="!size-4 !border-2 !border-card !bg-muted-foreground" />
+          {/* D388 — a dub feeds the Rough Cut Editor. */}
+          <Handle type="source" position={Position.Right} className="!size-4 !border-2 !border-card !bg-muted-foreground" />
         </div>
       </NodeContextMenu>
 

@@ -142,6 +142,15 @@ describe("flowToPersisted (image-gen edit fields)", () => {
 });
 
 describe("canConnect", () => {
+  // D388 — the Editor takes Video Gen and Dubbing, and connects onward to nothing.
+  it("lets Video Gen and Dubbing feed the Editor, and nothing leave it", () => {
+    expect(canConnect("video-gen", "editor")).toBe(true);
+    expect(canConnect("dubbing", "editor")).toBe(true);
+    expect(canConnect("prompt", "editor")).toBe(false);
+    expect(canConnect("image-gen", "editor")).toBe(false);
+    for (const target of Object.keys(VALID_CONNECTIONS)) expect(canConnect("editor", target)).toBe(false);
+  });
+
   it("D298/D312 — an avatar connects to a script and a composite, and nothing else", () => {
     expect(canConnect("avatar", "script")).toBe(true);
     expect(canConnect("avatar", "composite")).toBe(true);

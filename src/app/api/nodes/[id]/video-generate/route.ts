@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { editorLockResponse } from "@/lib/editor/lock-guard";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
@@ -52,6 +53,10 @@ export async function POST(
       return apiError(`Invalid request body: ${parsed.error.issues.map((i) => i.message).join(", ")}`, 400);
     }
     const body = parsed.data;
+
+    // D390 — a clip in the Editor's reel can't regenerate.
+    const locked = await editorLockResponse(nodeId);
+    if (locked) return locked;
 
     const modelId = body.modelId ?? DEFAULT_VIDEO_MODEL_ID;
     const config = videoGenRegistry[modelId];

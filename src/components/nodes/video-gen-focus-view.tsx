@@ -9,6 +9,8 @@ import {
   type ReactNode,
   type SyntheticEvent,
 } from "react";
+import { useGenerationLock } from "@/hooks/use-generation-lock";
+import { GENERATION_LOCK_COPY } from "@/lib/editor/generation-lock";
 import { parseAspectRatio } from "@/lib/canvas/media-fit";
 import {
   ArrowLeft,
@@ -668,6 +670,8 @@ export function VideoGenFocusView({
   }, [open, focusStoreApi]);
 
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const generationLock = useGenerationLock(nodeId);
+  const lockReason = generationLock ? GENERATION_LOCK_COPY[generationLock].short : null;
   const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
 
@@ -1320,10 +1324,14 @@ export function VideoGenFocusView({
     : null;
   // `loadingConnected`: the inputs on screen may be the cached copy, not yet confirmed by this
   // open's re-read — never generate (and post roles) from those.
+  // D390 — a clip in the Editor's reel can't generate; the reason replaces the action.
   const disableGenerate =
+    Boolean(lockReason) ||
     loadingConnected ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
-  const disableGenerateReason = loadingConnected
+  const disableGenerateReason = lockReason
+    ? lockReason
+    : loadingConnected
     ? "Loading connected inputs…"
     : constraints.disableGenerate
     ? constraints.disableGenerateReason
@@ -1632,6 +1640,7 @@ export function VideoGenFocusView({
                     // The take = the version the output column is showing, like Image Gen's Edit.
                     sourceId={activeVersion?.output && !activeVersion.error ? activeVersion.id : null}
                     running={isGenerating}
+                    locked={lockReason}
                     changing={isChangingVoice}
                     value={voiceChangeProp}
                     defaultVoiceId={presenterVoiceId}
@@ -1990,7 +1999,7 @@ export function VideoGenFocusView({
                     checked={changeVoiceOpen}
                     // Free during a voice change — that's the mode it runs in — but not while a
                     // new video is generating.
-                    disabled={!editable || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
+                    disabled={!editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
                     onCheckedChange={(next) => {
                       setChangeVoiceOpen(next);
                       if (next) {

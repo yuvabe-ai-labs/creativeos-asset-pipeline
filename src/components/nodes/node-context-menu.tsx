@@ -14,7 +14,7 @@ import {
 import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
-import type { AppNode } from "@/lib/canvas-nodes";
+import { canDuplicateNode, type AppNode } from "@/lib/canvas-nodes";
 
 type Props = {
   children: React.ReactNode;
@@ -45,7 +45,7 @@ export function NodeContextMenu({ children, onDuplicate, onDelete, onAddReferenc
     // a deselect change on right-click before the node component re-renders,
     // so reading at render time gives the wrong count. getState() is always fresh.
     const { nodes, duplicateNodes } = storeApi.getState();
-    const selectedNodes = nodes.filter((n) => n.selected && n.type !== "kb");
+    const selectedNodes = nodes.filter((n) => n.selected && canDuplicateNode(n.type));
     const selected = selectedNodes.map((n) => n.id);
 
     setSnapshotCount(selected.length);

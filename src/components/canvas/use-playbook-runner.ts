@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { isNodeGenerating } from "@/lib/canvas-store";
 import { useReactFlow } from "@xyflow/react";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { PLAYBOOKS, type RunContext, type SlotSpec, type SlotValue } from "@/lib/copilot/playbooks";
@@ -47,7 +48,7 @@ export function usePlaybookRunner(say: (text: string) => void) {
         },
         connect: (fromHandles, toHandle) => {
           const s = state();
-          const plan = planConnections(fromHandles, toHandle, s.nodes, s.edges);
+          const plan = planConnections(fromHandles, toHandle, s.nodes, s.edges, (id) => isNodeGenerating(s, id));
           if (!plan.target) return { wired: [], rejected: [], unknown: fromHandles };
           plan.wired.forEach((w) => s.connectNodes(w.sourceId, plan.target!.id));
           return {

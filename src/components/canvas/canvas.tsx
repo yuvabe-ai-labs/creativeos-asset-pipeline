@@ -19,7 +19,8 @@ import {
 } from "@xyflow/react";
 import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
-import { canAcceptIncoming, canConnect, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
+import { canAcceptIncoming, canConnect, canDuplicateNode, flowToPersisted, type AppNode } from "@/lib/canvas-nodes";
+import { addNodeRefusal } from "@/lib/editor/rules";
 import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { fileNodeService } from "@/services/file-node.service";
@@ -40,6 +41,7 @@ import { CompositeNode } from "@/components/nodes/composite-node";
 import { VideoPromptNode } from "@/components/nodes/video-prompt-node";
 import { VideoGenNode } from "@/components/nodes/video-gen-node";
 import { DubbingNode } from "@/components/nodes/dubbing-node";
+import { EditorNode } from "@/components/nodes/editor-node";
 import { PostNode } from "@/components/nodes/post-node";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
 import { useAnyFocusViewOpen } from "@/hooks/use-focus-view-open";
@@ -90,6 +92,7 @@ const nodeTypes: NodeTypes = {
   "video-prompt": VideoPromptNode,
   "video-gen": VideoGenNode,
   dubbing: DubbingNode,
+  editor: EditorNode,
   post: PostNode,
   "client-review": ClientReviewNode,
 };
@@ -273,6 +276,12 @@ export function Canvas({
 
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
+      // D388 — one Editor per canvas, from the palette and the bare key alike.
+      const refusal = addNodeRefusal(type, nodesRef.current);
+      if (refusal) {
+        toast.error(refusal);
+        return;
+      }
       const newNodeId = crypto.randomUUID();
       addNode(type, position, newNodeId);
       if (type === "script") {
@@ -347,7 +356,7 @@ export function Canvas({
       if ((e.ctrlKey || e.metaKey) && e.key === "d") {
         e.preventDefault();
         const selectedIds = nodesRef.current
-          .filter((n) => n.selected && n.type !== "kb")
+          .filter((n) => n.selected && canDuplicateNode(n.type))
           .map((n) => n.id);
         void duplicateNodes(selectedIds, canvasId);
         return;

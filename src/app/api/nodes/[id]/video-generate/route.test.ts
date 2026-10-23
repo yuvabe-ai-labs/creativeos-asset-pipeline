@@ -5,6 +5,8 @@ import { checkLadder, multishotCapabilityFor } from "@/lib/nodes/multishot-model
 import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
+const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
+vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 
 // withNode hands the handler (nodeId, node, caller, clientId, orgId) once auth has passed — same
 // bypass multishot-prompt/route.test.ts uses, since real withNode needs a live Supabase mock and
@@ -405,5 +407,21 @@ describe("POST video-generate — references within the cap (D308)", () => {
     const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: { av: "off" } });
     expect(res.status).toBe(202);
     expect(sentUrls()).not.toContain("av.png");
+  });
+});
+
+// D390 — a clip in the Editor's reel can't generate, whoever asks.
+describe("the Editor's generation lock", () => {
+  it("refuses with the reason and records nothing", async () => {
+    editorLock.value = "editor";
+    try {
+      const res = await post({ params: {} });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "This clip is in the Editor's reel. Disconnect it from the Editor to generate." });
+      expect(mocks.insertGeneration).not.toHaveBeenCalled();
+      expect(mocks.triggerTask).not.toHaveBeenCalled();
+    } finally {
+      editorLock.value = null;
+    }
   });
 });
