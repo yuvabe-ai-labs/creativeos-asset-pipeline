@@ -50,11 +50,37 @@ export function fillFromTranscripts(doc: EditDoc, sources: SourceView[], pieceId
 export function staleAutoPieces(doc: EditDoc, sources: SourceView[]): string[] {
   const out = new Set<string>();
   for (const c of doc.captions) {
-    if (!c.auto || !c.from) continue;
     const s = pieceSound(doc, sources, c.pieceId);
-    if (s && s.url !== c.from) out.add(c.pieceId);
+    if (s && isStale(c, s.url)) out.add(c.pieceId);
   }
   return [...out];
+}
+
+const isStale = (c: Caption, url: string) => Boolean(c.auto && c.from && c.from !== url);
+
+/** After a piece's sound changes, its auto captions follow it (D410): rewritten from the stored
+ *  transcript of the sound it plays now, at no charge. Left as they are when that sound has never
+ *  been transcribed. The user's own and edited lines are kept. */
+export function captionsFollowSound(doc: EditDoc, sources: SourceView[], pieceId: string, transcripts: ReadonlyMap<string, Transcript>, newId: () => string): EditDoc {
+  const s = pieceSound(doc, sources, pieceId);
+  const t = s && transcripts.get(s.url);
+  if (!s || !t) return doc;
+  if (!doc.captions.some((c) => c.pieceId === pieceId && !c.edited && isStale(c, s.url))) return doc;
+  return replaceAutoCaptions(doc, pieceId, normalizeWords(t.words, s.fps), s.url, newId);
+}
+
+/** Pieces Auto captions still has work for (D410): they have sound but no captions from the sound
+ *  they play now. A piece whose stored transcript has no words in its trim counts as done. */
+export function uncaptionedPieces(doc: EditDoc, sources: SourceView[], transcripts: ReadonlyMap<string, Transcript>): string[] {
+  return doc.pieces
+    .filter((p) => {
+      const s = pieceSound(doc, sources, p.id);
+      if (!s?.hasSound) return false;
+      const t = transcripts.get(s.url);
+      if (t && !t.words.some((w) => w.s >= p.in && w.s < p.out)) return false;
+      return !doc.captions.some((c) => c.pieceId === p.id && !isStale(c, s.url));
+    })
+    .map((p) => p.id);
 }
 
 /** Indexes of a caption's words the transcript was unsure of, matched by start time. */

@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorStore, useEditorStoreApi } from "@/components/editor/editor-store-provider";
 import { useStartTranscribe, useTranscribeStatus, useTranscripts } from "@/hooks/queries/editor";
-import { autoCaptionCost, fillFromTranscripts, pieceSound, staleAutoPieces } from "@/lib/editor/auto-captions";
-import type { Caption } from "@/lib/editor/types";
+import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, pieceSound, staleAutoPieces, uncaptionedPieces } from "@/lib/editor/auto-captions";
+import { setSound } from "@/lib/editor/pieces";
+import type { Caption, SoundChoice } from "@/lib/editor/types";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
 import type { TranscribeFailureReason, Transcript } from "@/lib/transcribe/types";
@@ -20,6 +21,7 @@ export const failureCopy = (r: TranscribeFailureReason) => FAILURE_COPY[r];
 
 type Run = { pieces: string[]; added: string[]; replaced: Caption[]; failed: number; error?: string };
 const EMPTY: ReadonlySet<string> = new Set();
+const NO_TRANSCRIPTS: ReadonlyMap<string, Transcript> = new Map();
 
 /** Auto captions for the editor page (D399, D401): the cost on the button, one run for the reel,
  *  and each clip filled as its transcript lands. One run, one poll and one transcripts read for the
@@ -45,6 +47,17 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
   const transcribed = useMemo(() => new Set(transcripts.data?.keys() ?? []), [transcripts.data]);
   const cost = useCallback((pieceIds?: string[]) => autoCaptionCost(doc, sources, transcribed, pieceIds), [doc, sources, transcribed]);
   const stale = useMemo(() => staleAutoPieces(doc, sources), [doc, sources]);
+  const todo = useMemo(() => uncaptionedPieces(doc, sources, transcripts.data ?? NO_TRANSCRIPTS), [doc, sources, transcripts.data]);
+
+  /** Switches a piece's sound; its auto captions follow from a stored transcript (D410). One undo step. */
+  const switchSound = useCallback(
+    (pieceId: string, choice: SoundChoice) => {
+      const st = store.getState();
+      const stored = transcripts.data ?? NO_TRANSCRIPTS;
+      st.apply((d) => captionsFollowSound(setSound(d, pieceId, choice, st.sources), st.sources, pieceId, stored, () => crypto.randomUUID()));
+    },
+    [store, transcripts.data],
+  );
 
   /** Writes captions for every clip we're listening to whose transcript is stored. */
   const fill = useCallback(
@@ -148,7 +161,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
     [store, startMutation, nodeId, transcripts, setListening],
   );
 
-  return { cost, start, listening, failed, stale, transcripts: transcripts.data, busy: listening.size > 0 };
+  return { cost, start, switchSound, listening, failed, stale, todo, transcripts: transcripts.data, busy: listening.size > 0 };
 }
 
 export type AutoCaptions = ReturnType<typeof useAutoCaptions>;

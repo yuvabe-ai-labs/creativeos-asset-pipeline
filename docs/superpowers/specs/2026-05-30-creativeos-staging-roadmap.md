@@ -7841,3 +7841,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** Finishing editors swap picture and sound and hunt dead air in Premiere; with the alternatives in place and pauses marked, they don't need to come back to CreativeOS.
 
 **Rejected.** Exporting only the chosen picture and sound (forces a round trip). Pauses from audio analysis on the server (no audio there; transcripts already exist).
+
+### D410 — Captions follow a clip's sound; Auto captions targets only clips without them *(recorded 2026-10-23; refines D399, D401)*
+
+**Decision.** Switching a clip between original sound and its dub rewrites its auto captions from the stored transcript of the sound it now plays, in the same undo step, at no charge; the user's own and edited lines stay. With no stored transcript the old lines stay and the lane offers "Caption this clip". The reel-wide Auto captions button captions only clips with sound and no captions from what they play now; when there are none it reads "All clips captioned", disabled. A run that costs nothing shows no price. The clip inspector drops the read-only In/Out/Length boxes (trimming is on the timeline) and folds quiet stretches into a collapsed section.
+
+**Why.** Switching back to the original lost its English captions until the user ran captions again, and the button offered a "free" run when every clip was already captioned, which read as a mistake.
+
+**Rejected.** Refilling stale captions from an effect whenever the doc changes (undoing the refill would immediately refill again, trapping undo). Keeping captions per sound in the doc (a second copy of each line to keep in step with edits).

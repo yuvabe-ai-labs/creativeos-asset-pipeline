@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
 import { DEFAULT_DUB_LANGUAGE, DEFAULT_DUB_STYLE, DUB_LANGUAGES, DUB_STYLES, dubLanguageLabel, type DubLanguage, type DubStyle } from "@/lib/dubbing/types";
-import { setPicture, setSound } from "@/lib/editor/pieces";
+import { setPicture } from "@/lib/editor/pieces";
 import type { Piece, SourceView } from "@/lib/editor/types";
 import { cn } from "@/lib/utils";
+import { useAutoCaptionsContext } from "./auto-captions-context";
 import { EditorChoiceToggle } from "./editor-choice-toggle";
 import { useEditorDubContext } from "./editor-dub-context";
 import { useEditorStore } from "./editor-store-provider";
@@ -35,6 +36,7 @@ export function EditorDubTab({ piece, source }: { piece: Piece; source: SourceVi
   const sources = useEditorStore((s) => s.sources);
   const apply = useEditorStore((s) => s.apply);
   const dub = useEditorDubContext();
+  const { switchSound } = useAutoCaptionsContext();
   const [language, setLanguage] = useState<DubLanguage>(DEFAULT_DUB_LANGUAGE);
   const [style, setStyle] = useState<DubStyle>(DEFAULT_DUB_STYLE);
 
@@ -137,7 +139,7 @@ export function EditorDubTab({ piece, source }: { piece: Piece; source: SourceVi
               { value: "original", label: "Original sound", available: true },
               { value: "dubbed", label: `Dub · ${lang ?? ""}`, available: true },
             ]}
-            onChange={(c) => apply((d) => setSound(d, piece.id, c, sources))}
+            onChange={(c) => switchSound(piece.id, c)}
           />
           {hasLip && (
             <EditorChoiceToggle

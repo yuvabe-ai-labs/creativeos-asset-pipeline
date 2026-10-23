@@ -3,7 +3,7 @@
 import type { ReactElement } from "react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { deletePiece, splitPieceInDoc } from "@/lib/editor/captions";
-import { duplicatePiece, setPicture, setSound } from "@/lib/editor/pieces";
+import { duplicatePiece, setPicture } from "@/lib/editor/pieces";
 import { pieceLimit } from "@/lib/editor/reconcile";
 import { pieceOffsets } from "@/lib/editor/timeline";
 import type { EditDoc, Piece, SourceView } from "@/lib/editor/types";
@@ -55,7 +55,7 @@ export function EditorClipMenu({ piece, source, children }: { piece: Piece; sour
         <ContextMenuItem disabled={!hasDub} onClick={() => ui.openInspector("dub")}>
           {hasLip ? "Lip sync again…" : "Lip sync…"}
         </ContextMenuItem>
-        <ContextMenuItem disabled={!editable || !hasDub} onClick={() => apply((d) => setSound(d, piece.id, piece.sound === "dubbed" ? "original" : "dubbed", sources))}>
+        <ContextMenuItem disabled={!editable || !hasDub} onClick={() => captions.switchSound(piece.id, piece.sound === "dubbed" ? "original" : "dubbed")}>
           {piece.sound === "dubbed" ? "Play the original sound" : "Play the dub"}
         </ContextMenuItem>
         <ContextMenuItem disabled={!editable || !hasLip} onClick={() => apply((d) => setPicture(d, piece.id, piece.picture === "lipSynced" ? "original" : "lipSynced", sources))}>
