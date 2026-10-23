@@ -6,16 +6,14 @@ import { clampZoom, DEFAULT_ZOOM, fitZoom, zoomAround } from "@/lib/editor/timel
 import { useEditorStoreApi } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
 
-// How the timeline is viewed (D403, D404): zoom (px per second), snapping, and the scroll area the
-// lanes live in. One per page, so the toolbar, the lanes and the keyboard agree.
+// How the timeline is viewed (D403, D404): zoom (px per second) and the scroll area the lanes live
+// in. One per page, so the toolbar, the lanes and the keyboard agree. Snapping is always on (D415).
 type View = {
   zoom: number;
-  snap: boolean;
   scrollerRef: RefObject<HTMLDivElement | null>;
   setZoom(z: number): void;
   zoomBy(factor: number): void;
   fit(): void;
-  toggleSnap(): void;
 };
 
 const ViewContext = createContext<View | null>(null);
@@ -24,7 +22,6 @@ export function EditorViewProvider({ children }: { children: ReactNode }) {
   const store = useEditorStoreApi();
   const { time } = usePlayback();
   const [zoom, setZoomState] = useState(DEFAULT_ZOOM);
-  const [snap, setSnap] = useState(true);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const zoomRef = useRef(DEFAULT_ZOOM);
   const timeRef = useRef(time);
@@ -58,9 +55,7 @@ export function EditorViewProvider({ children }: { children: ReactNode }) {
     if (el) requestAnimationFrame(() => (el.scrollLeft = 0));
   }, [store]);
 
-  const toggleSnap = useCallback(() => setSnap((s) => !s), []);
-
-  const value = useMemo(() => ({ zoom, snap, scrollerRef, setZoom, zoomBy, fit, toggleSnap }), [zoom, snap, setZoom, zoomBy, fit, toggleSnap]);
+  const value = useMemo(() => ({ zoom, scrollerRef, setZoom, zoomBy, fit }), [zoom, setZoom, zoomBy, fit]);
   return <ViewContext.Provider value={value}>{children}</ViewContext.Provider>;
 }
 

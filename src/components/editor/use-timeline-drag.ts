@@ -20,6 +20,8 @@ type Drag = {
   moved: boolean;
   lastX: number;
   lastY: number;
+  /** Alt is held: trim without snapping (D415). */
+  free: boolean;
 };
 
 export type DragView = {
@@ -36,18 +38,19 @@ const THRESHOLD_PX = 4;
 const NONE: DragView = { movingId: null, dropIndex: null, snapAt: null, tip: null };
 
 /** Moving and trimming clips with the pointer (D404): a drop marker, edge auto-scroll, snapping
- *  trims, and one undo step per drag (D400). A press without movement selects the clip there. */
+ *  trims (always; Alt trims freely, D415), and one undo step per drag (D400). A press without
+ *  movement selects the clip there. */
 export function useTimelineDrag(contentRef: RefObject<HTMLDivElement | null>) {
   const store = useEditorStoreApi();
   const { time, seek, pause } = usePlayback();
-  const { zoom, snap, scrollerRef } = useEditorView();
+  const { zoom, scrollerRef } = useEditorView();
   const { trim } = useTimelineActions();
   const drag = useRef<Drag | null>(null);
   const [view, setView] = useState<DragView>(NONE);
-  const live = useRef({ zoom, snap, time });
+  const live = useRef({ zoom, time });
   useEffect(() => {
-    live.current = { zoom, snap, time };
-  }, [zoom, snap, time]);
+    live.current = { zoom, time };
+  }, [zoom, time]);
 
   const update = useCallback(
     (clientX: number, clientY: number) => {
@@ -60,7 +63,8 @@ export function useTimelineDrag(contentRef: RefObject<HTMLDivElement | null>) {
       const dx = clientX - d.startX + (scroller.scrollLeft - d.startScroll);
       if (!d.moved && Math.abs(dx) < THRESHOLD_PX) return;
       d.moved = true;
-      const { zoom: z, snap: snapOn, time: playhead } = live.current;
+      const { zoom: z, time: playhead } = live.current;
+      const snapOn = !d.free;
       const { doc } = store.getState();
       const index = doc.pieces.findIndex((p) => p.id === d.pieceId);
       if (index < 0) return;
@@ -140,6 +144,7 @@ export function useTimelineDrag(contentRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       if (!drag.current) return;
+      drag.current.free = e.altKey;
       update(e.clientX, e.clientY);
       if (drag.current?.moved) auto.move(e.clientX);
     };
@@ -169,7 +174,7 @@ export function useTimelineDrag(contentRef: RefObject<HTMLDivElement | null>) {
       if (!editable && edge) return;
       store.getState().begin();
       const p = doc.pieces[from];
-      drag.current = { pieceId, edge: editable ? edge : null, startX: e.clientX, startScroll: scrollerRef.current?.scrollLeft ?? 0, in0: p.in, out0: p.out, from, moved: false, lastX: e.clientX, lastY: e.clientY };
+      drag.current = { pieceId, edge: editable ? edge : null, startX: e.clientX, startScroll: scrollerRef.current?.scrollLeft ?? 0, in0: p.in, out0: p.out, from, moved: false, lastX: e.clientX, lastY: e.clientY, free: e.altKey };
       if (!editable) drag.current.moved = false;
     },
     [pause, scrollerRef, store],

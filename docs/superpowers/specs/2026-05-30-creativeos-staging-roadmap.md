@@ -7889,3 +7889,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** Once a clip or caption was selected there was no obvious way to put the Inspector back (user, 23 Oct 2026); desktop editors deselect on a click in empty space.
 
 **Rejected.** A handler per panel (several places to keep in step, and each new panel would need one). Clearing on any click outside the Inspector (pressing Delete would clear the selection before deleting it).
+
+### D415 — Trims always snap; the Snap button is gone; Alt trims freely *(recorded 2026-10-23; refines D404)*
+
+**Decision.** The timeline toolbar loses its Snap toggle. Dragging a clip's edge always snaps to the playhead (and an end edge to other clips' edges) within 8 px, shown by the amber line. Holding Alt while dragging trims without snapping. The edge's tooltip says so.
+
+**Why.** The toggle was rarely changed, didn't say what it snapped, and crowded the toolbar (user, 23 Oct 2026). Snapping itself is what makes a trim land on the playhead's frame. A modifier for the rare free trim is the convention in design and editing tools.
+
+**Rejected.** Keeping the toggle with a clearer label (still a control almost no one changes). Removing snapping altogether (precise trims back to frame-by-frame dragging).
