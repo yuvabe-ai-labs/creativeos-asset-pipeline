@@ -1,4 +1,4 @@
-// Stored transcripts, once per file (D395, migration 0060).
+// Stored transcripts, once per file (D411, migration 0060).
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Transcript, TranscriptWord } from "@/lib/transcribe/types";

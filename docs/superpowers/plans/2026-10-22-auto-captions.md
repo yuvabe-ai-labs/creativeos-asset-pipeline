@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js (this repo's version: read `node_modules/next/dist/docs/` before touching routes), TypeScript, Zod v4, Zustand (vanilla store), TanStack Query v5, Trigger.dev v4, Supabase Postgres, Vitest, shadcn/Base UI primitives, lucide-react.
 
-**Spec:** `docs/superpowers/specs/2026-10-22-auto-captions-design.md` (D395–D401). **UX reference:** https://claude.ai/artifact/Mn98oVEBbzA6UCqMww3YS3 (v4).
+**Spec:** `docs/superpowers/specs/2026-10-22-auto-captions-design.md` (D411, D396–D401). **UX reference:** https://claude.ai/artifact/Mn98oVEBbzA6UCqMww3YS3 (v4).
 
 ## Global Constraints
 
@@ -401,7 +401,7 @@ git commit -m "feat(editor): one caption style for the reel; edit document v2 (D
 - [ ] **Step 1: Create `src/lib/transcribe/types.ts`**
 
 ```ts
-// A stored transcript (D395): every word of one file with its time in that file's seconds.
+// A stored transcript (D411): every word of one file with its time in that file's seconds.
 // p = the engine's confidence for the word, 0–1.
 export type TranscriptWord = { t: string; s: number; e: number; p: number };
 
@@ -1164,7 +1164,7 @@ git commit -m "feat(editor): undo and redo, a drag is one step (D400)"
 - [ ] **Step 1: Write the migration** `supabase/migrations/0060_media_transcripts.sql`
 
 ```sql
--- Auto captions (D395). Spec: docs/superpowers/specs/2026-10-22-auto-captions-design.md
+-- Auto captions (D411). Spec: docs/superpowers/specs/2026-10-22-auto-captions-design.md
 --
 -- media_transcripts: every word of one stored file with its time, once per file. Keyed by URL
 -- like media_facts (0059): a take or dub file never changes, so its transcript never goes stale.
@@ -1271,7 +1271,7 @@ Expected: FAIL, modules missing.
 `src/lib/transcribe/providers.ts`:
 
 ```ts
-// The one transcription engine for now (D395). Never shown in the UI.
+// The one transcription engine for now (D411). Never shown in the UI.
 export const TRANSCRIBE_ENGINE = { provider: "elevenlabs", model: "scribe_v2", modelUsed: "elevenlabs:scribe_v2" } as const;
 ```
 
@@ -1292,7 +1292,7 @@ export function transcribeCredits(seconds: number): number {
 `src/lib/transcribe/elevenlabs.ts`:
 
 ```ts
-// ElevenLabs Speech-to-Text (D395): the file by URL, word timestamps, language detected.
+// ElevenLabs Speech-to-Text (D411): the file by URL, word timestamps, language detected.
 import { ELEVENLABS_API_BASE } from "@/lib/elevenlabs/constants";
 import { TRANSCRIBE_ENGINE } from "./providers";
 import type { TranscribeFailureReason, TranscriptWord } from "./types";
@@ -1338,7 +1338,7 @@ export async function transcribeUrl(url: string, deps: { fetch: typeof fetch; ap
 `src/lib/db/media-transcripts.ts`:
 
 ```ts
-// Stored transcripts, once per file (D395, migration 0060).
+// Stored transcripts, once per file (D411, migration 0060).
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Transcript, TranscriptWord } from "@/lib/transcribe/types";
@@ -1391,7 +1391,7 @@ Run the repo's migration flow for the active env (check `package.json` scripts, 
 
 ```bash
 git add supabase/migrations/0060_media_transcripts.sql src/lib/db src/lib/transcribe src/lib/jobs/types.ts docs/auth-production-migration.md
-git commit -m "feat(transcribe): word-timed transcripts stored once per file (D395)"
+git commit -m "feat(transcribe): word-timed transcripts stored once per file (D411)"
 ```
 
 ---
@@ -1458,7 +1458,7 @@ export function pieceSoundFile(piece: Piece, source: SourceView): MediaFile {
 `src/lib/editor/transcribe-plan.ts`:
 
 ```ts
-// Which stored files a run of Auto captions needs (D395): each piece's playing sound, once,
+// Which stored files a run of Auto captions needs (D411): each piece's playing sound, once,
 // resolved from the SAVED sources on the server (rule 14), never from the request.
 import type { TranscribeFailureReason } from "@/lib/transcribe/types";
 import type { JobStatus } from "@/lib/jobs/types";
@@ -1592,7 +1592,7 @@ import { transcribeCredits } from "@/lib/transcribe/cost";
 import { TRANSCRIBE_ENGINE } from "@/lib/transcribe/providers";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 
-// Starts Auto captions (D395, D399). Files come from the SAVED edit's sources, read fresh here
+// Starts Auto captions (D411, D399). Files come from the SAVED edit's sources, read fresh here
 // (rules 10, 14). Files already transcribed cost nothing and need no job. One run per Editor.
 const STALE_MS = 15 * 60 * 1000;
 const START_FAILED = "Couldn't start captions. Try again.";
@@ -1690,7 +1690,7 @@ import { listTranscripts } from "@/lib/db/media-transcripts";
 import { loadEditorState } from "@/lib/editor/load-state";
 import { planTranscription } from "@/lib/editor/transcribe-plan";
 
-// Stored transcripts for the files this reel's pieces play (D395). URLs derived on the server.
+// Stored transcripts for the files this reel's pieces play (D411). URLs derived on the server.
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
   return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
@@ -1716,7 +1716,7 @@ Expected: PASS (including the existing exports tests).
 
 ```bash
 git add src/lib/editor "src/app/api/canvases/[cid]/editor"
-git commit -m "feat(editor): start Auto captions, read its run and stored transcripts (D395, D399)"
+git commit -m "feat(editor): start Auto captions, read its run and stored transcripts (D411, D399)"
 ```
 
 ---
@@ -1776,7 +1776,7 @@ describe("runTranscription", () => {
 - [ ] **Step 2: Run to verify it fails**, then implement `src/lib/transcribe/run.ts`:
 
 ```ts
-// The editor-transcribe task's body (D395), with its I/O injected so tests drive it. Files run
+// The editor-transcribe task's body (D411), with its I/O injected so tests drive it. Files run
 // three at a time; each transcript is saved as soon as it lands, so the editor fills that clip
 // while the others are still being listened to. A call the engine answered is never repeated
 // (rule 12); only a network error before any answer is tried once more.
@@ -1831,7 +1831,7 @@ Run: `npx vitest run src/lib/transcribe` → PASS.
 
 ```ts
 // trigger/editor-transcribe.ts
-// Auto captions (D395): transcribes each new sound file once, saving each as it lands, then
+// Auto captions (D411): transcribes each new sound file once, saving each as it lands, then
 // settles credits for the seconds that succeeded. Writes straight to Supabase (no webhook), like
 // editor-export. Every @/lib import is dynamic (server-only modules, see editor-export.ts).
 // maxAttempts 1: a retry would pay the engine twice (rule 12).
@@ -1909,7 +1909,7 @@ Run: `npx tsc --noEmit -p .` → clean. Then with the dev Trigger worker running
 
 ```bash
 git add src/lib/transcribe trigger/editor-transcribe.ts
-git commit -m "feat(transcribe): the editor-transcribe task, each file once, credits settled for what succeeded (D395)"
+git commit -m "feat(transcribe): the editor-transcribe task, each file once, credits settled for what succeeded (D411)"
 ```
 
 ---

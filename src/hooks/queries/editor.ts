@@ -64,7 +64,7 @@ export function useExportStatus(canvasId: string, jobId: string | null) {
 
 const TRANSCRIBE_POLL_MS = 1500;
 
-/** Stored transcripts for this reel's sound files, keyed by URL (D395). One read for the page. */
+/** Stored transcripts for this reel's sound files, keyed by URL (D411). One read for the page. */
 export function useTranscripts(canvasId: string) {
   return useQuery({
     queryKey: editorKeys.transcripts(canvasId),

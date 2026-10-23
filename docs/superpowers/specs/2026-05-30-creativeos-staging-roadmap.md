@@ -6966,7 +6966,7 @@ D308 — the avatar contributes front then sheet, and an over-cap request is ref
 
 **Originated →** spec 3 §5.2, §14 (3.1).
 
-### D340 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet)*
+### D340 — Every avatar's sheet is four views, Front, Left, Right, Back *(recorded 2026-10-08; supersedes D288's three-view sheet; **how the views are made SUPERSEDED by D395** (one sheet, cut into the four views))*
 
 **Decision.** The sheet is four separate 3:4 images made from the front image (`client_avatars.sheet_views`), each prompt stating which edge of the frame the person faces. Once all four exist they are also composed side by side into `sheet`, so everything that sends the sheet (D308) is unchanged. A view that fails is refunded and named; the others are kept and the missing one can be made alone. Sheets are no longer uploaded: the Studio's sheet upload is removed and the image routes take only the front. Avatars made before keep their three-view or uploaded `sheet` until their four views are generated. A Specific person's face photo is still an upload.
 
@@ -7440,6 +7440,8 @@ duplicates the completion logic outside the authenticated webhook (D89) and its 
 
 **Rejected.** Wiring the panel into the image prompt automatically (deferred), or into Video Gen as a reference (reference support varies by model, and it skips the still).
 
+**Amended (22 Oct 2026) — the layout.** Rows were 360px apart with each panel 190px under its shot, which assumed a 130px File card. A 9:16 panel's card is 345px, so every panel landed on the next shot. Fan out now makes one row per shot. The panel is centred under its Shot or Multishot card, 24px below it; several panels sit side by side as a centred group. The guided chain (image prompt, image gen, video prompt, video gen) grows right along each row. Rows are placed from estimates, then **laid out again from the cards' measured sizes** as they render and their panel images load (`settleFanOutRows`). Each row is as tall as its shot and panel, never less than 600px (a 9:16 Image gen or Video gen), with 96px before the next. A first version used fixed estimates. The real panel card, a 2:3 GPT image plus its filename footer, was 202 × 466 rather than 176 × 345, and the rows touched. Settling stops when one of those nodes is dragged, or after 15 seconds, so a later collapse or edit never moves the rows. It is never saved. Chosen by the user from drawn options. Rejected: the panel to the left of its shot (it moves every Shot's image handle off its bottom edge), and shots left to right (each shot's chain grows right and would run into the next shot).
+
 **Refines →** D228, D28.
 
 **Originated →** docs/superpowers/specs/2026-10-16-storyboard-to-canvas-design.md.
@@ -7706,7 +7708,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** docs/superpowers/plans/2026-10-20-rough-cut-editor-HANDOFF.md (§3).
 
-### D395 — Auto captions come from ElevenLabs Scribe v2 with word timing, once per stored file *(recorded 2026-10-22)*
+### D411 — Auto captions come from ElevenLabs Scribe v2 with word timing, once per stored file *(recorded 2026-10-22; numbered D395 on the editor branch, renumbered at merge because staging's D395 took that number)*
 
 **Decision.** The Rough Cut Editor transcribes the sound each piece plays (the dub audio when its sound is Dubbed, else the take's file) with ElevenLabs Speech-to-Text, `scribe_v2`, by URL (`source_url`), with word timestamps and the language detected. Results are stored in `media_transcripts`, keyed by the file URL, so a file is never paid for twice. A run is one `generations` row (`type: "transcribe"`, owned by the Editor node) and one `background_jobs` row (`kind: "editor-transcribe"`); the task pays each file once (`maxAttempts: 1`), writes each transcript as it lands, and settles credits for the seconds that succeeded. The engine sits behind an interface in `src/lib/transcribe/`; no vendor name reaches the UI.
 
@@ -7849,3 +7851,17 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** Switching back to the original lost its English captions until the user ran captions again, and the button offered a "free" run when every clip was already captioned, which read as a mistake.
 
 **Rejected.** Refilling stale captions from an effect whenever the doc changes (undoing the refill would immediately refill again, trapping undo). Keeping captions per sound in the doc (a second copy of each line to keep in step with edits).
+
+### D395 — A face is drawn from a character brief; the four views are cut from one turnaround sheet *(recorded 2026-10-22; refines D339, supersedes how D340 makes the views)*
+
+**Decision.** Two changes to how an avatar is made.
+(1) **The brief.** Before Visualise draws a generated face, a quick-model call (`SCRIPT_QUICK_MODEL`, system prompt `AVATAR_BRIEF_SYSTEM` in `src/prompts/avatar-character.ts`) restates the cast member as one self-contained character brief. Its input is the person's name and description *as the stored script holds them*, the script's region, and the operator's avatar instructions. Its output is the Studio's own attributes (gender, age band, ethnicity) plus appearance, wardrobe and identity markers, in visual terms only. The operator's instructions override the script. Other people's pronouns and positions ("her husband, behind her") are never carried over, and voice and manner are dropped. The front prompt now states the identity first (`Subject: …`), for the Studio too. If the call fails, the face is still drawn from the operator's words first, then the script's, with no attributes claimed. Route: `POST …/scripts/:id/cast/:castId/brief`.
+(2) **One sheet.** The sheet is **one** 16:9 turnaround image made from the front (`buildAvatarSheetPrompt`): front, left, right and back in a row, each figure centred in its own quarter, with gaps between them and no shadows or lines joining them. The server finds the gaps by **texture**, not colour: near each quarter line it takes the widest stretch of the smoothest columns and cuts in its middle (at the quarter line itself if no stretch is smoother). Each cut is centred on a 3:4 canvas padded by repeating its own edge pixels. These become `sheet_views`. The generated image itself is kept as `sheet`, so D308's senders are unchanged. Everyone sees that one image: the Studio, Visualise's cast card and client review, where a share freezes its URL as `sheet` beside the views. Versions shared before this change keep their four tiles.
+
+**Amended (22 Oct 2026).** The first cutter matched each column against the backdrop colour sampled from the sheet's borders. Radha's sheet had a gradient backdrop, darker at the edges and lighter in the middle, so the gap between her Front and Left figures read as figure. The two views merged, and the Right view came out as an empty sliver. A backdrop is smooth whatever its shade; fabric, hair and folds are not. Checked on that sheet and on the Waiter's: every view now holds one whole figure. One image is billed. The views are always made together, so a single view can no longer be remade on its own.
+
+**Why.** (1) On staging (21 Oct 2026) a man was drawn as a woman. His description, "Her husband Rajan, 58, in a white mundu and shirt, behind her. Warm, a little teasing, English with a Malayalam lilt.", went to the image model verbatim with no attributes, and the operator's correction was appended after it. The model read the pronouns as the picture. (2) Four separate edits of the front could drift between views (face, outfit, scale), and cost four images. The single sheet the avatar had before D340 held together (user, 22 Oct 2026). Cutting it keeps what D340 rejected the four-up image for: each view can still be sent and commented on alone.
+
+**Rejected.** Prompt tweaks alone (the conflicting words would still be sent). Sending the operator's instructions only as attributes (they hold more than gender). A brief in the browser (it would trust the client's copy of the script). A 2×2 grid sheet (a lineup at one scale is the turnaround convention, and every figure sits on the same baseline). Remaking one view from the front, as D340 allowed (that brings back the drift this fixes). Dropping the views and sending only the sheet (panels, review and readiness, D341, are built on views).
+
+**Originated →** user request, 22 Oct 2026 (avatar gender mismatch; "a single sheet instead of separate and then merged").

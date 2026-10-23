@@ -2,18 +2,18 @@ import { defaultsForModel, imageGenClientModelMap } from "@/lib/image-gen/client
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
-  AVATAR_FRAMING_CLAUSE, AVATAR_STYLES, AVATAR_VIEW_ASPECT, AVATAR_VIEW_DIRECTIONS, AVATAR_WORKS_WITH,
-  SEEDANCE_FACE_MODEL_ID,
+  AVATAR_FRAMING_CLAUSE, AVATAR_SHEET_ASPECT, AVATAR_STYLES, AVATAR_WORKS_WITH, SEEDANCE_FACE_MODEL_ID,
   type AvatarAttributes, type AvatarStyleId,
 } from "./constants";
-import type { Avatar, AvatarCandidate, AvatarViewId } from "./schema";
+import type { Avatar, AvatarCandidate } from "./schema";
 
 // Pure, and deliberately without a "server-only" guard: the Studio calls these to show a cost
 // before generating, and the routes call the same functions to reserve — so the number on the
 // button is the number reserved.
 
-/** The full prompt sent for a front image: what the operator wrote, then what they must not
- *  be able to write away. */
+/** The full prompt sent for a front image: who the person is, what the operator wrote, then
+ *  what they must not be able to write away. Identity leads (D395): said after a description,
+ *  a gender lost to the description's own pronouns. */
 export function buildAvatarFrontPrompt(input: {
   description: string;
   attributes: AvatarAttributes;
@@ -22,32 +22,15 @@ export function buildAvatarFrontPrompt(input: {
   const { gender, age, ethnicity } = input.attributes;
   const who = [ethnicity, gender, age ? `aged ${age}` : undefined].filter(Boolean).join(", ");
   const style = AVATAR_STYLES.find((s) => s.id === input.styleId) ?? AVATAR_STYLES[0];
-  return [input.description.trim(), who ? `${who}.` : "", style.phrase, AVATAR_FRAMING_CLAUSE]
+  return [who ? `Subject: ${who}.` : "", input.description.trim(), style.phrase, AVATAR_FRAMING_CLAUSE]
     .filter(Boolean)
     .join(" ");
 }
 
-/** D340 — one view of the sheet, made from the front image. "Character reference sheet" is
- *  said because a figure on a plain backdrop has been read as a location before (D281); the
- *  front is waist-up, so the whole body is asked for outright, or models copy its crop. */
-export function buildAvatarViewPrompt(view: AvatarViewId): string {
-  return [
-    "One view from a character reference sheet of the same person as the reference image.",
-    AVATAR_VIEW_DIRECTIONS[view],
-    "Full body, head to toe, standing upright, with the feet visible and a little space above the " +
-      "head and below the feet. The reference image may be cropped at the waist: continue the same " +
-      "outfit down to the feet with matching clothes and shoes.",
-    "Same person, same face, same hair, same skin tone, same build, same outfit, and the same " +
-      "accessories and identity markers in the same colours.",
-    "Arms relaxed at the sides, neutral expression, even soft light, plain light-grey seamless " +
-      "background. One person only. No text, no labels, no borders.",
-  ].join(" ");
-}
-
-/** What making `count` views costs: each view is one image with the front as its reference. */
-export function estimateSheetCredits(modelId: string, count: number): number | null {
-  const one = estimateAvatarImageCredits({ modelId, aspect: AVATAR_VIEW_ASPECT, referenceCount: 1 });
-  return one === null ? null : one * count;
+/** D395 — the sheet is one 16:9 image with the front as its reference; its four views are cut
+ *  from it at no further cost. */
+export function estimateSheetCredits(modelId: string): number | null {
+  return estimateAvatarImageCredits({ modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 });
 }
 
 /** The model's own defaults with the aspect ratio forced. Null for an unknown model. */

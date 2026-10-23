@@ -4,7 +4,7 @@ import { loadEditorState } from "@/lib/editor/load-state";
 import { playableSoundUrls } from "@/lib/editor/transcribe-plan";
 
 // Stored transcripts for every sound this reel's pieces could play, the one not chosen included
-// (D395, D410). The URLs are derived on the
+// (D411, D410). The URLs are derived on the
 // server from the saved edit, never taken from the request (rule 14).
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;

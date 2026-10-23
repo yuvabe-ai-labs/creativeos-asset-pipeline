@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { avatarsService } from "@/services/avatars.service";
+import { visualiseService } from "@/services/visualise.service";
 import { useLinkCast, visualiseKeys } from "@/hooks/queries/visualise";
 import { avatarKeys } from "@/hooks/queries/avatars";
 import { AVATAR_STYLES } from "@/lib/avatars/constants";
@@ -41,22 +42,24 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId
       await linkCast.mutateAsync({ castId: member.id, avatarId: created.id });
       return created;
     },
-    generateFront: async (avatarId, description) => {
+    describe: (instructions) => visualiseService.briefCast(clientId, scriptId, member.id, instructions),
+    generateFront: async (avatarId, { description, attributes }) => {
       const { candidate } = await avatarsService.generateFront(clientId, avatarId, {
-        description, attributes: {}, styleId: AVATAR_STYLES[0].id,
+        description, attributes, styleId: AVATAR_STYLES[0].id,
         modelId, batchId: crypto.randomUUID(),
       });
       return { generationId: candidate.generationId };
     },
     pickFront: (avatarId, generationId) => avatarsService.pickFront(clientId, avatarId, generationId),
-    generateViews: async (avatarId, views) => {
-      const { avatar: updated, failed } = await avatarsService.generateSheet(clientId, avatarId, modelId, views);
-      for (const f of failed) toast.error(`The ${f.label} view failed: ${f.error}`);
+    generateViews: async (avatarId) => {
+      const { avatar: updated, failed } = await avatarsService.generateSheet(clientId, avatarId, modelId);
+      // One sheet: its views fail together, for one reason, so it is said once.
+      for (const error of new Set(failed.map((f) => f.error))) toast.error(error);
       return updated;
     },
     markReady: (avatarId) => avatarsService.update(clientId, avatarId, { status: "ready" }),
     onStep: setStep,
-  }), [clientId, member.id, linkCast, modelId]);
+  }), [clientId, scriptId, member.id, linkCast, modelId]);
 
   // One run at a time. `step` (and so `busy`) only lands on the next render, and every Make avatar
   // creates a draft and bills a face: a second click before then must do nothing.

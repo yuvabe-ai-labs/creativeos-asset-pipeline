@@ -108,7 +108,7 @@ class EditorService {
     return readJson(res, "Couldn't start lip sync.");
   }
 
-  /** The stored transcripts for this reel's sound files (D395). */
+  /** The stored transcripts for this reel's sound files (D411). */
   async transcripts(canvasId: string): Promise<Transcript[]> {
     const res = await fetch(`/api/canvases/${canvasId}/editor/transcripts`);
     return (await readJson<{ transcripts: Transcript[] }>(res, "Couldn't read the captions.")).transcripts;

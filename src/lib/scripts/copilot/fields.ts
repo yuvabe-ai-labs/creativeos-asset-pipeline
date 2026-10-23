@@ -1,5 +1,5 @@
 import { scriptDocSchema, type ScriptDoc } from "../schema";
-import type { ScriptNotes } from "./schema";
+import type { GenerateState, ScriptNotes } from "./schema";
 
 // Spec 2 §9 — one addressable text field of a script or its notes. Typing, inline AI edits, undo
 // and the copilot's set_field operation all write through writeField, so a value is validated the
@@ -129,6 +129,19 @@ export function writeField(doc: ScriptDoc | null, notes: ScriptNotes, t: FieldTa
   const parsed = scriptDocSchema.safeParse(next);
   if (!parsed.success) return { error: `That change isn't allowed: ${parsed.error.issues[0]?.message ?? "invalid value"}.` };
   return { doc: parsed.data, notes };
+}
+
+/** One field written into the whole Generate state, with the value it replaced: what the pane
+ *  shows the moment a person types, before the server answers, and what Undo restores. Null when
+ *  the server would refuse the write, so nothing is shown that will not be kept. */
+export function withField(state: GenerateState, path: string, value: string): { state: GenerateState; before: string } | null {
+  const target = parseFieldPath(path);
+  if (!target) return null;
+  const { doc, notes } = state.script;
+  const before = readField(doc, notes, target);
+  const out = writeField(doc, notes, target, value);
+  if (before === null || "error" in out) return null;
+  return { state: { ...state, script: { ...state.script, doc: out.doc, notes: out.notes } }, before };
 }
 
 export function fieldLabel(doc: ScriptDoc | null, t: FieldTarget): string {

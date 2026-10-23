@@ -1,7 +1,7 @@
 # Rough Cut Editor: editing UX, dub and lip sync, Premiere export — design
 
 *Decisions D402–D409 in the roadmap's ADR log (§7). Builds on the Rough Cut Editor (D388–D394)
-and Auto captions (D395–D401).*
+and Auto captions (D411, D396–D401).*
 
 **UX reference:** https://claude.ai/artifact/Axi8g4L6YMZbwEjyB9kVSE ("Editor UX v1"), approved by
 the user on 2026-10-23 ("looks good, we can iterate further later"). Where this spec and the mock
@@ -140,7 +140,7 @@ Shift+Z redo · Ctrl/⌘ +/− zoom · Shift+Z fit · Ctrl/⌘+1/2 panels · Esc
 - **Markers:** each clip gets a clip marker naming what it is ("Dubbed · Hindi · lip-synced"); the
   sequence gets a marker for each pause longer than 0.6 s found in the clip's transcript ("Pause
   0.8 s"), so editors can find dead air. (Server-side quiet detection has no audio; transcripts
-  are already stored per file, D395.)
+  are already stored per file, D411.)
 - **README:** lists dubbed and lip-synced clips with their language, and which tracks hold the
   switched-off alternatives.
 

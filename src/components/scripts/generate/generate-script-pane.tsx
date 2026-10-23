@@ -9,6 +9,7 @@ import { ScriptEditProvider, type ScriptEdit } from "@/components/scripts/script
 import { useScriptSelection } from "@/hooks/use-script-selection";
 import { useInlineEdit, useLinkCastAvatar, useMarkFinal, useSetScriptField } from "@/hooks/queries/script-generate";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
+import { withField } from "@/lib/scripts/copilot/fields";
 import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 import { DraftPreview } from "./draft-preview";
 import { CastAvatarLink } from "./cast-avatar-link";
@@ -31,11 +32,28 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft }: { clien
   const { selection, clear } = useScriptSelection(pane, script.doc !== null);
   const fail = (e: Error) => toast.error(e.message);
 
-  const restore = (u: Undo) =>
-    setField.mutate({ path: u.path, value: u.before }, { onSuccess: () => setUndos((s) => s.filter((x) => x !== u)), onError: fail });
+  // The step leaves the stack at once, so a second Undo click reaches the step before it; it comes
+  // back if the restore fails.
+  const restore = (u: Undo) => {
+    setUndos((s) => s.filter((x) => x !== u));
+    setField.mutate({ path: u.path, value: u.before }, {
+      onError: (e) => { setUndos((s) => [...s, u]); fail(e); },
+    });
+  };
+
+  const pushUndo = (u: Undo) => setUndos((s) => [...s.slice(-19), u]);
 
   const edit: ScriptEdit = {
-    commit: (path, value) => setField.mutate({ path, value }, { onError: fail }),
+    // Typing is undoable like an inline AI edit (spec 2 §9). The step is dropped if the save fails,
+    // since the field is already back to what it was.
+    commit: (path, value) => {
+      const before = withField(state, path, value)?.before;
+      const undo = before !== undefined && before !== value ? { path, before } : null;
+      if (undo) pushUndo(undo);
+      setField.mutate({ path, value }, {
+        onError: (e) => { if (undo) setUndos((s) => s.filter((x) => x !== undo)); fail(e); },
+      });
+    },
     busyPath: inline.isPending ? (selection?.path ?? null) : null,
     castControl: (member) => (
       <CastAvatarLink
@@ -53,7 +71,7 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft }: { clien
       { path: selection.path, selectedText: selection.text, offset: selection.offset, instruction },
       {
         onSuccess: ({ undo }) => {
-          setUndos((s) => [...s.slice(-19), undo]);
+          pushUndo(undo);
           clear();
           window.getSelection()?.removeAllRanges();
           // Spec 2 §9: inline edits apply at once, with undo. The copilot's line in the chat says what changed.

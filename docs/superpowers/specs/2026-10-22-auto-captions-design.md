@@ -1,6 +1,6 @@
 # Auto captions in the Rough Cut Editor — design
 
-*Decisions D395–D401 in the roadmap's ADR log (§7). Builds on the Rough Cut Editor
+*Decisions D411, D396–D401 in the roadmap's ADR log (§7). Builds on the Rough Cut Editor
 (`2026-10-20-rough-cut-editor-design.md`, D388–D394) and refines its captions (D393).*
 
 **UX reference:** the clickable mock at https://claude.ai/artifact/Mn98oVEBbzA6UCqMww3YS3
@@ -59,7 +59,7 @@ The default path is one click.
 
 Copy rules (D-plain-copy): no vendor names, no raw errors, no em-dash phrasing.
 
-## 3. Transcription (D395)
+## 3. Transcription (D411)
 
 - **Engine:** ElevenLabs Speech-to-Text, model `scribe_v2`, `POST /v1/speech-to-text` with
   `source_url` (the stored file's URL; no upload through us), `timestamps_granularity=word`,

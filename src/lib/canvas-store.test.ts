@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
 import { sceneFingerprint } from "./nodes/scene-beats";
 import { generationKey } from "./nodes/group-shots";
+import { FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, ROW_GAP, STORYBOARD_ROW_PITCH } from "./scripts/storyboard-canvas";
 import { nodeGenerationStatus } from "./generations/node-status";
 
 vi.mock("sonner", () => ({
@@ -376,16 +377,39 @@ describe("fanOutShots with an approved storyboard (D382)", () => {
   ];
   const panelNodes = (s: ReturnType<typeof createCanvasStore>) => s.getState().nodes.filter((n) => n.type === "file");
 
-  it("wires each new shot's panel into its image handle, spaced so panels sit under their shots", () => {
+  it("wires each new shot's panel into its image handle: one row per shot, its panel under it", () => {
     const store = createCanvasStore([scriptNode(rows)], []);
     store.getState().fanOutShots("sb");
     const shots = store.getState().nodes.filter((n) => n.type === "shot");
-    expect(shots.map((s) => s.position.y)).toEqual([0, 360]);
+    expect(shots.map((s) => s.position.y)).toEqual([0, STORYBOARD_ROW_PITCH]);
     const files = panelNodes(store);
     expect(files).toHaveLength(2);
     const imageEdges = store.getState().edges.filter((e) => e.targetHandle === "image");
     expect(imageEdges.map((e) => e.target).sort()).toEqual(shots.map((s) => s.id).sort());
-    expect(files.map((f) => f.position.y)).toEqual([190, 550]);
+    const under = FAN_OUT_CARDS.shot.height + PANEL_GAP;
+    expect(files.map((f) => f.position.y)).toEqual([under, STORYBOARD_ROW_PITCH + under]);
+    // Each panel ends before the next row begins.
+    expect(files[0].position.y + PANEL_CARD.height).toBeLessThan(shots[1].position.y);
+  });
+
+  it("lays the new rows out again from the cards' measured sizes, until a node is dragged", () => {
+    const store = createCanvasStore([scriptNode(rows)], []);
+    store.getState().fanOutShots("sb");
+    const [s1, s2] = store.getState().nodes.filter((n) => n.type === "shot");
+    const [p1] = panelNodes(store);
+    const dims = (id: string, width: number, height: number) =>
+      ({ type: "dimensions" as const, id, dimensions: { width, height }, setAttributes: true });
+
+    // The panel's image loads and its card is taller than the estimate.
+    store.getState().onNodesChange([dims(s1.id, 224, 295), dims(p1.id, 202, 520)]);
+    const after = (id: string) => store.getState().nodes.find((n) => n.id === id)!.position;
+    expect(after(p1.id).y).toBe(295 + PANEL_GAP);
+    expect(after(s2.id).y).toBe(295 + PANEL_GAP + 520 + ROW_GAP);
+
+    // Once the person drags one of them, the layout is theirs.
+    store.getState().onNodesChange([{ type: "position", id: s2.id, position: { x: 900, y: 50 }, dragging: true }]);
+    store.getState().onNodesChange([dims(p1.id, 202, 700)]);
+    expect(after(s2.id)).toEqual({ x: 900, y: 50 });
   });
 
   it("wires a row fanned out as a Multishot too", () => {

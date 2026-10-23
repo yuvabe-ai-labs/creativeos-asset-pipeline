@@ -14,7 +14,7 @@ import { JobLockedError } from "@/lib/jobs/types";
 import { transcribeCredits } from "@/lib/transcribe/cost";
 import { TRANSCRIBE_ENGINE } from "@/lib/transcribe/providers";
 
-// Starts Auto captions (D395, D399). The files come from the SAVED edit's sources, read fresh here
+// Starts Auto captions (D411, D399). The files come from the SAVED edit's sources, read fresh here
 // (rules 10, 14). Files already transcribed cost nothing and need no job. One run per Editor; the
 // task payload is the job id only (rule 8).
 const STALE_MS = 15 * 60 * 1000;

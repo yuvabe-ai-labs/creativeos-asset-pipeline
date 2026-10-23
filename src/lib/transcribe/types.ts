@@ -1,4 +1,4 @@
-// A stored transcript (D395): every word of one file with its time in that file's seconds.
+// A stored transcript (D411): every word of one file with its time in that file's seconds.
 // p = the engine's confidence for the word, 0–1.
 export type TranscriptWord = { t: string; s: number; e: number; p: number };
 

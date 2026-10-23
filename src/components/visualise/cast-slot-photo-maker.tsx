@@ -5,7 +5,6 @@ import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
 import { AvatarImageDropzone } from "@/components/avatars/avatar-image-dropzone";
 import { AvatarLikenessConsent } from "@/components/avatars/avatar-likeness-consent";
 import { estimateSheetCredits } from "@/lib/avatars/generation";
-import { missingViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
 import { nextMakerStep } from "@/lib/scripts/visualise/maker";
 
@@ -49,7 +48,7 @@ export function CastSlotPhotoMaker({ name, castId, modelId, avatar, uploading, c
         {next && (
           <Button className="self-start" disabled={busy} onClick={onFinish}>
             {next === "save" ? "Save to Avatars" : "Make the four views"}
-            {next === "views" && <AvatarCreditCost credits={estimateSheetCredits(modelId, missingViews(avatar!).length)} />}
+            {next === "views" && <AvatarCreditCost credits={estimateSheetCredits(modelId)} />}
           </Button>
         )}
       </div>
