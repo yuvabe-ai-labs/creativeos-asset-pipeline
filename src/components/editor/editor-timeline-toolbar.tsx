@@ -20,7 +20,7 @@ export function EditorTimelineToolbar({ tools }: { tools?: ReactNode }) {
 
   return (
     <div className="flex flex-none flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-      <span className="text-eyebrow text-muted-foreground">Timeline</span>
+      <span className="text-eyebrow-sm">Timeline</span>
       <span className="flex-1" />
       {tools}
       <Button variant="outline" size="sm" onClick={split} disabled={!editable || !hasPieces} title="Split at the playhead (S)" className="gap-1.5">

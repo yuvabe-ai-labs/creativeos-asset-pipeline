@@ -7873,3 +7873,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** Editors fix a misheard word where they see it, on the picture, as in other video editors; going to the side panel to find the line was a detour.
 
 **Rejected.** Double-click only (the overlay replaces the plain caption on the first click, so the second click lands on a new element and a native double-click is unreliable). Editing while playing (the line would leave the screen mid-word).
+
+### D413 — The editor's panel names step back; a panel's whole header hides it; Style before Text *(recorded 2026-10-23; refines D403, D405)*
+
+**Decision.** Panel names (Sources, Inspector, Timeline, and the folded rails) use a new smaller eyebrow, `.text-eyebrow-sm` (11px, muted), so the content's own heading leads: a selected clip reads "Clip 1" in small grey text over its name at 16px in the display face; the Captions heading is 16px too. A side panel's whole header row is the button that hides it, not only the chevron. The Captions panel's tabs are Style, then Text, and Style is the default tab; selecting a caption no longer switches to Text.
+
+**Why.** The 12px, widely tracked panel name competed with the clip's name, and hiding a panel needed an exact hit on a small arrow (user, 23 Oct 2026). Style is set once for the reel and is what people look for first.
+
+**Rejected.** Shrinking `.text-eyebrow` itself (it serves the rest of the app at its current size).
