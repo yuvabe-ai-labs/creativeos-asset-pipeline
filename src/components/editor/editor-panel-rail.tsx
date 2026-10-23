@@ -4,16 +4,20 @@ import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** A collapsed side panel (D403): a thin rail that opens it again. */
+/** A collapsed side panel (D403): a thin rail, all of it one button that opens the panel again. */
 export function EditorPanelRail({ label, side, shortcut, onExpand }: { label: string; side: "left" | "right"; shortcut: string; onExpand(): void }) {
   const Icon = side === "left" ? ChevronRight : ChevronLeft;
   return (
-    <aside aria-label={`${label}, hidden`} className="flex min-h-0 flex-col items-center gap-3 rounded-[14px] border border-border bg-card py-2">
-      <Button variant="ghost" size="icon" aria-label={`Show ${label.toLowerCase()}`} title={`Show ${label.toLowerCase()} (${shortcut})`} onClick={onExpand} className="size-7">
-        <Icon className="size-4" strokeWidth={1.5} />
-      </Button>
-      <Button variant="ghost" onClick={onExpand} className="text-eyebrow-sm h-auto px-1 py-2 [writing-mode:vertical-rl]">
-        {label}
+    <aside aria-label={`${label}, hidden`} className="flex min-h-0 rounded-[14px] border border-border bg-card">
+      <Button
+        variant="ghost"
+        aria-label={`Show ${label.toLowerCase()}`}
+        title={`Show ${label.toLowerCase()} (${shortcut})`}
+        onClick={onExpand}
+        className="group/rail h-full w-full flex-col items-center justify-start gap-3 rounded-[13px] px-0 py-3 font-normal"
+      >
+        <Icon className="size-4 text-muted-foreground transition-colors duration-200 group-hover/rail:text-foreground" strokeWidth={1.5} />
+        <span className="text-eyebrow-sm [writing-mode:vertical-rl]">{label}</span>
       </Button>
     </aside>
   );
