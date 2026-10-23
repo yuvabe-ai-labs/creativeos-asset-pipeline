@@ -7881,3 +7881,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** The 12px, widely tracked panel name competed with the clip's name, and hiding a panel needed an exact hit on a small arrow (user, 23 Oct 2026). Style is set once for the reel and is what people look for first.
 
 **Rejected.** Shrinking `.text-eyebrow` itself (it serves the rest of the app at its current size).
+
+### D414 — Clicking empty space clears the selection *(recorded 2026-10-23; refines D405)*
+
+**Decision.** A left-click anywhere in the editor's work area that isn't on a clip, a caption (on the timeline or the video), the Inspector, the ruler, the timeline's resize handle or a control clears the selection, so the Inspector returns to the reel's Captions panel; Esc does the same. Controls keep it, since Delete and Split act on the selection. Clicks in menus and dropdowns, which render outside the work area, never clear it. One handler on the page (`clearsSelection` in `src/lib/editor/deselect.ts`) decides from the clicked element, not one per panel.
+
+**Why.** Once a clip or caption was selected there was no obvious way to put the Inspector back (user, 23 Oct 2026); desktop editors deselect on a click in empty space.
+
+**Rejected.** A handler per panel (several places to keep in step, and each new panel would need one). Clearing on any click outside the Inspector (pressing Delete would clear the selection before deleting it).

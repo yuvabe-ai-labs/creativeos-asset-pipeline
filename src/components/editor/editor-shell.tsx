@@ -8,6 +8,7 @@ import { useEditorAutosave } from "@/hooks/use-editor-autosave";
 import { useEditorLayout } from "@/hooks/use-editor-layout";
 import { useLockHandoffNavigation } from "@/hooks/use-lock-handoff-navigation";
 import { useEditorState } from "@/hooks/queries/editor";
+import { clearsSelection } from "@/lib/editor/deselect";
 import type { EditorState } from "@/lib/editor/types";
 import { AutoCaptionsProvider } from "./auto-captions-context";
 import { EditorExportButton } from "./editor-export-button";
@@ -60,6 +61,7 @@ export function EditorShell(props: Props) {
 function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState }: Props) {
   const lock = useCanvasLock(canvasId);
   const setEditable = useEditorStore((s) => s.setEditable);
+  const select = useEditorStore((s) => s.select);
   useEffect(() => setEditable(lock.canEdit), [lock.canEdit, setEditable]);
   // Seeds the shared query with the server render, so the canvas card shows this edit on return.
   useEditorState(canvasId, { initialData: initialState });
@@ -108,7 +110,12 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
               </>
             }
           />
-          <div className="relative flex min-h-0 flex-1 flex-col">
+          <div
+            className="relative flex min-h-0 flex-1 flex-col"
+            onPointerDown={(e) => {
+              if (clearsSelection(e.currentTarget, e.target, e.button)) select(null);
+            }}
+          >
             {!lock.canEdit && <LockBanner heldByName={lock.heldByName} canTakeOver={lock.canTakeOver} onTakeOver={lock.takeOver} />}
             <div
               className="grid min-h-0 flex-1 gap-3 px-4 pt-3 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"

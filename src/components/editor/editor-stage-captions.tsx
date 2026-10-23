@@ -25,6 +25,7 @@ export function EditorStageCaptions({ skipId }: { skipId?: string | null }) {
       {showing.map((c) => (
         <p
           key={c.id}
+          data-keep-selection=""
           onClick={() => select({ kind: "caption", id: c.id })}
           title="Click to select, click again to edit the words"
           style={captionBoxStyle(style)}

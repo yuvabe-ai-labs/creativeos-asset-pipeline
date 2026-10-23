@@ -151,6 +151,7 @@ export function EditorCaptionOverlay({ caption, editable }: { caption: Caption; 
       )}
       <div
         role="presentation"
+        data-keep-selection=""
         title={editable ? "Click to edit the words · drag to move every caption · drag a corner to resize" : undefined}
         onPointerDown={down}
         onPointerMove={move}

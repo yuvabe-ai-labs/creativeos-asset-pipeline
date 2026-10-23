@@ -76,6 +76,7 @@ export function EditorCaptionBlock({ text, start, end, scale, fps, total, select
 
   return (
     <div
+      data-keep-selection=""
       onPointerDown={(e) => begin("move", e)}
       onPointerMove={move}
       onPointerUp={finish}
