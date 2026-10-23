@@ -24,7 +24,7 @@
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.106.2",
     "@tanstack/react-query": "^5.104.0",
-    "@trigger.dev/sdk": "4.7.6",
+    "@trigger.dev/sdk": "4.7.7",
     "@xyflow/react": "^12.10.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@trigger.dev/build": "4.7.6",
+    "@trigger.dev/build": "4.7.7",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -69,7 +69,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "trigger.dev": "4.7.6",
+    "trigger.dev": "4.7.7",
     "typescript": "^5",
     "vitest": "^4.1.8"
   }

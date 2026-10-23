@@ -7865,3 +7865,35 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Prompt tweaks alone (the conflicting words would still be sent). Sending the operator's instructions only as attributes (they hold more than gender). A brief in the browser (it would trust the client's copy of the script). A 2×2 grid sheet (a lineup at one scale is the turnaround convention, and every figure sits on the same baseline). Remaking one view from the front, as D340 allowed (that brings back the drift this fixes). Dropping the views and sending only the sheet (panels, review and readiness, D341, are built on views).
 
 **Originated →** user request, 22 Oct 2026 (avatar gender mismatch; "a single sheet instead of separate and then merged").
+
+### D412 — A caption's words can be edited on the video *(recorded 2026-10-23; extends D396, D399)*
+
+**Decision.** On the stage, a click selects a caption (the draggable overlay, D396); a second click on it, without dragging, pauses the preview and opens its words for typing, in place, in the reel's caption font and size. Enter or clicking away saves, Shift+Enter breaks the line, Esc cancels; clearing the text deletes the line. It is the same edit as the Captions tab: word times kept when the word count holds, spread evenly (with a note) when it changes, and the line marked edited so Auto captions never rewrites it (D399). A drag still moves and resizes.
+
+**Why.** Editors fix a misheard word where they see it, on the picture, as in other video editors; going to the side panel to find the line was a detour.
+
+**Rejected.** Double-click only (the overlay replaces the plain caption on the first click, so the second click lands on a new element and a native double-click is unreliable). Editing while playing (the line would leave the screen mid-word).
+
+### D413 — The editor's panel names step back; a panel's whole header hides it; Style before Text *(recorded 2026-10-23; refines D403, D405)*
+
+**Decision.** Panel names (Sources, Inspector, Timeline, and the folded rails) use a new smaller eyebrow, `.text-eyebrow-sm` (11px, muted), so the content's own heading leads: a selected clip reads "Clip 1" in small grey text over its name at 16px in the display face; the Captions heading is 16px too. A side panel's whole header row is the button that hides it, not only the chevron. The Captions panel's tabs are Style, then Text, and Style is the default tab; selecting a caption no longer switches to Text.
+
+**Why.** The 12px, widely tracked panel name competed with the clip's name, and hiding a panel needed an exact hit on a small arrow (user, 23 Oct 2026). Style is set once for the reel and is what people look for first.
+
+**Rejected.** Shrinking `.text-eyebrow` itself (it serves the rest of the app at its current size).
+
+### D414 — Clicking empty space clears the selection *(recorded 2026-10-23; refines D405)*
+
+**Decision.** A left-click anywhere in the editor's work area that isn't on a clip, a caption (on the timeline or the video), the Inspector, the ruler, the timeline's resize handle or a control clears the selection, so the Inspector returns to the reel's Captions panel; Esc does the same. Controls keep it, since Delete and Split act on the selection. Clicks in menus and dropdowns, which render outside the work area, never clear it. One handler on the page (`clearsSelection` in `src/lib/editor/deselect.ts`) decides from the clicked element, not one per panel.
+
+**Why.** Once a clip or caption was selected there was no obvious way to put the Inspector back (user, 23 Oct 2026); desktop editors deselect on a click in empty space.
+
+**Rejected.** A handler per panel (several places to keep in step, and each new panel would need one). Clearing on any click outside the Inspector (pressing Delete would clear the selection before deleting it).
+
+### D415 — Trims always snap; the Snap button is gone; Alt trims freely *(recorded 2026-10-23; refines D404)*
+
+**Decision.** The timeline toolbar loses its Snap toggle. Dragging a clip's edge always snaps to the playhead (and an end edge to other clips' edges) within 8 px, shown by the amber line. Holding Alt while dragging trims without snapping. The edge's tooltip says so.
+
+**Why.** The toggle was rarely changed, didn't say what it snapped, and crowded the toolbar (user, 23 Oct 2026). Snapping itself is what makes a trim land on the playhead's frame. A modifier for the rare free trim is the convention in design and editing tools.
+
+**Rejected.** Keeping the toggle with a clearer label (still a control almost no one changes). Removing snapping altogether (precise trims back to frame-by-frame dragging).

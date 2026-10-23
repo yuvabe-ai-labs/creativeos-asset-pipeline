@@ -27,6 +27,7 @@ export function EditorTimelinePiece({ piece, index, source, left, width, selecte
   const edge = (which: "in" | "out") => (
     <span
       aria-hidden
+      title={`Drag to trim the ${which === "in" ? "start" : "end"}. It snaps to the playhead; hold Alt to trim freely.`}
       onPointerDown={(e) => onBegin(e, which)}
       className={cn(
         "absolute inset-y-0 z-10 w-2 cursor-ew-resize transition-colors duration-200 group-hover/piece:bg-primary/25 hover:bg-primary/45",

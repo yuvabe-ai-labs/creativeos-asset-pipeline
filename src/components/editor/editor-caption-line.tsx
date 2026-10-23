@@ -11,7 +11,7 @@ import type { Caption } from "@/lib/editor/types";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "./editor-store-provider";
 
-const SPREAD_NOTE = "The word count changed, so this line's timing is spread evenly. Auto captions again gives exact timing.";
+export const SPREAD_NOTE = "The word count changed, so this line's timing is spread evenly. Auto captions again gives exact timing.";
 
 /** One line of the Text tab: click its words to fix them (Enter saves, Esc cancels), hover to
  *  delete. Words the transcript was unsure of get a wavy underline (spec §9). */

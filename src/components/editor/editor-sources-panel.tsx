@@ -3,7 +3,6 @@
 import { addSourceAgain } from "@/lib/editor/pieces";
 import { useEditorStore } from "./editor-store-provider";
 import { EditorPanel } from "./editor-panel";
-import { EditorPanelCollapse } from "./editor-panel-rail";
 import { EditorSourceRow } from "./editor-source-row";
 
 /** The clips connected to this Editor on the canvas, at their current version (spec §4). */
@@ -14,7 +13,7 @@ export function EditorSourcesPanel({ onCollapse }: { onCollapse(): void }) {
   const select = useEditorStore((s) => s.select);
 
   return (
-    <EditorPanel label="Sources" aside={`${sources.length}`} action={<EditorPanelCollapse label="Sources" side="left" shortcut="Ctrl 1" onCollapse={onCollapse} />}>
+    <EditorPanel label="Sources" aside={sources.length} side="left" shortcut="Ctrl 1" onCollapse={onCollapse}>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {sources.map((source) => (
           <EditorSourceRow

@@ -18,5 +18,5 @@ export function EditorStageWithCaption() {
   const t = caption && captionTimes(doc, caption);
   const showing = caption && t && time >= t.start && time < t.end;
 
-  return <EditorStage overlayCaptionId={showing ? caption.id : null} overlay={showing ? <EditorCaptionOverlay caption={caption} editable={editable} /> : null} />;
+  return <EditorStage overlayCaptionId={showing ? caption.id : null} overlay={showing ? <EditorCaptionOverlay key={caption.id} caption={caption} editable={editable} /> : null} />;
 }

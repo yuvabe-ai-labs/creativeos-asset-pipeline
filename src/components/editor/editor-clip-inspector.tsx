@@ -17,8 +17,8 @@ export function EditorClipInspector({ piece, source }: { piece: Piece; source: S
   return (
     <div className="flex min-h-0 flex-col gap-3">
       <div className="flex flex-col gap-0.5">
-        <span className="text-eyebrow text-muted-foreground">Clip {index + 1}</span>
-        <span className="font-display text-[15px] font-semibold">{source.handle}</span>
+        <span className="text-xs text-muted-foreground">Clip {index + 1}</span>
+        <span className="font-display text-base font-semibold">{source.handle}</span>
       </div>
       <Tabs value={inspectorTab} onValueChange={(v) => setInspectorTab(v as InspectorTab)}>
         <TabsList>

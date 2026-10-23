@@ -7,7 +7,8 @@ import { useEditorStore } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
 
 /** Captions showing at the playhead, word by word, where the reel's style places them (D396,
- *  D397). Click one to select it; the selected caption gets the draggable overlay instead. */
+ *  D397). Click one to select it; the selected caption gets the draggable overlay instead, and a
+ *  second click there edits its words (D412). */
 export function EditorStageCaptions({ skipId }: { skipId?: string | null }) {
   const doc = useEditorStore((s) => s.doc);
   const select = useEditorStore((s) => s.select);
@@ -24,7 +25,9 @@ export function EditorStageCaptions({ skipId }: { skipId?: string | null }) {
       {showing.map((c) => (
         <p
           key={c.id}
+          data-keep-selection=""
           onClick={() => select({ kind: "caption", id: c.id })}
+          title="Click to select, click again to edit the words"
           style={captionBoxStyle(style)}
           className="absolute m-0 w-[88%] -translate-x-1/2 -translate-y-1/2 cursor-pointer select-none whitespace-pre-line text-center outline-offset-[6px] hover:outline hover:outline-1 hover:outline-dashed hover:outline-white/60"
         >
