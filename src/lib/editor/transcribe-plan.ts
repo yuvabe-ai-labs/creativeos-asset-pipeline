@@ -10,6 +10,20 @@ export type TranscribeJobInput = { canvasId: string; nodeId: string; generationI
 export type TranscribeJobResult = { failed: Array<{ url: string; reason: TranscribeFailureReason }> };
 export type TranscribeStatus = { status: JobStatus; result: TranscribeJobResult | null; error: string | null };
 
+/** Every sound the reel's pieces could play: each placed source's take and, when it has one, its
+ *  dub. Stored transcripts are read for all of them, so switching a clip's sound can bring its
+ *  captions back without a new run (D410). */
+export function playableSoundUrls(doc: EditDoc, sources: SourceView[]): string[] {
+  const placed = new Set(doc.pieces.map((p) => p.sourceNodeId));
+  const urls = new Set<string>();
+  for (const s of sources) {
+    if (!placed.has(s.nodeId)) continue;
+    urls.add(s.files.original.url);
+    if (s.files.dubAudio) urls.add(s.files.dubAudio.url);
+  }
+  return [...urls];
+}
+
 export function planTranscription(doc: EditDoc, sources: SourceView[], pieceIds?: string[]): { files: TranscribeFile[]; noSound: string[] } {
   const byId = new Map(sources.map((s) => [s.nodeId, s]));
   const wanted = pieceIds ? new Set(pieceIds) : null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planTranscription } from "../transcribe-plan";
+import { planTranscription, playableSoundUrls } from "../transcribe-plan";
 import type { Piece } from "../types";
 import { emptyDoc, source } from "./fixtures";
 
@@ -23,6 +23,11 @@ describe("planTranscription", () => {
     const r = planTranscription(doc, [a, mute], ["2"]);
     expect(r.files).toEqual([]);
     expect(r.noSound).toEqual(["2"]);
+  });
+
+  it("lists every sound a placed clip could play, the dub not chosen included (D410)", () => {
+    const doc = emptyDoc({ pieces: [piece("1", "d"), piece("2", "a"), piece("3", "a")] });
+    expect(playableSoundUrls(doc, [a, d, mute])).toEqual([a.files.original.url, d.files.original.url, d.files.dubAudio!.url]);
   });
 
   it("skips a piece whose source is missing", () => {
