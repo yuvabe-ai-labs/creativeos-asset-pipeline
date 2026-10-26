@@ -33,7 +33,7 @@ describe("renderArgs", () => {
   it("trims each clip by frames, fits it into the frame, and joins them", () => {
     const p = plan([piece("1", "a", 10, 100), piece("2", "w", 0, 48)]);
     const g = graphOf(base(p));
-    expect(g).toContain("fps=24,trim=start_frame=10:end_frame=100,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black");
+    expect(g).toContain("fps=24,trim=start_frame=10:end_frame=100,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop=-1,trim=end_frame=90,scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black");
     expect(g).toContain("trim=start_frame=0:end_frame=48");
     expect(g).toContain("concat=n=2:v=1:a=1[vc][ac]");
     expect(renderSeconds(p)).toBeCloseTo((90 + 48) / 24, 6);
@@ -65,6 +65,11 @@ describe("renderArgs", () => {
     const quick = base(p, { quality: "quick" });
     expect(quick.join(" ")).toContain("-crf 23");
     expect(graphOf(quick)).toContain("scale=720:1280");
+  });
+
+  it("refuses an empty reel", () => {
+    const p = { ...plan([piece("1", "a", 0, 24)]), clips: [] };
+    expect(() => base(p)).toThrow("Nothing to render: the plan has no clips");
   });
 
   it("uses an exact NTSC rate", () => {

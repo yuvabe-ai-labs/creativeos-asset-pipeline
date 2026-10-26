@@ -34,6 +34,7 @@ export function renderArgs(
   plan: SequencePlan,
   opts: { quality: RenderQuality; inputs: Map<number, string>; output: string; ass: string | null; fontsDir: string | null },
 ): string[] {
+  if (plan.clips.length === 0) throw new Error("Nothing to render: the plan has no clips");
   const { width: W, height: H } = outputSize(plan, opts.quality);
   const order = plan.media.map((m) => m.id).filter((id) => opts.inputs.has(id));
   const index = new Map(order.map((id, i) => [id, i]));
@@ -49,8 +50,8 @@ export function renderArgs(
     const len = c.end - c.start;
     const d = sec(len / plan.fps);
     parts.push(
-      `[${at(c.picture.media)}:v]fps=${rate},trim=start_frame=${c.picture.in}:end_frame=${c.picture.in + len},setpts=PTS-STARTPTS,` +
-        `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p[v${i}]`,
+      `[${at(c.picture.media)}:v]fps=${rate},trim=start_frame=${c.picture.in}:end_frame=${c.picture.in + len},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop=-1,trim=end_frame=${len},` +
+        `scale=${W}:${H}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p[v${i}]`,
     );
     const sound = c.dubOn && c.dub ? { media: c.dub.media, in: c.dub.in } : c.sound;
     parts.push(
