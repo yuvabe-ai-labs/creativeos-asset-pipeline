@@ -1,15 +1,8 @@
 import { tasks } from "@trigger.dev/sdk";
 import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveOrgId } from "@/lib/dal";
 import type { ExportJobInput } from "@/lib/editor/export-run";
-import { getClientById } from "@/lib/db/clients";
-import { loadEditorState } from "@/lib/editor/load-state";
-import { reelName } from "@/lib/editor/package";
-import { planSequence } from "@/lib/editor/sequence-plan";
-import { planTranscription } from "@/lib/editor/transcribe-plan";
-import { pausesFromWords } from "@/lib/editor/pauses";
-import { listTranscripts } from "@/lib/db/media-transcripts";
+import { planSavedReel } from "@/lib/editor/plan-saved-reel";
 import { failJob, failStaleJobs, insertJob, setJobRunId } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
 
@@ -28,21 +21,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       if (!parsed.success) return apiError("Say which Editor to export.", 400);
       const { nodeId } = parsed.data;
 
-      const [state, orgId, client] = await Promise.all([loadEditorState(canvasId), resolveOrgId(), getClientById(canvas.client_id)]);
-      if (!state || state.editorNodeId !== nodeId) return apiError("Editor not found.", 404);
-      // D409 — pauses in speech become markers, from the transcripts already stored (no audio here).
-      const { files } = planTranscription(state.doc, state.sources);
-      const transcripts = await listTranscripts(files.map((f) => f.url));
-      const pauses = new Map([...transcripts].map(([url, t]) => [url, pausesFromWords(t.words)] as const));
-      // D416 — the sequence and the package are named after the client and the canvas.
-      const planned = planSequence(state.doc, state.sources, { pauses, name: reelName(client?.name, canvas.name) });
-      if (!planned.ok) return apiError(planned.reason, 422);
+      const reel = await planSavedReel(canvas, nodeId);
+      if (!reel.ok) return apiError(reel.reason, reel.status);
+      const { plan, orgId } = reel;
 
       const clientId = canvas.client_id;
       await failStaleJobs(clientId, "editor-export", STALE_EXPORT_MS);
       let jobId: string;
       try {
-        const input: ExportJobInput = { canvasId, nodeId, clientId, plan: planned.plan };
+        const input: ExportJobInput = { canvasId, nodeId, clientId, plan };
         const job = await insertJob({
           orgId,
           clientId,
