@@ -4,12 +4,13 @@ import { CAPTION_FONT_COVERAGE } from "./caption-font-coverage";
 // not interface: they render only in captions on the editor's stage and ship in the Premiere
 // package (src/fonts/captions/), so what the user sees is what Premiere shows.
 
+// assLineHeight: (usWinAscent + usWinDescent) / unitsPerEm. libass sizes text by it (D417).
 export const CAPTION_FONTS = [
-  { key: "montserrat", label: "Montserrat", postScript: "Montserrat-ExtraBold", file: "Montserrat-ExtraBold.ttf", licence: "Montserrat-OFL.txt" },
-  { key: "poppins", label: "Poppins", postScript: "Poppins-Bold", file: "Poppins-Bold.ttf", licence: "Poppins-OFL.txt" },
-  { key: "bebas-neue", label: "Bebas Neue", postScript: "BebasNeue-Regular", file: "BebasNeue-Regular.ttf", licence: "BebasNeue-OFL.txt" },
-  { key: "anton", label: "Anton", postScript: "Anton-Regular", file: "Anton-Regular.ttf", licence: "Anton-OFL.txt" },
-  { key: "playfair-display", label: "Playfair Display", postScript: "PlayfairDisplay-Bold", file: "PlayfairDisplay-Bold.ttf", licence: "PlayfairDisplay-OFL.txt" },
+  { key: "montserrat", label: "Montserrat", postScript: "Montserrat-ExtraBold", file: "Montserrat-ExtraBold.ttf", licence: "Montserrat-OFL.txt", assLineHeight: 1.562 },
+  { key: "poppins", label: "Poppins", postScript: "Poppins-Bold", file: "Poppins-Bold.ttf", licence: "Poppins-OFL.txt", assLineHeight: 1.762 },
+  { key: "bebas-neue", label: "Bebas Neue", postScript: "BebasNeue-Regular", file: "BebasNeue-Regular.ttf", licence: "BebasNeue-OFL.txt", assLineHeight: 1.3 },
+  { key: "anton", label: "Anton", postScript: "Anton-Regular", file: "Anton-Regular.ttf", licence: "Anton-OFL.txt", assLineHeight: 1.7334 },
+  { key: "playfair-display", label: "Playfair Display", postScript: "PlayfairDisplay-Bold", file: "PlayfairDisplay-Bold.ttf", licence: "PlayfairDisplay-OFL.txt", assLineHeight: 1.41 },
 ] as const;
 
 export type CaptionFont = (typeof CAPTION_FONTS)[number];

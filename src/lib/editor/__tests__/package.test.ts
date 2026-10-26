@@ -23,7 +23,7 @@ const bytesFor = (plan: SequencePlan) => ({
 // Files only: fflate also writes folder entries ("creativeos-reel/"), which every unzip tool expects.
 const names = (entries: Zippable) => Object.keys(unzipSync(zipSync(entries))).filter((n) => !n.endsWith("/")).sort();
 const NOW = new Date("2026-10-20T12:00:00Z");
-const N = { dir: "creativeos-reel", zip: "creativeos-reel.zip", xml: "creativeos-premiere.xml" };
+const N = { dir: "creativeos-reel", zip: "creativeos-reel.zip", xml: "creativeos-premiere.xml", video: "creativeos-reel.mp4" };
 
 describe("package names (D416)", () => {
   it("names the sequence after the client and the canvas", () => {
@@ -37,6 +37,7 @@ describe("package names (D416)", () => {
       dir: "jackfruit-365-reel-2-2026-10-20",
       zip: "jackfruit-365-reel-2-2026-10-20.zip",
       xml: "jackfruit-365-reel-2.xml",
+      video: "jackfruit-365-reel-2-2026-10-20.mp4",
     });
     expect(packageNames("Reel 3", NOW).zip).not.toBe(packageNames("Reel 2", NOW).zip);
     // A name with nothing safe for a file name still gets one.
