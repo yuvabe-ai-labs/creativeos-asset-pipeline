@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ExportStatus } from "@/lib/editor/export-run";
+import type { RenderQuality } from "@/lib/editor/render-plan";
+import type { RenderStatus } from "@/lib/editor/render-run";
 import type { TranscribeStatus } from "@/lib/editor/transcribe-plan";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
 import type { Transcript } from "@/lib/transcribe/types";
@@ -15,6 +17,7 @@ export const editorKeys = {
   all: (canvasId: string) => ["editor", canvasId] as const,
   state: (canvasId: string) => [...editorKeys.all(canvasId), "state"] as const,
   export: (canvasId: string, jobId: string) => [...editorKeys.all(canvasId), "export", jobId] as const,
+  render: (canvasId: string, jobId: string) => [...editorKeys.all(canvasId), "render", jobId] as const,
   transcripts: (canvasId: string) => [...editorKeys.all(canvasId), "transcripts"] as const,
   transcribe: (canvasId: string, jobId: string) => [...editorKeys.all(canvasId), "transcribe", jobId] as const,
   dubs: (canvasId: string) => [...editorKeys.all(canvasId), "dubs"] as const,
@@ -57,6 +60,20 @@ export function useExportStatus(canvasId: string, jobId: string | null) {
   return useQuery<ExportStatus>({
     queryKey: editorKeys.export(canvasId, jobId ?? ""),
     queryFn: () => editorService.exportStatus(canvasId, jobId!),
+    enabled: Boolean(canvasId && jobId),
+    refetchInterval: (q) => (!q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? EXPORT_POLL_MS : false),
+  });
+}
+
+export function useStartRender(canvasId: string) {
+  return useMutation({ mutationFn: (body: { nodeId: string; quality: RenderQuality; captions: boolean }) => editorService.startRender(canvasId, body) });
+}
+
+/** An MP4 render's progress, polled until it finishes (D417). */
+export function useRenderStatus(canvasId: string, jobId: string | null) {
+  return useQuery<RenderStatus>({
+    queryKey: editorKeys.render(canvasId, jobId ?? ""),
+    queryFn: () => editorService.renderStatus(canvasId, jobId!),
     enabled: Boolean(canvasId && jobId),
     refetchInterval: (q) => (!q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? EXPORT_POLL_MS : false),
   });
