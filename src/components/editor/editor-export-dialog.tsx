@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { useExportStatus } from "@/hooks/queries/editor";
 import { captionFont } from "@/lib/editor/caption-fonts";
 import { exportChecklist, exportSubtitle } from "@/lib/editor/export-copy";
-import { PACKAGE_ZIP_NAME } from "@/lib/editor/package";
 import { EditorExportHowTo, EditorExportTracks } from "./editor-export-howto";
 import { useEditorStore } from "./editor-store-provider";
 
@@ -50,7 +49,7 @@ export function EditorExportDialog({ canvasId, jobId, title, dubLabel, onClose, 
         {result && (
           <>
             <ul className="m-0 flex list-none flex-col gap-2.5 p-0 text-sm">
-              {exportChecklist(result.summary, result.bytes).map((line) => (
+              {exportChecklist(result.summary, result.bytes, result.fileName).map((line) => (
                 <li key={line} className="flex items-center gap-2.5">
                   <span className="grid size-[22px] place-items-center rounded-full bg-success/15">
                     <Check className="size-[13px] text-success-text" strokeWidth={2} />
@@ -60,7 +59,7 @@ export function EditorExportDialog({ canvasId, jobId, title, dubLabel, onClose, 
               ))}
             </ul>
             <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-[18px]">
-              <EditorExportHowTo />
+              <EditorExportHowTo xmlName={result.xmlName} sequenceName={result.sequenceName} />
               <div className="flex flex-col gap-2.5">
                 <EditorExportTracks summary={result.summary} dubLabel={dubLabel} />
                 {fonts.length > 0 && (
@@ -77,9 +76,9 @@ export function EditorExportDialog({ canvasId, jobId, title, dubLabel, onClose, 
           <Button variant="outline" onClick={onClose}>Close</Button>
           {failed && <Button onClick={onRetry}>Try again</Button>}
           {result && (
-            <Button nativeButton={false} render={<a href={result.url} download={PACKAGE_ZIP_NAME} />} className="gap-2 font-semibold">
-              <Download className="size-4" strokeWidth={1.5} />
-              Download {PACKAGE_ZIP_NAME}
+            <Button nativeButton={false} render={<a href={result.url} download={result.fileName} />} className="min-w-0 gap-2 font-semibold">
+              <Download className="size-4 flex-none" strokeWidth={1.5} />
+              <span className="truncate">Download {result.fileName}</span>
             </Button>
           )}
         </div>

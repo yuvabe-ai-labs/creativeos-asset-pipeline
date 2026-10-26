@@ -10,7 +10,7 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: () => ({
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "cv1", client_id: "cl1", clients: { org_id: "org-1" } }, error: null }) }) }) }),
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "cv1", client_id: "cl1", name: "Reel 2", clients: { org_id: "org-1" } }, error: null }) }) }) }),
   }),
 }));
 vi.mock("@/lib/editor/load-state", () => ({ loadEditorState: vi.fn() }));
@@ -25,6 +25,7 @@ vi.mock("@/lib/jobs/db", () => ({
 import { tasks } from "@trigger.dev/sdk";
 import { failJob, getJob, insertJob } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
+import { getClientById } from "@/lib/db/clients";
 import { loadEditorState } from "@/lib/editor/load-state";
 import { planSequence } from "@/lib/editor/sequence-plan";
 import { POST } from "./route";
@@ -42,6 +43,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/canvases/[cid]/editor/exports", () => {
+
   it("passes on the plan's reason", async () => {
     vi.mocked(planSequence).mockReturnValue({ ok: false, reason: "Add a clip to the timeline first." });
     const res = await post({ nodeId: NODE });
@@ -76,6 +78,13 @@ describe("POST /api/canvases/[cid]/editor/exports", () => {
     vi.mocked(tasks.trigger).mockRejectedValue(new Error("down"));
     expect((await post({ nodeId: NODE })).status).toBe(502);
     expect(failJob).toHaveBeenCalledWith("job1", "Couldn't start the export. Try again.");
+  });
+
+  it("names the sequence after the client and the canvas (D416)", async () => {
+    vi.mocked(getClientById).mockResolvedValue({ name: "Jackfruit 365" } as never);
+    await post({ nodeId: NODE });
+    expect(getClientById).toHaveBeenCalledWith("cl1");
+    expect(planSequence).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ name: "Jackfruit 365 · Reel 2" }));
   });
 });
 

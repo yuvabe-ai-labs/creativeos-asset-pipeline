@@ -7897,3 +7897,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** The toggle was rarely changed, didn't say what it snapped, and crowded the toolbar (user, 23 Oct 2026). Snapping itself is what makes a trim land on the playhead's frame. A modifier for the rare free trim is the convention in design and editing tools.
 
 **Rejected.** Keeping the toggle with a clearer label (still a control almost no one changes). Removing snapping altogether (precise trims back to frame-by-frame dragging).
+
+### D416 — Each export is named after its reel *(recorded 2026-10-26; refines D389, D392)*
+
+**Decision.** The Premiere sequence is named "<client> · <canvas>" (e.g. "Jackfruit 365 · Reel 2"), from the saved names, read on the server when the export starts. The zip and its folder are that name as a slug plus the export's date (`jackfruit-365-reel-2-2026-10-26.zip`). The XML is the slug alone (`jackfruit-365-reel-2.xml`), and Premiere names the bin it imports into after it. The storage object carries the zip's name and downloads as it. The README, the export dialog's steps and its download button show this export's names; exports made before this keep showing the old fixed names. A name with nothing usable for a file name falls back to `creativeos-reel`.
+
+**Why.** Every export was `creativeos-reel.zip` holding a "CreativeOS Rough Cut" sequence, so two reels' packages overwrote or shadowed each other in Downloads and in a Premiere project (user, 26 Oct 2026).
+
+**Rejected.** A time in the file name (a date is enough to tell days apart; the browser numbers same-day downloads). Naming from the browser's copy of the title (names come from saved data on the server). The canvas name alone (two clients can each have a "Reel 2").

@@ -1,6 +1,7 @@
 // The Premiere package's contents (D389, spec §9): the sequence, OTIO, SRT, manifest, README,
 // caption fonts and exactly the media the reel uses. Pure: the export task supplies the bytes.
 import { strToU8, type Zippable } from "fflate";
+import { slugify } from "@/lib/slug";
 import type { CaptionFontKey } from "./caption-fonts";
 import { buildOtio } from "./otio";
 import { buildPremiereXml } from "./premiere-xml";
@@ -8,16 +9,32 @@ import type { SequencePlan } from "./sequence-plan";
 import { toSrt } from "./srt";
 import { formatTime } from "./timeline";
 
-export const PACKAGE_DIR = "creativeos-reel";
-export const PACKAGE_ZIP_NAME = "creativeos-reel.zip";
-export const PREMIERE_XML_NAME = "creativeos-premiere.xml";
+const FALLBACK_REEL_NAME = "CreativeOS reel";
+const FALLBACK_SLUG = "creativeos-reel";
+
+/** The sequence's name, from the saved client and canvas names (D416): "Jackfruit 365 · Reel 2". */
+export function reelName(clientName: string | null | undefined, canvasName: string | null | undefined): string {
+  const parts = [clientName, canvasName].map((s) => s?.trim()).filter(Boolean);
+  return parts.length ? parts.join(" · ") : FALLBACK_REEL_NAME;
+}
+
+export type PackageNames = { dir: string; zip: string; xml: string };
+
+/** Each export's own names (D416): the zip and its folder carry the reel and the day, so two
+ *  reels, or two days' exports, never share a name; the XML carries the reel, and Premiere names
+ *  the bin it imports into after it. Plain ASCII, safe in a path and a download header. */
+export function packageNames(sequenceName: string, at: Date): PackageNames {
+  const slug = slugify(sequenceName) || FALLBACK_SLUG;
+  const stamp = `${slug}-${at.toISOString().slice(0, 10)}`;
+  return { dir: stamp, zip: `${stamp}.zip`, xml: `${slug}.xml` };
+}
 
 export function fontsUsed(plan: SequencePlan): CaptionFontKey[] {
   return [...new Set(plan.titles.map((t) => t.fontKey))];
 }
 
 /** Premiere's Import screen ignores sequence XML: the README says where to drag it (D389). */
-export function packageReadme(plan: SequencePlan): string {
+export function packageReadme(plan: SequencePlan, names: PackageNames): string {
   const dubbed = plan.clips.some((c) => c.dub);
   const titled = plan.lines.length > 0;
   const lastTitleTrack = 2 + Math.max(0, ...plan.titles.map((t) => t.track));
@@ -25,11 +42,11 @@ export function packageReadme(plan: SequencePlan): string {
   const altTrack = titled ? lastTitleTrack + 1 : 2;
   const alternates = plan.clips.some((c) => c.altPicture);
   return [
-    "CreativeOS rough cut: Premiere Pro package",
+    `${plan.name}: Premiere Pro package from CreativeOS`,
     "",
     "How to open it",
     "1. Unzip this folder somewhere permanent, not a temp folder.",
-    `2. Drag ${PREMIERE_XML_NAME} into Premiere's Project panel.`,
+    `2. Drag ${names.xml} into Premiere's Project panel.`,
     "   Premiere's Import screen doesn't read it.",
     `3. Open the "${plan.name}" sequence. If clips show offline, link one`,
     "   clip to the media folder and Premiere finds the rest.",
@@ -79,6 +96,7 @@ export function packageEntries(
   plan: SequencePlan,
   bytes: { media: Map<number, Uint8Array>; fonts: Array<{ name: string; bytes: Uint8Array }> },
   createdAt: Date,
+  names: PackageNames,
 ): Zippable {
   const media: Zippable = {};
   for (const m of plan.media) {
@@ -87,15 +105,15 @@ export function packageEntries(
     media[m.fileName] = [b, { level: 0 }]; // already compressed: store, don't deflate
   }
   const dir: Zippable = {
-    [PREMIERE_XML_NAME]: strToU8(buildPremiereXml(plan)),
+    [names.xml]: strToU8(buildPremiereXml(plan)),
     "timeline.otio": strToU8(buildOtio(plan)),
     "manifest.json": strToU8(JSON.stringify(packageManifest(plan, createdAt), null, 2)),
-    "README.txt": strToU8(packageReadme(plan)),
+    "README.txt": strToU8(packageReadme(plan, names)),
     media,
   };
   if (plan.lines.length > 0) {
     dir["captions.srt"] = strToU8(toSrt(plan.lines.map((l) => ({ start: l.start / plan.fps, end: l.end / plan.fps, text: l.text }))));
     dir.fonts = Object.fromEntries(bytes.fonts.map((f) => [f.name, f.bytes]));
   }
-  return { [PACKAGE_DIR]: dir };
+  return { [names.dir]: dir };
 }

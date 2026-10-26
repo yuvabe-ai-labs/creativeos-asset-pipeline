@@ -41,9 +41,9 @@ export const editorExportTask = task({
           return new Uint8Array(await res.arrayBuffer());
         },
         readFonts: readCaptionFontFiles,
-        upload: async (zip) => {
-          const path = pathForEditorExport({ clientId: input.clientId, canvasId: input.canvasId, nodeId: input.nodeId, jobId: job.id });
-          return (await storage.uploadEditorExport(path, zip)).url;
+        upload: async (zip, fileName) => {
+          const path = pathForEditorExport({ clientId: input.clientId, canvasId: input.canvasId, nodeId: input.nodeId, jobId: job.id, fileName });
+          return (await storage.uploadEditorExport(path, zip, fileName)).url;
         },
         setPhase: (message) => setJobPhase(job.id, message),
         now: () => new Date(),

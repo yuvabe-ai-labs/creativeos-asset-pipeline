@@ -11,6 +11,7 @@ import { dubLanguageLabel } from "@/lib/dubbing/types";
 import type { TextRun, TitleSpec } from "./premiere-title";
 import type { EditDoc, MediaFacts, MediaFile, ReelShape, SourceView } from "./types";
 
+/** Used only when the caller doesn't name the reel; exports name it after the client and canvas (D416). */
 export const SEQUENCE_NAME = "CreativeOS Rough Cut";
 export const STANDARD_FRAME: Record<ReelShape, { width: number; height: number }> = {
   "9:16": { width: 1080, height: 1920 },
@@ -96,7 +97,7 @@ function assignTitleTracks(titles: PlanTitle[]): void {
 }
 
 /** pauses: per sound file URL, pauses in that file's seconds (from its transcript, D409). */
-export function planSequence(doc: EditDoc, sources: SourceView[], opts: { pauses?: ReadonlyMap<string, Array<[number, number]>> } = {}): PlanResult {
+export function planSequence(doc: EditDoc, sources: SourceView[], opts: { pauses?: ReadonlyMap<string, Array<[number, number]>>; name?: string } = {}): PlanResult {
   const byId = new Map(sources.map((s) => [s.nodeId, s]));
   const pieces = doc.pieces;
   if (pieces.length === 0) return { ok: false, reason: EMPTY_REEL };
@@ -244,7 +245,7 @@ export function planSequence(doc: EditDoc, sources: SourceView[], opts: { pauses
     assignTitleTracks(titles);
 
     const sampleRate = media.find((m) => m.facts.audio)?.facts.audio?.sampleRate ?? FALLBACK_SAMPLE_RATE;
-    return { ok: true, plan: { name: SEQUENCE_NAME, shape: doc.shape, fps, ...frame, sampleRate, media, clips, titles, lines, markers } };
+    return { ok: true, plan: { name: opts.name ?? SEQUENCE_NAME, shape: doc.shape, fps, ...frame, sampleRate, media, clips, titles, lines, markers } };
   } catch (err) {
     if (err instanceof Unreadable) return { ok: false, reason: err.message };
     throw err;

@@ -136,8 +136,10 @@ export function pathForEditorExport(args: {
   canvasId: string;
   nodeId: string;
   jobId: string;
+  /** The package's own name (D416), e.g. "jackfruit-365-reel-2-2026-10-26.zip". */
+  fileName: string;
 }): string {
-  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/editor/${args.jobId}/creativeos-reel.zip`;
+  return `clients/${args.clientId}/canvases/${args.canvasId}/nodes/${args.nodeId}/editor/${args.jobId}/${args.fileName}`;
 }
 
 export function pathForClientLogo(args: {

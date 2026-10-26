@@ -1,12 +1,14 @@
 import type { ExportSummary } from "@/lib/editor/export-run";
+import { SEQUENCE_NAME } from "@/lib/editor/sequence-plan";
 
 /** "Open it in Premiere" (Export artboard; D389): Premiere's Import screen ignores the XML, so the
- *  steps say exactly where to drag it. */
-export function EditorExportHowTo() {
+ *  steps say exactly where to drag it. The names are this export's own (D416); exports made
+ *  before then fall back to the old fixed names. */
+export function EditorExportHowTo({ xmlName = "creativeos-premiere.xml", sequenceName = SEQUENCE_NAME }: { xmlName?: string; sequenceName?: string }) {
   const steps = [
     <>Unzip it somewhere permanent, not a temp folder.</>,
-    <>Drag <b>creativeos-premiere.xml</b> into Premiere&apos;s <b>Project panel</b>. Premiere&apos;s Import screen doesn&apos;t read it.</>,
-    <>Open the <b>CreativeOS Rough Cut</b> sequence. If clips show offline, link one to the <b>media</b> folder and Premiere finds the rest.</>,
+    <>Drag <b className="break-all">{xmlName}</b> into Premiere&apos;s <b>Project panel</b>. Premiere&apos;s Import screen doesn&apos;t read it.</>,
+    <>Open the <b>{sequenceName}</b> sequence. If clips show offline, link one to the <b>media</b> folder and Premiere finds the rest.</>,
   ];
   return (
     <div className="flex flex-col gap-3">

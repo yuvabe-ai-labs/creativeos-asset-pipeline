@@ -1,7 +1,6 @@
 // The export dialog's words (Export artboard), from what the export task reports.
 import { formatBytes } from "@/lib/kb/utils";
 import type { ExportSummary } from "./export-run";
-import { PACKAGE_ZIP_NAME } from "./package";
 import { formatTime } from "./timeline";
 
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -12,7 +11,7 @@ function listOf(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-export function exportChecklist(summary: ExportSummary, bytes: number): string[] {
+export function exportChecklist(summary: ExportSummary, bytes: number, fileName: string): string[] {
   const collected = [
     count(summary.clips, "clip"),
     ...(summary.lipSynced ? [count(summary.lipSynced, "lip-synced video")] : []),
@@ -23,7 +22,7 @@ export function exportChecklist(summary: ExportSummary, bytes: number): string[]
     ...(summary.captions ? [count(summary.captions, "caption")] : []),
     ...(summary.fonts ? [summary.fonts === 1 ? "the font file" : "the font files"] : []),
   ];
-  return [`Collected ${listOf(collected)}`, `Wrote ${listOf(wrote)}`, `Packaged ${PACKAGE_ZIP_NAME} · ${formatBytes(bytes)}`];
+  return [`Collected ${listOf(collected)}`, `Wrote ${listOf(wrote)}`, `Packaged ${fileName} · ${formatBytes(bytes)}`];
 }
 
 export function exportSubtitle(title: string, summary: ExportSummary, pieces: number): string {

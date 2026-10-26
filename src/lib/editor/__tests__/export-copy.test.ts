@@ -7,7 +7,7 @@ const MB = 1024 * 1024;
 
 describe("export checklist (Export artboard)", () => {
   it("lists what was collected, written and packaged", () => {
-    expect(exportChecklist(base, 26.1 * MB)).toEqual([
+    expect(exportChecklist(base, 26.1 * MB, "creativeos-reel.zip")).toEqual([
       "Collected 3 clips, 1 lip-synced video and 1 dub",
       "Wrote the sequence, 2 captions and the font file",
       "Packaged creativeos-reel.zip · 26.1 MB",
@@ -15,13 +15,13 @@ describe("export checklist (Export artboard)", () => {
   });
 
   it("speaks of one clip, and leaves out what isn't there", () => {
-    const [collected, wrote] = exportChecklist({ ...base, clips: 1, lipSynced: 0, dubs: 0, captions: 0, fonts: 0 }, MB);
+    const [collected, wrote] = exportChecklist({ ...base, clips: 1, lipSynced: 0, dubs: 0, captions: 0, fonts: 0 }, MB, "creativeos-reel.zip");
     expect(collected).toBe("Collected 1 clip");
     expect(wrote).toBe("Wrote the sequence");
   });
 
   it("joins two extras with 'and', and counts font files", () => {
-    const [collected, wrote] = exportChecklist({ ...base, lipSynced: 2, dubs: 0, captions: 1, fonts: 2 }, MB);
+    const [collected, wrote] = exportChecklist({ ...base, lipSynced: 2, dubs: 0, captions: 1, fonts: 2 }, MB, "creativeos-reel.zip");
     expect(collected).toBe("Collected 3 clips and 2 lip-synced videos");
     expect(wrote).toBe("Wrote the sequence, 1 caption and the font files");
   });
