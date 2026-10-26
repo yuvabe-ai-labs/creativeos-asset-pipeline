@@ -14,7 +14,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 vi.mock("@/lib/editor/load-state", () => ({ loadEditorState: vi.fn() }));
-vi.mock("@/lib/editor/transcribe-plan", () => ({ planTranscription: vi.fn() }));
+vi.mock("@/lib/editor/transcribe-plan", () => ({ planTranscription: vi.fn(), playableSoundUrls: vi.fn(() => ["https://s/a.mp4", "https://s/b.mp4"]) }));
 vi.mock("@/lib/db/media-transcripts", () => ({ listTranscribedUrls: vi.fn(), listTranscripts: vi.fn() }));
 vi.mock("@/lib/db/generations", () => ({ insertGeneration: vi.fn(), failGeneration: vi.fn(async () => {}) }));
 vi.mock("@/lib/db/credit-transactions", () => ({
@@ -155,7 +155,7 @@ describe("GET /api/canvases/[cid]/editor/transcribe/[jobId]", () => {
 });
 
 describe("GET /api/canvases/[cid]/editor/transcripts", () => {
-  it("returns the stored transcripts for the reel's sound files", async () => {
+  it("returns the stored transcripts for every sound the reel could play (D410)", async () => {
     vi.mocked(listTranscripts).mockResolvedValue(new Map([["https://s/a.mp4", { url: "https://s/a.mp4", language: "eng", words: [], engine: "e", model: "m", durationSeconds: 8 }]]));
     const res = await getTranscripts(new Request("http://x"), { params: Promise.resolve({ cid: "cv1" }) });
     expect(listTranscripts).toHaveBeenCalledWith(["https://s/a.mp4", "https://s/b.mp4"]);
