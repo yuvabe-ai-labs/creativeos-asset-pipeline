@@ -7905,3 +7905,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** Every export was `creativeos-reel.zip` holding a "CreativeOS Rough Cut" sequence, so two reels' packages overwrote or shadowed each other in Downloads and in a Premiere project (user, 26 Oct 2026).
 
 **Rejected.** A time in the file name (a date is enough to tell days apart; the browser numbers same-day downloads). Naming from the browser's copy of the title (names come from saved data on the server). The canvas name alone (two clients can each have a "Reel 2").
+
+### D417 — The editor also exports a finished MP4, rendered from the same plan as Premiere *(recorded 2026-10-26; reverses D388's "CreativeOS renders no video")*
+
+**Decision.** Export offers **MP4 video** or **Premiere Pro package**. The MP4 is rendered by a background task (`editor-render`) with ffmpeg from the same sequence plan as the package: trims, picture, sound or dub, and captions burned in with the reel's style, word-by-word highlighting included (ASS through libass). Two options only: Quality (Full at the reel's frame, or Quick at 720 px on the short side) and Burn in captions (on by default, shown only when there are captions). No credits are charged.
+
+**Why.** Not every reel goes to a finishing editor; teams want a video to post or send straight away (user, 26 Oct 2026). ffmpeg and the caption fonts are already in the task image, and one plan for both exports keeps them identical. Competitors expose only size; frame rate, bitrate and codec are noise for this audience.
+
+**Rejected.** A third-party render API (cost, and a second implementation of captions). Rendering in the browser (slow, and blocks the tab). Resolution, frame rate and bitrate menus (rarely changed; defaults match the source). Captions as a separate file only (the post-ready video needs them on screen).
+
+**Originated →** docs/superpowers/specs/2026-10-26-editor-mp4-export-design.md.
