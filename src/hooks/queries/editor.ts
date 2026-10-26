@@ -75,7 +75,7 @@ export function useRenderStatus(canvasId: string, jobId: string | null) {
     queryKey: editorKeys.render(canvasId, jobId ?? ""),
     queryFn: () => editorService.renderStatus(canvasId, jobId!),
     enabled: Boolean(canvasId && jobId),
-    refetchInterval: (q) => (!q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? EXPORT_POLL_MS : false),
+    refetchInterval: (q) => (q.state.status === "error" ? false : !q.state.data || JOB_LIVE_STATUSES.has(q.state.data.status) ? EXPORT_POLL_MS : false),
   });
 }
 

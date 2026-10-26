@@ -34,9 +34,9 @@ export function EditorRenderDialog({ canvasId, nodeId, open, onClose, flush }: {
   const [quality, setQuality] = useState<RenderQuality>("full");
   const [captions, setCaptions] = useState(true);
   const hasCaptions = useEditorStore((s) => s.doc.captions.length > 0);
-  const { data } = useRenderStatus(canvasId, jobId);
+  const { data, isError } = useRenderStatus(canvasId, jobId);
   const result = data?.status === "succeeded" ? data.result : null;
-  const failed = data?.status === "failed";
+  const failed = data?.status === "failed" || isError;
   const choosing = jobId === null;
 
   const begin = async () => {
@@ -60,7 +60,9 @@ export function EditorRenderDialog({ canvasId, nodeId, open, onClose, flush }: {
     : result
       ? `${formatTime(result.durationSeconds)} · ${result.width}×${result.height} · ${formatBytes(result.bytes)}`
       : failed
-        ? data?.error
+        ? data?.status !== "failed"
+          ? "Couldn't check on the video. Try again."
+          : (data.error ?? "Something went wrong. Try again.")
         : (data?.phase ?? "Starting…");
 
   return (
@@ -113,7 +115,7 @@ export function EditorRenderDialog({ canvasId, nodeId, open, onClose, flush }: {
               Export
             </Button>
           )}
-          {failed && <Button onClick={() => void begin()}>Try again</Button>}
+          {failed && <Button onClick={() => void begin()} disabled={start.isPending}>Try again</Button>}
           {result && (
             <Button nativeButton={false} render={<a href={result.url} download={result.fileName} />} className="min-w-0 gap-2 font-semibold">
               <Download className="size-4 flex-none" strokeWidth={1.5} />
