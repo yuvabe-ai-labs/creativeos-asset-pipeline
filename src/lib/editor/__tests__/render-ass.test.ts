@@ -38,10 +38,19 @@ describe("buildAss", () => {
     const ass = buildAss(plan, FULL)!;
     expect(ass).toContain("PlayResX: 720\nPlayResY: 1280");
     const style = styleLine(ass).split(",");
-    expect(style[1]).toBe("Montserrat-ExtraBold");
+    expect(style[1]).toBe("Montserrat ExtraBold"); // libass matches the family name, not the PostScript name
+    expect(style[7]).toBe("0"); // Bold: ExtraBold is its own family here
     expect(Number(style[2])).toBeCloseTo(plan.titles[0].sizePx * 1.562, 1);
     expect(style[15]).toBe("1"); // BorderStyle: outline
     expect(Number(style[16])).toBeCloseTo(plan.titles[0].stroke!.widthPx / 2, 1);
+  });
+
+  it("names Poppins and Playfair by family with Bold on, so libass picks the bold file", () => {
+    for (const [font, family] of [["poppins", "Poppins"], ["playfair-display", "Playfair Display"]] as const) {
+      const style = styleLine(buildAss(planWith({ ...CAPTION_PRESETS.clean.look, font }), FULL)!).split(",");
+      expect(style[1]).toBe(family);
+      expect(style[7]).toBe("1");
+    }
   });
 
   it("draws a box behind boxed captions, with its opacity", () => {

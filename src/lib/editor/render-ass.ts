@@ -2,7 +2,7 @@
 // same per-word titles as the Premiere export (D398), so both show the same words at the same
 // frames. Sizes are px at the plan's frame, scaled to the output; libass sizes text by the font's
 // full line height, so each font's ratio turns the preview's em size into the ASS size.
-import { captionFont } from "./caption-fonts";
+import { captionFont, type CaptionFontKey } from "./caption-fonts";
 import type { TextRun } from "./premiere-title";
 import type { PlanTitle, SequencePlan } from "./sequence-plan";
 
@@ -11,6 +11,17 @@ const SIDE_MARGIN = 0.06;
 /** The preview's text shadow: 0.06em down, black at 60%. */
 const SHADOW_EM = 0.06;
 const SHADOW_ALPHA = 0x66;
+
+/** How libass names each caption font. It matches the family name, not the PostScript name the
+ *  Premiere export uses (measured with ffmpeg's libass: "Poppins-Bold" fell back to Arial). The
+ *  bundled Poppins and Playfair files are the Bold of their family, so they ask for Bold. */
+const ASS_FACE: Record<CaptionFontKey, { family: string; bold: 0 | 1 }> = {
+  montserrat: { family: "Montserrat ExtraBold", bold: 0 },
+  poppins: { family: "Poppins", bold: 1 },
+  "bebas-neue": { family: "Bebas Neue", bold: 0 },
+  anton: { family: "Anton", bold: 0 },
+  "playfair-display": { family: "Playfair Display", bold: 1 },
+};
 
 const byte = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).toUpperCase().padStart(2, "0");
 const num = (n: number) => String(Math.round(n * 100) / 100);
@@ -58,6 +69,7 @@ export function buildAss(plan: SequencePlan, out: { width: number; height: numbe
   const look = plan.titles[0];
   const scale = out.width / plan.width;
   const font = captionFont(look.fontKey);
+  const face = ASS_FACE[font.key];
   const shadow = !look.stroke && !look.box;
   const borderStyle = look.box ? 3 : 1;
   const outline = look.box ? look.box.sizePx * scale : look.stroke ? (look.stroke.widthPx * scale) / 2 : 0;
@@ -66,9 +78,9 @@ export function buildAss(plan: SequencePlan, out: { width: number; height: numbe
     : assColor(look.stroke?.color ?? "#000000");
   const margin = Math.round(out.width * SIDE_MARGIN);
   const style = [
-    "Caption", font.postScript, num(look.sizePx * scale * font.assLineHeight),
+    "Caption", face.family, num(look.sizePx * scale * font.assLineHeight),
     assColor(look.color), assColor(look.color), outlineColour, assColor("#000000", SHADOW_ALPHA),
-    0, 0, 0, 0, 100, 100, 0, 0, borderStyle, num(outline), num(shadow ? look.sizePx * scale * SHADOW_EM : 0),
+    face.bold, 0, 0, 0, 100, 100, 0, 0, borderStyle, num(outline), num(shadow ? look.sizePx * scale * SHADOW_EM : 0),
     5, margin, margin, 0, 1,
   ].join(",");
 

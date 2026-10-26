@@ -125,3 +125,38 @@ export async function extractVoiceReference(video: Buffer, maxSeconds: number): 
     return readFile(output);
   });
 }
+
+/** D417 — runs ffmpeg in `cwd` and reports how many seconds of output it has written, from
+ *  `-progress pipe:1` (the args must ask for it). Rejects with the tail of stderr on failure. */
+export function runFfmpegWithProgress(args: string[], cwd: string, onProgress: (seconds: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegBin(), args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    let stderr = "";
+    let pending = "";
+    proc.stdout.on("data", (d: Buffer) => {
+      pending += d.toString();
+      const lines = pending.split("\n");
+      pending = lines.pop() ?? "";
+      for (const line of lines) {
+        const m = /^out_time_us=(\d+)/.exec(line.trim());
+        if (m) onProgress(Number(m[1]) / 1e6);
+      }
+    });
+    proc.stderr.on("data", (d: Buffer) => {
+      stderr = (stderr + d.toString()).slice(-4000);
+    });
+    proc.on("error", (e) => reject(new Error(`ffmpeg could not start: ${e.message}`)));
+    proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited with ${code}: ${stderr.trim()}`))));
+  });
+}
+
+/** D417 — whether this ffmpeg can burn captions in (built with libass). */
+export function ffmpegCanBurnSubtitles(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegBin(), ["-hide_banner", "-filters"], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    proc.stdout.on("data", (d: Buffer) => (out += d.toString()));
+    proc.on("error", () => resolve(false));
+    proc.on("close", () => resolve(/\sass\s+V->V/.test(out)));
+  });
+}
