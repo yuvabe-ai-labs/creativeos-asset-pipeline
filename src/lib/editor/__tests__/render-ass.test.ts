@@ -14,7 +14,7 @@ const planWith = (look: Partial<CaptionStyle>): SequencePlan => {
   return r.plan;
 };
 const FULL = { width: 720, height: 1280 };
-const styleLine = (ass: string) => ass.split("\n").find((l) => l.startsWith("Style: Caption,"))!;
+const styleLine = (ass: string, name = "Caption") => ass.split("\n").find((l) => l.startsWith(`Style: ${name},`))!;
 const events = (ass: string) => ass.split("\n").filter((l) => l.startsWith("Dialogue:"));
 
 describe("assColor / assTime", () => {
@@ -53,21 +53,43 @@ describe("buildAss", () => {
     }
   });
 
-  it("draws a box behind boxed captions, with its opacity", () => {
+  it("draws the box as its own style, so adjacent words do not double its opacity", () => {
     const plan = planWith(CAPTION_PRESETS.boxed.look);
-    const style = styleLine(buildAss(plan, FULL)!).split(",");
-    expect(style[15]).toBe("3"); // BorderStyle: opaque box, drawn in the outline colour
-    expect(style[5]).toBe(assColor(plan.titles[0].box!.color, Math.round(255 * (1 - plan.titles[0].box!.opacity / 100))));
+    const ass = buildAss(plan, FULL)!;
+    const t = plan.titles[0];
+    const box = styleLine(ass, "Box").split(",");
+    expect(box[15]).toBe("3"); // BorderStyle: opaque box, drawn in the outline colour
+    expect(box[5]).toBe(assColor(t.box!.color, Math.round(255 * (1 - t.box!.opacity / 100))));
+    expect(Number(box[16])).toBeCloseTo(t.box!.sizePx, 1);
+    expect(box[3].startsWith("&HFF")).toBe(true); // its own text is invisible
+    expect(box[17]).toBe("0");
+    const text = styleLine(ass).split(",");
+    expect(text[15]).toBe("1");
+    expect(text[16]).toBe("0");
+    expect(text[17]).toBe("0");
+    expect(box[1]).toBe(text[1]);
+    expect(box[2]).toBe(text[2]);
   });
 
-  it("writes one event per word: the said word coloured, upcoming words dimmed, at the caption's place", () => {
+  it("writes a box event and a word event per title, the box below, at the caption's place", () => {
     const plan = planWith(CAPTION_PRESETS.boxed.look);
     const ev = events(buildAss(plan, FULL)!);
-    expect(ev).toHaveLength(2);
+    expect(plan.titles).toHaveLength(2);
+    expect(ev).toHaveLength(4);
     const t = plan.titles[0];
-    expect(ev[0]).toContain(`${assTime(t.start / plan.fps)},${assTime(t.end / plan.fps)},Caption`);
-    expect(ev[0]).toContain(`{\\pos(${Math.round(t.x * 720)},${Math.round(t.y * 1280)})}`);
-    expect(ev[0]).toMatch(/\{\\1c&H[0-9A-F]{6}&\}make\{\\r\} \{\\1c&H[0-9A-F]{6}&\}dosa\{\\r\}/);
+    const when = `${assTime(t.start / plan.fps)},${assTime(t.end / plan.fps)}`;
+    expect(ev[0]).toContain(`Dialogue: ${t.track * 2},${when},Box,`);
+    expect(ev[1]).toContain(`Dialogue: ${t.track * 2 + 1},${when},Caption,`);
+    for (const e of ev.slice(0, 2)) expect(e).toContain(`{\\pos(${Math.round(t.x * 720)},${Math.round(t.y * 1280)})}`);
+    expect(ev[0]).toMatch(/\}make dosa$/); // one segment, so one box
+    expect(ev[1]).toMatch(/\{\\1c&H[0-9A-F]{6}&\}make\{\\r\} \{\\1c&H[0-9A-F]{6}&\}dosa\{\\r\}/);
+  });
+
+  it("keeps a single style and event per title without a box", () => {
+    const ass = buildAss(planWith({ ...CAPTION_PRESETS.clean.look, box: false }), FULL)!;
+    expect(ass).not.toContain("Style: Box,");
+    expect(events(ass).every((e) => e.includes(",Caption,"))).toBe(true);
+    expect(events(ass)[0].startsWith("Dialogue: 1,")).toBe(true);
   });
 
   it("hides upcoming words for Karaoke without collapsing their space", () => {

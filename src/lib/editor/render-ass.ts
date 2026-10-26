@@ -71,28 +71,37 @@ export function buildAss(plan: SequencePlan, out: { width: number; height: numbe
   const font = captionFont(look.fontKey);
   const face = ASS_FACE[font.key];
   const shadow = !look.stroke && !look.box;
-  const borderStyle = look.box ? 3 : 1;
-  const outline = look.box ? look.box.sizePx * scale : look.stroke ? (look.stroke.widthPx * scale) / 2 : 0;
-  const outlineColour = look.box
-    ? assColor(look.box.color, 255 * (1 - look.box.opacity / 100))
-    : assColor(look.stroke?.color ?? "#000000");
+  const outline = look.box ? 0 : look.stroke ? (look.stroke.widthPx * scale) / 2 : 0;
+  const outlineColour = assColor(look.stroke?.color ?? "#000000");
   const margin = Math.round(out.width * SIDE_MARGIN);
-  const style = [
-    "Caption", face.family, num(look.sizePx * scale * font.assLineHeight),
-    assColor(look.color), assColor(look.color), outlineColour, assColor("#000000", SHADOW_ALPHA),
-    face.bold, 0, 0, 0, 100, 100, 0, 0, borderStyle, num(outline), num(shadow ? look.sizePx * scale * SHADOW_EM : 0),
-    5, margin, margin, 0, 1,
-  ].join(",");
+  const size = num(look.sizePx * scale * font.assLineHeight);
+  const mk = (name: string, primary: string, outlineColor: string, borderStyle: number, outlineWidth: number, shadowWidth: number) =>
+    [
+      name, face.family, size, primary, primary, outlineColor, assColor("#000000", SHADOW_ALPHA),
+      face.bold, 0, 0, 0, 100, 100, 0, 0, borderStyle, num(outlineWidth), num(shadowWidth),
+      5, margin, margin, 0, 1,
+    ].join(",");
+  // A box is its own style and event: libass draws a BorderStyle 3 box per override segment, and
+  // neighbouring segments' padded boxes would overlap and double its opacity. One event with no
+  // overrides gives one even box per line, under the words (layer track*2, words at track*2+1).
+  const styles = [`Style: ${mk("Caption", assColor(look.color), outlineColour, 1, outline, shadow ? look.sizePx * scale * SHADOW_EM : 0)}`];
+  if (look.box) {
+    const boxColour = assColor(look.box.color, 255 * (1 - look.box.opacity / 100));
+    styles.unshift(`Style: ${mk("Box", assColor(look.color, 255), boxColour, 3, look.box.sizePx * scale, 0)}`);
+  }
 
-  const lines = plan.titles.map((t) => {
+  const lines = plan.titles.flatMap((t) => {
     const pos = `{\\pos(${Math.round(t.x * out.width)},${Math.round(t.y * out.height)})}`;
+    const when = `${assTime(t.start / plan.fps)},${assTime(t.end / plan.fps)}`;
     const body = segments(t)
       .map((s) => {
         const tag = s.run ? override(s.run, t) : "";
         return tag ? `${tag}${escapeText(s.text)}{\\r}` : escapeText(s.text);
       })
       .join("");
-    return `Dialogue: ${t.track},${assTime(t.start / plan.fps)},${assTime(t.end / plan.fps)},Caption,,0,0,0,,${pos}${body}`;
+    const event = [`Dialogue: ${t.track * 2 + 1},${when},Caption,,0,0,0,,${pos}${body}`];
+    if (t.box) event.unshift(`Dialogue: ${t.track * 2},${when},Box,,0,0,0,,${pos}${escapeText(t.text)}`);
+    return event;
   });
 
   return [
@@ -106,7 +115,7 @@ export function buildAss(plan: SequencePlan, out: { width: number; height: numbe
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: ${style}`,
+    ...styles,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
