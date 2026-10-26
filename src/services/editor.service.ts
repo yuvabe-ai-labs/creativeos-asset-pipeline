@@ -1,6 +1,8 @@
 import type { ExportStatus } from "@/lib/editor/export-run";
 import type { DubLanguage, DubStyle } from "@/lib/dubbing/types";
 import type { EditorDubJob } from "@/lib/editor/dub-jobs";
+import type { RenderQuality } from "@/lib/editor/render-plan";
+import type { RenderStatus } from "@/lib/editor/render-run";
 import type { TranscribeStatus } from "@/lib/editor/transcribe-plan";
 import type { EditDoc, EditorState } from "@/lib/editor/types";
 import type { Transcript } from "@/lib/transcribe/types";
@@ -67,6 +69,21 @@ class EditorService {
   async exportStatus(canvasId: string, jobId: string): Promise<ExportStatus> {
     const res = await fetch(`/api/canvases/${canvasId}/editor/exports/${jobId}`);
     return readJson(res, "Couldn't read the export.");
+  }
+
+  /** Starts an MP4 render of the saved edit (D417). */
+  async startRender(canvasId: string, body: { nodeId: string; quality: RenderQuality; captions: boolean }): Promise<{ jobId: string }> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/renders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return readJson(res, "Couldn't start the video.");
+  }
+
+  async renderStatus(canvasId: string, jobId: string): Promise<RenderStatus> {
+    const res = await fetch(`/api/canvases/${canvasId}/editor/renders/${jobId}`);
+    return readJson(res, "Couldn't read the video.");
   }
 
   /** Starts Auto captions (D399). jobId null: every file was already transcribed. */

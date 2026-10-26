@@ -33,8 +33,8 @@ export type ExportStatus = { status: JobStatus; phase: string | null; error: str
 
 /** A failure whose message is shown to the user as is. */
 export class ExportFailure extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
     this.name = "ExportFailure";
   }
 }
@@ -56,12 +56,8 @@ export type ExportDeps = {
   now(): Date;
 };
 
-export async function runEditorExport(input: ExportJobInput, deps: ExportDeps): Promise<ExportResult> {
-  const { plan } = input;
-  const createdAt = deps.now();
-  const names = packageNames(plan.name, createdAt);
-
-  await deps.setPhase("Collecting the media…");
+/** Downloads exactly the media the plan uses, four at a time, refusing past the size cap. */
+export async function collectMedia(plan: SequencePlan, fetchBytes: (url: string) => Promise<Uint8Array>): Promise<Map<number, Uint8Array>> {
   const media = new Map<number, Uint8Array>();
   let total = 0;
   for (let i = 0; i < plan.media.length; i += DOWNLOAD_CONCURRENCY) {
@@ -69,7 +65,7 @@ export async function runEditorExport(input: ExportJobInput, deps: ExportDeps): 
       plan.media.slice(i, i + DOWNLOAD_CONCURRENCY).map(async (m) => {
         let bytes: Uint8Array;
         try {
-          bytes = await deps.fetchBytes(m.url);
+          bytes = await fetchBytes(m.url);
         } catch (err) {
           throw new ExportFailure(
             err instanceof DownloadError ? `Couldn't download ${m.fileName} (HTTP ${err.status}).` : `Couldn't download ${m.fileName}.`,
@@ -84,6 +80,16 @@ export async function runEditorExport(input: ExportJobInput, deps: ExportDeps): 
       }),
     );
   }
+  return media;
+}
+
+export async function runEditorExport(input: ExportJobInput, deps: ExportDeps): Promise<ExportResult> {
+  const { plan } = input;
+  const createdAt = deps.now();
+  const names = packageNames(plan.name, createdAt);
+
+  await deps.setPhase("Collecting the media…");
+  const media = await collectMedia(plan, deps.fetchBytes);
   const fontKeys = fontsUsed(plan);
   const fonts = fontKeys.length ? await deps.readFonts(fontKeys) : [];
 

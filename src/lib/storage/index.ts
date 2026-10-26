@@ -541,6 +541,14 @@ export async function uploadEditorExport(path: string, bytes: Uint8Array, fileNa
   return { path, url: publicUrlFor(path) };
 }
 
+/** D417 — the editor's MP4, saved under its own name and downloaded as it. */
+export async function uploadEditorRender(path: string, bytes: Uint8Array, fileName: string): Promise<UploadResult> {
+  await _put(path, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), "video/mp4", {
+    contentDisposition: `attachment; filename="${fileName}"`,
+  });
+  return { path, url: publicUrlFor(path) };
+}
+
 export async function uploadScriptPanel(args: {
   clientId: string;
   scriptId: string;

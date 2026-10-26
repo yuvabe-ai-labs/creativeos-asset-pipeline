@@ -18,15 +18,15 @@ export function reelName(clientName: string | null | undefined, canvasName: stri
   return parts.length ? parts.join(" · ") : FALLBACK_REEL_NAME;
 }
 
-export type PackageNames = { dir: string; zip: string; xml: string };
+export type PackageNames = { dir: string; zip: string; xml: string; video: string };
 
-/** Each export's own names (D416): the zip and its folder carry the reel and the day, so two
- *  reels, or two days' exports, never share a name; the XML carries the reel, and Premiere names
- *  the bin it imports into after it. Plain ASCII, safe in a path and a download header. */
+/** Each export's own names (D416): the zip, its folder and the MP4 carry the reel and the day, so
+ *  two reels, or two days' exports, never share a name; the XML carries the reel, and Premiere
+ *  names the bin it imports into after it. Plain ASCII, safe in a path and a download header. */
 export function packageNames(sequenceName: string, at: Date): PackageNames {
   const slug = slugify(sequenceName) || FALLBACK_SLUG;
   const stamp = `${slug}-${at.toISOString().slice(0, 10)}`;
-  return { dir: stamp, zip: `${stamp}.zip`, xml: `${slug}.xml` };
+  return { dir: stamp, zip: `${stamp}.zip`, xml: `${slug}.xml`, video: `${stamp}.mp4` };
 }
 
 export function fontsUsed(plan: SequencePlan): CaptionFontKey[] {
