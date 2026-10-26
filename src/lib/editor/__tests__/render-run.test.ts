@@ -92,4 +92,21 @@ describe("runEditorRender", () => {
     expect(t.d.upload).not.toHaveBeenCalled();
     expect(existsSync(t.seen.cwd!)).toBe(false);
   });
+
+  it("never lets a slow progress write land after saving starts", async () => {
+    const t = deps();
+    const landed: string[] = [];
+    t.d.ffmpeg = vi.fn(async (args: string[], cwd: string, onProgress: (s: number) => void) => {
+      onProgress(1); // 1 of 2 seconds: 50%
+      await writeFile(path.join(cwd, args[args.length - 1]), new Uint8Array([9, 9]));
+    });
+    t.d.setPhase = vi.fn(async (m: string) => {
+      if (m.includes("%")) await new Promise((r) => setTimeout(r, 40));
+      landed.push(m);
+    });
+    await runEditorRender(input(), t.d);
+    expect(landed[landed.length - 1]).toBe("Saving the video…");
+    expect(landed).toContain("Rendering… 50%");
+    expect(landed.indexOf("Rendering… 50%")).toBeLessThan(landed.indexOf("Saving the video…"));
+  });
 });

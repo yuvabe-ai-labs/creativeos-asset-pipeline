@@ -59,19 +59,23 @@ export async function runEditorRender(input: RenderJobInput, deps: RenderDeps): 
 
     await deps.setPhase("Rendering…");
     let reported = 0;
+    // Progress writes are chained, so they land in order and none can overwrite a later phase.
+    let progress: Promise<void> = Promise.resolve();
     const output = "out.mp4";
     try {
       await deps.ffmpeg(renderArgs(plan, { quality: options.quality, inputs, output, ass: ass ? "captions.ass" : null, fontsDir: ass ? "fonts" : null }), dir, (seconds) => {
         const pct = total > 0 ? Math.min(99, Math.floor((seconds / total) * 100)) : 0;
         if (pct >= reported + PROGRESS_STEP) {
           reported = pct - (pct % PROGRESS_STEP);
-          void deps.setPhase(`Rendering… ${reported}%`).catch(() => {});
+          const message = `Rendering… ${reported}%`;
+          progress = progress.then(() => deps.setPhase(message)).catch(() => {});
         }
       });
     } catch (err) {
       throw new ExportFailure(RENDER_FAILED, { cause: err });
     }
 
+    await progress;
     await deps.setPhase("Saving the video…");
     const bytes = new Uint8Array(await readFile(path.join(dir, output)));
     const url = await deps.upload(bytes, names.video);
