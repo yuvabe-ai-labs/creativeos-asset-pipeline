@@ -7915,3 +7915,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A third-party render API (cost, and a second implementation of captions). Rendering in the browser (slow, and blocks the tab). Resolution, frame rate and bitrate menus (rarely changed; defaults match the source). Captions as a separate file only (the post-ready video needs them on screen).
 
 **Originated →** docs/superpowers/specs/2026-10-26-editor-mp4-export-design.md.
+
+### D423 — Image Analysis never holds back Mark KB Ready *(recorded 2026-10-27; refines D312, D318)*
+
+**Decision.** Mark KB Ready needs every field in the document-built sections reviewed (brand profile, visual identity, audience, creative direction, compliance). Image Analysis is left out of that check (`computeReadyStatus`), in the review screen and on the server alike. Its fields are approved, edited or rejected whenever the background run lands, before or after the KB is ready; the tab says so while the run is going.
+
+**Why.** Image Analysis is written by a background run over every brand image (D312), which can finish long after the KB build. Gating on it kept the team waiting on onboarding for work they can review later (user, 27 Oct 2026). Reviews already survive later runs (D318), so reviewing afterwards loses nothing.
+
+**Rejected.** Waiting for the run before Mark KB Ready (blocks onboarding). Auto-approving Image Analysis on Mark KB Ready (marks unseen fields as reviewed).
