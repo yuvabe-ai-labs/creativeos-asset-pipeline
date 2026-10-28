@@ -162,6 +162,7 @@ export function cardToNotes(card: ConfirmationCard): ScriptNotes {
   const lines = [
     `${card.title}${reel ? ` · ${reel}` : ""}`,
     ...card.lines.map((l) => `${l.label}: ${l.value}${l.source === "proposed" ? " (proposed)" : ""}`),
+    ...(card.beats.length ? [`Beats: ${card.beats.join(" › ")}`] : []),
     "Cast:",
     ...card.cast.map((c) => `- ${c.name}${c.isLead ? " (lead)" : ""}: ${c.role}`),
   ];

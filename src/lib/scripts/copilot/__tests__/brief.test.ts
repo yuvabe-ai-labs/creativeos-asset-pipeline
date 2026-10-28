@@ -190,6 +190,12 @@ describe("the copilot's own words", () => {
     expect(notes.brief).toContain("Post date: Sun 1 Nov (proposed)");
     expect(notes.brief).toContain("Saraswathi (lead)");
     expect(notes.confirmations).toEqual([{ id: "c1", text: "Sun 1 Nov is Kerala Piravi", confirmed: false }]);
+    expect(notes.brief).not.toContain("Beats:");
+  });
+
+  it("keeps the card's beats in the reel's notes", () => {
+    const notes = cardToNotes({ title: "t", reelNumber: 4, lines: [], cast: [], beats: ["HOOK", "INTRO", "PROOF"], toConfirm: [] });
+    expect(notes.brief).toContain("Beats: HOOK › INTRO › PROOF");
   });
 
   it("says what is still open, or that it is ready", () => {

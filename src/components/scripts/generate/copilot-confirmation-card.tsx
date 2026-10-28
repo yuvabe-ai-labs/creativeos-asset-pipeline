@@ -39,6 +39,13 @@ export function CopilotConfirmationCard({ card, avatars, disabled, onWrite }: {
             </div>
           );
         })}
+        {card.beats.length > 0 && (
+          // The beats the draft will follow: the format's, less any that don't fit this brand.
+          <div className="grid grid-cols-[8rem_1fr] items-start gap-2">
+            <dt className="text-muted-foreground">Beats</dt>
+            <dd>{card.beats.join(" › ")}</dd>
+          </div>
+        )}
       </dl>
       <div className="flex flex-col gap-1 border-t border-border pt-2">
         <span className="text-eyebrow">Cast</span>
