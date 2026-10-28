@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import reel01 from "@/lib/scripts/fixtures/reel-01.json";
+import { scriptDocSchema } from "@/lib/scripts/schema";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
@@ -48,6 +50,19 @@ describe("POST .../turn", () => {
     expect(out.at(-1)).toMatchObject({ type: "state", state: { script: { id: SCRIPT_ID } } });
     // The writer for the draft and edits, a quicker model for reading, angles and the card.
     expect(vi.mocked(structuredCaller).mock.calls.map((c) => c[0]).sort()).toEqual(["gemini-3.1-pro-preview", "gpt-5.4-mini"]);
+  });
+
+  // Final review, Important 5 (performance rule 8): market signals feed the brief's suggestions and
+  // angles only; an edit turn after the draft never reads them, so it never downloads them.
+  it("loads market signals before the draft, and not for an edit", async () => {
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
+    const { POST } = await import("./route");
+    await lines(await POST(send({ text: "UGC" }) as never, { params }));
+    expect(vi.mocked(loadCopilotContext).mock.calls[0][1]).toEqual({ signals: true });
+    const written = generateScript({ doc: scriptDocSchema.parse(reel01) });
+    vi.mocked(getGenerateScript).mockResolvedValue(written);
+    await lines(await POST(send({ text: "Shorter hook" }) as never, { params }));
+    expect(vi.mocked(loadCopilotContext).mock.calls[1][1]).toEqual({ signals: false });
   });
 
   it("takes a pasted script longer than an ordinary message, up to 30,000 characters", async () => {

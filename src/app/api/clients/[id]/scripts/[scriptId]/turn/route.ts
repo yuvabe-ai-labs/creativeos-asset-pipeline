@@ -47,7 +47,8 @@ export async function POST(req: Request, { params }: Ctx) {
           try {
             let replies: Reply[];
             try {
-              const ctx = await loadCopilotContext(client, { signals: true });
+              // Signals feed the brief (suggestions, angles) only: an edit after the draft never reads them.
+              const ctx = await loadCopilotContext(client, { signals: script.doc === null });
               const apply = await prepareTurn(
                 { script, ctx, text, lastAssistant, leadAvatarId },
                 {
