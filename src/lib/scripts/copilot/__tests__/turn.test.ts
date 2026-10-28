@@ -25,7 +25,7 @@ const script = (over: Partial<GenerateScript> = {}): GenerateScript => ({
 });
 const none = { action: "none" as const, value: "" };
 const extraction = (over: Partial<Extraction> = {}): Extraction => ({
-  format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null },
+  format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null }, suggestions: [],
   skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
 });
 const angle = (id: string, signalIds: string[] = []) => ({

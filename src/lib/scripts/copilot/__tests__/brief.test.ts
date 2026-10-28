@@ -9,7 +9,7 @@ import type { Extraction } from "../output";
 const AVATAR = "7a2d3c4e-0000-4000-8000-000000000002";
 const none = { action: "none" as const, value: "" };
 const ex = (over: Partial<Extraction> = {}): Extraction => ({
-  format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null },
+  format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null }, suggestions: [],
   skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
 });
 const angle = (id: string, over: Partial<Angle> = {}): Angle => ({

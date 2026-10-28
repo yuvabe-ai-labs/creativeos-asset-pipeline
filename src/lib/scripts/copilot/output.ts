@@ -30,6 +30,8 @@ export const draftOutputSchema = z.object({
   })),
   shots: z.array(shotFieldsSchema),
   summary: z.string(),
+  /** Edits the person might ask for next, for this brand (brand-neutral spec §3.1). */
+  suggestions: z.array(z.string()),
 });
 export type DraftOutput = z.infer<typeof draftOutputSchema>;
 
@@ -61,6 +63,7 @@ export const extractionSchema = z.object({
   confirm: z.boolean(),
   cardChange: z.string(),
   ack: z.string(),
+  suggestions: z.array(z.string()),
 });
 export type Extraction = z.infer<typeof extractionSchema>;
 
@@ -83,7 +86,7 @@ export const angleOutputSchema = z.object({
   signalIds: z.array(z.string()),
   fromSignals: z.string(),
 });
-export const anglesOutputSchema = z.object({ angles: z.array(angleOutputSchema) });
+export const anglesOutputSchema = z.object({ angles: z.array(angleOutputSchema), suggestions: z.array(z.string()) });
 
 export const cardOutputSchema = z.object({
   title: z.string(),
@@ -93,6 +96,7 @@ export const cardOutputSchema = z.object({
   beats: z.array(z.string()),
   cast: z.array(z.object({ name: z.string(), role: z.string(), isLead: z.boolean(), avatarId: z.string().nullable() })),
   toConfirm: z.array(z.string()),
+  suggestions: z.array(z.string()),
 });
 
 export const EDIT_OPS = [
@@ -118,7 +122,7 @@ export const editOpSchema = z.object({
 });
 export type EditOp = z.infer<typeof editOpSchema>;
 
-export const editTurnSchema = z.object({ ops: z.array(editOpSchema), reply: z.string() });
+export const editTurnSchema = z.object({ ops: z.array(editOpSchema), reply: z.string(), suggestions: z.array(z.string()) });
 export const inlineOutputSchema = z.object({ replacement: z.string(), summary: z.string() });
 
 /** Paste-a-script spec §5.2 — is the message a whole script (import) or anything else (the turn

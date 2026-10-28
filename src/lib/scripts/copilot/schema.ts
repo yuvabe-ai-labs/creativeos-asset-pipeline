@@ -35,7 +35,8 @@ export function upgradeAngle(raw: unknown): unknown {
 export const angleSchema = z.preprocess(upgradeAngle, angleOutputSchema);
 export type Angle = z.infer<typeof angleSchema>;
 
-export const confirmationCardSchema = cardOutputSchema.extend({ beats: z.array(z.string()).default([]) });
+// The card call's suggestions belong to its message, not to the card.
+export const confirmationCardSchema = cardOutputSchema.omit({ suggestions: true }).extend({ beats: z.array(z.string()).default([]) });
 export type ConfirmationCard = z.infer<typeof confirmationCardSchema>;
 
 export const briefSchema = z.object({
