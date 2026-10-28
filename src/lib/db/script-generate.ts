@@ -70,7 +70,7 @@ export function changeGenerateScript<T>(clientId: string, scriptId: string, chan
 export async function listScriptMessages(clientId: string, scriptId: string): Promise<ScriptMessage[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
-    .from("client_script_messages").select("id, role, content, card, suggestions, created_at")
+    .from("client_script_messages").select("id, role, content, card, created_at")
     .eq("script_id", scriptId).eq("client_id", clientId)
     .order("seq", { ascending: true });
   if (error) throw error;
@@ -79,7 +79,7 @@ export async function listScriptMessages(clientId: string, scriptId: string): Pr
 
 export async function insertScriptMessages(
   clientId: string, scriptId: string, userId: string | null,
-  messages: { role: "user" | "assistant"; content: string; card: MessageCard | null; suggestions?: string[] }[],
+  messages: { role: "user" | "assistant"; content: string; card: MessageCard | null }[],
 ): Promise<void> {
   if (messages.length === 0) return;
   const supabase = createServerSupabase();
@@ -87,7 +87,6 @@ export async function insertScriptMessages(
   const { error } = await supabase.from("client_script_messages").insert(
     messages.map((m) => ({
       script_id: scriptId, client_id: clientId, role: m.role, content: m.content, card: m.card,
-      suggestions: m.suggestions?.length ? m.suggestions : null,
       created_by: m.role === "user" ? userId : null,
     })),
   );

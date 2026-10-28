@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { scriptDocSchema, type ScriptDoc } from "../schema";
 import { isScriptStage } from "../constants";
 import type { ScriptRow } from "../rows";
@@ -8,9 +7,7 @@ import {
 } from "./schema";
 
 export type GenerateScriptRow = ScriptRow & { brief: unknown; notes: unknown; doc_version: number };
-export type ScriptMessageRow = { id: string; role: string; content: string; card: unknown; suggestions?: unknown; created_at: string };
-
-const chipsSchema = z.array(z.string());
+export type ScriptMessageRow = { id: string; role: string; content: string; card: unknown; created_at: string };
 
 export function rowToGenerateScript(row: GenerateScriptRow): GenerateScript | null {
   if (!isScriptStage(row.stage)) return null;
@@ -47,7 +44,8 @@ export function rowToMessage(row: ScriptMessageRow): ScriptMessage {
     role: row.role === "user" ? "user" : "assistant",
     content: row.content,
     card: row.card && card.success ? card.data : null,
-    suggestions: chipsSchema.safeParse(row.suggestions).data ?? [],
+    // Chips are not stored: the turn's answer carries them (chips.ts).
+    suggestions: [],
     createdAt: row.created_at,
   };
 }

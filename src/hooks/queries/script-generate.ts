@@ -6,6 +6,7 @@ import type { GenerateState } from "@/lib/scripts/copilot/schema";
 import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 import { withField } from "@/lib/scripts/copilot/fields";
 import { scriptKeys } from "./scripts";
+import { keepChips } from "@/lib/scripts/copilot/chips";
 
 // Script copilot spec 2 — the Generate workspace through TanStack Query. Every write returns the
 // whole state, so each mutation replaces the cached state with the server's answer.
@@ -14,16 +15,26 @@ export function useGenerateState(clientId: string, scriptId: string, initialData
   return useQuery({
     queryKey: scriptKeys.generate(clientId, scriptId),
     queryFn: () => scriptGenerateService.state(clientId, scriptId),
+    // A refetch (window focus) brings the state without chips; keep the ones the browser holds.
+    structuralSharing: (held, fresh) => keepChips(held as GenerateState | undefined, fresh as GenerateState),
     initialData,
     enabled: Boolean(clientId && scriptId),
   });
 }
 
-function useStateWrite<V>(clientId: string, scriptId: string, write: (v: V) => Promise<GenerateState>) {
+/** Replaces the cached workspace with the server's answer, keeping the copilot's chips the browser
+ *  holds: they are not stored, so a fresh state never has them (chips.ts). */
+function useSetGenerateState(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
+  return (state: GenerateState) =>
+    queryClient.setQueryData<GenerateState>(scriptKeys.generate(clientId, scriptId), (held: GenerateState | undefined) => keepChips(held, state));
+}
+
+function useStateWrite<V>(clientId: string, scriptId: string, write: (v: V) => Promise<GenerateState>) {
+  const setState = useSetGenerateState(clientId, scriptId);
   return useMutation({
     mutationFn: write,
-    onSuccess: (state) => queryClient.setQueryData(scriptKeys.generate(clientId, scriptId), state),
+    onSuccess: (state) => setState(state),
   });
 }
 
@@ -31,6 +42,7 @@ function useStateWrite<V>(clientId: string, scriptId: string, write: (v: V) => P
  *  each preview goes to `onDraft`. */
 export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft: PartialDraft) => void) {
   const queryClient = useQueryClient();
+  const setState = useSetGenerateState(clientId, scriptId);
   const key = scriptKeys.generate(clientId, scriptId);
   return useMutation({
     mutationFn: (message: TurnMessage) => scriptGenerateService.turn(clientId, scriptId, message, onDraft),
@@ -48,7 +60,7 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
     onError: (_error, _text, context) => {
       if (context?.previous) queryClient.setQueryData(key, context.previous);
     },
-    onSuccess: (state) => queryClient.setQueryData(key, state),
+    onSuccess: (state) => setState(state),
   });
 }
 
@@ -56,6 +68,7 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
  *  only when no later write is still in flight, so a slow reply never puts back an older value. */
 export function useSetScriptField(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
+  const setState = useSetGenerateState(clientId, scriptId);
   const key = scriptKeys.generate(clientId, scriptId);
   const mutationKey = [...key, "set-field"];
   return useMutation({
@@ -73,17 +86,17 @@ export function useSetScriptField(clientId: string, scriptId: string) {
       if (context?.previous) queryClient.setQueryData(key, context.previous);
     },
     onSuccess: (state) => {
-      if (queryClient.isMutating({ mutationKey }) <= 1) queryClient.setQueryData(key, state);
+      if (queryClient.isMutating({ mutationKey }) <= 1) setState(state);
     },
   });
 }
 
 export function useInlineEdit(clientId: string, scriptId: string) {
-  const queryClient = useQueryClient();
+  const setState = useSetGenerateState(clientId, scriptId);
   return useMutation({
     mutationFn: (body: { path: string; selectedText: string; offset: number; instruction: string }) =>
       scriptGenerateService.inlineEdit(clientId, scriptId, body),
-    onSuccess: ({ state }) => queryClient.setQueryData(scriptKeys.generate(clientId, scriptId), state),
+    onSuccess: ({ state }) => setState(state),
   });
 }
 
