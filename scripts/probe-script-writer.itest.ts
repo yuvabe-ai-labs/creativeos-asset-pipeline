@@ -47,7 +47,7 @@ const REEL_04_CARD = {
     { name: "Saraswathi", role: "The lead; reacts to the review", isLead: true, avatarId: null },
     { name: "Rajan", role: "Her husband; reads the pack; raises his tumbler at the payoff", isLead: false, avatarId: null },
   ],
-  toConfirm: ["Sun 1 Nov is Kerala Piravi", "'Made in Kerala' matches actual production"],
+  beats: [], toConfirm: ["Sun 1 Nov is Kerala Piravi", "'Made in Kerala' matches actual production"],
 };
 
 const FOUNDER_CARD = {
@@ -63,7 +63,7 @@ const FOUNDER_CARD = {
     { label: "Disclaimers", value: "D1, D2, D3, D4 (the study is named)", source: "proposed" as const },
   ],
   cast: [{ name: "James", role: "The founder, to camera", isLead: true, avatarId: null }],
-  toConfirm: ["14 Nov is also Children's Day: keep the reel away from children"],
+  beats: [], toConfirm: ["14 Nov is also Children's Day: keep the reel away from children"],
 };
 
 const RUNS = [

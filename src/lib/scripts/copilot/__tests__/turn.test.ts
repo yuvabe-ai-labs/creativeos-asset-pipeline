@@ -26,14 +26,14 @@ const extraction = (over: Partial<Extraction> = {}): Extraction => ({
   skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
 });
 const angle = (id: string, signalIds: string[] = []) => ({
-  id, hook: `Hook ${id}`, situation: "s", mealMoment: "m", supportingCast: "c", reviewTheme: "r", proofEmphasis: "p",
+  id, hook: `Hook ${id}`, situation: "s", productMoment: "m", supportingCast: "c", reviewTheme: "r", proof: "p",
   format: "UGC", occasion: "Kerala Piravi", postDate: "Sun 1 Nov", lead: "Saraswathi", leadAvatarId: null, signalIds, fromSignals: "lunch at home",
 });
 const CARD = {
   title: "Kerala Piravi at our table", reelNumber: 4,
   lines: [{ label: "Format", value: "UGC", source: "given" as const }],
   cast: [{ name: "Saraswathi", role: "lead", isLead: true, avatarId: null }],
-  toConfirm: ["Sun 1 Nov is Kerala Piravi"],
+  beats: [], toConfirm: ["Sun 1 Nov is Kerala Piravi"],
 };
 const DRAFT = {
   header: { title: "Kerala Piravi at our table", format: "UGC", region: "South", postDate: "Sun 1 Nov (Kerala Piravi)", theme: "Kerala Piravi", aspect: "9:16", targetLength: "45 to 55 sec", production: "AI-generated" },

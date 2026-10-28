@@ -123,6 +123,7 @@ export function normalizeCard(
     title: raw.title.trim().slice(0, 120) || "Untitled reel",
     reelNumber: opts.reelNumber,
     lines: raw.lines.filter((l) => l.label.trim() && l.value.trim()),
+    beats: raw.beats.map((b) => b.trim()).filter(Boolean),
     cast: raw.cast.map((c, i) => {
       const member = { ...c, isLead: i === lead, avatarId: c.avatarId && opts.avatarIds.has(c.avatarId) ? c.avatarId : null };
       return i === lead && opts.lead ? { ...member, name: opts.lead.name, avatarId: opts.lead.avatarId } : member;

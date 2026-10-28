@@ -41,7 +41,7 @@ describe("the copilot's prompts", () => {
   });
 
   it("gives the draft call the confirmed card", () => {
-    const card = { title: "Kerala Piravi at our table", reelNumber: 4, lines: [], cast: [], toConfirm: [] };
+    const card = { title: "Kerala Piravi at our table", reelNumber: 4, lines: [], cast: [], beats: [], toConfirm: [] };
     expect(draftPrompt(base, { brief: EMPTY_BRIEF, card }).user).toContain("Kerala Piravi at our table");
   });
 });

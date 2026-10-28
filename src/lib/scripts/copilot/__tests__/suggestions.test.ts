@@ -23,7 +23,7 @@ const state = (over: { brief?: Brief; doc?: unknown; notes?: GenerateState["scri
   };
 };
 const labels = (s: GenerateState) => suggestionsFor(s).map((x) => x.label);
-const angle = { id: "A", hook: "h", situation: "s", mealMoment: "", supportingCast: "", reviewTheme: "", proofEmphasis: "", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "" } as Angle;
+const angle = { id: "A", hook: "h", situation: "s", productMoment: "", supportingCast: "", reviewTheme: "", proof: "", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "" } as Angle;
 
 describe("suggestionsFor", () => {
   it("offers the library's formats and 'take it from here' when the copilot asks the format", () => {
@@ -46,7 +46,7 @@ describe("suggestionsFor", () => {
   it("offers a blend or new angles while angles are showing, and Write it on the card", () => {
     const withAngles = { ...EMPTY_BRIEF, format: given("UGC"), occasion: given("x"), lead: given("y"), angles: [angle] };
     expect(labels(state({ brief: withAngles }))).toEqual(["Blend A and B", "Give me three different angles"]);
-    const card = { title: "t", reelNumber: 4, lines: [], cast: [], toConfirm: [] };
+    const card = { title: "t", reelNumber: 4, lines: [], cast: [], beats: [], toConfirm: [] };
     expect(labels(state({ brief: { ...withAngles, narrative: given("A"), card, phase: "confirm" } }))).toEqual(["Write it", "Make it lunch instead"]);
   });
 

@@ -8,7 +8,7 @@ const card = {
     { label: "Format", value: "Founder-led", source: "given" as const },
     { label: "Home and kit", value: "Chennai home; Golu steps visible; everyday kitchen setting; South kitchen kit.", source: "proposed" as const },
   ],
-  cast: [], toConfirm: [],
+  cast: [], beats: [], toConfirm: [],
 };
 
 describe("the confirmation card's lines", () => {

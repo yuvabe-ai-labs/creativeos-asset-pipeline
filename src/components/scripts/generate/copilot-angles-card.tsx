@@ -16,7 +16,7 @@ export function CopilotAnglesCard({ angles, disabled, onPick }: { angles: Angle[
             </div>
           </div>
           <dl className="grid grid-cols-[7rem_1fr] gap-x-2 gap-y-0.5 text-xs">
-            {[["Meal and use", a.mealMoment], ["Who else", a.supportingCast], ["Review theme", a.reviewTheme], ["Proof", a.proofEmphasis]]
+            {[["Meal and use", a.productMoment], ["Who else", a.supportingCast], ["Review theme", a.reviewTheme], ["Proof", a.proof]]
               .filter(([, v]) => v.trim())
               .map(([k, v]) => (
                 <div key={k} className="contents">

@@ -68,10 +68,13 @@ export const angleOutputSchema = z.object({
   id: z.string(),
   hook: z.string(),
   situation: z.string(),
-  mealMoment: z.string(),
+  /** Where the client's product or service shows up in the situation. */
+  productMoment: z.string(),
   supportingCast: z.string(),
+  /** The proof the angle leans on, from the client's KB. */
+  proof: z.string(),
+  /** "" unless the format's review beat fits the brand. */
   reviewTheme: z.string(),
-  proofEmphasis: z.string(),
   format: z.string(),
   occasion: z.string(),
   postDate: z.string(),
@@ -86,6 +89,8 @@ export const cardOutputSchema = z.object({
   title: z.string(),
   reelNumber: z.number().int().nullable(),
   lines: z.array(z.object({ label: z.string(), value: z.string(), source: z.enum(["given", "proposed"]) })),
+  /** The chosen format's beats, after leaving out or adapting any that don't fit the brand. */
+  beats: z.array(z.string()),
   cast: z.array(z.object({ name: z.string(), role: z.string(), isLead: z.boolean(), avatarId: z.string().nullable() })),
   toConfirm: z.array(z.string()),
 });

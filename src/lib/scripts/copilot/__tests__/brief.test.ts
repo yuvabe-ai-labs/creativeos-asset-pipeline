@@ -13,8 +13,8 @@ const ex = (over: Partial<Extraction> = {}): Extraction => ({
   skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
 });
 const angle = (id: string, over: Partial<Angle> = {}): Angle => ({
-  id, hook: `Hook ${id}`, situation: `Situation ${id}`, mealMoment: "Lunch, curd", supportingCast: "Husband", reviewTheme: "Everyday ease",
-  proofEmphasis: "Origin line", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "", ...over,
+  id, hook: `Hook ${id}`, situation: `Situation ${id}`, productMoment: "Lunch, curd", supportingCast: "Husband", reviewTheme: "Everyday ease",
+  proof: "Origin line", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "", ...over,
 });
 const given = (value: string) => ({ value, status: "given" as const });
 const merge = (b: Brief, e: Extraction) => mergeExtraction(b, e, new Set([AVATAR])).brief;
@@ -31,7 +31,7 @@ describe("nextStep: a fixed order, skipping anything already given", () => {
     expect(nextStep(b, false)).toEqual({ kind: "angles" });
     b = { ...b, narrative: given("A. Hook A: Situation A") };
     expect(nextStep(b, false)).toEqual({ kind: "card" });
-    b = { ...b, card: { title: "t", reelNumber: 4, lines: [], cast: [], toConfirm: [] } };
+    b = { ...b, card: { title: "t", reelNumber: 4, lines: [], cast: [], beats: [], toConfirm: [] } };
     expect(nextStep(b, false)).toEqual({ kind: "confirm" });
     expect(nextStep(b, true)).toEqual({ kind: "edit" });
   });
@@ -90,7 +90,7 @@ describe("mergeExtraction", () => {
   });
 
   it("reports a change and a card change, so the card is rebuilt", () => {
-    const b = { ...EMPTY_BRIEF, format: given("UGC"), card: { title: "t", reelNumber: 4, lines: [], cast: [], toConfirm: [] } };
+    const b = { ...EMPTY_BRIEF, format: given("UGC"), card: { title: "t", reelNumber: 4, lines: [], cast: [], beats: [], toConfirm: [] } };
     expect(mergeExtraction(b, ex({ cardChange: "make it dinner" }), new Set()).cardChange).toBe("make it dinner");
     expect(mergeExtraction(b, ex({ format: { action: "given", value: "UGC, review first" } }), new Set()).changed).toBe(true);
     expect(mergeExtraction(b, ex({ confirm: true }), new Set()).changed).toBe(false);
@@ -130,7 +130,7 @@ describe("normalising what the model proposed", () => {
 
   it("gives the card exactly one lead, the app's reel number, and real avatar ids only", () => {
     const card = normalizeCard(
-      { title: " ", reelNumber: 99, lines: [], toConfirm: [" a ", ""], cast: [
+      { title: " ", reelNumber: 99, lines: [], beats: [], toConfirm: [" a ", ""], cast: [
         { name: "Saraswathi", role: "lead", isLead: false, avatarId: AVATAR },
         { name: "Rajan", role: "husband", isLead: false, avatarId: "ghost" },
       ] },
@@ -145,7 +145,7 @@ describe("normalising what the model proposed", () => {
 
   it("reads a placeholder such as \"None\" as nothing to confirm", () => {
     const card = normalizeCard(
-      { title: "t", reelNumber: 1, lines: [], cast: [], toConfirm: ["None", " n/a ", "Nothing.", "-", "None needed", "Sun 1 Nov is Kerala Piravi"] },
+      { title: "t", reelNumber: 1, lines: [], cast: [], beats: [], toConfirm: ["None", " n/a ", "Nothing.", "-", "None needed", "Sun 1 Nov is Kerala Piravi"] },
       { reelNumber: 4, avatarIds: new Set() },
     );
     expect(card.toConfirm).toEqual(["Sun 1 Nov is Kerala Piravi"]);
@@ -153,7 +153,7 @@ describe("normalising what the model proposed", () => {
 
   it("puts the avatar the person picked on the card's lead, whatever the model wrote", () => {
     const card = normalizeCard(
-      { title: "t", reelNumber: 1, lines: [], toConfirm: [], cast: [{ name: "Meenakshi", role: "lead", isLead: true, avatarId: null }] },
+      { title: "t", reelNumber: 1, lines: [], beats: [], toConfirm: [], cast: [{ name: "Meenakshi", role: "lead", isLead: true, avatarId: null }] },
       { reelNumber: 10, avatarIds: new Set([AVATAR]), lead: { avatarId: AVATAR, name: "James" } },
     );
     expect(card.cast[0]).toMatchObject({ name: "James", avatarId: AVATAR, isLead: true });
@@ -186,7 +186,7 @@ describe("the copilot's own words", () => {
       title: "Kerala Piravi at our table", reelNumber: 4,
       lines: [{ label: "Format", value: "UGC", source: "given" }, { label: "Post date", value: "Sun 1 Nov", source: "proposed" }],
       cast: [{ name: "Saraswathi", role: "reacts to the review", isLead: true, avatarId: null }],
-      toConfirm: ["Sun 1 Nov is Kerala Piravi"],
+      beats: [], toConfirm: ["Sun 1 Nov is Kerala Piravi"],
     });
     expect(notes.brief).toContain("Reel 04");
     expect(notes.brief).toContain("Post date: Sun 1 Nov (proposed)");
