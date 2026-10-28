@@ -135,7 +135,7 @@ export const TraceableVideoDirectionSchema = z.object({
     "Slow and meditative, punchy, rhythmic, breath-like",
   ),
   text_system: kbField(z.string()).describe(
-    "INTRO: hook / BODY: one idea / OUTRO: product + CTA",
+    "How on-screen text is structured across a reel: what appears at the open, through the middle, and at the close",
   ),
   music_direction: kbField(z.string()).describe(
     "Genre, tempo, energy, instruments — and what to avoid",
@@ -143,28 +143,32 @@ export const TraceableVideoDirectionSchema = z.object({
 });
 
 // ── Compliance ────────────────────────────────────────────────────────────────
+// No example values here: each description reaches the model as its field's JSON-schema
+// description, and examples were copied into KBs whose sources were silent (Oct 2026).
+
+const ONLY_IF_STATED = "Only what the sources state for THIS brand; null if they state none.";
 
 export const TraceableComplianceSchema = z.object({
   content_rules: kbField(z.string()).describe(
     "What a script needs that no other field holds: what the brand sells, the claims and proof it may use, its disclaimers' wording, whether it uses customer reviews, regional customs, and anything never shown. Only what the sources state.",
   ),
   preferred_verbs: kbField(z.array(z.string())).describe(
-    "Verbs the AI should default to: helps, supports, nourishes",
+    `Verbs the brand uses or prescribes, base form. ${ONLY_IF_STATED}`,
   ),
   preferred_phrases: kbField(z.array(z.string())).describe(
-    "Brand-approved language patterns",
+    `Brand-approved language patterns. ${ONLY_IF_STATED}`,
   ),
   never_use_words: kbField(z.array(z.string())).describe(
-    "Hard-blocked words — ALL inflections: heals, healed, healing, healer",
+    `Words the sources prohibit, with their inflections. ${ONLY_IF_STATED}`,
   ),
   never_use_claims: kbField(z.array(z.string())).describe(
-    "Blocked claim patterns: guaranteed results, clinically proven to cure",
+    `Claim patterns the sources prohibit. ${ONLY_IF_STATED}`,
   ),
   never_use_tone: kbField(z.array(z.string())).describe(
-    "Tone violations: hype language, aggressive urgency",
+    `Tones the sources rule out. ${ONLY_IF_STATED}`,
   ),
   disclaimers: kbField(z.array(z.string())).describe(
-    "Legal lines: results may vary, for external use only",
+    `Legal or regulatory lines the sources require on assets. ${ONLY_IF_STATED}`,
   ),
 });
 

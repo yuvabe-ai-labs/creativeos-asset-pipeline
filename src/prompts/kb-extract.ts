@@ -21,6 +21,8 @@ Extraction accuracy is critical: errors in compliance fields cause brand violati
    use UNION logic for all list fields (compliance lists, surface_palette, pain_points,
    desires). For scalar fields (strings), prefer the more specific or detailed value.
    Never discard information that appears in any document.
+6. Examples in this prompt and in the schema's field descriptions show FORMAT only. They belong
+   to no brand: never output one unless the sources state it for this brand.
 
 ─── FIELD-SPECIFIC RULES ───────────────────────────────────────────────────────
 
@@ -70,21 +72,21 @@ CREATIVE_DIRECTION.VIDEO  (as important as image direction — extract every fie
   atmosphere       → overall mood: meditative calm, playful energy, cinematic tension, warmth
   pacing           → use temporal language: slow and meditative, punchy 1-second cuts,
                      breath-like rhythm, rhythmic to beat
-  text_system      → how on-screen text is structured, e.g. "INTRO: hook / BODY: one idea / OUTRO: product + CTA"
+  text_system      → how on-screen text is structured across a reel: what appears at the open,
+                     through the middle, and at the close
   music_direction  → include genre, tempo (BPM range), energy level, specific instruments,
                      and what to AVOID.
                      e.g. "soft Indian classical instrumental, 60–70 BPM, sitar and tabla,
                      no Western pop, no EDM, no aggressive percussion"
 
-COMPLIANCE  (most consequential section — be exhaustive)
-  never_use_words  → EXTRACT ALL INFLECTIONS of each blocked root word.
-                     If the document lists "heal", also include: heals, healed, healing, healer.
-                     If it lists "cure", also include: cures, cured, curing, curative.
+COMPLIANCE  (these fields block and shape every generated asset — extract only what is stated)
+  Every compliance value must trace to something the sources say about THIS brand.
+  If the sources state no rule for a field, return null. Never fill a compliance field from
+  category norms, and never copy an example from this prompt or the schema.
+  never_use_words  → words the sources prohibit; when one is listed, include its inflections.
                      When multiple documents are provided, UNION the lists — never drop a word.
-  never_use_claims → complete claim patterns, not just keywords.
-                     e.g. "guaranteed results", "clinically proven to cure", "permanent fix"
-  preferred_verbs  → verbs only, base form preferred.
-                     e.g. ["helps", "supports", "nourishes", "soothes", "comforts"]
+  never_use_claims → complete claim patterns the sources prohibit, not just keywords.
+  preferred_verbs  → verbs only, base form, that the sources use or prescribe.
   content_rules    → plain prose, a few short paragraphs: what the brand sells (products or
                      services by name), the exact claims and proof lines it uses (verbatim),
                      disclaimers' wording, whether it uses customer reviews, regional or cultural
@@ -97,7 +99,7 @@ Every field in the schema is a KBField object with 4 sub-fields:
   value            → The extracted value (string, array, or null if not found).
   confidence       → "high"   = document states this clearly and specifically.
                      "medium" = document states it in general terms.
-                     "low"    = you are inferring from context or brand category norms.
+                     "low"    = the sources imply it without stating it directly.
   evidence_type    → "explicit" = the document states this directly.
                      "inferred" = you derived this from surrounding context or patterns.
   status           → ALWAYS output exactly "needs_review" — never any other value.
@@ -122,7 +124,7 @@ export const KB_EXTRACT_SYSTEM_PROMPT = SYSTEM_PROMPT;
 
 export const kbExtractPrompt = {
   id: "kb-extract",
-  version: "3.0.0",
+  version: "3.1.0",
   model: "gpt-5.4-mini",
   system: SYSTEM_PROMPT,
   notes: "Extracts TraceableBrandKB from brand documents. Each field is a KBField with value, confidence, evidence_type, status.",
