@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/popover";
 import type { KBField } from "@/lib/kb/schema";
 import { COLOUR_FIELD_KEYS } from "@/lib/kb/constants";
+import { isListField } from "@/lib/kb/utils";
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -44,7 +45,7 @@ export function KBFieldRow({
   const [aiOpen, setAiOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
 
-  const isArray = Array.isArray(field.value) || field.value === null;
+  const isArray = isListField(fieldKey, field.value);
   const displayValue = formatValue(field.value);
   const isEmpty = !field.value || (Array.isArray(field.value) && field.value.length === 0);
   const isRejected = field.status === "rejected";

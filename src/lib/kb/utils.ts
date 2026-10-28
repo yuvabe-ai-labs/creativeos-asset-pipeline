@@ -51,6 +51,15 @@ export function getModuleFields(
   return withLeadingFields(withAddedFields(moduleFieldsAsStored(kb, module), module), MODULE_LEADING_FIELDS[module]);
 }
 
+/** Fields that are always prose, so an empty one is still edited as text, not as a comma-split list. */
+const TEXT_FIELD_KEYS: ReadonlySet<string> = new Set(["content_rules"]);
+
+/** Whether a field is edited as a comma-separated list: a list value, or an empty value of any
+ *  field that is not always prose. */
+export function isListField(fieldKey: string, value: unknown): boolean {
+  return Array.isArray(value) || (value === null && !TEXT_FIELD_KEYS.has(fieldKey));
+}
+
 /** Fields added to the schema after many KBs were saved: shown empty so they can be filled, without
  *  writing anything to the stored KB (readiness is computed from what is stored, fill-rate.ts). */
 const ADDED_FIELDS: Partial<Record<ModuleKey, readonly string[]>> = { compliance: ["content_rules"] };
