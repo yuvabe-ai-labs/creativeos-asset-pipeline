@@ -98,7 +98,7 @@ export async function replaceAudio(video: Buffer, audio: Buffer, audioExt: "mp3"
  * D296 — the clip's voice as a mono mp3, the shape Seedance accepts as `reference_audio`
  * (mp3 or wav, 2–30 s).
  *
- * The flags are the UGC bench's (`src/lib/ugc/voice.ts`), which is where this shape was proven
+ * The flags are the former UGC bench's (removed; it lived in `src/lib/ugc/voice.ts`), where this shape was proven
  * against the vendor: mono, 24 kHz, 96 kbps, truncated to the vendor's ceiling. What differs is
  * only the runner — `FFMPEG_PATH` as everywhere else in this file, rather than the bench's
  * `ffmpeg-static`, because this runs inside a Trigger.dev task.

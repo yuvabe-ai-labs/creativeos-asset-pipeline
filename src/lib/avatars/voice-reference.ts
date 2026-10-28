@@ -3,7 +3,7 @@ import { textToSpeech } from "@/lib/elevenlabs/client";
 import { uploadAvatarNamedVoiceSample } from "@/lib/storage";
 import { updateAvatar } from "@/lib/db/avatars";
 import { mp3DurationSeconds } from "@/lib/media/mp3";
-import { VOICE_MAX_SECONDS, VOICE_MIN_SECONDS } from "@/lib/ugc/constants";
+import { VOICE_MAX_SECONDS, VOICE_MIN_SECONDS } from "./constants";
 import { avatarWorksWith } from "./generation";
 import { matchingVoiceReference, namedVoiceSampleKey } from "./presenter";
 import type { Avatar, AvatarVoiceSample } from "./schema";
