@@ -52,22 +52,32 @@ export function collectStrings(value: unknown, out: string[] = []): string[] {
 }
 
 // Names that point to a kit's region when the script does not name the region itself (Reel 01
-// says "Chennai" and "Tamil lilt", never "Tamil Nadu"). Keyed by the kit table's region names.
-export const KIT_PLACE_HINTS: Record<string, string[]> = {
+// says "Chennai" and "Tamil lilt", never "Tamil Nadu"). General geography, keyed by state, so any
+// client's kit table is matched the same way: a kit row gets the places of every state it names
+// ("Karnataka and Telangana" gets both). Not keyed by one client's rows (brand-neutral spec §3.4).
+export const STATE_PLACES: Record<string, string[]> = {
   "Tamil Nadu": ["Chennai", "Madurai", "Coimbatore", "Tamil"],
   Kerala: ["Kochi", "Thiruvananthapuram", "Kozhikode", "Malayalam", "Malayali"],
-  "Karnataka and Telangana": ["Bengaluru", "Bangalore", "Mysuru", "Hyderabad", "Kannada", "Telugu"],
-  "Delhi and Lucknow": ["Delhi", "Lucknow"],
+  Karnataka: ["Bengaluru", "Bangalore", "Mysuru", "Mangaluru", "Kannada"],
+  Telangana: ["Hyderabad", "Warangal", "Telugu"],
+  "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Tirupati", "Telugu"],
+  Delhi: ["New Delhi", "Delhi"],
+  "Uttar Pradesh": ["Lucknow", "Kanpur", "Varanasi", "Agra"],
   Punjab: ["Chandigarh", "Amritsar", "Ludhiana", "Punjabi"],
   Maharashtra: ["Mumbai", "Pune", "Nagpur", "Marathi"],
   Gujarat: ["Ahmedabad", "Surat", "Vadodara", "Gujarati"],
+  "West Bengal": ["Kolkata", "Siliguri", "Bengali"],
+  Rajasthan: ["Jaipur", "Jodhpur", "Udaipur", "Rajasthani"],
 };
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function namesFor(kit: RegionalKit): string[] {
   const parts = kit.region.split(/\s+and\s+|\s*[,/]\s*/i).map((s) => s.trim()).filter(Boolean);
-  return [...new Set([kit.region, ...parts, ...(KIT_PLACE_HINTS[kit.region] ?? [])])];
+  const places = Object.entries(STATE_PLACES)
+    .filter(([state]) => new RegExp(`\\b${escape(state)}\\b`, "i").test(kit.region))
+    .flatMap(([, names]) => names);
+  return [...new Set([kit.region, ...parts, ...places])];
 }
 
 function best(kits: RegionalKit[], text: string): RegionalKit | null {

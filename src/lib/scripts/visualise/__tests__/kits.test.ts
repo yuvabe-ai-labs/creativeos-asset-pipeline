@@ -60,6 +60,22 @@ describe("pickKit (D343)", () => {
     expect(pickKit(kits, doc, broll)?.region).toBe("Tamil Nadu");
   });
 
+  // Brand-neutral spec §3.4: place names come from general geography by state, not from one
+  // client's kit rows, so any client's kit table is matched the same way.
+  it("finds a state's kit from a city the shot names, for any client's states", () => {
+    const doc = reel01Doc();
+    const other = parseRegionalKits(`**Regional kits**
+
+| Region | At the table | Kitchen and home | Wardrobe |
+| :---- | :---- | :---- | :---- |
+| **West Bengal** | x | y | z |
+| **Karnataka and Telangana** | x | y | z |`);
+    const shot = (visual: string) => ({ ...doc.shots[0], visual, vo: "", onScreenText: "", onScreen: [] });
+    const flat = { ...doc, header: { ...doc.header, region: "", title: "", theme: "" }, context: { ...doc.context, settingAndCamera: "", purpose: "" }, cast: [] };
+    expect(pickKit(other, flat, shot("A rooftop in Kolkata at dusk."))?.region).toBe("West Bengal");
+    expect(pickKit(other, flat, shot("A balcony in Hyderabad."))?.region).toBe("Karnataka and Telangana");
+  });
+
   it("prefers what the shot itself names, for a reel that crosses regions", () => {
     const doc = reel01Doc();
     const shot = { ...doc.shots[0], visual: "A sunny terrace in Ahmedabad with kites.", onScreen: [] };
