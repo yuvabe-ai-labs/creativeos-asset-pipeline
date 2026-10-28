@@ -16,7 +16,10 @@ import { EMPTY_PARTIAL_DRAFT } from "../partial-draft";
 import type { Script } from "@/lib/scripts/schema";
 
 const doc = scriptDocSchema.parse(reel01);
-const ctx: CopilotContext = { clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [] };
+const ctx: CopilotContext = {
+  clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026",
+  signals: { brief: "Market signal: Onam lunches", digest: "[S1] Onam lunches", list: [{ id: "sig-1", name: "Onam lunches" }] },
+};
 const script = (over: Partial<GenerateScript> = {}): GenerateScript => ({
   id: "s1", clientId: "c1", stage: "generate", doc: null, brief: EMPTY_BRIEF, notes: EMPTY_NOTES, docVersion: 1, createdAt: "t", updatedAt: "t", ...over,
 });
@@ -57,8 +60,8 @@ function fakeModel(answers: Record<string, unknown[]>) {
   }) as unknown as StructuredCall;
   return { call, calls };
 }
-const deps = (call: StructuredCall, signals = [{ id: "sig-1", name: "Onam lunches" }]): TurnDeps => ({
-  call, loadSignals: vi.fn(async () => ({ brief: "Market signal: Onam lunches", signals })), newShotId: (() => { let n = 0; return () => `new${++n}`; })(),
+const deps = (call: StructuredCall): TurnDeps => ({
+  call, newShotId: (() => { let n = 0; return () => `new${++n}`; })(),
 });
 const run = async (s: GenerateScript, text: string, d: TurnDeps, current: GenerateScript = s) => {
   const apply = await prepareTurn({ script: s, ctx, text, lastAssistant: "" }, d);
@@ -89,7 +92,6 @@ describe("before the draft", () => {
     const d = deps(m.call);
     const out = ok(await run(script(), "Reel 04, Kerala Piravi, UGC, Saraswathi", d));
     expect(m.calls).toEqual(["script_brief_read", "script_angles"]);
-    expect(d.loadSignals).toHaveBeenCalledTimes(1);
     const [research, angles] = out.result;
     // The card is the whole message: no prose explaining what signals are for.
     expect(research.content).toBe("");

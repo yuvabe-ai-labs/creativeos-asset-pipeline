@@ -121,7 +121,7 @@ describe("script writer probe", () => {
         for (let n = 1; n <= repeats; n++) {
           // The Founder-led run is written with no Founder-led example (spec 2 §4.3).
           const examples = run.founderLed ? library.filter((s) => !/founder/i.test(s.doc.header.format)) : library;
-          const base = { clientName: client.name, kbText, library: renderLibrary(examples, run.founderLed ? "Founder-led" : "UGC"), avatars: renderAvatars(avatars) };
+          const base = { clientName: client.name, kbText, library: renderLibrary(examples, run.founderLed ? "Founder-led" : "UGC"), avatars: renderAvatars(avatars), today: "", signalDigest: "", formatMenu: "" };
           const brief = { ...EMPTY_BRIEF, phase: "confirm" as const, reelNumber: run.card.reelNumber, card: run.card };
           const label = `${model} · ${run.key} · run ${n}`;
           try {

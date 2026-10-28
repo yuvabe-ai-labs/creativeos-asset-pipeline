@@ -15,7 +15,7 @@ import type { PartialDraft } from "./partial-draft";
 import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
 import { anglesOutputSchema, cardOutputSchema, detectOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
 import { nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
-import { SCRIPT_FORMATS } from "./formats";
+import { renderFormatMenu, SCRIPT_FORMATS } from "./formats";
 import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptNotes } from "./schema";
 import {
   angleText, applyAngle, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
@@ -35,7 +35,6 @@ export type TurnDeps = {
   /** Streams the first draft (D337, refined); with it, `onDraft` sees each new part as it arrives. */
   stream?: StreamingCall;
   onDraft?: (draft: PartialDraft) => void;
-  loadSignals: () => Promise<{ brief: string; signals: { id: string; name: string }[] }>;
   newShotId?: (taken: Set<string>) => string;
 };
 /** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362). */
@@ -43,7 +42,10 @@ export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: str
 export type Apply = (current: GenerateScript) => Change<Reply[]>;
 
 function baseFor(ctx: CopilotContext, format: string): CopilotBase {
-  return { clientName: ctx.clientName, kbText: ctx.kbText, library: renderLibrary(ctx.library, format), avatars: renderAvatars(ctx.avatars) };
+  return {
+    clientName: ctx.clientName, kbText: ctx.kbText, library: renderLibrary(ctx.library, format), avatars: renderAvatars(ctx.avatars),
+    today: ctx.today, signalDigest: ctx.signals.digest, formatMenu: renderFormatMenu(format),
+  };
 }
 
 export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<Apply> {
@@ -101,15 +103,15 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
       break;
     }
     if (step.kind === "angles") {
-      const research = await deps.loadSignals();
+      const research = ctx.signals;
       const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, text }), schema: anglesOutputSchema });
-      const angles = normalizeAngles(out.angles, research.signals, avatarIds);
+      const angles = normalizeAngles(out.angles, research.list, avatarIds);
       if (angles.length === 0) throw new Error("The copilot proposed no angles.");
       brief = { ...brief, angles };
       // The card is the message: which signals each angle used, nothing explaining it.
       say(withAck(""), {
         kind: "research",
-        signals: research.signals,
+        signals: research.list,
         perAngle: angles.map((a) => ({ angleId: a.id, signalIds: a.signalIds })),
       });
       say("Here are three angles. Pick one, blend two, or write your own.", { kind: "angles", angles });

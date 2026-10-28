@@ -11,17 +11,39 @@ import { signalHandle } from "./brief";
 
 // Spec 2 §4 — what the copilot knows without asking, as text for the system message (D334).
 
-/** The brand KB, every slice, plus its free-text consistency notes read whole: for the demo the
- *  client's house spec is pasted there (spec 2 §4.1, answer 2c.1). Spec 3's plan replaces its own
- *  KB reader with this one at merge. */
+/** The brand KB, every slice, the audience the shared renderer leaves out, and the client's Content
+ *  Rules read whole: what it sells, what it may claim, its customs (brand-neutral spec §3.5–3.6). */
 export function renderKbText(kb: TraceableBrandKB | null): string {
   if (!kb) return "This client has no brand KB yet. Write from the person's description and the example scripts only, and say so.";
   const body = buildParseContext(kb, KB_PARSE_SLICES.map((s) => s.key));
-  // A string normally; a list when it was typed into the KB page while empty (that editor splits
-  // an empty field on commas). Either way it is read as one text.
-  const raw: unknown = kb.image_analysis?.brand_consistency_notes?.value;
-  const house = (Array.isArray(raw) ? raw.join(", ") : typeof raw === "string" ? raw : "").trim();
-  return [body, house ? `House rules (the brand KB's consistency notes, read whole):\n${house}` : ""].filter(Boolean).join("\n\n");
+  const rules = fieldText(kb.compliance?.content_rules?.value);
+  return [body, renderAudience(kb), rules ? `Content rules (read whole):\n${rules}` : ""].filter(Boolean).join("\n\n");
+}
+
+/** A string normally; a list when it was typed into the KB page while empty (that editor splits an
+ *  empty field on commas). Either way it is read as one text. */
+function fieldText(raw: unknown): string {
+  return (Array.isArray(raw) ? raw.join(", ") : typeof raw === "string" ? raw : "").trim();
+}
+
+/** Where the audience is and what it wants: occasions depend on it, and the shared KB renderer
+ *  (buildParseContext) sends only casting and lifestyle. */
+export function renderAudience(kb: TraceableBrandKB): string {
+  const a = kb.target_audience;
+  const rows: [string, unknown][] = [
+    ["Audience location", a?.location?.value],
+    ["Age range", a?.age_range?.value],
+    ["Pain points", a?.pain_points?.value],
+    ["Desires", a?.desires?.value],
+  ];
+  return rows.map(([label, value]) => [label, fieldText(value)]).filter(([, text]) => text).map(([label, text]) => `${label}: ${text}`).join("\n");
+}
+
+/** Today as the copilot reads it ("Wed 28 Oct 2026"), in India where the agency works. */
+export function todayLabel(now: Date): string {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", year: "numeric" }).formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("weekday")} ${get("day")} ${get("month")} ${get("year")}`;
 }
 
 export type LibraryFormat = { format: string; beats: string[]; reels: string[] };
@@ -81,4 +103,19 @@ export function nextReelNumber(scripts: Script[]): number {
  *  ([S1], [S2]…), in the order normalizeAngles reads them back. */
 export function renderSignalBrief(signals: SignalWithItems[]): string {
   return signals.map((s, i) => `[${signalHandle(i)}] ${buildSignalBrief([s])}`).join("\n\n");
+}
+
+/** The signals in short, for the turns that suggest occasions and replies: one line each, cut on a
+ *  line boundary at `maxChars`, so every turn can carry them (brand-neutral spec §3.6). */
+export function renderSignalDigest(signals: SignalWithItems[], maxChars = 1500): string {
+  const out: string[] = [];
+  let used = 0;
+  for (const [i, s] of signals.entries()) {
+    const about = s.description.trim().split("\n")[0] ?? "";
+    const line = `[${signalHandle(i)}] ${s.name}${about ? `: ${about}` : ""}`.slice(0, 240);
+    if (used + line.length + 1 > maxChars) break;
+    out.push(line);
+    used += line.length + 1;
+  }
+  return out.join("\n");
 }

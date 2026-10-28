@@ -4,7 +4,7 @@ import { resolveCallerContext } from "@/lib/dal";
 import {
   changeGenerateScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState,
 } from "@/lib/db/script-generate";
-import { loadCopilotContext, loadSignals } from "@/lib/scripts/copilot/context";
+import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { streamingCaller, structuredCaller } from "@/lib/scripts/copilot/model";
 import { prepareTurn, type Reply } from "@/lib/scripts/copilot/turn";
 import { MAX_PASTE_CHARS, SCRIPT_QUICK_MODEL, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
@@ -47,7 +47,7 @@ export async function POST(req: Request, { params }: Ctx) {
           try {
             let replies: Reply[];
             try {
-              const ctx = await loadCopilotContext(client);
+              const ctx = await loadCopilotContext(client, { signals: true });
               const apply = await prepareTurn(
                 { script, ctx, text, lastAssistant, leadAvatarId },
                 {
@@ -55,7 +55,6 @@ export async function POST(req: Request, { params }: Ctx) {
                   quick: structuredCaller(SCRIPT_QUICK_MODEL),
                   stream: streamingCaller(SCRIPT_WRITER_MODEL),
                   onDraft: (draft) => emit({ type: "draft", draft }),
-                  loadSignals: () => loadSignals(clientId),
                 },
               );
               const outcome = await changeGenerateScript(clientId, scriptId, apply);

@@ -5,7 +5,15 @@ import type { Angle, Brief, ConfirmationCard, OpenItem, ScriptNotes } from "./sc
 // Builds each copilot call's two messages (D334, D335). System: the rules, the task, the client's
 // standing context. User: what changes per turn. Market signals go in the user message only.
 
-export type CopilotBase = { clientName: string; kbText: string; library: string; avatars: string };
+export type CopilotBase = {
+  clientName: string; kbText: string; library: string; avatars: string;
+  /** "Wed 28 Oct 2026". */
+  today: string;
+  /** The client's market signals in short; "" when it has none (or the step has none loaded). */
+  signalDigest: string;
+  /** The shared format menu, the chosen format marked (formats.ts). */
+  formatMenu: string;
+};
 export type Prompt = { system: string; user: string };
 type Task = keyof typeof scriptCopilotPrompt.tasks;
 

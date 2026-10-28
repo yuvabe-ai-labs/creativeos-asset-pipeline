@@ -9,7 +9,7 @@ vi.mock("@/lib/db/script-generate", () => ({
   getGenerateScript: vi.fn(), changeGenerateScript: vi.fn(), listScriptMessages: vi.fn(),
   insertScriptMessages: vi.fn(), loadGenerateState: vi.fn(),
 }));
-vi.mock("@/lib/scripts/copilot/context", () => ({ loadCopilotContext: vi.fn(), loadSignals: vi.fn() }));
+vi.mock("@/lib/scripts/copilot/context", () => ({ loadCopilotContext: vi.fn() }));
 vi.mock("@/lib/scripts/copilot/model", () => ({ structuredCaller: vi.fn(), streamingCaller: vi.fn() }));
 vi.mock("@/lib/scripts/copilot/turn", () => ({ prepareTurn: vi.fn() }));
 
@@ -30,7 +30,7 @@ describe("POST .../turn", () => {
     await allowClient();
     vi.mocked(getGenerateScript).mockResolvedValue(generateScript());
     vi.mocked(listScriptMessages).mockResolvedValue([{ id: "m0", role: "assistant", content: "What format?", card: null, createdAt: "t" }]);
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [] });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
     vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(generateScript()) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
   });
