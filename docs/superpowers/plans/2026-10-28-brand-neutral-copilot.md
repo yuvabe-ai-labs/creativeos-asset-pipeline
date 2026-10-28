@@ -10,7 +10,7 @@ material.
 reaches the model through one per-turn context: the brand KB (with a new free-text
 `compliance.content_rules` field, and the audience fields it drops today), today's date, a compact
 market-signal digest, and the client's own example scripts. Every model call that writes a reply
-also returns brand-aware chips, carried in the turn's answer and kept in the browser (not stored; amended 28 Oct, no migration).
+also returns brand-aware chips, saved on the message and shown from there.
 
 **Tech Stack:** Next.js route handlers, Zod v4 schemas (OpenAI strict output + Gemini
 `responseJsonSchema`), Supabase Postgres (one migration), TanStack Query, Vitest.

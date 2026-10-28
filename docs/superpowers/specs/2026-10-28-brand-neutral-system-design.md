@@ -112,10 +112,8 @@ Removing client text works only if each client's own material reaches the model.
   descriptions, instead of formats read from the client's finished scripts.
 - **Market signals on every turn that suggests**, loaded once per turn alongside everything else
   and in a compact form, not only at the angles step.
-- **Chips carried with each copilot reply**, produced by the call that writes the reply (the quick
-  model's read, the writer's edit); not built in the browser from fixed text. They are **not
-  stored** (user, 28 Oct, "for now"): the turn's answer carries them and the browser keeps them for
-  the session, so a reload clears them until the next message. The conversation itself is stored.
+- **Chips saved with each copilot message**, produced by the call that writes the reply (the quick
+  model's read, the writer's edit), and shown from there; not built in the browser from fixed text.
 - **Beats on the confirmation card**, which the first draft follows.
 - **Example scripts stay the client's own.** No other client's script is ever shown as an example;
   a client with none writes from the format menu and its KB.

@@ -5,7 +5,6 @@ import {
   changeGenerateScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState,
 } from "@/lib/db/script-generate";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
-import { withReplyChips } from "@/lib/scripts/copilot/chips";
 import { streamingCaller, structuredCaller } from "@/lib/scripts/copilot/model";
 import { prepareTurn, type Reply } from "@/lib/scripts/copilot/turn";
 import { MAX_PASTE_CHARS, SCRIPT_QUICK_MODEL, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
@@ -65,10 +64,9 @@ export async function POST(req: Request, { params }: Ctx) {
               console.error("[script-copilot] turn failed", e);
               replies = [{ content: "Something went wrong on my side, and nothing was changed. Send that again.", card: null }];
             }
-            await insertScriptMessages(clientId, scriptId, null, replies.map(({ content, card }) => ({ role: "assistant" as const, content, card })));
+            await insertScriptMessages(clientId, scriptId, null, replies.map((r) => ({ role: "assistant" as const, ...r })));
             const state = await loadGenerateState(clientId, scriptId);
-            // The chips are not stored: they travel on the newest reply of this answer only (chips.ts).
-            emit(state ? { type: "state", state: withReplyChips(state, replies.at(-1)?.suggestions ?? []) } : { type: "error", error: "Script not found." });
+            emit(state ? { type: "state", state } : { type: "error", error: "Script not found." });
           } catch (e) {
             console.error("[script-copilot] turn could not finish", e);
             emit({ type: "error", error: "The copilot could not answer." });

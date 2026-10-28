@@ -52,20 +52,6 @@ describe("POST .../turn", () => {
     expect(vi.mocked(structuredCaller).mock.calls.map((c) => c[0]).sort()).toEqual(["gemini-3.1-pro-preview", "gpt-5.4-mini"]);
   });
 
-  // Chips are not stored (user, 28 Oct 2026): the answer carries them on the newest reply.
-  it("sends the turn's chips back on the newest reply, and saves the replies without them", async () => {
-    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "Which occasion?", card: null, suggestions: ["Diwali: a new home"] }] }));
-    const saved = { ...stateOf(generateScript()), messages: [
-      { id: "m1", role: "user" as const, content: "UGC", card: null, suggestions: [], createdAt: "t" },
-      { id: "m2", role: "assistant" as const, content: "Which occasion?", card: null, suggestions: [], createdAt: "t" },
-    ] };
-    vi.mocked(loadGenerateState).mockResolvedValue(saved);
-    const { POST } = await import("./route");
-    const out = await lines(await POST(send({ text: "UGC" }) as never, { params }));
-    expect(vi.mocked(insertScriptMessages).mock.calls[1][3]).toEqual([{ role: "assistant", content: "Which occasion?", card: null }]);
-    expect(out.at(-1).state.messages.at(-1).suggestions).toEqual(["Diwali: a new home"]);
-  });
-
   // Final review, Important 5 (performance rule 8): market signals feed the brief's suggestions and
   // angles only; an edit turn after the draft never reads them, so it never downloads them.
   it("loads market signals before the draft, and not for an edit", async () => {
