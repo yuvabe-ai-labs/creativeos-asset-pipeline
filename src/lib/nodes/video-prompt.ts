@@ -76,7 +76,7 @@ const IMAGE_REF_STYLE: Record<VideoProvider, ImageRefStyle> = {
   "gemini-omni": {
     token: omniImageRefToken,
     usage:
-      "Then place a token EXACTLY as written above, inline, in the beat where that thing appears. ALWAYS put a short noun phrase naming what you identified IMMEDIATELY BEFORE the token — \"the CHUPPS V-Straps <IMAGE_REF_0>\", \"a young woman <IMAGE_REF_1>\" — never the bare token on its own. That naming is how a wrong identification gets spotted and corrected in the text instead of in a finished video. Never write \"the first image\", never write @Image1, never invent a token that is not listed.",
+      "Then place a token EXACTLY as written above, inline, in the beat where that thing appears. ALWAYS put a short noun phrase naming what you identified IMMEDIATELY BEFORE the token — \"the green ceramic mug <IMAGE_REF_0>\", \"a young woman <IMAGE_REF_1>\" — never the bare token on its own. That naming is how a wrong identification gets spotted and corrected in the text instead of in a finished video. Never write \"the first image\", never write @Image1, never invent a token that is not listed.",
   },
   seedance: {
     token: seedanceImageRefToken,
@@ -84,7 +84,7 @@ const IMAGE_REF_STYLE: Record<VideoProvider, ImageRefStyle> = {
     // correct token (D245), just missing the space. This paragraph instead calls out the space as
     // load-bearing and names Kling's dialect as the other wrong shape to avoid.
     usage:
-      "Then place a token EXACTLY as written above, inline, in the beat where that thing appears. ALWAYS put a short noun phrase naming what you identified IMMEDIATELY BEFORE the token — \"the CHUPPS V-Straps @Image 1\", \"a young woman @Image 2\" — never the bare token on its own. That naming is how a wrong identification gets spotted and corrected in the text instead of in a finished video. Never write \"the first image\"; the space is load-bearing — \"@Image1\" with no space is wrong, and so is \"@image_1\" (Kling's dialect); never invent a token that is not listed.",
+      "Then place a token EXACTLY as written above, inline, in the beat where that thing appears. ALWAYS put a short noun phrase naming what you identified IMMEDIATELY BEFORE the token — \"the green ceramic mug @Image 1\", \"a young woman @Image 2\" — never the bare token on its own. That naming is how a wrong identification gets spotted and corrected in the text instead of in a finished video. Never write \"the first image\"; the space is load-bearing — \"@Image1\" with no space is wrong, and so is \"@image_1\" (Kling's dialect); never invent a token that is not listed.",
   },
 };
 

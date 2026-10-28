@@ -8,8 +8,11 @@ export const CLIENT_TERMS: readonly string[] = [
   "nine-beat", "nine beats", "chupps", "v-straps", "home and kit",
 ];
 
-/** The client terms found in `text`, case-insensitive, as parts of longer words too ("spoons"). */
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const MATCHERS = CLIENT_TERMS.map((term) => [term, new RegExp(`\\b${escapeRe(term)}`, "i")] as const);
+
+/** The client terms found in `text`, case-insensitive, matched from the start of a word: "spoons"
+ *  and "diabetic" count, "oatmeal" does not. */
 export function clientTermsIn(text: string): string[] {
-  const t = text.toLowerCase();
-  return CLIENT_TERMS.filter((term) => t.includes(term));
+  return MATCHERS.filter(([, re]) => re.test(text)).map(([term]) => term);
 }

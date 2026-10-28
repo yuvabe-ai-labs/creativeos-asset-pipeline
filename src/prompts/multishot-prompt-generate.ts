@@ -48,10 +48,10 @@ export function referenceIdentificationBlock(format: "timecode" | "triple"): str
   // the writer imitates, so it has to model the simple beat the craft block asks for.
   const example =
     format === "triple"
-      ? `    A college student crosses a campus courtyard in the black CHUPPS V-Straps.
-    A young professional steps past a cafe chair in the tan CHUPPS Sliders.`
-      : `    [0-3s] A college student crosses a campus courtyard in the black CHUPPS V-Straps.
-    [3-6s] A young professional steps past a cafe chair in the tan CHUPPS Sliders.`;
+      ? `    A college student crosses a campus courtyard carrying the green ceramic mug.
+    A young professional steps past a cafe chair with the navy canvas backpack.`
+      : `    [0-3s] A college student crosses a campus courtyard carrying the green ceramic mug.
+    [3-6s] A young professional steps past a cafe chair with the navy canvas backpack.`;
 
   return `REFERENCES
 The reference images are ATTACHED to your message, each preceded by "Reference image N". LOOK AT THEM and identify what each one shows. The number exists only so the operator's direction can point at a picture; what a reference is, you decide from the image itself.
@@ -82,7 +82,7 @@ Instead, NAME WHAT YOU SAW, in prose, wherever that thing appears in a beat:
 
 ${example}
 
-For a product or character that only appears in passing, a short identifying phrase — colour, material, product name — is exactly right: "the black CHUPPS V-Straps", "the tan leather sliders", "a young woman in a loose oatmeal shirt". It tells the operator which attachment you meant, so a misreading is caught in the text rather than in a finished video, and it gives them the anchor to attach the reference to. Do not go further into that product's own design: the reference carries its geometry, stitching and logo placement, and prose competing with it produces a hybrid of the two. Describe instead what the reference cannot — framing, motion, light, wardrobe, ground contact. A background, storyboard or central character is described as its role asks above, using as much of the beat as any length limit allows.
+For a product or character that only appears in passing, a short identifying phrase — colour, material, product name — is exactly right: "the green ceramic mug", "the tan leather sliders", "a young woman in a loose oatmeal shirt". It tells the operator which attachment you meant, so a misreading is caught in the text rather than in a finished video, and it gives them the anchor to attach the reference to. Do not go further into that product's own design: the reference carries its geometry, stitching and logo placement, and prose competing with it produces a hybrid of the two. Describe instead what the reference cannot — framing, motion, light, wardrobe, ground contact. A background, storyboard or central character is described as its role asks above, using as much of the beat as any length limit allows.
 
 Name the thing IN EVERY BEAT it appears in, not once at the top.
 
