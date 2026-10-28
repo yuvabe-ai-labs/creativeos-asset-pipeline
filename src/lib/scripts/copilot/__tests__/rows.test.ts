@@ -84,6 +84,14 @@ describe("rowToScript", () => {
 });
 
 describe("rowToMessage", () => {
+  it("reads a message's chips, and a message from before chips were saved as having none", () => {
+    const row = { id: "m1", role: "assistant", content: "Hi", card: null, created_at: "t" };
+    expect(rowToMessage({ ...row, suggestions: ["A"] }).suggestions).toEqual(["A"]);
+    expect(rowToMessage({ ...row, suggestions: null }).suggestions).toEqual([]);
+    expect(rowToMessage({ ...row, suggestions: [1] }).suggestions).toEqual([]);
+    expect(rowToMessage(row).suggestions).toEqual([]);
+  });
+
   it("keeps a valid card and drops an invalid one", () => {
     const row = { id: "m1", role: "assistant", content: "Hi", created_at: "t" };
     expect(rowToMessage({ ...row, card: { kind: "research", signals: [], perAngle: [] } }).card?.kind).toBe("research");

@@ -30,7 +30,7 @@ describe("POST .../proposals/:messageId", () => {
     await allowClient();
     vi.mocked(listCopilotAvatars).mockResolvedValue([]);
     vi.mocked(claimProposalCard).mockResolvedValue(true);
-    vi.mocked(listScriptMessages).mockResolvedValue([{ id: MSG, role: "assistant", content: "x", card, createdAt: "t" }]);
+    vi.mocked(listScriptMessages).mockResolvedValue([{ id: MSG, role: "assistant", content: "x", card, suggestions: [], createdAt: "t" }]);
     vi.mocked(getGenerateScript).mockResolvedValue(generateScript({ doc: reel01Doc() }));
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
   });
@@ -92,7 +92,7 @@ describe("POST .../proposals/:messageId — a pasted script's replace card", () 
     vi.resetAllMocks();
     await allowClient();
     vi.mocked(claimProposalCard).mockResolvedValue(true);
-    vi.mocked(listScriptMessages).mockResolvedValue([{ id: MSG, role: "assistant", content: "x", card: importCard(), createdAt: "t" }]);
+    vi.mocked(listScriptMessages).mockResolvedValue([{ id: MSG, role: "assistant", content: "x", card: importCard(), suggestions: [], createdAt: "t" }]);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
   });
 

@@ -29,7 +29,7 @@ describe("POST .../turn", () => {
     vi.resetAllMocks();
     await allowClient();
     vi.mocked(getGenerateScript).mockResolvedValue(generateScript());
-    vi.mocked(listScriptMessages).mockResolvedValue([{ id: "m0", role: "assistant", content: "What format?", card: null, createdAt: "t" }]);
+    vi.mocked(listScriptMessages).mockResolvedValue([{ id: "m0", role: "assistant", content: "What format?", card: null, suggestions: [], createdAt: "t" }]);
     vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
     vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(generateScript()) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));

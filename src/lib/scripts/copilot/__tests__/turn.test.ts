@@ -105,6 +105,28 @@ describe("before the draft", () => {
     expect(out.patch?.brief?.reelNumber).toBe(4);
   });
 
+  it("puts the angles call's chips on the angles message, the turn's last reply, not on the research card", async () => {
+    const m = fakeModel({
+      script_brief_read: [extraction({
+        format: { action: "given", value: "UGC" }, occasion: { action: "given", value: "Diwali", postDate: "" },
+        lead: { action: "given", value: "Asha", avatarId: null },
+      })],
+      script_angles: [{ angles: [angle("A"), angle("B"), angle("C")], suggestions: ["Blend A and C"] }],
+    });
+    const [research, angles] = ok(await run(script(), "UGC, Diwali, Asha", deps(m.call))).result;
+    expect(research.suggestions ?? []).toEqual([]);
+    expect(angles.suggestions).toEqual(["Blend A and C"]);
+  });
+
+  it("offers the reader's occasion ideas when the next question is the occasion, and nothing for the format", async () => {
+    const m = fakeModel({ script_brief_read: [
+      extraction({ format: { action: "given", value: "UGC" }, suggestions: ["Diwali: a new home"] }),
+      extraction({ suggestions: ["ignored"] }),
+    ] });
+    expect(ok(await run(script(), "A UGC reel", deps(m.call))).result[0].suggestions).toEqual(["Diwali: a new home"]);
+    expect(ok(await run(script(), "hello", deps(m.call))).result[0].suggestions ?? []).toEqual([]);
+  });
+
   it("skipping all four still reaches a confirmation card: three angles, one picked, then the card", async () => {
     const m = fakeModel({
       script_brief_read: [extraction({ skipAll: true })],
@@ -128,7 +150,7 @@ describe("before the draft", () => {
     expect(out.patch?.notes?.confirmations).toEqual([{ id: "c1", text: "Sun 1 Nov is Kerala Piravi", confirmed: false }]);
     expect(out.patch?.brief?.phase).toBe("written");
     expect(out.result[0].content).toMatch(/^The first draft is in: 2 shots · 13s\./);
-    expect(out.result[0].content).toMatch(/2 things to settle before it's final\. First: Paste a real, cleared Amazon review/);
+    expect(out.result[0].content).toMatch(/2 things to settle before it's final\. First: Paste a real, cleared customer review/);
   });
 
   it("streams the draft: reports each new shot as it arrives, then saves the whole draft", async () => {
@@ -216,6 +238,12 @@ describe("after the draft: chat edits", () => {
     expect(out.result[0].content).toMatch(/^Shortened the hook line\.\n\n/);
   });
 
+  it("carries the writer's brand-aware chips on its reply, cleaned", async () => {
+    const m = fakeModel({ script_edit: [{ ops: [op({ op: "set_field", path: "shots.s01.vo", value: "Golu begins." })], reply: "Done.", suggestions: [" Shorten the hook ", ""] }] });
+    const out = ok(await run(written, "shorter hook", deps(m.call)));
+    expect(out.result[0].suggestions).toEqual(["Shorten the hook"]);
+  });
+
   it("shows an edit that touches several shots as a before-and-after, and saves nothing yet", async () => {
     const m = fakeModel({ script_edit: [{ ops: [
       op({ op: "set_field", path: "shots.s01.vo", value: "a" }),
@@ -255,7 +283,7 @@ describe("after the draft: chat edits", () => {
   it("answers a question without changing anything", async () => {
     const m = fakeModel({ script_edit: [{ ops: [], reply: "It runs 52 seconds." }] });
     const out = ok(await run(written, "how long is it?", deps(m.call)));
-    expect(out).toEqual({ patch: null, result: [{ content: "It runs 52 seconds.", card: null }] });
+    expect(out).toEqual({ patch: null, result: [{ content: "It runs 52 seconds.", card: null, suggestions: [] }] });
   });
 });
 

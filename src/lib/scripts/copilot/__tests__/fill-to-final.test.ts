@@ -33,7 +33,7 @@ describe("fillToFinal", () => {
     expect(items).toHaveLength(1);
     expect(items[0].id).toMatch(/^placeholder\./);
     expect(items[0].path).toMatch(/^shots\.s\d+\.vo$/);
-    expect(items[0].question).toMatch(/real, cleared Amazon review/);
+    expect(items[0].question).toMatch(/real, cleared customer review/);
     expect(items[0].question).toMatch(/swap the theme/);
   });
 
@@ -79,5 +79,14 @@ describe("fillToFinal", () => {
     expect(ids(carried)).toEqual([]);
     const missing = { ...r06, shots: r06.shots.map((s) => (s.id === "s02" ? { ...s, vo: "", onScreenText: "" } : s)) };
     expect(ids(missing)).toEqual(["shots.s02.vo", "shots.s02.onScreenText"]);
+  });
+});
+
+describe("the review placeholder's question", () => {
+  it("asks for a customer review without naming a marketplace", () => {
+    const doc = scriptDocSchema.parse(reel01);
+    const item = fillToFinal(doc, EMPTY_NOTES).find((i) => i.id.startsWith("placeholder.") && /review/i.test(i.question));
+    expect(item?.question).toContain("customer review");
+    expect(item?.question).not.toContain("Amazon");
   });
 });

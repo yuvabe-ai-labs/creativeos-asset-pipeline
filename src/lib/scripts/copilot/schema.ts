@@ -121,6 +121,9 @@ export type ScriptMessage = {
   role: "user" | "assistant";
   content: string;
   card: MessageCard | null;
+  /** The copilot's brand-aware chips for what the person might send next (brand-neutral spec §3.1);
+   *  [] on the person's messages and on replies written before chips were saved. */
+  suggestions: string[];
   createdAt: string;
 };
 

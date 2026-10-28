@@ -59,7 +59,7 @@ describe("buildImport — Reel 07 (success 1–4)", () => {
     const paragraphs = r.reply.split("\n\n");
     expect(paragraphs[0]).toMatch(/^Imported Reel 07 · 9 shots · 50s\./);
     expect(paragraphs).toContain("Who plays Rhea? Pick an avatar below, or keep Rhea in words for now.");
-    expect(paragraphs.at(-1)).toMatch(/^1 thing to settle before it's final\. First: Paste a real, cleared Amazon review/);
+    expect(paragraphs.at(-1)).toMatch(/^1 thing to settle before it's final\. First: Paste a real, cleared customer review/);
     expect(r.notes.confirmations).toEqual([]);
   });
 
