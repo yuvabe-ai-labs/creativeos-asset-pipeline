@@ -2,8 +2,7 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/avatars/utils";
 import { listAvatars } from "@/lib/db/avatars";
-import { listScripts } from "@/lib/db/scripts";
-import { libraryFormats } from "@/lib/scripts/copilot/prompt-context";
+import { SCRIPT_FORMATS } from "@/lib/scripts/copilot/formats";
 import { changeWithRetry, type Change, type ChangeOutcome } from "@/lib/scripts/copilot/change";
 import { rowToGenerateScript, rowToMessage, type GenerateScriptRow, type ScriptMessageRow } from "@/lib/scripts/copilot/rows";
 import { fillToFinal } from "@/lib/scripts/copilot/fill-to-final";
@@ -160,11 +159,11 @@ export async function listCopilotAvatars(clientId: string): Promise<CopilotAvata
 export async function loadGenerateState(clientId: string, scriptId: string): Promise<GenerateState | null> {
   const script = await getGenerateScript(clientId, scriptId);
   if (!script) return null;
-  const [messages, avatars, library] = await Promise.all([
+  const [messages, avatars] = await Promise.all([
     listScriptMessages(clientId, scriptId),
     listCopilotAvatars(clientId),
-    script.doc ? [] : listScripts(clientId),
   ]);
-  const formats = libraryFormats(library).map((f) => f.format);
+  // The format menu is shared by every client (brand-neutral spec §3.1); it is offered only before a draft.
+  const formats = script.doc ? [] : SCRIPT_FORMATS.map((f) => f.name);
   return { script, messages, avatars, formats, openItems: fillToFinal(script.doc, script.notes) };
 }

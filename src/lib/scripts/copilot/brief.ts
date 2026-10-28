@@ -6,10 +6,6 @@ import type { Angle, Brief, ConfirmationCard, CopilotAvatar, OpenItem, Piece, Sc
 // already given; any or all can be skipped and the copilot proposes them. The code decides the next
 // step; the model only reads the person's answer and fills what the step needs (D328).
 
-export function isFounderLed(format: string): boolean {
-  return /founder/i.test(format);
-}
-
 export type Step =
   | { kind: "ask"; piece: "format" | "occasion" | "lead" }
   | { kind: "angles" }

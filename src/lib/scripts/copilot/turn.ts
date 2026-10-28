@@ -14,7 +14,8 @@ import type { StreamingCall, StructuredCall } from "./model";
 import type { PartialDraft } from "./partial-draft";
 import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
 import { anglesOutputSchema, cardOutputSchema, detectOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
-import { libraryFormats, nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
+import { nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
+import { SCRIPT_FORMATS } from "./formats";
 import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptNotes } from "./schema";
 import {
   angleText, applyAngle, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
@@ -65,7 +66,7 @@ const TOO_LONG = `That's longer than a chat message can be (${MAX_MESSAGE_CHARS.
 async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase): Promise<Apply> {
   const { script, ctx, text, lastAssistant } = input;
   const avatarIds = new Set(ctx.avatars.map((a) => a.id));
-  const formats = libraryFormats(ctx.library).map((f) => f.format);
+  const formats = SCRIPT_FORMATS.map((f) => f.name);
   const nextReel = nextReelNumber(ctx.library);
   const quick = deps.quick ?? deps.call;
 

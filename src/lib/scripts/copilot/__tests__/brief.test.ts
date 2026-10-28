@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  angleText, applyAngle, cardToNotes, isFounderLed, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
+  angleText, applyAngle, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
   openingMessage, openItemsLine, questionFor,
 } from "../brief";
 import { EMPTY_BRIEF, type Angle, type Brief } from "../schema";
@@ -51,8 +51,6 @@ describe("nextStep: a fixed order, skipping anything already given", () => {
   it("asks who leads every format, Founder-led too (D362: the founder is picked as a saved avatar)", () => {
     const b = { ...EMPTY_BRIEF, format: given("Founder-led"), occasion: given("World Diabetes Day") };
     expect(nextStep(b, false)).toEqual({ kind: "ask", piece: "lead" });
-    expect(isFounderLed("Founder-led option")).toBe(true);
-    expect(isFounderLed("UGC, review first")).toBe(false);
   });
 
   it("treats skipped pieces as settled, and skipping everything still reaches the angles", () => {

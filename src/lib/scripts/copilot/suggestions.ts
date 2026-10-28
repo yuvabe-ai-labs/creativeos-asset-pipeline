@@ -1,4 +1,5 @@
-import { isFounderLed, nextStep } from "./brief";
+import { nextStep } from "./brief";
+import { formatFor } from "./formats";
 import { avatarLabel } from "./avatar-label";
 import { IMPORT_REPLY_PREFIX, NARRATOR } from "./constants";
 import type { CopilotAvatar, GenerateState } from "./schema";
@@ -32,8 +33,8 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
     if (step.kind === "ask" && step.piece === "format") return [...state.formats.map((f) => send(f)), send("Take it from here")];
     if (step.kind === "ask" && step.piece === "occasion") return [send("Kerala Piravi, Sun 1 Nov"), send("You pick")];
     if (step.kind === "ask" && step.piece === "lead") {
-      // A Founder-led reel's lead is the founder: the client's real-person (Specific) avatars first.
-      const founder = isFounderLed(script.brief.format.value);
+      // A format whose lead is a real person (Founder-led): the client's real-person (Specific) avatars first.
+      const founder = formatFor(script.brief.format.value)?.realPersonLead ?? false;
       const order = founder ? [...state.avatars].sort((a, b) => Number(b.specific) - Number(a.specific)) : state.avatars;
       return [
         ...order.map((a) => ({ label: avatarLabel(a, state.avatars), text: a.name, send: true, leadAvatarId: a.id })),
