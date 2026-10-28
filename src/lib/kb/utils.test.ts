@@ -52,6 +52,16 @@ describe("getModuleFields", () => {
       "lighting",
     ]);
   });
+
+  it("shows Content Rules first in Compliance, even on an old KB that has none", () => {
+    const field = { value: ["heal"], confidence: "high", evidence_type: "explicit", status: "approved" };
+    const kb = { compliance: { never_use_words: field } } as unknown as TraceableBrandKB;
+    const fields = getModuleFields(kb, "compliance");
+    expect(Object.keys(fields)).toEqual(["content_rules", "never_use_words"]);
+    expect(fields.content_rules.value).toBeNull();
+    // Display only: the stored KB is not changed.
+    expect("content_rules" in kb.compliance).toBe(false);
+  });
 });
 
 describe("findNextModuleNeedingReview", () => {

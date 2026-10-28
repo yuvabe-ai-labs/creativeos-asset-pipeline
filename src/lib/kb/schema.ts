@@ -145,6 +145,9 @@ export const TraceableVideoDirectionSchema = z.object({
 // ── Compliance ────────────────────────────────────────────────────────────────
 
 export const TraceableComplianceSchema = z.object({
+  content_rules: kbField(z.string()).describe(
+    "What a script needs that no other field holds: what the brand sells, the claims and proof it may use, its disclaimers' wording, whether it uses customer reviews, regional customs, and anything never shown. Only what the sources state.",
+  ),
   preferred_verbs: kbField(z.array(z.string())).describe(
     "Verbs the AI should default to: helps, supports, nourishes",
   ),
