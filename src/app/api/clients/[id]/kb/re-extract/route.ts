@@ -14,6 +14,7 @@ import {
 } from "@/lib/kb/schema";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { computeFillRate } from "@/lib/kb/fill-rate";
+import { keepReviewedContentRules } from "@/lib/kb/content-rules";
 import { kbExtractPrompt } from "@/prompts/kb-extract";
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
@@ -72,11 +73,12 @@ export async function POST(
 
       // Read after the extraction, which takes a while: a run may have rewritten the section since.
       const current = await getActiveKBVersion(clientId);
-      const previous = (current?.output as TraceableBrandKB | undefined)?.image_analysis;
-      const mergedKB: TraceableBrandKB = {
+      const currentKB = current?.output as TraceableBrandKB | undefined;
+      // Reviewed Content Rules survive a re-extraction (brand-neutral spec §3.5).
+      const mergedKB: TraceableBrandKB = keepReviewedContentRules({
         ...docKB,
-        image_analysis: previous ?? defaultEmptyImageAnalysis(),
-      };
+        image_analysis: currentKB?.image_analysis ?? defaultEmptyImageAnalysis(),
+      }, currentKB);
 
       const fillRate = computeFillRate(mergedKB);
       const version = await insertKBVersion({
