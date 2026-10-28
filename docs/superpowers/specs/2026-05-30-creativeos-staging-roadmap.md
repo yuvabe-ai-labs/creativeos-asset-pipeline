@@ -7936,4 +7936,17 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** [2026-10-28-brand-neutral-system-design.md](2026-10-28-brand-neutral-system-design.md).
 
+**Refined (28 Oct 2026, chips).** Chips are stored with their message (migration 0061, applied to staging by the user), so a reloaded chat shows them again; a browser-only version was built and reverted the same day.
+
 **Refined (28 Oct 2026, same spec §3.2–3.7).** The rest of the system too: the script reader's subject rule no longer names a skincare client's cream and jar or assumes every reel is a product film; the video prompt writer's examples name a made-up product ("the green ceramic mug"), not CHUPPS's V-Straps (refines D262/D263); Visualise's place hints are general geography by state (`STATE_PLACES`), not keyed to one client's kit rows (refines D343). The UGC bench (`/ugc`) is removed; avatars keep their voice-length limits in their own constants. A guard (`clientTermsIn`, matched from the start of a word) checks the shared prompts in tests.
+
+
+### D425 — The copilot reads the last 10 messages of the conversation *(recorded 2026-10-28; refines spec 2 §3, D424)*
+
+**Decision.** Every copilot step that answers the person (reading the reply, angles, the confirmation card, the first draft, chat edits) gets the last 10 messages before the one it answers, whole and oldest first, each card adding a line that says what it showed ("[showed angles: A. …; B. …]"). The inline edit and the paste check do not. A shared rule keeps the state in charge: "When the conversation so far and the script or brief disagree, the script and brief win." The route already loads the history, so this adds no database call.
+
+**Why.** "Everytime a new chat is sent the entire messaging history should be sent, otherwise how will there be any continuity" (user, 28 Oct 2026). Until now each step saw only the copilot's last message (spec 2 §3: "works from the current script and notes, not from the old chat"), so "go with B, but warmer" or "like before" had nothing to point back to.
+
+**Rejected.** The whole conversation on every call (grows without end; stale instructions). Cutting each message to a ceiling (user: send them whole "for now, the context window is big"; revisit with the speed work).
+
+**Originated →** conversation in this session; [2026-10-28-brand-neutral-system-design.md](2026-10-28-brand-neutral-system-design.md).
