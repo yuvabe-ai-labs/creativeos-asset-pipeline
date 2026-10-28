@@ -74,11 +74,11 @@ describe("script writer probe", () => {
       // The brief as the app builds it: the format given, the rest left to the copilot.
       const occasion = process.env.PROBE_OCCASION ? given(process.env.PROBE_OCCASION) : { value: "", status: "skipped" as const };
       let brief: typeof EMPTY_BRIEF = { ...EMPTY_BRIEF, format: given(format.name), occasion };
-      const proposed = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: ctx.signals.brief, text: "Take it from here." }), schema: anglesOutputSchema });
+      const proposed = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: ctx.signals.brief, conversation: "", text: "Take it from here." }), schema: anglesOutputSchema });
       const angles = normalizeAngles(proposed.angles, ctx.signals.list, avatarIds);
       brief = applyAngle({ ...brief, angles }, angles[0], "given");
       const nextReel = nextReelNumber(ctx.library);
-      const rawCard = await quick({ name: "script_card", ...cardPrompt(base, { brief, angle: angles[0], cardChange: "", nextReel }), schema: cardOutputSchema });
+      const rawCard = await quick({ name: "script_card", ...cardPrompt(base, { brief, angle: angles[0], cardChange: "", nextReel, conversation: "" }), schema: cardOutputSchema });
       const card = normalizeCard(rawCard, { reelNumber: nextReel, avatarIds });
       const confirmed = { ...brief, card, phase: "confirm" as const };
 
@@ -88,14 +88,14 @@ describe("script writer probe", () => {
           const label = `${model} · ${format.name} · run ${n}`;
           try {
             const t0 = Date.now();
-            const draft = await call({ name: "script_draft", ...draftPrompt(base, { brief: confirmed, card }), schema: draftOutputSchema });
+            const draft = await call({ name: "script_draft", ...draftPrompt(base, { brief: confirmed, card, conversation: "" }), schema: draftOutputSchema });
             const draftMs = Date.now() - t0;
             const doc = toScriptDoc(draft, { reelNumber: card.reelNumber, avatarIds });
             const checks = scoreDraft(doc, { beats: card.beats, clientText, neverList, shots: [4, 20], seconds: [20, 90] });
 
             // Every format opens on HOOK, so the edit is the same everywhere.
             const t1 = Date.now();
-            const edit = await call({ name: "script_edit", ...editPrompt(base, { doc, notes: EMPTY_NOTES, openItems: fillToFinal(doc, EMPTY_NOTES), lastAssistant: "", text: "Make the HOOK punchier." }), schema: editTurnSchema });
+            const edit = await call({ name: "script_edit", ...editPrompt(base, { doc, notes: EMPTY_NOTES, openItems: fillToFinal(doc, EMPTY_NOTES), conversation: "", text: "Make the HOOK punchier." }), schema: editTurnSchema });
             const editMs = Date.now() - t1;
             const applied = applyOps(doc, EMPTY_NOTES, edit.ops, { newShotId, avatarIds: new Set() });
             checks.push(applied.ok ? scoreEditIsolation(doc, applied.doc, "HOOK") : { name: "edit isolation", pass: false, detail: applied.error });

@@ -17,7 +17,8 @@ import { anglesOutputSchema, cardOutputSchema, detectOutputSchema, draftOutputSc
 import { nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
 import { renderFormatMenu, SCRIPT_FORMATS } from "./formats";
 import { cleanSuggestions } from "./suggestions";
-import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptNotes } from "./schema";
+import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptMessage, ScriptNotes } from "./schema";
+import { renderConversation } from "./conversation";
 import {
   angleText, applyAngle, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
   openItemsLine, questionFor, type Step,
@@ -39,8 +40,9 @@ export type TurnDeps = {
   onDraft?: (draft: PartialDraft) => void;
   newShotId?: (taken: Set<string>) => string;
 };
-/** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362). */
-export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; lastAssistant: string; leadAvatarId?: string | null };
+/** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362).
+ *  `history`: the messages before this one; the copilot reads the last 10 of them (conversation.ts). */
+export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; history: ScriptMessage[]; leadAvatarId?: string | null };
 export type Apply = (current: GenerateScript) => Change<Reply[]>;
 
 function baseFor(ctx: CopilotContext, format: string): CopilotBase {
@@ -68,13 +70,14 @@ export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<App
 const TOO_LONG = `That's longer than a chat message can be (${MAX_MESSAGE_CHARS.toLocaleString("en")} characters), and it doesn't read as a whole script. If it is one, paste the whole script, shot table included.`;
 
 async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase): Promise<Apply> {
-  const { script, ctx, text, lastAssistant } = input;
+  const { script, ctx, text } = input;
+  const conversation = renderConversation(input.history);
   const avatarIds = new Set(ctx.avatars.map((a) => a.id));
   const formats = SCRIPT_FORMATS.map((f) => f.name);
   const nextReel = nextReelNumber(ctx.library);
   const quick = deps.quick ?? deps.call;
 
-  const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, lastAssistant, text }), schema: extractionSchema });
+  const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, conversation, text }), schema: extractionSchema });
   const merged = mergeExtraction(script.brief, ex, avatarIds);
   let brief: Brief = merged.brief;
   let changed = merged.changed;
@@ -111,7 +114,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     }
     if (step.kind === "angles") {
       const research = ctx.signals;
-      const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, text }), schema: anglesOutputSchema });
+      const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, conversation, text }), schema: anglesOutputSchema });
       chips = out.suggestions ?? [];
       const angles = normalizeAngles(out.angles, research.list, avatarIds);
       if (angles.length === 0) throw new Error("The copilot proposed no angles.");
@@ -131,7 +134,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     }
     if (step.kind === "card") {
       const angle = brief.angles.find((a) => angleText(a) === brief.narrative.value) ?? null;
-      const out = await quick({ name: "script_card", ...cardPrompt(base, { brief, angle, cardChange: merged.cardChange, nextReel }), schema: cardOutputSchema });
+      const out = await quick({ name: "script_card", ...cardPrompt(base, { brief, angle, cardChange: merged.cardChange, nextReel, conversation }), schema: cardOutputSchema });
       const card = normalizeCard(out, { reelNumber: brief.reelNumber ?? nextReel, avatarIds, lead });
       chips = out.suggestions ?? [];
       brief = { ...brief, card, phase: "confirm" };
@@ -145,7 +148,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
         break;
       }
       const card = brief.card;
-      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card }), schema: draftOutputSchema };
+      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card, conversation }), schema: draftOutputSchema };
       const out = await streamDraftCall(deps, draftArgs);
       doc = toScriptDoc(out, { reelNumber: card.reelNumber, avatarIds, leadAvatarId: lead?.avatarId ?? null });
       notes = cardToNotes(card);
@@ -172,10 +175,11 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
 }
 
 async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, doc: ScriptDoc): Promise<Apply> {
-  const { script, ctx, text, lastAssistant } = input;
+  const { script, ctx, text } = input;
+  const conversation = renderConversation(input.history);
   const out = await deps.call({
     name: "script_edit",
-    ...editPrompt(base, { doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), lastAssistant, text }),
+    ...editPrompt(base, { doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation, text }),
     schema: editTurnSchema,
   });
   const gen: OpsGen = { newShotId: deps.newShotId ?? randomShotId, avatarIds: new Set(ctx.avatars.map((a) => a.id)) };

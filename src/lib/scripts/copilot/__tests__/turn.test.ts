@@ -64,7 +64,7 @@ const deps = (call: StructuredCall): TurnDeps => ({
   call, newShotId: (() => { let n = 0; return () => `new${++n}`; })(),
 });
 const run = async (s: GenerateScript, text: string, d: TurnDeps, current: GenerateScript = s) => {
-  const apply = await prepareTurn({ script: s, ctx, text, lastAssistant: "" }, d);
+  const apply = await prepareTurn({ script: s, ctx, text, history: [] }, d);
   return apply(current);
 };
 const ok = <T,>(c: { patch: unknown; result: T } | { error: string; status: number }) => {
@@ -199,7 +199,7 @@ describe("before the draft", () => {
       script_brief_read: [extraction({ lead: { action: "given", value: "Meenakshi", avatarId: null } })],
       script_angles: [{ angles: [angle("A"), angle("B"), angle("C")] }],
     });
-    const apply = await prepareTurn({ script: script({ brief }), ctx: { ...ctx, avatars }, text: "James", lastAssistant: "", leadAvatarId: JAMES }, deps(m.call));
+    const apply = await prepareTurn({ script: script({ brief }), ctx: { ...ctx, avatars }, text: "James", history: [], leadAvatarId: JAMES }, deps(m.call));
     const out = ok(apply(script({ brief })));
     expect(out.patch?.brief?.lead).toEqual({ value: "James", status: "given" });
     expect(out.patch?.brief?.leadAvatarId).toBe(JAMES);
@@ -229,6 +229,17 @@ describe("after the draft: chat edits", () => {
   const written = script({ doc, brief: { ...EMPTY_BRIEF, phase: "written" }, docVersion: 5 });
   const op = (o: Partial<EditOp> & Pick<EditOp, "op">): EditOp => ({
     path: null, value: null, shotId: null, afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null, ...o,
+  });
+
+  it("gives the edit the conversation so far, so 'like before' has something to point back to", async () => {
+    const m = fakeModel({ script_edit: [{ ops: [], reply: "Done." }] });
+    const history = [
+      { id: "h1", role: "user" as const, content: "Keep every line light-hearted", card: null, suggestions: [], createdAt: "t" },
+      { id: "h2", role: "assistant" as const, content: "Will do.", card: null, suggestions: [], createdAt: "t" },
+    ];
+    await prepareTurn({ script: written, ctx, text: "Now the hook, like before", history }, deps(m.call));
+    const user = vi.mocked(m.call).mock.calls[0][0].user;
+    expect(user).toContain("Person: Keep every line light-hearted\nCopilot: Will do.");
   });
 
   it("applies a one-shot edit at once and says what changed", async () => {
@@ -412,7 +423,7 @@ describe("pasting a whole script (paste-a-script spec)", () => {
   it("takes the next free reel number when the pasted one is taken (success 9)", async () => {
     const taken: Script = { id: "other", clientId: "c1", stage: "visualise", doc: { ...doc, header: { ...doc.header, reelNumber: 7 } }, approvedAt: null, createdAt: "t", updatedAt: "t" };
     const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
-    const apply = await prepareTurn({ script: script(), ctx: { ...ctx, library: [taken] }, text: REEL_07_PASTE, lastAssistant: "" }, deps(m.call));
+    const apply = await prepareTurn({ script: script(), ctx: { ...ctx, library: [taken] }, text: REEL_07_PASTE, history: [] }, deps(m.call));
     const out = ok(apply(script()));
     expect(out.patch?.doc?.header.reelNumber).toBe(8);
     expect(out.result[0].content).toContain("Reel 07 is taken, so this is Reel 08.");
@@ -420,7 +431,7 @@ describe("pasting a whole script (paste-a-script spec)", () => {
 
   it("refuses to save over a draft that appeared while it read", async () => {
     const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
-    const apply = await prepareTurn({ script: script(), ctx, text: REEL_07_PASTE, lastAssistant: "" }, deps(m.call));
+    const apply = await prepareTurn({ script: script(), ctx, text: REEL_07_PASTE, history: [] }, deps(m.call));
     expect(apply(script({ doc, docVersion: 2 }))).toEqual({ error: "The script changed while I was working. Send that again.", status: 409 });
   });
 });

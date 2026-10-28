@@ -14,6 +14,10 @@ describe("the script copilot's shared instructions", () => {
     expect(scriptCopilotPrompt.rules).toContain(SAFETY_LINE);
   });
 
+  it("lets the script and brief win over an older message in the conversation", () => {
+    expect(scriptCopilotPrompt.rules).toContain("When the conversation so far and the script or brief disagree, the script and brief win.");
+  });
+
   it("is version 4", () => {
     expect(scriptCopilotPrompt.version).toBe(4);
   });

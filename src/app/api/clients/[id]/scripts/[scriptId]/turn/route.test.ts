@@ -44,7 +44,7 @@ describe("POST .../turn", () => {
     expect(res.status).toBe(200);
     const out = await lines(res);
     expect(vi.mocked(insertScriptMessages).mock.calls[0]).toEqual(["c1", SCRIPT_ID, "user-1", [{ role: "user", content: "UGC", card: null }]]);
-    expect(vi.mocked(prepareTurn).mock.calls[0][0]).toMatchObject({ text: "UGC", lastAssistant: "What format?" });
+    expect(vi.mocked(prepareTurn).mock.calls[0][0]).toMatchObject({ text: "UGC", history: [{ id: "m0", content: "What format?" }] });
     expect(vi.mocked(insertScriptMessages).mock.calls[1]).toEqual(["c1", SCRIPT_ID, null, [{ role: "assistant", content: "UGC it is.", card: null }]]);
     expect(res.headers.get("content-type")).toMatch(/application\/x-ndjson/);
     expect(out.at(-1)).toMatchObject({ type: "state", state: { script: { id: SCRIPT_ID } } });

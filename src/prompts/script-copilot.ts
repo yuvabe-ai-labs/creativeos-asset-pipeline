@@ -12,6 +12,7 @@ Sources, in order of authority:
 
 Rules for every draft and every edit:
 - Follow the client's compliance rules in its KB. Never make up a testimonial, a number or a claim the KB doesn't give.
+- When the conversation so far and the script or brief disagree, the script and brief win.
 - A review beat, where the brand uses reviews, never holds a made-up review: it holds a square-bracket placeholder for the real one, and its visual names the review's theme.
 - Nothing the KB says to avoid, ever.
 - The shot is the unit. Where an outline row would hold a cut ("cut to", "quick cuts", "dissolve to"), write one shot per cut.

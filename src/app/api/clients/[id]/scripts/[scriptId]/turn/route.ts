@@ -37,7 +37,6 @@ export async function POST(req: Request, { params }: Ctx) {
 
       const { userId } = await resolveCallerContext();
       const history = await listScriptMessages(clientId, scriptId);
-      const lastAssistant = [...history].reverse().find((m) => m.role === "assistant")?.content ?? "";
       await insertScriptMessages(clientId, scriptId, userId, [{ role: "user", content: text, card: null }]);
 
       const encoder = new TextEncoder();
@@ -50,7 +49,7 @@ export async function POST(req: Request, { params }: Ctx) {
               // Signals feed the brief (suggestions, angles) only: an edit after the draft never reads them.
               const ctx = await loadCopilotContext(client, { signals: script.doc === null });
               const apply = await prepareTurn(
-                { script, ctx, text, lastAssistant, leadAvatarId },
+                { script, ctx, text, history, leadAvatarId },
                 {
                   call: structuredCaller(SCRIPT_WRITER_MODEL),
                   quick: structuredCaller(SCRIPT_QUICK_MODEL),
