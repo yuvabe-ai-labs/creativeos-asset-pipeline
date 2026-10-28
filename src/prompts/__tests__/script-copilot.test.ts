@@ -26,6 +26,11 @@ describe("the script copilot's shared instructions", () => {
     expect(angles).toMatch(/reviewTheme[^.]*"" unless/);
   });
 
+  // Final review (spec §6): a client with no KB and no signals is still offered occasions.
+  it("offer calendar occasions when there is no brand KB or market signal to draw on", () => {
+    expect(scriptCopilotPrompt.tasks.extract).toContain("With no brand KB and no market signals, suggest occasions coming up in the calendar.");
+  });
+
   it("ask every writing step for brand-aware suggestions", () => {
     for (const task of ["extract", "angles", "card", "draft", "edit"] as const) {
       expect(scriptCopilotPrompt.tasks[task]).toContain("suggestions:");
