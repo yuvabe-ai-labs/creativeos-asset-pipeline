@@ -124,8 +124,8 @@ export const SEEDANCE_FACE_MODEL_ID = "seedream:seedream-5-0-lite";
 
 // A generated avatar runs on Seedance, so the default is the model Seedance will take.
 export const AVATAR_DEFAULT_FRONT_MODEL_ID = SEEDANCE_FACE_MODEL_ID;
-// The profile sheet defaults to Nano Banana 2, whichever face it starts with.
-export const AVATAR_DEFAULT_SHEET_MODEL_ID = "gemini:gemini-3.1-flash-image";
+// The profile sheet defaults to Nano Banana 2.1 (D425), whichever face it starts with.
+export const AVATAR_DEFAULT_SHEET_MODEL_ID = "gemini:gemini-nano-banana-2.1";
 
 // A stored upload name as buildStoredName produces it: slug, "__", timestamp, extension. Used as
 // an allow-list by the upload finalize route, so a crafted name ("..", a backslash, "%2e") can

@@ -7923,3 +7923,19 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** Image Analysis is written by a background run over every brand image (D312), which can finish long after the KB build. Gating on it kept the team waiting on onboarding for work they can review later (user, 27 Oct 2026). Reviews already survive later runs (D318), so reviewing afterwards loses nothing.
 
 **Rejected.** Waiting for the run before Mark KB Ready (blocks onboarding). Auto-approving Image Analysis on Mark KB Ready (marks unseen fields as reviewed).
+
+### D424 — Storyboard panels are drawn with Nano Banana 2.1 by default *(recorded 2026-10-28; amends D346's 8 Oct testing amendment)*
+
+**Decision.** `PANEL_MODEL_ID` is `gemini:gemini-nano-banana-2.1`. The Advanced model picker still offers every OpenAI and Gemini image model, GPT Image 2 included. The cast-card avatar default (`VISUALISE_AVATAR_MODEL_ID`) is unchanged.
+
+**Why.** The user asked for Nano Banana 2.1 as the storyboard default (28 Oct 2026). It takes 14 references and every panel aspect (9:16, 16:9, 1:1, 4:3, 3:4), and costs less per image than GPT Image 2.
+
+**Rejected.** Removing GPT Image 2 from the panel picker (still useful for comparison).
+
+### D425 — Avatar profile sheets are drawn with Nano Banana 2.1 by default *(recorded 2026-10-28; refines D395)*
+
+**Decision.** `AVATAR_DEFAULT_SHEET_MODEL_ID` is `gemini:gemini-nano-banana-2.1`. The sheet's model picker under Advanced is unchanged, so Nano Banana 2 and the others can still be chosen. The front image default (Seedream, D290) is unchanged.
+
+**Why.** The user asked for Nano Banana 2.1 as the profile sheet default (28 Oct 2026), matching the storyboard panels (D424). It accepts the sheet's 16:9 aspect and the front image as its reference, and costs less per image than Nano Banana 2.
+
+**Rejected.** Changing the front image default too (Seedance accepts only Seedream faces, D290).

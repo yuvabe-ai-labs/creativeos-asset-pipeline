@@ -1,10 +1,10 @@
 import { imageGenClientModels } from "@/lib/image-gen/client-models";
 
-// D346, amended in testing (8 Oct 2026, user): panels are drawn with GPT Image 2 by default, and
+// D346, amended by D424 (28 Oct 2026, user): panels are drawn with Nano Banana 2.1 by default, and
 // the model can be changed under Advanced. Only OpenAI and Gemini models are offered: their
 // providers fetch every reference themselves, so the inline house style image reaches them
 // (Seedream hands URLs to the vendor).
-export const PANEL_MODEL_ID = "openai:gpt-image-2";
+export const PANEL_MODEL_ID = "gemini:gemini-nano-banana-2.1";
 export const PANEL_MODEL_IDS: readonly string[] = imageGenClientModels
   .filter((m) => m.provider === "openai" || m.provider === "gemini")
   .map((m) => m.id);
