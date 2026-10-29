@@ -25,7 +25,7 @@ import { multishotPromptModels } from "@/lib/nodes/multishot-models";
 import { FieldLabel } from "./field-label";
 import { SliceToggles } from "./slice-toggles";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
+import { GenerateFooter } from "./generate-footer";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { visionAttachmentsOf, isVisionAttachment } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
@@ -719,7 +719,7 @@ export function MultishotPromptFocusView({
       emptyNoun="plan"
       renderVersionOutput={renderVersionOutput}
     >
-      {({ versionStepper, viewingBar, viewedVersion, viewedLabel, isViewingOther, approvalControls }) => {
+      {({ viewedVersion, viewedLabel, isViewingOther, approvalControls }) => {
         const shownRequest = isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest;
         return (
         <>
@@ -757,9 +757,7 @@ export function MultishotPromptFocusView({
                       <ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />
                       <span className="text-eyebrow">Generated plan</span>
                     </div>
-                    {versionStepper}
                   </div>
-                  {viewingBar}
                   {isViewingOther && viewedVersion ? (
                     (() => {
                       const viewedPlan = asViewablePlan(viewedVersion.output);
@@ -880,31 +878,40 @@ export function MultishotPromptFocusView({
                       )}
                     </div>
 
-                    {/* Generate, at the foot of the column it acts on — same placement as the
-                        image and video prompt views. */}
-                    <div className="shrink-0 border-t border-border px-5 py-3">
-                      {isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
-                      {unwritten.size > 0 && (
-                        <p className="mb-2 text-[0.7rem] text-destructive">
-                          {unwritten.size === 1
-                            ? "1 shot has no written prompt. Video Gen will refuse until it does."
-                            : `${unwritten.size} shots have no written prompt. Video Gen will refuse until they do.`}
-                        </p>
-                      )}
-                      <Button
-                        className="w-full"
-                        onClick={runGenerate}
-                        disabled={generating || isReadOnly || cuts.length === 0 || !!refining || dirty || isViewingOther}
-                      >
-                        <ListVideo className="size-4" />
-                        {generating
-                          ? "Generating…"
-                          : planDraft
-                            ? "Re-generate"
-                            : "Generate multishot prompt"}
-                        {!generating && <EstimatedCreditsLabel credits={estimatedCredits} />}
-                      </Button>
-                    </div>
+                    {/* Generate, at the foot of the column it acts on — D435, the same pinned
+                        GenerateFooter every node has. */}
+                    <GenerateFooter
+                      className="shrink-0 px-5"
+                      icon={ListVideo}
+                      label={planDraft ? "Re-generate" : "Generate multishot prompt"}
+                      busy={generating}
+                      onClick={runGenerate}
+                      disabled={generating || isReadOnly || cuts.length === 0 || !!refining || dirty || isViewingOther}
+                      disabledReason={
+                        isReadOnly
+                          ? "This canvas is read-only."
+                          : cuts.length === 0
+                            ? "Add shots on the Multishot node first."
+                            : refining
+                              ? "A rewrite is running."
+                              : dirty
+                                ? "Save or discard your edits first."
+                                : null
+                      }
+                      credits={estimatedCredits}
+                      notice={
+                        <>
+                          {isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
+                          {unwritten.size > 0 && (
+                            <p className="text-[0.7rem] text-destructive">
+                              {unwritten.size === 1
+                                ? "1 shot has no written prompt. Video Gen will refuse until it does."
+                                : `${unwritten.size} shots have no written prompt. Video Gen will refuse until they do.`}
+                            </p>
+                          )}
+                        </>
+                      }
+                    />
                   </div>
 
                   {/* OUTPUT. The look block first — a distinct card, never numbered, because it
@@ -926,9 +933,7 @@ export function MultishotPromptFocusView({
                         <ListVideo className="size-3.5 text-primary" strokeWidth={1.5} />
                         <span className="text-eyebrow">Generated plan</span>
                       </div>
-                      {versionStepper}
                     </div>
-                    {viewingBar}
 
                     {/* D236/D237 — the plan on screen was written for one model and the Multishot
                         node now says another. STATED, not clamped and not blocked: the beats stay

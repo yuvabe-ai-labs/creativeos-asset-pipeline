@@ -27,7 +27,7 @@ import { DubbingUsagePopover } from "./dubbing-usage-popover";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VersionViewingBar } from "./version-viewing-bar";
-import { VersionStepper } from "./version-stepper";
+import { ViewingTag } from "./viewing-tag";
 import { ActiveOnlyNotice } from "./active-only-notice";
 
 type Props = {
@@ -73,6 +73,8 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
   // D383 — the dub on screen; the controls act on the active one only.
   const viewing = useVersionViewing(versions, activeVersionId, open);
   const labelById = versionLabelsById(versions);
+  // D433 — an older dub is on screen only while History, where it was picked, is open.
+  if (viewing.isViewingOther && selected !== "history") viewing.backToActive();
   const viewed = viewing.viewed;
   const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
   const shownDub = viewing.isViewingOther ? viewed?.dubbing ?? null : activeDub;
@@ -131,7 +133,21 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
               ) : selected === "history" ? (
                 <div className="px-6 py-5">
                   {loading ? <Skeleton className="h-24 w-full rounded-xl" /> : versions.length ? (
-                    <DubbingVersionHistory versions={versions} activeVersionId={activeVersionId} viewedVersionId={viewed?.id ?? null} onView={viewing.view} />
+                    <div className="flex flex-col gap-3">
+                      {/* D433 — Back and Restore beside the list the dub was picked from. */}
+                      {viewing.isViewingOther && viewed && (
+                        <VersionViewingBar
+                          viewedLabel={viewedLabel}
+                          viewedCreatedAt={viewed.createdAt}
+                          activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
+                          canRestore={editable && !viewed.error && Boolean(viewed.dubbing)}
+                          restoring={restoring}
+                          onBack={viewing.backToActive}
+                          onRestore={() => void restore(viewed.id)}
+                        />
+                      )}
+                      <DubbingVersionHistory versions={versions} activeVersionId={activeVersionId} viewedVersionId={viewed?.id ?? null} onView={viewing.view} />
+                    </div>
                   ) : <p className="text-sm text-muted-foreground">No dubs yet. Every dub shows up here.</p>}
                 </div>
               ) : (
@@ -170,20 +186,7 @@ export function DubbingFocusView({ open, onOpenChange, nodeId, title, language, 
               dub={shownDub}
               sourceUrl={source?.url ?? null}
               workingLabel={viewing.isViewingOther ? null : running === "dub" ? `Dubbing into ${dubLanguageLabel(lang)}…` : running === "lipsync" ? "Lip-syncing…" : null}
-              stepper={loading ? null : <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />}
-              banner={
-                viewing.isViewingOther && viewed ? (
-                  <VersionViewingBar
-                    viewedLabel={viewedLabel}
-                    viewedCreatedAt={viewed.createdAt}
-                    activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
-                    canRestore={editable && !viewed.error && Boolean(viewed.dubbing)}
-                    restoring={restoring}
-                    onBack={viewing.backToActive}
-                    onRestore={() => void restore(viewed.id)}
-                  />
-                ) : null
-              }
+              viewingTag={viewing.isViewingOther && viewed ? <ViewingTag label={viewedLabel} /> : undefined}
               failed={viewing.isViewingOther && !viewed?.dubbing}
             />
           </div>

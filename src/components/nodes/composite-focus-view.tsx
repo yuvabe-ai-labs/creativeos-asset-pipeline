@@ -33,10 +33,12 @@ import { LeftSection } from "./focus-left-section";
 import { FieldLabel } from "./field-label";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
+import { GenerateFooter } from "./generate-footer";
+import { imageGenerateBlocker, imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
 import { ImageGenVersionHistory } from "./image-gen-version-history";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { VersionViewingBar } from "./version-viewing-bar";
-import { VersionStepper } from "./version-stepper";
+import { ViewingTag } from "./viewing-tag";
 import { ActiveOnlyNotice } from "./active-only-notice";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { ImageGenUsagePopover } from "./image-gen-usage-popover";
@@ -82,6 +84,8 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   // D383 — the version on screen. Leaving the active one ends Edit, which acts on it.
   const viewing = useVersionViewing(versions, activeVersionId, open, () => setEditMode(false));
   const labelById = versionLabelsById(versions);
+  // D433 — an older version is on screen only while History, where it was picked, is open.
+  if (viewing.isViewingOther && selected !== "history") viewing.backToActive();
   const viewed = viewing.viewed;
   const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
   const shownImageUrl = viewing.isViewingOther ? viewed?.output ?? null : imageUrl;
@@ -108,6 +112,14 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
     referenceUrls: Array.from({ length: 1 + edit.selectedIds.length }, (_, i) => `ref-${i}`),
   });
   const actionUsd = editing ? editUsd : costUsd;
+  // The Composite runs Edit from the same button, so its reasons follow the mode it is in.
+  const compositeBlocker = imageGenerateBlocker({
+    editing: false,
+    editable,
+    hasPrompt: editing ? edit.canRun : draft.trim().length > 0,
+    refValidation,
+    missingInputReason: editing ? "Describe the edit first." : "Say what to make first.",
+  });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -146,7 +158,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
               {previewItem ? (
                 <ConnectedDetailView node={compositePreviewOf(previewItem)} />
               ) : selected !== "history" ? (
-                <div className="flex flex-col gap-6 px-6 py-5">
+                <div className="flex min-h-full flex-col gap-6 px-6 py-5">
                   {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                   {editing && imageUrl && activeVersionId ? (
                     <CompositeEditSection
@@ -190,29 +202,44 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       modelHints={COMPOSITE_MODEL_HINTS}
                       optionFilter={{ aspect_ratio: COMPOSITE_ASPECT_RATIOS }}
                       inlineParams
-                      actionLabel={editing ? { idle: "Edit image", busy: "Editing…" } : undefined}
-                      missingInputReason={editing ? "Describe the edit first." : "Say what to make first."}
                       referenceCount={referenceUrls.length}
-                      refValidation={refValidation}
-                      showGenerate
-                      onGenerate={() =>
-                        void (editing ? edit.runEdit() : generate({ instruction: draft, modelId: model.id, params: values }))
-                      }
-                      generating={generating || viewing.isViewingOther}
-                      editing={false}
-                      hasPrompt={editing ? edit.canRun : draft.trim().length > 0}
-                      hasImage={Boolean(imageUrl)}
-                      estimatedCredits={actionUsd === null ? null : usdToFinalCredits(actionUsd)}
-                      estimating={false}
                     />
                   </LeftSection>
+                  {/* D435 — the same pinned Generate every node has; the Composite's Edit runs
+                      from it too. */}
+                  <GenerateFooter
+                    className="-mx-6 -mb-5"
+                    label={editing ? "Edit image" : imageUrl ? "Re-generate" : "Generate composite"}
+                    busy={generating}
+                    busyLabel={editing ? "Editing…" : "Generating…"}
+                    onClick={() =>
+                      void (editing ? edit.runEdit() : generate({ instruction: draft, modelId: model.id, params: values }))
+                    }
+                    disabled={imageGenerateDisabled(compositeBlocker, generating || viewing.isViewingOther, false)}
+                    disabledReason={compositeBlocker}
+                    credits={actionUsd === null ? null : usdToFinalCredits(actionUsd)}
+                  />
                 </div>
               ) : (
                 <div className="px-6 py-5">
                   {loading ? (
                     <Skeleton className="h-24 w-full rounded-xl" />
                   ) : versions.length ? (
-                    <ImageGenVersionHistory versions={versions} activeVersionId={activeVersionId} viewedVersionId={viewed?.id ?? null} onView={viewing.view} />
+                    <div className="flex flex-col gap-3">
+                      {/* D433 — Back and Restore beside the list the version was picked from. */}
+                      {viewing.isViewingOther && viewed && (
+                        <VersionViewingBar
+                          viewedLabel={viewedLabel}
+                          viewedCreatedAt={viewed.createdAt}
+                          activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
+                          canRestore={editable && !viewed.error && Boolean(viewed.output)}
+                          restoring={restoring}
+                          onBack={viewing.backToActive}
+                          onRestore={() => void restore(viewed.id)}
+                        />
+                      )}
+                      <ImageGenVersionHistory versions={versions} activeVersionId={activeVersionId} viewedVersionId={viewed?.id ?? null} onView={viewing.view} />
+                    </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">No composites yet — every attempt will show up here.</p>
                   )}
@@ -234,20 +261,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                 setEditMode(next);
                 setSelected("compose"); // the mode's controls live in the middle column
               }}
-              stepper={loading ? null : <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />}
-              banner={
-                viewing.isViewingOther && viewed ? (
-                  <VersionViewingBar
-                    viewedLabel={viewedLabel}
-                    viewedCreatedAt={viewed.createdAt}
-                    activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
-                    canRestore={editable && !viewed.error && Boolean(viewed.output)}
-                    restoring={restoring}
-                    onBack={viewing.backToActive}
-                    onRestore={() => void restore(viewed.id)}
-                  />
-                ) : null
-              }
+              viewingTag={viewing.isViewingOther && viewed ? <ViewingTag label={viewedLabel} /> : undefined}
               viewingFailed={viewing.isViewingOther && !viewed?.output}
             />
           </div>

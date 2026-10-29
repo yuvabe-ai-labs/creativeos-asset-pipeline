@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import { Play } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { MEDIA_FADE_CLASS, useMediaReady } from "@/hooks/use-media-ready";
 import { cn } from "@/lib/utils";
 import type { MediaBox } from "@/lib/canvas/media-fit";
 
@@ -9,6 +11,7 @@ import type { MediaBox } from "@/lib/canvas/media-fit";
  * D384 — a card's image or video, whole, in a box of exactly its shape (so `object-contain`
  * draws no bands). `edge` runs it edge to edge under the header (input tiles); otherwise it is a
  * rounded, bordered box inside the card body (output nodes). Overlays go in `children`.
+ * D432 — a new file is a new element, shown over a skeleton and faded in once it can be drawn.
  */
 export function NodeMedia({
   kind,
@@ -27,6 +30,8 @@ export function NodeMedia({
   edge?: boolean;
   children?: ReactNode;
 }) {
+  const { ready: mediaReady, onReady: onMediaReady, measure: measureMedia } = useMediaReady(src);
+  const fade = cn("size-full object-contain", MEDIA_FADE_CLASS, !mediaReady && "opacity-0");
   return (
     <div
       className={cn(
@@ -35,16 +40,23 @@ export function NodeMedia({
       )}
       style={{ width: box.mediaWidth, height: box.mediaHeight }}
     >
+      {!mediaReady && <Skeleton className="absolute inset-0 rounded-none" />}
       {kind === "video" ? (
         <>
           <video
+            key={src}
+            ref={measureMedia}
             src={`${src}#t=0.1`}
             preload="metadata"
             muted
             aria-label={alt}
             playsInline
-            className="size-full object-contain"
+            className={fade}
             onLoadedMetadata={(e) => onMeasured(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
+            // The #t=0.1 frame is drawn once seeked; loadeddata covers a browser that skips it.
+            onSeeked={onMediaReady}
+            onLoadedData={onMediaReady}
+            onError={onMediaReady}
           />
           <span aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-foreground/50">
             <Play className="size-3.5 text-background" strokeWidth={1.5} />
@@ -53,10 +65,16 @@ export function NodeMedia({
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          key={src}
+          ref={measureMedia}
           src={src}
           alt={alt}
-          className="size-full object-contain"
-          onLoad={(e) => onMeasured(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+          className={fade}
+          onLoad={(e) => {
+            onMeasured(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight);
+            onMediaReady();
+          }}
+          onError={onMediaReady}
         />
       )}
       {children}

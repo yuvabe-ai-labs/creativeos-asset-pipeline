@@ -23,7 +23,6 @@ import {
   ImageIcon,
   PencilLine,
   SlidersHorizontal,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -64,7 +63,6 @@ import { VideoGenApiError } from "@/lib/video-gen/api";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
@@ -110,7 +108,9 @@ import {
 } from "./video-gen-version-history";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { VersionViewingBar } from "./version-viewing-bar";
-import { VersionStepper } from "./version-stepper";
+import { ViewingTag } from "./viewing-tag";
+import { GenerateFooter } from "./generate-footer";
+import { MEDIA_FADE_CLASS, useMediaReady } from "@/hooks/use-media-ready";
 import { VersionOutputEmpty } from "./version-output-empty";
 import { ActiveOnlyNotice } from "./active-only-notice";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
@@ -1427,6 +1427,12 @@ export function VideoGenFocusView({
   const activeVersion = versions.find((v) => v.id === activeVersionId);
   const activeVoice = readVoiceMeta(activeVersion?.paramsUsed?.voice);
   const labelById = versionLabelsById(versions);
+  // D433 — an older take is on screen only while History (where it was picked) or Sent to model
+  // (what it sent) is open; any other pane acts on the active take, so it shows that one.
+  // Adjust-during-render, guarded: it settles in one pass.
+  if (viewing.isViewingOther && selected !== "history" && selected !== "request") {
+    viewing.backToActive();
+  }
   const viewed = viewing.viewed;
   const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
   const activeLabel = activeVersionId ? labelById.get(activeVersionId) ?? null : null;
@@ -1436,6 +1442,13 @@ export function VideoGenFocusView({
     parseAspectRatio(viewed?.paramsUsed?.aspect_ratio) ??
     parseAspectRatio(params.aspect_ratio) ??
     9 / 16;
+  // D432 — the take on screen fades in over the generating placeholder once its first frame can
+  // be drawn, instead of a black box while it downloads.
+  const { ready: playerReady, onReady: onPlayerReady, measure: measurePlayerFrame } = useMediaReady(shownVideoUrl);
+  const playerFade = cn("h-full max-w-full rounded-xl border border-border bg-muted/20", MEDIA_FADE_CLASS, !playerReady && "opacity-0");
+  const playerLoading = !playerReady && (
+    <div aria-hidden className="absolute inset-0 animate-pulse rounded-xl bg-muted-foreground/15" />
+  );
   const measurePlayer = (e: SyntheticEvent<HTMLVideoElement>) => {
     const { videoWidth, videoHeight } = e.currentTarget;
     if (videoWidth > 0 && videoHeight > 0 && shownVideoUrl) setPlayerShape({ url: shownVideoUrl, ratio: videoWidth / videoHeight });
@@ -1572,7 +1585,8 @@ export function VideoGenFocusView({
         {/* Body: rail + detail pane (nav | options | output) — mirrors image-gen-focus-view */}
         <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
           {/* Rail */}
-          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
+          {/* D433 — narrower below xl, so a laptop's two working columns get the room. */}
+          <nav className="flex w-44 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4 xl:w-56">
             <RailItem
               icon={<Clapperboard className="size-4 text-primary" />}
               label="Video"
@@ -1685,7 +1699,7 @@ export function VideoGenFocusView({
             {/* min-w-0: without it this flex item's automatic minimum size is its content's
                 min-content width, so one long unbreakable string inside any pane silently
                 overrides w-[54%] and squeezes the video column beside it. */}
-            <div className="min-h-0 w-[54%] min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
+            <div className="min-h-0 w-1/2 min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised xl:w-[54%]">
               {/* D284 — Edit voice takes over this column, as Image Gen's Edit does. */}
               {selected === "video" && changeVoiceOpen && (
                 <div className="px-6 py-5">
@@ -1714,7 +1728,7 @@ export function VideoGenFocusView({
 
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && !changeVoiceOpen && (
-                <div className="flex flex-col gap-10 px-6 py-5">
+                <div className="flex min-h-full flex-col gap-10 px-6 py-5">
                   {/* Model first: it decides which roles exist, which params show, and which
                       combinations are legal, so every choice below it is downstream of this one. */}
                   {/* Output settings share the model's card: resolution and duration are
@@ -1839,40 +1853,18 @@ export function VideoGenFocusView({
                   {/* Generate closes the column, after every setting it depends on —
                       it used to sit in the page header, far from the controls that
                       decide what it will cost and whether it is even legal to run.
-                      D431 — pinned to the column's foot while it scrolls, like the Multishot
-                      Prompt view's footer, so it never needs scrolling to reach. */}
-                  <div className="sticky bottom-0 z-10 -mx-6 -mb-5 border-t border-border bg-card px-6 py-3">
-                    {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
-                    <Tooltip>
-                      <TooltipTrigger render={<span className="block w-full" />}>
-                        <Button
-                          size="lg"
-                          className="w-full"
-                          onClick={handleGenerate}
-                          disabled={
-                            isGenerating || disableGenerate || !editable || viewing.isViewingOther
-                          }
-                        >
-                          <Sparkles className="size-4" strokeWidth={1.5} />
-                          {isChangingVoice
-                            ? "Changing voice…"
-                            : isGenerating
-                            ? "Generating…"
-                            : videoUrl
-                              ? "Re-generate"
-                              : "Generate"}
-                          {!isGenerating && estimatedCredits !== null && (
-                            <EstimatedCreditsLabel credits={estimatedCredits} />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      {disableGenerate && disableGenerateReason ? (
-                        <TooltipContent side="bottom">
-                          {disableGenerateReason}
-                        </TooltipContent>
-                      ) : null}
-                    </Tooltip>
-                  </div>
+                      D435 — the same pinned GenerateFooter every node has. */}
+                  <GenerateFooter
+                    className="-mx-6 -mb-5"
+                    label={videoUrl ? "Re-generate" : "Generate video"}
+                    busy={isGenerating}
+                    busyLabel={isChangingVoice ? "Changing voice…" : "Generating…"}
+                    onClick={handleGenerate}
+                    disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
+                    disabledReason={disableGenerate ? disableGenerateReason : null}
+                    credits={estimatedCredits}
+                    notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
+                  />
                 </div>
               )}
 
@@ -1912,12 +1904,26 @@ export function VideoGenFocusView({
                       </div>
                     </div>
                   ) : versions.length > 0 ? (
+                    <div className="flex flex-col gap-3">
+                    {/* D433 — Restore lives beside the list the take was chosen from. */}
+                    {viewing.isViewingOther && viewed && (
+                      <VersionViewingBar
+                        viewedLabel={viewedLabel}
+                        viewedCreatedAt={viewed.createdAt}
+                        activeLabel={activeLabel}
+                        canRestore={editable && !viewed.error && Boolean(viewed.output)}
+                        restoring={restoring}
+                        onBack={viewing.backToActive}
+                        onRestore={() => void handleRestoreVersion(viewed.id)}
+                      />
+                    )}
                     <VideoGenVersionHistory
                       versions={versions}
                       activeVersionId={activeVersionId}
                       viewedVersionId={viewed?.id ?? null}
                       onView={viewing.view}
                     />
+                    </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       No generations yet — every attempt will show up here.
@@ -2058,14 +2064,18 @@ export function VideoGenFocusView({
             {/* Right column — the video, always visible. Faintly sunk so the
                 settings column reads as raised against it. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-1.5">
+              {/* D433 — a fixed one-line header that never changes height, so the player below never
+                  moves. Versions are picked in History (the rail), not stepped here; while an
+                  older take plays, a quiet tag names it in place of the Edit voice switch (which
+                  acts on the active take only). */}
+              <div className="flex h-8 min-w-0 shrink-0 items-center gap-3">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                   <span className="text-eyebrow">Video</span>
                 </div>
-                {/* D284 — beside the heading, like Image Gen's Edit switch: the mode acts on the
-                    video shown directly below, which stays the output. */}
-                {!loadingVersions && versions.some((v) => v.output && !v.error) && (
+                {viewing.isViewingOther && viewed ? (
+                  <ViewingTag label={viewedLabel} />
+                ) : !loadingVersions && versions.some((v) => v.output && !v.error) && (
                   <VideoGenChangeVoiceToggle
                     id={`video-edit-voice-${nodeId}`}
                     checked={changeVoiceOpen}
@@ -2084,37 +2094,29 @@ export function VideoGenFocusView({
                     }}
                   />
                 )}
-                {!loadingVersions && (
-                  <div className="ml-auto">
-                    <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
-                  </div>
-                )}
               </div>
-              {viewing.isViewingOther && viewed && (
-                <VersionViewingBar
-                  viewedLabel={viewedLabel}
-                  viewedCreatedAt={viewed.createdAt}
-                  activeLabel={activeLabel}
-                  canRestore={editable && !viewed.error && Boolean(viewed.output)}
-                  restoring={restoring}
-                  onBack={viewing.backToActive}
-                  onRestore={() => void handleRestoreVersion(viewed.id)}
-                />
-              )}
               <div className="min-h-0 flex-1">
                 {viewing.isViewingOther && viewed ? (
                   viewed.output ? (
                     // Plain playback of the viewed take: annotations, markers and the voice
                     // workspace belong to the active version only.
-                    <video
-                      key={viewed.id}
-                      src={viewed.output}
-                      controls
-                      playsInline
-                      onLoadedMetadata={measurePlayer}
-                      className="h-full max-w-full rounded-xl border border-border bg-muted/20"
-                      style={{ aspectRatio: playerRatio }}
-                    />
+                    // D433 — framed exactly as the active take (below), so stepping versions
+                    // never changes the box.
+                    <div className="relative h-full min-h-0 w-fit max-w-full">
+                      {playerLoading}
+                      <video
+                        key={viewed.output}
+                        ref={measurePlayerFrame}
+                        src={viewed.output}
+                        controls
+                        playsInline
+                        onLoadedMetadata={measurePlayer}
+                        onLoadedData={onPlayerReady}
+                        onError={onPlayerReady}
+                        className={playerFade}
+                        style={{ aspectRatio: playerRatio }}
+                      />
+                    </div>
                   ) : (
                     <VersionOutputEmpty noun="video" />
                   )
@@ -2246,6 +2248,7 @@ export function VideoGenFocusView({
                       </div>
                     )}
                     <div className="relative min-h-0 w-fit max-w-full flex-1">
+                      {playerLoading}
                       <video
                         // While annotating, the frame has to be readable back out of a
                         // canvas — and GCS public objects send no CORS headers (see
@@ -2253,8 +2256,11 @@ export function VideoGenFocusView({
                         // outright. Same-origin proxy ONLY in that mode: normal playback
                         // keeps the direct URL and is untouched by this feature. The key
                         // forces the remount that a crossOrigin change requires.
-                        key={reviewAnnotating ? "annotate" : "play"}
-                        ref={videoRef}
+                        key={`${reviewAnnotating ? "annotate" : "play"}:${videoUrl}`}
+                        ref={(el) => {
+                          videoRef.current = el;
+                          measurePlayerFrame(el);
+                        }}
                         src={
                           reviewAnnotating
                             ? `/api/image-proxy?url=${encodeURIComponent(videoUrl)}`
@@ -2276,7 +2282,9 @@ export function VideoGenFocusView({
                           );
                           measurePlayer(e);
                         }}
-                        className="h-full max-w-full rounded-xl border border-border bg-muted/20"
+                        onLoadedData={onPlayerReady}
+                        onError={onPlayerReady}
+                        className={playerFade}
                         style={{ aspectRatio: playerRatio }}
                       />
 

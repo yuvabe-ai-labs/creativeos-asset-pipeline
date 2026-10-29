@@ -19,7 +19,7 @@ import { FieldLabel } from "./field-label";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
+import { GenerateFooter } from "./generate-footer";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { isVisionAttachment, visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
@@ -563,7 +563,7 @@ export function VideoPromptFocusView({
       outputIcon={<Clapperboard className="size-3.5 text-primary" />}
       renderVersionOutput={renderVersionOutput}
     >
-      {({ versionStepper, viewingBar, viewedVersion, viewedLabel, isViewingOther, approvalControls }) => {
+      {({ viewedVersion, viewedLabel, isViewingOther, approvalControls }) => {
         const shownRequest = isViewingOther ? viewedVersion?.inputsUsed?.request ?? null : activeRequest;
         return (
         <>
@@ -638,22 +638,21 @@ export function VideoPromptFocusView({
                   />
 
                   </div>
+                  </div>
 
-                  {/* Generate — flows after the controls, reached via the scrollbar */}
-                  <div className="border-t border-border px-6 py-4">
-                    {isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
-                    <Button
-                      className="w-full"
-                      size="default"
-                      onClick={runGenerate}
-                      disabled={generating || !editable || isViewingOther}
-                    >
-                      <Clapperboard className="size-4" />
-                      {generating ? "Generating…" : output ? "Re-generate" : "Generate motion prompt"}
-                      {!generating && <EstimatedCreditsLabel credits={estimatedCredits} />}
-                    </Button>
-                  </div>
-                  </div>
+                  {/* D435 — the same Generate every node has, at the column's foot under the
+                      scrolling settings, so it never needs scrolling to reach. */}
+                  <GenerateFooter
+                    className="shrink-0"
+                    icon={Clapperboard}
+                    label={output ? "Re-generate" : "Generate motion prompt"}
+                    busy={generating}
+                    onClick={runGenerate}
+                    disabled={generating || !editable || isViewingOther}
+                    disabledReason={!editable ? "This canvas is read-only." : null}
+                    credits={estimatedCredits}
+                    notice={isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
+                  />
                 </div>
 
                 {/* Right column — generated motion prompt output. Faintly tinted so the
@@ -671,9 +670,7 @@ export function VideoPromptFocusView({
                       <Clapperboard className="size-3.5 text-primary" />
                       <span className="text-eyebrow">Generated motion prompt</span>
                     </div>
-                    {versionStepper}
                   </div>
-                  {viewingBar}
 
                   {isViewingOther && viewedVersion ? (
                     viewedVersion.output ? renderVersionOutput(viewedVersion) : <VersionOutputEmpty noun="prompt" />

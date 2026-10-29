@@ -39,7 +39,7 @@ import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { isVisionAttachment } from "@/lib/nodes/compose-message";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
+import { GenerateFooter } from "./generate-footer";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ShotControlsRow } from "./shot-controls-row";
 import {
@@ -75,8 +75,6 @@ import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
 import { PromptHistoryPane } from "./prompt-history-pane";
-import { VersionStepper } from "./version-stepper";
-import { VersionViewingBar } from "./version-viewing-bar";
 import { VersionOutputEmpty } from "./version-output-empty";
 import { ActiveOnlyNotice } from "./active-only-notice";
 import { RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
@@ -178,6 +176,8 @@ export function PromptFocusView({
   // The selected rail item: "prompt" (the compose editor), "kb", "review", or a
   // connected node's id (right pane shows that node's read-only detail).
   const [selected, setSelected] = useState<string>("prompt");
+  // D433 — an older version is on screen only while History, where it was picked, is open.
+  if (viewing.isViewingOther && selected !== "history") viewing.backToActive();
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
   // D29 approval flag — sibling of the eval signal, distinct field.
@@ -556,19 +556,6 @@ export function PromptFocusView({
   const renderVersionOutput = (v: { output: string | null }) => (
     <div className="max-w-[65ch] rounded-xl p-4 text-base leading-7">{renderBeats(v.output ?? "")}</div>
   );
-  const viewingBar =
-    viewing.isViewingOther && viewed ? (
-      <VersionViewingBar
-        viewedLabel={viewedLabel}
-        viewedCreatedAt={viewed.createdAt}
-        activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
-        canRestore={editable && !viewed.error && Boolean(viewed.output)}
-        restoring={restoring}
-        onBack={viewing.backToActive}
-        onRestore={() => void handleRestoreVersion(viewed.id)}
-      />
-    ) : null;
-
   return (
     <Sheet
       open={open}
@@ -723,10 +710,9 @@ export function PromptFocusView({
                     )
                   ) : (
                     <>
-                  {/* Whole column scrolls — instruction + controls + the Generate button all
-                      flow together; when content extends you reach the button via the
-                      scrollbar rather than pinning it to the bottom. The connected Shot is
-                      not repeated here — it's readable via its rail item on the left. */}
+                  {/* Instruction + controls scroll; Generate sits under them at the column's
+                      foot (D435). The connected Shot is not repeated here — it's readable via
+                      its rail item on the left. */}
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                     {/* Instruction + controls */}
                     <div className="flex flex-col gap-3 px-6 py-5">
@@ -747,22 +733,20 @@ export function PromptFocusView({
                         onChange={(next) => onPatch({ controls: next })}
                       />
                     </div>
-
-                    {/* Generate — flows after the controls, reached via the scrollbar */}
-                    <div className="border-t border-border px-6 py-4">
-                      {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
-                      <Button
-                        className="w-full"
-                        size="default"
-                        onClick={runGenerate}
-                        disabled={generating || !editable || viewing.isViewingOther}
-                      >
-                        <Sparkles className="size-4" />
-                        {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-                        {!generating && <EstimatedCreditsLabel credits={estimatedCredits} />}
-                      </Button>
-                    </div>
                   </div>
+
+                  {/* D435 — the same Generate every node has, at the column's foot under the
+                      scrolling settings, so it never needs scrolling to reach. */}
+                  <GenerateFooter
+                    className="shrink-0"
+                    label={output ? "Re-generate" : "Generate prompt"}
+                    busy={generating}
+                    onClick={runGenerate}
+                    disabled={generating || !editable || viewing.isViewingOther}
+                    disabledReason={!editable ? "This canvas is read-only." : null}
+                    credits={estimatedCredits}
+                    notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
+                  />
                     </>
                   )}
                 </div>
@@ -778,9 +762,7 @@ export function PromptFocusView({
                           <Sparkles className="size-3.5 text-primary" />
                           <span className="text-eyebrow">Generated prompt</span>
                         </div>
-                        <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
                       </div>
-                      {viewingBar}
 
                       {viewing.isViewingOther && viewed ? (
                         viewed.output ? renderVersionOutput(viewed) : <VersionOutputEmpty noun="prompt" />

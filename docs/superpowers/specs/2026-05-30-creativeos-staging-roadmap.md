@@ -8016,3 +8016,31 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping the panel in "Drawing…" until a timer runs out (guesses at network time). Inferring the newest succeeded take as the pick on the client (a person can pick an older take on purpose, D344).
 
 **Originated →** conversation in this session.
+
+### D433 — Versions are picked in History; the output column never moves; laptops get the room *(recorded 2026-10-29; supersedes D383's stepper; applies to every node with versions)*
+
+**Decision.** The `‹ vN of M ›` stepper is gone from every focus view (Video Gen, Image Gen, Composite, Dubbing, Video Prompt, Multishot Prompt, the image Prompt node). A past version is picked in **History**: it shows in the output column, and **Back to vN / Restore vN** (`VersionViewingBar`) head the History list it was picked from. The output header is one fixed-height line; while an older version is on screen a quiet `ViewingTag` ("Showing v1") takes the place of the mode switch (Edit / Edit voice), which acts on the active version only. Leaving History returns to the active version (Video Gen and the prompt shell also keep it while **Sent to model** is open, which shows what that version sent). Video Gen's rail is `w-44` and its settings column `w-1/2` below `xl` (unchanged above). The versions list returns a Multishot Prompt version's plan object as its `output` (other nodes keep string-or-null).
+
+**Why.** User, 29 Oct 2026, on a laptop: the version arrows "break the layout". Measured at 1093×614: stepping versions inserted a two-line viewing bar above the player, which pushed it down and shrank it to ~160px wide, every step. The user proposed moving version choice into History, with Restore in the centre column. Separately, a Multishot Prompt's earlier versions could not be restored: the versions route nulled any non-string output, so History showed no plan and offered no Restore (the bug restore-version/route.ts had already fixed).
+
+**Rejected.** Keeping the stepper and wrapping the header (the player still moved a line). A compact one-line pill in the header (fits only by dropping the heading; still crowds a narrow column).
+
+**Originated →** conversation in this session.
+
+### D434 — Every generated image and video appears through a skeleton, then fades in *(recorded 2026-10-29; extends D432)*
+
+**Decision.** `useMediaReady` (src/hooks/use-media-ready.ts) tracks whether an image or video can be drawn. Each new file is a new element (`key={src}`), hidden over the same pulse placeholder the generating state uses, and faded in (300ms, the system easing) once loaded; a file already loaded before React attached its handlers is caught by a ref check. Applied to every canvas card (`NodeMedia`), the Image Gen and Video Gen results (active and viewed versions), Composite's output and the Dubbing player, alongside the storyboard panels (D432). A result frame that sizes from its media holds the chosen shape while loading via `aspect-ratio: auto <ratio>`.
+
+**Why.** User, 29 Oct 2026: "for any generated one too, image/video". A finished generation showed a blank or black box, or the previous file, while the new one downloaded.
+
+**Originated →** conversation in this session.
+
+### D435 — One Generate / Re-generate for every node, pinned at the foot of its settings *(recorded 2026-10-29; refines D431)*
+
+**Decision.** Every node that generates uses the shared `GenerateFooter`: Video Gen, Image Gen, Composite, Motion Prompt, Image Prompt and Multishot Prompt. It sits at the foot of the settings column and never needs scrolling to reach (inside a scrolling column it is `sticky bottom-0` with `mt-auto` in a `min-h-full` wrapper; under a scrolling area it is a `shrink-0` sibling). It is a full-width large button with the node's icon, the credit estimate, and the reason it is unavailable on hover. Labels follow one rule: "Generate <thing>" the first time (image, video, composite, prompt, motion prompt, multishot prompt), "Re-generate" once there is an output, "Generating…" while it runs (Composite's Edit mode keeps "Edit image" / "Editing…", Video Gen's voice change "Changing voice…"). Image Gen and Composite's Generate moved out of the Output settings section to the column level; its reasons and the always-disabled-while-generating guard moved to `imageGenerateBlocker` / `imageGenerateDisabled` (src/lib/image-gen/generate-blocker.ts), unchanged.
+
+**Why.** User, 29 Oct 2026: Generate and Re-generate should be consistent across the canvas, like Multishot and Video Gen. They were five different things: pinned and large (Video Gen), pinned and normal (Multishot), at the end of a scroll (Motion and Image Prompt), and a narrow button mid-column inside a section (Image Gen, Composite).
+
+**Rejected.** Keeping the button inside Image Gen's Output settings section (a sticky element sticks only within its parent, so it could not stay in view).
+
+**Originated →** conversation in this session.

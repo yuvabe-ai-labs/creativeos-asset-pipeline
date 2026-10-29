@@ -2,15 +2,12 @@
 "use client";
 
 import { useState } from "react";
-import { nextViewedId, resolveViewedVersion, stepVersionId } from "@/lib/versions/viewing";
+import { nextViewedId, resolveViewedVersion } from "@/lib/versions/viewing";
 
 export type VersionViewing<V> = {
   viewed: V | null;
-  index: number;
-  total: number;
   isViewingOther: boolean;
   view: (id: string) => void;
-  step: (delta: 1 | -1) => void;
   backToActive: () => void;
 };
 
@@ -38,7 +35,7 @@ export function useVersionViewing<V extends { id: string }>(
     if (!open || activeVersionId === viewedId) setViewedId(null);
   }
 
-  const { viewed, index, isViewingOther } = resolveViewedVersion(versions, activeVersionId, viewedId);
+  const { viewed, isViewingOther } = resolveViewedVersion(versions, activeVersionId, viewedId);
 
   function view(id: string) {
     const next = nextViewedId(activeVersionId, id);
@@ -48,14 +45,8 @@ export function useVersionViewing<V extends { id: string }>(
 
   return {
     viewed,
-    index,
-    total: versions.length,
     isViewingOther,
     view,
-    step: (delta) => {
-      const id = stepVersionId(versions, viewed?.id ?? null, delta);
-      if (id) view(id);
-    },
     backToActive: () => setViewedId(null),
   };
 }
