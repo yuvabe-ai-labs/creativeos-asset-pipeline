@@ -1,5 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
-import { withAvatarImages, withStillPresenter } from "@/lib/avatars/presenter-server";
+import { withAvatarImages, withPromptInputs } from "@/lib/avatars/presenter-server";
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { getVersionById } from "@/lib/db/versions";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
 import {
@@ -55,16 +56,17 @@ export async function POST(
     }
     const validatedParams = parseResult.data as Record<string, unknown>;
 
-    // Resolve upstream nodes
-    // D299 — when the Prompt feeding this still has the presenter in the shot, the face joins
-    // the connected images.
-    // D436 — an Avatar wired straight in is its images.
-    const upstream = await withStillPresenter(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)));
+    // Resolve upstream nodes. D436 — an Avatar wired straight in is its images. D440 — and what is
+    // wired into the Prompt reaches this still too (its images, avatars and the presenter's face).
+    const upstream = await withPromptInputs(
+      await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)),
+      ["prompt"],
+    );
 
-    // All connected image URLs (File images, Draw sketches, other Image Gen outputs).
+    // All connected image URLs (File images, Draw sketches, Image Gen and Composite outputs).
     const connectedImageUrls = upstream
       .filter((u) => {
-        if (u.type === "image-gen") return typeof u.activeOutput === "string";
+        if (isGeneratedImageType(u.type)) return typeof u.activeOutput === "string";
         if (u.type === "file") {
           const d = u.data as Record<string, unknown>;
           return d.fileKind === "image" && typeof d.fileUrl === "string";
@@ -76,7 +78,7 @@ export async function POST(
         return false;
       })
       .map((u) =>
-        u.type === "image-gen"
+        isGeneratedImageType(u.type)
           ? (u.activeOutput as string)
           : ((u.data as Record<string, unknown>).fileUrl as string),
       );

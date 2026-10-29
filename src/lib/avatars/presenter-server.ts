@@ -77,13 +77,20 @@ export async function getPromptUpstream(nodeId: string): Promise<UpstreamOutput[
   return withPresenterRow(ups, await loadPresenterForPromptNode(nodeId, ups));
 }
 
-/** For a still: Image Gen takes connected images directly, so when the Prompt feeding it has the
- *  presenter in the shot, the face joins Image Gen's own upstream. */
-export async function withStillPresenter(imageGenUps: UpstreamOutput[]): Promise<UpstreamOutput[]> {
-  const prompt = imageGenUps.find((u) => u.type === "prompt");
-  if (!prompt) return imageGenUps;
-  const promptUps = await getUpstreamOutputs(prompt.nodeId);
-  return withPresenterRow(imageGenUps, await loadPresenterForPromptNode(prompt.nodeId, promptUps));
+/** D440 — a gen node takes what is wired into its prompt node as well as what is wired into it, as
+ *  Video Gen always did through a Multishot Prompt: the prompt node's upstream (its images, wired
+ *  avatars and the presenter in the shot) after the node's own, direct edges first, each node once.
+ *  `promptTypes` names which prompt nodes count for this gen node. */
+export async function withPromptInputs(
+  ups: UpstreamOutput[],
+  promptTypes: readonly string[],
+): Promise<UpstreamOutput[]> {
+  const prompts = ups.filter((u) => promptTypes.includes(u.type));
+  if (prompts.length === 0) return ups;
+  const batches = await Promise.all(prompts.map((p) => getPromptUpstream(p.nodeId)));
+  const seen = new Map(ups.map((u) => [u.nodeId, u]));
+  for (const u of batches.flat()) if (!seen.has(u.nodeId)) seen.set(u.nodeId, u);
+  return [...seen.values()];
 }
 
 export type SeedanceVoice = {

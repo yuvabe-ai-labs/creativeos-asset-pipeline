@@ -378,22 +378,15 @@ export function ImageGenFocusView({
   }, [open, activeVersionId, approvalStatus]);
 
   const promptUpstream = upstream.find((u) => u.type === "prompt");
-  const referenceCount = upstream.filter((u) => {
-    if (u.type === "image-gen") return true;
-    if (u.type === "file") return u.fileKind === "image" && !!u.fileUrl;
-    if (u.type === "draw") return !!u.fileUrl;
-    return false;
-  }).length;
+  // D440 — a picture this still can use: a File or Draw image, an Image Gen or Composite output,
+  // wired straight in or into its Prompt.
+  const isImageInput = (u: (typeof upstream)[number]) =>
+    Boolean(u.fileUrl) && (u.type === "draw" || u.fileKind === "image");
+  const referenceCount = upstream.filter(isImageInput).length;
 
   // ── Edit-this-image derived values ──────────────────────────────────────────
   // Connected image URLs (file/draw/image-gen all expose fileUrl in `upstream`).
-  const connectedImageUrls = upstream
-    .filter(
-      (u) =>
-        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
-        !!u.fileUrl
-    )
-    .map((u) => u.fileUrl as string);
+  const connectedImageUrls = upstream.filter(isImageInput).map((u) => u.fileUrl as string);
   const firstConnectedImageUrl = connectedImageUrls[0];
   // Stable primitive for the effect's dep array — connectedImageUrls itself is a new array
   // reference every render (derived, not stored in state).
@@ -442,11 +435,7 @@ export function ImageGenFocusView({
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
-    .filter(
-      (u) =>
-        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
-        !!u.fileUrl
-    )
+    .filter(isImageInput)
     .map((u) => ({ id: u.id, url: u.fileUrl as string, type: u.type }));
 
   // Base = the node's current image: the active attempt if present, else a connected image.
@@ -470,11 +459,7 @@ export function ImageGenFocusView({
 
   // Validation for reference image limits
   const refMetas: RefImageMeta[] = upstream
-    .filter(
-      (u) =>
-        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
-        !!u.fileUrl
-    )
+    .filter(isImageInput)
     .map((u) => ({
       url: u.fileUrl!,
       fileSizeBytes: u.fileSizeBytes,

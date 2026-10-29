@@ -187,17 +187,12 @@ export async function POST(
       ...promptUpstream.filter((u) => !seenIds.has(u.nodeId)),
     ];
 
-    // image-gen nodes are valid when directly connected; not via the grandparent path — EXCEPT
-    // when the grandparent is a multishot-prompt, whose `<IMAGE_REF_N>` tokens are numbered over
-    // exactly its own upstream (resolve-mention-tokens.ts) and must resolve to a real upload here.
-    // A video-prompt's own image-gen grandparent stays excluded — that image is vision context for
-    // the motion-prompt WRITER, never itself sent to the video model (see VALID_CONNECTIONS in
-    // canvas-nodes.ts). Mirrors the same distinction in api/nodes/[id]/upstream-images.
+    // D440 — a generated image (Image Gen, Composite) is sent when wired straight in or into the
+    // prompt node, on either lane. It used to go only through a Multishot Prompt; one on a Motion
+    // Prompt was the writer's vision context and never reached the video model. Mirrors
+    // api/nodes/[id]/upstream-images.
     const directIds = new Set(upstream.map((u) => u.nodeId));
-    const multishotPromptUpstreamIds =
-      promptNode.type === "multishot-prompt"
-        ? new Set(promptUpstream.map((u) => u.nodeId))
-        : new Set<string>();
+    const promptUpstreamIds = new Set(promptUpstream.map((u) => u.nodeId));
 
     // The upstream images this node could send, in traversal order. Mirrors the filter in
     // api/nodes/[id]/upstream-images — the focus view and the request must be looking at the
@@ -211,7 +206,7 @@ export async function POST(
         url = typeof data.fileUrl === "string" ? data.fileUrl : undefined;
       } else if (
         isGeneratedImageType(node.type) &&
-        (directIds.has(node.nodeId) || multishotPromptUpstreamIds.has(node.nodeId))
+        (directIds.has(node.nodeId) || promptUpstreamIds.has(node.nodeId))
       ) {
         url = typeof node.activeOutput === "string" ? node.activeOutput : undefined;
       }

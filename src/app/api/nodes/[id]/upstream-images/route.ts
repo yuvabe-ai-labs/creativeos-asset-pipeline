@@ -1,5 +1,5 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
-import { getPromptUpstream, withAvatarImages, withStillPresenter } from "@/lib/avatars/presenter-server";
+import { getPromptUpstream, withAvatarImages } from "@/lib/avatars/presenter-server";
 import { planCitedRefIds, renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { multishotVoiceover } from "@/lib/nodes/voiceover";
@@ -23,15 +23,14 @@ export async function GET(
 ) {
   return withNode(req, params, async (nodeId, node) => {
     try {
-      // D299 — a still sees its Prompt's presenter as a connected image, as image-generate does.
       // D436 — an Avatar wired straight in is its images, as on the generate routes.
-      const nodeUpstream = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
-      const direct = node.type === "image-gen" ? await withStillPresenter(nodeUpstream) : nodeUpstream;
+      const direct = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
 
-      // Also collect upstream of any prompt nodes (2-level traversal) — video-prompt OR
-      // multishot-prompt. Surfaces file/draw nodes in pattern: node → prompt-node → video-gen.
-      const promptNodes = direct.filter(
-        (u) => u.type === "video-prompt" || u.type === "multishot-prompt",
+      // Also collect upstream of any prompt nodes (2-level traversal): a Video Gen's Motion or
+      // Multishot Prompt, an Image Gen's Prompt (D440; its presenter's face included). Surfaces
+      // what is wired into the prompt node, as image-generate and video-generate send it.
+      const promptNodes = direct.filter((u) =>
+        node.type === "image-gen" ? u.type === "prompt" : u.type === "video-prompt" || u.type === "multishot-prompt",
       );
       const promptUpstreamBatches = await Promise.all(
         promptNodes.map((u) => getPromptUpstream(u.nodeId)),
@@ -46,20 +45,12 @@ export async function GET(
       }
       const allUpstream = Array.from(seen.values());
 
-      // image-gen nodes are valid when directly connected to this node, OR when they feed a
-      // connected multishot-prompt node directly. Those two cases are NOT the same rule applied
-      // twice: a video-prompt's own image-gen grandparent is vision context for the WRITER (the
-      // motion-prompt LLM) and is never itself uploaded to the video model — see VALID_CONNECTIONS
-      // in canvas-nodes.ts. A multishot-prompt's image-gen upstream is different in kind: its
-      // `<IMAGE_REF_N>` tokens (resolve-mention-tokens.ts / plan-omni-input.ts) are numbered over
-      // exactly that upstream, so an excluded image-gen reference leaves a token in the rendered
-      // plan with no matching upload — a silent wrong-picture bug in a paid clip. Mirrors the same
-      // distinction in video-generate/route.ts.
+      // D440 — a generated image (Image Gen, Composite) counts when wired straight into this node
+      // or into its prompt node, on every lane. It used to count through a Multishot Prompt only:
+      // one on a Motion Prompt was the writer's vision context and never reached the video model.
+      // Mirrors video-generate/route.ts.
       const directIds = new Set(direct.map((u) => u.nodeId));
-      const multishotPromptUpstreamIds = new Set(
-        promptNodes.flatMap((u, i) => (u.type === "multishot-prompt" ? promptUpstreamBatches[i] : []))
-          .map((u) => u.nodeId),
-      );
+      const promptUpstreamIds = new Set(promptUpstreamBatches.flat().map((u) => u.nodeId));
 
       const images = allUpstream
         .filter((u) => {
@@ -69,7 +60,7 @@ export async function GET(
           }
           if (
             isGeneratedImageType(u.type) &&
-            (directIds.has(u.nodeId) || multishotPromptUpstreamIds.has(u.nodeId))
+            (directIds.has(u.nodeId) || promptUpstreamIds.has(u.nodeId))
           ) {
             return typeof u.activeOutput === "string";
           }

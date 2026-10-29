@@ -69,6 +69,9 @@ const GRAPH: Record<string, Row[]> = {
       versionId: "v1",
     },
   ],
+  // D440 — the same image on a Motion Prompt reaches Video Gen too.
+  vg2: [{ nodeId: "vp", type: "video-prompt", data: {}, activeOutput: "She lifts the jar.", versionId: "v3" }],
+  vp: [{ nodeId: "cmp", type: "composite", data: {}, activeOutput: "https://img.example/comp.png", versionId: "v4" }],
   mp: [
     { nodeId: "ig", type: "image-gen", data: {}, activeOutput: "https://img.example/ref.png", versionId: "v2" },
     {
@@ -112,5 +115,14 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
     });
     expect(json.promptNode).toMatchObject({ id: "mp", type: "multishot-prompt" });
     expect(json.promptNode.text).toContain("hello <IMAGE_REF_0>");
+  });
+
+  // D440 — a generated image on a Motion Prompt used to be the writer's vision context only and
+  // never reached the video model; it is now sent like one on a Multishot Prompt.
+  it("surfaces a generated image wired into a Motion Prompt node", async () => {
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest("http://localhost/api/nodes/vg2/upstream-images"), { params: Promise.resolve({ id: "vg2" }) });
+    const json = await res.json();
+    expect(json.images).toEqual([expect.objectContaining({ id: "cmp", type: "composite", imageUrl: "https://img.example/comp.png" })]);
   });
 });

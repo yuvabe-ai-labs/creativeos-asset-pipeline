@@ -19,7 +19,7 @@ const m = vi.hoisted(() => ({
 
 vi.mock("@/lib/db/nodes", () => ({ getUpstreamOutputs: vi.fn(async () => m.upstream) }));
 vi.mock("@/lib/avatars/presenter-server", () => ({
-  withStillPresenter: async (u: unknown) => u,
+  withPromptInputs: async (u: unknown) => u,
   withAvatarImages: async (_id: string, u: unknown) => u,
 }));
 vi.mock("@/lib/db/versions", () => ({ getVersionById: m.getVersionById }));

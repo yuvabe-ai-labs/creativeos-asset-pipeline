@@ -11,7 +11,7 @@ import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getNodeClientAndData, getScriptPresenterSource } from "@/lib/db/presenter";
 import { getAvatar } from "@/lib/db/avatars";
 import { prepareNamedVoiceReference } from "../voice-reference";
-import { getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withAvatarImages, withStillPresenter } from "../presenter-server";
+import { getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withAvatarImages, withPromptInputs } from "../presenter-server";
 import { GENERATED, makeImage } from "./fixtures";
 
 const riyaLine = { text: "Hi", speaker: "Riya", delivery: "", language: "en" };
@@ -93,17 +93,28 @@ describe("loadPresenterForPromptNode", () => {
   });
 });
 
-describe("withStillPresenter", () => {
-  it("adds the face to a still's connected images when its Prompt has the presenter in the shot", async () => {
-    vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine])] as never);
-    const ups = await withStillPresenter([{ nodeId: "prompt-1", type: "prompt", data: {}, activeOutput: null, versionId: null }]);
-    expect(ups.map((u) => u.nodeId)).toEqual(["prompt-1", "avatar-node-1", "avatar-node-1:sheet"]);
+// D440 — what is wired into the prompt node reaches the gen node too (the presenter included).
+describe("withPromptInputs", () => {
+  const prompt = { nodeId: "prompt-1", type: "prompt", data: {}, activeOutput: null, versionId: null };
+  const img = (id: string) => ({ nodeId: id, type: "image-gen", data: {}, activeOutput: `https://x/${id}.png`, versionId: null });
+
+  it("adds the prompt node's inputs after the node's own, the presenter's face included", async () => {
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine]), img("kitchen")] as never);
+    const ups = await withPromptInputs([prompt, img("own")] as never, ["prompt"]);
+    expect(ups.map((u) => u.nodeId)).toEqual(["prompt-1", "own", "shot-1", "kitchen", "avatar-node-1", "avatar-node-1:sheet"]);
     expect(getUpstreamOutputs).toHaveBeenCalledWith("prompt-1");
   });
 
-  it("leaves a still with no Prompt alone", async () => {
-    const ups = await withStillPresenter([{ nodeId: "f", type: "file", data: {}, activeOutput: null, versionId: null }]);
+  it("keeps a direct edge's row when the same node also feeds the prompt", async () => {
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([img("own")] as never);
+    const ups = await withPromptInputs([prompt, img("own")] as never, ["prompt"]);
+    expect(ups.map((u) => u.nodeId)).toEqual(["prompt-1", "own"]);
+  });
+
+  it("reads nothing with no prompt node of those types", async () => {
+    const ups = await withPromptInputs([img("own")] as never, ["prompt"]);
     expect(ups).toHaveLength(1);
+    expect(getUpstreamOutputs).not.toHaveBeenCalled();
   });
 });
 

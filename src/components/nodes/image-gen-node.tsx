@@ -1,5 +1,6 @@
 "use client";
 
+import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { useMemo, useState } from "react";
 import { useGenerationStatus } from "@/hooks/use-generation-status";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
@@ -45,7 +46,14 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
 
   const { upstream, scriptTitle } = useMemo(() => {
     const sourceIds = edges.filter((e) => e.target === id).map((e) => e.source);
-    const sourceNodes = nodes.filter((n) => sourceIds.includes(n.id));
+    // D440 — what is wired into the Prompt reaches this still too, after its own inputs (as the
+    // server sends it: image-generate/route.ts, withPromptInputs).
+    const promptIds = nodes.filter((n) => sourceIds.includes(n.id) && n.type === "prompt").map((n) => n.id);
+    const viaPromptIds = edges
+      .filter((e) => promptIds.includes(e.target) && !sourceIds.includes(e.source) && e.source !== id)
+      .map((e) => e.source);
+    const orderedIds = [...sourceIds, ...viaPromptIds.filter((v, i) => viaPromptIds.indexOf(v) === i)];
+    const sourceNodes = orderedIds.flatMap((sid) => nodes.filter((n) => n.id === sid));
 
     // Walk up one more level to find any script node grandparent for the filename
     const grandparentIds = edges
@@ -67,13 +75,13 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
           fileUrl:
             n.type === "file" || n.type === "draw"
               ? (d.fileUrl as string | undefined)
-              : n.type === "image-gen"
-                ? (d.parsed as string | undefined)
+              : isGeneratedImageType(n.type)
+                ? (typeof d.parsed === "string" ? d.parsed : undefined)
                 : undefined,
           fileKind:
             n.type === "file" || n.type === "draw"
               ? (d.fileKind as string | undefined)
-              : n.type === "image-gen"
+              : isGeneratedImageType(n.type)
                 ? "image"
                 : undefined,
           fileSizeBytes: d.fileSizeBytes as number | undefined,

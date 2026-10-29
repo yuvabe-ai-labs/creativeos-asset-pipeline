@@ -8080,3 +8080,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** YUV-294 and the user, 29 Oct 2026: deleting the line on the canvas is instant, the ✕ in the focus view had a visible delay (it waited on a save and a server read) and sometimes did not disconnect (an inherited input only got a toast). YUV-390: an Image Prompt edit did not reach Image Gen, because an in-place edit to the active version never reached the versions cache Image Gen reads; Video Gen re-reads its prompt from the server on every open, so it looked synced.
 
 **Originated →** conversation in this session.
+
+### D440 — What is wired into a prompt node reaches the gen node after it, on every lane *(recorded 2026-10-29; refines D299, D436)*
+
+**Decision.** One rule for every gen node: its images are what is wired straight into it, then what is wired into its prompt node, direct edges first, each node once. Multishot Prompt → Video Gen always worked this way; now Motion Prompt → Video Gen and Image Prompt → Image Gen do too. A generated image (Image Gen or Composite output) counts on every lane; it used to reach Video Gen only through a Multishot Prompt, as one on a Motion Prompt was the writer's vision context only. `withPromptInputs` (presenter-server.ts) builds the list for image-generate and replaces `withStillPresenter` (the Prompt's upstream already carries the presenter's face); upstream-images and video-generate apply the same rule. Image Gen's card and view list the Prompt's images too and treat a Composite output as an image (`isImageInput`).
+
+**Why.** User, 29 Oct 2026: as with Multishot, what is connected upstream should go to the gen node, for Image Gen through the Image Prompt and Video Gen through the Motion Prompt. Wiring an image into the prompt node is how people say "use this", and having it stop at the writer surprised them.
+
+**Rejected.** Keeping images on a Motion Prompt as vision context only (the original split): it made the same wire mean different things on the two video lanes.
+
+**Originated →** conversation in this session.
