@@ -7976,3 +7976,33 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Omitting `task` (accepted, but a reference leaked into the opening frame). Keeping 6 as the cap (too low alone, too high with both frames). A rule that refuses over-cap requests after the fact (the default fill would put the node over it; the cap should shrink where references are chosen).
 
 **Originated →** conversation in this session; probe script and frames kept outside the repo.
+
+### D429 — On the multishot lane, Video Gen shows the duration read-only: the shots' total *(recorded 2026-10-29; refines D236; fixes YUV-383)*
+
+**Decision.** When a Multishot Prompt feeds Video Gen, the Duration slider is replaced by a read-only value, the total of the multishot cuts ("12s"), with the line "Adds up the 3 shots on the Multishot node. Change shot lengths there." always visible, on its own row. The shot summary strip shows the same total with its "Fixed" badge. `VideoGenParamsPanel` takes `fixedParams` for a value another node decides. The single-shot lane keeps its slider. Nothing changes in the request: the route already sends `totalOf(cuts)` (D236).
+
+**Why.** D236 made the server send the ladder total and ignore the node's own duration, but the slider stayed on screen and editable, so the number shown was often not the length that came back. In the last 60 succeeded staging videos (29 Oct 2026), all Omni on the multishot lane, every file was exactly the length sent, and 16 of 60 had a slider showing a different number. The model respects duration; the screen did not tell the truth.
+
+**Rejected.** Removing duration from Video Gen altogether (the single-shot lane has nothing else to set it). Making the slider drive the cuts (two places editing one number). A disabled slider with the reason in a tooltip (the existing lock look; the reason is invisible until hover, and a greyed slider still reads as a setting).
+
+**Originated →** conversation in this session.
+
+### D430 — Video Gen reads its lane from the canvas store, not the upstream fetch *(recorded 2026-10-29; refines D236, D429)*
+
+**Decision.** Whether a Multishot Prompt feeds a Video Gen node is read from the canvas store's edges, which the client has the instant a connection is drawn. The multishot-prompt id, the Multishot node behind it, its cuts and target model all come from the store; the model switch to the plan's model happens on the first render (local state only; persisting still waits for the confirmed inputs). The model picker's loading placeholder shows only on the single-shot lane with nothing cached. The duration note links to the Multishot node: clicking it closes Video Gen and opens that node through the store's focus signal, as the Generation Tray does. The edge scan runs only while the view is open, since the view is mounted for every Video Gen node.
+
+**Why.** The lane used to come from `/upstream-images`, which answers only after the autosave flush. So right after connecting a Multishot Prompt, Video Gen opened on the single-shot layout (skeleton model, a duration slider) and rearranged itself about a second later into the multishot one (Omni, the fixed duration). The user called it bad UX (29 Oct 2026). The store already holds the same edges the server walks once they are saved.
+
+**Rejected.** Keeping the server as the lane's source and hiding the whole panel behind a skeleton until it answers (still a jump, and a slower open).
+
+**Originated →** conversation in this session.
+
+### D431 — Video Gen settings: notes behind an (i), the fixed duration opens its node, Generate is pinned *(recorded 2026-10-29; refines D429, D430)*
+
+**Decision.** Each Video Gen setting's explanation (its spec `description`, and the fixed duration's note) sits behind an (i) beside the field name (`FieldLabel` takes `info`), not as a paragraph under the control. The fixed duration value is itself the way to its source: on the multishot lane the "12s ↗" chip is a button that closes Video Gen and opens the Multishot node; the (i) says "Adds up the 3 shots on the Multishot node. Click to open it and change shot lengths." It sits back in the top row beside Resolution, as the slider does on the single-shot lane. The Generate / Re-generate button is pinned to the foot of the settings column while it scrolls, like the Multishot Prompt view's footer.
+
+**Why.** User, 29 Oct 2026: clicking the seconds should open the node, the info can sit on an icon next to the field, and Generate should stay put like the Multishot Prompt node's. The panel was a column of paragraphs under every control, and Generate sat below the frames, out of view on a long node.
+
+**Rejected.** D429's always-visible note and the inline "Multishot node" text link (more to read, and the link was a second target for the same action as the value).
+
+**Originated →** conversation in this session.

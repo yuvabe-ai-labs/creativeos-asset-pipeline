@@ -696,10 +696,30 @@ export function VideoGenFocusView({
   // (UpstreamPromptNode: `{ id, type, text }`) and does NOT carry the Multishot node's data, so
   // this cannot be read off it directly — and it is client state already loaded in the store, so
   // no fetch is added.
+  //
+  // D430 — the lane is read from the canvas store's edges, which the client has the instant a
+  // connection is drawn, not from `promptNode`: that comes from /upstream-images after the
+  // autosave flush, so the view opened on the single-shot layout and rearranged itself a second
+  // later. Only while open: this view is mounted for every Video Gen node, and a closed one must
+  // not scan the edges on every store change.
+  const multishotPromptId = useCanvasStore((s) => {
+    if (!open) return null;
+    for (const e of s.edges) {
+      if (e.target === nodeId && s.nodes.find((n) => n.id === e.source)?.type === "multishot-prompt") {
+        return e.source;
+      }
+    }
+    return null;
+  });
+  // The Multishot node behind that prompt: where the shots (and so the duration) are edited.
+  const multishotNodeId = useCanvasStore((s) => {
+    if (!multishotPromptId) return null;
+    const sourceIds = s.edges.filter((e) => e.target === multishotPromptId).map((e) => e.source);
+    return s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot")?.id ?? null;
+  });
   const upstreamMultishotTargetModel = useCanvasStore((s) => {
-    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
-    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
-    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    if (!multishotNodeId) return undefined;
+    const multishotNode = s.nodes.find((n) => n.id === multishotNodeId);
     return (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel;
   });
 
@@ -709,9 +729,8 @@ export function VideoGenFocusView({
   // 12. The credit estimate below and the disabled-Generate check both need the ladder that will
   // actually be billed/checked, not the (possibly stale) param.
   const upstreamMultishotCuts = useCanvasStore((s) => {
-    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
-    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
-    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    if (!multishotNodeId) return undefined;
+    const multishotNode = s.nodes.find((n) => n.id === multishotNodeId);
     return (multishotNode?.data as { cuts?: MultishotCut[] } | undefined)?.cuts;
   });
 
@@ -727,8 +746,8 @@ export function VideoGenFocusView({
   // answer (it is what the next Generate will write with); with an unstamped plan it is NOT, and
   // falling back to it is precisely the bug — see resolve-prompt.ts.
   const connectedPlanTargetModel = useCanvasStore((s) => {
-    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
-    const node = s.nodes.find((n) => n.id === promptNode.id);
+    if (!multishotPromptId) return undefined;
+    const node = s.nodes.find((n) => n.id === multishotPromptId);
     const plan = (node?.data as { parsed?: MultishotPlan } | undefined)?.parsed;
     if (!plan || typeof plan !== "object" || !Array.isArray(plan.beats)) return undefined;
     return plan.targetModel ?? null;
@@ -738,7 +757,7 @@ export function VideoGenFocusView({
   // restriction sentence, and the ladder legality check. Derived ONCE so the three cannot disagree
   // — and so all three say what the server's own guard (video-generate/route.ts) will say, since
   // that guard also resolves the plan's stamp.
-  const isMultishotPromptConnected = promptNode?.type === "multishot-prompt";
+  const isMultishotPromptConnected = multishotPromptId !== null;
   const effectiveMultishotModel =
     connectedPlanTargetModel !== undefined
       ? connectedPlanTargetModel
@@ -764,8 +783,9 @@ export function VideoGenFocusView({
   const multishotTargetModel = isMultishotPromptConnected
     ? multishotCapabilityFor(effectiveMultishotModel).id
     : undefined;
+  // Not gated on `loadingConnected` (D430): the lane is known from the store, and this only sets
+  // local state. Persisting still waits for the confirmed inputs (the effect below).
   if (
-    !loadingConnected &&
     editable &&
     multishotTargetModel !== undefined &&
     modelId !== multishotTargetModel
@@ -1301,10 +1321,25 @@ export function VideoGenFocusView({
   // default `duration: 5` while a 12s ladder is connected; quoting off the param would repeat
   // exactly the stale-price bug this comment already warns about, one lane over. Falls back to
   // the param-based read when the ladder isn't available yet (e.g. still loading).
+  const ladderDuration =
+    isMultishotPromptConnected && upstreamMultishotCuts ? totalOf(upstreamMultishotCuts) : undefined;
   const durationSeconds =
-    isMultishotPromptConnected && upstreamMultishotCuts
-      ? totalOf(upstreamMultishotCuts)
-      : Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+    ladderDuration ?? Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+  // D429 — so the panel says the same: on this lane Duration is shown read-only, with where it
+  // comes from. It used to stay an editable slider the route ignored, and 16 of 60 staging clips
+  // ran at a length other than the one on screen.
+  const shotCount = upstreamMultishotCuts?.length ?? 0;
+  const ladderDurationNote =
+    shotCount === 1
+      ? "Set by the one shot on the Multishot node."
+      : `Adds up the ${shotCount} shots on the Multishot node.`;
+  // D431 — the duration chip opens that node (this view closes; the store's focus signal opens
+  // the other, as the Generation Tray does), so the (i) says where a change is made.
+  function openMultishotNode() {
+    if (!multishotNodeId) return;
+    onOpenChange(false);
+    focusStoreApi.getState().setFocusedNodeId(multishotNodeId);
+  }
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
@@ -1369,10 +1404,14 @@ export function VideoGenFocusView({
     hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
     hasEndFrame: Object.values(effectiveImageRoles).includes("end_frame"),
     referenceCount: Object.values(effectiveImageRoles).filter((r) => r === "reference").length,
-    durationLabel: describeDurationLabel(durationSpec, lockedDuration),
+    durationLabel: describeDurationLabel(durationSpec, lockedDuration ?? ladderDuration),
     framesRefsExclusive: areFramesAndRefsExclusive(currentModel?.rules),
     durationLockReason:
-      lockedDuration !== undefined ? constraints.lockedParamReasons.duration : undefined,
+      lockedDuration !== undefined
+        ? constraints.lockedParamReasons.duration
+        : ladderDuration !== undefined
+          ? ladderDurationNote
+          : undefined,
   });
 
   // A voice change keeps showing the video it is re-voicing, veiled (like Image Gen's edit);
@@ -1684,7 +1723,9 @@ export function VideoGenFocusView({
                   <VideoGenModelPicker
                     modelId={modelId}
                     onModelChange={handleModelChange}
-                    loading={loadingConnected}
+                    // D430 — the multishot lock is known from the store, so only the single-shot
+                    // lane with nothing cached waits (its presenter rules come from the fetch).
+                    loading={loadingConnected && !upstreamQuery.data && !isMultishotPromptConnected}
                     unavailable={presenterUnavailable}
                     lockedToModelId={multishotTargetModel}
                     restrictionReason={
@@ -1699,6 +1740,19 @@ export function VideoGenFocusView({
                       onParamChange={handleParamChange}
                       lockedParams={constraints.lockedParams}
                       lockedParamReasons={constraints.lockedParamReasons}
+                      fixedParams={
+                        ladderDuration !== undefined
+                          ? {
+                              duration: {
+                                value: `${ladderDuration}s`,
+                                note: multishotNodeId
+                                  ? `${ladderDurationNote} Click to open it and change shot lengths.`
+                                  : ladderDurationNote,
+                                onOpen: multishotNodeId ? openMultishotNode : undefined,
+                              },
+                            }
+                          : undefined
+                      }
                       group="primary"
                     />
                     {/* D216 — duration defaulted to the upstream shot's own total rather than the
@@ -1784,8 +1838,10 @@ export function VideoGenFocusView({
 
                   {/* Generate closes the column, after every setting it depends on —
                       it used to sit in the page header, far from the controls that
-                      decide what it will cost and whether it is even legal to run. */}
-                  <div className="border-t border-border pt-4">
+                      decide what it will cost and whether it is even legal to run.
+                      D431 — pinned to the column's foot while it scrolls, like the Multishot
+                      Prompt view's footer, so it never needs scrolling to reach. */}
+                  <div className="sticky bottom-0 z-10 -mx-6 -mb-5 border-t border-border bg-card px-6 py-3">
                     {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
                     <Tooltip>
                       <TooltipTrigger render={<span className="block w-full" />}>
