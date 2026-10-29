@@ -8062,3 +8062,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** YUV-423 (training, Sriman #6): the indicator should sit in the centre of the node. It was a small pill in the card's bottom corner, and Image Gen and Composite showed the old image with no sign anything was happening.
 
 **Originated →** conversation in this session.
+
+### D438 — A script's avatar is in its shots by default *(recorded 2026-10-29; refines D299)*
+
+**Decision.** The prompt node's "In this shot" switch for the script's avatar defaults to **on**; the operator's stored choice still wins. `presenterInShot(stored)` no longer looks at the shot's lines, and `hasOnCameraLine` is gone.
+
+**Why.** User, 29 Oct 2026: the avatar is off by default when it is connected, and that is confusing. The default was "on only when the shot has an on-camera line", so every narration shot started with the connected avatar switched off.
+
+**Trade-off, accepted.** A narration-only B-roll shot (a product close-up under voiceover) now sends the presenter's face unless switched off, and the model may put the person in it. One click per such shot, against a connected avatar that silently does nothing on most shots.
+
+**Originated →** conversation in this session.

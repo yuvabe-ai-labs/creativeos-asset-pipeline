@@ -37,17 +37,11 @@ function linesOf(row: PresenterRowInput): VoLine[] {
   return [];
 }
 
-/** Whether the shot puts a line in someone's mouth on camera — the presenter switch's default. */
-export function hasOnCameraLine(rows: readonly PresenterRowInput[]): boolean {
-  return rows.some((row) => linesOf(row).some(isOnScreenLine));
-}
-
-/** Is the presenter in this shot? The operator's stored choice wins; otherwise the default. */
-export function presenterInShot(
-  stored: { inShot: boolean } | undefined,
-  rows: readonly PresenterRowInput[],
-): boolean {
-  return stored ? stored.inShot : hasOnCameraLine(rows);
+/** Is the presenter in this shot? The operator's stored choice wins; otherwise yes (D438): an
+ *  avatar connected to the script is in its shots until switched off. The default used to be "only
+ *  with an on-camera line", which left it off on narration shots and read as broken. */
+export function presenterInShot(stored: { inShot: boolean } | undefined): boolean {
+  return stored ? stored.inShot : true;
 }
 
 /**

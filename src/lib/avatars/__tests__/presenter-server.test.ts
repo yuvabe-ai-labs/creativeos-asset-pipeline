@@ -56,9 +56,9 @@ describe("getPromptUpstream", () => {
     expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet"]);
   });
 
-  it("leaves a narration-only shot alone", async () => {
+  it("puts the avatar in a narration-only shot too, by default (D438)", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([narratorLine])] as never);
-    expect(await getPromptUpstream("prompt-1")).toHaveLength(1);
+    expect(await getPromptUpstream("prompt-1")).toHaveLength(3);
   });
 
   it("follows the operator's switch over the default", async () => {
@@ -131,7 +131,8 @@ describe("presenterVoiceForSeedance", () => {
     expect(await presenterVoiceForSeedance("prompt-1", [shotRow([riyaLine])] as never)).toMatchObject({ referenceAudioUrl: null, text: null });
   });
 
-  it("is nothing when the presenter is not in the shot", async () => {
+  it("is nothing when the presenter is switched out of the shot", async () => {
+    vi.mocked(getNodeClientAndData).mockResolvedValue({ clientId: "c1", data: { presenter: { inShot: false } } });
     expect(await presenterVoiceForSeedance("prompt-1", [shotRow([narratorLine])] as never)).toBeNull();
   });
 });

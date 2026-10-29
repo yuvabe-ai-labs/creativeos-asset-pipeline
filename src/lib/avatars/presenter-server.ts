@@ -32,7 +32,7 @@ export async function loadPresenterForPromptNode(
   return {
     avatarNodeId: source.avatarNodeId,
     avatar,
-    inShot: presenterInShot(readPresenterSwitch(owner.data.presenter), ups),
+    inShot: presenterInShot(readPresenterSwitch(owner.data.presenter)),
   };
 }
 

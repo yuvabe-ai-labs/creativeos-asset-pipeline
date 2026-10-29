@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  hasOnCameraLine, matchingVoiceReference, namedVoiceSampleKey, presenterInShot, presenterUpstreamRow,
+  matchingVoiceReference, namedVoiceSampleKey, presenterInShot, presenterUpstreamRow,
   avatarAutoVoiceMissing, presenterDefaultVoiceId, presenterVideoNotes, seedanceVoiceText, seedingScriptId,
   presenterUpstreamRows, unavailableModelsFor, withAvatarAsSpeaker,
 } from "../presenter";
@@ -30,24 +30,14 @@ describe("seedingScriptId", () => {
   });
 });
 
-describe("hasOnCameraLine", () => {
-  it("narration alone is not on camera", () => expect(hasOnCameraLine([shot([narrator])])).toBe(false));
-  it("a line in someone's mouth is", () => expect(hasOnCameraLine([shot([narrator, riya])])).toBe(true));
-  it("reads a Multishot's cuts and its sequence lines", () => {
-    expect(hasOnCameraLine([{ nodeId: "m", type: "multishot", data: { cuts: [{ voiceover: [riya] }] } }])).toBe(true);
-    expect(hasOnCameraLine([{ nodeId: "m", type: "multishot", data: { cuts: [], sequenceVoiceover: [riya] } }])).toBe(true);
-    expect(hasOnCameraLine([{ nodeId: "m", type: "multishot", data: { cuts: [{ voiceover: [narrator] }] } }])).toBe(false);
-  });
-});
-
+// D438 — a connected avatar is in its shots by default, narration or not; off only when switched.
 describe("presenterInShot", () => {
-  it("defaults to whether the shot has an on-camera line", () => {
-    expect(presenterInShot(undefined, [shot([riya])])).toBe(true);
-    expect(presenterInShot(undefined, [shot([narrator])])).toBe(false);
+  it("is on by default", () => {
+    expect(presenterInShot(undefined)).toBe(true);
   });
   it("the operator's choice wins either way", () => {
-    expect(presenterInShot({ inShot: false }, [shot([riya])])).toBe(false);
-    expect(presenterInShot({ inShot: true }, [shot([narrator])])).toBe(true);
+    expect(presenterInShot({ inShot: false })).toBe(false);
+    expect(presenterInShot({ inShot: true })).toBe(true);
   });
 });
 
