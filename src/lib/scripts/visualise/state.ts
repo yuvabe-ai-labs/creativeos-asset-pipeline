@@ -3,7 +3,7 @@ import { listSentence } from "@/lib/avatars/generation";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import { PANEL_PROMPT_MAX, PANEL_RUNNING_TIMEOUT_MS, PANEL_TIMED_OUT } from "./constants";
 import { castReadyForPanels, type PanelInputs } from "./panel-inputs";
-import type { DrawBody, PanelTake } from "./schema";
+import type { DrawBody, PanelTake, VisualiseBoard } from "./schema";
 
 // Spec §6.4–§6.7, §7, §8.1 — the state of every panel, what the readiness line counts and what
 // Generate all draws, as pure functions over the takes and today's inputs.
@@ -94,6 +94,16 @@ export function promptForDraw(
     return { ok: true, prompt: current.prompt, edited: true };
   }
   return { ok: true, prompt: inputs.prompt, edited: false };
+}
+
+/** YUV-422 — the board with a finished draw in it: the take (replacing its running row) and the
+ *  pick, written the moment the draw returns so the panel never falls back to the old pick. */
+export function withDrawnTake(board: VisualiseBoard, shotId: string, take: PanelTake, pickId: string): VisualiseBoard {
+  return {
+    ...board,
+    takes: [...board.takes.filter((t) => t.id !== take.id), take],
+    picks: { ...board.picks, [shotId]: pickId },
+  };
 }
 
 /** A take still drawing within the timeout. Polling stops on an orphaned "running" take, which

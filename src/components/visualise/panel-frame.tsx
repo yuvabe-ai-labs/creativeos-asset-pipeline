@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { PanelView } from "@/lib/scripts/visualise/state";
+import { PanelImage } from "./panel-image";
 
 // Spec §6.4 — one frame, the same size in every state, so nothing moves when a panel lands.
 export function PanelFrame({ view, aspect, label, description, onOpen }: {
@@ -44,8 +45,7 @@ export function PanelFrame({ view, aspect, label, description, onOpen }: {
           onClick={onOpen}
           className="absolute inset-0 h-full w-full cursor-zoom-in rounded-none p-0"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={view.pick.url} alt="" className={cn("absolute inset-0 size-full object-cover", view.status === "out_of_date" && "opacity-60")} />
+          <PanelImage src={view.pick.url} className={view.status === "out_of_date" ? "opacity-60" : undefined} />
         </Button>
       </div>
     );

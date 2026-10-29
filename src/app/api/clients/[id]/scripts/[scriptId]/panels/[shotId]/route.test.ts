@@ -71,6 +71,28 @@ describe("POST …/panels/:shotId", () => {
     expect((await res.json()).pickId).toBe("t-new");
   });
 
+  // YUV-422 — a board read between the two writes must see a panel still drawing, not the
+  // finished take with the old pick (which flashed the old frame).
+  it("moves the pick to the new take before marking it succeeded", async () => {
+    const { POST } = await import("./route");
+    await POST(post({ kind: "draw" }), ctx("s06"));
+    expect(vi.mocked(setPanelPick).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(succeedPanelTake).mock.invocationCallOrder[0]);
+  });
+
+  it("puts the pick back on the previous take when the new one cannot be stored", async () => {
+    const old = makeTake({ id: "t-old", shotId: "s06" });
+    vi.mocked(loadVisualiseBoard).mockResolvedValue({ avatars: [meenakshi, husband], takes: [old], picks: { s06: "t-old" }, kits: [] });
+    vi.mocked(succeedPanelTake).mockRejectedValue(new Error("db down"));
+    const { POST } = await import("./route");
+    const res = await POST(post({ kind: "draw" }), ctx("s06"));
+    expect(res.status).toBe(502);
+    expect(vi.mocked(setPanelPick).mock.calls).toEqual([
+      [SCRIPT_ID, "s06", "t-new"],
+      [SCRIPT_ID, "s06", "t-old"],
+    ]);
+  });
+
   it("records the faces it drew from BEFORE the model call, so a refine during the draw marks it out of date", async () => {
     const { POST } = await import("./route");
     await POST(post({ kind: "draw" }), ctx("s06"));

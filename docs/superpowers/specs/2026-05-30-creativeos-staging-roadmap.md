@@ -8006,3 +8006,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** D429's always-visible note and the inline "Multishot node" text link (more to read, and the link was a second target for the same action as the value).
 
 **Originated →** conversation in this session.
+
+### D432 — A redrawn storyboard panel goes from "Drawing…" to the new image with nothing in between *(recorded 2026-10-29; refines D344, D346; fixes YUV-422)*
+
+**Decision.** Three gaps closed. (1) The draw route moves the pick to the new take *before* marking it succeeded, and puts the pick back on the previous take if storing fails, so a board read between the two writes sees a panel still drawing. (2) The browser that drew writes the returned take and pick into the board cache (`withDrawnTake`, after cancelling reads in flight) before the panel stops drawing, rather than waiting for the refetch. (3) `PanelImage` mounts each take as a new element and fades it in over a skeleton only once loaded (also when already cached), in the grid, the panel dialog and its takes strip. The dialog veils the current take with "Drawing a new take…" during a redraw.
+
+**Why.** YUV-422 (training, Sriman #8): after a regenerate the old frame showed for about a second, sometimes an empty frame. The panel stopped drawing when the take finished but showed the stored pick, which still pointed at the old take until the refetch landed (or, for a poll, until the second write); then the new file had to download into a blank `<img>`.
+
+**Rejected.** Keeping the panel in "Drawing…" until a timer runs out (guesses at network time). Inferring the newest succeeded take as the pick on the client (a person can pick an older take on purpose, D344).
+
+**Originated →** conversation in this session.
