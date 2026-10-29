@@ -17,7 +17,7 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { CompositeFocusView } from "./composite-focus-view";
-import { ProcessingPill } from "./processing-pill";
+import { GeneratingPlaceholder, GeneratingVeil } from "./node-generating";
 import { useNodeMediaSize } from "@/hooks/use-node-media-size";
 import { nodeMediaBox, parseAspectRatio } from "@/lib/canvas/media-fit";
 import { NodeMedia } from "./node-media";
@@ -28,7 +28,6 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
   const imageUrl = typeof d.parsed === "string" ? d.parsed : null;
   // D384 — the card takes the image's shape. Before the first load, the chosen aspect ratio.
   const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, parseAspectRatio((d.params as Record<string, unknown> | undefined)?.aspect_ratio));
-  const box = imageUrl ? nodeMediaBox(media.ratio, "output") : null;
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
@@ -41,6 +40,7 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
   const [focusOpen, setFocusOpen] = useState(false);
   // D366 — the node's shared status, so the card shows a run in flight after the focus view closes.
   const { isGenerating: isProcessing } = useGenerationStatus(id);
+  const box = imageUrl || isProcessing ? nodeMediaBox(media.ratio, "output") : null;
 
   const focusViewOpen = focusOpen || focusedNodeId === id;
   const handleFocusOpenChange = (next: boolean) => {
@@ -77,12 +77,17 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
             onCommitTitle={(t) => updateNodeData(id, { title: t })}
           />
           <div className="px-3 py-3">
+            {/* YUV-423 — the generating state sits centred on the image, as on every card. */}
+            {isProcessing && !imageUrl && box && (
+              <div className="mb-2"><GeneratingPlaceholder box={box} /></div>
+            )}
             {imageUrl && box && (
               <div className="mb-2">
-                <NodeMedia kind="image" src={imageUrl} alt="Composite" box={box} onMeasured={media.onMeasured} />
+                <NodeMedia kind="image" src={imageUrl} alt="Composite" box={box} onMeasured={media.onMeasured}>
+                  {isProcessing && <GeneratingVeil />}
+                </NodeMedia>
               </div>
             )}
-            {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
             <div className="flex items-center justify-between gap-2">
               <Button
                 variant="ghost"
@@ -91,7 +96,6 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
               >
                 Open ↗
               </Button>
-              <ProcessingPill processing={isProcessing} />
             </div>
           </div>
           <NodeCreditsFooter totalCredits={totalCredits} hasOutput={Boolean(imageUrl)} />

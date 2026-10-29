@@ -176,8 +176,9 @@ export function PromptFocusView({
   // The selected rail item: "prompt" (the compose editor), "kb", "review", or a
   // connected node's id (right pane shows that node's read-only detail).
   const [selected, setSelected] = useState<string>("prompt");
-  // D433 — an older version is on screen only while History, where it was picked, is open.
-  if (viewing.isViewingOther && selected !== "history") viewing.backToActive();
+  // D433 — an older version is picked in History and stays on screen there and in Sent to model
+  // (what it sent), as in the other prompt views; every other tab shows the active version.
+  if (viewing.isViewingOther && selected !== "history" && selected !== "request") viewing.backToActive();
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
   // D29 approval flag — sibling of the eval signal, distinct field.
@@ -676,9 +677,10 @@ export function PromptFocusView({
           </nav>
 
           {/* Detail pane */}
-          {/* No overflow-hidden: it would crop the raised column's left shadow.
+          {/* A flex COLUMN, as in prompt-focus-shell.tsx, so panes inside size with flex-1 (YUV-146).
+              No overflow-hidden: it would crop the raised column's left shadow.
               The columns inside own their scrolling. */}
-          <div className="min-h-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* Prompt — two-column compose: the instruction + controls sit in the center
                 column (which swaps to a selected connected input's read-only detail), and
                 the generated prompt owns the right column. */}
@@ -902,8 +904,11 @@ export function PromptFocusView({
             )}
 
             {/* Sent to model — the exact request the active version sent (standalone) */}
+            {/* YUV-146 — sized with flex-1 in the pane's flex column, as the shell's panes are
+                (prompt-focus-shell.tsx): an h-full chain broke as soon as it nested one level
+                deeper, and the request was cut off instead of scrolling. */}
             {selected === "request" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
+              <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
                 {shownRequest ? (
                   <ModelRequestPanel request={shownRequest} />
                 ) : (

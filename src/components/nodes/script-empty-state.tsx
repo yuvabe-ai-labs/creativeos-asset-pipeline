@@ -121,7 +121,9 @@ export function ScriptEmptyState({
           }}
           placeholder="Paste your reel brief here…"
           rows={6}
-          className="nodrag resize-none"
+          // YUV-415 — the box grows with what is pasted, up to a point, then scrolls inside, so a
+          // whole script never pushes Extract out of view.
+          className="nodrag max-h-80 resize-none overflow-y-auto"
         />
         <div className="flex justify-end">
           <Button onClick={submitPaste} disabled={!pasted.trim()}>

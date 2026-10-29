@@ -15,7 +15,7 @@ import { NodeContextMenu } from "./node-context-menu";
 import { NodeCardHeader } from "./node-card-header";
 import type { ImageGenNodeData } from "@/lib/canvas-nodes";
 import { ImageGenFocusView } from "./image-gen-focus-view";
-import { ProcessingPill } from "./processing-pill";
+import { GeneratingPlaceholder, GeneratingVeil } from "./node-generating";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
@@ -89,7 +89,6 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const imageUrl = (d.parsed ?? null) as string | null;
   // D384 — the card takes the image's shape. Before the first load, the chosen aspect ratio.
   const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, parseAspectRatio((d.params as Record<string, unknown> | undefined)?.aspect_ratio));
-  const box = imageUrl ? nodeMediaBox(media.ratio, "output") : null;
   // D29: active version's approval status (present once a version exists).
   const approvalStatus = (d as { approvalStatus?: ApprovalStatus }).approvalStatus;
   const totalCredits = useNodeCost(id);
@@ -97,6 +96,8 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
   // D366 — whether this node is generating, from its shared status (survives the focus view
   // closing, a reload, or leaving the canvas and coming back).
   const { isGenerating: isProcessing } = useGenerationStatus(id);
+  // While generating with nothing to show yet, the card reserves the chosen shape for the placeholder.
+  const box = imageUrl || isProcessing ? nodeMediaBox(media.ratio, "output") : null;
 
   // The focus view is open when opened locally (double-click / "Open ↗") OR when the
   // Generation Tray points `focusedNodeId` at this node. Derived during render — no
@@ -163,12 +164,17 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
               <ApprovalBadge status={approvalStatus} />
             </div>
           )}
+          {/* YUV-423 — the generating state sits centred on the image, as on every card. */}
+          {isProcessing && !imageUrl && box && (
+            <div className="mb-2"><GeneratingPlaceholder box={box} /></div>
+          )}
           {imageUrl && box && (
             <div className="mb-2">
-              <NodeMedia kind="image" src={imageUrl} alt="Generated" box={box} onMeasured={media.onMeasured} />
+              <NodeMedia kind="image" src={imageUrl} alt="Generated" box={box} onMeasured={media.onMeasured}>
+                {isProcessing && <GeneratingVeil />}
+              </NodeMedia>
             </div>
           )}
-          {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
           <div className="flex items-center justify-between gap-2">
             <Button
               variant="ghost"
@@ -177,7 +183,6 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
             >
               Open ↗
             </Button>
-            <ProcessingPill processing={isProcessing} />
           </div>
         </div>
 

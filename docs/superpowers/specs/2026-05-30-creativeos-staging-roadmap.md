@@ -8054,3 +8054,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Several presenters per script (the presenter also carries the voice and the on-camera speaker; a second character needs neither). Only adding `avatar → multishot-prompt` (a still or a single shot with two people has the same need).
 
 **Originated →** conversation in this session.
+
+### D437 — A card's generating state sits centred on its media *(recorded 2026-10-29; fixes YUV-423)*
+
+**Decision.** Video Gen, Image Gen and Composite cards show generating centred on the media: the current output stays in view under a veil with a spinner and "Generating…" (Video Gen's voice change too: "Changing voice…"), or, for a first output, a pulsing placeholder in its shape with the same indicator (`GeneratingVeil` / `GeneratingPlaceholder`). The corner "Processing" pill is gone from those cards. Dubbing already worked this way.
+
+**Why.** YUV-423 (training, Sriman #6): the indicator should sit in the centre of the node. It was a small pill in the card's bottom corner, and Image Gen and Composite showed the old image with no sign anything was happening.
+
+**Originated →** conversation in this session.

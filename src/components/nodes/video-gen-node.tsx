@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { GenerationLockLine } from "./generation-lock-line";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { AudioLines, Clapperboard } from "lucide-react";
+import { Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -16,7 +16,7 @@ import { NodeCardHeader } from "./node-card-header";
 import type { VideoGenNodeData } from "@/lib/canvas-nodes";
 import { VideoGenFocusView } from "./video-gen-focus-view";
 import { useGenerationStatus } from "@/hooks/use-generation-status";
-import { ProcessingPill } from "./processing-pill";
+import { GeneratingPlaceholder, GeneratingVeil } from "./node-generating";
 import { ApprovalBadge } from "./approval-badge";
 import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
@@ -46,10 +46,9 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
 
   const [focusOpen, setFocusOpen] = useState(false);
   const { isGenerating, isChangingVoice } = useGenerationStatus(id);
-  const showVideo = Boolean(videoUrl) && (!isGenerating || isChangingVoice);
   // D384 — the card takes the video's shape; while generating, it reserves the chosen shape.
   const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, parseAspectRatio((d.params as Record<string, unknown> | undefined)?.aspect_ratio));
-  const box = showVideo || isGenerating ? nodeMediaBox(media.ratio, "output") : null;
+  const box = videoUrl || isGenerating ? nodeMediaBox(media.ratio, "output") : null;
 
   // Open when opened locally OR when the Generation Tray points `focusedNodeId` here.
   // Derived during render — no effect — so it never trips the set-state-in-effect rule.
@@ -120,23 +119,18 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
               <ApprovalBadge status={approvalStatus} />
             </div>
           )}
-          {isGenerating && !showVideo && (
-            <div className="mb-2 animate-pulse rounded-md bg-primary/10" style={box ? { width: box.mediaWidth, height: box.mediaHeight } : undefined} />
+          {/* YUV-423 — the generating state sits centred on the media: over the current take,
+              veiled (a voice change too, D284), or on a placeholder in its shape the first time. */}
+          {isGenerating && !videoUrl && box && (
+            <div className="mb-2"><GeneratingPlaceholder box={box} /></div>
           )}
-          {showVideo && videoUrl && box && (
+          {videoUrl && box && (
             <div className="mb-2">
               <NodeMedia kind="video" src={videoUrl} alt={title || "Generated video"} box={box} onMeasured={media.onMeasured}>
-                {/* D284 — a voice change keeps the take in view, veiled, like the focus view. */}
-                {isChangingVoice && (
-                  <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-background/60 text-xs font-medium backdrop-blur-sm">
-                    <AudioLines className="size-3.5 animate-pulse text-primary" strokeWidth={1.5} />
-                    Changing voice…
-                  </div>
-                )}
+                {isGenerating && <GeneratingVeil label={isChangingVoice ? "Changing voice…" : "Generating…"} />}
               </NodeMedia>
             </div>
           )}
-          {/* Open ↗ left, generation status right — ProcessingPill renders null when idle. */}
           <div className="flex items-center justify-between gap-2">
             <Button
               variant="ghost"
@@ -145,7 +139,6 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
             >
               Open ↗
             </Button>
-            <ProcessingPill processing={isGenerating} />
           </div>
         </div>
 
