@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isNodeGenerating } from "@/lib/canvas-store";
 import { useReactFlow, type NodeChange } from "@xyflow/react";
 import { useCanvasStoreApi } from "./canvas-store-provider";
 import { nodeHandle, nodeLabel, resolveMentions } from "@/lib/nodes/describe-node";
@@ -188,8 +189,9 @@ export function useCopilotChat(canvasId: string) {
   // RECIPE — wire @from… → @to. Cheap/reversible/structural → runs instantly (no gate).
   // Validation lives here because store.connectNodes is a dumb addEdge (no rule check).
   function connectHandles(fromHandles: string[], toHandle: string) {
-    const { nodes, edges, connectNodes } = storeApi.getState();
-    const plan = planConnections(fromHandles, toHandle, nodes, edges);
+    const state = storeApi.getState();
+    const { nodes, edges, connectNodes } = state;
+    const plan = planConnections(fromHandles, toHandle, nodes, edges, (id) => isNodeGenerating(state, id));
     if (!plan.target) {
       setMessages((m) => [...m, { role: "assistant", content: `I couldn't find a node called ${toHandle}.` }]);
       return;
@@ -198,7 +200,10 @@ export function useCopilotChat(canvasId: string) {
     const toH = nodeHandle({ id: plan.target.id, type: plan.target.type });
     const parts: string[] = [];
     if (plan.wired.length) parts.push(`Wired ${plan.wired.map((w) => w.handle).join(", ")} → ${toH}.`);
-    if (plan.rejected.length) parts.push(`Can't connect ${plan.rejected.map((r) => r.handle).join(", ")} to ${toH} (not an allowed connection).`);
+    const withReason = plan.rejected.filter((r) => r.reason);
+    const plain = plan.rejected.filter((r) => !r.reason);
+    for (const r of withReason) parts.push(`Can't connect ${r.handle}: ${r.reason}`);
+    if (plain.length) parts.push(`Can't connect ${plain.map((r) => r.handle).join(", ")} to ${toH} (not an allowed connection).`);
     if (plan.unknown.length) parts.push(`Couldn't find ${plan.unknown.join(", ")}.`);
     setMessages((m) => [...m, { role: "assistant", content: parts.join(" ") || "Nothing to connect." }]);
   }

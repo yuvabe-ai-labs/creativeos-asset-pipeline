@@ -296,6 +296,10 @@ export type ClientReviewNodeData = { title?: string; mediaWidth?: number; mediaH
 // `voice` / `pace` (D379): the last Advanced picks; absent voice = the presenter's own.
 export type DubbingNodeData = { title?: string; language?: DubLanguage; style?: DubStyle; voice?: DubVoiceChoice; pace?: DubPace; parsed?: unknown; mediaWidth?: number; mediaHeight?: number };
 
+// D388 — the Rough Cut Editor: assembles its connected clips into a reel on its own page
+// (…/edit). Its edit lives in editor_edits (D391), never in node data; only the title is here.
+export type EditorNodeData = { title?: string };
+
 export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
@@ -313,7 +317,8 @@ export type AppNode =
   | Node<VideoGenNodeData, "video-gen">
   | Node<PostNodeData, "post">
   | Node<ClientReviewNodeData, "client-review">
-  | Node<DubbingNodeData, "dubbing">;
+  | Node<DubbingNodeData, "dubbing">
+  | Node<EditorNodeData, "editor">;
 
 // PRD §10 — which source node types may connect to which target node types.
 // The Video Prompt node (D24) sits between Image Gen and Video Gen: the still feeds it as a
@@ -326,7 +331,10 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   // D298 — an avatar presents a script, and nothing else. Its face and voice reach the shots
   // through that script (part 2, D299), not through edges of their own.
   // D312 — and is placed into a composite: the wire says "this picture contains this person".
-  avatar:             ["script", "composite"],
+  // D436 — otherwise an avatar is a set of images (its front, and its sheet when current), wired
+  // wherever a picture can go into a generation: a prompt node or a gen node directly. Every
+  // reader expands it to those images (withAvatarImages), exactly as the presenter's.
+  avatar:             ["script", "composite", "prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen"],
   // D320 — a script, shot or multishot also feeds a composite as CONTEXT: which moment of the
   // video the picture is a still for. It adds no image; the composite's prompt reads its shots.
   script:             ["prompt", "composite"],
@@ -347,8 +355,10 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   composite:          ["prompt", "video-gen", "video-prompt", "multishot-prompt", "shot", "multishot", "post", "composite"],
   "video-prompt":     ["video-gen"],
   "multishot-prompt": ["video-gen"],
-  "video-gen":        ["dubbing"],
-  "dubbing":          [],
+  // D388 — a clip, or its dub, feeds the Rough Cut Editor. Dubbing's first output is the Editor.
+  "video-gen":        ["dubbing", "editor"],
+  "dubbing":          ["editor"],
+  "editor":           [],
   "post":             [],
   "client-review":    [],
 } as const;
@@ -358,6 +368,13 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
 // Ordered on purpose — connection direction is meaningful; there is no symmetric variant.
 export function canConnect(sourceType: string, targetType: string): boolean {
   return (VALID_CONNECTIONS[sourceType] ?? []).includes(targetType);
+}
+
+// Nodes that are never duplicated: the KB anchors the canvas, and there is one Editor per canvas
+// (D388). One check for the context menu, Ctrl+D and both duplicate routes.
+const NOT_DUPLICABLE = new Set(["kb", "editor"]);
+export function canDuplicateNode(type: string | undefined): boolean {
+  return !NOT_DUPLICABLE.has(type ?? "");
 }
 
 // D374 — targets that take a fixed number of inputs. One place, checked wherever a wire is made

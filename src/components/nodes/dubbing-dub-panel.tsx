@@ -31,13 +31,15 @@ type Props = {
   hasDub: boolean;
   running: "dub" | "lipsync" | null;
   editable: boolean;
+  /** D390 — why the dub can't run (it is in the Editor's reel), or null. */
+  locked?: string | null;
   onDub: () => void;
 };
 
 // D378 — the Dub tab: a language, a translation style, and Dub (each run is a new version).
-export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onStyleChange, voice, onVoiceChange, pace, onPaceChange, sourceSeconds, sourceLoading, hasSource, hasDub, running, editable, onDub }: Props) {
+export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onStyleChange, voice, onVoiceChange, pace, onPaceChange, sourceSeconds, sourceLoading, hasSource, hasDub, running, editable, locked = null, onDub }: Props) {
   const busy = running !== null;
-  const blocked = dubBlockedReason({ editable, running, hasSource, sourceLoading, sourceSeconds });
+  const blocked = dubBlockedReason({ editable, running, hasSource, sourceLoading, sourceSeconds, locked });
   const canDub = editable && hasSource && sourceSeconds > 0 && !busy;
   const unpriced = hasSource && !sourceLoading && sourceSeconds <= 0;
   return (

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Edge } from "@xyflow/react";
-import { wouldCreateCycle, findAncestorOfType, findDescendantsOfType, connectionPath } from "./graph";
+import { wouldCreateCycle, findAncestorOfType, findDescendantsOfType, connectionPath, entryTargetFor } from "./graph";
 
 const e = (source: string, target: string): Edge => ({ id: `${source}-${target}`, source, target });
 const n = (id: string, type: string) => ({ id, type });
@@ -96,5 +96,19 @@ describe("connectionPath", () => {
 
   it("reports no path", () => {
     expect(connectionPath([edge("a", "b")], "img", "vg")).toEqual({ kind: "none" });
+  });
+});
+
+// YUV-294 — the ✕ on an input that reaches a node through another cuts the wire leaving the input.
+describe("entryTargetFor", () => {
+  it("is the node itself for a direct wire", () => {
+    expect(entryTargetFor([e("img", "gen")], "img", "gen")).toBe("gen");
+  });
+  it("is the node the input goes through, however many hops", () => {
+    expect(entryTargetFor([e("img", "motion"), e("motion", "gen")], "img", "gen")).toBe("motion");
+    expect(entryTargetFor([e("img", "a"), e("a", "b"), e("b", "gen"), e("img", "elsewhere")], "img", "gen")).toBe("a");
+  });
+  it("is null when the input does not reach the node", () => {
+    expect(entryTargetFor([e("img", "elsewhere")], "img", "gen")).toBeNull();
   });
 });

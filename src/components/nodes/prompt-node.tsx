@@ -72,6 +72,7 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
               ? "image"
               : undefined,
         useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
+        avatarId: n.type === "avatar" && typeof d.avatarId === "string" ? d.avatarId : undefined,
         role: n.type === "shot" ? (d.role as string | undefined) : undefined,
       };
     });

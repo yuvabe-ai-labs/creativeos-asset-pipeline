@@ -1,4 +1,5 @@
-import { isFounderLed, nextStep } from "./brief";
+import { nextStep } from "./brief";
+import { formatFor } from "./formats";
 import { avatarLabel } from "./avatar-label";
 import { IMPORT_REPLY_PREFIX, NARRATOR } from "./constants";
 import type { CopilotAvatar, GenerateState } from "./schema";
@@ -23,6 +24,38 @@ export function avatarFits(member: { name: string; description: string }, avatar
 
 const send = (text: string, label = text): Suggestion => ({ label, text, send: true });
 
+/** The most chips one message offers, and the longest one (brand-neutral spec §3.1). */
+const MAX_CHIPS = 4;
+const MAX_CHIP_CHARS = 80;
+
+/** What the model suggested, made safe to show: trimmed, no empties, nothing too long, no repeats
+ *  (case aside), nothing a code chip already offers, at most four. */
+export function cleanSuggestions(raw: readonly unknown[], taken: readonly string[] = []): string[] {
+  const seen = new Set(taken.map((t) => t.trim().toLowerCase()));
+  const out: string[] = [];
+  for (const chip of raw) {
+    const text = typeof chip === "string" ? chip.trim() : "";
+    const key = text.toLowerCase();
+    if (!text || text.length > MAX_CHIP_CHARS || seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+    if (out.length === MAX_CHIPS) break;
+  }
+  return out;
+}
+
+/** The chips the copilot wrote for this brand: those of its newest reply that has any, looking back
+ *  no further than the person's last message (an inline edit or an accepted proposal posts a reply
+ *  with none, and must not clear the edits on offer). */
+function modelChips(state: GenerateState, taken: readonly string[]): Suggestion[] {
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    const m = state.messages[i];
+    if (m.role === "user") break;
+    if (m.suggestions.length) return cleanSuggestions(m.suggestions, taken).map((t) => send(t));
+  }
+  return [];
+}
+
 export function suggestionsFor(state: GenerateState): Suggestion[] {
   const { script } = state;
   if (script.stage !== "generate") return [];
@@ -30,22 +63,18 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
   if (!script.doc) {
     const step = nextStep(script.brief, false);
     if (step.kind === "ask" && step.piece === "format") return [...state.formats.map((f) => send(f)), send("Take it from here")];
-    if (step.kind === "ask" && step.piece === "occasion") return [send("Kerala Piravi, Sun 1 Nov"), send("You pick")];
+    if (step.kind === "ask" && step.piece === "occasion") return [...modelChips(state, ["You pick"]), send("You pick")];
     if (step.kind === "ask" && step.piece === "lead") {
-      // A Founder-led reel's lead is the founder: the client's real-person (Specific) avatars first.
-      const founder = isFounderLed(script.brief.format.value);
+      // A format whose lead is a real person (Founder-led): the client's real-person (Specific) avatars first.
+      const founder = formatFor(script.brief.format.value)?.realPersonLead ?? false;
       const order = founder ? [...state.avatars].sort((a, b) => Number(b.specific) - Number(a.specific)) : state.avatars;
       return [
         ...order.map((a) => ({ label: avatarLabel(a, state.avatars), text: a.name, send: true, leadAvatarId: a.id })),
         send("Cast it for me"),
       ];
     }
-    if (step.kind === "angles") {
-      return script.brief.angles.length > 0
-        ? [send("Blend A and B"), send("Give me three different angles")]
-        : [send("Take it from here")];
-    }
-    if (step.kind === "confirm") return [send("Write it"), send("Make it lunch instead")];
+    if (step.kind === "angles") return script.brief.angles.length > 0 ? modelChips(state, []) : [send("Take it from here")];
+    if (step.kind === "confirm") return [send("Write it"), ...modelChips(state, ["Write it"])];
     return [];
   }
 
@@ -69,9 +98,7 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
   const confirm = script.notes.confirmations.find((c) => !c.confirmed);
   if (confirm) out.push(send(`Yes, confirmed: ${confirm.text}`, `Confirm: ${confirm.text}`));
 
-  const hasReview = script.doc.shots.some((s) => /review/i.test(s.beat));
-  out.push(send("Make the hook punchier"));
-  if (hasReview) out.push(send("Redo the payoff, warmer"), send("Move the review earlier"));
-  else out.push(send("Make the ending warmer"));
+  // Edits come from the copilot, written for this brand; none are fixed text.
+  out.push(...modelChips(state, out.map((c) => c.text)));
   return out;
 }

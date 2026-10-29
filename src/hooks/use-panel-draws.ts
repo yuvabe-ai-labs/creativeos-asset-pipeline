@@ -9,7 +9,8 @@ import { errorMessage } from "@/lib/avatars/utils";
 import { GENERATE_ALL_CONCURRENCY } from "@/lib/scripts/visualise/constants";
 import { runQueue } from "@/lib/scripts/visualise/queue";
 import type { DrawBody } from "@/lib/scripts/visualise/schema";
-import { visualiseKeys } from "@/hooks/queries/visualise";
+import { withDrawnTake } from "@/lib/scripts/visualise/state";
+import { visualiseKeys, type BoardData } from "@/hooks/queries/visualise";
 
 type DrawResult = { ok: true } | { ok: false; message: string; capped: boolean };
 
@@ -30,7 +31,14 @@ export function usePanelDraws(clientId: string, scriptId: string, modelId: strin
   const drawQuietly = useCallback(async (shotId: string, body: DrawBody): Promise<DrawResult> => {
     setDrawing((prev) => new Set(prev).add(shotId));
     try {
-      await visualiseService.draw(clientId, scriptId, shotId, { ...body, modelId });
+      const { take, pickId } = await visualiseService.draw(clientId, scriptId, shotId, { ...body, modelId });
+      // YUV-422 — the new take and pick go into the board before the panel stops drawing. Waiting
+      // for the refetch showed the old pick for that round-trip. A read already in flight could
+      // land after this with an older board, so it is cancelled first (the refresh below re-reads).
+      const key = visualiseKeys.board(clientId, scriptId);
+      await queryClient.cancelQueries({ queryKey: key });
+      queryClient.setQueryData<BoardData>(key, (prev: BoardData | undefined) =>
+        prev && { ...prev, board: withDrawnTake(prev.board, shotId, take, pickId) });
       return { ok: true };
     } catch (e) {
       return { ok: false, message: errorMessage(e, "Could not draw the panel"), capped: e instanceof ApiError && e.status === 402 };
@@ -42,7 +50,7 @@ export function usePanelDraws(clientId: string, scriptId: string, modelId: strin
       });
       void refresh();
     }
-  }, [clientId, scriptId, modelId, refresh]);
+  }, [clientId, scriptId, modelId, refresh, queryClient]);
 
   const draw = useCallback(async (shotId: string, body: DrawBody = { kind: "draw" }) => {
     const result = await drawQuietly(shotId, body);

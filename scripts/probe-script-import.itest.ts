@@ -12,6 +12,9 @@ const BASE = {
   kbText: "This client has no brand KB yet. Write from the person's description and the example scripts only, and say so.",
   library: "This client has no scripts yet. Take the format from the person's description and the house rules.",
   avatars: "The client has no saved avatars yet; describe every person in words.",
+  today: "",
+  signalDigest: "",
+  formatMenu: "",
 };
 
 const SCENES = `Monday dosa

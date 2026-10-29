@@ -20,7 +20,7 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn(as
 
 // A node the client just added exists only in its store until autosave persists it, and the
 // focus view reads its versions as it opens — so the row can be missing. `exists` toggles that.
-const { nodeRow } = vi.hoisted(() => ({ nodeRow: { exists: true } }));
+const { nodeRow } = vi.hoisted(() => ({ nodeRow: { exists: true, type: "image-gen" } }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: () => ({
@@ -30,7 +30,7 @@ vi.mock("@/lib/supabase/server", () => ({
             data: !nodeRow.exists ? null : {
               id: "node-1",
               canvas_id: "canvas-1",
-              type: "image-gen",
+              type: nodeRow.type,
               position: { x: 0, y: 0 },
               data: {},
               active_version_id: "v1",
@@ -115,6 +115,7 @@ describe("GET /api/nodes/[id]/versions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     nodeRow.exists = true;
+    nodeRow.type = "image-gen";
     db.listVersions.mockResolvedValue([version]);
     db.getCreditsChargedByVersionIds.mockResolvedValue(new Map([["v1", 12]]));
     db.getDecisionsByVersionIds.mockResolvedValue(new Map([["v1", [decision]]]));
@@ -145,6 +146,23 @@ describe("GET /api/nodes/[id]/versions", () => {
         },
       ],
     });
+  });
+
+  // A Multishot Prompt's output is a plan object; nulling it hid every version's plan and its
+  // Restore in History. Any other node keeps the string-only output (Dubbing's object is read
+  // through `dubbing`, and its views treat `output` as a media URL).
+  it("returns a Multishot Prompt version's plan object as its output", async () => {
+    nodeRow.type = "multishot-prompt";
+    const plan = { look: "warm", beats: [{ cutId: "c1", text: "She walks." }] };
+    db.listVersions.mockResolvedValue([{ ...version, output: plan }]);
+    const json = await (await get()).json();
+    expect(json.versions[0].output).toEqual(plan);
+  });
+
+  it("keeps an object output null for any other node type", async () => {
+    db.listVersions.mockResolvedValue([{ ...version, output: { stage: "dubbed" } }]);
+    const json = await (await get()).json();
+    expect(json.versions[0].output).toBeNull();
   });
 
   it("returns no versions (not a 404) for a node not yet persisted", async () => {

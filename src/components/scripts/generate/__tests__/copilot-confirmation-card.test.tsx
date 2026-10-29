@@ -8,8 +8,16 @@ const card = {
     { label: "Format", value: "Founder-led", source: "given" as const },
     { label: "Home and kit", value: "Chennai home; Golu steps visible; everyday kitchen setting; South kitchen kit.", source: "proposed" as const },
   ],
-  cast: [], toConfirm: [],
+  cast: [], beats: [], toConfirm: [],
 };
+
+describe("the confirmation card's beats", () => {
+  it("lists the beats the draft will follow, and shows no beats row when there are none", () => {
+    const withBeats = renderToStaticMarkup(<CopilotConfirmationCard card={{ ...card, beats: ["HOOK", "INTRO", "PROOF"] }} avatars={[]} disabled={false} onWrite={() => {}} />);
+    expect(withBeats).toContain("HOOK › INTRO › PROOF");
+    expect(renderToStaticMarkup(<CopilotConfirmationCard card={card} avatars={[]} disabled={false} onWrite={() => {}} />)).not.toContain("Beats");
+  });
+});
 
 describe("the confirmation card's lines", () => {
   it("keeps a short line on one row and stacks a long one under its label", () => {

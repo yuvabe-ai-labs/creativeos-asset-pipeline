@@ -21,6 +21,7 @@ const draft = (over: Partial<DraftOutput> = {}): DraftOutput => ({
     shot("INTRO", "A new line on the split shot.", ""),
   ],
   summary: "First draft.",
+  suggestions: [],
   ...over,
 });
 

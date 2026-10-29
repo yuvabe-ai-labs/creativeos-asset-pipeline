@@ -27,3 +27,11 @@ describe("why a Dubbing control is off", () => {
     expect(lipSyncBlockedReason({ ...lipOk, dubSeconds: 0 })).toMatch(/no recorded length/);
   });
 });
+
+describe("the Editor's generation lock (D390)", () => {
+  it("names the lock in place of Dub and Lip sync", () => {
+    expect(dubBlockedReason({ ...dubOk, locked: "In use by the Editor · Disconnect to generate" })).toBe("In use by the Editor · Disconnect to generate");
+    expect(lipSyncBlockedReason({ editable: true, running: null, hasDub: true, dubSeconds: 8, locked: "x" })).toBe("x");
+    expect(dubBlockedReason({ ...dubOk, editable: false, locked: "x" })).toBe("You can view this canvas but not change it.");
+  });
+});

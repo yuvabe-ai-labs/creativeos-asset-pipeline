@@ -3,21 +3,38 @@ import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import reel06 from "@/lib/scripts/fixtures/reel-06.json";
 import reel08 from "@/lib/scripts/fixtures/reel-08.json";
 import { scriptDocSchema, type Script } from "@/lib/scripts/schema";
-import { libraryFormats, nextReelNumber, pickExamples, renderAvatars, renderKbText, renderLibrary, renderSignalBrief } from "../prompt-context";
+import { libraryFormats, nextReelNumber, pickExamples, renderAvatars, renderKbText, renderLibrary, renderSignalBrief, renderSignalDigest, todayLabel } from "../prompt-context";
 
 const script = (json: unknown, id: string): Script =>
   ({ id, clientId: "c1", stage: "approved", doc: scriptDocSchema.parse(json), approvedAt: null, createdAt: "t", updatedAt: "t" });
 const library = [script(reel01, "a"), script(reel06, "b"), script(reel08, "c")];
 
 describe("renderKbText", () => {
-  it("includes the KB's consistency notes whole, as the house rules", () => {
-    const kb = { image_analysis: { brand_consistency_notes: { value: "HOUSE SPEC: seven locked claim lines…" } } } as never;
-    expect(renderKbText(kb)).toContain("House rules (the brand KB's consistency notes, read whole):\nHOUSE SPEC: seven locked claim lines…");
+  it("reads the KB's Content Rules whole, and no longer the image analysis's consistency notes", () => {
+    const kb = {
+      compliance: { content_rules: { value: "Sells 2 and 3 BHK flats in Whitefield." } },
+      image_analysis: { brand_consistency_notes: { value: "The look is consistent." } },
+    } as never;
+    const text = renderKbText(kb);
+    expect(text).toContain("Content rules (read whole):\nSells 2 and 3 BHK flats in Whitefield.");
+    expect(text).not.toContain("The look is consistent.");
   });
 
-  it("still reads the house rules when the KB page saved them as a list (an empty field is edited as one)", () => {
-    const kb = { image_analysis: { brand_consistency_notes: { value: ["Locked lines verbatim", "D1 on every reel"] } } } as never;
-    expect(renderKbText(kb)).toContain("House rules (the brand KB's consistency notes, read whole):\nLocked lines verbatim, D1 on every reel");
+  it("still reads Content Rules when the KB page saved them as a list (an empty field is edited as one)", () => {
+    const kb = { compliance: { content_rules: { value: ["Sells flats", "No price claims"] } } } as never;
+    expect(renderKbText(kb)).toContain("Content rules (read whole):\nSells flats, No price claims");
+  });
+
+  it("tells the copilot where the audience is and what it wants", () => {
+    const kb = { target_audience: { location: { value: "Bengaluru" }, pain_points: { value: ["long commutes"] }, desires: { value: null } } } as never;
+    const text = renderKbText(kb);
+    expect(text).toContain("Audience location: Bengaluru");
+    expect(text).toContain("Pain points: long commutes");
+    expect(text).not.toContain("Desires");
+  });
+
+  it("renders an old KB with no Content Rules without gaps or undefined", () => {
+    expect(renderKbText({ compliance: {} } as never)).not.toContain("undefined");
   });
 
   it("says plainly when there is no KB", () => {
@@ -73,5 +90,26 @@ describe("renderSignalBrief", () => {
     const signal = (id: string, name: string) => ({ id, name, tags: [], description: "", items: [] }) as never;
     const text = renderSignalBrief([signal("sig-1", "Onam lunches"), signal("sig-2", "Dabba prep")]);
     expect(text).toBe("[S1] Market signal: Onam lunches\n\n[S2] Market signal: Dabba prep");
+  });
+});
+
+describe("todayLabel", () => {
+  it("names the date in India, where the agency works", () => {
+    expect(todayLabel(new Date("2026-10-27T20:00:00Z"))).toBe("Wed 28 Oct 2026");
+  });
+});
+
+describe("renderSignalDigest", () => {
+  const signal = (i: number) => ({ id: `sig-${i}`, name: `Signal ${i}`, tags: [], description: `What people do ${"at length ".repeat(20)}`, items: [] }) as never;
+
+  it("is one short line per signal, cut on a line boundary", () => {
+    const digest = renderSignalDigest(Array.from({ length: 30 }, (_, i) => signal(i)));
+    expect(digest.startsWith("[S1] Signal 0")).toBe(true);
+    expect(digest.length).toBeLessThanOrEqual(1500);
+    expect(digest.endsWith("\n")).toBe(false);
+  });
+
+  it("is empty when the client has no signals", () => {
+    expect(renderSignalDigest([])).toBe("");
   });
 });

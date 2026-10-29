@@ -50,11 +50,19 @@ export async function GET(
       [...annotationsByDecision.values()].flat(),
     );
 
+    // A Multishot Prompt's output is a MultishotPlan OBJECT (D231), read by its view through
+    // asViewablePlan. The string-only guard below nulled it, so its History showed no plan and
+    // offered no Restore (the same bug restore-version/route.ts had). Every other node's output
+    // stays a string or null: Dubbing's object is read through `dubbing`, and its views treat
+    // `output` as a media URL.
+    const objectOutput = node.type === "multishot-prompt";
     return apiOk({
       activeVersionId: node.active_version_id,
       versions: rows.map((v) => ({
         id: v.id,
-        output: typeof v.output === "string" ? v.output : null,
+        output: typeof v.output === "string" || (objectOutput && v.output && typeof v.output === "object")
+          ? v.output
+          : null,
         // D22: the model's frozen raw output. Lets Step 3's viewer render the
         // generated -> shipped diff (generatedOutput vs output).
         generatedOutput: typeof v.generated_output === "string" ? v.generated_output : null,

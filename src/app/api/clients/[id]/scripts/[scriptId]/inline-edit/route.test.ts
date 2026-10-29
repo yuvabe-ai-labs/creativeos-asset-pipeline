@@ -24,7 +24,7 @@ describe("POST .../inline-edit", () => {
     const current = generateScript({ doc: reel01Doc() });
     vi.mocked(getGenerateScript).mockResolvedValue(current);
     vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(current) as never);
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "J", kbText: "KB", hasKb: true, library: [], avatars: [] });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "J", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
     vi.mocked(structuredCaller).mockReturnValue((async () => ({ replacement: "Today,", summary: "Warmer opening." })) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(current));
   });

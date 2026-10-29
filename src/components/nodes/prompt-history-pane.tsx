@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import type { VersionViewing } from "@/hooks/use-version-viewing";
 import { PromptVersionHistory, type VersionSummary } from "./prompt-version-history";
-import { VersionStepper } from "./version-stepper";
+import { ViewingTag } from "./viewing-tag";
 import { VersionViewingBar } from "./version-viewing-bar";
 import { VersionOutputEmpty } from "./version-output-empty";
 
@@ -47,17 +47,9 @@ export function PromptHistoryPane({
   const viewed = viewing.viewed;
   return (
     <div className="flex w-full min-h-0 flex-1 overflow-hidden">
-      <div className="h-full w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card px-6 py-5 panel-raised">
-        <PromptVersionHistory versions={versions} activeVersionId={activeVersionId} viewedVersionId={viewed?.id ?? null} onView={viewing.view} />
-      </div>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            {outputIcon}
-            <span className="text-eyebrow">{outputLabel}</span>
-          </div>
-          <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
-        </div>
+      {/* D433 — Back and Restore head the list the version was picked from; the output beside it
+          only names the version on screen, so it never moves. */}
+      <div className="flex h-full w-[54%] shrink-0 flex-col gap-3 overflow-y-auto border-x border-primary/25 bg-card px-6 py-5 panel-raised">
         {viewing.isViewingOther && viewed && (
           <VersionViewingBar
             viewedLabel={labelById.get(viewed.id) ?? ""}
@@ -69,6 +61,16 @@ export function PromptHistoryPane({
             onRestore={() => onRestore(viewed.id)}
           />
         )}
+        <PromptVersionHistory versions={versions} activeVersionId={activeVersionId} viewedVersionId={viewed?.id ?? null} onView={viewing.view} />
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-5">
+        <div className="flex h-8 shrink-0 items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            {outputIcon}
+            <span className="text-eyebrow">{outputLabel}</span>
+          </div>
+          {viewing.isViewingOther && viewed && <ViewingTag label={labelById.get(viewed.id) ?? ""} />}
+        </div>
         {viewed && (viewed.error || !viewed.output ? <VersionOutputEmpty noun={emptyNoun} /> : renderVersionOutput(viewed))}
       </div>
     </div>

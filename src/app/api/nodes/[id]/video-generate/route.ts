@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { editorLockResponse } from "@/lib/editor/lock-guard";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
@@ -22,8 +23,8 @@ import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-model
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
-import { getPromptUpstream, presenterVoiceForSeedance } from "@/lib/avatars/presenter-server";
-import { selectReferences } from "@/lib/video-gen/select-references";
+import { getPromptUpstream, presenterVoiceForSeedance, withAvatarImages } from "@/lib/avatars/presenter-server";
+import { referenceCapFor, selectReferences, sheetsUnusable } from "@/lib/video-gen/select-references";
 import {
   missingRefsMessage,
   refEntriesOf,
@@ -53,6 +54,10 @@ export async function POST(
     }
     const body = parsed.data;
 
+    // D390 — a clip in the Editor's reel can't regenerate.
+    const locked = await editorLockResponse(nodeId);
+    if (locked) return locked;
+
     const modelId = body.modelId ?? DEFAULT_VIDEO_MODEL_ID;
     const config = videoGenRegistry[modelId];
     if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
@@ -72,7 +77,8 @@ export async function POST(
     const imageRoles = body.imageRoles ?? {};
 
     // Resolve upstream nodes — same 2-level traversal as upstream-images route
-    const upstream = await getUpstreamOutputs(nodeId);
+    // D436 — an Avatar wired straight in is its images.
+    const upstream = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
 
     // Two prompt-node lanes can feed this node (see resolve-prompt.ts): a video-prompt node's
     // STRING output, or a multishot-prompt node's MultishotPlan OBJECT rendered against its
@@ -181,17 +187,12 @@ export async function POST(
       ...promptUpstream.filter((u) => !seenIds.has(u.nodeId)),
     ];
 
-    // image-gen nodes are valid when directly connected; not via the grandparent path — EXCEPT
-    // when the grandparent is a multishot-prompt, whose `<IMAGE_REF_N>` tokens are numbered over
-    // exactly its own upstream (resolve-mention-tokens.ts) and must resolve to a real upload here.
-    // A video-prompt's own image-gen grandparent stays excluded — that image is vision context for
-    // the motion-prompt WRITER, never itself sent to the video model (see VALID_CONNECTIONS in
-    // canvas-nodes.ts). Mirrors the same distinction in api/nodes/[id]/upstream-images.
+    // D440 — a generated image (Image Gen, Composite) is sent when wired straight in or into the
+    // prompt node, on either lane. It used to go only through a Multishot Prompt; one on a Motion
+    // Prompt was the writer's vision context and never reached the video model. Mirrors
+    // api/nodes/[id]/upstream-images.
     const directIds = new Set(upstream.map((u) => u.nodeId));
-    const multishotPromptUpstreamIds =
-      promptNode.type === "multishot-prompt"
-        ? new Set(promptUpstream.map((u) => u.nodeId))
-        : new Set<string>();
+    const promptUpstreamIds = new Set(promptUpstream.map((u) => u.nodeId));
 
     // The upstream images this node could send, in traversal order. Mirrors the filter in
     // api/nodes/[id]/upstream-images — the focus view and the request must be looking at the
@@ -205,7 +206,7 @@ export async function POST(
         url = typeof data.fileUrl === "string" ? data.fileUrl : undefined;
       } else if (
         isGeneratedImageType(node.type) &&
-        (directIds.has(node.nodeId) || multishotPromptUpstreamIds.has(node.nodeId))
+        (directIds.has(node.nodeId) || promptUpstreamIds.has(node.nodeId))
       ) {
         url = typeof node.activeOutput === "string" ? node.activeOutput : undefined;
       }
@@ -244,22 +245,27 @@ export async function POST(
     const singleTake = singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider);
     const avatarFrontId = promptUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null;
     const avatarSheet = promptUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null;
+    // D428 — on Omni each frame takes one of the reference slots.
+    const refCap = referenceCapFor(config.imageInputs, {
+      hasStartFrame: Boolean(startFrameUrl),
+      hasEndFrame: Boolean(endFrameUrl),
+    });
     const selection = selectReferences({
       images: orderedImages.map((img) => ({ id: img.nodeId })),
       roles: effectiveRoles,
-      cap: maxRefs,
+      cap: refCap,
       modelLabel,
       citedIds: citedIdsOfResolved(resolved, singleTake),
       avatarFrontId,
       avatarSheetId: avatarSheet,
       framesExcludeReferences: areFramesAndRefsExclusive(videoGenClientModelMap[modelId]?.rules),
-      unusable: config.provider === "seedance" && avatarSheet
-        ? new Map([[avatarSheet, "Seedance can't use the profile sheet"]])
+      unusable: config.provider === "seedance"
+        ? sheetsUnusable(orderedImages.map((img) => img.nodeId), "Seedance can't use the profile sheet")
         : undefined,
     });
     if (selection.overCap > 0) {
       return apiError(
-        `${modelLabel} takes ${maxRefs} references; ${maxRefs + selection.overCap} are selected. Turn some off in Video Gen.`,
+        `${modelLabel} takes ${refCap} references; ${refCap + selection.overCap} are selected. Turn some off in Video Gen.`,
         400,
       );
     }

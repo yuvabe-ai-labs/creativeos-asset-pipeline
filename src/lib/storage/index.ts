@@ -532,6 +532,23 @@ export async function signClientReviewUpload(args: {
 }
 
 // D338 — one storyboard panel's bytes, stored as the provider returned them.
+/** D392 — the Rough Cut Editor's finished package, saved with its download name. */
+/** `fileName` is plain ASCII (packageNames, D416), so it sits in the header unescaped. */
+export async function uploadEditorExport(path: string, bytes: Uint8Array, fileName: string): Promise<UploadResult> {
+  await _put(path, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), "application/zip", {
+    contentDisposition: `attachment; filename="${fileName}"`,
+  });
+  return { path, url: publicUrlFor(path) };
+}
+
+/** D417 — the editor's MP4, saved under its own name and downloaded as it. */
+export async function uploadEditorRender(path: string, bytes: Uint8Array, fileName: string): Promise<UploadResult> {
+  await _put(path, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), "video/mp4", {
+    contentDisposition: `attachment; filename="${fileName}"`,
+  });
+  return { path, url: publicUrlFor(path) };
+}
+
 export async function uploadScriptPanel(args: {
   clientId: string;
   scriptId: string;

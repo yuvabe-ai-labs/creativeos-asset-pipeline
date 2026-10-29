@@ -107,7 +107,8 @@ export function completionEffect(
   previous: GenerationFeedRow | undefined,
   next: GenerationFeedRow,
 ): CompletionEffect | null {
-  if (next.type === "prompt") return null;
+  // Auto captions report on the editor page itself (D399), never as a canvas toast.
+  if (next.type === "prompt" || next.type === "transcribe") return null;
   if (previous?.status !== "running" || next.status === "running") return null;
   // A start that failed in its request already showed that request's toast: one is enough.
   if (next.type === "image" && next.status === "failed" && isImageStartFailure(next.error)) return null;

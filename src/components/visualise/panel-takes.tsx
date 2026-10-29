@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PanelTake } from "@/lib/scripts/visualise/schema";
+import { PanelImage } from "./panel-image";
 
 // D344 — every drawn take, oldest first; the picked one is what the client sees.
 export function PanelTakes({ takes, pickId, disabled, onPick }: {
@@ -31,8 +32,7 @@ export function PanelTakes({ takes, pickId, disabled, onPick }: {
               className={cn("relative h-auto w-16 overflow-hidden p-0", picked && "ring-2 ring-primary ring-offset-1")}
             >
               <span className="relative block aspect-[9/16] w-full">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={take.url ?? ""} alt="" className="absolute inset-0 size-full object-cover" />
+                {take.url && <PanelImage src={take.url} />}
               </span>
               <span className="absolute bottom-1 left-1 rounded bg-background/90 px-1 text-[0.65rem] font-medium leading-4 text-foreground">{i + 1}</span>
               {picked && (

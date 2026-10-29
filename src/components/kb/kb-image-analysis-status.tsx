@@ -59,6 +59,9 @@ export function KBImageAnalysisStatus({ clientId }: { clientId: string }) {
         <span className="min-w-0 flex-1">
           {job?.phaseMessage ?? "Reading the images…"}
           <span className="text-muted-foreground"> {data.carded} of {data.images} read</span>
+          <span className="block text-xs text-muted-foreground">
+            You can mark the KB ready now and review this tab when it finishes.
+          </span>
         </span>
       </>
     );

@@ -320,6 +320,18 @@
   color: color-mix(in oklab, var(--foreground) 75%, transparent);
 }
 
+/* Small eyebrow — a panel's own name in a dense tool screen (the editor's Sources, Inspector,
+   Timeline). Quieter than .text-eyebrow so the content's headings lead. */
+.text-eyebrow-sm {
+  font-family: var(--font-gilroy);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted-foreground);
+}
+
 /* Canvas surface — the signal grid, so the editor reads as a workspace */
 .canvas-surface {
   background-color: var(--neutral-50);

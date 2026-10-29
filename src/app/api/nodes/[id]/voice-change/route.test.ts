@@ -4,6 +4,8 @@ import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
 
 vi.mock("server-only", () => ({}));
+const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
+vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
   getVoiceCached: vi.fn(),
@@ -82,5 +84,21 @@ describe("POST /api/nodes/[id]/voice-change", () => {
     expect(res.status).toBe(500);
     expect(mocks.failGeneration).toHaveBeenCalled();
     expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-9" });
+  });
+});
+
+// D390 — a clip in the Editor's reel can't generate, whoever asks.
+describe("the Editor's generation lock", () => {
+  it("refuses with the reason and records nothing", async () => {
+    editorLock.value = "editor";
+    try {
+      const res = await post(BODY);
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "This clip is in the Editor's reel. Disconnect it from the Editor to generate." });
+      expect(mocks.insertGeneration).not.toHaveBeenCalled();
+      expect(mocks.trigger).not.toHaveBeenCalled();
+    } finally {
+      editorLock.value = null;
+    }
   });
 });

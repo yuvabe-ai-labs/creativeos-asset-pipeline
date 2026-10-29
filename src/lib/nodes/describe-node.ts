@@ -51,6 +51,8 @@ export function describeNode(node: { type?: string; data: Record<string, unknown
       return "video generation";
     case "dubbing":
       return "dubbing";
+    case "editor":
+      return "Editor";
     case "client-review":
       return "client review";
     default:
@@ -78,6 +80,7 @@ const NODE_ABBREV: Record<string, string> = {
   "video-prompt": "MPR",
   "video-gen": "VID",
   dubbing: "DUB",
+  editor: "EDT",
   "client-review": "REV",
 };
 

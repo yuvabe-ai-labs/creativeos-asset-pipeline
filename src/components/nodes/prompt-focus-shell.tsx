@@ -32,8 +32,6 @@ import { UsagePopover } from "./prompt-usage-popover";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import type { VersionSummary } from "./prompt-version-history";
 import { PromptHistoryPane } from "./prompt-history-pane";
-import { VersionStepper } from "./version-stepper";
-import { VersionViewingBar } from "./version-viewing-bar";
 import { ActiveOnlyNotice } from "./active-only-notice";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { versionLabelsById } from "@/lib/generations/version-labels";
@@ -44,11 +42,6 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
 
 export type PromptFocusShellSlots = {
-  // D383 — `‹ vN of M ›`, placed beside the caller's own "Generated ___" heading. Views, never
-  // restores (it replaced the v1/v2 chips, which restored on click).
-  versionStepper: ReactNode;
-  // D383 — the viewing bar, placed directly under that heading; null while on the active version.
-  viewingBar: ReactNode;
   // The version on screen (the active one unless another is being viewed).
   viewedVersion: VersionSummary | null;
   // The viewed version's label ("v1"); empty while nothing is viewed.
@@ -201,10 +194,12 @@ export function PromptFocusShell({
   const editable = useCanvasEditable();
   // D383 — the version on screen, shared by the prompt pane and the History pane.
   const viewing = useVersionViewing(versions, activeVersionId, open);
+  // D433 — an older version is picked in History and stays on screen there and in Sent to model
+  // (what it sent); every other tab acts on the active version, so it shows that one.
+  if (viewing.isViewingOther && selected !== "history" && selected !== "request") viewing.backToActive();
   const labelById = versionLabelsById(versions);
   const viewed = viewing.viewed;
   const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
-  const canRestore = editable && Boolean(viewed && !viewed.error && viewed.output);
   const { removeFor } = useRailDisconnect(nodeId, (sourceId) => {
     if (selected === sourceId) onSelectedChange("prompt");
   });
@@ -223,20 +218,6 @@ export function PromptFocusShell({
     }
     onOpenChange(false);
   }
-
-  const versionStepper = <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />;
-  const viewingBar =
-    viewing.isViewingOther && viewed ? (
-      <VersionViewingBar
-        viewedLabel={viewedLabel}
-        viewedCreatedAt={viewed.createdAt}
-        activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
-        canRestore={canRestore}
-        restoring={restoring}
-        onBack={viewing.backToActive}
-        onRestore={() => onRestoreVersion(viewed.id)}
-      />
-    ) : null;
 
   const approvalControls = (
     <>
@@ -387,7 +368,7 @@ export function PromptFocusShell({
               Still no overflow-hidden: it would crop the raised column's left shadow. The panes
               inside own their scrolling. */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {children({ versionStepper, viewingBar, viewedVersion: viewed, viewedLabel, isViewingOther: viewing.isViewingOther, approvalControls })}
+            {children({ viewedVersion: viewed, viewedLabel, isViewingOther: viewing.isViewingOther, approvalControls })}
 
             {selected === "history" && (
               <PromptHistoryPane

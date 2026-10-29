@@ -23,6 +23,8 @@ type Props = {
   /** The version showing in the output column — the take this re-voices (null if it has no video). */
   sourceId: string | null;
   running: boolean;
+  /** D390 — why the clip can't generate (it is in the Editor's reel), or null. */
+  locked?: string | null;
   /** A voice change is running on this node right now — the button shows it, like Image Gen's Edit. */
   changing: boolean;
   value: VoiceChangeNodeState | undefined;
@@ -36,7 +38,7 @@ type Props = {
 
 // D284 — Edit voice, in the focus view's centre column (where Image Gen puts its Edit tools):
 // the take, the voice, the settings and Apply. The output column keeps showing the video.
-export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, changing, value, onChange, onApplied, defaultVoiceId }: Props) {
+export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locked = null, changing, value, onChange, onApplied, defaultVoiceId }: Props) {
   // Until the node has a choice of its own, the presenter's voice is pre-selected. Once anything is
   // stored — a pick, a clear, a voice that no longer exists — the node's own choice wins.
   const state: VoiceChangeNodeState = value ?? { voiceId: defaultVoiceId ?? null, settings: DEFAULT_VOICE_CHANGE_SETTINGS };
@@ -54,7 +56,7 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, chang
 
   const duration = durationOfParams(sourceVersion?.paramsUsed ?? {});
   const estimatedCredits = choice.voice && duration > 0 ? voiceChangeEstimateCredits(duration, choice.voice.priceMultiplier) : null;
-  const gate = canApplyVoiceChange({ sourceId, voice: Boolean(choice.voice), saving: choice.saving, running });
+  const gate = canApplyVoiceChange({ sourceId, voice: Boolean(choice.voice), saving: choice.saving, running, locked });
 
   async function onApply() {
     if (!gate.ok || !sourceId || !state.voiceId) return;

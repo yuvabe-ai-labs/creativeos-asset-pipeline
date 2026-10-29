@@ -2,8 +2,7 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/avatars/utils";
 import { listAvatars } from "@/lib/db/avatars";
-import { listScripts } from "@/lib/db/scripts";
-import { libraryFormats } from "@/lib/scripts/copilot/prompt-context";
+import { SCRIPT_FORMATS } from "@/lib/scripts/copilot/formats";
 import { changeWithRetry, type Change, type ChangeOutcome } from "@/lib/scripts/copilot/change";
 import { rowToGenerateScript, rowToMessage, type GenerateScriptRow, type ScriptMessageRow } from "@/lib/scripts/copilot/rows";
 import { fillToFinal } from "@/lib/scripts/copilot/fill-to-final";
@@ -71,7 +70,7 @@ export function changeGenerateScript<T>(clientId: string, scriptId: string, chan
 export async function listScriptMessages(clientId: string, scriptId: string): Promise<ScriptMessage[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
-    .from("client_script_messages").select("id, role, content, card, created_at")
+    .from("client_script_messages").select("id, role, content, card, suggestions, created_at")
     .eq("script_id", scriptId).eq("client_id", clientId)
     .order("seq", { ascending: true });
   if (error) throw error;
@@ -80,7 +79,7 @@ export async function listScriptMessages(clientId: string, scriptId: string): Pr
 
 export async function insertScriptMessages(
   clientId: string, scriptId: string, userId: string | null,
-  messages: { role: "user" | "assistant"; content: string; card: MessageCard | null }[],
+  messages: { role: "user" | "assistant"; content: string; card: MessageCard | null; suggestions?: string[] }[],
 ): Promise<void> {
   if (messages.length === 0) return;
   const supabase = createServerSupabase();
@@ -88,6 +87,7 @@ export async function insertScriptMessages(
   const { error } = await supabase.from("client_script_messages").insert(
     messages.map((m) => ({
       script_id: scriptId, client_id: clientId, role: m.role, content: m.content, card: m.card,
+      suggestions: m.suggestions?.length ? m.suggestions : null,
       created_by: m.role === "user" ? userId : null,
     })),
   );
@@ -160,11 +160,11 @@ export async function listCopilotAvatars(clientId: string): Promise<CopilotAvata
 export async function loadGenerateState(clientId: string, scriptId: string): Promise<GenerateState | null> {
   const script = await getGenerateScript(clientId, scriptId);
   if (!script) return null;
-  const [messages, avatars, library] = await Promise.all([
+  const [messages, avatars] = await Promise.all([
     listScriptMessages(clientId, scriptId),
     listCopilotAvatars(clientId),
-    script.doc ? [] : listScripts(clientId),
   ]);
-  const formats = libraryFormats(library).map((f) => f.format);
+  // The format menu is shared by every client (brand-neutral spec §3.1); it is offered only before a draft.
+  const formats = script.doc ? [] : SCRIPT_FORMATS.map((f) => f.name);
   return { script, messages, avatars, formats, openItems: fillToFinal(script.doc, script.notes) };
 }

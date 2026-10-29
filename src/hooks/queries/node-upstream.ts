@@ -41,6 +41,25 @@ export function useRefreshNodeUpstream(nodeId: string) {
   }, [queryClient, nodeId]);
 }
 
+/** YUV-294 — take a just-disconnected input off the cached list at once, so the row goes the moment
+ *  the ✕ is clicked rather than after the autosave flush and re-read that confirm it. Its avatar
+ *  sheet (`<id>:sheet`) goes with it. The confirming read still follows and replaces this. */
+export function useDropFromNodeUpstream(nodeId: string) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (sourceId: string) => {
+      const gone = (id: string) => id === sourceId || id === `${sourceId}:sheet`;
+      queryClient.setQueryData<NodeUpstream>(nodeUpstreamKeys.detail(nodeId), (prev: NodeUpstream | undefined) =>
+        prev && {
+          images: prev.images.filter((img: NodeUpstream["images"][number]) => !gone(img.id)),
+          promptNode: prev.promptNode?.id === sourceId ? null : prev.promptNode,
+        },
+      );
+    },
+    [queryClient, nodeId],
+  );
+}
+
 /** Start loading a node's upstream ahead of its view opening (a node card's hover), so the rail
  *  has something to show at once. A no-op while a fresh copy is cached. */
 export function usePrefetchNodeUpstream() {

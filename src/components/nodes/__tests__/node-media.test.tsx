@@ -20,4 +20,14 @@ describe("NodeMedia", () => {
     expect(html).toContain('src="https://x/a.mp4#t=0.1"');
     expect(html).toContain('preload="metadata"');
   });
+  // D432 — a new output waits under a skeleton, hidden, until it can be drawn.
+  it("first renders a skeleton with the media hidden until it loads", () => {
+    for (const kind of ["image", "video"] as const) {
+      const html = renderToStaticMarkup(
+        <NodeMedia kind={kind} src="https://x/a" alt="a" box={nodeMediaBox(1, "output")} onMeasured={vi.fn()} />,
+      );
+      expect(html).toContain('data-slot="skeleton"');
+      expect(html).toMatch(/<(img|video)[^>]*class="[^"]*opacity-0/);
+    }
+  });
 });

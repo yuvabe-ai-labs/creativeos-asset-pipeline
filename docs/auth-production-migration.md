@@ -920,3 +920,33 @@ two Trigger.dev tasks, `video-dub` and `video-lip-sync`.
 select count(*) from generations
 where type in ('dub', 'lipsync') and status = 'running' and created_at < now() - interval '20 minutes';
 ```
+
+## Migrations 0059 + 0060 — Rough Cut Editor and Auto captions (D388–D401, 2026-10-22)
+
+`supabase/migrations/0059_rough_cut_editor.sql` (the edit, media facts, the generation lock) and
+`supabase/migrations/0060_media_transcripts.sql` (stored transcripts, one row per file). Paste each
+into the Supabase SQL editor → Run, in order.
+
+New generation type `transcribe` and job kind `editor-transcribe` (both free text; no schema change
+beyond the new table). New Trigger.dev tasks: `editor-export` and `editor-transcribe`.
+
+**Safe to re-run:** 0060 uses `create table if not exists`.
+
+**Ordering:**
+
+1. Apply 0059, then 0060.
+2. **Set `ELEVEN_LABS_API_KEY` in both Trigger.dev projects' env** (staging and production) **and in
+   Vercel**. The transcribe route refuses with "Captions aren't set up yet." without it.
+3. **Deploy the Trigger.dev tasks before the app** (`npm run deploy:trigger`). The app triggers
+   `editor-transcribe` by id; app first means every start fails and is refunded.
+4. Then deploy the app.
+
+**Verify after running:**
+
+```sql
+-- expect the table to exist and RLS on
+select relrowsecurity from pg_class where relname = 'media_transcripts';
+-- expect 0: no captions run stuck for more than 20 minutes
+select count(*) from generations
+where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
+```

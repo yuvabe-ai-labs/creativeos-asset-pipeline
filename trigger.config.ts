@@ -1,5 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
-import { ffmpeg } from "@trigger.dev/build/extensions/core";
+import { additionalFiles, ffmpeg } from "@trigger.dev/build/extensions/core";
 
 // The Trigger.dev CLI's own config loader doesn't read .env before evaluating this
 // file, so load it ourselves (Node 20.6+ built-in — no dependency needed) rather than
@@ -41,7 +41,9 @@ export default defineConfig({
     external: ["sharp"],
     // D282 — the video-voice-change task extracts and replaces audio with ffmpeg. The extension
     // installs the binary into the deploy image and sets FFMPEG_PATH.
-    extensions: [ffmpeg()],
+    // D393 — the editor-export task ships the caption fonts in each Premiere package; it reads
+    // them from src/fonts/captions at runtime, so they are copied into the deploy image.
+    extensions: [ffmpeg(), additionalFiles({ files: ["./src/fonts/captions/**"] })],
   },
   maxDuration: 1200,
   retries: {

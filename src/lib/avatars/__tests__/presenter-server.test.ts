@@ -11,7 +11,7 @@ import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getNodeClientAndData, getScriptPresenterSource } from "@/lib/db/presenter";
 import { getAvatar } from "@/lib/db/avatars";
 import { prepareNamedVoiceReference } from "../voice-reference";
-import { getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withStillPresenter } from "../presenter-server";
+import { getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withAvatarImages, withPromptInputs } from "../presenter-server";
 import { GENERATED, makeImage } from "./fixtures";
 
 const riyaLine = { text: "Hi", speaker: "Riya", delivery: "", language: "en" };
@@ -56,9 +56,9 @@ describe("getPromptUpstream", () => {
     expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet"]);
   });
 
-  it("leaves a narration-only shot alone", async () => {
+  it("puts the avatar in a narration-only shot too, by default (D438)", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([narratorLine])] as never);
-    expect(await getPromptUpstream("prompt-1")).toHaveLength(1);
+    expect(await getPromptUpstream("prompt-1")).toHaveLength(3);
   });
 
   it("follows the operator's switch over the default", async () => {
@@ -93,17 +93,28 @@ describe("loadPresenterForPromptNode", () => {
   });
 });
 
-describe("withStillPresenter", () => {
-  it("adds the face to a still's connected images when its Prompt has the presenter in the shot", async () => {
-    vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine])] as never);
-    const ups = await withStillPresenter([{ nodeId: "prompt-1", type: "prompt", data: {}, activeOutput: null, versionId: null }]);
-    expect(ups.map((u) => u.nodeId)).toEqual(["prompt-1", "avatar-node-1", "avatar-node-1:sheet"]);
+// D440 — what is wired into the prompt node reaches the gen node too (the presenter included).
+describe("withPromptInputs", () => {
+  const prompt = { nodeId: "prompt-1", type: "prompt", data: {}, activeOutput: null, versionId: null };
+  const img = (id: string) => ({ nodeId: id, type: "image-gen", data: {}, activeOutput: `https://x/${id}.png`, versionId: null });
+
+  it("adds the prompt node's inputs after the node's own, the presenter's face included", async () => {
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine]), img("kitchen")] as never);
+    const ups = await withPromptInputs([prompt, img("own")] as never, ["prompt"]);
+    expect(ups.map((u) => u.nodeId)).toEqual(["prompt-1", "own", "shot-1", "kitchen", "avatar-node-1", "avatar-node-1:sheet"]);
     expect(getUpstreamOutputs).toHaveBeenCalledWith("prompt-1");
   });
 
-  it("leaves a still with no Prompt alone", async () => {
-    const ups = await withStillPresenter([{ nodeId: "f", type: "file", data: {}, activeOutput: null, versionId: null }]);
+  it("keeps a direct edge's row when the same node also feeds the prompt", async () => {
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([img("own")] as never);
+    const ups = await withPromptInputs([prompt, img("own")] as never, ["prompt"]);
+    expect(ups.map((u) => u.nodeId)).toEqual(["prompt-1", "own"]);
+  });
+
+  it("reads nothing with no prompt node of those types", async () => {
+    const ups = await withPromptInputs([img("own")] as never, ["prompt"]);
     expect(ups).toHaveLength(1);
+    expect(getUpstreamOutputs).not.toHaveBeenCalled();
   });
 });
 
@@ -131,7 +142,40 @@ describe("presenterVoiceForSeedance", () => {
     expect(await presenterVoiceForSeedance("prompt-1", [shotRow([riyaLine])] as never)).toMatchObject({ referenceAudioUrl: null, text: null });
   });
 
-  it("is nothing when the presenter is not in the shot", async () => {
+  it("is nothing when the presenter is switched out of the shot", async () => {
+    vi.mocked(getNodeClientAndData).mockResolvedValue({ clientId: "c1", data: { presenter: { inShot: false } } });
     expect(await presenterVoiceForSeedance("prompt-1", [shotRow([narratorLine])] as never)).toBeNull();
+  });
+});
+
+// D436 — an avatar wired straight in is its images: front, then sheet, in its place.
+describe("withAvatarImages", () => {
+  const wired = (nodeId: string, avatarId: string) => ({ nodeId, type: "avatar", data: { avatarId }, activeOutput: null, versionId: null });
+  const file = { nodeId: "file-1", type: "file", data: { fileKind: "image", fileUrl: "https://x/f.png" }, activeOutput: null, versionId: null };
+
+  it("expands each wired avatar in place, as one more person on camera", async () => {
+    const ups = await withAvatarImages("gen-1", [wired("av-1", "a1"), file] as never);
+    expect(ups.map((u) => u.nodeId)).toEqual(["av-1", "av-1:sheet", "file-1"]);
+    expect(ups[0]).toMatchObject({ type: "file", data: { presenter: true, fileUrl: avatar.front!.url } });
+    expect(String(ups[0].data.processedOutput)).toContain("Riya, a person on camera");
+    expect(getAvatar).toHaveBeenCalledWith("c1", "a1");
+  });
+
+  it("drops an avatar that is gone or has no front yet", async () => {
+    vi.mocked(getAvatar).mockResolvedValueOnce(null).mockResolvedValueOnce(makeAvatar({ front: null }));
+    const ups = await withAvatarImages("gen-1", [wired("av-1", "a1"), wired("av-2", "a2"), file] as never);
+    expect(ups.map((u) => u.nodeId)).toEqual(["file-1"]);
+  });
+
+  it("reads nothing when no avatar is wired", async () => {
+    const ups = await withAvatarImages("gen-1", [file] as never);
+    expect(ups).toEqual([file]);
+    expect(getNodeClientAndData).not.toHaveBeenCalled();
+  });
+
+  it("never adds the script's presenter twice when it is also wired straight in", async () => {
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine]), wired("avatar-node-1", "a1")] as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet"]);
   });
 });

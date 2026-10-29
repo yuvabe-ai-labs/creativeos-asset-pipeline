@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { Edge } from "@xyflow/react";
 import { chunkIds, planReconcile } from "./reconcile";
 import { edgeRowToFlow, flowEdgeToRow, type EdgeRow } from "./edge-rows";
+import type { IncomingEdge } from "@/lib/editor/sources";
 
 // The row<->Edge conversion lives in ./edge-rows so there is exactly one definition of it.
 // It used to be inlined here AND hand-written a third time in /api/nodes/duplicate-batch,
@@ -17,6 +18,22 @@ export async function listEdges(canvasId: string): Promise<Edge[]> {
     .eq("canvas_id", canvasId);
   if (error) throw error;
   return (data ?? []).map((row) => edgeRowToFlow(row as EdgeRow));
+}
+
+/** A node's incoming edges, oldest first: the Editor's sources in connection order (spec §4). */
+export async function listIncomingEdges(nodeId: string): Promise<IncomingEdge[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("edges")
+    .select("id, source_node_id, created_at")
+    .eq("target_node_id", nodeId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as Array<{ id: string; source_node_id: string; created_at: string }>).map((r) => ({
+    id: r.id,
+    sourceNodeId: r.source_node_id,
+    createdAt: r.created_at,
+  }));
 }
 
 // Reconcile DB edges with the current canvas: upsert present, delete ONLY the edges

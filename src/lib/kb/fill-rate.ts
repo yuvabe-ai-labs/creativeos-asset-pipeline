@@ -18,15 +18,22 @@ function countFields(
   return { filled, total };
 }
 
-function allSections(kb: TraceableBrandKB): Record<string, KBField<unknown>>[] {
+// The sections the KB build writes from the website and documents.
+function documentSections(kb: TraceableBrandKB): Record<string, KBField<unknown>>[] {
   return [
     kb.brand_profile as unknown as Record<string, KBField<unknown>>,
     kb.visual_identity as unknown as Record<string, KBField<unknown>>,
-    kb.image_analysis as unknown as Record<string, KBField<unknown>>,
     kb.target_audience as unknown as Record<string, KBField<unknown>>,
     kb.creative_direction.image as unknown as Record<string, KBField<unknown>>,
     kb.creative_direction.video as unknown as Record<string, KBField<unknown>>,
     kb.compliance as unknown as Record<string, KBField<unknown>>,
+  ];
+}
+
+function allSections(kb: TraceableBrandKB): Record<string, KBField<unknown>>[] {
+  return [
+    ...documentSections(kb),
+    kb.image_analysis as unknown as Record<string, KBField<unknown>>,
   ];
 }
 
@@ -41,10 +48,12 @@ export function computeFillRate(kb: TraceableBrandKB): number {
   return total > 0 ? filled / total : 0;
 }
 
-// Returns true when every field across all 7 sections has been explicitly reviewed —
-// including null-value fields. Users must approve (or reject) null fields too.
+// Returns true when every field across the document-built sections has been explicitly
+// reviewed — including null-value fields. Users must approve (or reject) null fields too.
+// Image Analysis is left out (D423): a background run writes it, often well after the
+// rest, so it is reviewed whenever it lands and never holds the KB back.
 export function computeReadyStatus(kb: TraceableBrandKB): boolean {
-  for (const section of allSections(kb)) {
+  for (const section of documentSections(kb)) {
     for (const field of Object.values(section)) {
       if (field.status === "needs_review") return false;
     }

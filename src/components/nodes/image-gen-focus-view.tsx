@@ -63,7 +63,9 @@ import { InlineEvalBar } from "./inline-eval-bar";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { VersionViewingBar } from "./version-viewing-bar";
-import { VersionStepper } from "./version-stepper";
+import { ViewingTag } from "./viewing-tag";
+import { MEDIA_FADE_CLASS, useMediaReady } from "@/hooks/use-media-ready";
+import { cn } from "@/lib/utils";
 import { VersionOutputEmpty } from "./version-output-empty";
 import { ActiveOnlyNotice } from "./active-only-notice";
 import { versionLabelsById } from "@/lib/generations/version-labels";
@@ -99,6 +101,8 @@ import {
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { paramsForRestore } from "@/lib/generations/version-params";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
+import { GenerateFooter } from "./generate-footer";
+import { imageGenerateBlocker, imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
 import {
   validateReferenceImages,
   type RefImageMeta,
@@ -374,22 +378,15 @@ export function ImageGenFocusView({
   }, [open, activeVersionId, approvalStatus]);
 
   const promptUpstream = upstream.find((u) => u.type === "prompt");
-  const referenceCount = upstream.filter((u) => {
-    if (u.type === "image-gen") return true;
-    if (u.type === "file") return u.fileKind === "image" && !!u.fileUrl;
-    if (u.type === "draw") return !!u.fileUrl;
-    return false;
-  }).length;
+  // D440 — a picture this still can use: a File or Draw image, an Image Gen or Composite output,
+  // wired straight in or into its Prompt.
+  const isImageInput = (u: (typeof upstream)[number]) =>
+    Boolean(u.fileUrl) && (u.type === "draw" || u.fileKind === "image");
+  const referenceCount = upstream.filter(isImageInput).length;
 
   // ── Edit-this-image derived values ──────────────────────────────────────────
   // Connected image URLs (file/draw/image-gen all expose fileUrl in `upstream`).
-  const connectedImageUrls = upstream
-    .filter(
-      (u) =>
-        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
-        !!u.fileUrl
-    )
-    .map((u) => u.fileUrl as string);
+  const connectedImageUrls = upstream.filter(isImageInput).map((u) => u.fileUrl as string);
   const firstConnectedImageUrl = connectedImageUrls[0];
   // Stable primitive for the effect's dep array — connectedImageUrls itself is a new array
   // reference every render (derived, not stored in state).
@@ -438,11 +435,7 @@ export function ImageGenFocusView({
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
-    .filter(
-      (u) =>
-        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
-        !!u.fileUrl
-    )
+    .filter(isImageInput)
     .map((u) => ({ id: u.id, url: u.fileUrl as string, type: u.type }));
 
   // Base = the node's current image: the active attempt if present, else a connected image.
@@ -466,11 +459,7 @@ export function ImageGenFocusView({
 
   // Validation for reference image limits
   const refMetas: RefImageMeta[] = upstream
-    .filter(
-      (u) =>
-        (u.type === "file" || u.type === "draw" || u.type === "image-gen") &&
-        !!u.fileUrl
-    )
+    .filter(isImageInput)
     .map((u) => ({
       url: u.fileUrl!,
       fileSizeBytes: u.fileSizeBytes,
@@ -633,9 +622,20 @@ export function ImageGenFocusView({
     : "empty";
 
   const labelById = versionLabelsById(versions);
+  // D433 — an older version is on screen only while History, where it was picked, is open.
+  if (viewing.isViewingOther && selected !== "history") viewing.backToActive();
   const viewed = viewing.viewed;
   const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
   const activeLabel = activeVersionId ? labelById.get(activeVersionId) ?? null : null;
+  // D432 — the image on screen fades in over the generating placeholder once loaded, holding the
+  // chosen shape until then (`auto` lets the loaded image's own shape take over).
+  const shownImageUrl = viewing.isViewingOther ? viewed?.output ?? null : imageUrl;
+  const { ready: imageReady, onReady: onImageReady, measure: measureImage } = useMediaReady(shownImageUrl);
+  const imageHold = { aspectRatio: `auto ${parseAspectRatio(paramValues.aspect_ratio) ?? 9 / 16}` };
+  const imageFade = cn("h-full w-auto max-w-full object-contain", MEDIA_FADE_CLASS, !imageReady && "opacity-0");
+  const imageLoading = !imageReady && (
+    <div aria-hidden className="absolute inset-0 animate-pulse bg-muted-foreground/15" />
+  );
 
   // D244 read path: the standing change request on the ACTIVE version, and the
   // annotations attached to it. Derived from the versions list the history panel
@@ -989,6 +989,12 @@ export function ImageGenFocusView({
 
   const reviewBadge =
     mode === "result" ? <ApprovalStatusBadge status={approvalStatus} /> : undefined;
+  const imageBlocker = imageGenerateBlocker({
+    editing,
+    editable,
+    hasPrompt: Boolean(promptUpstream),
+    refValidation,
+  });
 
   const outputSettingsBody = (
     <>
@@ -1000,15 +1006,6 @@ export function ImageGenFocusView({
       onCommit={commitParams}
       onModelChange={changeModel}
       referenceCount={referenceCount}
-      refValidation={refValidation}
-      showGenerate={activeTab !== "edit"}
-      onGenerate={handleGenerate}
-      generating={generating || viewing.isViewingOther}
-      editing={editing}
-      hasPrompt={Boolean(promptUpstream)}
-      hasImage={Boolean(imageUrl)}
-      estimatedCredits={estimatedCredits}
-      estimating={estimating}
     />
     </>
   );
@@ -1153,7 +1150,7 @@ export function ImageGenFocusView({
             <div className="min-h-0 w-[54%] shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
               {/* Image — model & controls; plus the edit tools on the Edit tab */}
               {selected === "image" && (
-                <div className="flex flex-col gap-6 px-6 py-5">
+                <div className="flex min-h-full flex-col gap-6 px-6 py-5">
                   {activeTab === "edit" ? (
                     // Edit tab: same output settings, collapsed into an accordion so
                     // the edit instructions get the room. Closed by default.
@@ -1211,6 +1208,21 @@ export function ImageGenFocusView({
                       />
                     </>
                   )}
+
+                  {/* D435 — the same pinned Generate every node has. The Edit tab runs its own
+                      action from the edit panel. */}
+                  {activeTab !== "edit" && (
+                    <GenerateFooter
+                      className="-mx-6 -mb-5"
+                      label={imageUrl ? "Re-generate" : "Generate image"}
+                      busy={generating}
+                      onClick={handleGenerate}
+                      disabled={imageGenerateDisabled(imageBlocker, generating || viewing.isViewingOther, estimating)}
+                      disabledReason={imageBlocker}
+                      credits={estimatedCredits}
+                      estimating={estimating}
+                    />
+                  )}
                 </div>
               )}
 
@@ -1252,12 +1264,26 @@ export function ImageGenFocusView({
                       </div>
                     </div>
                   ) : versions.length > 0 ? (
-                    <ImageGenVersionHistory
-                      versions={versions}
-                      activeVersionId={activeVersionId}
-                      viewedVersionId={viewed?.id ?? null}
-                      onView={viewing.view}
-                    />
+                    <div className="flex flex-col gap-3">
+                      {/* D433 — Back and Restore beside the list the version was picked from. */}
+                      {viewing.isViewingOther && viewed && (
+                        <VersionViewingBar
+                          viewedLabel={viewedLabel}
+                          viewedCreatedAt={viewed.createdAt}
+                          activeLabel={activeLabel}
+                          canRestore={editable && !viewed.error && Boolean(viewed.output)}
+                          restoring={restoring}
+                          onBack={viewing.backToActive}
+                          onRestore={() => void handleRestoreVersion(viewed.id)}
+                        />
+                      )}
+                      <ImageGenVersionHistory
+                        versions={versions}
+                        activeVersionId={activeVersionId}
+                        viewedVersionId={viewed?.id ?? null}
+                        onView={viewing.view}
+                      />
+                    </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       No generations yet — every attempt will show up here.
@@ -1355,7 +1381,9 @@ export function ImageGenFocusView({
             {/* Right column — the output, always visible. Faintly sunk so the
                 action column reads as raised against it. */}
             <div className="flex min-h-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
-              <div className="flex items-center gap-6">
+              {/* D433 — one fixed line: versions are picked in History, so the image below never
+                  moves when the version on screen changes. */}
+              <div className="flex h-8 shrink-0 items-center gap-6">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
                   <span className="text-eyebrow">
@@ -1369,7 +1397,9 @@ export function ImageGenFocusView({
                     the heading rather than pushed to the far edge, where it read as
                     unrelated chrome. A switch, not tabs: two modes of one surface, only
                     one of which departs from the default. */}
-                {!loadingVersions && canEditBase && (
+                {viewing.isViewingOther && viewed ? (
+                  <ViewingTag label={viewedLabel} />
+                ) : !loadingVersions && canEditBase && (
                   <Label
                     htmlFor={`image-edit-mode-${nodeId}`}
                     className="flex shrink-0 cursor-pointer items-center gap-2.5 text-sm font-medium text-foreground"
@@ -1386,29 +1416,23 @@ export function ImageGenFocusView({
                     />
                   </Label>
                 )}
-                {!loadingVersions && (
-                  <div className="ml-auto">
-                    <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
-                  </div>
-                )}
               </div>
-              {viewing.isViewingOther && viewed && (
-                <VersionViewingBar
-                  viewedLabel={viewedLabel}
-                  viewedCreatedAt={viewed.createdAt}
-                  activeLabel={activeLabel}
-                  canRestore={editable && !viewed.error && Boolean(viewed.output)}
-                  restoring={restoring}
-                  onBack={viewing.backToActive}
-                  onRestore={() => void handleRestoreVersion(viewed.id)}
-                />
-              )}
               <div className="min-h-0 flex-1">
                 {viewing.isViewingOther && viewed ? (
                   viewed.output ? (
                     <div className="relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
+                      {imageLoading}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={viewed.output} alt={`${title || "Generated image"}, ${viewedLabel}`} className="h-full w-auto max-w-full object-contain" />
+                      <img
+                        key={viewed.output}
+                        ref={measureImage}
+                        src={viewed.output}
+                        alt={`${title || "Generated image"}, ${viewedLabel}`}
+                        onLoad={onImageReady}
+                        onError={onImageReady}
+                        style={imageHold}
+                        className={imageFade}
+                      />
                     </div>
                   ) : (
                     <VersionOutputEmpty noun="image" />
@@ -1544,11 +1568,17 @@ export function ImageGenFocusView({
                       // gutters inside the border. Overlays anchor to the image, not
                       // the empty column.
                       <div className="group relative h-full w-fit max-w-full overflow-hidden rounded-xl border border-border bg-muted/20">
+                        {imageLoading}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
+                          key={imageUrl}
+                          ref={measureImage}
                           src={imageUrl}
                           alt={title || "Generated image"}
-                          className="h-full w-auto max-w-full object-contain"
+                          onLoad={onImageReady}
+                          onError={onImageReady}
+                          style={imageHold}
+                          className={imageFade}
                         />
                         {editing && (
                           <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">

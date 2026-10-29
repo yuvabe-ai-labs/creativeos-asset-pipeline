@@ -40,7 +40,7 @@ export function useShotPresenter(promptNodeId: string | null | undefined): ShotP
     const avatarId = (avatarNode?.data as { avatarId?: unknown } | undefined)?.avatarId;
     if (typeof avatarId !== "string" || !avatarId) return null;
     const stored = readPresenterSwitch((node.data as { presenter?: unknown }).presenter);
-    return { avatarNodeId: edge.source, avatarId, inShot: presenterInShot(stored, rows), chosen: Boolean(stored) };
+    return { avatarNodeId: edge.source, avatarId, inShot: presenterInShot(stored), chosen: Boolean(stored) };
   }, [promptNodeId, nodes, edges]);
 
   const lookup = useAvatar(clientId, found?.avatarId ?? "");

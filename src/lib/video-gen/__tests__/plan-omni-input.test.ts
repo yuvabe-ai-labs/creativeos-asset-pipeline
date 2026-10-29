@@ -55,10 +55,18 @@ describe("planOmniInput", () => {
     );
   });
 
-  // A first frame wins the task hint: the model animates THAT image and the references
-  // only steer it.
-  it("prefers image_to_video when a first frame and references are both present", () => {
-    const plan = planOmniInput({ startFrameUrl: START, endFrameUrl: undefined, referenceUrls: [R1] });
+  // D428 — the API refuses image_to_video with more than 2 images, so any reference makes it
+  // reference_to_video; the <FIRST_FRAME> tag still holds the frame.
+  it("uses reference_to_video when a first frame and references are both present", () => {
+    const plan = planOmniInput({ startFrameUrl: START, endFrameUrl: undefined, referenceUrls: [R1, R2] });
+    expect(plan.task).toBe("reference_to_video");
+    expect(plan.header).toBe(
+      "[# Sources <FIRST_FRAME>@Image1] [# References <IMAGE_REF_0>@Image2 <IMAGE_REF_1>@Image3]",
+    );
+  });
+
+  it("keeps image_to_video for frames alone", () => {
+    const plan = planOmniInput({ startFrameUrl: START, endFrameUrl: END, referenceUrls: [] });
     expect(plan.task).toBe("image_to_video");
   });
 });

@@ -10,6 +10,7 @@ import {
   Combine,
   ImageIcon,
   Clapperboard,
+  Scissors,
   Layers,
   ClipboardPaste,
   Images,
@@ -50,13 +51,40 @@ const ICONS: Record<AddNodeType, LucideIcon> = {
   post: LayoutTemplate,
   "client-review": MessageSquareText,
   dubbing: Languages,
+  editor: Scissors,
 };
 
-const MENU_W = 240;
-// Tall enough to show the input + every row of ADD_NODE_OPTIONS (+ the optional paste row)
-// without the list scrolling. Kept in sync with CommandList's max-h below — raise BOTH when
-// a node type is added, or the last row falls below the fold and reads as missing.
-const MENU_H = 600; // 13 option rows + input + paste row
+// A compact palette (smaller rows, text and icons, w-56): at the default size its 14 rows made a
+// 640px menu that covered most of a laptop screen. Tall enough for the input, the reference row and
+// every node type without scrolling; raise it when a node type is added.
+const MENU_W = 224;
+const MENU_H = 500;
+/** The compact row every option uses. */
+const ROW = "gap-1.5 py-1 text-[0.8rem]";
+
+const VIEWPORT_MARGIN = 8;
+
+/**
+ * YUV-391 — where the palette opens: at the pointer, flipped left / up when it would overflow, then
+ * held inside the window. Flipping up alone put a 640px menu opened near the top of the window at a
+ * negative `top`, cutting off half of it. On a window shorter than the menu it takes the window's
+ * height and its list scrolls.
+ */
+export function placeQuickAddMenu(
+  pointer: { x: number; y: number },
+  size: { width: number; height: number },
+  viewport: { width: number; height: number },
+): { left: number; top: number; maxHeight: number } {
+  const maxHeight = Math.min(size.height, viewport.height - 2 * VIEWPORT_MARGIN);
+  const clamp = (v: number, low: number, high: number) => Math.max(low, Math.min(v, high));
+  const left = pointer.x + size.width > viewport.width ? pointer.x - size.width : pointer.x;
+  const top = pointer.y + maxHeight > viewport.height ? pointer.y - maxHeight : pointer.y;
+  return {
+    left: clamp(left, VIEWPORT_MARGIN, viewport.width - VIEWPORT_MARGIN - size.width),
+    top: clamp(top, VIEWPORT_MARGIN, viewport.height - VIEWPORT_MARGIN - maxHeight),
+    maxHeight,
+  };
+}
 
 interface QuickAddMenuProps {
   screenX: number;
@@ -80,11 +108,13 @@ export function QuickAddMenu({
   const gallery = useGalleryDrawer();
   const ref = useRef<HTMLDivElement>(null);
 
-  // Flip left/up when the panel would overflow the viewport.
   // When "Paste image" row is present the panel is taller by 44px — account for it.
   const menuH = canPasteImage ? MENU_H + 44 : MENU_H;
-  const x = screenX + MENU_W > window.innerWidth ? screenX - MENU_W : screenX;
-  const y = screenY + menuH > window.innerHeight ? screenY - menuH : screenY;
+  const place = placeQuickAddMenu(
+    { x: screenX, y: screenY },
+    { width: MENU_W, height: menuH },
+    { width: window.innerWidth, height: window.innerHeight },
+  );
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -97,10 +127,11 @@ export function QuickAddMenu({
   return (
     <div
       ref={ref}
-      style={{ left: x, top: y }}
-      className="fixed z-50 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card"
+      style={{ left: place.left, top: place.top, maxHeight: place.maxHeight }}
+      className="fixed z-50 flex w-56 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card"
     >
       <Command
+        className="min-h-0"
         // cmdk's own keyboard handling drives arrow-nav + Enter; Esc closes.
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -114,9 +145,9 @@ export function QuickAddMenu({
           which accepts standard InputHTMLAttributes — autoFocus is valid.
         */}
         <CommandInput autoFocus placeholder="Add node…" />
-        {/* Override shadcn's default max-h-72 (288px) so every node type fits
-            without the list scrolling; still caps height on short viewports. */}
-        <CommandList className="max-h-[600px]">
+        {/* No max-h of its own (shadcn's is 288px): the panel's maxHeight caps it on a short
+            window, and the list scrolls inside. */}
+        <CommandList className="max-h-none min-h-0 flex-1">
           <CommandEmpty>No node type found.</CommandEmpty>
           <CommandGroup>
             {canPasteImage && onPasteImage && (
@@ -126,9 +157,9 @@ export function QuickAddMenu({
                   onPasteImage();
                   onClose();
                 }}
-                className="text-primary"
+                className={`${ROW} text-primary`}
               >
-                <ClipboardPaste className="size-4 shrink-0" strokeWidth={1.5} />
+                <ClipboardPaste className="size-3.5 shrink-0" strokeWidth={1.5} />
                 Paste image
               </CommandItem>
             )}
@@ -138,9 +169,9 @@ export function QuickAddMenu({
                 gallery.openDrawer({ position: flowPos });
                 onClose();
               }}
-              className="text-primary"
+              className={`${ROW} text-primary`}
             >
-              <Images className="size-4 shrink-0" strokeWidth={1.5} />
+              <Images className="size-3.5 shrink-0" strokeWidth={1.5} />
               Add reference image
             </CommandItem>
           </CommandGroup>
@@ -151,13 +182,14 @@ export function QuickAddMenu({
                 <CommandItem
                   key={type}
                   value={label}
+                  className={ROW}
                   onSelect={() => {
                     onSelect(type);
                     onClose();
                   }}
                 >
                   <Icon
-                    className="size-4 shrink-0 text-muted-foreground"
+                    className="size-3.5 shrink-0 text-muted-foreground"
                     strokeWidth={1.5}
                   />
                   <span className="flex-1">{label}</span>

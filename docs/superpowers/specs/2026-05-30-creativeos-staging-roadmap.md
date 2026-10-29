@@ -7576,6 +7576,282 @@ The library loads the first two once for the page, so a blocked card's icon open
 
 **Originated →** docs/superpowers/specs/2026-10-21-collapsible-shots-design.md.
 
+### D388 — An Editor node assembles the connected clips, and opens a full page, not a focus view *(recorded 2026-10-20)*
+
+**Decision.** A new `editor` node type. Its inputs are Video Gen and Dubbing nodes, at any approval status, as many as the user connects. It has no output handle. Dubbing gains its first output handle, which connects only to the Editor. There is **one per canvas**: every way of adding a node (the add menu, a shortcut, paste, duplicate, the copilot) refuses a second one and says why. The card shows its title, its sources, the piece count and total length, a strip of the cut, and **Open editor**; it edits nothing itself. Opening it, from the card or through `open_node`, goes to a full page at the canvas URL plus `/edit`, with **Back to canvas**. What leaves the editor is a Premiere package (D389); CreativeOS renders no video.
+
+**Why.** The team assembles CreativeOS clips somewhere else today, one download at a time. A timeline with four lanes, a stage and two side panels needs the whole screen. One Editor per canvas keeps "the reel" unambiguous: one edit, under the canvas's one lock (D391), with one set of generation locks to explain (D390).
+
+**Rejected.**
+- The slide-up focus view every other node opens: too small for a timeline. *(User's call; it departs from the convention on purpose.)*
+- Several Editor nodes on a canvas: two reels sharing sources would make the generation locks hard to follow.
+- An output handle, for example into Review: the final cut is made in Premiere and comes back by upload, as today.
+- Rendering an MP4 in CreativeOS: the editor makes the rough cut; Premiere makes the final cut.
+
+**Refines →** D64 (each node type owns what opening it does), D72 (a new target type), D374 (Dubbing gets an output).
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md.
+
+### D389 — The Premiere package is written in TypeScript: FCP7 XML plus OpenTimelineIO JSON *(recorded 2026-10-20)*
+
+**Decision.** The export writes Final Cut Pro 7 XML ("xmeml"), which Premiere imports, and an `.otio` JSON file, both directly in TypeScript. No Python and no OpenTimelineIO install run anywhere. Premiere Pro is the only target. The sequence matches what Premiere's own export contains:
+- V1: the pieces in order, with their trims.
+- A1/A2: each piece's own sound, a stereo pair linked to its picture (`groupindex 1`).
+- A3/A4: the dub, linked to the picture (`groupindex 2`). The original sound under it stays on A1/A2 with `enabled FALSE`, so it can be switched back on.
+- V2: the captions (D393).
+
+Frame rates and lengths come from each take's measured facts (D392), never a constant. The package also holds an SRT, a manifest, a README, the caption fonts and a `media/` folder with exactly the files the reel uses. The README and the export dialog both say to **drag `creativeos-premiere.xml` into Premiere's Project panel**.
+
+**Why.** The spike (D394) wrote the export this way, and the package opened in the user's Windows Premiere on 2026-10-20 with linked sound, the dub on its own tracks and styled captions. The prototype's Python service only used OpenTimelineIO's `fcp_xml` adapter, and that adapter writes each clip's audio as an empty stub reusing the video clip's id and drops `<link>`, so sound arrives unlinked. The prototype also assumed 25 fps; our clips are 24 fps (121 frames for 5.04 s), so it asked Premiere for frames past the end of every clip. Premiere's Import screen ignores sequence XML and silently builds "Sequence 01" from the MP4s, which reads as a broken export unless the user is told where to drag it.
+
+**Rejected.**
+- A Python service, or a Trigger.dev Python extension, running OpenTimelineIO: its adapter loses linked audio, and a Premiere-only export needs no format hub.
+- Other editors (Resolve, Final Cut, CapCut): not asked for.
+- Absolute media paths: a package built in the cloud can't know where it will be unzipped. Relative paths need one relink at most.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§9, §11).
+
+### D390 — A clip connected to the Editor can't generate; switching its version still works *(recorded 2026-10-20)*
+
+**Decision.**
+- While a node feeds the Editor, generation is refused on:
+  - the connected node: on a Video Gen, no generate and no Change voice (a voice change makes a new take); on a Dubbing node, no dub and no lip sync (its voice and pace are settings of the dub);
+  - the Video Gen feeding a connected Dubbing node.
+- Nothing further upstream is locked. Prompts, images, composites and scripts stay usable.
+- **Switching to another version from History stays allowed**, and the reel follows. A shorter version pulls trims in to fit; a lip-synced picture or dub the new version lacks falls back to Original. Both tell the user.
+- The server enforces it. The four start routes (video generate, voice change, dub, lip sync) check the lock in one database call and refuse with a reason, so another tab, a teammate or a script is held too. The copilot has no generate tool today; its connect tool gets the same connect refusal as the canvas. In place of the action, the node says *"In use by the Editor · Disconnect to generate"*, or on the Video Gen behind a dub, *"Locked by its dub · feeds the Editor"*.
+- Connecting a clip to the Editor is refused while it is generating or has no finished take, and the user is told to connect it once it finishes.
+- Removing the connection lifts the lock.
+
+**Why.** A finished generation always becomes the node's current take. A regenerate, or a job that finishes after the clip was connected, would change a reel that was already cut, which the design names as an anti-goal. Upstream prompts and images also feed clips that aren't in the reel, so locking them would block unrelated work. Switching versions is a visible choice the user makes, and they wanted it kept.
+
+**Rejected.**
+- Locking everything upstream: it would freeze shared prompts and images.
+- Hiding the buttons only: a second tab or the copilot would still generate (D97: the server enforces rules).
+- Pinning each source to the version it had when connected: the user wants the reel to follow a version switch.
+
+**Refines →** D72 (the connect rule can now refuse with a reason), D97, D374, D284.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§4, §5).
+
+### D391 — The edit has its own record, saved under the canvas lock *(recorded 2026-10-20)*
+
+**Decision.**
+- The reel's edit lives in its own row, keyed to the canvas and the Editor node, not in the node's data. It holds the order, the pieces and their trims, each piece's picture and sound choice, the captions with their position and style, and the reel's shape (9:16 or 16:9).
+- The editor page saves it automatically through its own route. The route accepts a write only from the session holding the canvas lock (D33), and a write that changes nothing is not sent.
+- Opening the editor in the same tab carries the lock from the canvas to the editor. Both pages use the tab's one lock session id, and on the way between them the page being left flushes its save and skips the release it normally sends on unmount (a per-tab handoff flag), so that release can't land after the next page has taken the lock. While the editor is open, the canvas is read-only in every other tab and for teammates, as when anyone holds it. Someone who opens the editor without the lock sees it read-only.
+- Trims are stored by time, in seconds, and turned into frames only on export, so a lip-synced file with another frame rate or length still lines up.
+- Deleting the Editor node deletes its edit, after the canvas's usual confirm ("This can't be undone"; the canvas has no undo). The row cascades with the node's row.
+
+**Why.** Canvas autosave doesn't run on the editor page, and writing the edit into node data would rewrite the whole canvas on every trim (performance rule 4). The canvas lock already gives one writer and a read-only view for everyone else. Reusing it means nothing can change under an open editor, and no live sync is needed.
+
+**Rejected.**
+- Storing the edit in node data under canvas autosave: autosave doesn't run on `/edit`, and every trim would rewrite the canvas.
+- A separate editor lock: a teammate could change the sources on the canvas under an open editor, which would need live sync.
+- Trims in frames: a source at another frame rate would shift every cut.
+
+**Refines →** D33, D201.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§8, §10).
+
+### D392 — Media facts are measured on the server, once per take; the export is a background task *(recorded 2026-10-20)*
+
+**Decision.**
+- Each file the editor can place has its media facts measured once on the server and kept with the take: a Video Gen take's video, and a Dubbing take's original, dub audio and lip-synced files. The facts are frame rate, frame count, duration, picture size, and audio channels and sample rate.
+- A file is measured the first time the editor needs it, by reading only its header: mediabunny over HTTP range requests, in the route that loads the editor. The result is kept in a `media_facts` table keyed by the file's stored URL. Measured on 2026-10-20: a 5.15 MB CreativeOS clip took two range reads, about 288 KB, and gave 24 fps, 121 frames, 720×1280, stereo at 32 kHz, the same figures the spike read in the browser. Takes made before the Editor existed are covered the same way, so there is no backfill job.
+- The **Premiere export runs as a Trigger.dev task.** It reads storage directly, writes the zip to storage and hands back a download link. The page starts it once and polls lightly.
+- An export fails whole. A source it can't read fails it with a plain reason, and no package is left that looks complete.
+- Quiet-section detection for one piece reads through the existing same-origin proxy (D245).
+
+**Why.** Storage sends no CORS headers (D245). The browser can play a clip but can't read its bytes, so it can neither measure a file nor zip it. Zipping through our server functions would stream every byte of every clip through a request with a time limit. A background task has no such limit, and it is how long work runs here (performance rule 12, D264). Measuring once per take keeps opening the editor at one read, however many clips there are.
+
+**Rejected.**
+- Zipping in the browser through the media proxy: every byte passes through a function, and the proxy has no Range support.
+- A CORS policy on the bucket: D245 already declined that infra change.
+- Measuring in the browser (the spike's mediabunny probe): it only worked on local files.
+- Measuring with ffprobe in a Trigger.dev task: the first open of the editor would wait on a queued run.
+- Measuring when each take is made: it touches every video provider's completion path, and older takes would still need a backfill.
+
+**Refines →** D245. **Builds on →** D264.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§10).
+
+### D393 — Captions reach Premiere as styled Graphic titles, in fonts from a fixed Google Fonts list *(recorded 2026-10-20)*
+
+**Decision.**
+- Each caption is exported as a Premiere Graphic: a `GraphicAndType` clipitem on V2 carrying its text, font, size, colour and position.
+- Its "Source Text" parameter is base64 of a u32 little-endian byte length, four zero bytes, then UTF-16LE JSON, decoded from a title Premiere exported (OpenTimelineIO's `premiere_generators.xml` sample). "Position" is `x:y`, each from 0 to 1.
+- Because that format is undocumented:
+  - the package also carries an SRT (text and timing only) as the fallback;
+  - the repo keeps the caption-probe test, which writes our title next to Premiere's own, to re-check each new Premiere version.
+- **Fonts come from a fixed list of open-licence Google Fonts.** They ship in the package, and the stage renders the real font, so what the user sees is what Premiere shows. These fonts are reel content, not interface: they appear only in captions on the stage and in the package. That is an intended exception to the two-UI-font rule (AGENTS.md, *Frontend aesthetics*).
+- A caption belongs to the piece it starts in and moves with it. Deleting the piece deletes its captions. There is no background box; a soft shadow keeps the text readable.
+
+**Why.** An SRT arrives in Premiere as a plain caption track with almost no styling, so the styling the user set would be lost. Shipping the fonts means Premiere doesn't substitute one the editor's machine lacks, and an open licence is what allows them to ship. Captions tied to pieces stay with the speech when an earlier piece is trimmed or moved.
+
+**Rejected.**
+- SRT only: no styling survives.
+- Any font the user picks: the package could only ship fonts whose licence allows it, and the stage could not promise a match.
+- Captions timed against the whole reel: trimming an earlier piece would knock every later caption out of sync.
+
+**Originated →** docs/superpowers/specs/2026-10-20-rough-cut-editor-design.md (§7, §11).
+
+### D394 — The rough-cut spike stays on its own branch and is never merged *(recorded 2026-10-20)*
+
+**Decision.** The spike (`/spike/rough-cut`, branch `spike/rough-cut-editor`, commit `216ed101`) is reference only. The product reuses its writers, timeline maths, playback hook and tests by copying files into their product homes (`git checkout spike/rough-cut-editor -- <file>`, then move them). Nothing is merged or cherry-picked from it. The implementation plan names each file it ports. Once the product ships, the branch is deleted or kept as an archive.
+
+**Why.** The spike's route, page, panels, and browser-only probe and zip don't belong in the product. A merge or cherry-pick of `216ed101` would bring them all along. Porting file by file keeps what the spike proved, the writers and their tests, and nothing else.
+
+**Rejected.**
+- Merging the spike and deleting what isn't needed: a leftover route or dependency is easy to miss.
+- Rewriting the writers from scratch: it would lose the tests and the details verified in Premiere.
+
+**Originated →** docs/superpowers/plans/2026-10-20-rough-cut-editor-HANDOFF.md (§3).
+
+### D411 — Auto captions come from ElevenLabs Scribe v2 with word timing, once per stored file *(recorded 2026-10-22; numbered D395 on the editor branch, renumbered at merge because staging's D395 took that number)*
+
+**Decision.** The Rough Cut Editor transcribes the sound each piece plays (the dub audio when its sound is Dubbed, else the take's file) with ElevenLabs Speech-to-Text, `scribe_v2`, by URL (`source_url`), with word timestamps and the language detected. Results are stored in `media_transcripts`, keyed by the file URL, so a file is never paid for twice. A run is one `generations` row (`type: "transcribe"`, owned by the Editor node) and one `background_jobs` row (`kind: "editor-transcribe"`); the task pays each file once (`maxAttempts: 1`), writes each transcript as it lands, and settles credits for the seconds that succeeded. The engine sits behind an interface in `src/lib/transcribe/`; no vendor name reaches the UI.
+
+**Why.** A test on five Reel 2 clips returned every word with a start and end time, English at 94–99% confidence, in about 4 s per clip, and the times landed within a frame at 24 fps. Scribe covers the Indian languages our dubs use, the key is already held (voice change, D284), and reading by URL means no media passes through our functions (rule 8). Keying by URL follows `media_facts` (D392): takes are immutable files.
+
+**Rejected.** OpenAI Whisper (looser word times; its newer models give none). Sarvam's dub SRT (line timing only, dubs only). Transcribing in the browser (storage sends no CORS headers, D245). One generation per file (a five-clip reel would round up to five minimum charges).
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§3, §4).
+
+### D396 — One caption style for the reel; presets are looks and never move or retime *(recorded 2026-10-22; refines D393)*
+
+**Decision.** The edit carries one `captionStyle` (font, size, colour, word by word and its colour, plus outline, box, caps and upcoming-word treatment set by four presets, and the x/y position). Every caption uses it; there are no per-line styles. Dragging a caption on the preview moves every caption, a corner handle resizes, both snap to the centre lines. Presets change the look only. The edit document becomes `v: 2`; a v1 edit takes its first caption's look.
+
+**Why.** Other editors treat captions as one layer (Descript's captions layer, CapCut's "apply to all", on by default). Styling one line at a time made a reel's captions drift apart and was the main source of confusion in the first mock. The user asked for only the controls that are needed.
+
+**Rejected.** Per-line overrides and an "apply to all" switch (removed after review as rarely used). A preset that also sets position (picking a look would undo the user's drag). A position slider (dragging is what editors expect).
+
+**Refines →** D393 (font, size and colour were per caption).
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§5, §7).
+
+### D397 — Word times are stored in source seconds; one frame rule serves the preview and Premiere *(recorded 2026-10-22; refines D393)*
+
+**Decision.** A caption may carry `words` (`text`, `at`, `duration`), in seconds of its piece's source, like the caption's own `at`. `wordFrames` turns them into sequence frames (start = round(at × fps), active until the next word starts) and is the only place that does, for both the preview and the export. The preview's clock follows `requestVideoFrameCallback` (`mediaTime` of the frame on screen) while playing.
+
+**Why.** Source seconds keep words in sync when earlier pieces are trimmed or moved, as captions already are. A shared rounding rule means a word cannot appear a frame apart in the preview and Premiere. The frame callback reports the frame actually shown, where `currentTime` read per animation frame can be a frame off.
+
+**Rejected.** Reel-time word times (break on every trim). Rounding separately in each renderer.
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§5, §6).
+
+### D398 — Word by word reaches Premiere as one editable title per word *(recorded 2026-10-22; extends D393)*
+
+**Decision.** With word by word on, each caption is written as one Graphic clip per word, timed by `wordFrames`, each holding the whole line with per-character style runs: the word being said in its colour, upcoming words dimmed (a solid mixed colour) or hidden (no fill, no stroke) so the layout matches the preview. Off: one clip per line. Outline, box and caps map onto the title's stroke, back-fill and text. Before building on any of this, a probe file is opened in the user's Premiere; whatever Premiere doesn't read is replaced (for hidden words: each clip holds only the words said so far).
+
+**Why.** Premiere titles carry per-character runs (the format D393 decoded), so every clip stays retypable text, which the user required. Premiere has no per-character opacity, hence a solid dim colour shared with the preview.
+
+**Rejected.** A rendered transparent overlay video (not retypable). Essential Graphics templates driven by a Premiere extension (a separate install, fragile APIs). SRT only (no styling).
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§8).
+
+### D399 — Auto captions is one button with its cost on it; edited lines are never rewritten *(recorded 2026-10-22)*
+
+**Decision.** "Auto captions · N credits" (or "· free" when every file is transcribed) runs at once: no dialog, language detected, the reel's style applied. A toast offers Undo. Re-running rewrites only lines Auto captions wrote and nobody edited; lines added or edited by hand stay. A clip that fails says why in place, offers Try again, and is refunded; the others are captioned.
+
+**Why.** The user asked for the simplest path. The figure on the button is the reservation (D377), so a confirmation step adds nothing, and Undo covers a mistaken click.
+
+**Rejected.** A dialog with language, look and cost (cut in review). Re-running that overwrites edits.
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§2, §4).
+
+### D400 — The editor has undo and redo *(recorded 2026-10-22)*
+
+**Decision.** The editor store keeps up to 100 earlier documents. Each `apply` is one step, each drag one step, and a no-op is not recorded (rule 4). Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z and Ctrl+Y, never while typing. History lasts for the page visit.
+
+**Why.** Every editor the user compared has it, and one-click Auto captions is only safe to offer without a dialog when it can be undone.
+
+**Rejected.** Undo for captions only (two models of "undo" on one page). Persisting history (no request; the edit is saved anyway).
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§10).
+
+### D401 — A new take keeps its captions and offers to caption it again *(recorded 2026-10-22)*
+
+**Decision.** Each auto caption records the sound URL its words came from (`from`). When a piece's sound changes (a new take, or its sound switched to the dub), its captions stay and its lane segment offers "Caption this clip · N credits". Nothing is re-transcribed or charged on its own.
+
+**Why.** Silent re-transcription would spend credits the user didn't ask to spend, and hiding the old captions would look like lost work.
+
+**Rejected.** Re-transcribing on version switch. Deleting the old captions.
+
+**Originated →** docs/superpowers/specs/2026-10-22-auto-captions-design.md (§2).
+
+### D402 — The preview clock is an animation-frame loop; the frame callback only reports time *(recorded 2026-10-23; refines D397)*
+
+**Decision.** `useReelPlayback` advances on `requestAnimationFrame`. `requestVideoFrameCallback`, where present, records the presented frame's `mediaTime` and the file it belongs to; the loop uses it for the current file and falls back to `currentTime`. The clock maths is a pure `advanceClock`.
+
+**Why.** D397's frame-callback clock stopped playback at every cut: the callback never fires on an ended video, and an ended video is paused, so nothing re-armed it. The animation-frame loop played through cuts before; the frame callback keeps its precision.
+
+**Rejected.** Driving the clock from the frame callback with a watchdog (the shipped version that broke).
+
+### D403 — The editor fills the screen: collapsible side panels and a resizable timeline *(recorded 2026-10-23)*
+
+**Decision.** The page never scrolls. Sources and Inspector collapse to rails (chevrons, a View menu, Ctrl/⌘+1/2); a divider resizes the timeline, whose body scrolls on its own. Sizes are remembered per browser. The timeline zooms (10–220 px/s, Fit, Ctrl/⌘+wheel) and follows the playhead while playing.
+
+**Why.** On a laptop the fixed-height top area pushed the timeline's actions off screen. Descript's View menu and CapCut's zoom/fit are what editors expect.
+
+**Rejected.** A scrolling page (the timeline and the preview leave the screen together). A fixed 20 s window (D388's "no zoom this phase").
+
+### D404 — Clips move by pointer dragging with edge auto-scroll; trims snap *(recorded 2026-10-23)*
+
+**Decision.** Reorder uses pointer events with a ghost, a drop marker and auto-scroll within 50 px of the timeline's edges. Trims snap to the playhead and clip edges within 8 px, with a Snap toggle and an In/Out tooltip.
+
+**Why.** HTML drag-and-drop can't scroll the timeline, so a clip couldn't be dragged past the visible window (the user's finding).
+
+**Rejected.** Keeping HTML drag-and-drop with a scroll hack (no control over the ghost or the drop position).
+
+### D405 — A selected clip has an inspector: Clip, Captions, Dub & lip sync; right-click menus everywhere *(recorded 2026-10-23)*
+
+**Decision.** Selecting a clip shows its tabs: Clip (trims, picture, sound, quiet stretches), Captions (its lines), Dub & lip sync. Right-click menus on clips, captions, quiet stretches and the ruler carry the same actions. Quiet stretches move onto the Audio lane, shaded over a waveform.
+
+**Why.** The user expected a clip's captions, dub and actions where they work on the clip, as in desktop editors.
+
+**Rejected.** Separate dialogs per action.
+
+### D406 — "Dub this clip" puts a Dubbing node on the canvas, between the clip and the Editor *(recorded 2026-10-23)*
+
+**Decision.** From the editor, dubbing a Video Gen clip creates a Dubbing node beside it on the canvas, wires Video Gen → Dubbing → Editor, removes Video Gen → Editor, and moves that clip's pieces to the Dubbing node with their trims, choices and captions. One route does the canvas change and the edit rewrite under the canvas lock; the editor adopts the result and clears undo history. The node is visible and behaves like any Dubbing node.
+
+**Why.** The canvas stays a true picture of the reel, and the dub reuses the Dubbing node's versions, tasks and credits (D374–D379). The user chose a node on the canvas over editor-only dubs, and asked for it to be visible.
+
+**Rejected.** Editor-only dubs (a second dub pipeline; the canvas no longer shows what's in the reel). A hidden node (the user asked for it to be visible). Sending the user to the canvas (leaving the editor).
+
+### D407 — A Dubbing node without a dub plays its input's take *(recorded 2026-10-23)*
+
+**Decision.** For the Editor, a Dubbing node with no take is a source whose original file is its connected Video Gen's current take, with version id `input:<version id>`.
+
+**Why.** Otherwise the clip would leave the timeline the moment its Dubbing node is connected. With the same file, trims, captions and transcripts carry over, and reconcile treats the finished dub as a version switch.
+
+**Rejected.** Waiting to connect the Dubbing node until the dub finishes (the canvas would be wrong while it runs, and lip sync would need a second rewiring).
+
+### D408 — The open editor may dub and lip sync the nodes that feed it *(recorded 2026-10-23; refines D390)*
+
+**Decision.** The dub and lip-sync routes accept `editorSessionId`. A node that feeds the Editor may start one only when that session holds the canvas lock. All other starts stay refused.
+
+**Why.** D390 exists so a reel doesn't change under an open editor. When the editor itself asks, it knows and follows the new version.
+
+**Rejected.** Lifting the lock for Dubbing nodes entirely (a teammate on the canvas could change the reel under the editor).
+
+### D409 — The Premiere sequence keeps the choice not made, switched off, and marks pauses *(recorded 2026-10-23; extends D389)*
+
+**Decision.** The picture not chosen (original or lip-synced) goes on its own video track above the captions, disabled; a dub not chosen goes on A3/A4, disabled. Each clip carries a marker naming its dub and lip sync; the sequence carries a marker for each pause over 0.6 s in a clip's transcript. The README lists them.
+
+**Why.** Finishing editors swap picture and sound and hunt dead air in Premiere; with the alternatives in place and pauses marked, they don't need to come back to CreativeOS.
+
+**Rejected.** Exporting only the chosen picture and sound (forces a round trip). Pauses from audio analysis on the server (no audio there; transcripts already exist).
+
+### D410 — Captions follow a clip's sound; Auto captions targets only clips without them *(recorded 2026-10-23; refines D399, D401)*
+
+**Decision.** Switching a clip between original sound and its dub rewrites its auto captions from the stored transcript of the sound it now plays, in the same undo step, at no charge; the user's own and edited lines stay. With no stored transcript the old lines stay and the lane offers "Caption this clip". The reel-wide Auto captions button captions only clips with sound and no captions from what they play now; when there are none it reads "All clips captioned", disabled. A run that costs nothing shows no price. The clip inspector drops the read-only In/Out/Length boxes (trimming is on the timeline) and folds quiet stretches into a collapsed section.
+
+**Why.** Switching back to the original lost its English captions until the user ran captions again, and the button offered a "free" run when every clip was already captioned, which read as a mistake.
+
+**Rejected.** Refilling stale captions from an effect whenever the doc changes (undoing the refill would immediately refill again, trapping undo). Keeping captions per sound in the doc (a second copy of each line to keep in step with edits).
+
 ### D395 — A face is drawn from a character brief; the four views are cut from one turnaround sheet *(recorded 2026-10-22; refines D339, supersedes how D340 makes the views)*
 
 **Decision.** Two changes to how an avatar is made.
@@ -7589,3 +7865,228 @@ The library loads the first two once for the page, so a blocked card's icon open
 **Rejected.** Prompt tweaks alone (the conflicting words would still be sent). Sending the operator's instructions only as attributes (they hold more than gender). A brief in the browser (it would trust the client's copy of the script). A 2×2 grid sheet (a lineup at one scale is the turnaround convention, and every figure sits on the same baseline). Remaking one view from the front, as D340 allowed (that brings back the drift this fixes). Dropping the views and sending only the sheet (panels, review and readiness, D341, are built on views).
 
 **Originated →** user request, 22 Oct 2026 (avatar gender mismatch; "a single sheet instead of separate and then merged").
+
+### D412 — A caption's words can be edited on the video *(recorded 2026-10-23; extends D396, D399)*
+
+**Decision.** On the stage, a click selects a caption (the draggable overlay, D396); a second click on it, without dragging, pauses the preview and opens its words for typing, in place, in the reel's caption font and size. Enter or clicking away saves, Shift+Enter breaks the line, Esc cancels; clearing the text deletes the line. It is the same edit as the Captions tab: word times kept when the word count holds, spread evenly (with a note) when it changes, and the line marked edited so Auto captions never rewrites it (D399). A drag still moves and resizes.
+
+**Why.** Editors fix a misheard word where they see it, on the picture, as in other video editors; going to the side panel to find the line was a detour.
+
+**Rejected.** Double-click only (the overlay replaces the plain caption on the first click, so the second click lands on a new element and a native double-click is unreliable). Editing while playing (the line would leave the screen mid-word).
+
+### D413 — The editor's panel names step back; a panel's whole header hides it; Style before Text *(recorded 2026-10-23; refines D403, D405)*
+
+**Decision.** Panel names (Sources, Inspector, Timeline, and the folded rails) use a new smaller eyebrow, `.text-eyebrow-sm` (11px, muted), so the content's own heading leads: a selected clip reads "Clip 1" in small grey text over its name at 16px in the display face; the Captions heading is 16px too. A side panel's whole header row is the button that hides it, not only the chevron. The Captions panel's tabs are Style, then Text, and Style is the default tab; selecting a caption no longer switches to Text.
+
+**Why.** The 12px, widely tracked panel name competed with the clip's name, and hiding a panel needed an exact hit on a small arrow (user, 23 Oct 2026). Style is set once for the reel and is what people look for first.
+
+**Rejected.** Shrinking `.text-eyebrow` itself (it serves the rest of the app at its current size).
+
+### D414 — Clicking empty space clears the selection *(recorded 2026-10-23; refines D405)*
+
+**Decision.** A left-click anywhere in the editor's work area that isn't on a clip, a caption (on the timeline or the video), the Inspector, the ruler, the timeline's resize handle or a control clears the selection, so the Inspector returns to the reel's Captions panel; Esc does the same. Controls keep it, since Delete and Split act on the selection. Clicks in menus and dropdowns, which render outside the work area, never clear it. One handler on the page (`clearsSelection` in `src/lib/editor/deselect.ts`) decides from the clicked element, not one per panel.
+
+**Why.** Once a clip or caption was selected there was no obvious way to put the Inspector back (user, 23 Oct 2026); desktop editors deselect on a click in empty space.
+
+**Rejected.** A handler per panel (several places to keep in step, and each new panel would need one). Clearing on any click outside the Inspector (pressing Delete would clear the selection before deleting it).
+
+### D415 — Trims always snap; the Snap button is gone; Alt trims freely *(recorded 2026-10-23; refines D404)*
+
+**Decision.** The timeline toolbar loses its Snap toggle. Dragging a clip's edge always snaps to the playhead (and an end edge to other clips' edges) within 8 px, shown by the amber line. Holding Alt while dragging trims without snapping. The edge's tooltip says so.
+
+**Why.** The toggle was rarely changed, didn't say what it snapped, and crowded the toolbar (user, 23 Oct 2026). Snapping itself is what makes a trim land on the playhead's frame. A modifier for the rare free trim is the convention in design and editing tools.
+
+**Rejected.** Keeping the toggle with a clearer label (still a control almost no one changes). Removing snapping altogether (precise trims back to frame-by-frame dragging).
+
+### D416 — Each export is named after its reel *(recorded 2026-10-26; refines D389, D392)*
+
+**Decision.** The Premiere sequence is named "<client> · <canvas>" (e.g. "Jackfruit 365 · Reel 2"), from the saved names, read on the server when the export starts. The zip and its folder are that name as a slug plus the export's date (`jackfruit-365-reel-2-2026-10-26.zip`). The XML is the slug alone (`jackfruit-365-reel-2.xml`), and Premiere names the bin it imports into after it. The storage object carries the zip's name and downloads as it. The README, the export dialog's steps and its download button show this export's names; exports made before this keep showing the old fixed names. A name with nothing usable for a file name falls back to `creativeos-reel`.
+
+**Why.** Every export was `creativeos-reel.zip` holding a "CreativeOS Rough Cut" sequence, so two reels' packages overwrote or shadowed each other in Downloads and in a Premiere project (user, 26 Oct 2026).
+
+**Rejected.** A time in the file name (a date is enough to tell days apart; the browser numbers same-day downloads). Naming from the browser's copy of the title (names come from saved data on the server). The canvas name alone (two clients can each have a "Reel 2").
+
+### D417 — The editor also exports a finished MP4, rendered from the same plan as Premiere *(recorded 2026-10-26; reverses D388's "CreativeOS renders no video")*
+
+**Decision.** Export offers **MP4 video** or **Premiere Pro package**. The MP4 is rendered by a background task (`editor-render`) with ffmpeg from the same sequence plan as the package: trims, picture, sound or dub, and captions burned in with the reel's style, word-by-word highlighting included (ASS through libass). Two options only: Quality (Full at the reel's frame, or Quick at 720 px on the short side) and Burn in captions (on by default, shown only when there are captions). No credits are charged.
+
+**Why.** Not every reel goes to a finishing editor; teams want a video to post or send straight away (user, 26 Oct 2026). ffmpeg and the caption fonts are already in the task image, and one plan for both exports keeps them identical. Competitors expose only size; frame rate, bitrate and codec are noise for this audience.
+
+**Rejected.** A third-party render API (cost, and a second implementation of captions). Rendering in the browser (slow, and blocks the tab). Resolution, frame rate and bitrate menus (rarely changed; defaults match the source). Captions as a separate file only (the post-ready video needs them on screen).
+
+**Originated →** docs/superpowers/specs/2026-10-26-editor-mp4-export-design.md.
+
+### D423 — Image Analysis never holds back Mark KB Ready *(recorded 2026-10-27; refines D312, D318)*
+
+**Decision.** Mark KB Ready needs every field in the document-built sections reviewed (brand profile, visual identity, audience, creative direction, compliance). Image Analysis is left out of that check (`computeReadyStatus`), in the review screen and on the server alike. Its fields are approved, edited or rejected whenever the background run lands, before or after the KB is ready; the tab says so while the run is going.
+
+**Why.** Image Analysis is written by a background run over every brand image (D312), which can finish long after the KB build. Gating on it kept the team waiting on onboarding for work they can review later (user, 27 Oct 2026). Reviews already survive later runs (D318), so reviewing afterwards loses nothing.
+
+**Rejected.** Waiting for the run before Mark KB Ready (blocks onboarding). Auto-approving Image Analysis on Mark KB Ready (marks unseen fields as reviewed).
+
+### D424 — Storyboard panels are drawn with Nano Banana 2.1 by default *(recorded 2026-10-28; amends D346's 8 Oct testing amendment)*
+
+**Decision.** `PANEL_MODEL_ID` is `gemini:gemini-nano-banana-2.1`. The Advanced model picker still offers every OpenAI and Gemini image model, GPT Image 2 included. The cast-card avatar default (`VISUALISE_AVATAR_MODEL_ID`) is unchanged.
+
+**Why.** The user asked for Nano Banana 2.1 as the storyboard default (28 Oct 2026). It takes 14 references and every panel aspect (9:16, 16:9, 1:1, 4:3, 3:4), and costs less per image than GPT Image 2.
+
+**Rejected.** Removing GPT Image 2 from the panel picker (still useful for comparison).
+
+### D425 — Avatar profile sheets are drawn with Nano Banana 2.1 by default *(recorded 2026-10-28; refines D395)*
+
+**Decision.** `AVATAR_DEFAULT_SHEET_MODEL_ID` is `gemini:gemini-nano-banana-2.1`. The sheet's model picker under Advanced is unchanged, so Nano Banana 2 and the others can still be chosen. The front image default (Seedream, D290) is unchanged.
+
+**Why.** The user asked for Nano Banana 2.1 as the profile sheet default (28 Oct 2026), matching the storyboard panels (D424). It accepts the sheet's 16:9 aspect and the front image as its reference, and costs less per image than Nano Banana 2.
+
+**Rejected.** Changing the front image default too (Seedance accepts only Seedream faces, D290).
+
+### D426 — No client in the system: the script copilot is brand-neutral and brand-aware *(recorded 2026-10-28; refines D336, D337, D362; spec 2 answers 2.1b, 2c.1)*
+
+**Decision.** Nothing every client gets names one client. The script copilot's shared instructions name no brand, product, food, festival or one client's reel formula; one neutral safety line stays: "Follow the client's compliance rules in its KB. Never make up a testimonial, a number or a claim the KB doesn't give." Each client's specifics come only from its own material: a new free-text **Content Rules** KB field (`compliance.content_rules`: what the brand sells, the claims and proof it may use, its customs), drafted by the KB extractor from the client's documents and reviewed like any field; the audience's location, pain points and desires (now sent); today's date; a market-signal digest on every turn; its own example scripts. **Formats are a shared menu** offered to every client (UGC, UGC review first, Founder-led) with neutral beat descriptions; a format's beats are a starting point the copilot adapts to the brand and lists on the confirmation card, which the draft follows. **An angle commits to** situation, product moment, who else, proof and hook; a review theme only where the brand uses reviews. **Every content chip is brand-aware**: written by the model call that wrote the reply and saved on the message (migration 0061); action chips (Write it, You pick, Take it from here, Cast it for me) stay code. The copilot's context is still assembled fresh each turn.
+
+**Why.** Writing a script for Propalyst (real estate), the copilot offered "Kerala Piravi, Sun 1 Nov" (27 Oct 2026). The copilot was built and proven on Jackfruit 365 alone (spec 2 §15; the formats companion was "counted, not sampled" from Jackfruit's 28 reels), and Jackfruit's specifics went into the shared prompt as examples (meal moment, spoon count, nine beats, review beat, Kerala Piravi, onion and garlic), into required output fields (`mealMoment`, `reviewTheme`, `proofEmphasis`) and into fixed chips. Jackfruit's house spec lived in `image_analysis.brand_consistency_notes`, a field the image analyser also writes: an approved paste was replaced by a description of the photos on a re-run. User's rules: "anywhere it becomes part of the system it should be removed and made neutral"; "more smart and neutral"; Jackfruit is "one client among many"; formats are "offered as options for every client".
+
+**Rejected.** Structured KB fields for products, claims, proof and review policy now (would be shaped by one client again; organise the free text later, once several clients have one). A stored, pre-built context object per client (a cache that must be rebuilt on every KB, script, avatar or signal change; considered for the speed work instead). Formats owned per client, read from its finished scripts (a client with none was offered no format). Keeping fixed edit chips ("Make the hook punchier").
+
+**Verified.** Jackfruit's saved house spec (12,591 characters) covers every rule taken out of the shared prompt, so nothing is added to its KB; `scripts/move-house-rules.itest.ts` moves it into Content Rules. New KBs need Content Rules reviewed for Mark KB Ready like any compliance field (D423); KBs saved before it are not held back. The writer probe (`scripts/probe-script-writer.itest.ts`) now runs on any client (`PROBE_CLIENT`), scoring against the card's beats and the client's own words.
+
+**Originated →** [2026-10-28-brand-neutral-system-design.md](2026-10-28-brand-neutral-system-design.md).
+
+**Refined (28 Oct 2026, chips).** Chips are stored with their message (migration 0061, applied to staging by the user), so a reloaded chat shows them again; a browser-only version was built and reverted the same day.
+
+**Refined (28 Oct 2026, same spec §3.2–3.7).** The rest of the system too: the script reader's subject rule no longer names a skincare client's cream and jar or assumes every reel is a product film; the video prompt writer's examples name a made-up product ("the green ceramic mug"), not CHUPPS's V-Straps (refines D262/D263); Visualise's place hints are general geography by state (`STATE_PLACES`), not keyed to one client's kit rows (refines D343). The UGC bench (`/ugc`) is removed; avatars keep their voice-length limits in their own constants. A guard (`clientTermsIn`, matched from the start of a word) checks the shared prompts in tests.
+
+
+### D427 — The copilot reads the last 10 messages of the conversation *(recorded 2026-10-28; refines spec 2 §3, D426)*
+
+**Decision.** Every copilot step that answers the person (reading the reply, angles, the confirmation card, the first draft, chat edits) gets the last 10 messages before the one it answers, whole and oldest first, each card adding a line that says what it showed ("[showed angles: A. …; B. …]"). The inline edit and the paste check do not. A shared rule keeps the state in charge: "When the conversation so far and the script or brief disagree, the script and brief win." The route already loads the history, so this adds no database call.
+
+**Why.** "Everytime a new chat is sent the entire messaging history should be sent, otherwise how will there be any continuity" (user, 28 Oct 2026). Until now each step saw only the copilot's last message (spec 2 §3: "works from the current script and notes, not from the old chat"), so "go with B, but warmer" or "like before" had nothing to point back to.
+
+**Rejected.** The whole conversation on every call (grows without end; stale instructions). Cutting each message to a ceiling (user: send them whole "for now, the context window is big"; revisit with the speed work).
+
+**Originated →** conversation in this session; [2026-10-28-brand-neutral-system-design.md](2026-10-28-brand-neutral-system-design.md).
+
+### D428 — Omni sends `reference_to_video` whenever references go; 12 references alone, 7 images in all with frames *(recorded 2026-10-29; refines D207, D217; fixes YUV-381)*
+
+**Decision.** `planOmniInput` sets `task: "reference_to_video"` whenever any reference is sent, frames or not; `image_to_video` is only for frames alone. Omni takes up to **12** references with no frame, and up to **7 images in all** once a frame is set (start + 6 references, or start + end + 5). `ImageInputCapabilities` gains an optional `maxImagesWithFrames`, and `referenceCapFor` (select-references.ts) gives the cap for the frames actually set; the video-generate route, the Video Gen focus view and the default fill on a model switch all read it.
+
+**Why.** Probed live against `gemini-omni-1.1-flash` on 29 Oct 2026 with numbered, coloured reference cards and a product photo as the start frame, checking the rendered frames. With a start frame, the app's `image_to_video` was refused in about a second for every request over 2 images ("Image-to-video does not support more than 2 images"), so any shot with a start frame and two or more references failed. The same images under `reference_to_video` opened on the start frame and showed every card. References alone: the API accepted 32, but every card rendered correctly only up to 12 (16 had one wrong, 24 and 32 many). With frames: start + 6 and start + end + 4 were right; start + end + 6 (the old maximum), start + 9 and start + end + 10 opened on the wrong frame and dropped cards. One run per case, so the cutoffs are a guide.
+
+**Rejected.** Omitting `task` (accepted, but a reference leaked into the opening frame). Keeping 6 as the cap (too low alone, too high with both frames). A rule that refuses over-cap requests after the fact (the default fill would put the node over it; the cap should shrink where references are chosen).
+
+**Originated →** conversation in this session; probe script and frames kept outside the repo.
+
+### D429 — On the multishot lane, Video Gen shows the duration read-only: the shots' total *(recorded 2026-10-29; refines D236; fixes YUV-383)*
+
+**Decision.** When a Multishot Prompt feeds Video Gen, the Duration slider is replaced by a read-only value, the total of the multishot cuts ("12s"), with the line "Adds up the 3 shots on the Multishot node. Change shot lengths there." always visible, on its own row. The shot summary strip shows the same total with its "Fixed" badge. `VideoGenParamsPanel` takes `fixedParams` for a value another node decides. The single-shot lane keeps its slider. Nothing changes in the request: the route already sends `totalOf(cuts)` (D236).
+
+**Why.** D236 made the server send the ladder total and ignore the node's own duration, but the slider stayed on screen and editable, so the number shown was often not the length that came back. In the last 60 succeeded staging videos (29 Oct 2026), all Omni on the multishot lane, every file was exactly the length sent, and 16 of 60 had a slider showing a different number. The model respects duration; the screen did not tell the truth.
+
+**Rejected.** Removing duration from Video Gen altogether (the single-shot lane has nothing else to set it). Making the slider drive the cuts (two places editing one number). A disabled slider with the reason in a tooltip (the existing lock look; the reason is invisible until hover, and a greyed slider still reads as a setting).
+
+**Originated →** conversation in this session.
+
+### D430 — Video Gen reads its lane from the canvas store, not the upstream fetch *(recorded 2026-10-29; refines D236, D429)*
+
+**Decision.** Whether a Multishot Prompt feeds a Video Gen node is read from the canvas store's edges, which the client has the instant a connection is drawn. The multishot-prompt id, the Multishot node behind it, its cuts and target model all come from the store; the model switch to the plan's model happens on the first render (local state only; persisting still waits for the confirmed inputs). The model picker's loading placeholder shows only on the single-shot lane with nothing cached. The duration note links to the Multishot node: clicking it closes Video Gen and opens that node through the store's focus signal, as the Generation Tray does. The edge scan runs only while the view is open, since the view is mounted for every Video Gen node.
+
+**Why.** The lane used to come from `/upstream-images`, which answers only after the autosave flush. So right after connecting a Multishot Prompt, Video Gen opened on the single-shot layout (skeleton model, a duration slider) and rearranged itself about a second later into the multishot one (Omni, the fixed duration). The user called it bad UX (29 Oct 2026). The store already holds the same edges the server walks once they are saved.
+
+**Rejected.** Keeping the server as the lane's source and hiding the whole panel behind a skeleton until it answers (still a jump, and a slower open).
+
+**Originated →** conversation in this session.
+
+### D431 — Video Gen settings: notes behind an (i), the fixed duration opens its node, Generate is pinned *(recorded 2026-10-29; refines D429, D430)*
+
+**Decision.** Each Video Gen setting's explanation (its spec `description`, and the fixed duration's note) sits behind an (i) beside the field name (`FieldLabel` takes `info`), not as a paragraph under the control. The fixed duration value is itself the way to its source: on the multishot lane the "12s ↗" chip is a button that closes Video Gen and opens the Multishot node; the (i) says "Adds up the 3 shots on the Multishot node. Click to open it and change shot lengths." It sits back in the top row beside Resolution, as the slider does on the single-shot lane. The Generate / Re-generate button is pinned to the foot of the settings column while it scrolls, like the Multishot Prompt view's footer.
+
+**Why.** User, 29 Oct 2026: clicking the seconds should open the node, the info can sit on an icon next to the field, and Generate should stay put like the Multishot Prompt node's. The panel was a column of paragraphs under every control, and Generate sat below the frames, out of view on a long node.
+
+**Rejected.** D429's always-visible note and the inline "Multishot node" text link (more to read, and the link was a second target for the same action as the value).
+
+**Originated →** conversation in this session.
+
+### D432 — A redrawn storyboard panel goes from "Drawing…" to the new image with nothing in between *(recorded 2026-10-29; refines D344, D346; fixes YUV-422)*
+
+**Decision.** Three gaps closed. (1) The draw route moves the pick to the new take *before* marking it succeeded, and puts the pick back on the previous take if storing fails, so a board read between the two writes sees a panel still drawing. (2) The browser that drew writes the returned take and pick into the board cache (`withDrawnTake`, after cancelling reads in flight) before the panel stops drawing, rather than waiting for the refetch. (3) `PanelImage` mounts each take as a new element and fades it in over a skeleton only once loaded (also when already cached), in the grid, the panel dialog and its takes strip. The dialog veils the current take with "Drawing a new take…" during a redraw.
+
+**Why.** YUV-422 (training, Sriman #8): after a regenerate the old frame showed for about a second, sometimes an empty frame. The panel stopped drawing when the take finished but showed the stored pick, which still pointed at the old take until the refetch landed (or, for a poll, until the second write); then the new file had to download into a blank `<img>`.
+
+**Rejected.** Keeping the panel in "Drawing…" until a timer runs out (guesses at network time). Inferring the newest succeeded take as the pick on the client (a person can pick an older take on purpose, D344).
+
+**Originated →** conversation in this session.
+
+### D433 — Versions are picked in History; the output column never moves; laptops get the room *(recorded 2026-10-29; supersedes D383's stepper; applies to every node with versions)*
+
+**Decision.** The `‹ vN of M ›` stepper is gone from every focus view (Video Gen, Image Gen, Composite, Dubbing, Video Prompt, Multishot Prompt, the image Prompt node). A past version is picked in **History**: it shows in the output column, and **Back to vN / Restore vN** (`VersionViewingBar`) head the History list it was picked from. The output header is one fixed-height line; while an older version is on screen a quiet `ViewingTag` ("Showing v1") takes the place of the mode switch (Edit / Edit voice), which acts on the active version only. Leaving History returns to the active version (Video Gen and the prompt shell also keep it while **Sent to model** is open, which shows what that version sent). Video Gen's rail is `w-44` and its settings column `w-1/2` below `xl` (unchanged above). The versions list returns a Multishot Prompt version's plan object as its `output` (other nodes keep string-or-null).
+
+**Why.** User, 29 Oct 2026, on a laptop: the version arrows "break the layout". Measured at 1093×614: stepping versions inserted a two-line viewing bar above the player, which pushed it down and shrank it to ~160px wide, every step. The user proposed moving version choice into History, with Restore in the centre column. Separately, a Multishot Prompt's earlier versions could not be restored: the versions route nulled any non-string output, so History showed no plan and offered no Restore (the bug restore-version/route.ts had already fixed).
+
+**Rejected.** Keeping the stepper and wrapping the header (the player still moved a line). A compact one-line pill in the header (fits only by dropping the heading; still crowds a narrow column).
+
+**Originated →** conversation in this session.
+
+### D434 — Every generated image and video appears through a skeleton, then fades in *(recorded 2026-10-29; extends D432)*
+
+**Decision.** `useMediaReady` (src/hooks/use-media-ready.ts) tracks whether an image or video can be drawn. Each new file is a new element (`key={src}`), hidden over the same pulse placeholder the generating state uses, and faded in (300ms, the system easing) once loaded; a file already loaded before React attached its handlers is caught by a ref check. Applied to every canvas card (`NodeMedia`), the Image Gen and Video Gen results (active and viewed versions), Composite's output and the Dubbing player, alongside the storyboard panels (D432). A result frame that sizes from its media holds the chosen shape while loading via `aspect-ratio: auto <ratio>`.
+
+**Why.** User, 29 Oct 2026: "for any generated one too, image/video". A finished generation showed a blank or black box, or the previous file, while the new one downloaded.
+
+**Originated →** conversation in this session.
+
+### D435 — One Generate / Re-generate for every node, pinned at the foot of its settings *(recorded 2026-10-29; refines D431)*
+
+**Decision.** Every node that generates uses the shared `GenerateFooter`: Video Gen, Image Gen, Composite, Motion Prompt, Image Prompt and Multishot Prompt. It sits at the foot of the settings column and never needs scrolling to reach (inside a scrolling column it is `sticky bottom-0` with `mt-auto` in a `min-h-full` wrapper; under a scrolling area it is a `shrink-0` sibling). It is a full-width large button with the node's icon, the credit estimate, and the reason it is unavailable on hover. Labels follow one rule: "Generate <thing>" the first time (image, video, composite, prompt, motion prompt, multishot prompt), "Re-generate" once there is an output, "Generating…" while it runs (Composite's Edit mode keeps "Edit image" / "Editing…", Video Gen's voice change "Changing voice…"). Image Gen and Composite's Generate moved out of the Output settings section to the column level; its reasons and the always-disabled-while-generating guard moved to `imageGenerateBlocker` / `imageGenerateDisabled` (src/lib/image-gen/generate-blocker.ts), unchanged.
+
+**Why.** User, 29 Oct 2026: Generate and Re-generate should be consistent across the canvas, like Multishot and Video Gen. They were five different things: pinned and large (Video Gen), pinned and normal (Multishot), at the end of a scroll (Motion and Image Prompt), and a narrow button mid-column inside a section (Image Gen, Composite).
+
+**Rejected.** Keeping the button inside Image Gen's Output settings section (a sticky element sticks only within its parent, so it could not stay in view).
+
+**Originated →** conversation in this session.
+
+### D436 — An avatar is a set of images, wired wherever a picture goes into a generation *(recorded 2026-10-29; refines D298, D312; fixes YUV-386)*
+
+**Decision.** Besides presenting a script (D298) and sitting in a composite (D312), an Avatar node connects to Prompt, Image Gen, Motion Prompt, Multishot Prompt and Video Gen, like a File or Composite image (not to Shot, Multishot or Post, which only display pictures). Every generation-side read of a node's own upstream expands it with `withAvatarImages` (presenter-server.ts) into its front, then its sheet when current, the same rows the script's presenter becomes, in its place: `getPromptUpstream`, the image-generate, video-generate and upstream-images routes. A wired avatar is "a person on camera", never "the person". One also presenting the script is not added twice; one that is gone or has no front drops out. In the browser the @-mention list expands it the same way from the avatar the canvas's Avatar node already cached (`useCachedAvatars`, no fetch per node). Seedance refuses every avatar sheet by id (`sheetsUnusable`), not only the presenter's.
+
+**Why.** YUV-386: an avatar could not connect to a Multishot Prompt, which blocked reels with more than one character; a script has one presenter. User, 29 Oct 2026: "avatar should be able to connect just like a composite or file node, it's just a set of images; if directly attached to a gen node then just send the images."
+
+**Rejected.** Several presenters per script (the presenter also carries the voice and the on-camera speaker; a second character needs neither). Only adding `avatar → multishot-prompt` (a still or a single shot with two people has the same need).
+
+**Originated →** conversation in this session.
+
+### D437 — A card's generating state sits centred on its media *(recorded 2026-10-29; fixes YUV-423)*
+
+**Decision.** Video Gen, Image Gen and Composite cards show generating centred on the media: the current output stays in view under a veil with a spinner and "Generating…" (Video Gen's voice change too: "Changing voice…"), or, for a first output, a pulsing placeholder in its shape with the same indicator (`GeneratingVeil` / `GeneratingPlaceholder`). The corner "Processing" pill is gone from those cards. Dubbing already worked this way.
+
+**Why.** YUV-423 (training, Sriman #6): the indicator should sit in the centre of the node. It was a small pill in the card's bottom corner, and Image Gen and Composite showed the old image with no sign anything was happening.
+
+**Originated →** conversation in this session.
+
+### D438 — A script's avatar is in its shots by default *(recorded 2026-10-29; refines D299)*
+
+**Decision.** The prompt node's "In this shot" switch for the script's avatar defaults to **on**; the operator's stored choice still wins. `presenterInShot(stored)` no longer looks at the shot's lines, and `hasOnCameraLine` is gone.
+
+**Why.** User, 29 Oct 2026: the avatar is off by default when it is connected, and that is confusing. The default was "on only when the shot has an on-camera line", so every narration shot started with the connected avatar switched off.
+
+**Trade-off, accepted.** A narration-only B-roll shot (a product close-up under voiceover) now sends the presenter's face unless switched off, and the model may put the person in it. One click per such shot, against a connected avatar that silently does nothing on most shots.
+
+**Originated →** conversation in this session.
+
+### D439 — The focus view's ✕ disconnects at once, and through the node an input comes from *(recorded 2026-10-29; fixes YUV-294; YUV-390)*
+
+**Decision.** (1) Video Gen takes a disconnected input off its cached input list the moment ✕ is clicked (`useDropFromNodeUpstream`); the autosave flush and server re-read still follow and confirm. (2) For an input that reaches the node through another (an image wired to the Motion Prompt), ✕ cuts the wire leaving that input (`entryTargetFor`), the only way it reaches here, and says where it was unwired; it used to only show a toast saying to go there. (3) A hand edit saved onto a prompt node's active version (Image Prompt, Motion Prompt, Multishot Prompt) is written into that node's cached versions (`useSetActiveVersionOutput`), so Image Gen, which shows its Prompt from that cache, has the edit at once.
+
+**Why.** YUV-294 and the user, 29 Oct 2026: deleting the line on the canvas is instant, the ✕ in the focus view had a visible delay (it waited on a save and a server read) and sometimes did not disconnect (an inherited input only got a toast). YUV-390: an Image Prompt edit did not reach Image Gen, because an in-place edit to the active version never reached the versions cache Image Gen reads; Video Gen re-reads its prompt from the server on every open, so it looked synced.
+
+**Originated →** conversation in this session.
+
+### D440 — What is wired into a prompt node reaches the gen node after it, on every lane *(recorded 2026-10-29; refines D299, D436)*
+
+**Decision.** One rule for every gen node: its images are what is wired straight into it, then what is wired into its prompt node, direct edges first, each node once. Multishot Prompt → Video Gen always worked this way; now Motion Prompt → Video Gen and Image Prompt → Image Gen do too. A generated image (Image Gen or Composite output) counts on every lane; it used to reach Video Gen only through a Multishot Prompt, as one on a Motion Prompt was the writer's vision context only. `withPromptInputs` (presenter-server.ts) builds the list for image-generate and replaces `withStillPresenter` (the Prompt's upstream already carries the presenter's face); upstream-images and video-generate apply the same rule. Image Gen's card and view list the Prompt's images too and treat a Composite output as an image (`isImageInput`).
+
+**Why.** User, 29 Oct 2026: as with Multishot, what is connected upstream should go to the gen node, for Image Gen through the Image Prompt and Video Gen through the Motion Prompt. Wiring an image into the prompt node is how people say "use this", and having it stop at the writer surprised them.
+
+**Rejected.** Keeping images on a Motion Prompt as vision context only (the original split): it made the same wire mean different things on the two video lanes.
+
+**Originated →** conversation in this session.

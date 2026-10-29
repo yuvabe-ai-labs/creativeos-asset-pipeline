@@ -141,10 +141,11 @@ describe("panelInputs on Reel 01 (D342)", () => {
   });
 });
 
-describe("the panel model (testing, 8 Oct: ChatGPT by default, changeable under Advanced)", () => {
-  it("draws with GPT Image 2 unless another is chosen, from OpenAI or Gemini only", () => {
-    expect(PANEL_MODEL_ID).toBe("openai:gpt-image-2");
-    expect(PANEL_MODEL_IDS).toContain("gemini:gemini-3.1-flash-image");
+describe("the panel model (D424: Nano Banana 2.1 by default, changeable under Advanced)", () => {
+  it("draws with Nano Banana 2.1 unless another is chosen, from OpenAI or Gemini only", () => {
+    expect(PANEL_MODEL_ID).toBe("gemini:gemini-nano-banana-2.1");
+    expect(PANEL_MODEL_IDS).toContain(PANEL_MODEL_ID);
+    expect(PANEL_MODEL_IDS).toContain("openai:gpt-image-2");
     expect(PANEL_MODEL_IDS.some((id) => id.startsWith("seedream:"))).toBe(false);
     expect(isPanelModel("seedream:seedream-5-0-lite")).toBe(false);
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { avatarsService } from "@/services/avatars.service";
 import { isNotFound } from "@/services/read-json";
 import type { Avatar, VoicePreview } from "@/lib/avatars/schema";
@@ -14,6 +14,24 @@ export const avatarKeys = {
   voicePreview: (clientId: string, avatarId: string) =>
     [...avatarKeys.all(clientId), "voice-preview", avatarId] as const,
 };
+
+/** D436 — avatars the cache already holds, by id, without fetching: a reader that mounts once per
+ *  node (performance rule 1) sees what the canvas's Avatar nodes loaded, and updates with them. */
+export function useCachedAvatars(clientId: string, avatarIds: readonly string[]): Map<string, Avatar> {
+  const queryClient = useQueryClient();
+  const results = useQueries({
+    queries: avatarIds.map((avatarId) => ({
+      queryKey: avatarKeys.detail(clientId, avatarId),
+      queryFn: () => avatarsService.get(clientId, avatarId),
+      enabled: false,
+      initialData: () =>
+        queryClient.getQueryData<Avatar[]>(avatarKeys.list(clientId))?.find((a) => a.id === avatarId),
+    })),
+  });
+  return new Map(
+    results.flatMap((r, i) => (r.data ? [[avatarIds[i], r.data] as const] : [])),
+  );
+}
 
 /** The client's avatars, drafts included. The list is edited in the Avatar Studio, a different
  *  page, so it revalidates whenever a reader mounts — the cached rows show at once and are

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { editorLockResponse } from "@/lib/editor/lock-guard";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
@@ -19,6 +20,8 @@ const BodySchema = z.object({
   style: z.string().refine(isDubStyle).optional(),
   voice: z.string().refine((v) => v === PRESENTER_VOICE || isDubVoice(v)).optional(),
   pace: z.string().refine(isDubPace).optional(),
+  // D408 — the open editor starting it.
+  editorSessionId: z.string().min(1).optional(),
 });
 
 // D374 — dub the one connected video's current take. A new `dub` generation; its version is
@@ -36,10 +39,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!process.env.SARVAM_API_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
 
       // Independent reads run side by side (performance rule 5).
-      const [source, running] = await Promise.all([
+      const [source, running, locked] = await Promise.all([
         resolveDubSource(nodeId, { getUpstreamOutputs, getVersionById }),
         hasRunningGeneration(nodeId),
+        editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: parsed.data.editorSessionId }), // D390, D408
       ]);
+      if (locked) return locked;
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       if (!source.ok) return apiError(source.reason, 400);
 

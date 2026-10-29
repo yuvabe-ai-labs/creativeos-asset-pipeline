@@ -37,17 +37,11 @@ function linesOf(row: PresenterRowInput): VoLine[] {
   return [];
 }
 
-/** Whether the shot puts a line in someone's mouth on camera — the presenter switch's default. */
-export function hasOnCameraLine(rows: readonly PresenterRowInput[]): boolean {
-  return rows.some((row) => linesOf(row).some(isOnScreenLine));
-}
-
-/** Is the presenter in this shot? The operator's stored choice wins; otherwise the default. */
-export function presenterInShot(
-  stored: { inShot: boolean } | undefined,
-  rows: readonly PresenterRowInput[],
-): boolean {
-  return stored ? stored.inShot : hasOnCameraLine(rows);
+/** Is the presenter in this shot? The operator's stored choice wins; otherwise yes (D438): an
+ *  avatar connected to the script is in its shots until switched off. The default used to be "only
+ *  with an on-camera line", which left it off on narration shots and read as broken. */
+export function presenterInShot(stored: { inShot: boolean } | undefined): boolean {
+  return stored ? stored.inShot : true;
 }
 
 /**
@@ -59,6 +53,9 @@ export function presenterInShot(
 export function presenterUpstreamRow(
   avatarNodeId: string,
   avatar: Pick<Avatar, "name" | "front">,
+  /** D436 — false for an avatar wired straight to the prompt node: one of several on camera,
+   *  so it never claims to be THE person in the shot. */
+  lead = true,
 ): UpstreamOutput | null {
   if (!avatar.front) return null;
   return {
@@ -74,7 +71,7 @@ export function presenterUpstreamRow(
       // A file node's processedOutput is its text block for the writer (node-output.ts). Identity
       // only: "as they appear in this image" once had the writer copy the portrait's plain
       // backdrop into the look as a "white studio" shot.
-      processedOutput: `${avatar.name}, the person on camera in this shot. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.`,
+      processedOutput: `${avatar.name}, ${lead ? "the" : "a"} person on camera in this shot. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.`,
     },
     activeOutput: null,
     versionId: null,
@@ -196,8 +193,9 @@ export function withAvatarAsSpeaker<T extends PresenterRowInput>(rows: T[], avat
 export function presenterUpstreamRows(
   avatarNodeId: string,
   avatar: Pick<Avatar, "name" | "front" | "sheet" | "sheetStale">,
+  lead = true,
 ): UpstreamOutput[] {
-  const front = presenterUpstreamRow(avatarNodeId, avatar);
+  const front = presenterUpstreamRow(avatarNodeId, avatar, lead);
   if (!front) return [];
   if (!avatar.sheet || avatar.sheetStale) return [front];
   return [

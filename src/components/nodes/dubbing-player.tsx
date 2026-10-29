@@ -1,5 +1,7 @@
 "use client";
 
+import { MEDIA_FADE_CLASS, useMediaReady } from "@/hooks/use-media-ready";
+import { cn } from "@/lib/utils";
 import { useState, type ReactNode } from "react";
 import { AudioLines, Clapperboard } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,24 +18,27 @@ const STAGES: { id: DubStage; label: string }[] = [
 // video below at its own shape. While a job runs, the video it works on stays in place under the same veil
 // Video Gen gives a voice change. The parent keys this by the dub's urls, so a new result
 // remounts on the furthest stage instead of syncing state in an effect.
-export function DubbingPlayer({ dub, sourceUrl, workingLabel, stepper, banner, failed = false }: {
+export function DubbingPlayer({ dub, sourceUrl, workingLabel, viewingTag, failed = false }: {
   dub: DubbingOutput | null;
   sourceUrl: string | null;
   /** "Dubbing into Tamil…" while a job runs, else null. */
   workingLabel: string | null;
-  /** D383 — the version stepper and viewing bar, and whether the version on screen failed. */
-  stepper?: ReactNode;
-  banner?: ReactNode;
+  /** D433 — while an older dub (picked in History) shows, a quiet tag naming it; and whether the
+   *  version on screen failed. */
+  viewingTag?: ReactNode;
   failed?: boolean;
 }) {
   const [stage, setStage] = useState<DubStage>(dub ? furthestStage(dub) : "original");
   // D384 — the player's shape: measured from the video, 9:16 until then.
   const [ratio, setRatio] = useState(9 / 16);
   const url = workingLabel ? (dub?.dubbed && stage !== "original" ? dub.dubbed : sourceUrl) : dub ? stageUrl(dub, stage) : sourceUrl;
+  // D432 — the video fades in over a placeholder once its first frame can be drawn.
+  const { ready: mediaReady, onReady: onMediaReady, measure: measureMedia } = useMediaReady(url);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
-      <div className="flex items-center gap-6">
+      {/* D433 — one fixed line, so the video below never moves when the version on screen changes. */}
+      <div className="flex h-9 shrink-0 items-center gap-6">
         <div className="flex items-center gap-1.5">
           <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
           <span className="text-eyebrow">Video</span>
@@ -47,16 +52,19 @@ export function DubbingPlayer({ dub, sourceUrl, workingLabel, stepper, banner, f
             </TabsList>
           </Tabs>
         )}
-        {stepper && <div className="ml-auto">{stepper}</div>}
+        {viewingTag && <div className="ml-auto">{viewingTag}</div>}
       </div>
-      {banner}
       <div className="min-h-0 flex-1">
         {failed ? (
           <VersionOutputEmpty noun="dub" />
         ) : url ? (
           <div className="relative h-full w-fit max-w-full">
-            <video key={url} src={url} controls={!workingLabel} playsInline className="h-full max-w-full rounded-xl border border-border bg-muted/20"
+            {!mediaReady && <div aria-hidden className="absolute inset-0 animate-pulse rounded-xl bg-muted-foreground/15" />}
+            <video key={url} ref={measureMedia} src={url} controls={!workingLabel} playsInline
+              className={cn("h-full max-w-full rounded-xl border border-border bg-muted/20", MEDIA_FADE_CLASS, !mediaReady && "opacity-0")}
               style={{ aspectRatio: ratio }}
+              onLoadedData={onMediaReady}
+              onError={onMediaReady}
               onLoadedMetadata={(e) => {
                 const { videoWidth, videoHeight } = e.currentTarget;
                 if (videoWidth > 0 && videoHeight > 0) setRatio(videoWidth / videoHeight);

@@ -5,7 +5,7 @@ import type { ScriptDoc } from "@/lib/scripts/schema";
 import { panelInputs, panelReferenceCap, type PanelInputs } from "../panel-inputs";
 import {
   generateAllLabel, generateAllPlan, hasLiveDraw, panelView, promptBoxStart, promptForDraw, visualiseReadiness,
-  waitingMessage,
+  waitingMessage, withDrawnTake,
   type PanelView,
 } from "../state";
 import type { PanelTake } from "../schema";
@@ -198,5 +198,26 @@ describe("promptBoxStart (review finding 5, spec §8.1)", () => {
   it("starts from the fresh prompt once the shot changed, even when the old one was hand-edited", () => {
     expect(promptBoxStart(makeTake({ prompt: "closer on the tawa", promptEdited: true, shotKey: "before" }), i)).toBe("fresh from the new text");
     expect(promptBoxStart(null, i)).toBe("fresh from the new text");
+  });
+});
+
+// YUV-422 — the draw's result goes straight into the board, so the panel shows the new take, not the old pick.
+describe("withDrawnTake", () => {
+  it("replaces the running row with the finished take and moves the pick", () => {
+    const old = makeTake({ id: "t-old", shotId: "s06" });
+    const running = makeTake({ id: "t-new", shotId: "s06", status: "running", url: null });
+    const done = makeTake({ id: "t-new", shotId: "s06", url: "https://x/new.png" });
+    const board = { avatars: [], kits: [], takes: [old, running], picks: { s06: "t-old" } };
+    const next = withDrawnTake(board, "s06", done, "t-new");
+    expect(next.takes.map((t) => [t.id, t.status])).toEqual([["t-old", "succeeded"], ["t-new", "succeeded"]]);
+    expect(next.picks).toEqual({ s06: "t-new" });
+    expect(board.picks).toEqual({ s06: "t-old" }); // not mutated
+  });
+
+  it("adds the take when the board never saw it running", () => {
+    const done = makeTake({ id: "t-new", shotId: "s06" });
+    const next = withDrawnTake({ avatars: [], kits: [], takes: [], picks: {} }, "s06", done, "t-new");
+    expect(next.takes).toEqual([done]);
+    expect(next.picks.s06).toBe("t-new");
   });
 });

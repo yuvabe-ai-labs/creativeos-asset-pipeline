@@ -62,6 +62,7 @@ export async function POST(req: Request, { params }: Ctx) {
         clientId, scriptId: script.id, shotId: shot.id, prompt: chosen.prompt, promptEdited: chosen.edited,
         shotKey: inputs.shotKey, faces: inputs.faces, userId: caller.userId,
       });
+      let pickMoved = false;
       try {
         const { generation } = await runPanelGeneration({
           clientId, scriptId: script.id, shotId: shot.id, orgId: client.org_id,
@@ -70,13 +71,19 @@ export async function POST(req: Request, { params }: Ctx) {
           referenceUrls: inputs.references.map((r) => r.url),
         });
         const meta = (generation.meta ?? {}) as { width?: number | null; height?: number | null };
+        // YUV-422 — the pick moves first, while the take still reads as running: a board read
+        // between these two writes sees a panel still drawing. The other order showed the
+        // finished take with the old pick, so the old frame flashed back.
+        await setPanelPick(script.id, shot.id, take.id);
+        pickMoved = true;
         const done = await succeedPanelTake(take.id, {
           url: generation.output_snapshot ?? "", width: meta.width ?? null, height: meta.height ?? null,
           generationId: generation.id,
         });
-        await setPanelPick(script.id, shot.id, done.id);
         return apiOk({ take: done, pickId: done.id });
       } catch (e) {
+        // Never leave the pick on a take that did not land.
+        if (pickMoved && current) await setPanelPick(script.id, shot.id, current.id).catch(() => null);
         // Nothing was charged: the billed run refunded the reservation (D291).
         const capped = e instanceof CreditLimitError;
         const message = capped ? CREDIT_LIMIT_TOAST_MESSAGE : e instanceof Error ? e.message : "The panel could not be drawn.";

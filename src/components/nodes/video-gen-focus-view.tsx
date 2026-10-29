@@ -9,6 +9,8 @@ import {
   type ReactNode,
   type SyntheticEvent,
 } from "react";
+import { useGenerationLock } from "@/hooks/use-generation-lock";
+import { GENERATION_LOCK_COPY } from "@/lib/editor/generation-lock";
 import { parseAspectRatio } from "@/lib/canvas/media-fit";
 import {
   ArrowLeft,
@@ -21,7 +23,6 @@ import {
   ImageIcon,
   PencilLine,
   SlidersHorizontal,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -62,7 +63,6 @@ import { VideoGenApiError } from "@/lib/video-gen/api";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
@@ -73,7 +73,7 @@ import {
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
 import type { NodeVersionsResponse } from "@/services/node-versions.service";
-import { useNodeUpstream, useRefreshNodeUpstream } from "@/hooks/queries/node-upstream";
+import { useNodeUpstream, useRefreshNodeUpstream, useDropFromNodeUpstream } from "@/hooks/queries/node-upstream";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
 import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
@@ -108,7 +108,9 @@ import {
 } from "./video-gen-version-history";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { VersionViewingBar } from "./version-viewing-bar";
-import { VersionStepper } from "./version-stepper";
+import { ViewingTag } from "./viewing-tag";
+import { GenerateFooter } from "./generate-footer";
+import { MEDIA_FADE_CLASS, useMediaReady } from "@/hooks/use-media-ready";
 import { VersionOutputEmpty } from "./version-output-empty";
 import { ActiveOnlyNotice } from "./active-only-notice";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
@@ -150,9 +152,20 @@ import { readVoiceMeta } from "@/lib/voice-change/meta";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
-import { selectReferences } from "@/lib/video-gen/select-references";
+import { referenceCapFor, selectReferences, sheetsUnusable } from "@/lib/video-gen/select-references";
 
-type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
+type ImageInputs = {
+  startFrame: boolean;
+  endFrame: boolean;
+  maxReferenceImages: number;
+  maxImagesWithFrames?: number;
+};
+
+/** Whether a role map holds each frame, for referenceCapFor. */
+function framesIn(roles: Record<string, ImageRole>) {
+  const values = Object.values(roles);
+  return { hasStartFrame: values.includes("start_frame"), hasEndFrame: values.includes("end_frame") };
+}
 
 // Only the generate-time "no roles assigned" confirm remains. Role assignment itself never opens
 // a dialog: every such change is one click to make and one click to undo, and stacking a modal on
@@ -177,7 +190,7 @@ function applyDefaultImageRoles(
 
   if (inputs.maxReferenceImages > 0) {
     const usedRefs = Object.values(roles).filter((r) => r === "reference").length;
-    const slots = inputs.maxReferenceImages - usedRefs;
+    const slots = referenceCapFor(inputs, framesIn(roles)) - usedRefs;
     unassigned.slice(0, slots).forEach((img) => { roles[img.id] = "reference"; });
   } else {
     let i = 0;
@@ -523,6 +536,7 @@ export function VideoGenFocusView({
   // clear, which happens after the post-flush re-read confirms the inputs (see persistThenRefresh).
   const upstreamQuery = useNodeUpstream(nodeId);
   const refreshUpstreamQuery = useRefreshNodeUpstream(nodeId);
+  const dropFromUpstream = useDropFromNodeUpstream(nodeId);
   const upstreamImages = useMemo<UpstreamImage[]>(
     () => upstreamQuery.data?.images ?? [],
     [upstreamQuery.data],
@@ -668,6 +682,8 @@ export function VideoGenFocusView({
   }, [open, focusStoreApi]);
 
   const editable = useCanvasEditable(); // D33: false when this session is read-only
+  const generationLock = useGenerationLock(nodeId);
+  const lockReason = generationLock ? GENERATION_LOCK_COPY[generationLock].short : null;
   const { identity } = useIdentity();
   const flushAutosave = useFlushAutosave();
 
@@ -681,10 +697,30 @@ export function VideoGenFocusView({
   // (UpstreamPromptNode: `{ id, type, text }`) and does NOT carry the Multishot node's data, so
   // this cannot be read off it directly — and it is client state already loaded in the store, so
   // no fetch is added.
+  //
+  // D430 — the lane is read from the canvas store's edges, which the client has the instant a
+  // connection is drawn, not from `promptNode`: that comes from /upstream-images after the
+  // autosave flush, so the view opened on the single-shot layout and rearranged itself a second
+  // later. Only while open: this view is mounted for every Video Gen node, and a closed one must
+  // not scan the edges on every store change.
+  const multishotPromptId = useCanvasStore((s) => {
+    if (!open) return null;
+    for (const e of s.edges) {
+      if (e.target === nodeId && s.nodes.find((n) => n.id === e.source)?.type === "multishot-prompt") {
+        return e.source;
+      }
+    }
+    return null;
+  });
+  // The Multishot node behind that prompt: where the shots (and so the duration) are edited.
+  const multishotNodeId = useCanvasStore((s) => {
+    if (!multishotPromptId) return null;
+    const sourceIds = s.edges.filter((e) => e.target === multishotPromptId).map((e) => e.source);
+    return s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot")?.id ?? null;
+  });
   const upstreamMultishotTargetModel = useCanvasStore((s) => {
-    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
-    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
-    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    if (!multishotNodeId) return undefined;
+    const multishotNode = s.nodes.find((n) => n.id === multishotNodeId);
     return (multishotNode?.data as { targetModel?: string } | undefined)?.targetModel;
   });
 
@@ -694,9 +730,8 @@ export function VideoGenFocusView({
   // 12. The credit estimate below and the disabled-Generate check both need the ladder that will
   // actually be billed/checked, not the (possibly stale) param.
   const upstreamMultishotCuts = useCanvasStore((s) => {
-    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
-    const sourceIds = s.edges.filter((e) => e.target === promptNode.id).map((e) => e.source);
-    const multishotNode = s.nodes.find((n) => sourceIds.includes(n.id) && n.type === "multishot");
+    if (!multishotNodeId) return undefined;
+    const multishotNode = s.nodes.find((n) => n.id === multishotNodeId);
     return (multishotNode?.data as { cuts?: MultishotCut[] } | undefined)?.cuts;
   });
 
@@ -712,8 +747,8 @@ export function VideoGenFocusView({
   // answer (it is what the next Generate will write with); with an unstamped plan it is NOT, and
   // falling back to it is precisely the bug — see resolve-prompt.ts.
   const connectedPlanTargetModel = useCanvasStore((s) => {
-    if (!promptNode || promptNode.type !== "multishot-prompt") return undefined;
-    const node = s.nodes.find((n) => n.id === promptNode.id);
+    if (!multishotPromptId) return undefined;
+    const node = s.nodes.find((n) => n.id === multishotPromptId);
     const plan = (node?.data as { parsed?: MultishotPlan } | undefined)?.parsed;
     if (!plan || typeof plan !== "object" || !Array.isArray(plan.beats)) return undefined;
     return plan.targetModel ?? null;
@@ -723,7 +758,7 @@ export function VideoGenFocusView({
   // restriction sentence, and the ladder legality check. Derived ONCE so the three cannot disagree
   // — and so all three say what the server's own guard (video-generate/route.ts) will say, since
   // that guard also resolves the plan's stamp.
-  const isMultishotPromptConnected = promptNode?.type === "multishot-prompt";
+  const isMultishotPromptConnected = multishotPromptId !== null;
   const effectiveMultishotModel =
     connectedPlanTargetModel !== undefined
       ? connectedPlanTargetModel
@@ -749,8 +784,9 @@ export function VideoGenFocusView({
   const multishotTargetModel = isMultishotPromptConnected
     ? multishotCapabilityFor(effectiveMultishotModel).id
     : undefined;
+  // Not gated on `loadingConnected` (D430): the lane is known from the store, and this only sets
+  // local state. Persisting still waits for the confirmed inputs (the effect below).
   if (
-    !loadingConnected &&
     editable &&
     multishotTargetModel !== undefined &&
     modelId !== multishotTargetModel
@@ -864,10 +900,12 @@ export function VideoGenFocusView({
       // this only ever runs from a click, so reading it during render is both unnecessary
       // and something the React compiler rejects.
       onPatch({ imageRoles: nextRoles });
+      // YUV-294 — off the list now; the flush and re-read below confirm it.
+      dropFromUpstream(sourceId);
       if (selected === sourceId) setSelected("video");
       void persistThenRefresh();
     },
-    [imageRolesProp, onPatch, selected, persistThenRefresh],
+    [imageRolesProp, onPatch, selected, persistThenRefresh, dropFromUpstream],
   );
   const { removeFor } = useRailDisconnect(nodeId, onDisconnected);
 
@@ -1223,6 +1261,11 @@ export function VideoGenFocusView({
 
   const currentModel = videoGenClientModelMap[modelId];
 
+  // D428 — the reference cap for the frames actually set (Omni: fewer references with frames).
+  // Everything that shows or enforces the cap reads this, the same number the route uses.
+  const referenceCap = referenceCapFor(imageInputs, framesIn(supportedImageRoles));
+  const cappedImageInputs = { ...imageInputs, maxReferenceImages: referenceCap };
+
   // Capability is not the same as legality: a model can accept frames AND references and still
   // have a rule forbidding them together. Reconciling here (rather than only on model change)
   // also heals nodes already persisted in the contradictory state, which would otherwise stay
@@ -1232,14 +1275,14 @@ export function VideoGenFocusView({
   const referenceSelection = selectReferences({
     images: upstreamImages.map((img) => ({ id: img.id })),
     roles: supportedImageRoles,
-    cap: imageInputs.maxReferenceImages,
+    cap: referenceCap,
     modelLabel: currentModel?.label ?? modelId,
     citedIds: new Set(promptNode?.citedIds ?? []),
     avatarFrontId: promptNode?.avatarFrontId ?? null,
     avatarSheetId: promptNode?.avatarSheetId ?? null,
     framesExcludeReferences: areFramesAndRefsExclusive(currentModel?.rules),
-    unusable: currentModel?.provider === "seedance" && promptNode?.avatarSheetId
-      ? new Map([[promptNode.avatarSheetId, "Seedance can't use the profile sheet"]])
+    unusable: currentModel?.provider === "seedance"
+      ? sheetsUnusable(upstreamImages.map((img) => img.id), "Seedance can't use the profile sheet")
       : undefined,
   });
   const leftOutReason = new Map(referenceSelection.leftOut.map((l) => [l.id, l.reason]));
@@ -1281,10 +1324,25 @@ export function VideoGenFocusView({
   // default `duration: 5` while a 12s ladder is connected; quoting off the param would repeat
   // exactly the stale-price bug this comment already warns about, one lane over. Falls back to
   // the param-based read when the ladder isn't available yet (e.g. still loading).
+  const ladderDuration =
+    isMultishotPromptConnected && upstreamMultishotCuts ? totalOf(upstreamMultishotCuts) : undefined;
   const durationSeconds =
-    isMultishotPromptConnected && upstreamMultishotCuts
-      ? totalOf(upstreamMultishotCuts)
-      : Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+    ladderDuration ?? Number(effectiveParams.seconds ?? effectiveParams.duration ?? 0);
+  // D429 — so the panel says the same: on this lane Duration is shown read-only, with where it
+  // comes from. It used to stay an editable slider the route ignored, and 16 of 60 staging clips
+  // ran at a length other than the one on screen.
+  const shotCount = upstreamMultishotCuts?.length ?? 0;
+  const ladderDurationNote =
+    shotCount === 1
+      ? "Set by the one shot on the Multishot node."
+      : `Adds up the ${shotCount} shots on the Multishot node.`;
+  // D431 — the duration chip opens that node (this view closes; the store's focus signal opens
+  // the other, as the Generation Tray does), so the (i) says where a change is made.
+  function openMultishotNode() {
+    if (!multishotNodeId) return;
+    onOpenChange(false);
+    focusStoreApi.getState().setFocusedNodeId(multishotNodeId);
+  }
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
   const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
@@ -1316,14 +1374,18 @@ export function VideoGenFocusView({
   // D308 — references saved beyond the cap (a node from before, or a model switch): the server
   // refuses them rather than cutting, so Generate says so first, in the same words.
   const overCapReason = referenceSelection.overCap > 0
-    ? `${currentModel?.label ?? modelId} takes ${imageInputs.maxReferenceImages} references; ${imageInputs.maxReferenceImages + referenceSelection.overCap} are selected. Turn some off.`
+    ? `${currentModel?.label ?? modelId} takes ${referenceCap} references; ${referenceCap + referenceSelection.overCap} are selected. Turn some off.`
     : null;
   // `loadingConnected`: the inputs on screen may be the cached copy, not yet confirmed by this
   // open's re-read — never generate (and post roles) from those.
+  // D390 — a clip in the Editor's reel can't generate; the reason replaces the action.
   const disableGenerate =
+    Boolean(lockReason) ||
     loadingConnected ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
-  const disableGenerateReason = loadingConnected
+  const disableGenerateReason = lockReason
+    ? lockReason
+    : loadingConnected
     ? "Loading connected inputs…"
     : constraints.disableGenerate
     ? constraints.disableGenerateReason
@@ -1341,14 +1403,18 @@ export function VideoGenFocusView({
   const lockedDuration = constraints.lockedParams.duration;
 
   const spineModel = describeShotSpine({
-    imageInputs,
+    imageInputs: cappedImageInputs,
     hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
     hasEndFrame: Object.values(effectiveImageRoles).includes("end_frame"),
     referenceCount: Object.values(effectiveImageRoles).filter((r) => r === "reference").length,
-    durationLabel: describeDurationLabel(durationSpec, lockedDuration),
+    durationLabel: describeDurationLabel(durationSpec, lockedDuration ?? ladderDuration),
     framesRefsExclusive: areFramesAndRefsExclusive(currentModel?.rules),
     durationLockReason:
-      lockedDuration !== undefined ? constraints.lockedParamReasons.duration : undefined,
+      lockedDuration !== undefined
+        ? constraints.lockedParamReasons.duration
+        : ladderDuration !== undefined
+          ? ladderDurationNote
+          : undefined,
   });
 
   // A voice change keeps showing the video it is re-voicing, veiled (like Image Gen's edit);
@@ -1364,6 +1430,12 @@ export function VideoGenFocusView({
   const activeVersion = versions.find((v) => v.id === activeVersionId);
   const activeVoice = readVoiceMeta(activeVersion?.paramsUsed?.voice);
   const labelById = versionLabelsById(versions);
+  // D433 — an older take is on screen only while History (where it was picked) or Sent to model
+  // (what it sent) is open; any other pane acts on the active take, so it shows that one.
+  // Adjust-during-render, guarded: it settles in one pass.
+  if (viewing.isViewingOther && selected !== "history" && selected !== "request") {
+    viewing.backToActive();
+  }
   const viewed = viewing.viewed;
   const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
   const activeLabel = activeVersionId ? labelById.get(activeVersionId) ?? null : null;
@@ -1373,6 +1445,13 @@ export function VideoGenFocusView({
     parseAspectRatio(viewed?.paramsUsed?.aspect_ratio) ??
     parseAspectRatio(params.aspect_ratio) ??
     9 / 16;
+  // D432 — the take on screen fades in over the generating placeholder once its first frame can
+  // be drawn, instead of a black box while it downloads.
+  const { ready: playerReady, onReady: onPlayerReady, measure: measurePlayerFrame } = useMediaReady(shownVideoUrl);
+  const playerFade = cn("h-full max-w-full rounded-xl border border-border bg-muted/20", MEDIA_FADE_CLASS, !playerReady && "opacity-0");
+  const playerLoading = !playerReady && (
+    <div aria-hidden className="absolute inset-0 animate-pulse rounded-xl bg-muted-foreground/15" />
+  );
   const measurePlayer = (e: SyntheticEvent<HTMLVideoElement>) => {
     const { videoWidth, videoHeight } = e.currentTarget;
     if (videoWidth > 0 && videoHeight > 0 && shownVideoUrl) setPlayerShape({ url: shownVideoUrl, ratio: videoWidth / videoHeight });
@@ -1509,7 +1588,8 @@ export function VideoGenFocusView({
         {/* Body: rail + detail pane (nav | options | output) — mirrors image-gen-focus-view */}
         <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-hidden">
           {/* Rail */}
-          <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4">
+          {/* D433 — narrower below xl, so a laptop's two working columns get the room. */}
+          <nav className="flex w-44 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-3 py-4 xl:w-56">
             <RailItem
               icon={<Clapperboard className="size-4 text-primary" />}
               label="Video"
@@ -1622,7 +1702,7 @@ export function VideoGenFocusView({
             {/* min-w-0: without it this flex item's automatic minimum size is its content's
                 min-content width, so one long unbreakable string inside any pane silently
                 overrides w-[54%] and squeezes the video column beside it. */}
-            <div className="min-h-0 w-[54%] min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised">
+            <div className="min-h-0 w-1/2 min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised xl:w-[54%]">
               {/* D284 — Edit voice takes over this column, as Image Gen's Edit does. */}
               {selected === "video" && changeVoiceOpen && (
                 <div className="px-6 py-5">
@@ -1632,6 +1712,7 @@ export function VideoGenFocusView({
                     // The take = the version the output column is showing, like Image Gen's Edit.
                     sourceId={activeVersion?.output && !activeVersion.error ? activeVersion.id : null}
                     running={isGenerating}
+                    locked={lockReason}
                     changing={isChangingVoice}
                     value={voiceChangeProp}
                     defaultVoiceId={presenterVoiceId}
@@ -1650,7 +1731,7 @@ export function VideoGenFocusView({
 
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
               {selected === "video" && !changeVoiceOpen && (
-                <div className="flex flex-col gap-10 px-6 py-5">
+                <div className="flex min-h-full flex-col gap-10 px-6 py-5">
                   {/* Model first: it decides which roles exist, which params show, and which
                       combinations are legal, so every choice below it is downstream of this one. */}
                   {/* Output settings share the model's card: resolution and duration are
@@ -1659,7 +1740,9 @@ export function VideoGenFocusView({
                   <VideoGenModelPicker
                     modelId={modelId}
                     onModelChange={handleModelChange}
-                    loading={loadingConnected}
+                    // D430 — the multishot lock is known from the store, so only the single-shot
+                    // lane with nothing cached waits (its presenter rules come from the fetch).
+                    loading={loadingConnected && !upstreamQuery.data && !isMultishotPromptConnected}
                     unavailable={presenterUnavailable}
                     lockedToModelId={multishotTargetModel}
                     restrictionReason={
@@ -1674,6 +1757,19 @@ export function VideoGenFocusView({
                       onParamChange={handleParamChange}
                       lockedParams={constraints.lockedParams}
                       lockedParamReasons={constraints.lockedParamReasons}
+                      fixedParams={
+                        ladderDuration !== undefined
+                          ? {
+                              duration: {
+                                value: `${ladderDuration}s`,
+                                note: multishotNodeId
+                                  ? `${ladderDurationNote} Click to open it and change shot lengths.`
+                                  : ladderDurationNote,
+                                onOpen: multishotNodeId ? openMultishotNode : undefined,
+                              },
+                            }
+                          : undefined
+                      }
                       group="primary"
                     />
                     {/* D216 — duration defaulted to the upstream shot's own total rather than the
@@ -1743,7 +1839,7 @@ export function VideoGenFocusView({
                               promptNode={null}
                               images={upstreamImages}
                               imageRoles={effectiveImageRoles}
-                              imageInputs={imageInputs}
+                              imageInputs={cappedImageInputs}
                               onRoleChange={handleRoleChange}
                               onOpenDetail={(id) => setSelected(id)}
                               leftOut={leftOutReason}
@@ -1759,39 +1855,19 @@ export function VideoGenFocusView({
 
                   {/* Generate closes the column, after every setting it depends on —
                       it used to sit in the page header, far from the controls that
-                      decide what it will cost and whether it is even legal to run. */}
-                  <div className="border-t border-border pt-4">
-                    {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
-                    <Tooltip>
-                      <TooltipTrigger render={<span className="block w-full" />}>
-                        <Button
-                          size="lg"
-                          className="w-full"
-                          onClick={handleGenerate}
-                          disabled={
-                            isGenerating || disableGenerate || !editable || viewing.isViewingOther
-                          }
-                        >
-                          <Sparkles className="size-4" strokeWidth={1.5} />
-                          {isChangingVoice
-                            ? "Changing voice…"
-                            : isGenerating
-                            ? "Generating…"
-                            : videoUrl
-                              ? "Re-generate"
-                              : "Generate"}
-                          {!isGenerating && estimatedCredits !== null && (
-                            <EstimatedCreditsLabel credits={estimatedCredits} />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      {disableGenerate && disableGenerateReason ? (
-                        <TooltipContent side="bottom">
-                          {disableGenerateReason}
-                        </TooltipContent>
-                      ) : null}
-                    </Tooltip>
-                  </div>
+                      decide what it will cost and whether it is even legal to run.
+                      D435 — the same pinned GenerateFooter every node has. */}
+                  <GenerateFooter
+                    className="-mx-6 -mb-5"
+                    label={videoUrl ? "Re-generate" : "Generate video"}
+                    busy={isGenerating}
+                    busyLabel={isChangingVoice ? "Changing voice…" : "Generating…"}
+                    onClick={handleGenerate}
+                    disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
+                    disabledReason={disableGenerate ? disableGenerateReason : null}
+                    credits={estimatedCredits}
+                    notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
+                  />
                 </div>
               )}
 
@@ -1803,7 +1879,7 @@ export function VideoGenFocusView({
                     promptNode={promptNode}
                     images={upstreamImages}
                     imageRoles={effectiveImageRoles}
-                    imageInputs={imageInputs}
+                    imageInputs={cappedImageInputs}
                     onRoleChange={handleRoleChange}
                     onBack={() => setSelected("video")}
                   />
@@ -1831,12 +1907,26 @@ export function VideoGenFocusView({
                       </div>
                     </div>
                   ) : versions.length > 0 ? (
+                    <div className="flex flex-col gap-3">
+                    {/* D433 — Restore lives beside the list the take was chosen from. */}
+                    {viewing.isViewingOther && viewed && (
+                      <VersionViewingBar
+                        viewedLabel={viewedLabel}
+                        viewedCreatedAt={viewed.createdAt}
+                        activeLabel={activeLabel}
+                        canRestore={editable && !viewed.error && Boolean(viewed.output)}
+                        restoring={restoring}
+                        onBack={viewing.backToActive}
+                        onRestore={() => void handleRestoreVersion(viewed.id)}
+                      />
+                    )}
                     <VideoGenVersionHistory
                       versions={versions}
                       activeVersionId={activeVersionId}
                       viewedVersionId={viewed?.id ?? null}
                       onView={viewing.view}
                     />
+                    </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       No generations yet — every attempt will show up here.
@@ -1977,20 +2067,24 @@ export function VideoGenFocusView({
             {/* Right column — the video, always visible. Faintly sunk so the
                 settings column reads as raised against it. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-1.5">
+              {/* D433 — a fixed one-line header that never changes height, so the player below never
+                  moves. Versions are picked in History (the rail), not stepped here; while an
+                  older take plays, a quiet tag names it in place of the Edit voice switch (which
+                  acts on the active take only). */}
+              <div className="flex h-8 min-w-0 shrink-0 items-center gap-3">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                   <span className="text-eyebrow">Video</span>
                 </div>
-                {/* D284 — beside the heading, like Image Gen's Edit switch: the mode acts on the
-                    video shown directly below, which stays the output. */}
-                {!loadingVersions && versions.some((v) => v.output && !v.error) && (
+                {viewing.isViewingOther && viewed ? (
+                  <ViewingTag label={viewedLabel} />
+                ) : !loadingVersions && versions.some((v) => v.output && !v.error) && (
                   <VideoGenChangeVoiceToggle
                     id={`video-edit-voice-${nodeId}`}
                     checked={changeVoiceOpen}
                     // Free during a voice change — that's the mode it runs in — but not while a
                     // new video is generating.
-                    disabled={!editable || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
+                    disabled={!editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
                     onCheckedChange={(next) => {
                       setChangeVoiceOpen(next);
                       if (next) {
@@ -2003,37 +2097,29 @@ export function VideoGenFocusView({
                     }}
                   />
                 )}
-                {!loadingVersions && (
-                  <div className="ml-auto">
-                    <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
-                  </div>
-                )}
               </div>
-              {viewing.isViewingOther && viewed && (
-                <VersionViewingBar
-                  viewedLabel={viewedLabel}
-                  viewedCreatedAt={viewed.createdAt}
-                  activeLabel={activeLabel}
-                  canRestore={editable && !viewed.error && Boolean(viewed.output)}
-                  restoring={restoring}
-                  onBack={viewing.backToActive}
-                  onRestore={() => void handleRestoreVersion(viewed.id)}
-                />
-              )}
               <div className="min-h-0 flex-1">
                 {viewing.isViewingOther && viewed ? (
                   viewed.output ? (
                     // Plain playback of the viewed take: annotations, markers and the voice
                     // workspace belong to the active version only.
-                    <video
-                      key={viewed.id}
-                      src={viewed.output}
-                      controls
-                      playsInline
-                      onLoadedMetadata={measurePlayer}
-                      className="h-full max-w-full rounded-xl border border-border bg-muted/20"
-                      style={{ aspectRatio: playerRatio }}
-                    />
+                    // D433 — framed exactly as the active take (below), so stepping versions
+                    // never changes the box.
+                    <div className="relative h-full min-h-0 w-fit max-w-full">
+                      {playerLoading}
+                      <video
+                        key={viewed.output}
+                        ref={measurePlayerFrame}
+                        src={viewed.output}
+                        controls
+                        playsInline
+                        onLoadedMetadata={measurePlayer}
+                        onLoadedData={onPlayerReady}
+                        onError={onPlayerReady}
+                        className={playerFade}
+                        style={{ aspectRatio: playerRatio }}
+                      />
+                    </div>
                   ) : (
                     <VersionOutputEmpty noun="video" />
                   )
@@ -2165,6 +2251,7 @@ export function VideoGenFocusView({
                       </div>
                     )}
                     <div className="relative min-h-0 w-fit max-w-full flex-1">
+                      {playerLoading}
                       <video
                         // While annotating, the frame has to be readable back out of a
                         // canvas — and GCS public objects send no CORS headers (see
@@ -2172,8 +2259,11 @@ export function VideoGenFocusView({
                         // outright. Same-origin proxy ONLY in that mode: normal playback
                         // keeps the direct URL and is untouched by this feature. The key
                         // forces the remount that a crossOrigin change requires.
-                        key={reviewAnnotating ? "annotate" : "play"}
-                        ref={videoRef}
+                        key={`${reviewAnnotating ? "annotate" : "play"}:${videoUrl}`}
+                        ref={(el) => {
+                          videoRef.current = el;
+                          measurePlayerFrame(el);
+                        }}
                         src={
                           reviewAnnotating
                             ? `/api/image-proxy?url=${encodeURIComponent(videoUrl)}`
@@ -2195,7 +2285,9 @@ export function VideoGenFocusView({
                           );
                           measurePlayer(e);
                         }}
-                        className="h-full max-w-full rounded-xl border border-border bg-muted/20"
+                        onLoadedData={onPlayerReady}
+                        onError={onPlayerReady}
+                        className={playerFade}
                         style={{ aspectRatio: playerRatio }}
                       />
 

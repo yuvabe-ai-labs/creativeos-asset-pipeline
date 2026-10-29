@@ -113,6 +113,26 @@ export function useNodeVersionsLiveSync(canvas: {
   }, [orgId, queryClient]);
 }
 
+/** YUV-390 — a hand edit saved onto the ACTIVE version, in place (savePromptOutputAction), written
+ *  into this node's cached versions too. Nothing else announces an in-place edit, so every reader of
+ *  the cache (Image Gen showing its Prompt, the History list) kept the old text until a re-read. */
+export function useSetActiveVersionOutput(nodeId: string) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (output: unknown) => {
+      queryClient.setQueryData<NodeVersionsResponse<{ id: string; output?: unknown }>>(
+        nodeVersionKeys.list(nodeId),
+        (prev: NodeVersionsResponse<{ id: string; output?: unknown }> | undefined) =>
+          prev && {
+            ...prev,
+            versions: prev.versions.map((v) => (v.id === prev.activeVersionId ? { ...v, output } : v)),
+          },
+      );
+    },
+    [queryClient, nodeId],
+  );
+}
+
 /** Start loading a node's versions ahead of its focus view opening (a node card's hover). A
  *  no-op while a fresh copy is already cached. */
 export function usePrefetchNodeVersions() {

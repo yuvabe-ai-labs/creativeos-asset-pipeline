@@ -1,19 +1,9 @@
 "use client";
 
-import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
 import type { ClientModelSpec } from "@/lib/image-gen/client-models";
-import type { ValidationResult } from "@/lib/image-gen/validate";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
 
 type ParamFormValues = Record<string, unknown>;
 
@@ -25,36 +15,19 @@ type Props = {
   onModelChange: (id: string) => void;
   /** How many reference images are connected — drives the over-limit warning. */
   referenceCount: number;
-  refValidation: ValidationResult;
-  /** The Edit tab has its own action button, so it hides this one. */
-  showGenerate: boolean;
-  onGenerate: () => void;
-  generating: boolean;
-  editing: boolean;
-  /** A prompt node must be connected before generation is possible. */
-  hasPrompt: boolean;
-  /** An existing attempt turns "Generate" into "Re-generate". */
-  hasImage: boolean;
-  /** Pre-generation credit estimate — null while unavailable/still computing. */
-  estimatedCredits: number | null;
-  estimating: boolean;
   /** D312 — a line under the model picker (the composite says where its face can go). */
   modelNote?: string;
   /** D312 — the composite's model-chip hints and narrowed param options. */
   modelHints?: Readonly<Record<string, string>>;
   optionFilter?: Record<string, readonly string[]>;
-  /** D312 — the button's own words (the Composite's Edit runs from here). Absent = Generate. */
-  actionLabel?: { idle: string; busy: string };
   /** D312 — aspect ratio and resolution side by side. */
   inlineParams?: boolean;
-  /** Why Generate is unavailable when `hasPrompt` is false. Image Gen's default is unchanged. */
-  missingInputReason?: string;
 };
 
 /**
- * The Output-settings body — the model/param chips, the reference-limit warning,
- * and (Generate tab only) the Generate button. Shared between the plain section
- * on the Generate tab and the collapsible accordion on the Edit tab.
+ * The Output-settings body — the model/param chips and the reference-limit warning. Shared
+ * between the plain section on the Generate tab and the collapsible accordion on the Edit tab.
+ * Generate is the column's pinned GenerateFooter (D435), not part of this section.
  */
 export function ImageGenOutputSettingsBody({
   model,
@@ -63,46 +36,12 @@ export function ImageGenOutputSettingsBody({
   onCommit,
   onModelChange,
   referenceCount,
-  refValidation,
-  showGenerate,
-  onGenerate,
-  generating,
-  editing,
-  hasPrompt,
-  hasImage,
-  estimatedCredits,
-  estimating,
   modelNote,
   modelHints,
   optionFilter,
-  actionLabel,
   inlineParams,
-  missingInputReason = "Connect a Prompt node to generate.",
 }: Props) {
-  const editable = useCanvasEditable(); // D33: false when this session is read-only
   const refOverLimit = referenceCount > model.maxReferenceImages;
-
-  // Why the Generate button is disabled, when that needs SAYING. States the button already
-  // narrates itself get no entry here: `generating` has its own "Generating…" label and
-  // `estimating` its spinning Loader2 — a tooltip repeating them is noise.
-  const generateDisabledReason: string | null = editing
-      ? "An edit is already running."
-      : !editable
-        ? "Another session is editing — this canvas is read-only."
-        : !hasPrompt
-          ? missingInputReason
-          : !refValidation.ok
-            ? refValidation.violations.length === 1
-              ? "A reference image doesn't meet this model's requirements. Try resizing it or switching to a different model."
-              : `${refValidation.violations.length} reference images don't meet this model's requirements. Try resizing them or switching to a different model.`
-            : null;
-
-  // Whether it's disabled is a SEPARATE question from whether there's a tooltip for it.
-  // Deriving one from the other is what broke this: dropping the in-progress tooltip message
-  // silently dropped the in-progress guard with it, leaving "Generating…" fully clickable —
-  // every extra click fired another request, and charged for another image.
-  const generateDisabled =
-    Boolean(generateDisabledReason) || generating || estimating;
 
   return (
     <>
@@ -124,49 +63,6 @@ export function ImageGenOutputSettingsBody({
             {referenceCount} reference images connected — only the first{" "}
             {model.maxReferenceImages} will be used by {model.label}.
           </span>
-        </div>
-      )}
-      {showGenerate && (
-        <div className="mt-4 border-t border-border pt-4">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger
-              render={<span className="inline-flex w-fit" />}
-            >
-              <Button
-                className="px-14 py-4 text-sm"
-                size="default"
-                onClick={onGenerate}
-                disabled={generateDisabled}
-              >
-                {estimating ? (
-                  <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
-                ) : (
-                  <Sparkles className="size-4" strokeWidth={1.5} />
-                )}
-                {actionLabel
-                  ? generating
-                    ? actionLabel.busy
-                    : actionLabel.idle
-                  : generating
-                  ? "Generating…"
-                  : editing
-                  ? "Editing…"
-                  : hasImage
-                  ? "Re-generate"
-                  : "Generate"}
-                {!generateDisabledReason && !estimating && estimatedCredits !== null && (
-                  <EstimatedCreditsLabel credits={estimatedCredits} />
-                )}
-              </Button>
-            </TooltipTrigger>
-            {generateDisabledReason && (
-              <TooltipContent side="top" className="max-w-56 text-center">
-                {generateDisabledReason}
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
         </div>
       )}
     </>

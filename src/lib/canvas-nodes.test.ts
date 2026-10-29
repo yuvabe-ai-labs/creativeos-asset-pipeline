@@ -142,12 +142,24 @@ describe("flowToPersisted (image-gen edit fields)", () => {
 });
 
 describe("canConnect", () => {
-  it("D298/D312 — an avatar connects to a script and a composite, and nothing else", () => {
-    expect(canConnect("avatar", "script")).toBe(true);
-    expect(canConnect("avatar", "composite")).toBe(true);
-    expect(canConnect("avatar", "video-gen")).toBe(false);
-    expect(canConnect("avatar", "prompt")).toBe(false);
-    expect(canConnect("avatar", "image-gen")).toBe(false);
+  // D388 — the Editor takes Video Gen and Dubbing, and connects onward to nothing.
+  it("lets Video Gen and Dubbing feed the Editor, and nothing leave it", () => {
+    expect(canConnect("video-gen", "editor")).toBe(true);
+    expect(canConnect("dubbing", "editor")).toBe(true);
+    expect(canConnect("prompt", "editor")).toBe(false);
+    expect(canConnect("image-gen", "editor")).toBe(false);
+    for (const target of Object.keys(VALID_CONNECTIONS)) expect(canConnect("editor", target)).toBe(false);
+  });
+
+  // D436 — beyond presenting a script (D298) and sitting in a composite (D312), an avatar is a set of
+  // images: it goes wherever a picture goes into a generation, and nowhere that only displays one.
+  it("D436 — an avatar connects like an image to every prompt and gen node", () => {
+    for (const target of ["script", "composite", "prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen"]) {
+      expect(canConnect("avatar", target)).toBe(true);
+    }
+    for (const target of ["shot", "multishot", "post", "dubbing", "editor", "text"]) {
+      expect(canConnect("avatar", target)).toBe(false);
+    }
     expect(canConnect("script", "avatar")).toBe(false);
   });
 

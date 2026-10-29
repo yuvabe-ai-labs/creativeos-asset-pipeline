@@ -158,4 +158,18 @@ describe("compileVideoPrompt — Omni reference naming", () => {
     expect(user).toMatch(/never the bare token on its own/i);
     expect(user).toMatch(/wrong identification/i);
   });
+
+  // Brand-neutral spec §3.3: the example is a made-up product, never a client's.
+  it("names a made-up product in its example, for Omni and Seedance alike", () => {
+    for (const targetProvider of ["gemini-omni", "seedance"] as const) {
+      const { user } = compileVideoPrompt({
+        clientContext: "",
+        upstream: [{ nodeId: "a", label: "mug shot", type: "file", text: "", fileUrl: "u1", fileKind: "image" }],
+        instruction: "make it move",
+        targetProvider,
+      });
+      expect(user).toContain("the green ceramic mug");
+      expect(user).not.toMatch(/CHUPPS/i);
+    }
+  });
 });

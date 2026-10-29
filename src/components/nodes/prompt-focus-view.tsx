@@ -39,7 +39,7 @@ import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { isVisionAttachment } from "@/lib/nodes/compose-message";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
+import { GenerateFooter } from "./generate-footer";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ShotControlsRow } from "./shot-controls-row";
 import {
@@ -67,6 +67,7 @@ import {
   useNodeVersions,
   useRefreshNodeVersions,
   useSetActiveNodeVersion,
+  useSetActiveVersionOutput,
 } from "@/hooks/queries/node-versions";
 import type { NodeVersionsResponse } from "@/services/node-versions.service";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -75,8 +76,6 @@ import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ApprovalStatus } from "@/lib/approval";
 import { PromptHistoryPane } from "./prompt-history-pane";
-import { VersionStepper } from "./version-stepper";
-import { VersionViewingBar } from "./version-viewing-bar";
 import { VersionOutputEmpty } from "./version-output-empty";
 import { ActiveOnlyNotice } from "./active-only-notice";
 import { RESERVED_RAIL_KEYS } from "./prompt-focus-shell";
@@ -154,6 +153,7 @@ export function PromptFocusView({
   // below they never wait for the autosave flush.
   const versionsQuery = useNodeVersions<VersionSummary>(nodeId, open);
   const refreshVersions = useRefreshNodeVersions<VersionSummary>(nodeId);
+  const setActiveVersionOutput = useSetActiveVersionOutput(nodeId);
   const setActiveVersionId = useSetActiveNodeVersion(nodeId);
   const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
   const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
@@ -178,6 +178,9 @@ export function PromptFocusView({
   // The selected rail item: "prompt" (the compose editor), "kb", "review", or a
   // connected node's id (right pane shows that node's read-only detail).
   const [selected, setSelected] = useState<string>("prompt");
+  // D433 — an older version is picked in History and stays on screen there and in Sent to model
+  // (what it sent), as in the other prompt views; every other tab shows the active version.
+  if (viewing.isViewingOther && selected !== "history" && selected !== "request") viewing.backToActive();
   const [evalDecision, setEvalDecision] = useState<"pass" | "fail" | null>(null);
   const [evalNote, setEvalNote] = useState("");
   // D29 approval flag — sibling of the eval signal, distinct field.
@@ -503,6 +506,7 @@ export function PromptFocusView({
     try {
       await onSaveOutput(draft);
       onPatch({ parsed: draft });
+      setActiveVersionOutput(draft); // YUV-390 — Image Gen shows this prompt from the cache
       toast.success("Saved");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
@@ -556,19 +560,6 @@ export function PromptFocusView({
   const renderVersionOutput = (v: { output: string | null }) => (
     <div className="max-w-[65ch] rounded-xl p-4 text-base leading-7">{renderBeats(v.output ?? "")}</div>
   );
-  const viewingBar =
-    viewing.isViewingOther && viewed ? (
-      <VersionViewingBar
-        viewedLabel={viewedLabel}
-        viewedCreatedAt={viewed.createdAt}
-        activeLabel={activeVersionId ? labelById.get(activeVersionId) ?? null : null}
-        canRestore={editable && !viewed.error && Boolean(viewed.output)}
-        restoring={restoring}
-        onBack={viewing.backToActive}
-        onRestore={() => void handleRestoreVersion(viewed.id)}
-      />
-    ) : null;
-
   return (
     <Sheet
       open={open}
@@ -689,9 +680,10 @@ export function PromptFocusView({
           </nav>
 
           {/* Detail pane */}
-          {/* No overflow-hidden: it would crop the raised column's left shadow.
+          {/* A flex COLUMN, as in prompt-focus-shell.tsx, so panes inside size with flex-1 (YUV-146).
+              No overflow-hidden: it would crop the raised column's left shadow.
               The columns inside own their scrolling. */}
-          <div className="min-h-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* Prompt — two-column compose: the instruction + controls sit in the center
                 column (which swaps to a selected connected input's read-only detail), and
                 the generated prompt owns the right column. */}
@@ -723,10 +715,9 @@ export function PromptFocusView({
                     )
                   ) : (
                     <>
-                  {/* Whole column scrolls — instruction + controls + the Generate button all
-                      flow together; when content extends you reach the button via the
-                      scrollbar rather than pinning it to the bottom. The connected Shot is
-                      not repeated here — it's readable via its rail item on the left. */}
+                  {/* Instruction + controls scroll; Generate sits under them at the column's
+                      foot (D435). The connected Shot is not repeated here — it's readable via
+                      its rail item on the left. */}
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                     {/* Instruction + controls */}
                     <div className="flex flex-col gap-3 px-6 py-5">
@@ -747,22 +738,20 @@ export function PromptFocusView({
                         onChange={(next) => onPatch({ controls: next })}
                       />
                     </div>
-
-                    {/* Generate — flows after the controls, reached via the scrollbar */}
-                    <div className="border-t border-border px-6 py-4">
-                      {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
-                      <Button
-                        className="w-full"
-                        size="default"
-                        onClick={runGenerate}
-                        disabled={generating || !editable || viewing.isViewingOther}
-                      >
-                        <Sparkles className="size-4" />
-                        {generating ? "Generating…" : output ? "Re-generate" : "Generate prompt"}
-                        {!generating && <EstimatedCreditsLabel credits={estimatedCredits} />}
-                      </Button>
-                    </div>
                   </div>
+
+                  {/* D435 — the same Generate every node has, at the column's foot under the
+                      scrolling settings, so it never needs scrolling to reach. */}
+                  <GenerateFooter
+                    className="shrink-0"
+                    label={output ? "Re-generate" : "Generate prompt"}
+                    busy={generating}
+                    onClick={runGenerate}
+                    disabled={generating || !editable || viewing.isViewingOther}
+                    disabledReason={!editable ? "This canvas is read-only." : null}
+                    credits={estimatedCredits}
+                    notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
+                  />
                     </>
                   )}
                 </div>
@@ -778,9 +767,7 @@ export function PromptFocusView({
                           <Sparkles className="size-3.5 text-primary" />
                           <span className="text-eyebrow">Generated prompt</span>
                         </div>
-                        <VersionStepper index={viewing.index} total={viewing.total} onStep={viewing.step} />
                       </div>
-                      {viewingBar}
 
                       {viewing.isViewingOther && viewed ? (
                         viewed.output ? renderVersionOutput(viewed) : <VersionOutputEmpty noun="prompt" />
@@ -920,8 +907,11 @@ export function PromptFocusView({
             )}
 
             {/* Sent to model — the exact request the active version sent (standalone) */}
+            {/* YUV-146 — sized with flex-1 in the pane's flex column, as the shell's panes are
+                (prompt-focus-shell.tsx): an h-full chain broke as soon as it nested one level
+                deeper, and the request was cut off instead of scrolling. */}
             {selected === "request" && (
-              <div className="flex h-full w-full max-w-3xl min-h-0 flex-col overflow-y-auto px-6 py-6">
+              <div className="flex w-full max-w-3xl min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
                 {shownRequest ? (
                   <ModelRequestPanel request={shownRequest} />
                 ) : (

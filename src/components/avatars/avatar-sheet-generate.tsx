@@ -8,7 +8,7 @@ import { AvatarAdvancedSettings } from "./avatar-advanced-settings";
 import { AvatarModelSelect } from "./avatar-model-select";
 
 // D395 — makes the turnaround sheet from the front image, and the four views cut from it. The
-// model defaults to Nano Banana 2 and sits under Advanced; the choice lives in useAvatarGeneration
+// model defaults to Nano Banana 2.1 (D425) and sits under Advanced; the choice lives in useAvatarGeneration
 // so it survives leaving the step.
 export function AvatarSheetGenerate({
   label, generating, disabled, modelId, onModelChange, onGenerate,

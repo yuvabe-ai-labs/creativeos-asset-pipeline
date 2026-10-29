@@ -124,8 +124,8 @@ export const SEEDANCE_FACE_MODEL_ID = "seedream:seedream-5-0-lite";
 
 // A generated avatar runs on Seedance, so the default is the model Seedance will take.
 export const AVATAR_DEFAULT_FRONT_MODEL_ID = SEEDANCE_FACE_MODEL_ID;
-// The profile sheet defaults to Nano Banana 2, whichever face it starts with.
-export const AVATAR_DEFAULT_SHEET_MODEL_ID = "gemini:gemini-3.1-flash-image";
+// The profile sheet defaults to Nano Banana 2.1 (D425), whichever face it starts with.
+export const AVATAR_DEFAULT_SHEET_MODEL_ID = "gemini:gemini-nano-banana-2.1";
 
 // A stored upload name as buildStoredName produces it: slug, "__", timestamp, extension. Used as
 // an allow-list by the upload finalize route, so a crafted name ("..", a backslash, "%2e") can
@@ -150,3 +150,8 @@ export const AVATAR_VOICE_PREVIEW_TIMEOUT_MS = 15 * 60 * 1000;
 // resolution improves, and the picture only has to be good enough to judge the pairing.
 export const AVATAR_VOICE_SAMPLE_SECONDS = 5;
 export const AVATAR_VOICE_SAMPLE_RESOLUTION = "480p";
+
+// reference_audio limits (Seedance 2.5): wav/mp3, each clip 2–30s. Moved here when the UGC bench,
+// which first used them, was removed (brand-neutral spec §3.7).
+export const VOICE_MIN_SECONDS = 2;
+export const VOICE_MAX_SECONDS = 30;

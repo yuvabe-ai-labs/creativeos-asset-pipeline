@@ -2,9 +2,12 @@
 
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import type { PanelInputs } from "@/lib/scripts/visualise/panel-inputs";
 import type { DrawBody } from "@/lib/scripts/visualise/schema";
 import { promptBoxStart, type PanelView } from "@/lib/scripts/visualise/state";
+import { PanelImage } from "./panel-image";
 import { PanelPromptBox } from "./panel-prompt-box";
 import { PanelTakes } from "./panel-takes";
 
@@ -45,12 +48,26 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
           </DialogDescription>
         </DialogHeader>
         <div className="grid items-start gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
-          {view.pick?.url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={view.pick.url} alt={`${label} panel`} className="w-full rounded-lg border border-border object-cover" style={{ aspectRatio: aspect.replace(":", " / ") }} />
-          ) : (
-            <div className="w-full rounded-lg border border-dashed border-border" style={{ aspectRatio: aspect.replace(":", " / ") }} />
-          )}
+          <div
+            className={cn(
+              "relative w-full overflow-hidden rounded-lg border border-border",
+              !view.pick?.url && !busy && "border-dashed",
+            )}
+            style={{ aspectRatio: aspect.replace(":", " / ") }}
+          >
+            {view.pick?.url ? (
+              <PanelImage src={view.pick.url} alt={`${label} panel`} />
+            ) : (
+              busy && <Skeleton className="absolute inset-0 rounded-none" />
+            )}
+            {/* YUV-422 — a redraw keeps the current take in view, veiled, until the new one fades in. */}
+            {busy && (
+              <div role="status" className="absolute inset-0 flex items-center justify-center gap-1.5 bg-background/60 text-xs font-medium text-foreground backdrop-blur-sm">
+                <Loader2 className="size-3.5 animate-spin text-primary" strokeWidth={1.5} />
+                {view.pick ? "Drawing a new take…" : "Drawing…"}
+              </div>
+            )}
+          </div>
           <div className="flex min-w-0 flex-col gap-4">
             <PanelTakes takes={view.takes} pickId={view.pick?.id ?? null} disabled={picking || busy} onPick={onPick} />
             <PanelPromptBox

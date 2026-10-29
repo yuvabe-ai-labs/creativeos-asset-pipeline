@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { editorLockResponse } from "@/lib/editor/lock-guard";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers";
 import { getVersionById } from "@/lib/db/versions";
@@ -11,7 +12,8 @@ import { LIP_SYNC_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
 import { readDubbingOutput, type LipSyncRecord } from "@/lib/dubbing/types";
 
-const BodySchema = z.object({ versionId: z.string().min(1) });
+// editorSessionId: the open editor starting it (D408).
+const BodySchema = z.object({ versionId: z.string().min(1), editorSessionId: z.string().min(1).optional() });
 
 // D375 — lip-sync the active dub. Its result overrides that version's lipSynced stage.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,11 +22,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (node.type !== "dubbing") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Pick a dub to lip-sync.", 400);
-      const { versionId } = parsed.data;
+      const { versionId, editorSessionId } = parsed.data;
       if (!process.env.FAL_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
       if (node.active_version_id !== versionId) return apiError("Lip sync runs on the dub you're viewing. Reopen the node and try again.", 400);
 
-      const [version, running] = await Promise.all([getVersionById(versionId), hasRunningGeneration(nodeId)]);
+      const [version, running, locked] = await Promise.all([getVersionById(versionId), hasRunningGeneration(nodeId), editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: editorSessionId })]);
+      if (locked) return locked; // D390
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       const output = version && version.node_id === nodeId ? readDubbingOutput(version.output) : null;
       const durationSeconds = version ? durationOfParams(version.params_used ?? {}) : 0;

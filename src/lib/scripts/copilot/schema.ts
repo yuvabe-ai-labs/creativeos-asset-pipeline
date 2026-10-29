@@ -17,10 +17,26 @@ export const pieceSchema = z.object({
 });
 export type Piece = z.infer<typeof pieceSchema>;
 
-export const angleSchema = angleOutputSchema;
+/** An angle saved before the copilot went brand-neutral had `mealMoment` and `proofEmphasis`; it is
+ *  read as `productMoment` and `proof`, so a brief in progress is not reset (a brief that fails
+ *  validation reads as empty, rows.ts). */
+export function upgradeAngle(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const a = raw as Record<string, unknown>;
+  return {
+    ...a,
+    productMoment: a.productMoment ?? a.mealMoment,
+    proof: a.proof ?? a.proofEmphasis,
+  };
+}
+
+// Stored shapes: the model-facing schemas stay strict (OpenAI strict output allows no defaults or
+// preprocessing); what is read back upgrades older shapes.
+export const angleSchema = z.preprocess(upgradeAngle, angleOutputSchema);
 export type Angle = z.infer<typeof angleSchema>;
 
-export const confirmationCardSchema = cardOutputSchema;
+// The card call's suggestions belong to its message, not to the card.
+export const confirmationCardSchema = cardOutputSchema.omit({ suggestions: true }).extend({ beats: z.array(z.string()).default([]) });
 export type ConfirmationCard = z.infer<typeof confirmationCardSchema>;
 
 export const briefSchema = z.object({
@@ -105,6 +121,9 @@ export type ScriptMessage = {
   role: "user" | "assistant";
   content: string;
   card: MessageCard | null;
+  /** The copilot's brand-aware chips for what the person might send next (brand-neutral spec §3.1);
+   *  [] on the person's messages and on replies written before chips were saved. */
+  suggestions: string[];
   createdAt: string;
 };
 

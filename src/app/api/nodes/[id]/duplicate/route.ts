@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk, withTryCatch, withNode } from "@/lib/api/route-helpers";
+import { EDITOR_DUPLICATE_REFUSED } from "@/lib/editor/rules";
 
 export async function POST(
   req: Request,
@@ -8,6 +9,11 @@ export async function POST(
   return withNode(req, params, async (sourceNodeId, sourceNode, caller) => {
     return withTryCatch("Duplicate node failed", async () => {
       const supabase = createServerSupabase();
+
+      // D388 — one Editor per canvas.
+      if (sourceNode.type === "editor") {
+        return apiError(EDITOR_DUPLICATE_REFUSED, 409);
+      }
 
       // KB nodes cannot be duplicated
       if (sourceNode.type === "kb") {

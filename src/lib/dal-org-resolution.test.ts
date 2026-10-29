@@ -76,7 +76,8 @@ describe("every org-scoped page resolves its org via resolveOrgId(), not caller.
     "src/app/(home)/page.tsx",
     "src/app/clients/[id]/(canvases)/page.tsx",
     "src/app/clients/[id]/kb/page.tsx",
-    "src/app/clients/[id]/canvases/[cid]/page.tsx",
+    "src/app/clients/[id]/canvases/[cid]/(canvas)/page.tsx",
+    "src/app/clients/[id]/canvases/[cid]/edit/page.tsx",
     "src/app/eval/[canvasId]/page.tsx",
   ];
 

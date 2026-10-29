@@ -1,4 +1,4 @@
-import type { TraceableBrandKB, KBField } from "./schema";
+import { emptyKBField, type TraceableBrandKB, type KBField } from "./schema";
 import type { ModuleKey, FieldPath, StagedChanges } from "./types";
 import { MODULES, MODULE_LEADING_FIELDS } from "./constants";
 
@@ -48,7 +48,26 @@ export function getModuleFields(
   kb: TraceableBrandKB,
   module: ModuleKey,
 ): Record<string, KBField<unknown>> {
-  return withLeadingFields(moduleFieldsAsStored(kb, module), MODULE_LEADING_FIELDS[module]);
+  return withLeadingFields(withAddedFields(moduleFieldsAsStored(kb, module), module), MODULE_LEADING_FIELDS[module]);
+}
+
+/** Fields that are always prose, so an empty one is still edited as text, not as a comma-split list. */
+const TEXT_FIELD_KEYS: ReadonlySet<string> = new Set(["content_rules"]);
+
+/** Whether a field is edited as a comma-separated list: a list value, or an empty value of any
+ *  field that is not always prose. */
+export function isListField(fieldKey: string, value: unknown): boolean {
+  return Array.isArray(value) || (value === null && !TEXT_FIELD_KEYS.has(fieldKey));
+}
+
+/** Fields added to the schema after many KBs were saved: shown empty so they can be filled, without
+ *  writing anything to the stored KB (readiness is computed from what is stored, fill-rate.ts). */
+const ADDED_FIELDS: Partial<Record<ModuleKey, readonly string[]>> = { compliance: ["content_rules"] };
+
+function withAddedFields(fields: Record<string, KBField<unknown>>, module: ModuleKey): Record<string, KBField<unknown>> {
+  const added = ADDED_FIELDS[module]?.filter((key) => !(key in (fields ?? {})));
+  if (!added?.length) return fields;
+  return { ...fields, ...Object.fromEntries(added.map((key) => [key, emptyKBField<unknown>(null)])) };
 }
 
 /** The module's fields with `leading` first (in that order), the rest as they were. A stored KB

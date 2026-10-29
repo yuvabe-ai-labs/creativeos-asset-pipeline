@@ -75,6 +75,17 @@ export type ConnectionPath =
  * wins when both hold; otherwise the node named is the one adjacent to `target`, since that is
  * where the operator would go to unwire it.
  */
+/** YUV-294 — the node `source`'s own wire leads into on its way to `target`: the edge to cut so it
+ *  no longer reaches `target` at all (directly, or through Motion Prompt and the like). Null when it
+ *  does not reach `target`. */
+export function entryTargetFor(edges: Edge[], source: string, target: string): string | null {
+  for (const e of edges) {
+    if (e.source !== source) continue;
+    if (e.target === target || connectionPath(edges, e.target, target).kind !== "none") return e.target;
+  }
+  return null;
+}
+
 export function connectionPath(edges: Edge[], source: string, target: string): ConnectionPath {
   if (edges.some((e) => e.source === source && e.target === target)) return { kind: "direct" };
 

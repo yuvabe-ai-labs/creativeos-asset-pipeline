@@ -2,7 +2,7 @@ import type { ImageRole } from "./assign-image-roles";
 
 // D308 — which images a video request sends as references, decided once and shared: the Video Gen
 // focus view shows the result and the video-generate route sends it. A model takes a fixed number
-// of references (Omni 6, Kling 5, Veo 3); this used to be a silent `splice` that kept the first N,
+// of references (Omni 12, fewer with frames; Kling 5, Veo 3); this used to be a silent `splice` that kept the first N,
 // which dropped the avatar (added last) and left prompt citations pointing at images never sent.
 //
 // Pure: no I/O. Frames are not references and pass through untouched.
@@ -37,8 +37,29 @@ export type SelectedReferences = {
   overCap: number;
 };
 
+/**
+ * D428 — how many references this request may send, given its frames. The model's
+ * maxReferenceImages unless it declares maxImagesWithFrames, in which case each frame set takes
+ * one of those slots (Omni: 12 references alone, 6 with a start frame, 5 with both).
+ */
+export function referenceCapFor(
+  inputs: { maxReferenceImages: number; maxImagesWithFrames?: number },
+  frames: { hasStartFrame: boolean; hasEndFrame: boolean },
+): number {
+  const frameCount = Number(frames.hasStartFrame) + Number(frames.hasEndFrame);
+  if (inputs.maxImagesWithFrames === undefined || frameCount === 0) return inputs.maxReferenceImages;
+  return Math.max(0, Math.min(inputs.maxReferenceImages, inputs.maxImagesWithFrames - frameCount));
+}
+
 /** The virtual id of an avatar's profile sheet, next to its front (the Avatar node's own id). */
 export const avatarSheetId = (avatarNodeId: string): string => `${avatarNodeId}:sheet`;
+
+/** D436 — every avatar sheet among these images, each refused with the reason (Seedance takes no
+ *  profile sheets). By id, so a second wired avatar's sheet is caught as well as the presenter's. */
+export function sheetsUnusable(imageIds: readonly string[], reason: string): Map<string, string> | undefined {
+  const sheets = imageIds.filter((id) => id.endsWith(":sheet"));
+  return sheets.length > 0 ? new Map(sheets.map((id) => [id, reason])) : undefined;
+}
 
 export function selectReferences(input: SelectReferencesInput): SelectedReferences {
   const { images, roles, cap, modelLabel } = input;

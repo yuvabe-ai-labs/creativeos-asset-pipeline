@@ -212,7 +212,7 @@ export function KBOnboardingReviewStep({
         ? {
             label: "Mark KB Ready",
             disabled: true,
-            tooltip: "Approve or reject every field first",
+            tooltip: "Approve or reject every field first. Image Analysis can wait.",
           }
         : {
             label: markingReady ? "Saving…" : "Mark KB Ready",

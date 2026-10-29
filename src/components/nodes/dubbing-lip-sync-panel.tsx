@@ -16,12 +16,13 @@ type Props = {
   activeDubSeconds: number;
   running: "dub" | "lipsync" | null;
   editable: boolean;
+  locked?: string | null;
   onLipSync: () => void;
 };
 
 // D378 — the Lip sync tab: runs on the dub being viewed. A disabled button says why on hover.
-export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, editable, onLipSync }: Props) {
-  const blocked = lipSyncBlockedReason({ editable, running, hasDub: true, dubSeconds: activeDubSeconds });
+export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, editable, locked = null, onLipSync }: Props) {
+  const blocked = lipSyncBlockedReason({ editable, running, hasDub: true, dubSeconds: activeDubSeconds, locked });
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">

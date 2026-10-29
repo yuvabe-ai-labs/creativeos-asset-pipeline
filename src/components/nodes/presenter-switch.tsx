@@ -7,8 +7,7 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useShotPresenter } from "@/hooks/use-shot-presenter";
 
 // D299 — the presenter in a prompt node's rail: the script's avatar, and whether it is in this
-// shot. On by default when the shot has an on-camera line; the operator's choice is stored and
-// wins. In the shot, the face goes in as an input — and on Seedance, the voice too.
+// shot. On by default (D438); the operator's choice is stored and wins. In the shot, the face goes in as an input — and on Seedance, the voice too.
 export function PresenterSwitch({ promptNodeId }: { promptNodeId: string }) {
   const presenter = useShotPresenter(promptNodeId);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);

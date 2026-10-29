@@ -40,7 +40,7 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
       if (previous) {
         queryClient.setQueryData<GenerateState>(key, {
           ...previous,
-          messages: [...previous.messages, { id: `pending-${Date.now()}`, role: "user", content: text, card: null, createdAt: new Date().toISOString() }],
+          messages: [...previous.messages, { id: `pending-${Date.now()}`, role: "user", content: text, card: null, suggestions: [], createdAt: new Date().toISOString() }],
         });
       }
       return { previous };

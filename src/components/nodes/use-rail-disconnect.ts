@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
-import { connectionPath } from "@/lib/canvas/graph";
+import { connectionPath, entryTargetFor } from "@/lib/canvas/graph";
 import { nodeLabel } from "@/lib/nodes/describe-node";
 
 export type RailRemove = {
@@ -19,9 +19,9 @@ export type RailRemove = {
  *
  * A rail can list inputs that reach the node THROUGH another node — a Video Gen shows the images
  * wired into its prompt node. Those have no edge into this node, so the old ✕ called
- * `disconnectNodes` on a pair that was never wired: a silent no-op that read as broken. Now each
- * row's control says what it is: a ✕ removes a direct edge; a link icon marks an inherited input
- * and, clicked, names the node it comes from — which is where to unwire it.
+ * `disconnectNodes` on a pair that was never wired: a silent no-op that read as broken. YUV-294 —
+ * the ✕ now removes the wire that actually brings it here: the direct edge, or the edge into the
+ * node it comes through (the only way it reaches this one), and says which it was.
  *
  * `removeFor` is what a view renders per row; `disconnect` is the click. Edges are read live so
  * the icons follow the canvas, and `onDisconnected` fires only after a REAL disconnect.
@@ -51,11 +51,17 @@ export function useRailDisconnect(nodeId: string, onDisconnected?: (sourceId: st
         return;
       }
       if (path.kind === "via") {
-        const viaName = viaNameOf(path.viaId);
-        toast.info(`${sourceLabel} is connected through ${viaName}`, {
-          description: `Open ${viaName} to disconnect it there.`,
-        });
-        return;
+        // The edge from the source into the next node on its way here. Several hops (an image →
+        // Motion Prompt → Video Gen is one) all end at the wire leaving the source itself.
+        const into = entryTargetFor(state.edges, sourceId, nodeId);
+        if (into) {
+          state.disconnectNodes(sourceId, into);
+          onDisconnected?.(sourceId);
+          toast.success(`Disconnected ${sourceLabel}`, {
+            description: `It came through ${viaNameOf(path.viaId)}, so it is unwired there too.`,
+          });
+          return;
+        }
       }
       // Listed but no longer wired anywhere upstream — the list is stale, not the graph.
       toast.info(`${sourceLabel} is no longer connected`, {
@@ -71,8 +77,8 @@ export function useRailDisconnect(nodeId: string, onDisconnected?: (sourceId: st
         const path = connectionPath(edges, sourceId, nodeId);
         if (path.kind === "via") {
           return {
-            kind: "via",
-            label: `Connected through ${viaNameOf(path.viaId)}`,
+            kind: "disconnect",
+            label: `Disconnect ${sourceLabel} (it comes through ${viaNameOf(path.viaId)})`,
             onClick: () => disconnect(sourceId, sourceLabel),
           };
         }

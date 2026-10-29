@@ -2,7 +2,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { VersionViewingBar } from "../version-viewing-bar";
-import { VersionStepper } from "../version-stepper";
 import { VersionOutputEmpty } from "../version-output-empty";
 import { ActiveOnlyNotice } from "../active-only-notice";
 import { VersionList, arrowKeyTarget } from "../version-list";
@@ -29,22 +28,6 @@ describe("VersionViewingBar", () => {
     const t = text(renderToStaticMarkup(<VersionViewingBar {...base} activeLabel={null} />));
     expect(t).not.toContain("still uses");
     expect(t).toContain("Back");
-  });
-});
-
-describe("VersionStepper", () => {
-  it("labels the position and disables the ends", () => {
-    const html = renderToStaticMarkup(<VersionStepper index={0} total={3} onStep={vi.fn()} />);
-    expect(text(html)).toContain("v3 of 3");
-    expect(html).toMatch(/aria-label="Newer version"[^>]*disabled=""|disabled=""[^>]*aria-label="Newer version"/);
-  });
-  it("disables Older at the oldest version", () => {
-    const html = renderToStaticMarkup(<VersionStepper index={2} total={3} onStep={vi.fn()} />);
-    expect(html).toMatch(/aria-label="Older version"[^>]*disabled=""|disabled=""[^>]*aria-label="Older version"/);
-    expect(html).not.toMatch(/aria-label="Newer version"[^>]*disabled=""|disabled=""[^>]*aria-label="Newer version"/);
-  });
-  it("renders nothing with no versions", () => {
-    expect(renderToStaticMarkup(<VersionStepper index={-1} total={0} onStep={vi.fn()} />)).toBe("");
   });
 });
 
@@ -156,7 +139,7 @@ describe("PromptHistoryPane", () => {
     { id: "b", output: "Push in on Riya.", error: null, paramsUsed: {}, createdAt: now, decision: null, note: null, modelUsed: "Gemini" },
     { id: "a", output: "Riya opens a box.", error: null, paramsUsed: {}, createdAt: now, decision: null, note: null, modelUsed: "Gemini" },
   ];
-  const viewing = { viewed: versions[1], index: 1, total: 2, isViewingOther: true, view: vi.fn(), step: vi.fn(), backToActive: vi.fn() };
+  const viewing = { viewed: versions[1], isViewingOther: true, view: vi.fn(), backToActive: vi.fn() };
   it("puts the list beside the viewed version's read-only output, with the bar", () => {
     const html = renderToStaticMarkup(
       <PromptHistoryPane
@@ -176,6 +159,9 @@ describe("PromptHistoryPane", () => {
     expect(t).toContain("The node still uses v2.");
     expect(t).toContain("Restore v1");
     expect(html).toContain('role="listbox"');
+    // D433 — the output beside the list only names the version on screen; no stepper.
+    expect(t).toContain("Showing v1");
+    expect(html).not.toContain('aria-label="Older version"');
   });
 
   it("names the empty noun when the viewed version has no output", () => {

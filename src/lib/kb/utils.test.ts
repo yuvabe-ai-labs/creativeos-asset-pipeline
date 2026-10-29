@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { findNextModuleNeedingReview, getModuleFields, parseColour } from "./utils";
+import { findNextModuleNeedingReview, getModuleFields, isListField, parseColour } from "./utils";
+
+// Final review, Important 4: an empty field was edited as a comma-split list, which turned typed
+// Content Rules prose into a list and broke "10,000" into "10, 000".
+describe("isListField", () => {
+  it("edits Content Rules as prose even while it is empty", () => {
+    expect(isListField("content_rules", null)).toBe(false);
+    expect(isListField("content_rules", "Sells flats.")).toBe(false);
+  });
+
+  it("keeps list fields lists, empty or not", () => {
+    expect(isListField("never_use_words", null)).toBe(true);
+    expect(isListField("never_use_words", ["cure"])).toBe(true);
+    expect(isListField("tagline", "Home, at last")).toBe(false);
+  });
+});
 import type { TraceableBrandKB } from "./schema";
 import type { ModuleKey } from "./types";
 
@@ -51,6 +66,16 @@ describe("getModuleFields", () => {
       "photography_style",
       "lighting",
     ]);
+  });
+
+  it("shows Content Rules first in Compliance, even on an old KB that has none", () => {
+    const field = { value: ["heal"], confidence: "high", evidence_type: "explicit", status: "approved" };
+    const kb = { compliance: { never_use_words: field } } as unknown as TraceableBrandKB;
+    const fields = getModuleFields(kb, "compliance");
+    expect(Object.keys(fields)).toEqual(["content_rules", "never_use_words"]);
+    expect(fields.content_rules.value).toBeNull();
+    // Display only: the stored KB is not changed.
+    expect("content_rules" in kb.compliance).toBe(false);
   });
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Combine, FileText, ImageIcon, ListVideo, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, ArrowLeft, UserRound, Video } from "lucide-react";
+import { Combine, FileText, ImageIcon, ListVideo, Paperclip, Pencil, Sparkles, ChevronRight, Clapperboard, Maximize2, Scissors, ArrowLeft, UserRound, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getShotRole } from "@/lib/nodes/shot-roles";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ export type UpstreamNode = {
   fileKind?: string;
   useLlm?: boolean;
   role?: string;
+  /** D436 — an Avatar node wired straight in: which avatar, so its pictures can be shown. */
+  avatarId?: string;
 };
 
 export type ConnectedPreview = {
@@ -257,6 +259,7 @@ export function NodeIcon({ type }: { type: string }) {
   if (type === "image-gen") return <ImageIcon className="size-3 shrink-0 text-primary" />;
   if (type === "multishot") return <ListVideo className="size-3 shrink-0 text-primary" strokeWidth={1.5} />;
   if (type === "avatar") return <UserRound className="size-3 shrink-0 text-primary" strokeWidth={1.5} />;
+  if (type === "editor") return <Scissors className="size-3 shrink-0 text-primary" strokeWidth={1.5} />;
   return <FileText className="size-3 shrink-0 text-muted-foreground" />;
 }
 

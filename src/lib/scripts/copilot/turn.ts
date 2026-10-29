@@ -14,8 +14,11 @@ import type { StreamingCall, StructuredCall } from "./model";
 import type { PartialDraft } from "./partial-draft";
 import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
 import { anglesOutputSchema, cardOutputSchema, detectOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
-import { libraryFormats, nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
-import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptNotes } from "./schema";
+import { nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
+import { renderFormatMenu, SCRIPT_FORMATS } from "./formats";
+import { cleanSuggestions } from "./suggestions";
+import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptMessage, ScriptNotes } from "./schema";
+import { renderConversation } from "./conversation";
 import {
   angleText, applyAngle, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
   openItemsLine, questionFor, type Step,
@@ -24,7 +27,8 @@ import {
 // Spec 2 §5–§9 — one copilot turn. Model calls first (async), then a pure change that
 // changeGenerateScript runs against the script as it is now and compare-and-sets (D332, D337).
 
-export type Reply = { content: string; card: MessageCard | null };
+/** `suggestions`: the brand-aware chips the model wrote with this reply (brand-neutral spec §3.1). */
+export type Reply = { content: string; card: MessageCard | null; suggestions?: string[] };
 export type TurnDeps = {
   /** The writing model (SCRIPT_WRITER_MODEL): the draft and chat edits. */
   call: StructuredCall;
@@ -34,15 +38,18 @@ export type TurnDeps = {
   /** Streams the first draft (D337, refined); with it, `onDraft` sees each new part as it arrives. */
   stream?: StreamingCall;
   onDraft?: (draft: PartialDraft) => void;
-  loadSignals: () => Promise<{ brief: string; signals: { id: string; name: string }[] }>;
   newShotId?: (taken: Set<string>) => string;
 };
-/** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362). */
-export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; lastAssistant: string; leadAvatarId?: string | null };
+/** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362).
+ *  `history`: the messages before this one; the copilot reads the last 10 of them (conversation.ts). */
+export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; history: ScriptMessage[]; leadAvatarId?: string | null };
 export type Apply = (current: GenerateScript) => Change<Reply[]>;
 
 function baseFor(ctx: CopilotContext, format: string): CopilotBase {
-  return { clientName: ctx.clientName, kbText: ctx.kbText, library: renderLibrary(ctx.library, format), avatars: renderAvatars(ctx.avatars) };
+  return {
+    clientName: ctx.clientName, kbText: ctx.kbText, library: renderLibrary(ctx.library, format), avatars: renderAvatars(ctx.avatars),
+    today: ctx.today, signalDigest: ctx.signals.digest, formatMenu: renderFormatMenu(format),
+  };
 }
 
 export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<Apply> {
@@ -63,13 +70,14 @@ export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<App
 const TOO_LONG = `That's longer than a chat message can be (${MAX_MESSAGE_CHARS.toLocaleString("en")} characters), and it doesn't read as a whole script. If it is one, paste the whole script, shot table included.`;
 
 async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase): Promise<Apply> {
-  const { script, ctx, text, lastAssistant } = input;
+  const { script, ctx, text } = input;
+  const conversation = renderConversation(input.history);
   const avatarIds = new Set(ctx.avatars.map((a) => a.id));
-  const formats = libraryFormats(ctx.library).map((f) => f.format);
+  const formats = SCRIPT_FORMATS.map((f) => f.name);
   const nextReel = nextReelNumber(ctx.library);
   const quick = deps.quick ?? deps.call;
 
-  const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, lastAssistant, text }), schema: extractionSchema });
+  const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, conversation, text }), schema: extractionSchema });
   const merged = mergeExtraction(script.brief, ex, avatarIds);
   let brief: Brief = merged.brief;
   let changed = merged.changed;
@@ -92,23 +100,29 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     return out;
   };
 
+  // The chips of the model call that wrote the turn's last reply; format and lead are asked with
+  // code chips (the format menu, the client's avatars), so only the occasion takes the reader's.
+  let chips: readonly unknown[] = [];
+
   // A card that is showing is rebuilt when the person changed a piece or a line of it.
   let step: Step = brief.card && (changed || merged.cardChange) ? { kind: "card" } : nextStep(brief, false);
   for (let guard = 0; guard < 3; guard++) {
     if (step.kind === "ask") {
       say(withAck(questionFor(step.piece, { formats, avatars: ctx.avatars })));
+      chips = step.piece === "occasion" ? ex.suggestions ?? [] : [];
       break;
     }
     if (step.kind === "angles") {
-      const research = await deps.loadSignals();
-      const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, text }), schema: anglesOutputSchema });
-      const angles = normalizeAngles(out.angles, research.signals, avatarIds);
+      const research = ctx.signals;
+      const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, conversation, text }), schema: anglesOutputSchema });
+      chips = out.suggestions ?? [];
+      const angles = normalizeAngles(out.angles, research.list, avatarIds);
       if (angles.length === 0) throw new Error("The copilot proposed no angles.");
       brief = { ...brief, angles };
       // The card is the message: which signals each angle used, nothing explaining it.
       say(withAck(""), {
         kind: "research",
-        signals: research.signals,
+        signals: research.list,
         perAngle: angles.map((a) => ({ angleId: a.id, signalIds: a.signalIds })),
       });
       say("Here are three angles. Pick one, blend two, or write your own.", { kind: "angles", angles });
@@ -120,8 +134,9 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     }
     if (step.kind === "card") {
       const angle = brief.angles.find((a) => angleText(a) === brief.narrative.value) ?? null;
-      const out = await quick({ name: "script_card", ...cardPrompt(base, { brief, angle, cardChange: merged.cardChange, nextReel }), schema: cardOutputSchema });
+      const out = await quick({ name: "script_card", ...cardPrompt(base, { brief, angle, cardChange: merged.cardChange, nextReel, conversation }), schema: cardOutputSchema });
       const card = normalizeCard(out, { reelNumber: brief.reelNumber ?? nextReel, avatarIds, lead });
+      chips = out.suggestions ?? [];
       brief = { ...brief, card, phase: "confirm" };
       say(withAck(`Here's the brief I'll write from. Say "write it", or tell me which line to change.`), { kind: "confirmation", card });
       break;
@@ -129,19 +144,24 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
     if (step.kind === "confirm") {
       if (!ex.confirm || !brief.card) {
         say(withAck(`Say "write it" when the brief looks right, or tell me which line to change.`));
+        chips = [];
         break;
       }
       const card = brief.card;
-      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card }), schema: draftOutputSchema };
+      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card, conversation }), schema: draftOutputSchema };
       const out = await streamDraftCall(deps, draftArgs);
       doc = toScriptDoc(out, { reelNumber: card.reelNumber, avatarIds, leadAvatarId: lead?.avatarId ?? null });
       notes = cardToNotes(card);
       brief = { ...brief, phase: "written" };
       say(`The first draft is in: ${shotSummary(doc)}. ${out.summary.trim()}\n\n${openItemsLine(fillToFinal(doc, notes))}`);
+      chips = out.suggestions ?? [];
       break;
     }
     break;
   }
+  const last = replies.at(-1);
+  const cleaned = cleanSuggestions(chips);
+  if (last && cleaned.length) last.suggestions = cleaned;
 
   const finalBrief = brief;
   const finalDoc = doc;
@@ -155,29 +175,32 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
 }
 
 async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, doc: ScriptDoc): Promise<Apply> {
-  const { script, ctx, text, lastAssistant } = input;
+  const { script, ctx, text } = input;
+  const conversation = renderConversation(input.history);
   const out = await deps.call({
     name: "script_edit",
-    ...editPrompt(base, { doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), lastAssistant, text }),
+    ...editPrompt(base, { doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation, text }),
     schema: editTurnSchema,
   });
   const gen: OpsGen = { newShotId: deps.newShotId ?? randomShotId, avatarIds: new Set(ctx.avatars.map((a) => a.id)) };
   const reply = out.reply.trim() || "Done.";
+  const suggestions = cleanSuggestions(out.suggestions ?? []);
+  const answer = (content: string, card: MessageCard | null = null): Reply[] => [{ content, card, suggestions }];
   return (current) => {
-    if (out.ops.length === 0) return { patch: null, result: [{ content: reply, card: null }] };
+    if (out.ops.length === 0) return { patch: null, result: answer(reply) };
     if (!current.doc) return { error: "There's no draft to change.", status: 409 };
     // A shot the person typed into while the model worked is not overwritten (spec 2 §9).
     const stale = staleTargets(out.ops, doc.shots, current.doc);
     if (stale.length > 0) {
-      return { patch: null, result: [{ content: `You changed ${stale.join(", ")} while I was working, so I left it as you wrote it. Ask me again if you still want the change.`, card: null }] };
+      return { patch: null, result: answer(`You changed ${stale.join(", ")} while I was working, so I left it as you wrote it. Ask me again if you still want the change.`) };
     }
     const r = applyOps(current.doc, current.notes, out.ops, gen);
-    if (!r.ok) return { patch: null, result: [{ content: `I couldn't make that change: ${r.error} Nothing was changed.`, card: null }] };
+    if (!r.ok) return { patch: null, result: answer(`I couldn't make that change: ${r.error} Nothing was changed.`) };
     if (r.touchedShotIds.length > 1) {
       const card: ProposalCard = { kind: "proposal", status: "pending", summary: reply, ops: out.ops, ...beforeAfter(current.doc, r.doc, r.touchedShotIds) };
-      return { patch: null, result: [{ content: `${reply} It touches ${r.touchedShotIds.length} shots, so here it is before and after.`, card }] };
+      return { patch: null, result: answer(`${reply} It touches ${r.touchedShotIds.length} shots, so here it is before and after.`, card) };
     }
-    return { patch: { doc: r.doc, notes: r.notes }, result: [{ content: `${reply}\n\n${openItemsLine(fillToFinal(r.doc, r.notes))}`, card: null }] };
+    return { patch: { doc: r.doc, notes: r.notes }, result: answer(`${reply}\n\n${openItemsLine(fillToFinal(r.doc, r.notes))}`) };
   };
 }
 
