@@ -152,9 +152,20 @@ import { readVoiceMeta } from "@/lib/voice-change/meta";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
-import { selectReferences } from "@/lib/video-gen/select-references";
+import { referenceCapFor, selectReferences } from "@/lib/video-gen/select-references";
 
-type ImageInputs = { startFrame: boolean; endFrame: boolean; maxReferenceImages: number };
+type ImageInputs = {
+  startFrame: boolean;
+  endFrame: boolean;
+  maxReferenceImages: number;
+  maxImagesWithFrames?: number;
+};
+
+/** Whether a role map holds each frame, for referenceCapFor. */
+function framesIn(roles: Record<string, ImageRole>) {
+  const values = Object.values(roles);
+  return { hasStartFrame: values.includes("start_frame"), hasEndFrame: values.includes("end_frame") };
+}
 
 // Only the generate-time "no roles assigned" confirm remains. Role assignment itself never opens
 // a dialog: every such change is one click to make and one click to undo, and stacking a modal on
@@ -179,7 +190,7 @@ function applyDefaultImageRoles(
 
   if (inputs.maxReferenceImages > 0) {
     const usedRefs = Object.values(roles).filter((r) => r === "reference").length;
-    const slots = inputs.maxReferenceImages - usedRefs;
+    const slots = referenceCapFor(inputs, framesIn(roles)) - usedRefs;
     unassigned.slice(0, slots).forEach((img) => { roles[img.id] = "reference"; });
   } else {
     let i = 0;
@@ -1227,6 +1238,11 @@ export function VideoGenFocusView({
 
   const currentModel = videoGenClientModelMap[modelId];
 
+  // D428 — the reference cap for the frames actually set (Omni: fewer references with frames).
+  // Everything that shows or enforces the cap reads this, the same number the route uses.
+  const referenceCap = referenceCapFor(imageInputs, framesIn(supportedImageRoles));
+  const cappedImageInputs = { ...imageInputs, maxReferenceImages: referenceCap };
+
   // Capability is not the same as legality: a model can accept frames AND references and still
   // have a rule forbidding them together. Reconciling here (rather than only on model change)
   // also heals nodes already persisted in the contradictory state, which would otherwise stay
@@ -1236,7 +1252,7 @@ export function VideoGenFocusView({
   const referenceSelection = selectReferences({
     images: upstreamImages.map((img) => ({ id: img.id })),
     roles: supportedImageRoles,
-    cap: imageInputs.maxReferenceImages,
+    cap: referenceCap,
     modelLabel: currentModel?.label ?? modelId,
     citedIds: new Set(promptNode?.citedIds ?? []),
     avatarFrontId: promptNode?.avatarFrontId ?? null,
@@ -1320,7 +1336,7 @@ export function VideoGenFocusView({
   // D308 — references saved beyond the cap (a node from before, or a model switch): the server
   // refuses them rather than cutting, so Generate says so first, in the same words.
   const overCapReason = referenceSelection.overCap > 0
-    ? `${currentModel?.label ?? modelId} takes ${imageInputs.maxReferenceImages} references; ${imageInputs.maxReferenceImages + referenceSelection.overCap} are selected. Turn some off.`
+    ? `${currentModel?.label ?? modelId} takes ${referenceCap} references; ${referenceCap + referenceSelection.overCap} are selected. Turn some off.`
     : null;
   // `loadingConnected`: the inputs on screen may be the cached copy, not yet confirmed by this
   // open's re-read — never generate (and post roles) from those.
@@ -1349,7 +1365,7 @@ export function VideoGenFocusView({
   const lockedDuration = constraints.lockedParams.duration;
 
   const spineModel = describeShotSpine({
-    imageInputs,
+    imageInputs: cappedImageInputs,
     hasStartFrame: Object.values(effectiveImageRoles).includes("start_frame"),
     hasEndFrame: Object.values(effectiveImageRoles).includes("end_frame"),
     referenceCount: Object.values(effectiveImageRoles).filter((r) => r === "reference").length,
@@ -1752,7 +1768,7 @@ export function VideoGenFocusView({
                               promptNode={null}
                               images={upstreamImages}
                               imageRoles={effectiveImageRoles}
-                              imageInputs={imageInputs}
+                              imageInputs={cappedImageInputs}
                               onRoleChange={handleRoleChange}
                               onOpenDetail={(id) => setSelected(id)}
                               leftOut={leftOutReason}
@@ -1812,7 +1828,7 @@ export function VideoGenFocusView({
                     promptNode={promptNode}
                     images={upstreamImages}
                     imageRoles={effectiveImageRoles}
-                    imageInputs={imageInputs}
+                    imageInputs={cappedImageInputs}
                     onRoleChange={handleRoleChange}
                     onBack={() => setSelected("video")}
                   />

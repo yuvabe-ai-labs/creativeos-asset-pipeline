@@ -74,7 +74,10 @@ export function planOmniInput(assigned: AssignedImageRoles): OmniInputPlan {
     uploads,
     header: segments.join(" "),
     guidance: guidance.join(" "),
-    // A first frame means the model animates THAT image; references only steer it.
-    task: assigned.startFrameUrl ? "image_to_video" : "reference_to_video",
+    // D428 — any reference makes it reference_to_video. The API refuses image_to_video with more
+    // than 2 images ("Image-to-video does not support more than 2 images"), and under
+    // reference_to_video the <FIRST_FRAME>/<LAST_FRAME> tags above still hold the frames
+    // (verified live). Frames alone stay image_to_video.
+    task: references.length > 0 ? "reference_to_video" : "image_to_video",
   };
 }

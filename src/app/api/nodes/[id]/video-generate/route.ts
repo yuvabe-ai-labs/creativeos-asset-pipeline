@@ -24,7 +24,7 @@ import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/m
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
 import { getPromptUpstream, presenterVoiceForSeedance } from "@/lib/avatars/presenter-server";
-import { selectReferences } from "@/lib/video-gen/select-references";
+import { referenceCapFor, selectReferences } from "@/lib/video-gen/select-references";
 import {
   missingRefsMessage,
   refEntriesOf,
@@ -249,10 +249,15 @@ export async function POST(
     const singleTake = singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider);
     const avatarFrontId = promptUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null;
     const avatarSheet = promptUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null;
+    // D428 — on Omni each frame takes one of the reference slots.
+    const refCap = referenceCapFor(config.imageInputs, {
+      hasStartFrame: Boolean(startFrameUrl),
+      hasEndFrame: Boolean(endFrameUrl),
+    });
     const selection = selectReferences({
       images: orderedImages.map((img) => ({ id: img.nodeId })),
       roles: effectiveRoles,
-      cap: maxRefs,
+      cap: refCap,
       modelLabel,
       citedIds: citedIdsOfResolved(resolved, singleTake),
       avatarFrontId,
@@ -264,7 +269,7 @@ export async function POST(
     });
     if (selection.overCap > 0) {
       return apiError(
-        `${modelLabel} takes ${maxRefs} references; ${maxRefs + selection.overCap} are selected. Turn some off in Video Gen.`,
+        `${modelLabel} takes ${refCap} references; ${refCap + selection.overCap} are selected. Turn some off in Video Gen.`,
         400,
       );
     }

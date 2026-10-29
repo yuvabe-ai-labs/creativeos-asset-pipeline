@@ -9,9 +9,15 @@
 import type { ConstraintRule } from "./types";
 
 /**
- * 6 is the highest reference count Google's own documented example demonstrates. It is NOT a
- * stated maximum — the docs cap video references at 3 but say nothing about image references.
- * Treat it as a conservative floor to revise upward with evidence, not as a published limit.
+ * D428 — measured against the live API on 2026-10-29, numbered cards checked frame by frame.
+ *
+ * References alone: the API accepted 32, but only up to 12 rendered every card correctly (16 had
+ * one wrong, 24 and 32 many). So 12.
+ *
+ * With frames, quality falls apart above 7 images in all: start + 6 refs and start + end + 4 refs
+ * kept their frames and every card; start + end + 6, start + 9 and start + end + 10 opened on the
+ * wrong frame and dropped cards. So 7 in all, and the reference cap shrinks by one per frame
+ * (referenceCapFor).
  *
  * Unlike Veo, frames and references are NOT mutually exclusive on Omni: no rule pins duration or
  * disables a slot when the other is in use.
@@ -19,7 +25,8 @@ import type { ConstraintRule } from "./types";
 export const GEMINI_OMNI_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
-  maxReferenceImages: 6,
+  maxReferenceImages: 12,
+  maxImagesWithFrames: 7,
 } as const;
 
 export const GEMINI_OMNI_RULES: ConstraintRule[] = [

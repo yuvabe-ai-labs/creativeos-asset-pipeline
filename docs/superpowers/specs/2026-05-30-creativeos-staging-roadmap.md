@@ -7966,3 +7966,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** The whole conversation on every call (grows without end; stale instructions). Cutting each message to a ceiling (user: send them whole "for now, the context window is big"; revisit with the speed work).
 
 **Originated →** conversation in this session; [2026-10-28-brand-neutral-system-design.md](2026-10-28-brand-neutral-system-design.md).
+
+### D428 — Omni sends `reference_to_video` whenever references go; 12 references alone, 7 images in all with frames *(recorded 2026-10-29; refines D207, D217; fixes YUV-381)*
+
+**Decision.** `planOmniInput` sets `task: "reference_to_video"` whenever any reference is sent, frames or not; `image_to_video` is only for frames alone. Omni takes up to **12** references with no frame, and up to **7 images in all** once a frame is set (start + 6 references, or start + end + 5). `ImageInputCapabilities` gains an optional `maxImagesWithFrames`, and `referenceCapFor` (select-references.ts) gives the cap for the frames actually set; the video-generate route, the Video Gen focus view and the default fill on a model switch all read it.
+
+**Why.** Probed live against `gemini-omni-1.1-flash` on 29 Oct 2026 with numbered, coloured reference cards and a product photo as the start frame, checking the rendered frames. With a start frame, the app's `image_to_video` was refused in about a second for every request over 2 images ("Image-to-video does not support more than 2 images"), so any shot with a start frame and two or more references failed. The same images under `reference_to_video` opened on the start frame and showed every card. References alone: the API accepted 32, but every card rendered correctly only up to 12 (16 had one wrong, 24 and 32 many). With frames: start + 6 and start + end + 4 were right; start + end + 6 (the old maximum), start + 9 and start + end + 10 opened on the wrong frame and dropped cards. One run per case, so the cutoffs are a guide.
+
+**Rejected.** Omitting `task` (accepted, but a reference leaked into the opening frame). Keeping 6 as the cap (too low alone, too high with both frames). A rule that refuses over-cap requests after the fact (the default fill would put the node over it; the cap should shrink where references are chosen).
+
+**Originated →** conversation in this session; probe script and frames kept outside the repo.

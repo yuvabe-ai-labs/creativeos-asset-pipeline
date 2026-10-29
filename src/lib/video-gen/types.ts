@@ -6,6 +6,9 @@ export type ImageInputCapabilities = {
   startFrame: boolean;
   endFrame: boolean;
   maxReferenceImages: number; // 0 = none supported
+  /** Total images (frames + references) the model renders faithfully once a frame is set; the
+   *  reference cap shrinks to fit. Unset = frames don't affect the reference cap (D428). */
+  maxImagesWithFrames?: number;
 };
 
 export type VideoGenInput = {
