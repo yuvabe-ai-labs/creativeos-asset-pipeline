@@ -331,7 +331,10 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   // D298 — an avatar presents a script, and nothing else. Its face and voice reach the shots
   // through that script (part 2, D299), not through edges of their own.
   // D312 — and is placed into a composite: the wire says "this picture contains this person".
-  avatar:             ["script", "composite"],
+  // D436 — otherwise an avatar is a set of images (its front, and its sheet when current), wired
+  // wherever a picture can go into a generation: a prompt node or a gen node directly. Every
+  // reader expands it to those images (withAvatarImages), exactly as the presenter's.
+  avatar:             ["script", "composite", "prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen"],
   // D320 — a script, shot or multishot also feeds a composite as CONTEXT: which moment of the
   // video the picture is a still for. It adds no image; the composite's prompt reads its shots.
   script:             ["prompt", "composite"],

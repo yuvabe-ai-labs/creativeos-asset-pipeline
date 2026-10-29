@@ -70,6 +70,7 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
         fileUrl,
         fileKind,
         useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
+        avatarId: n.type === "avatar" && typeof d.avatarId === "string" ? d.avatarId : undefined,
       };
     });
   }, [nodes, edges, id]);

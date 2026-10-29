@@ -54,6 +54,13 @@ export function referenceCapFor(
 /** The virtual id of an avatar's profile sheet, next to its front (the Avatar node's own id). */
 export const avatarSheetId = (avatarNodeId: string): string => `${avatarNodeId}:sheet`;
 
+/** D436 — every avatar sheet among these images, each refused with the reason (Seedance takes no
+ *  profile sheets). By id, so a second wired avatar's sheet is caught as well as the presenter's. */
+export function sheetsUnusable(imageIds: readonly string[], reason: string): Map<string, string> | undefined {
+  const sheets = imageIds.filter((id) => id.endsWith(":sheet"));
+  return sheets.length > 0 ? new Map(sheets.map((id) => [id, reason])) : undefined;
+}
+
 export function selectReferences(input: SelectReferencesInput): SelectedReferences {
   const { images, roles, cap, modelLabel } = input;
   const reasons = new Map<string, string>();

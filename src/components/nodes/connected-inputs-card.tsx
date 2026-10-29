@@ -15,6 +15,8 @@ export type UpstreamNode = {
   fileKind?: string;
   useLlm?: boolean;
   role?: string;
+  /** D436 — an Avatar node wired straight in: which avatar, so its pictures can be shown. */
+  avatarId?: string;
 };
 
 export type ConnectedPreview = {

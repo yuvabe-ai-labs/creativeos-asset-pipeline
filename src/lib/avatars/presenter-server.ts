@@ -49,11 +49,31 @@ export function withPresenterRow(
   return rows.length > 0 ? [...withAvatarAsSpeaker(ups, presenter.avatar.name), ...rows] : ups;
 }
 
-/** A prompt node's upstream as everything downstream should see it — with the presenter as a
- *  virtual File input when it is in the shot. Use this, not `getUpstreamOutputs`, wherever a
- *  Prompt, Motion Prompt or Multishot Prompt node's upstream is read. */
+/** D436 — an Avatar node wired straight into this node (a prompt node, or a gen node directly) is a
+ *  set of images: its front, then its sheet when current, as the same rows the presenter becomes,
+ *  in its place, so every reader of the upstream already handles them. One that no longer exists
+ *  or has no front yet drops out. Use on every gen-side read of a node's own upstream. */
+export async function withAvatarImages(nodeId: string, ups: UpstreamOutput[]): Promise<UpstreamOutput[]> {
+  if (!ups.some((u) => u.type === "avatar")) return ups;
+  const owner = await getNodeClientAndData(nodeId);
+  const avatars = await Promise.all(
+    ups.map((u) => {
+      const avatarId = u.data.avatarId;
+      return owner && u.type === "avatar" && typeof avatarId === "string" ? getAvatar(owner.clientId, avatarId) : null;
+    }),
+  );
+  return ups.flatMap((u, i) => {
+    if (u.type !== "avatar") return [u];
+    const avatar = avatars[i];
+    return avatar ? presenterUpstreamRows(u.nodeId, avatar, false) : [];
+  });
+}
+
+/** A prompt node's upstream as everything downstream should see it — wired avatars as images, and
+ *  the presenter as a virtual File input when it is in the shot. Use this, not
+ *  `getUpstreamOutputs`, wherever a Prompt, Motion Prompt or Multishot Prompt node's upstream is read. */
 export async function getPromptUpstream(nodeId: string): Promise<UpstreamOutput[]> {
-  const ups = await getUpstreamOutputs(nodeId);
+  const ups = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
   return withPresenterRow(ups, await loadPresenterForPromptNode(nodeId, ups));
 }
 

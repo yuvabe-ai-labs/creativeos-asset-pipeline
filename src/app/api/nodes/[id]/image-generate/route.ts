@@ -1,5 +1,5 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
-import { withStillPresenter } from "@/lib/avatars/presenter-server";
+import { withAvatarImages, withStillPresenter } from "@/lib/avatars/presenter-server";
 import { getVersionById } from "@/lib/db/versions";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
 import {
@@ -58,7 +58,8 @@ export async function POST(
     // Resolve upstream nodes
     // D299 — when the Prompt feeding this still has the presenter in the shot, the face joins
     // the connected images.
-    const upstream = await withStillPresenter(await getUpstreamOutputs(nodeId));
+    // D436 — an Avatar wired straight in is its images.
+    const upstream = await withStillPresenter(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)));
 
     // All connected image URLs (File images, Draw sketches, other Image Gen outputs).
     const connectedImageUrls = upstream

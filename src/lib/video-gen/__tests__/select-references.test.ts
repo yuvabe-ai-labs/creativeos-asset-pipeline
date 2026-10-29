@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { avatarSheetId, referenceCapFor, selectReferences, type SelectReferencesInput } from "../select-references";
+import { avatarSheetId, referenceCapFor, selectReferences, sheetsUnusable, type SelectReferencesInput } from "../select-references";
 import { GEMINI_OMNI_IMAGE_INPUTS } from "../gemini-omni-shape";
 
 describe("referenceCapFor (D428)", () => {
@@ -94,5 +94,14 @@ describe("selectReferences — frames that exclude references (D308)", () => {
   });
   it("fills references as usual on that model when no frame is set", () => {
     expect(selectReferences(base({ framesExcludeReferences: true })).sent).toHaveLength(5);
+  });
+});
+
+// D436 — with two avatars wired in, Seedance must refuse both sheets, not only the presenter's.
+describe("sheetsUnusable", () => {
+  it("refuses every avatar sheet among the images, and nothing else", () => {
+    const m = sheetsUnusable(["pack", avatarSheetId("a1"), "a2", avatarSheetId("a2")], "no sheets");
+    expect([...(m?.keys() ?? [])]).toEqual(["a1:sheet", "a2:sheet"]);
+    expect(sheetsUnusable(["pack", "a1"], "no sheets")).toBeUndefined();
   });
 });

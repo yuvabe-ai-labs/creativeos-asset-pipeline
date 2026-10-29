@@ -11,7 +11,7 @@ import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getNodeClientAndData, getScriptPresenterSource } from "@/lib/db/presenter";
 import { getAvatar } from "@/lib/db/avatars";
 import { prepareNamedVoiceReference } from "../voice-reference";
-import { getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withStillPresenter } from "../presenter-server";
+import { getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withAvatarImages, withStillPresenter } from "../presenter-server";
 import { GENERATED, makeImage } from "./fixtures";
 
 const riyaLine = { text: "Hi", speaker: "Riya", delivery: "", language: "en" };
@@ -133,5 +133,37 @@ describe("presenterVoiceForSeedance", () => {
 
   it("is nothing when the presenter is not in the shot", async () => {
     expect(await presenterVoiceForSeedance("prompt-1", [shotRow([narratorLine])] as never)).toBeNull();
+  });
+});
+
+// D436 — an avatar wired straight in is its images: front, then sheet, in its place.
+describe("withAvatarImages", () => {
+  const wired = (nodeId: string, avatarId: string) => ({ nodeId, type: "avatar", data: { avatarId }, activeOutput: null, versionId: null });
+  const file = { nodeId: "file-1", type: "file", data: { fileKind: "image", fileUrl: "https://x/f.png" }, activeOutput: null, versionId: null };
+
+  it("expands each wired avatar in place, as one more person on camera", async () => {
+    const ups = await withAvatarImages("gen-1", [wired("av-1", "a1"), file] as never);
+    expect(ups.map((u) => u.nodeId)).toEqual(["av-1", "av-1:sheet", "file-1"]);
+    expect(ups[0]).toMatchObject({ type: "file", data: { presenter: true, fileUrl: avatar.front!.url } });
+    expect(String(ups[0].data.processedOutput)).toContain("Riya, a person on camera");
+    expect(getAvatar).toHaveBeenCalledWith("c1", "a1");
+  });
+
+  it("drops an avatar that is gone or has no front yet", async () => {
+    vi.mocked(getAvatar).mockResolvedValueOnce(null).mockResolvedValueOnce(makeAvatar({ front: null }));
+    const ups = await withAvatarImages("gen-1", [wired("av-1", "a1"), wired("av-2", "a2"), file] as never);
+    expect(ups.map((u) => u.nodeId)).toEqual(["file-1"]);
+  });
+
+  it("reads nothing when no avatar is wired", async () => {
+    const ups = await withAvatarImages("gen-1", [file] as never);
+    expect(ups).toEqual([file]);
+    expect(getNodeClientAndData).not.toHaveBeenCalled();
+  });
+
+  it("never adds the script's presenter twice when it is also wired straight in", async () => {
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine]), wired("avatar-node-1", "a1")] as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet"]);
   });
 });

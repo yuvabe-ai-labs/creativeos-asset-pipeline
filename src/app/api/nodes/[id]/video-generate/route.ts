@@ -23,8 +23,8 @@ import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-model
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
-import { getPromptUpstream, presenterVoiceForSeedance } from "@/lib/avatars/presenter-server";
-import { referenceCapFor, selectReferences } from "@/lib/video-gen/select-references";
+import { getPromptUpstream, presenterVoiceForSeedance, withAvatarImages } from "@/lib/avatars/presenter-server";
+import { referenceCapFor, selectReferences, sheetsUnusable } from "@/lib/video-gen/select-references";
 import {
   missingRefsMessage,
   refEntriesOf,
@@ -77,7 +77,8 @@ export async function POST(
     const imageRoles = body.imageRoles ?? {};
 
     // Resolve upstream nodes — same 2-level traversal as upstream-images route
-    const upstream = await getUpstreamOutputs(nodeId);
+    // D436 — an Avatar wired straight in is its images.
+    const upstream = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
 
     // Two prompt-node lanes can feed this node (see resolve-prompt.ts): a video-prompt node's
     // STRING output, or a multishot-prompt node's MultishotPlan OBJECT rendered against its
@@ -263,8 +264,8 @@ export async function POST(
       avatarFrontId,
       avatarSheetId: avatarSheet,
       framesExcludeReferences: areFramesAndRefsExclusive(videoGenClientModelMap[modelId]?.rules),
-      unusable: config.provider === "seedance" && avatarSheet
-        ? new Map([[avatarSheet, "Seedance can't use the profile sheet"]])
+      unusable: config.provider === "seedance"
+        ? sheetsUnusable(orderedImages.map((img) => img.nodeId), "Seedance can't use the profile sheet")
         : undefined,
     });
     if (selection.overCap > 0) {

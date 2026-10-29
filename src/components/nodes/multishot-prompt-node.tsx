@@ -106,6 +106,7 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
         fileUrl,
         fileKind,
         useLlm: n.type === "file" ? (nd.useLlm as boolean | undefined) : undefined,
+        avatarId: n.type === "avatar" && typeof nd.avatarId === "string" ? nd.avatarId : undefined,
       };
     });
   }, [nodes, edges, id]);

@@ -8044,3 +8044,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping the button inside Image Gen's Output settings section (a sticky element sticks only within its parent, so it could not stay in view).
 
 **Originated →** conversation in this session.
+
+### D436 — An avatar is a set of images, wired wherever a picture goes into a generation *(recorded 2026-10-29; refines D298, D312; fixes YUV-386)*
+
+**Decision.** Besides presenting a script (D298) and sitting in a composite (D312), an Avatar node connects to Prompt, Image Gen, Motion Prompt, Multishot Prompt and Video Gen, like a File or Composite image (not to Shot, Multishot or Post, which only display pictures). Every generation-side read of a node's own upstream expands it with `withAvatarImages` (presenter-server.ts) into its front, then its sheet when current, the same rows the script's presenter becomes, in its place: `getPromptUpstream`, the image-generate, video-generate and upstream-images routes. A wired avatar is "a person on camera", never "the person". One also presenting the script is not added twice; one that is gone or has no front drops out. In the browser the @-mention list expands it the same way from the avatar the canvas's Avatar node already cached (`useCachedAvatars`, no fetch per node). Seedance refuses every avatar sheet by id (`sheetsUnusable`), not only the presenter's.
+
+**Why.** YUV-386: an avatar could not connect to a Multishot Prompt, which blocked reels with more than one character; a script has one presenter. User, 29 Oct 2026: "avatar should be able to connect just like a composite or file node, it's just a set of images; if directly attached to a gen node then just send the images."
+
+**Rejected.** Several presenters per script (the presenter also carries the voice and the on-camera speaker; a second character needs neither). Only adding `avatar → multishot-prompt` (a still or a single shot with two people has the same need).
+
+**Originated →** conversation in this session.

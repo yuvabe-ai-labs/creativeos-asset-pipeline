@@ -1,5 +1,5 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
-import { getPromptUpstream, withStillPresenter } from "@/lib/avatars/presenter-server";
+import { getPromptUpstream, withAvatarImages, withStillPresenter } from "@/lib/avatars/presenter-server";
 import { planCitedRefIds, renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { multishotVoiceover } from "@/lib/nodes/voiceover";
@@ -24,7 +24,8 @@ export async function GET(
   return withNode(req, params, async (nodeId, node) => {
     try {
       // D299 — a still sees its Prompt's presenter as a connected image, as image-generate does.
-      const nodeUpstream = await getUpstreamOutputs(nodeId);
+      // D436 — an Avatar wired straight in is its images, as on the generate routes.
+      const nodeUpstream = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
       const direct = node.type === "image-gen" ? await withStillPresenter(nodeUpstream) : nodeUpstream;
 
       // Also collect upstream of any prompt nodes (2-level traversal) — video-prompt OR

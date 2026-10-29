@@ -152,7 +152,7 @@ import { readVoiceMeta } from "@/lib/voice-change/meta";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 import type { ImageRole } from "@/lib/video-gen/assign-image-roles";
-import { referenceCapFor, selectReferences } from "@/lib/video-gen/select-references";
+import { referenceCapFor, selectReferences, sheetsUnusable } from "@/lib/video-gen/select-references";
 
 type ImageInputs = {
   startFrame: boolean;
@@ -1278,8 +1278,8 @@ export function VideoGenFocusView({
     avatarFrontId: promptNode?.avatarFrontId ?? null,
     avatarSheetId: promptNode?.avatarSheetId ?? null,
     framesExcludeReferences: areFramesAndRefsExclusive(currentModel?.rules),
-    unusable: currentModel?.provider === "seedance" && promptNode?.avatarSheetId
-      ? new Map([[promptNode.avatarSheetId, "Seedance can't use the profile sheet"]])
+    unusable: currentModel?.provider === "seedance"
+      ? sheetsUnusable(upstreamImages.map((img) => img.id), "Seedance can't use the profile sheet")
       : undefined,
   });
   const leftOutReason = new Map(referenceSelection.leftOut.map((l) => [l.id, l.reason]));
