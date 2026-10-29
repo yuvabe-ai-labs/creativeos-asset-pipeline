@@ -5,7 +5,7 @@ import { ImagePlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format/initials";
-import { LOGO_EXTENSIONS } from "@/lib/clients/constants";
+import { LOGO_EXTENSIONS, LOGO_TYPES_LABEL } from "@/lib/clients/constants";
 import { EditableField } from "@/components/nodes/editable-field";
 import { useRenameClient, useUploadClientLogo } from "@/hooks/queries/clients";
 
@@ -28,6 +28,14 @@ export function ClientIdentity({ clientId, name, logoUrl, size = "lg" }: Props) 
   // Shown at once; the route refresh after each write brings the server's copy in.
   const [shownName, setShownName] = useState(name);
   const [shownLogo, setShownLogo] = useState(logoUrl);
+  // YUV-392 — follow the server's copy when it changes (adjust-during-render): seeded once, this
+  // kept "Add a logo" after a refresh had brought in the logo uploaded a moment earlier.
+  const [seen, setSeen] = useState({ name, logoUrl });
+  if (seen.name !== name || seen.logoUrl !== logoUrl) {
+    setSeen({ name, logoUrl });
+    setShownName(name);
+    setShownLogo(logoUrl);
+  }
   const rename = useRenameClient(clientId);
   const uploadLogo = useUploadClientLogo(clientId);
 
@@ -50,7 +58,7 @@ export function ClientIdentity({ clientId, name, logoUrl, size = "lg" }: Props) 
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (!LOGO_EXTENSIONS.has(ext)) {
-      toast.error(`A logo must be ${[...LOGO_EXTENSIONS].join(", ")}.`);
+      toast.error(`That file can't be a logo. Use ${LOGO_TYPES_LABEL}.`);
       return;
     }
     const previous = shownLogo;
