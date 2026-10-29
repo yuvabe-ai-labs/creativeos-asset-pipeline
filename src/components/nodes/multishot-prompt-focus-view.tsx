@@ -51,6 +51,7 @@ import {
   useNodeVersions,
   useRefreshNodeVersions,
   useSetActiveNodeVersion,
+  useSetActiveVersionOutput,
 } from "@/hooks/queries/node-versions";
 import type { NodeVersionsResponse } from "@/services/node-versions.service";
 import { MultishotBeatCard } from "./multishot-beat-card";
@@ -179,6 +180,7 @@ export function MultishotPromptFocusView({
   // below they never wait for the autosave flush.
   const versionsQuery = useNodeVersions<VersionSummary>(nodeId, open);
   const refreshVersions = useRefreshNodeVersions<VersionSummary>(nodeId);
+  const setActiveVersionOutput = useSetActiveVersionOutput(nodeId);
   const setActiveVersionId = useSetActiveNodeVersion(nodeId);
   const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
   const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
@@ -587,6 +589,7 @@ export function MultishotPromptFocusView({
     try {
       await savePromptOutputAction(nodeId, planDraft);
       onPatch({ parsed: planDraft }); // mirror into the store for display + clear dirty
+      setActiveVersionOutput(planDraft); // YUV-390 — readers of the cached versions see the edit
       toast.success("Saved");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");

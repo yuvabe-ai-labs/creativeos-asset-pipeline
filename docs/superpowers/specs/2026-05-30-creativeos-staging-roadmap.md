@@ -8072,3 +8072,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Trade-off, accepted.** A narration-only B-roll shot (a product close-up under voiceover) now sends the presenter's face unless switched off, and the model may put the person in it. One click per such shot, against a connected avatar that silently does nothing on most shots.
 
 **Originated →** conversation in this session.
+
+### D439 — The focus view's ✕ disconnects at once, and through the node an input comes from *(recorded 2026-10-29; fixes YUV-294; YUV-390)*
+
+**Decision.** (1) Video Gen takes a disconnected input off its cached input list the moment ✕ is clicked (`useDropFromNodeUpstream`); the autosave flush and server re-read still follow and confirm. (2) For an input that reaches the node through another (an image wired to the Motion Prompt), ✕ cuts the wire leaving that input (`entryTargetFor`), the only way it reaches here, and says where it was unwired; it used to only show a toast saying to go there. (3) A hand edit saved onto a prompt node's active version (Image Prompt, Motion Prompt, Multishot Prompt) is written into that node's cached versions (`useSetActiveVersionOutput`), so Image Gen, which shows its Prompt from that cache, has the edit at once.
+
+**Why.** YUV-294 and the user, 29 Oct 2026: deleting the line on the canvas is instant, the ✕ in the focus view had a visible delay (it waited on a save and a server read) and sometimes did not disconnect (an inherited input only got a toast). YUV-390: an Image Prompt edit did not reach Image Gen, because an in-place edit to the active version never reached the versions cache Image Gen reads; Video Gen re-reads its prompt from the server on every open, so it looked synced.
+
+**Originated →** conversation in this session.

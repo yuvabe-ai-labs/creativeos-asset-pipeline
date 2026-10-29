@@ -73,7 +73,7 @@ import {
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
 import type { NodeVersionsResponse } from "@/services/node-versions.service";
-import { useNodeUpstream, useRefreshNodeUpstream } from "@/hooks/queries/node-upstream";
+import { useNodeUpstream, useRefreshNodeUpstream, useDropFromNodeUpstream } from "@/hooks/queries/node-upstream";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
 import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
@@ -536,6 +536,7 @@ export function VideoGenFocusView({
   // clear, which happens after the post-flush re-read confirms the inputs (see persistThenRefresh).
   const upstreamQuery = useNodeUpstream(nodeId);
   const refreshUpstreamQuery = useRefreshNodeUpstream(nodeId);
+  const dropFromUpstream = useDropFromNodeUpstream(nodeId);
   const upstreamImages = useMemo<UpstreamImage[]>(
     () => upstreamQuery.data?.images ?? [],
     [upstreamQuery.data],
@@ -899,10 +900,12 @@ export function VideoGenFocusView({
       // this only ever runs from a click, so reading it during render is both unnecessary
       // and something the React compiler rejects.
       onPatch({ imageRoles: nextRoles });
+      // YUV-294 — off the list now; the flush and re-read below confirm it.
+      dropFromUpstream(sourceId);
       if (selected === sourceId) setSelected("video");
       void persistThenRefresh();
     },
-    [imageRolesProp, onPatch, selected, persistThenRefresh],
+    [imageRolesProp, onPatch, selected, persistThenRefresh, dropFromUpstream],
   );
   const { removeFor } = useRailDisconnect(nodeId, onDisconnected);
 

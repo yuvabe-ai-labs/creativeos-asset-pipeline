@@ -53,6 +53,7 @@ import {
   useNodeVersions,
   useRefreshNodeVersions,
   useSetActiveNodeVersion,
+  useSetActiveVersionOutput,
 } from "@/hooks/queries/node-versions";
 import type { NodeVersionsResponse } from "@/services/node-versions.service";
 import { useMentionUpstream } from "@/hooks/use-mention-upstream";
@@ -122,6 +123,7 @@ export function VideoPromptFocusView({
   // below they never wait for the autosave flush.
   const versionsQuery = useNodeVersions<VersionSummary>(nodeId, open);
   const refreshVersions = useRefreshNodeVersions<VersionSummary>(nodeId);
+  const setActiveVersionOutput = useSetActiveVersionOutput(nodeId);
   const setActiveVersionId = useSetActiveNodeVersion(nodeId);
   const versions = useMemo(() => versionsQuery.data?.versions ?? [], [versionsQuery.data]);
   const activeVersionId = versionsQuery.data?.activeVersionId ?? null;
@@ -491,6 +493,7 @@ export function VideoPromptFocusView({
     try {
       await onSaveOutput(draft);
       onPatch({ parsed: draft });
+      setActiveVersionOutput(draft); // YUV-390 — readers of the cached versions see the edit
       toast.success("Saved");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
