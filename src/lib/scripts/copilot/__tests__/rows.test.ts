@@ -38,6 +38,42 @@ describe("rowToGenerateScript", () => {
   });
 });
 
+// Briefs saved before the copilot went brand-neutral: angles had mealMoment/proofEmphasis, cards had no beats.
+const oldAngle = {
+  id: "A", hook: "One stir", situation: "Golu morning", mealMoment: "Lunch, two spoons", supportingCast: "Husband",
+  reviewTheme: "Easy to use", proofEmphasis: "Name the study", format: "", occasion: "", postDate: "", lead: "",
+  leadAvatarId: null, signalIds: [], fromSignals: "",
+};
+const oldCard = {
+  title: "Golu at home", reelNumber: 4, lines: [{ label: "Format", value: "UGC", source: "given" }],
+  cast: [{ name: "Meena", role: "lead", isLead: true, avatarId: null }], toConfirm: [],
+};
+const piece = (value: string) => ({ value, status: "given" });
+const oldBrief = {
+  phase: "confirm", reelNumber: 4, format: piece("UGC"), occasion: piece("Golu"), postDate: "", lead: piece("Meena"),
+  leadAvatarId: null, narrative: piece("A. One stir: Golu morning"), angles: [oldAngle], card: oldCard, imported: false,
+};
+
+describe("briefs saved before the copilot went brand-neutral", () => {
+  it("reads a brief stored with the old angle fields", () => {
+    const s = rowToGenerateScript({ ...base, brief: oldBrief })!;
+    expect(s.brief.phase).toBe("confirm");
+    expect(s.brief.angles[0].productMoment).toBe("Lunch, two spoons");
+    expect(s.brief.angles[0].proof).toBe("Name the study");
+  });
+
+  it("reads a stored card with no beats as an empty list", () => {
+    const s = rowToGenerateScript({ ...base, brief: oldBrief })!;
+    expect(s.brief.card?.beats).toEqual([]);
+    expect(s.brief.card?.lines).toHaveLength(1);
+  });
+
+  it("reads an angles message card with old fields", () => {
+    const m = rowToMessage({ id: "m1", role: "assistant", content: "", created_at: "t", card: { kind: "angles", angles: [oldAngle] } });
+    expect(m.card?.kind === "angles" && m.card.angles[0].productMoment).toBe("Lunch, two spoons");
+  });
+});
+
 describe("rowToScript", () => {
   it("skips a script with no draft yet, silently", () => {
     const warn = vi.spyOn(console, "warn");
@@ -48,6 +84,14 @@ describe("rowToScript", () => {
 });
 
 describe("rowToMessage", () => {
+  it("reads a message's chips, and a message from before chips were saved as having none", () => {
+    const row = { id: "m1", role: "assistant", content: "Hi", card: null, created_at: "t" };
+    expect(rowToMessage({ ...row, suggestions: ["A"] }).suggestions).toEqual(["A"]);
+    expect(rowToMessage({ ...row, suggestions: null }).suggestions).toEqual([]);
+    expect(rowToMessage({ ...row, suggestions: [1] }).suggestions).toEqual([]);
+    expect(rowToMessage(row).suggestions).toEqual([]);
+  });
+
   it("keeps a valid card and drops an invalid one", () => {
     const row = { id: "m1", role: "assistant", content: "Hi", created_at: "t" };
     expect(rowToMessage({ ...row, card: { kind: "research", signals: [], perAngle: [] } }).card?.kind).toBe("research");

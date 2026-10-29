@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { clientTermsIn } from "@/lib/scripts/copilot/client-terms";
 import {
   multishotPromptGenerate,
   MULTISHOT_PROMPT_ID,
@@ -118,7 +119,8 @@ describe("multishotPromptGenerate", () => {
   it("still asks the writer to look at the images and name what it saw", () => {
     expect(spec.system).toMatch(/LOOK AT THEM/);
     expect(spec.system).toMatch(/name what you saw/i);
-    expect(spec.system).toMatch(/black CHUPPS V-Straps/);
+    expect(spec.system).toMatch(/green ceramic mug/);
+    expect(clientTermsIn(spec.system)).toEqual([]);
   });
 
   // A CHUPPS logo on white was attached alongside three product shots and the writer cited it as

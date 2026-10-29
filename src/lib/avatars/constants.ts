@@ -150,3 +150,8 @@ export const AVATAR_VOICE_PREVIEW_TIMEOUT_MS = 15 * 60 * 1000;
 // resolution improves, and the picture only has to be good enough to judge the pairing.
 export const AVATAR_VOICE_SAMPLE_SECONDS = 5;
 export const AVATAR_VOICE_SAMPLE_RESOLUTION = "480p";
+
+// reference_audio limits (Seedance 2.5): wav/mp3, each clip 2–30s. Moved here when the UGC bench,
+// which first used them, was removed (brand-neutral spec §3.7).
+export const VOICE_MIN_SECONDS = 2;
+export const VOICE_MAX_SECONDS = 30;

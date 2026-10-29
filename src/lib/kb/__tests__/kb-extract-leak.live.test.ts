@@ -42,9 +42,10 @@ describe.skipIf(!process.env.KB_LEAK_EVAL)("kb-extract leak (live)", () => {
       );
       const leaked = runs.flatMap((compliance) =>
         Object.entries(compliance).flatMap(([field, f]) =>
-          (f.value ?? []).filter((v) =>
+          // Lists, or prose (content_rules): every value is checked.
+          ([] as string[]).concat(f.value ?? []).filter((v: string) =>
             LEAKED_KB_EXAMPLES.some((ex) => ex.test(v) && !ex.test(brief)),
-          ).map((v) => `${field}: ${v}`),
+          ).map((v: string) => `${field}: ${v}`),
         ),
       );
       expect(leaked).toEqual([]);

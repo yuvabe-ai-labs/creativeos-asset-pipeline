@@ -16,24 +16,27 @@ import { EMPTY_PARTIAL_DRAFT } from "../partial-draft";
 import type { Script } from "@/lib/scripts/schema";
 
 const doc = scriptDocSchema.parse(reel01);
-const ctx: CopilotContext = { clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [] };
+const ctx: CopilotContext = {
+  clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026",
+  signals: { brief: "Market signal: Onam lunches", digest: "[S1] Onam lunches", list: [{ id: "sig-1", name: "Onam lunches" }] },
+};
 const script = (over: Partial<GenerateScript> = {}): GenerateScript => ({
   id: "s1", clientId: "c1", stage: "generate", doc: null, brief: EMPTY_BRIEF, notes: EMPTY_NOTES, docVersion: 1, createdAt: "t", updatedAt: "t", ...over,
 });
 const none = { action: "none" as const, value: "" };
 const extraction = (over: Partial<Extraction> = {}): Extraction => ({
-  format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null },
+  format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null }, suggestions: [],
   skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
 });
 const angle = (id: string, signalIds: string[] = []) => ({
-  id, hook: `Hook ${id}`, situation: "s", mealMoment: "m", supportingCast: "c", reviewTheme: "r", proofEmphasis: "p",
+  id, hook: `Hook ${id}`, situation: "s", productMoment: "m", supportingCast: "c", reviewTheme: "r", proof: "p",
   format: "UGC", occasion: "Kerala Piravi", postDate: "Sun 1 Nov", lead: "Saraswathi", leadAvatarId: null, signalIds, fromSignals: "lunch at home",
 });
 const CARD = {
   title: "Kerala Piravi at our table", reelNumber: 4,
   lines: [{ label: "Format", value: "UGC", source: "given" as const }],
   cast: [{ name: "Saraswathi", role: "lead", isLead: true, avatarId: null }],
-  toConfirm: ["Sun 1 Nov is Kerala Piravi"],
+  beats: [], toConfirm: ["Sun 1 Nov is Kerala Piravi"],
 };
 const DRAFT = {
   header: { title: "Kerala Piravi at our table", format: "UGC", region: "South", postDate: "Sun 1 Nov (Kerala Piravi)", theme: "Kerala Piravi", aspect: "9:16", targetLength: "45 to 55 sec", production: "AI-generated" },
@@ -57,11 +60,11 @@ function fakeModel(answers: Record<string, unknown[]>) {
   }) as unknown as StructuredCall;
   return { call, calls };
 }
-const deps = (call: StructuredCall, signals = [{ id: "sig-1", name: "Onam lunches" }]): TurnDeps => ({
-  call, loadSignals: vi.fn(async () => ({ brief: "Market signal: Onam lunches", signals })), newShotId: (() => { let n = 0; return () => `new${++n}`; })(),
+const deps = (call: StructuredCall): TurnDeps => ({
+  call, newShotId: (() => { let n = 0; return () => `new${++n}`; })(),
 });
 const run = async (s: GenerateScript, text: string, d: TurnDeps, current: GenerateScript = s) => {
-  const apply = await prepareTurn({ script: s, ctx, text, lastAssistant: "" }, d);
+  const apply = await prepareTurn({ script: s, ctx, text, history: [] }, d);
   return apply(current);
 };
 const ok = <T,>(c: { patch: unknown; result: T } | { error: string; status: number }) => {
@@ -89,7 +92,6 @@ describe("before the draft", () => {
     const d = deps(m.call);
     const out = ok(await run(script(), "Reel 04, Kerala Piravi, UGC, Saraswathi", d));
     expect(m.calls).toEqual(["script_brief_read", "script_angles"]);
-    expect(d.loadSignals).toHaveBeenCalledTimes(1);
     const [research, angles] = out.result;
     // The card is the whole message: no prose explaining what signals are for.
     expect(research.content).toBe("");
@@ -101,6 +103,28 @@ describe("before the draft", () => {
     expect(angles.card?.kind).toBe("angles");
     expect(out.patch?.brief?.angles.map((a) => a.id)).toEqual(["A", "B", "C"]);
     expect(out.patch?.brief?.reelNumber).toBe(4);
+  });
+
+  it("puts the angles call's chips on the angles message, the turn's last reply, not on the research card", async () => {
+    const m = fakeModel({
+      script_brief_read: [extraction({
+        format: { action: "given", value: "UGC" }, occasion: { action: "given", value: "Diwali", postDate: "" },
+        lead: { action: "given", value: "Asha", avatarId: null },
+      })],
+      script_angles: [{ angles: [angle("A"), angle("B"), angle("C")], suggestions: ["Blend A and C"] }],
+    });
+    const [research, angles] = ok(await run(script(), "UGC, Diwali, Asha", deps(m.call))).result;
+    expect(research.suggestions ?? []).toEqual([]);
+    expect(angles.suggestions).toEqual(["Blend A and C"]);
+  });
+
+  it("offers the reader's occasion ideas when the next question is the occasion, and nothing for the format", async () => {
+    const m = fakeModel({ script_brief_read: [
+      extraction({ format: { action: "given", value: "UGC" }, suggestions: ["Diwali: a new home"] }),
+      extraction({ suggestions: ["ignored"] }),
+    ] });
+    expect(ok(await run(script(), "A UGC reel", deps(m.call))).result[0].suggestions).toEqual(["Diwali: a new home"]);
+    expect(ok(await run(script(), "hello", deps(m.call))).result[0].suggestions ?? []).toEqual([]);
   });
 
   it("skipping all four still reaches a confirmation card: three angles, one picked, then the card", async () => {
@@ -126,7 +150,7 @@ describe("before the draft", () => {
     expect(out.patch?.notes?.confirmations).toEqual([{ id: "c1", text: "Sun 1 Nov is Kerala Piravi", confirmed: false }]);
     expect(out.patch?.brief?.phase).toBe("written");
     expect(out.result[0].content).toMatch(/^The first draft is in: 2 shots · 13s\./);
-    expect(out.result[0].content).toMatch(/2 things to settle before it's final\. First: Paste a real, cleared Amazon review/);
+    expect(out.result[0].content).toMatch(/2 things to settle before it's final\. First: Paste a real, cleared customer review/);
   });
 
   it("streams the draft: reports each new shot as it arrives, then saves the whole draft", async () => {
@@ -175,7 +199,7 @@ describe("before the draft", () => {
       script_brief_read: [extraction({ lead: { action: "given", value: "Meenakshi", avatarId: null } })],
       script_angles: [{ angles: [angle("A"), angle("B"), angle("C")] }],
     });
-    const apply = await prepareTurn({ script: script({ brief }), ctx: { ...ctx, avatars }, text: "James", lastAssistant: "", leadAvatarId: JAMES }, deps(m.call));
+    const apply = await prepareTurn({ script: script({ brief }), ctx: { ...ctx, avatars }, text: "James", history: [], leadAvatarId: JAMES }, deps(m.call));
     const out = ok(apply(script({ brief })));
     expect(out.patch?.brief?.lead).toEqual({ value: "James", status: "given" });
     expect(out.patch?.brief?.leadAvatarId).toBe(JAMES);
@@ -207,11 +231,28 @@ describe("after the draft: chat edits", () => {
     path: null, value: null, shotId: null, afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null, ...o,
   });
 
+  it("gives the edit the conversation so far, so 'like before' has something to point back to", async () => {
+    const m = fakeModel({ script_edit: [{ ops: [], reply: "Done." }] });
+    const history = [
+      { id: "h1", role: "user" as const, content: "Keep every line light-hearted", card: null, suggestions: [], createdAt: "t" },
+      { id: "h2", role: "assistant" as const, content: "Will do.", card: null, suggestions: [], createdAt: "t" },
+    ];
+    await prepareTurn({ script: written, ctx, text: "Now the hook, like before", history }, deps(m.call));
+    const user = vi.mocked(m.call).mock.calls[0][0].user;
+    expect(user).toContain("Person: Keep every line light-hearted\nCopilot: Will do.");
+  });
+
   it("applies a one-shot edit at once and says what changed", async () => {
     const m = fakeModel({ script_edit: [{ ops: [op({ op: "set_field", path: "shots.s01.vo", value: "Golu begins." })], reply: "Shortened the hook line." }] });
     const out = ok(await run(written, "shorter hook", deps(m.call)));
     expect(out.patch?.doc?.shots[0].vo).toBe("Golu begins.");
     expect(out.result[0].content).toMatch(/^Shortened the hook line\.\n\n/);
+  });
+
+  it("carries the writer's brand-aware chips on its reply, cleaned", async () => {
+    const m = fakeModel({ script_edit: [{ ops: [op({ op: "set_field", path: "shots.s01.vo", value: "Golu begins." })], reply: "Done.", suggestions: [" Shorten the hook ", ""] }] });
+    const out = ok(await run(written, "shorter hook", deps(m.call)));
+    expect(out.result[0].suggestions).toEqual(["Shorten the hook"]);
   });
 
   it("shows an edit that touches several shots as a before-and-after, and saves nothing yet", async () => {
@@ -253,7 +294,7 @@ describe("after the draft: chat edits", () => {
   it("answers a question without changing anything", async () => {
     const m = fakeModel({ script_edit: [{ ops: [], reply: "It runs 52 seconds." }] });
     const out = ok(await run(written, "how long is it?", deps(m.call)));
-    expect(out).toEqual({ patch: null, result: [{ content: "It runs 52 seconds.", card: null }] });
+    expect(out).toEqual({ patch: null, result: [{ content: "It runs 52 seconds.", card: null, suggestions: [] }] });
   });
 });
 
@@ -382,7 +423,7 @@ describe("pasting a whole script (paste-a-script spec)", () => {
   it("takes the next free reel number when the pasted one is taken (success 9)", async () => {
     const taken: Script = { id: "other", clientId: "c1", stage: "visualise", doc: { ...doc, header: { ...doc.header, reelNumber: 7 } }, approvedAt: null, createdAt: "t", updatedAt: "t" };
     const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
-    const apply = await prepareTurn({ script: script(), ctx: { ...ctx, library: [taken] }, text: REEL_07_PASTE, lastAssistant: "" }, deps(m.call));
+    const apply = await prepareTurn({ script: script(), ctx: { ...ctx, library: [taken] }, text: REEL_07_PASTE, history: [] }, deps(m.call));
     const out = ok(apply(script()));
     expect(out.patch?.doc?.header.reelNumber).toBe(8);
     expect(out.result[0].content).toContain("Reel 07 is taken, so this is Reel 08.");
@@ -390,7 +431,7 @@ describe("pasting a whole script (paste-a-script spec)", () => {
 
   it("refuses to save over a draft that appeared while it read", async () => {
     const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
-    const apply = await prepareTurn({ script: script(), ctx, text: REEL_07_PASTE, lastAssistant: "" }, deps(m.call));
+    const apply = await prepareTurn({ script: script(), ctx, text: REEL_07_PASTE, history: [] }, deps(m.call));
     expect(apply(script({ doc, docVersion: 2 }))).toEqual({ error: "The script changed while I was working. Send that again.", status: 409 });
   });
 });

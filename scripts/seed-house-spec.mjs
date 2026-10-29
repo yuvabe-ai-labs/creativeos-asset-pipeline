@@ -1,4 +1,4 @@
-// Writes a client's house spec into its brand KB's free-text Consistency Notes, where the script
+// Writes a client's house spec into its brand KB's Content Rules, where the script
 // copilot reads it whole (spec 2 §4.1, answer 2c.1). Developer-only, for the demo: proper KB fields
 // for locked lines, disclaimers and kits come later.
 //
@@ -6,9 +6,9 @@
 //
 // Takes §2 "House spec" of the outline document (from "**2\. House spec" up to "**Reel 01"),
 // strips the .docx export's escapes and bold markers, and writes it as ONE string into the active
-// KB version's image_analysis.brand_consistency_notes, in place, status "edited". Nothing else in
+// KB version's compliance.content_rules, in place, status "edited". Nothing else in
 // the KB changes. Why not the KB page: an empty field there is edited as a comma-split list.
-// Re-running Image Analysis rewrites this field; run this again afterwards.
+// (Brand-neutral spec §3.5: it used to write the image analysis's Consistency Notes, which a re-run overwrote.)
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
@@ -71,12 +71,12 @@ const { data: version, error: versionError } = await db
 if (versionError) throw versionError;
 
 const output = version.output ?? {};
-const imageAnalysis = output.image_analysis ?? {};
+const compliance = output.compliance ?? {};
 const next = {
   ...output,
-  image_analysis: {
-    ...imageAnalysis,
-    brand_consistency_notes: { value: houseSpec, confidence: "high", evidence_type: "explicit", status: "edited" },
+  compliance: {
+    ...compliance,
+    content_rules: { value: houseSpec, confidence: "high", evidence_type: "explicit", status: "edited" },
   },
 };
 
@@ -86,4 +86,4 @@ if (dry) { console.log("--dry: nothing written."); process.exit(0); }
 
 const { error: writeError } = await db.from("client_kb_versions").update({ output: next }).eq("id", version.id);
 if (writeError) throw writeError;
-console.log("Written to image_analysis.brand_consistency_notes.");
+console.log("Written to compliance.content_rules.");

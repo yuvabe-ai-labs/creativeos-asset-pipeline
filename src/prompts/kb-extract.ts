@@ -87,6 +87,11 @@ COMPLIANCE  (these fields block and shape every generated asset — extract only
                      When multiple documents are provided, UNION the lists — never drop a word.
   never_use_claims → complete claim patterns the sources prohibit, not just keywords.
   preferred_verbs  → verbs only, base form, that the sources use or prescribe.
+  content_rules    → plain prose, a few short paragraphs: what the brand sells (products or
+                     services by name), the exact claims and proof lines it uses (verbatim),
+                     disclaimers' wording, whether it uses customer reviews, regional or cultural
+                     customs to respect, things never to show. Only what the documents state;
+                     never invent a claim. null when the documents say none of it.
 
 ─── TRACEABLE FIELD FORMAT ─────────────────────────────────────────────────────
 Every field in the schema is a KBField object with 4 sub-fields:

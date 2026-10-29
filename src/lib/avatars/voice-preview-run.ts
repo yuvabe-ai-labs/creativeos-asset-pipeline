@@ -1,7 +1,7 @@
 import { revoiceVideo, NonRetryableRevoiceError, type RevoiceDeps } from "@/lib/voice-change/revoice";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 import type { VoicePreviewEngine } from "./voice-preview";
-import { VOICE_MAX_SECONDS, VOICE_MIN_SECONDS } from "@/lib/ugc/constants";
+import { VOICE_MAX_SECONDS, VOICE_MIN_SECONDS } from "./constants";
 
 // D294, D296 — the avatar-voice-preview task's steps, with every outside call injected so they
 // can be tested without Google, BytePlus, ElevenLabs or ffmpeg. One function per mode; each

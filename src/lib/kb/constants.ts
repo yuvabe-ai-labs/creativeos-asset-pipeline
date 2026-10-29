@@ -39,6 +39,8 @@ export const MODULE_LEADING_FIELDS: Partial<Record<ModuleKey, readonly string[]>
     "recurring_motifs",
     "brand_consistency_notes",
   ],
+  // Content Rules carries what scripts need most (brand-neutral spec §3.5), so it leads.
+  compliance: ["content_rules"],
 };
 
 export const MODULES: { key: ModuleKey; label: string }[] = [
@@ -105,6 +107,7 @@ export const FIELD_LABELS: Record<string, string> = {
   never_use_claims: "Never Use Claims",
   never_use_tone: "Never Use Tone",
   disclaimers: "Disclaimers",
+  content_rules: "Content Rules",
 };
 
 export const DOC_EXTENSIONS = new Set(["pdf", "docx", "pptx", "md", "txt"]);

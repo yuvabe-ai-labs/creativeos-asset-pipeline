@@ -69,7 +69,7 @@ describe("POST /api/clients/[id]/scripts (New script)", () => {
   });
 
   it("creates an empty script at Generate with the copilot's opening, and returns its id", async () => {
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [] });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
     vi.mocked(createGenerateScript).mockResolvedValue(generateScript());
     const { POST } = await import("./route");
     const res = await POST(jsonRequest("http://localhost/api/clients/c1/scripts", "POST") as never, { params: Promise.resolve({ id: "c1" }) });

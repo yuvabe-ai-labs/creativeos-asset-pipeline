@@ -29,7 +29,7 @@ export function fillToFinal(doc: ScriptDoc | null, notes: ScriptNotes): OpenItem
       `placeholder.${path}`,
       `${where}: placeholder`,
       isReview
-        ? `Paste a real, cleared Amazon review for ${where}, on the theme its visual names. If none fits, tell me and I'll swap the theme.`
+        ? `Paste a real, cleared customer review for ${where}, on the theme its visual names. If none fits, tell me and I'll swap the theme.`
         : `Replace ${found} in ${where}.`,
       path,
     );

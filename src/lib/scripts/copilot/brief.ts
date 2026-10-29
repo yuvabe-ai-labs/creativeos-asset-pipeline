@@ -6,10 +6,6 @@ import type { Angle, Brief, ConfirmationCard, CopilotAvatar, OpenItem, Piece, Sc
 // already given; any or all can be skipped and the copilot proposes them. The code decides the next
 // step; the model only reads the person's answer and fills what the step needs (D328).
 
-export function isFounderLed(format: string): boolean {
-  return /founder/i.test(format);
-}
-
 export type Step =
   | { kind: "ask"; piece: "format" | "occasion" | "lead" }
   | { kind: "angles" }
@@ -123,6 +119,7 @@ export function normalizeCard(
     title: raw.title.trim().slice(0, 120) || "Untitled reel",
     reelNumber: opts.reelNumber,
     lines: raw.lines.filter((l) => l.label.trim() && l.value.trim()),
+    beats: raw.beats.map((b) => b.trim()).filter(Boolean),
     cast: raw.cast.map((c, i) => {
       const member = { ...c, isLead: i === lead, avatarId: c.avatarId && opts.avatarIds.has(c.avatarId) ? c.avatarId : null };
       return i === lead && opts.lead ? { ...member, name: opts.lead.name, avatarId: opts.lead.avatarId } : member;
@@ -165,6 +162,7 @@ export function cardToNotes(card: ConfirmationCard): ScriptNotes {
   const lines = [
     `${card.title}${reel ? ` · ${reel}` : ""}`,
     ...card.lines.map((l) => `${l.label}: ${l.value}${l.source === "proposed" ? " (proposed)" : ""}`),
+    ...(card.beats.length ? [`Beats: ${card.beats.join(" › ")}`] : []),
     "Cast:",
     ...card.cast.map((c) => `- ${c.name}${c.isLead ? " (lead)" : ""}: ${c.role}`),
   ];
