@@ -81,3 +81,7 @@ MR _ Content Creative OS/
 
 # Raw provider payloads dumped by scripts/spike-instagram.mjs — evidence, not source
 spike-*.json
+
+brag-output
+
+.agents
