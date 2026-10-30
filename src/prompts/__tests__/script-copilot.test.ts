@@ -32,8 +32,19 @@ describe("the script copilot's shared instructions", () => {
     expect(edit).toMatch(/Never set or describe pictures/);
   });
 
-  it("is version 5", () => {
-    expect(scriptCopilotPrompt.version).toBe(5);
+  // D447 — the user saw "ordinary pair of slippers", the brand alone and "coffee" as a place.
+  it("names products as sold and places as places, the same way in the draft, the import and the edits", () => {
+    const { draft, edit, import: imp } = scriptCopilotPrompt.tasks;
+    for (const t of [draft, edit, imp]) {
+      expect(t).toMatch(/Never the brand on its own, never a competitor's product, and never an ordinary prop/);
+      expect(t).toMatch(/Name a product the way the client sells it/);
+      expect(t).toMatch(/Name a location as the place/);
+      expect(t).toMatch(/Shots in the same place share one location/);
+    }
+  });
+
+  it("is version 6", () => {
+    expect(scriptCopilotPrompt.version).toBe(6);
   });
 
   it("commit each angle to a product moment and proof, with a review theme only where reviews fit", () => {

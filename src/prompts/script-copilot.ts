@@ -44,6 +44,16 @@ For each piece the brief leaves empty or skipped, every angle proposes it: forma
 signalIds lists the handles (S1, S2…) of the market signals the angle actually drew on (an empty list is fine); fromSignals says in a few words what it took from them, where and when only.
 suggestions: two or three short replies (under 60 characters each) the person might send next, written for this brand and this reel. Never a claim, a price or an offer the KB doesn't give.`;
 
+/** D447 — how products and locations are chosen and named, shared by the draft, the import and the
+ *  edits. A product list is what the video model is told to copy exactly, so a prop or the brand
+ *  itself in it is worse than a missing product; a location's description is what its plate is
+ *  drawn from, so it is written as a place someone could build. */
+const assetNaming = `Products and locations:
+- A product is one of the client's own products that the reel shows on screen. Never the brand on its own, never a competitor's product, and never an ordinary prop (a cup, a phone, or a plain item the script compares the product with).
+- Name a product the way the client sells it: the brand, then what it is, then the variant when the script or the brand KB gives one (for example "Brandname V-Strap slippers", "Brandname green tea pouch"). Use the KB's own product names where they fit.
+- Name a location as the place, in two to four words with a capital first letter (for example "Tree-lined street", "Corner café", "Podcast studio desk"). Its description is the place in physical words: the kind of space, its surfaces, furniture, light and time of day, from the script and its setting. Where the script says little, describe a likely place that fits the reel's setting and region, in one or two sentences. Never put a person, a product or an action in it.
+- Shots in the same place share one location; a different place is a new one.`;
+
 /** Shared by the card and the draft: the house spec's shorthand (D1, D2…) means nothing to the
  *  person reading either. */
 const disclaimerNames = `Name each disclaimer by what it says, in a few words (for example "terms apply"), never by a code such as "D1", even when the KB uses one.`;
@@ -71,6 +81,7 @@ products: each product the reel shows on screen, as a short key and the name the
 locations: each distinct place the shots happen in, as a short key, a name and a description of the place in words (the space, its surfaces, furniture and light); one per set, an empty list when the setting is never shown.
 shots, in order: beat label, lengthSeconds, visual, vo, onScreenText, onScreen as the cast keys of who is on screen (empty for B-roll), products as the product keys it shows (empty when none), and location as the key of where it happens ("" when it is no particular place).
 You never add pictures: the person adds every product's and location's images.
+${assetNaming}
 Follow the beats on the confirmed card, in order, using the client's examples for layout and voice. A topic beat is labelled for this reel's topic.
 summary: one line describing the draft.
 suggestions: two or three short replies (under 60 characters each) the person might send next, written for this brand and this reel. Never a claim, a price or an offer the KB doesn't give. Here: edits they might ask for next.`;
@@ -94,6 +105,7 @@ Operations (fields an operation does not use are null):
 - add_location: location.name and location.description. update_location: location.locationId, location.name and location.description. remove_location: location.locationId.
 In a shot, onScreen lists cast ids, products lists product ids, and location is a location id or "" for none. Give every shot you write its products and location, unchanged unless the change is about them.
 Never set or describe pictures: the person adds every product's and location's images.
+${assetNaming}
 When the person pastes a review, put it verbatim in the review shot's VO in place of the placeholder, inside the existing quote marks, and never change its words.
 When the message is a question rather than a change, return no operations and answer it.
 reply: one line saying what you changed, or the answer.
@@ -111,7 +123,8 @@ const importScript = `The person pasted a whole reel script. Turn it into this a
 - One shot per row or scene of the paste, in order. The number of shots equals the number of rows or scenes.
 - beat and lengthSeconds come from the paste: "HOOK 0-4s" is beat "HOOK" and lengthSeconds 4; "0:04-0:09" is 5. When the paste gives a shot no timing, lengthSeconds is 0; the app estimates it. When the paste has no beat labels at all, label each shot yourself (HOOK, INTRO, …) and set guessed.beats.
 - cast: every person the paste names, with their description as written, and exactly one lead (the one the paste calls the lead, else the one on screen most). onScreen lists the keys of who is on screen in the shot. When nobody is named, return one person named "Narrator" as the lead and set guessed.lead.
-- products: each product the paste shows on screen, with a short key and its name as written. locations: each distinct place the shots happen in, with a short key, its name and a description taken from the paste's words. In each shot, products lists the keys of the products it shows and location the key of where it happens ("" when none). Empty lists when the paste names none.
+- products: each of the client's products the paste shows on screen, with a short key. locations: each distinct place the shots happen in, with a short key, a name and a description built from the paste's words. Name and describe both as below; this is the one place the import writes words the paste does not, so the paste's own fields stay exactly as written. In each shot, products lists the keys of the products it shows and location the key of where it happens ("" when none). Empty lists when the paste shows none.
+${assetNaming}
 - Square-bracket placeholders stay exactly as written.
 - Anything with no place in these fields (a music cue, a props list, a director's note, a link, a disclaimer this reel does not use) goes into kept, word for word: name says in two or three words what it is ("music cue"), text is the piece as written.
 - A field the paste does not give is "" (an empty list for watchOuts). Never invent it.
@@ -122,7 +135,9 @@ summary: one line describing the script.`;
 export const scriptCopilotPrompt = {
   id: "script-copilot",
   // 5 (D447): products and locations in the draft, the import and the edit ops.
-  version: 5,
+  // 6 (D447): one naming rule for them: the client's own products only, named as sold; places named
+  //    and described as places.
+  version: 6,
   rules,
   tasks: { extract, angles, card, draft, edit, inline, detect, import: importScript },
 } as const;
