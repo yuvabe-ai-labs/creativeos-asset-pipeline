@@ -39,7 +39,8 @@ import {
 // @9 (D453): shares the storyboard-moment and worn-product rules and the reading's frames.
 // @10 (D455): shares the rule that the operator's direction comes first and is written into beats.
 // @11 (D457): shares the graphics-after-generation, action-first and place-not-props rules.
-export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@11";
+// @12 (D458): shares the props-keep-their-names and shot-by-shot steady camera rules.
+export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@12";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Seedance 2.5.
 

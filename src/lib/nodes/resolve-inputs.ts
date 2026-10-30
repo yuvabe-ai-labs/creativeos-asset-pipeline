@@ -313,7 +313,9 @@ export function buildMultishotUserTurn(args: {
   // Labelled as the script's own, so the writer can tell stated look direction (usable) from the
   // brand context above it (not a source of setting).
   const notes = (args.scriptNotes ?? "").trim();
-  if (notes) blocks.push(`The script's production notes:\n${notes}`);
+  // D458 — a camera note in them ("handheld, top-down on the bowl") is for its own shot: on Reel 07
+  // the writer opened every beat with it.
+  if (notes) blocks.push(`The script's production notes (the reel as a whole; a camera note in them is for the shot it describes):\n${notes}`);
 
   const rules = (args.rules ?? "").trim();
   if (rules) {

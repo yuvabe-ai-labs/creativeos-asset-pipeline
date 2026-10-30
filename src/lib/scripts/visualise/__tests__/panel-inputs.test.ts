@@ -105,6 +105,13 @@ describe("panelInputs on Reel 01 (D342)", () => {
     expect(p).not.toContain("Golu starts today.");
   });
 
+  // D458 — the reel's setting gives the place and light; its camera note is not every panel's.
+  it("reads the reel's setting for its place and light, not its camera note", () => {
+    const p = inputs("s03").prompt;
+    expect(p).toMatch(/The reel's setting \(take its place and light; a camera note in it is only for the shot it describes\)/);
+    expect(p).not.toMatch(/Setting and camera for the whole reel/);
+  });
+
   it("draws nobody on a B-roll shot, with no references", () => {
     const s09 = inputs("s09");
     expect(s09.references).toEqual([]);

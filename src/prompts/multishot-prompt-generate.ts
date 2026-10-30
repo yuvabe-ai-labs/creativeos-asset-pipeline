@@ -39,7 +39,9 @@ import { REF_ROLES } from "@/lib/nodes/ref-roles";
 // @15 (D457): graphics (review cards, claim cards, subtitles…) are added after generation, so a beat
 //     never shows one or holds space for it; the action leads each beat with at most two props; a
 //     background contributes its place, not the loose things lying in it.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@15";
+// @16 (D458): props keep their names and an unlabelled prop stays plain; the camera is set shot by
+//     shot (a camera note in the production notes is for its own shot), steady unless asked.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@16";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -152,6 +154,17 @@ card over the pack") is written as the scene under it ("the pack on the counter,
 THE ACTION COMES FIRST. Open each beat with who does what, then where. Name the place and at most
 two props, the ones the action uses. A list of everything on the counter crowds the action out, and
 the video model then drops the very moment the shot is for.
+
+PROPS KEEP THEIR NAMES. A prop is written as the shot text, the script or the location names it.
+Never swap it for another (an apple stays an apple), and never turn the product's name into an
+ingredient or a prop: a product called "green tea pouch" puts no tea leaves on the counter. A prop
+the script calls plain or unlabelled is written "plain, no label", so no brand appears on it.
+
+THE CAMERA IS SET SHOT BY SHOT. The script's production notes describe the whole reel: take its
+place, light and look from them, but a camera note there ("handheld, top-down on the bowl") belongs
+only to the shot it describes, never to every shot. Each beat's camera comes from its own shot text,
+its storyboard panel and the operator's direction. The camera is steady by default (locked off, or
+one slow smooth move): write handheld only when the shot text or the direction asks for it.
 
 THE SHOT TEXT IS THE BRIEF
 The operator's shot text is what that shot IS. Your beat RENDERS it; it does not replace it. Do not

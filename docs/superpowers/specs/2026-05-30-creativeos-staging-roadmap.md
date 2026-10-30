@@ -8248,3 +8248,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Leaving clear space for an overlay (the user places it by hand; a held space reads as an empty box). Drawing the overlay in the panel for approval (it rides into the video).
 
 **Originated →** conversation in this session (Reel 07 analysis, staging).
+
+### D458 — A shot picks a product it uses; props keep their names; the camera is set shot by shot and steady unless asked *(recorded 2026-10-30; refines D447, D457)*
+
+**Decision.** (1) The script copilot (version 8) picks a product for every shot it is in, in any form: the pack on screen, the product itself being used (poured, mixed in, applied, worn or held), or its voiceover naming it, in the draft and the import alike. (2) The multishot writers (generate@16, kling@13, seedance@12) keep props as the script and location name them, never turn the product name into an ingredient or a prop, and write a prop the script calls plain or unlabelled as "plain, no label". (3) THE CAMERA IS SET SHOT BY SHOT: the production notes give the reel place, light and look, but a camera note in them belongs only to the shot it describes; each beat camera comes from its own shot text, panel and the direction. The camera is steady by default (locked off or one slow smooth move); handheld only when the shot text or the direction asks. The writer user turn labels the notes as the reel as a whole, and the storyboard panels read the setting line for place and light, not its camera note.
+
+**Why.** Reel 07 on staging, 30 Oct 2026: S4 stirred the flour in with no product picked (only shots showing the pack got it); S9 turned the chopped apple into jackfruit and an unlabelled yogurt tub came back branded; the production notes ("Handheld, top-down on the bowl.") opened nearly every beat. User: handheld shots are not preferred unless the shot or the direction asks.
+
+**Rejected.** Splitting the setting line into reel and shot parts in the parser (the writer can tell a camera note from a place, and old scripts keep working).
+
+**Originated →** conversation in this session (Reel 07 analysis, staging).

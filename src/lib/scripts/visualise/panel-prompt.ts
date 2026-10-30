@@ -172,7 +172,10 @@ export function buildPanelPrompt(input: {
     styleReferenceClause(references.length + 1),
     `Frame: ${panelAspect(doc)}.`,
     `This shot: ${sentence(shot.visual)}`,
-    doc.context.settingAndCamera ? `Setting and camera for the whole reel: ${sentence(doc.context.settingAndCamera)}` : "",
+    // D458 — the place and light are the reel's; a camera note there is for the shot it describes.
+    doc.context.settingAndCamera
+      ? `The reel's setting (take its place and light; a camera note in it is only for the shot it describes): ${sentence(doc.context.settingAndCamera)}`
+      : "",
     kit
       ? `Regional kit (${kit.region}). Kitchen and home: ${kit.kitchen}. At the table: ${kit.table}. ` +
         `Wardrobe: ${kit.wardrobe}. Use what fits this shot. The home is Indian, never European or Western.`

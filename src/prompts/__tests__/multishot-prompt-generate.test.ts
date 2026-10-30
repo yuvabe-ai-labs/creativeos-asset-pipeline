@@ -471,13 +471,23 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
     expect(system).not.toMatch(/uncluttered space where the mark will sit/);
   });
 
+  // D458 — Reel 07: apple became jackfruit, an unlabelled tub got a brand, and one camera note
+  // ("Handheld, top-down on the bowl") opened every beat.
+  it.each(writers)("%s: props keep their names, and the camera is set shot by shot, steady by default", (_, system) => {
+    expect(system).toMatch(/PROPS KEEP THEIR NAMES/);
+    expect(system).toMatch(/never turn the product's name into an\s+ingredient or a prop/);
+    expect(system).toMatch(/"plain, no label"/);
+    expect(system).toMatch(/THE CAMERA IS SET SHOT BY SHOT/);
+    expect(system).toMatch(/write handheld only when the shot text or the direction asks for it/);
+  });
+
   it.each(writers)("%s: still forbids writing the reference numbers into beats", (_, system) => {
     expect(system).toMatch(/"reference image 2"/);
   });
 
   it("bumps every prompt id", () => {
-    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@15");
-    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@12");
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@11");
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@16");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@13");
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@12");
   });
 });

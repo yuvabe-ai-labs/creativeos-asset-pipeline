@@ -239,3 +239,14 @@ describe("buildMultishotUserTurn, the operator's direction (D455)", () => {
     expect(turn).toContain("Operator's order for THIS shot (write it into this beat): close the door slowly");
   });
 });
+
+// D458 — a camera note in the production notes is for its own shot, not every beat.
+describe("buildMultishotUserTurn, the script's production notes (D458)", () => {
+  it("says the notes are the reel as a whole and a camera note in them is for its own shot", () => {
+    const turn = buildMultishotUserTurn({
+      clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {},
+      scriptNotes: "Handheld, top-down on the bowl. Natural light.",
+    });
+    expect(turn).toContain("The script's production notes (the reel as a whole; a camera note in them is for the shot it describes):\nHandheld, top-down on the bowl.");
+  });
+});
