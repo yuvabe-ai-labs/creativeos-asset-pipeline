@@ -8258,3 +8258,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Splitting the setting line into reel and shot parts in the parser (the writer can tell a camera note from a place, and old scripts keep working).
 
 **Originated →** conversation in this session (Reel 07 analysis, staging).
+
+### D459 — A script character is cast from the whole reel and the brand, not the cast line alone *(recorded 2026-10-30; refines D395)*
+
+**Decision.** The cast brief route sends the brief writer, besides the name, cast line, region and the operator note: the visuals of the shots the person is on screen in (up to 8), the reel Setting & Camera line as its place, and the brand name with the KB casting and audience notes. The brief rules now: read the whole reel (the outfit and what they carry in their shots is part of them; the first shot wins a conflict); decide ethnicity from region, place, name and the brand audience, never from a skin-tone word alone; a real person, never a model or stock photo, personality shown only through styling and a natural expression; specific, believable clothes with real colours, never a placeholder (simple, muted, neutral); a worn product category gets a plain unbranded item so the brand own can replace it; a group cast line becomes one member; a child is a child (a new brief age band, Under 18, described as a girl or boy, with no adult age chip sent). The operator note still wins.
+
+**Why.** Staging, 30 Oct 2026, 16 script-made faces: two Chupps leads came out Black and White (no region, "medium brown skin"); a 9-year-old was briefed as an 18 to 24 woman; "Children" became one teen; outfits were muted placeholders (beige T-shirt, grey shirt) while the shots named a claw clip, earphones or a bronze heritage-weave saree; every face read as an HR stock photo. The brief saw only the cast line and an often empty region.
+
+**Rejected.** Adding a child band to the Studio age chips (a wider change; the description carries the age). Sending the full KB (its visual identity and image direction are about the brand look, not this person).
+
+**Originated →** conversation in this session (character quality review, staging).
