@@ -19,6 +19,10 @@ export type SelectReferencesInput = {
   citedIds?: ReadonlySet<string>;
   avatarFrontId?: string | null;
   avatarSheetId?: string | null;
+  /** D450 — a script's main packshots and location plates: after cited images, before the sheet. */
+  assetMainIds?: ReadonlySet<string>;
+  /** D450 — a product's other angles: after the sheet, before the rest. */
+  assetAngleIds?: ReadonlySet<string>;
   /** Images this model cannot take at all, each with the reason (e.g. the sheet on Seedance). */
   unusable?: ReadonlyMap<string, string>;
   /** The model's rules forbid frames and references together (areFramesAndRefsExclusive): with a
@@ -101,12 +105,16 @@ export function selectReferences(input: SelectReferencesInput): SelectedReferenc
     }
   }
 
-  // Then the free slots, by priority: the avatar's front, cited images, the avatar's sheet, the rest.
+  // Then the free slots, by priority: the avatar's front, cited images, (D450) the script's main
+  // packshots and plates, the avatar's sheet, (D450) other product angles, the rest. Kling's five go
+  // to the face, the product and the place before a third angle.
   const rank = (id: string): number => {
     if (id === input.avatarFrontId) return 0;
     if (input.citedIds?.has(id)) return 1;
-    if (id === input.avatarSheetId) return 2;
-    return 3;
+    if (input.assetMainIds?.has(id)) return 2;
+    if (id === input.avatarSheetId) return 3;
+    if (input.assetAngleIds?.has(id)) return 4;
+    return 5;
   };
   const unassigned = open
     .map(({ id }, order) => ({ id, order }))

@@ -105,3 +105,18 @@ describe("sheetsUnusable", () => {
     expect(sheetsUnusable(["pack", "a1"], "no sheets")).toBeUndefined();
   });
 });
+
+// D450 — a script's product and location pictures: the main ones right after cited images, other
+// angles after the avatar's sheet. On Kling's five, the face, product and place come before an angle.
+describe("selectReferences with script assets (D450)", () => {
+  it("ranks main packshots and plates after cited images, angles after the sheet", () => {
+    const images = ["angle", "loose", "plate", "pack", "sheet", "front"].map((id) => ({ id }));
+    const out = selectReferences({
+      images, roles: {}, cap: 4, modelLabel: "Kling",
+      avatarFrontId: "front", avatarSheetId: "sheet",
+      assetMainIds: new Set(["pack", "plate"]), assetAngleIds: new Set(["angle"]),
+    });
+    expect(out.sent).toEqual(["plate", "pack", "sheet", "front"]);
+    expect(out.leftOut.map((l) => l.id)).toEqual(["angle", "loose"]);
+  });
+});

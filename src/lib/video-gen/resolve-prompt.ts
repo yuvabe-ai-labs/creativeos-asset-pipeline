@@ -14,6 +14,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { dialectForCapability, imageRefDialect, type TokenDialect } from "@/lib/nodes/prompt-token-dialect";
 import { asRefRoles, type RefRole } from "@/lib/nodes/ref-roles";
+import { scriptAssetTagOf } from "@/lib/scripts/asset-nodes";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
 //   shot      -> video-prompt      -> video-gen   (activeOutput is a STRING)
@@ -212,7 +213,8 @@ export function renderResolvedPrompt(
 /**
  * D443 — what each image is, by id, for the request's "Reference roles:" line.
  *
- * The plan's own reading first (multishot lane: the writer looked at every attachment). Then the
+ * D450 — a script's product and location pictures say what they are themselves, and win: the
+ * script decided them, the writer only guessed. Then the plan's own reading (multishot lane: the writer looked at every attachment). Then the
  * presenter's rows, which every reader already marks with `data.presenter` and the avatar's name:
  * a person, even on the single-take lane where no writer read the images. Anything else goes
  * unlabelled rather than guessed.
@@ -222,9 +224,14 @@ export function refRoleLabels(
   rows: readonly UpstreamOutput[],
 ): Map<string, { role: RefRole; name: string }> {
   const labels = new Map<string, { role: RefRole; name: string }>();
+  for (const row of rows) {
+    const tag = scriptAssetTagOf(row.data);
+    // An extra angle says so, or the back of a pouch reads as a second product.
+    if (tag) labels.set(row.nodeId, { role: tag.kind, name: tag.angle > 0 ? `${tag.name}, another angle` : tag.name });
+  }
   if (resolved.cuts) {
     const plan = resolved.promptNode.activeOutput as MultishotPlan;
-    for (const e of asRefRoles(plan.refRoles) ?? []) labels.set(e.id, { role: e.role, name: e.name });
+    for (const e of asRefRoles(plan.refRoles) ?? []) if (!labels.has(e.id)) labels.set(e.id, { role: e.role, name: e.name });
   }
   for (const row of rows) {
     if (labels.has(row.nodeId) || !row.data.presenter) continue;

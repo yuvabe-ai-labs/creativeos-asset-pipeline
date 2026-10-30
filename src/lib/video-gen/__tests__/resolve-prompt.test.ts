@@ -354,3 +354,27 @@ describe("refRoleLabels / roleDialectOfResolved", () => {
     expect(roleDialectOfResolved(r, ["f1"], undefined)).toBeNull();
   });
 });
+
+// D450 — a script's product and location rows label themselves, ahead of the writer's reading.
+describe("refRoleLabels with script assets (D450)", () => {
+  it("labels a product's pictures and a location's plate from the script, angles as angles", async () => {
+    const promptNode = output({
+      nodeId: "mp", type: "multishot-prompt",
+      activeOutput: { ...plan, refRoles: [{ id: "pk", role: "other", name: "a bag" }] },
+    });
+    const multishot = output({ nodeId: "ms", type: "multishot", data: { cuts } });
+    const r = await resolveVideoGenPrompt([promptNode], async () => [multishot]);
+    if (!r.ok) throw new Error("expected a resolved prompt");
+    const tag = (kind: string, name: string, angle: number) => ({ scriptAsset: { kind, id: "x", name, angle } });
+    const rows = [
+      output({ nodeId: "pk", type: "file", data: tag("product", "Brandname pouch", 0) }),
+      output({ nodeId: "pk:1", type: "file", data: tag("product", "Brandname pouch", 1) }),
+      output({ nodeId: "lc", type: "file", data: tag("location", "Home kitchen", 0) }),
+    ];
+    expect(refRoleLabels(r, rows)).toEqual(new Map([
+      ["pk", { role: "product", name: "Brandname pouch" }],
+      ["pk:1", { role: "product", name: "Brandname pouch, another angle" }],
+      ["lc", { role: "location", name: "Home kitchen" }],
+    ]));
+  });
+});
