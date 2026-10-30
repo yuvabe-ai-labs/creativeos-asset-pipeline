@@ -27,8 +27,16 @@ export type PanelTake = {
 };
 
 /** D345 — how a draw chooses its prompt: as the panel last was ("draw"), as the operator wrote
- *  it ("edited"), or rebuilt from the script ("reset"). */
-export type DrawBody = ({ kind: "draw" } | { kind: "edited"; prompt: string } | { kind: "reset" }) & {
+ *  it ("edited"), or rebuilt from the script ("reset"). D449 — Redraw adds two: "change" keeps the
+ *  picked take and applies one note to it (the take is the reference), "fresh" draws anew from the
+ *  script with the note added. */
+export type DrawBody = (
+  | { kind: "draw" }
+  | { kind: "edited"; prompt: string }
+  | { kind: "reset" }
+  | { kind: "change"; note: string }
+  | { kind: "fresh"; note: string }
+) & {
   /** The panel model chosen under Advanced; the default when absent. */
   modelId?: string;
 };

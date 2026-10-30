@@ -139,6 +139,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
                   aspect={model.aspect}
                   credits={model.credits.get(t.shot.id) ?? null}
                   onDraw={() => void draws.draw(t.shot.id)}
+                  onRedraw={(body) => void draws.draw(t.shot.id, body)}
                   onOpen={() => setOpenShot(t.shot.id)}
                   marker={review?.panelMarker(t.shot.id)}
                 />

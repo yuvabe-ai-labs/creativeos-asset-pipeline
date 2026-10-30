@@ -10,6 +10,8 @@ import { promptBoxStart, type PanelView } from "@/lib/scripts/visualise/state";
 import { PanelImage } from "./panel-image";
 import { PanelPromptBox } from "./panel-prompt-box";
 import { PanelTakes } from "./panel-takes";
+import { RedrawPopover } from "@/components/shared/redraw-popover";
+import { PANEL_REDRAW_SUGGESTIONS } from "@/lib/scripts/visualise/constants";
 
 type Props = {
   open: boolean;
@@ -70,6 +72,17 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
           </div>
           <div className="flex min-w-0 flex-col gap-4">
             <PanelTakes takes={view.takes} pickId={view.pick?.id ?? null} disabled={picking || busy} onPick={onPick} />
+            {view.pick && (
+              <RedrawPopover
+                suggestions={PANEL_REDRAW_SUGGESTIONS}
+                credits={credits}
+                canChange={Boolean(view.pick.url)}
+                disabled={busy || !view.canGenerate || credits === null}
+                className="self-start"
+                onChange={(note) => onDraw({ kind: "change", note })}
+                onFresh={(note) => onDraw({ kind: "fresh", note })}
+              />
+            )}
             <PanelPromptBox
               prompt={promptBoxStart(view.pick, inputs)}
               builtPrompt={inputs.prompt}

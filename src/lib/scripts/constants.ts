@@ -32,3 +32,6 @@ export const SCRIPT_DELETE_BLOCKED: Record<ScriptDeleteBlock, string> = {
   shared: "This script has been shared with the client, so it can't be deleted.",
   drawing: "A panel is still being drawn. Try again when it finishes.",
 };
+
+/** D449 — starting points for a location plate's Redraw note: physical changes to the set. */
+export const PLATE_REDRAW_SUGGESTIONS = ["Warmer light", "Fewer props", "Wider view", "More lived-in"];

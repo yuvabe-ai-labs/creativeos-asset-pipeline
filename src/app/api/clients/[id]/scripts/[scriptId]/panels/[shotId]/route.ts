@@ -8,7 +8,7 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
 import { isVisualiseStage } from "@/lib/scripts/visualise/cast";
 import { panelInputs, panelReferenceCap } from "@/lib/scripts/visualise/panel-inputs";
-import { panelAspect } from "@/lib/scripts/visualise/panel-prompt";
+import { panelAspect, panelChangePrompt } from "@/lib/scripts/visualise/panel-prompt";
 import { promptForDraw, waitingMessage } from "@/lib/scripts/visualise/state";
 import { runPanelGeneration } from "@/lib/scripts/visualise/run-panel";
 import { isPanelModel } from "@/lib/scripts/visualise/constants";
@@ -22,6 +22,9 @@ const KindSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("draw") }),
   z.object({ kind: z.literal("edited"), prompt: z.string() }),
   z.object({ kind: z.literal("reset") }),
+  // D449 — Redraw: change the picked take by one note, or draw fresh with the note added.
+  z.object({ kind: z.literal("change"), note: z.string().trim().min(1).max(500) }),
+  z.object({ kind: z.literal("fresh"), note: z.string().trim().max(500) }),
 ]);
 // The model chosen under Advanced, if any: only the ones offered for panels.
 const DrawSchema = KindSchema.and(z.object({ modelId: z.string().refine(isPanelModel).optional() }));
@@ -54,8 +57,15 @@ export async function POST(req: Request, { params }: Ctx) {
 
       const pickId = board.picks[shot.id];
       const current = board.takes.find((t) => t.id === pickId) ?? null;
-      const chosen = promptForDraw(body.data, current, inputs);
+      // D449 — a change edits the picked take: its picture is the only reference, and only the note
+      // is new. Without a drawn take there is nothing to change.
+      const changing = body.data.kind === "change" ? body.data.note : null;
+      if (changing !== null && !current?.url) return apiError("There is no panel to change yet. Draw one first.", 409);
+      const chosen = changing !== null
+        ? { ok: true as const, prompt: panelChangePrompt(changing), edited: false }
+        : promptForDraw(body.data, current, inputs);
       if (!chosen.ok) return apiError(chosen.error, 400);
+      const referenceUrls = changing !== null ? [current!.url!] : inputs.references.map((r) => r.url);
 
       const caller = await resolveCallerContext();
       const take = await insertPanelTake({
@@ -68,7 +78,7 @@ export async function POST(req: Request, { params }: Ctx) {
           clientId, scriptId: script.id, shotId: shot.id, orgId: client.org_id,
           userId: caller.userId, userEmail: caller.email ?? null,
           aspect: panelAspect(script.doc), prompt: chosen.prompt, modelId: body.data.modelId,
-          referenceUrls: inputs.references.map((r) => r.url),
+          referenceUrls,
         });
         const meta = (generation.meta ?? {}) as { width?: number | null; height?: number | null };
         // YUV-422 — the pick moves first, while the take still reads as running: a board read

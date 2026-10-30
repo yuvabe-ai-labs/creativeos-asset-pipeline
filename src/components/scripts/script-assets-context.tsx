@@ -3,8 +3,8 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { AssetOp } from "@/lib/scripts/assets";
-import type { UploadTarget } from "@/services/script-assets.service";
-import { useGeneratePlate, useScriptAssetOp, useUploadScriptImage } from "@/hooks/queries/script-assets";
+import type { PlateRedraw, UploadTarget } from "@/services/script-assets.service";
+import { useDrawingPlates, useGeneratePlate, useScriptAssetOp, useUploadScriptImage } from "@/hooks/queries/script-assets";
 
 /** D446 — what the script page may do to products, locations and picks. Present in Generate and
  *  Visualise; without it the script view shows them read-only (the review page). */
@@ -12,7 +12,8 @@ export type ScriptAssets = {
   clientId: string;
   op: (op: AssetOp) => void;
   upload: (files: File[], target: UploadTarget) => Promise<void>;
-  generatePlate: (locationId: string) => void;
+  /** A first draw, or Redraw's fresh / change (D449). */
+  generatePlate: (locationId: string, redraw?: PlateRedraw) => void;
   /** Locations whose plate is being drawn. */
   drawing: ReadonlySet<string>;
   /** The product or location an upload is going to, while it runs. */
@@ -32,6 +33,7 @@ export function ScriptAssetsProvider({ clientId, scriptId, children }: { clientI
   const op = useScriptAssetOp(clientId, scriptId);
   const upload = useUploadScriptImage(clientId, scriptId);
   const plate = useGeneratePlate(clientId, scriptId);
+  const drawing = useDrawingPlates(clientId, scriptId);
 
   const value = useMemo<ScriptAssets>(() => ({
     clientId,
@@ -47,10 +49,14 @@ export function ScriptAssetsProvider({ clientId, scriptId, children }: { clientI
         }
       }
     },
-    generatePlate: (locationId) => plate.mutate(locationId, { onError: fail }),
-    drawing: new Set(plate.isPending && plate.variables ? [plate.variables] : []),
+    // The whole set is checked, so a click on a plate already drawing never starts a second draw.
+    generatePlate: (locationId, redraw) => {
+      if (drawing.has(locationId)) return;
+      plate.mutate({ locationId, redraw }, { onError: fail });
+    },
+    drawing,
     uploadingTo: upload.isPending && upload.variables ? targetId(upload.variables.target) : null,
-  }), [clientId, op, upload, plate]);
+  }), [clientId, op, upload, plate, drawing]);
 
   return <ScriptAssetsContext.Provider value={value}>{children}</ScriptAssetsContext.Provider>;
 }

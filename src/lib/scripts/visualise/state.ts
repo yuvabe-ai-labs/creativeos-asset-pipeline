@@ -84,6 +84,14 @@ export function promptForDraw(
   inputs: Pick<PanelInputs, "prompt" | "shotKey">,
 ): { ok: true; prompt: string; edited: boolean } | { ok: false; error: string } {
   if (body.kind === "reset") return { ok: true, prompt: inputs.prompt, edited: false };
+  // D449 — a fresh draw from the script; a note rides along as one more line, and the take is
+  // marked edited so a plain redraw keeps it.
+  if (body.kind === "fresh") {
+    const note = body.note.trim();
+    return note ? { ok: true, prompt: `${inputs.prompt}\nAlso: ${note}`, edited: true } : { ok: true, prompt: inputs.prompt, edited: false };
+  }
+  // A change edits the picked take; the route builds that prompt, since it needs the take's picture.
+  if (body.kind === "change") return { ok: false, error: "A change needs the panel's picture." };
   if (body.kind === "edited") {
     const prompt = body.prompt.trim();
     if (!prompt) return { ok: false, error: "The prompt is empty." };

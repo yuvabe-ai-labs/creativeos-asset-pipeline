@@ -151,6 +151,13 @@ describe("promptForDraw (D345)", () => {
     expect(promptForDraw({ kind: "reset" }, makeTake({ promptEdited: true, shotKey: "k" }), i)).toEqual({ ok: true, prompt: "built", edited: false });
   });
 
+  // D449 — Redraw: a fresh draw carries its note as one more line; a change is built by the route.
+  it("draws fresh from the script, with the note added and marked edited", () => {
+    expect(promptForDraw({ kind: "fresh", note: "  closer on her hands " }, null, i)).toEqual({ ok: true, prompt: "built\nAlso: closer on her hands", edited: true });
+    expect(promptForDraw({ kind: "fresh", note: "" }, makeTake({ promptEdited: true, shotKey: "k" }), i)).toEqual({ ok: true, prompt: "built", edited: false });
+    expect(promptForDraw({ kind: "change", note: "x" }, null, i).ok).toBe(false);
+  });
+
   it("refuses an empty or overlong prompt", () => {
     expect(promptForDraw({ kind: "edited", prompt: "   " }, null, i)).toEqual({ ok: false, error: "The prompt is empty." });
     expect(promptForDraw({ kind: "edited", prompt: "x".repeat(8001) }, null, i).ok).toBe(false);

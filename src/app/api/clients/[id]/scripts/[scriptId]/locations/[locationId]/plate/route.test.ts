@@ -25,7 +25,9 @@ import { CreditLimitError } from "@/lib/db/credit-transactions";
 import { PANEL_MODEL_ID } from "@/lib/scripts/visualise/constants";
 
 const params = Promise.resolve({ id: "c1", scriptId: SCRIPT_ID, locationId: "kitchen" });
-const post = () => new NextRequest(`http://localhost/api/clients/c1/scripts/${SCRIPT_ID}/locations/kitchen/plate`, { method: "POST" });
+const post = (body?: unknown) => new NextRequest(`http://localhost/api/clients/c1/scripts/${SCRIPT_ID}/locations/kitchen/plate`, {
+  method: "POST", ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+});
 
 const base = makeScript();
 const script = (stage = "visualise" as const) => ({
@@ -57,6 +59,25 @@ describe("POST …/locations/:locationId/plate", () => {
     expect(run.prompt).toMatch(/no people/);
     const build = vi.mocked(changeScriptAssets).mock.calls[0][2] as AssetOpBuilder;
     expect(build(script().doc)).toEqual({ op: "set_location_image", locationId: "kitchen", image: { url: "https://x/plate.png", source: "plate" } });
+  });
+
+  // D449 — Redraw: a change edits the current plate (its one reference); with none there is nothing to change.
+  it("changes the current plate by a note, with the plate as the reference", async () => {
+    const withPlate = script();
+    withPlate.doc.locations[0].image = { url: "https://x/old.png", source: "plate" };
+    vi.mocked(getScript).mockResolvedValue(withPlate);
+    const { POST } = await import("./route");
+    expect((await POST(post({ mode: "change", note: "fewer props" }), { params })).status).toBe(200);
+    const run = vi.mocked(runBilledImageGeneration).mock.calls[0][0];
+    expect(run.referenceUrls).toEqual(["https://x/old.png"]);
+    expect(run.prompt).toContain("Redraw it with one change: fewer props.");
+  });
+
+  it("refuses a change with no plate yet, and draws fresh with the note added", async () => {
+    const { POST } = await import("./route");
+    expect((await POST(post({ mode: "change", note: "x" }), { params })).status).toBe(409);
+    await POST(post({ mode: "fresh", note: "warmer light" }), { params });
+    expect(vi.mocked(runBilledImageGeneration).mock.calls[0][0].prompt).toContain("Also: warmer light.");
   });
 
   it("is a 404 for a location the script does not have, and a 409 for an approved script", async () => {

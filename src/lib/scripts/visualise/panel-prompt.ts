@@ -37,6 +37,16 @@ export function styleReferenceClause(styleRefNumber: number): string {
 export const PANEL_NOBODY_CLAUSE = "Nobody is on screen: draw no people. Hands may appear only if the action needs them.";
 export const PANEL_REFERENCE_CLAUSE =
   "The people's reference images show their identity only: never copy their plain grey background, lighting or layout.";
+/** D449 — Redraw's "Change this picture": the picked take is reference image 1 and only the note
+ *  changes. Everything the take already got right (who, where, framing, style) is held. */
+export function panelChangePrompt(note: string): string {
+  return [
+    "Reference image 1 is the current storyboard panel. Redraw it with one change: " + note.trim().replace(/\.?\s*$/, "."),
+    "Keep everything else exactly as it is: the people and how they look, the setting, the framing and the drawing style.",
+    PANEL_NO_TEXT_CLAUSE,
+  ].join("\n");
+}
+
 export const PANEL_NO_TEXT_CLAUSE =
   "Never draw any text, letters, numbers, logos, brand names, labels, price tags or captions anywhere " +
   "in the frame. Every container, jar, packet and box is plain and unlabelled.";

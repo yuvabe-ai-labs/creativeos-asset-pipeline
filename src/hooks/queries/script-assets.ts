@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { scriptAssetsService, type AssetWrite, type UploadTarget } from "@/services/script-assets.service";
+import { useMemo } from "react";
+import { useMutation, useMutationState, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { scriptAssetsService, type AssetWrite, type PlateRedraw, type UploadTarget } from "@/services/script-assets.service";
 import type { AssetOp } from "@/lib/scripts/assets";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
 import { scriptKeys } from "./scripts";
@@ -41,10 +42,27 @@ export function useUploadScriptImage(clientId: string, scriptId: string) {
   });
 }
 
+const plateKey = (clientId: string, scriptId: string) => ["script-assets", clientId, scriptId, "plate"] as const;
+type PlateVars = { locationId: string; redraw?: PlateRedraw };
+
 export function useGeneratePlate(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (locationId: string) => scriptAssetsService.generatePlate(clientId, scriptId, locationId),
+    mutationKey: plateKey(clientId, scriptId),
+    mutationFn: ({ locationId, redraw }: PlateVars) => scriptAssetsService.generatePlate(clientId, scriptId, locationId, redraw),
     onSuccess: (write) => landDoc(queryClient, clientId, scriptId, write),
   });
+}
+
+/** Every location whose plate is drawing NOW. One mutation's `isPending` / `variables` describe
+ *  only its latest call, so a second Generate hid the first one's spinner and re-enabled its button
+ *  (a double, billed draw). The mutation cache holds each call while it runs. */
+export function useDrawingPlates(clientId: string, scriptId: string): ReadonlySet<string> {
+  const ids = useMutationState({
+    filters: { mutationKey: plateKey(clientId, scriptId), status: "pending" },
+    select: (m) => (m.state.variables as PlateVars | undefined)?.locationId ?? "",
+  });
+  const key = [...new Set(ids.filter(Boolean))].sort().join(",");
+  // Stable while the same plates draw, so consumers can depend on it.
+  return useMemo(() => new Set(key ? key.split(",") : []), [key]);
 }

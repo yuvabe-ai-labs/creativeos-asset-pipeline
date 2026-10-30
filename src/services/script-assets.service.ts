@@ -8,6 +8,8 @@ import { readJson } from "./read-json";
 
 export type AssetWrite = { doc: ScriptDoc; stage: ScriptStage };
 export type UploadTarget = { kind: "product"; productId: string } | { kind: "location"; locationId: string };
+/** D449 — draw fresh (a note optional), or change the current plate by a note. */
+export type PlateRedraw = { mode: "fresh"; note: string } | { mode: "change"; note: string };
 
 class ScriptAssetsService {
   async applyOp(clientId: string, scriptId: string, op: AssetOp): Promise<AssetWrite> {
@@ -30,8 +32,12 @@ class ScriptAssetsService {
     });
   }
 
-  async generatePlate(clientId: string, scriptId: string, locationId: string): Promise<AssetWrite> {
-    const res = await fetch(`/api/clients/${clientId}/scripts/${scriptId}/locations/${locationId}/plate`, { method: "POST" });
+  async generatePlate(clientId: string, scriptId: string, locationId: string, redraw: PlateRedraw = { mode: "fresh", note: "" }): Promise<AssetWrite> {
+    const res = await fetch(`/api/clients/${clientId}/scripts/${scriptId}/locations/${locationId}/plate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(redraw),
+    });
     return readJson<AssetWrite>(res, "Could not draw the location.");
   }
 }

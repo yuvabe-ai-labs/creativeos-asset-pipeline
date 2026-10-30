@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ImagePlus, MapPin, Sparkles, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EditableField } from "@/components/nodes/editable-field";
+import { RedrawPopover } from "@/components/shared/redraw-popover";
+import { PLATE_REDRAW_SUGGESTIONS } from "@/lib/scripts/constants";
 import type { ScriptLocation } from "@/lib/scripts/schema";
 import { useScriptAssets } from "./script-assets-context";
 import { ScriptImagePicker } from "./script-image-picker";
@@ -47,11 +49,24 @@ export function ScriptLocationCard({ location }: { location: ScriptLocation }) {
         {!location.image && <span className="text-xs text-muted-foreground">Needs a picture</span>}
         {assets && (
           <div className="mt-1 flex flex-wrap gap-2">
-            <Button variant="ghost" size="sm" disabled={drawing} onClick={() => assets.generatePlate(location.id)}
-              className="border border-dashed border-primary/40 text-primary hover:bg-primary/5">
-              <Sparkles className="size-4" strokeWidth={1.5} />
-              {drawing ? "Drawing…" : location.image ? "Draw again" : "Generate"}
-            </Button>
+            {location.image ? (
+              // D449 — a plate that exists is redrawn by asking first: change it, or draw anew.
+              <RedrawPopover
+                suggestions={PLATE_REDRAW_SUGGESTIONS}
+                credits={null}
+                canChange
+                disabled={drawing}
+                trigger={drawing ? "Drawing…" : undefined}
+                onChange={(note) => assets.generatePlate(location.id, { mode: "change", note })}
+                onFresh={(note) => assets.generatePlate(location.id, { mode: "fresh", note })}
+              />
+            ) : (
+              <Button variant="ghost" size="sm" disabled={drawing} onClick={() => assets.generatePlate(location.id)}
+                className="border border-dashed border-primary/40 text-primary hover:bg-primary/5">
+                <Sparkles className="size-4" strokeWidth={1.5} />
+                {drawing ? "Drawing…" : "Generate"}
+              </Button>
+            )}
             <Button variant="ghost" size="sm" disabled={uploading} onClick={() => setPicking(true)}>
               <ImagePlus className="size-4" strokeWidth={1.5} />
               {uploading ? "Adding…" : "Add a picture"}

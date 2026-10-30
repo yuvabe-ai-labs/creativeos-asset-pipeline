@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { scriptDocSchema } from "@/lib/scripts/schema";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
-import { locationPlatePrompt } from "../location-plate";
+import { locationPlateChangePrompt, locationPlatePrompt } from "../location-plate";
 
 const doc = scriptDocSchema.parse(reel01);
 const location = { id: "podcast-set", name: "Podcast set", description: "A warm studio desk with a microphone arm", image: null };
@@ -24,6 +24,15 @@ describe("locationPlatePrompt (D448)", () => {
     const p = locationPlatePrompt({ location, doc, kit, aspect: "9:16" });
     expect(p).toContain("Regional kit (Kerala). Kitchen and home: steel vessels, a granite counter.");
     expect(p).not.toContain("mundu");
+  });
+
+  // D449 — Redraw.
+  it("adds a fresh draw's note, and a change keeps the plate and stays an empty set", () => {
+    expect(locationPlatePrompt({ location, doc, kit: null, aspect: "9:16", note: "warmer light" })).toContain("Also: warmer light.");
+    const change = locationPlateChangePrompt("fewer props");
+    expect(change).toContain("Redraw it with one change: fewer props.");
+    expect(change).toMatch(/Keep everything else exactly as it is/);
+    expect(change).toMatch(/no people/);
   });
 
   it("leaves out an empty setting and an empty description", () => {
