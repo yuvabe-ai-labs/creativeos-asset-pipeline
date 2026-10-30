@@ -137,7 +137,7 @@ export function canvasAssetRows(
   promptNodeId: string,
   nodes: Array<{ id: string; type?: string; data: unknown }>,
   edges: Array<{ source: string; target: string }>,
-): { direct: Map<string, AssetUpstreamRow[]>; viaShot: AssetUpstreamRow[] } {
+): { direct: Map<string, AssetUpstreamRow[]>; viaShot: AssetUpstreamRow[]; panels: AssetUpstreamRow[] } {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   type CanvasNode = (typeof nodes)[number];
   const into = (target: string): CanvasNode[] =>
@@ -156,7 +156,8 @@ export function canvasAssetRows(
       }
     }
   }
-  return { direct, viaShot: [...viaShot, ...panels] };
+  // D453 — panels separately: the caller puts them after the presenter, as getPromptUpstream does.
+  return { direct, viaShot, panels };
 }
 
 /** A script asset reaching a focus view through the clip's Shot or Multishot. */

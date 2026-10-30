@@ -36,7 +36,8 @@ import {
 // @7 (D319): shares the role-aware reference reading and the `references` scratch field.
 // @8 (D441–D445): shares the named-not-described product rule, the operator's rules in place of the
 //     look, and the reading's role enum and name; no 【】 subtitles (no on-screen text, D445).
-export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@8";
+// @9 (D453): shares the storyboard-moment and worn-product rules and the reading's frames.
+export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@9";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Seedance 2.5.
 

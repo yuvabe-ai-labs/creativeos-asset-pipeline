@@ -32,7 +32,9 @@ import { REF_ROLES } from "@/lib/nodes/ref-roles";
 //     longer writes a look (the operator's "Rules for every shot" arrive as input instead); the
 //     reading gains a role enum and a short name, kept on the plan as `refRoles`; a character
 //     appears only in shots that involve a person.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@12";
+// @13 (D453): the storyboard decides what each beat shows, whatever the number of shots; a worn
+//     product replaces the person's own item of that kind and is in every beat its wearer is in.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@13";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -144,7 +146,28 @@ A shot text often names more than one camera setup — "Rapid close-ups. A man p
 woman steps out of a cab. Someone grabs a coffee." A beat of a few seconds cannot hold four setups,
 and trying is the single biggest reason a generation comes back as mush. Choose the ONE the shot
 leads with, or the one its length can actually carry, and render that completely. The operator
-splits the rest into their own shots when they want them.`;
+splits the rest into their own shots when they want them.
+
+A STORYBOARD IS THE APPROVED PICTURE OF THE CLIP. The client signed off on it, so the video must
+show what it shows: the same moments, in the same order, with the same people in frame, the same
+places, actions, shot sizes and framing. Read its frames in order and lay them across the beats by
+time, whatever the number of either:
+- As many frames as beats: each beat is its frame.
+- More frames than beats: each beat carries the frames that fall in its share of the time, written
+  as ONE continuous take that passes through them in order on one simple camera ("he finishes
+  dressing, glances at his watch, runs a hand through his hair and bends to pick up the slippers").
+  Every frame's moment appears; none is dropped for being short. This is the one exception to one
+  action per beat, and it still keeps a single camera and plain motion.
+- Fewer frames than beats: each frame sets the beats around it; the beats between two frames
+  continue the earlier frame's moment.
+When the shot text and the storyboard disagree, the storyboard wins: it is the later, approved
+version. Never describe the drawing itself (its lines, sketch style or colours): it is a plan,
+and the other references are what things look like.
+
+WORN PRODUCTS. When the product is something worn or carried (footwear, clothing, eyewear, a watch,
+a bag), the person wears or carries the product in place of their own item of that kind: never
+describe both, and never take that item from the person's reference. The product is in every beat
+its wearer is in, named ("in the Brandname sliders"), even when the shot text only implies it.`;
 
 /**
  * The craft rules that are OURS, not a vendor's: one action per beat, simple motion, camera,
@@ -280,6 +303,7 @@ const REFERENCE_READING = {
         description:
           "What the image actually shows, in the detail its role needs: for a location, the space, surfaces, props and their positions; for a storyboard, each panel in order with shot size, angle, subject placement and action; for a person, age, build, hair and every wardrobe item and accessory with colours; for a product, what it is in a few words; for a brand mark or style reference, brief.",
       },
+
     },
   },
 } as const;

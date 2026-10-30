@@ -59,11 +59,16 @@ export function useMentionUpstream(promptNodeId: string, upstream: UpstreamNode[
   const sheetUrl = presenter?.avatar.sheet && !presenter.avatar.sheetStale ? presenter.avatar.sheet.url : undefined;
 
   return useMemo(() => {
-    if (!avatarNodeId || !frontUrl || withAssets.some((u) => u.id === avatarNodeId)) return withAssets;
+    // D453 — storyboard panels last, after the presenter (getPromptUpstream's order).
+    const panelsLast = (rows: UpstreamNode[]) => {
+      const seen = new Set(rows.map((r) => r.id));
+      return [...rows, ...assets.panels.filter((p) => !seen.has(p.id))];
+    };
+    if (!avatarNodeId || !frontUrl || withAssets.some((u) => u.id === avatarNodeId)) return panelsLast(withAssets);
     const rows: UpstreamNode[] = [{ id: avatarNodeId, label: name, type: "avatar", fileUrl: frontUrl, fileKind: "image" }];
     if (sheetUrl) {
       rows.push({ id: avatarSheetId(avatarNodeId), label: `${name} sheet`, type: "avatar", fileUrl: sheetUrl, fileKind: "image" });
     }
-    return [...withAssets, ...rows];
-  }, [withAssets, avatarNodeId, name, frontUrl, sheetUrl]);
+    return panelsLast([...withAssets, ...rows]);
+  }, [withAssets, assets, avatarNodeId, name, frontUrl, sheetUrl]);
 }

@@ -436,6 +436,15 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
     expect(system).toMatch(/exactly as in its reference/);
   });
 
+  // D453 — the canvas analysis: S4's beat ignored its panel, S3 put sneakers AND sliders on him.
+  it.each(writers)("%s: shows every storyboard moment whatever the shot count, and a worn product replaces the person's own", (_, system) => {
+    expect(system).toMatch(/A STORYBOARD IS THE APPROVED PICTURE OF THE CLIP/);
+    expect(system).toMatch(/whatever the number of either/);
+    expect(system).toMatch(/Every frame's moment appears; none is dropped for being short/);
+    expect(system).toMatch(/the storyboard wins/);
+    expect(system).toMatch(/in place of their own item of that kind: never\s+describe both/);
+  });
+
   // D444 — the presenter is wired by default (D438); B-roll must not pull them in.
   it.each(writers)("%s: a product-only shot shows nobody", (_, system) => {
     expect(system).toMatch(/A product-only shot shows nobody/);
@@ -446,8 +455,8 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
   });
 
   it("bumps every prompt id", () => {
-    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@12");
-    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@9");
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@8");
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@13");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@10");
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@9");
   });
 });

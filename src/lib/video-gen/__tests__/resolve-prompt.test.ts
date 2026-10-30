@@ -327,15 +327,16 @@ describe("refRoleLabels / roleDialectOfResolved", () => {
     expect(refRoleLabels(r, [presenter, sheet])).toEqual(
       new Map([
         ["av", { role: "person", name: "Maya" }],
-        ["av:sheet", { role: "person", name: "Maya" }],
+        ["av:sheet", { role: "person", name: "Maya, profile sheet" }],
       ]),
     );
   });
 
-  it("keeps the plan's reading over the fallback", async () => {
-    const presenter = output({ nodeId: "av", type: "file", data: { presenter: true, title: "Maya" } });
-    const r = await resolvedWith({ ...plan, refRoles: [{ id: "av", role: "person", name: "the host" }] });
-    expect(refRoleLabels(r, [presenter]).get("av")).toEqual({ role: "person", name: "the host" });
+  // D453 — on Reel 03 the writer read the profile sheet as a storyboard; the avatar now wins.
+  it("labels the avatar's pictures a person whatever the writer read", async () => {
+    const presenter = output({ nodeId: "av", type: "file", data: { presenter: "sheet", title: "Maya" } });
+    const r = await resolvedWith({ ...plan, refRoles: [{ id: "av", role: "storyboard", name: "pose sheet" }] });
+    expect(refRoleLabels(r, [presenter]).get("av")).toEqual({ role: "person", name: "Maya, profile sheet" });
   });
 
   it("numbers in the plan's own model's tokens", async () => {

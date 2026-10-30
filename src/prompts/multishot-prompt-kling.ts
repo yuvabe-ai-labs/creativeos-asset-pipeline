@@ -32,7 +32,8 @@ import {
 // @8 (D319): shares the role-aware reference reading and the `references` scratch field.
 // @9 (D441–D444): shares the named-not-described product rule, the operator's rules in place of the
 //     look, and the reading's role enum and name.
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@9";
+// @10 (D453): shares the storyboard-moment and worn-product rules and the reading's frames.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@10";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 

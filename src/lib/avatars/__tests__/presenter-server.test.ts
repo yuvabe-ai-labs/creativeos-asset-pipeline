@@ -58,6 +58,15 @@ describe("getPromptUpstream with the clip's storyboard panel (D452)", () => {
     expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "loc", "panel"]);
     expect(ups[2].data.scriptAsset).toMatchObject({ kind: "storyboard", name: "S1 storyboard" });
   });
+
+  // D453 — on Reel 03 the panel led as IMAGE_REF_0; it now comes after the avatar too.
+  it("puts the panel after the presenter's pictures", async () => {
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [{ nodeId: "panel", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/panel.png", storyboardPanel: "S1" } }]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet", "panel"]);
+  });
 });
 
 describe("getPromptUpstream", () => {

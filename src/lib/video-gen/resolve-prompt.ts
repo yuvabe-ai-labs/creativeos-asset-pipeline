@@ -230,13 +230,16 @@ export function refRoleLabels(
     // An extra angle says so, or the back of a pouch reads as a second product.
     if (tag) labels.set(row.nodeId, { role: tag.kind, name: tag.angle > 0 ? `${tag.name}, another angle` : tag.name });
   }
+  // D453 — the avatar's own pictures are a person before the writer's reading is consulted: on the
+  // Reel 03 canvas the writer read the profile sheet as a "storyboard", and the request said so.
+  for (const row of rows) {
+    if (labels.has(row.nodeId) || !row.data.presenter) continue;
+    const name = typeof row.data.title === "string" ? row.data.title : "";
+    labels.set(row.nodeId, { role: "person", name: row.data.presenter === "sheet" && name ? `${name}, profile sheet` : name });
+  }
   if (resolved.cuts) {
     const plan = resolved.promptNode.activeOutput as MultishotPlan;
     for (const e of asRefRoles(plan.refRoles) ?? []) if (!labels.has(e.id)) labels.set(e.id, { role: e.role, name: e.name });
-  }
-  for (const row of rows) {
-    if (labels.has(row.nodeId) || !row.data.presenter) continue;
-    labels.set(row.nodeId, { role: "person", name: typeof row.data.title === "string" ? row.data.title : "" });
   }
   return labels;
 }

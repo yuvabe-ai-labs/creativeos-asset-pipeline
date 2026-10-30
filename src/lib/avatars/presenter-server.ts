@@ -75,8 +75,12 @@ export async function withAvatarImages(nodeId: string, ups: UpstreamOutput[]): P
  *  `getUpstreamOutputs`, wherever a Prompt, Motion Prompt or Multishot Prompt node's upstream is read. */
 export async function getPromptUpstream(nodeId: string): Promise<UpstreamOutput[]> {
   const direct = withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)));
-  const ups = await withShotAssets(direct);
-  return withPresenterRow(ups, await loadPresenterForPromptNode(nodeId, ups));
+  const { ups, panels } = await withShotAssets(direct);
+  const withPresenter = withPresenterRow(ups, await loadPresenterForPromptNode(nodeId, ups));
+  // D453 — storyboard panels last of all, after the presenter too: the order is a signal the video
+  // model reads, and a sketch must never lead the real pictures.
+  const seen = new Set(withPresenter.map((u) => u.nodeId));
+  return [...withPresenter, ...panels.filter((p) => !seen.has(p.nodeId))];
 }
 
 /**
@@ -85,22 +89,22 @@ export async function getPromptUpstream(nodeId: string): Promise<UpstreamOutput[
  * every other image there): Fan out wires a script's assets to the clips that use them, and the
  * clip's prompt is where they have to arrive. One read per shot row, which is normally one.
  */
-async function withShotAssets(ups: UpstreamOutput[]): Promise<UpstreamOutput[]> {
+async function withShotAssets(ups: UpstreamOutput[]): Promise<{ ups: UpstreamOutput[]; panels: UpstreamOutput[] }> {
   const shots = ups.filter((u) => u.type === "shot" || u.type === "multishot");
-  if (shots.length === 0) return ups;
+  if (shots.length === 0) return { ups, panels: [] };
   const batches = await Promise.all(shots.map((s) => getUpstreamOutputs(s.nodeId)));
   const seen = new Set(ups.map((u) => u.nodeId));
   const out = [...ups];
-  // D452 — and its storyboard panels, after the script's real pictures.
   const rows = batches.flat();
   const assets = rows.filter((r) => isScriptAssetNodeType(r.type)).flatMap(scriptAssetRows);
-  const panels = rows.map(storyboardPanelRow).filter((r): r is UpstreamOutput => r !== null);
-  for (const row of [...assets, ...panels]) {
+  for (const row of assets) {
     if (seen.has(row.nodeId)) continue;
     seen.add(row.nodeId);
     out.push(row);
   }
-  return out;
+  // D452 — and its storyboard panels, which the caller places last.
+  const panels = rows.map(storyboardPanelRow).filter((r): r is UpstreamOutput => r !== null && !seen.has(r.nodeId));
+  return { ups: out, panels };
 }
 
 /** D440 — a gen node takes what is wired into its prompt node as well as what is wired into it, as
