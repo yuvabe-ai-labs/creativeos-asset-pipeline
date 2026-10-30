@@ -8090,3 +8090,49 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping images on a Motion Prompt as vision context only (the original split): it made the same wire mean different things on the two video lanes.
 
 **Originated →** conversation in this session.
+
+### D441 — A referenced product is named and pinned to its picture, never described *(recorded 2026-10-30; refines D319, D263)*
+
+**Decision.** Every video-prompt writer (multishot Omni, Kling, Seedance; single-take Veo, Kling, Omni, Seedance) names a referenced product in a few words ("the tea pouch") and pins it to its picture ("exactly as in its reference"). It never writes the product's colour, material, shape, components, label text, lettering or logo. The PRODUCT role's "name every distinct element… each one's colour and material", the schema's "for a product, every component and colour", the multishot PRESERVATION rule ("shape, proportions, colour, lettering or logo held exactly") and the single-take spine's "restate… label text, logo, lettering, colours" are gone; the single-take wording is shared as `REFERENCE_PRESERVATION`.
+
+**Why.** User, 30 Oct 2026: when the prompt describes the product, the product looks wrong; the text takes precedence over the references. J365's last 200 production clips: 75 carried a product-appearance line, and that wording came from our own writer. Google Flow ("your text prompt should complement, not contradict, your visual inputs"), Google's and fal's Omni examples, and Kling's and Runway's guides all point at a referenced subject by its token and leave its appearance to the image.
+
+**Rejected.** Keeping a "short" appearance line ("the yellow pouch"): colour words were exactly what came back wrong.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §3.
+
+### D442 — The look block becomes the operator's "Rules for every shot" *(recorded 2026-10-30; refines D231, D262; closes YUV-371)*
+
+**Decision.** The multishot writer no longer writes a look & atmosphere block: `look` leaves the plan schema, and the look refine scope, schema, rules and suggestion chips are deleted. The stored `MultishotPlan.look` keeps its name, so nothing migrates, and the focus view shows it as **Rules for every shot**, a plain text box the operator fills in, sent above the ladder as written. A whole regenerate carries it forward, and the writer receives it in the user turn to obey, never to restate. Saved look text stays visible and keeps being sent until the operator clears it.
+
+**Why.** YUV-371, and the user's report that the look and atmosphere section changes the product's look. Its light, palette and grade words acted on the product as much as the set ("the palette is yellow packaging against warm wood"). Operators deleted it, or used the field for rules ("strictly do not use the same hand for eating and picking the phone"): 28 of 89 J365 plan versions held one, and most clips were sent without.
+
+**Rejected.** Deleting the field outright: it would remove the only place operators put rules that apply to every shot.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §4.
+
+### D443 — Every image sent to a video model is labelled with its role *(recorded 2026-10-30; refines D233, D319)*
+
+**Decision.** The writer's reference reading now gives each image a role from a fixed list (product, person, location, storyboard, style, brand mark, other) and a short name. The multishot-prompt route keeps this as the plan's `refRoles`, keyed by image id. The video-generate route adds one line, after reference selection and numbered in the lane's own tokens: "Reference roles: <IMAGE_REF_0> is the product (tea pouch): keep it exactly as pictured. <IMAGE_REF_1> is the location (podcast set): the place, not a subject…". The presenter's rows are labelled a person when the plan has no reading for them (including the single-take lane). Every wired image is still sent and @ mentions stay optional. The writer still writes no tokens (D233); code writes the line. On Kling the line gives way rather than push the prompt over the 3072-character ceiling.
+
+**Why.** About 90% of clips on every client sent images the prompt never named (J365 167/200, Madras 52/55, Penguin 35/35), and Omni's header listed them with no role, so the model guessed which picture was the product. Runway's Seedance guide: "an unassigned reference leaves the model free to borrow anything from it."
+
+**Rejected.** (1) Sending only images a shot @-mentions: the user prefers sending all and letting the model infer. (2) A role picker per image: more clicking, and D281 already rejected it. (3) Labelling by source only: products and locations all arrive as plain files. (4) The writer binding images to shots: the user wants that decided at script level (next project: script-level Products and Locations).
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §5.
+
+### D444 — The multishot writer gets cleaner input, and a character only goes where a person does *(recorded 2026-10-30; refines D262, D438)*
+
+**Decision.** The Multishot Prompt node's default KB slices are Casting, Personality, Tone and Compliance (`DEFAULT_MULTISHOT_PROMPT_SLICES`); Visual Style and Image Direction are off unless switched on. The shot-text contract no longer claims the brand context names the product (the KB has no product field). A character reference applies only to shots whose text involves a person, and "a product-only shot shows nobody"; the presenter's text block says "the person on camera when a shot shows someone".
+
+**Why.** The default slices sent KB lighting, environment and surfaces as "brand context", the same material the prompt told the writer never to use for setting. D438 put the presenter in every shot by default, and the writer was told to repeat the character in every beat, so B-roll product shots pulled the presenter in.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §6.
+
+### D445 — "No on-screen text" on every video model *(recorded 2026-10-30; refines D428)*
+
+**Decision.** Kling requests carry "No on-screen text." ahead of the shot triples, and Seedance requests close with it (`withRequestLines`); Omni already had it from composeOmniPrompt. The Seedance writers no longer offer 【】 for subtitles.
+
+**Why.** The writers were told "the request carries a standing instruction against screen-space type", which was true only on Omni.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §7.
