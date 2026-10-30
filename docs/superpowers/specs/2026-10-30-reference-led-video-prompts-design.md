@@ -140,8 +140,9 @@ slot the look uses (D238's acknowledged guess applies equally). Seedance: leads 
 
 ## 7. One no-text guard on every model (D445)
 
-- `NO_ON_SCREEN_TEXT_LINE` moves from `compose-omni-prompt.ts` to a shared module and is added to
-  Kling (lead prose, semicolon-free) and Seedance (closing line) requests in their providers.
+- `NO_ON_SCREEN_TEXT_LINE` (still exported from `compose-omni-prompt.ts`) is added to Kling (lead
+  prose, semicolon-free) and Seedance (closing line) requests by the video-generate route, through
+  one helper (`withRequestLines`, `src/lib/video-gen/request-prompt.ts`).
 - Seedance writers (`multishot-prompt-seedance.ts:74`, `video-prompt-seedance.ts:46`): drop "【】
   for subtitles".
 
