@@ -39,8 +39,24 @@ describe("getPromptUpstream with script products and locations (D450)", () => {
           { nodeId: "panel", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/panel.png" } },
         ]) as never);
     const ups = await getPromptUpstream("prompt-1");
+    // D452 — the panel is not marked and not named as one, so it stays unread.
     expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "loc"]);
     expect(ups[1].data).toMatchObject({ fileUrl: "https://x/k.png", scriptAsset: { kind: "location", name: "Home kitchen" } });
+  });
+});
+
+describe("getPromptUpstream with the clip's storyboard panel (D452)", () => {
+  it("reads the shot's panel after its product and location pictures", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [
+          { nodeId: "panel", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/panel.png", filename: "S1-storyboard.png" } },
+          { nodeId: "loc", type: "location", activeOutput: null, versionId: null, data: { name: "Home kitchen", locationId: "kitchen", image: { url: "https://x/k.png" } } },
+        ]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "loc", "panel"]);
+    expect(ups[2].data.scriptAsset).toMatchObject({ kind: "storyboard", name: "S1 storyboard" });
   });
 });
 

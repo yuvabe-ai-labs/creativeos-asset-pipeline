@@ -8,7 +8,7 @@ import {
   seedingScriptId, withAvatarAsSpeaker,
 } from "./presenter";
 import { prepareNamedVoiceReference } from "./voice-reference";
-import { isScriptAssetNodeType, scriptAssetRows, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
+import { isScriptAssetNodeType, scriptAssetRows, storyboardPanelRow, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
 
 // D299 — the presenter of a shot, from the database, and the virtual input it becomes.
 
@@ -91,7 +91,11 @@ async function withShotAssets(ups: UpstreamOutput[]): Promise<UpstreamOutput[]> 
   const batches = await Promise.all(shots.map((s) => getUpstreamOutputs(s.nodeId)));
   const seen = new Set(ups.map((u) => u.nodeId));
   const out = [...ups];
-  for (const row of batches.flat().filter((r) => isScriptAssetNodeType(r.type)).flatMap(scriptAssetRows)) {
+  // D452 — and its storyboard panels, after the script's real pictures.
+  const rows = batches.flat();
+  const assets = rows.filter((r) => isScriptAssetNodeType(r.type)).flatMap(scriptAssetRows);
+  const panels = rows.map(storyboardPanelRow).filter((r): r is UpstreamOutput => r !== null);
+  for (const row of [...assets, ...panels]) {
     if (seen.has(row.nodeId)) continue;
     seen.add(row.nodeId);
     out.push(row);

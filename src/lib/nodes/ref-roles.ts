@@ -68,7 +68,11 @@ const CLAUSE: Record<RefRole, (name: string) => string> = {
   product: (n) => `is the product${named(n)}: keep it exactly as pictured`,
   person: (n) => `is a person${named(n)}`,
   location: (n) => `is the location${named(n)}: the place, not a subject`,
-  storyboard: (n) => `is a storyboard${named(n)}: layout and framing only, never show the drawing`,
+  // D452 — Google's own wording for a drawing used as a guide, plus "placeholders": the sketch's
+  // people and objects must not compete with the real references.
+  storyboard: (n) =>
+    `is a rough storyboard sketch${named(n)}: follow only its composition, staging and camera framing, with its ` +
+    "people and objects as placeholders for the other references, and never show the drawing, its lines or colours",
   style: (n) => `is a style reference${named(n)}: light and colour only`,
   "brand mark": (n) => `is a brand mark${named(n)}: a logo graphic, not an object`,
   other: (n) => (n ? `is ${n}` : ""),

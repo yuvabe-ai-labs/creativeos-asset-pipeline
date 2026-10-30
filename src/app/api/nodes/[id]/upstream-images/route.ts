@@ -80,7 +80,7 @@ export async function GET(
             filename: tag
               ? tag.angle > 0 ? `${tag.name}, angle ${tag.angle + 1}` : tag.name
               : typeof d.filename === "string" ? d.filename : undefined,
-            ...(tag ? { asset: { kind: tag.kind, nodeId: u.nodeId.replace(/:\d+$/, ""), angle: tag.angle } } : {}),
+            ...(tag && tag.kind !== "storyboard" ? { asset: { kind: tag.kind, nodeId: u.nodeId.replace(/:\d+$/, ""), angle: tag.angle } } : {}),
             fileSizeBytes: d.fileSizeBytes as number | undefined,
             imageWidth: d.imageWidth as number | undefined,
             imageHeight: d.imageHeight as number | undefined,
@@ -154,7 +154,7 @@ export async function GET(
             // D450 — the same asset ranking the request applies.
             ...(() => {
               const ids = scriptAssetIds([...direct, ...ownUpstream]);
-              return { assetMainIds: ids.main, assetAngleIds: ids.angles };
+              return { assetMainIds: ids.main, assetAngleIds: ids.angles, storyboardIds: ids.storyboard };
             })(),
           }
         : null;

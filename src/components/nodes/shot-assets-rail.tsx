@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MapPin, Package } from "lucide-react";
+import { Clapperboard, MapPin, Package } from "lucide-react";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { shotAssetEntries, type ShotAssetEntry } from "@/lib/scripts/asset-canvas";
@@ -10,8 +10,8 @@ import { useRailDisconnect } from "./use-rail-disconnect";
 
 /**
  * D450 — "From the shot": the script's products and locations wired into this clip's Shot or
- * Multishot. They are not wired to this node, so they are not in its Connected list, but they ARE
- * among its pictures (the writer reads them, the video is sent them). Click to see the picture;
+ * Multishot, and (D452) its storyboard panels, sent last as a composition guide. They are not
+ * wired to this node, so they are not in its Connected list, but they ARE among its pictures (the writer reads them, the video is sent them). Click to see the picture;
  * ✕ unwires it from the clip's shot, the wire that brings it here.
  */
 export function ShotAssetsRail({ nodeId, editable }: { nodeId: string; editable: boolean }) {
@@ -31,7 +31,7 @@ export function ShotAssetsRail({ nodeId, editable }: { nodeId: string; editable:
       </div>
       {entries.map((e) => {
         const remove = editable ? removeFor(e.nodeId, e.name) : null;
-        const Icon = e.kind === "product" ? Package : MapPin;
+        const Icon = e.kind === "product" ? Package : e.kind === "location" ? MapPin : Clapperboard;
         return (
           <RailItem
             key={e.nodeId}

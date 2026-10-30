@@ -123,6 +123,8 @@ export function storyboardPanelNodes(
           fileExt: ext,
           fileKind: "image",
           fileUrl: panel.url,
+          // D452 — read by the clip's prompt and video as its composition guide.
+          storyboardPanel: panel.label,
         },
       } as AppNode);
       edges.push({ id: crypto.randomUUID(), source: id, target: target.id, targetHandle: "image" });

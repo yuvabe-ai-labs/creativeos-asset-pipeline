@@ -23,6 +23,8 @@ export type SelectReferencesInput = {
   assetMainIds?: ReadonlySet<string>;
   /** D450 — a product's other angles: after the sheet, before the rest. */
   assetAngleIds?: ReadonlySet<string>;
+  /** D452 — the clip's storyboard panels: last of all, after every real picture. */
+  storyboardIds?: ReadonlySet<string>;
   /** Images this model cannot take at all, each with the reason (e.g. the sheet on Seedance). */
   unusable?: ReadonlyMap<string, string>;
   /** The model's rules forbid frames and references together (areFramesAndRefsExclusive): with a
@@ -114,6 +116,7 @@ export function selectReferences(input: SelectReferencesInput): SelectedReferenc
     if (input.assetMainIds?.has(id)) return 2;
     if (id === input.avatarSheetId) return 3;
     if (input.assetAngleIds?.has(id)) return 4;
+    if (input.storyboardIds?.has(id)) return 6;
     return 5;
   };
   const unassigned = open

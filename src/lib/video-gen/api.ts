@@ -26,6 +26,8 @@ export type UpstreamPromptNode = {
   /** D450 — a script's main packshots and plates, and its other product angles. */
   assetMainIds?: string[];
   assetAngleIds?: string[];
+  /** D452 — the clip's storyboard panels, ranked last. */
+  storyboardIds?: string[];
 };
 
 export type StartGenerationPayload = {

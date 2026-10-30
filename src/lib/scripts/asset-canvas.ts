@@ -7,6 +7,7 @@ import {
   locationNodeData,
   productNodeData,
   scriptAssetRows,
+  storyboardPanelLabel,
   type LocationNodeData,
   type ProductNodeData,
 } from "./asset-nodes";
@@ -143,21 +144,25 @@ export function canvasAssetRows(
     edges.filter((e) => e.target === target).map((e) => byId.get(e.source)).filter((n): n is CanvasNode => n !== undefined);
   const direct = new Map<string, AssetUpstreamRow[]>();
   const viaShot: AssetUpstreamRow[] = [];
+  const panels: AssetUpstreamRow[] = [];
   for (const source of into(promptNodeId)) {
     if (source.type && isScriptAssetNodeType(source.type)) direct.set(source.id, rowsOf(source));
     if (source.type === "shot" || source.type === "multishot") {
       for (const asset of into(source.id)) {
         if (asset.type && isScriptAssetNodeType(asset.type)) viaShot.push(...rowsOf(asset));
+        // D452 — the shot's storyboard panels, after every real picture (as getPromptUpstream).
+        const label = storyboardPanelLabel({ type: asset.type ?? "", data: asset.data as Record<string, unknown> });
+        if (label) panels.push({ id: asset.id, label: `${label} storyboard`, type: "file", fileUrl: String((asset.data as { fileUrl?: unknown }).fileUrl), fileKind: "image" });
       }
     }
   }
-  return { direct, viaShot };
+  return { direct, viaShot: [...viaShot, ...panels] };
 }
 
 /** A script asset reaching a focus view through the clip's Shot or Multishot. */
 export type ShotAssetEntry = {
   nodeId: string;
-  kind: "product" | "location";
+  kind: "product" | "location" | "storyboard";
   name: string;
   /** The main picture or the plate; null while the script had none. */
   url: string | null;
@@ -184,13 +189,18 @@ export function shotAssetEntries(
   const viaPrompt = direct.filter((n) => PROMPT_TYPES.has(n.type ?? "")).flatMap((p) => sources(p.id));
   const shots = [...direct, ...viaPrompt].filter((n) => n.type === "shot" || n.type === "multishot");
   const out: ShotAssetEntry[] = [];
+  const panels: ShotAssetEntry[] = [];
   for (const shot of shots) {
     for (const n of sources(shot.id)) {
+      const label = storyboardPanelLabel({ type: n.type ?? "", data: n.data as Record<string, unknown> });
+      if (label && !panels.some((p) => p.nodeId === n.id)) {
+        panels.push({ nodeId: n.id, kind: "storyboard", name: `${label} storyboard`, url: String((n.data as { fileUrl?: unknown }).fileUrl), pictures: 1 });
+      }
       if (!n.type || !isScriptAssetNodeType(n.type) || out.some((o) => o.nodeId === n.id)) continue;
       const d = n.data as Partial<ProductNodeData & LocationNodeData>;
       const images = n.type === "product" ? d.images ?? [] : d.image ? [d.image] : [];
       out.push({ nodeId: n.id, kind: n.type, name: d.name ?? n.type, url: images[0]?.url ?? null, pictures: images.length });
     }
   }
-  return out;
+  return [...out, ...panels];
 }

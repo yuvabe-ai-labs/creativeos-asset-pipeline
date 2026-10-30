@@ -32,6 +32,7 @@ function labelOf(u: { type: string; data: Record<string, unknown> }): string {
   const asset = (u.data.scriptAsset as { kind?: string } | undefined)?.kind;
   if (asset === "product") return "Product";
   if (asset === "location") return "Location";
+  if (asset === "storyboard") return "Storyboard";
   return u.data.presenter === true ? "Avatar" : TYPE_LABEL[u.type] ?? u.type;
 }
 

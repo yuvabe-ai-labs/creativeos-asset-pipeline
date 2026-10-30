@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
@@ -96,6 +96,11 @@ vi.mock("@/lib/db/nodes", () => ({
 }));
 
 describe("GET /api/nodes/[id]/upstream-images", () => {
+  // The route's first import is heavy (every video model's registry). Paid once here with room to
+  // spare: inside the first test it ran past the 5s test timeout whenever the full suite was busy.
+  beforeAll(async () => {
+    await import("./route");
+  }, 60_000);
   beforeEach(() => vi.clearAllMocks());
 
   function makeRequest() {

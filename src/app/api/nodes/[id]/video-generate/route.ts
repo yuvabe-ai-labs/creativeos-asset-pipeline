@@ -272,6 +272,7 @@ export async function POST(
       // D450 — a script's packshots and plates right after cited images; other angles after the sheet.
       assetMainIds: new Set(assetIds.main),
       assetAngleIds: new Set(assetIds.angles),
+      storyboardIds: new Set(assetIds.storyboard),
       framesExcludeReferences: areFramesAndRefsExclusive(videoGenClientModelMap[modelId]?.rules),
       unusable: config.provider === "seedance"
         ? sheetsUnusable(orderedImages.map((img) => img.nodeId), "Seedance can't use the profile sheet")

@@ -120,3 +120,12 @@ describe("selectReferences with script assets (D450)", () => {
     expect(out.leftOut.map((l) => l.id)).toEqual(["angle", "loose"]);
   });
 });
+
+describe("selectReferences with a storyboard panel (D452)", () => {
+  it("sends the panel only after every real picture", () => {
+    const images = ["panel", "loose", "pack"].map((id) => ({ id }));
+    const out = selectReferences({ images, roles: {}, cap: 2, modelLabel: "Kling", assetMainIds: new Set(["pack"]), storyboardIds: new Set(["panel"]) });
+    expect(out.sent).toEqual(["loose", "pack"]);
+    expect(out.leftOut.map((l) => l.id)).toEqual(["panel"]);
+  });
+});

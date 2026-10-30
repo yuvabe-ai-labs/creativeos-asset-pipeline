@@ -29,8 +29,9 @@ export function isScriptAssetNodeType(type: string): type is ScriptAssetNodeType
   return (SCRIPT_ASSET_NODE_TYPES as readonly string[]).includes(type);
 }
 
-/** What a row says it is: read by the reference ranking and the roles line. */
-export type ScriptAssetTag = { kind: ScriptAssetNodeType; id: string; name: string; angle: number };
+/** What a row says it is: read by the reference ranking and the roles line. D452 — "storyboard" is
+ *  a panel wired into the clip's Shot or Multishot (a File node, not a node type of its own). */
+export type ScriptAssetTag = { kind: ScriptAssetNodeType | "storyboard"; id: string; name: string; angle: number };
 
 export function productNodeData(scriptId: string, p: Product): ProductNodeData {
   return { scriptId, productId: p.id, name: p.name, images: p.images };
@@ -47,7 +48,7 @@ export const scriptAssetRowId = (nodeId: string, angle: number) => (angle === 0 
 /** The tag on an upstream row, or null when the row is not a script asset's picture. */
 export function scriptAssetTagOf(data: Record<string, unknown>): ScriptAssetTag | null {
   const tag = data.scriptAsset as Partial<ScriptAssetTag> | undefined;
-  if (!tag || (tag.kind !== "product" && tag.kind !== "location") || typeof tag.name !== "string") return null;
+  if (!tag || (tag.kind !== "product" && tag.kind !== "location" && tag.kind !== "storyboard") || typeof tag.name !== "string") return null;
   return { kind: tag.kind, id: String(tag.id ?? ""), name: tag.name, angle: typeof tag.angle === "number" ? tag.angle : 0 };
 }
 
@@ -86,6 +87,31 @@ export function scriptAssetRows(node: Pick<UpstreamOutput, "nodeId" | "type" | "
   return [];
 }
 
+/**
+ * D452 — the shot's storyboard label when `node` is one of its panels: the File node Fan out wires
+ * into a Shot/Multishot (marked `storyboardPanel` since D452; before that, recognised by the
+ * "S3-storyboard.jpg" name Fan out gives it). Null for any other picture.
+ */
+export function storyboardPanelLabel(node: Pick<UpstreamOutput, "type" | "data">): string | null {
+  if (node.type !== "file" || node.data.fileKind !== "image" || typeof node.data.fileUrl !== "string") return null;
+  if (typeof node.data.storyboardPanel === "string" && node.data.storyboardPanel) return node.data.storyboardPanel;
+  const m = typeof node.data.filename === "string" ? node.data.filename.match(/^(S\d+)-storyboard\.[a-z0-9]+$/i) : null;
+  return m ? m[1].toUpperCase() : null;
+}
+
+/**
+ * D452 — a storyboard panel as a reference row: a sketch of the shot's composition, staging and
+ * framing. Never a first frame (a first frame sets the clip's look, and this is a drawing); ranked
+ * after every real reference; and told it is a placeholder drawing (the roles line says so).
+ */
+export function storyboardPanelRow(node: Pick<UpstreamOutput, "nodeId" | "type" | "data">): UpstreamOutput | null {
+  const label = storyboardPanelLabel(node);
+  if (!label) return null;
+  return row(node.nodeId, String(node.data.fileUrl), { kind: "storyboard", id: label, name: `${label} storyboard`, angle: 0 },
+    `The ${label} storyboard panel: a rough sketch of this shot's composition, staging and camera framing. ` +
+      "Follow its layout; its people and objects are placeholders for the other references. Never describe or copy the drawing style.");
+}
+
 /** Every row in `rows`, with each Product / Location node expanded in its place. */
 export function withScriptAssetImages<T extends Pick<UpstreamOutput, "nodeId" | "type" | "data">>(rows: T[]): (T | UpstreamOutput)[] {
   return rows.flatMap((r): (T | UpstreamOutput)[] => (isScriptAssetNodeType(r.type) ? scriptAssetRows(r) : [r]));
@@ -93,12 +119,15 @@ export function withScriptAssetImages<T extends Pick<UpstreamOutput, "nodeId" | 
 
 /** D450 — the ids of a script's main pictures (packshots, plates) and of its other angles among
  *  `rows`, for the reference ranking (selectReferences' assetMainIds / assetAngleIds). */
-export function scriptAssetIds(rows: Array<Pick<UpstreamOutput, "nodeId" | "data">>): { main: string[]; angles: string[] } {
+export function scriptAssetIds(rows: Array<Pick<UpstreamOutput, "nodeId" | "data">>): { main: string[]; angles: string[]; storyboard: string[] } {
   const main: string[] = [];
   const angles: string[] = [];
+  const storyboard: string[] = [];
   for (const r of rows) {
     const tag = scriptAssetTagOf(r.data);
-    if (tag) (tag.angle === 0 ? main : angles).push(r.nodeId);
+    if (!tag) continue;
+    if (tag.kind === "storyboard") storyboard.push(r.nodeId);
+    else (tag.angle === 0 ? main : angles).push(r.nodeId);
   }
-  return { main, angles };
+  return { main, angles, storyboard };
 }

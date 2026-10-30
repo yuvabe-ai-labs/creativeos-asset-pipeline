@@ -117,7 +117,8 @@ describe("referenceRolesLine", () => {
         imageRefDialect(sent),
       ),
     ).toBe(
-      "Reference roles: <IMAGE_REF_0> is a storyboard (panel 2): layout and framing only, never show the drawing. " +
+      "Reference roles: <IMAGE_REF_0> is a rough storyboard sketch (panel 2): follow only its composition, staging and camera framing, with its " +
+        "people and objects as placeholders for the other references, and never show the drawing, its lines or colours. " +
         "<IMAGE_REF_1> is a style reference (warm grade): light and colour only. " +
         "<IMAGE_REF_2> is a brand mark (logo): a logo graphic, not an object.",
     );
@@ -159,6 +160,13 @@ describe("referenceRolesLine", () => {
   it("is empty when nothing sent is labelled, or the model has no tokens", () => {
     expect(referenceRolesLine(["a"], labels([]), imageRefDialect(["a"]))).toBe("");
     expect(referenceRolesLine(["a"], labels([["a", "product", "pouch"]]), null)).toBe("");
+  });
+
+  // A `;` in the prose ahead of Kling's triples can end a shot early (D238): no clause may carry one.
+  it("never writes a semicolon for any role", () => {
+    const sent = REF_ROLES.map((r) => r);
+    const line = referenceRolesLine(sent, labels(REF_ROLES.map((r) => [r, r, "x"] as [string, RefRole, string])), klingImageDialect(sent));
+    expect(line).not.toContain(";");
   });
 
   it("knows every role", () => {
