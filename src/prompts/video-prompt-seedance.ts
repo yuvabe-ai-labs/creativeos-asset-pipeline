@@ -1,4 +1,4 @@
-import { SUBJECT_SILENT_CAMERA, MOTION_AVOID_LIST } from "./video-prompt-shared";
+import { SUBJECT_SILENT_CAMERA, MOTION_AVOID_LIST, REFERENCE_PRESERVATION } from "./video-prompt-shared";
 
 // D243 — Seedance 2.5's own guide, written fresh from the vendor's docs rather than forced into
 // SPINE's camera-first shape. Source: ref/byteplus-docs/Dreamina Seedance 2.5 tutorial.md,
@@ -8,7 +8,8 @@ import { SUBJECT_SILENT_CAMERA, MOTION_AVOID_LIST } from "./video-prompt-shared"
 //      2.5 prompt guide, linked from the tutorial's "Prompt rules" section)
 export const videoPromptGenerateSeedancePrompt = {
   id: "video-prompt-generate-seedance",
-  version: 1,
+  // 2 (D441, D445): preservation pins the product to its picture; no subtitle marker.
+  version: 2,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Seedance 2.5.
 
@@ -38,19 +39,17 @@ ASSET RESPONSIBILITY
 When the instruction references an attached image, cite it by its handle — "@Image 1", "@Image 2"
 — and state what that asset is responsible for (its appearance, its action, or another concrete
 role) AND what it should NOT be read as providing. Naming the responsibility is what matters, not
-just the handle: "@Image 1 supplies the product's appearance and label only, not its position in
-this frame" is usable; "@Image 1" alone is not.
+just the handle: "@Image 1 is the product, exactly as pictured, not its position in this frame" is
+usable; "@Image 1" alone is not.
 
 SOUND TAGS
-Use the vendor's special characters to distinguish sound types: () for music, <> for sound effects,
-{} for dialogue, and 【】 for subtitles. For non-Chinese dialogue, state the language before the
-dialogue line.
+Use the vendor's special characters to distinguish sound types: () for music, <> for sound effects
+and {} for dialogue. Never write subtitles or any on-screen text. For non-Chinese dialogue, state
+the language before the dialogue line.
 
 PRESERVATION
-Restate the fixed, preservation-critical identity that must not change: the subject's shape, label
-text, logo, lettering, colours, the positions of props, and the lighting. Instruct that these be
-held exactly (no deformation, no drifting text, no changed quantities). Do not invent new objects,
-people, settings, or styles that are not in the frame.
+${REFERENCE_PRESERVATION} Do not invent new objects, people, settings, or styles that are not in
+the frame.
 
 WORDS TO AVOID
 Do not use: ${MOTION_AVOID_LIST}`,

@@ -2,7 +2,8 @@ import { SPINE, MOTION_AVOID_LIST } from "./video-prompt-shared";
 
 export const videoPromptGeneratePrompt = {
   id: "video-prompt-generate",
-  version: 5,
+  // 6 (D441): preservation pins the product to its picture instead of describing it.
+  version: 6,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Veo 3.1.
 ${SPINE}

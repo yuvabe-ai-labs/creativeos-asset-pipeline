@@ -7,7 +7,8 @@ import { SPINE, MOTION_AVOID_LIST } from "./video-prompt-shared";
 // attribute it. Plan 2 rewrites this from ref/google-omni-flash-docs' six-dimension framework.
 export const videoPromptGenerateGeminiOmniPrompt = {
   id: "video-prompt-generate-gemini-omni",
-  version: 1,
+  // 2 (D441): preservation pins the product to its picture instead of describing it.
+  version: 2,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Gemini Omni.
 ${SPINE}
