@@ -65,10 +65,11 @@ export const PANEL_NO_TEXT_CLAUSE =
   "Never draw any text, letters, numbers, logos, brand names, labels, price tags or captions anywhere " +
   "in the frame. Every container, jar, packet and box is plain and unlabelled.";
 
-// Spec §6.3 — the card and the pack go in during the edit; the panel keeps their place blank.
+// Spec §6.3 — the pack goes in during the edit until the product has a picture. D457 — a review
+// card, claim card or caption is added by hand after generation, and a blank box drawn for it rode
+// into the video (Reel 07: a blank card held over the pack), so the panel draws the scene without
+// it (PANEL_NO_GRAPHICS_CLAUSE) and holds no space for it.
 const BLANK_AREAS = [
-  { id: "review card", test: /\breview card\b/i, clause: "Leave a plain blank rectangle where the review card appears; it is added in the edit." },
-  { id: "claim card", test: /\bclaim (card|line)\b/i, clause: "Leave a plain blank rectangle where the claim card sits; it is added in the edit." },
   { id: "pack", test: /\bpack\b/i, clause: "Draw the product pack as a plain blank pouch with no printing at all; the real pack is added in the edit." },
 ] as const;
 export type BlankArea = (typeof BLANK_AREAS)[number]["id"];
@@ -76,6 +77,18 @@ export type BlankArea = (typeof BLANK_AREAS)[number]["id"];
 export function blankAreas(shot: Pick<Shot, "visual" | "onScreenText">): BlankArea[] {
   const text = `${shot.visual} ${shot.onScreenText}`;
   return BLANK_AREAS.filter((a) => a.test.test(text)).map((a) => a.id);
+}
+
+/** D457 — a graphic the shot mentions (a review card, a claim card, a badge, a caption) is added by
+ *  hand after generation: the panel draws the scene under it, never a card or a box for it. */
+export const PANEL_NO_GRAPHICS_CLAUSE =
+  "The card, badge or caption this shot mentions is added by hand after the video is made. Draw the scene " +
+  "without it: no card, sign, screen, sticker, box or empty space standing in for it.";
+
+const GRAPHIC_MENTION = /\b(card|claim line|badge|captions?|subtitles?)\b/i;
+
+export function mentionsGraphic(shot: Pick<Shot, "visual">): boolean {
+  return GRAPHIC_MENTION.test(shot.visual);
 }
 
 /** The script's aspect when the model accepts it; otherwise 9:16, the reels' own. */
@@ -168,6 +181,7 @@ export function buildPanelPrompt(input: {
     people.length === 0 ? PANEL_NOBODY_CLAUSE : peopleClause(people, references),
     productsClause(assets.products, references),
     ...blanks,
+    mentionsGraphic(shot) ? PANEL_NO_GRAPHICS_CLAUSE : "",
     peopleRefs ? PANEL_REFERENCE_CLAUSE : "",
     realProduct ? PANEL_NO_TEXT_WITH_PRODUCTS_CLAUSE : PANEL_NO_TEXT_CLAUSE,
   ].filter(Boolean).join("\n\n");

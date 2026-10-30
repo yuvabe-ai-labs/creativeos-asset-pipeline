@@ -6,13 +6,17 @@ import type { ScriptDoc, ScriptLocation } from "@/lib/scripts/schema";
 // product or any lettering in a plate would ride into every shot that uses it.
 
 // @2 (D449): Redraw — a fresh plate may carry one note; "change" edits the current plate.
-export const LOCATION_PLATE_PROMPT_ID = "location-plate@2";
+// @3 (D457): no loose things on the set (food, dishes, devices, bags), even when the description
+//     names them, and the reel's setting line is no longer copied in: on Reel 07 it listed the shots'
+//     props, the plate drew them, and every clip set there inherited them.
+export const LOCATION_PLATE_PROMPT_ID = "location-plate@3";
 
 const sentence = (s: string) => s.trim().replace(/\.?\s*$/, ".");
 
 const EMPTY_SET =
   "Show only the place, as an empty set ready for filming: no people, no hands, no products, no packaging, " +
-  "no text, signs or logos.";
+  "no text, signs or logos. Its fixed furniture and fittings stay; the surfaces are clear of loose things: " +
+  "no food, dishes, bowls, cups, utensils, devices or bags, even where the description mentions them.";
 
 export function locationPlatePrompt(args: {
   location: ScriptLocation;
@@ -26,7 +30,6 @@ export function locationPlatePrompt(args: {
   const note = args.note?.trim() ?? "";
   return [
     `An empty location plate for a short video: ${sentence(location.name)}${location.description.trim() ? ` ${sentence(location.description)}` : ""}`,
-    doc.context.settingAndCamera.trim() ? `The reel's setting: ${sentence(doc.context.settingAndCamera)}` : "",
     kit ? `Regional kit (${kit.region}). Kitchen and home: ${kit.kitchen}. The home is Indian, never European or Western.` : "",
     note ? `Also: ${sentence(note)}` : "",
     `${EMPTY_SET} Eye level, the whole space readable, natural light as described.`,

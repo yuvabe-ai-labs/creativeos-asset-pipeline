@@ -51,7 +51,7 @@ suggestions: two or three short replies (under 60 characters each) the person mi
 const assetNaming = `Products and locations:
 - A product is one of the client's own products that the reel shows on screen. Never the brand on its own, never a competitor's product, and never an ordinary prop (a cup, a phone, or a plain item the script compares the product with).
 - Name a product the way the client sells it: the brand, then what it is, then the variant when the script or the brand KB gives one (for example "Brandname V-Strap slippers", "Brandname green tea pouch"). Use the KB's own product names where they fit.
-- Name a location as the place, in two to four words with a capital first letter (for example "Tree-lined street", "Corner café", "Podcast studio desk"). Its description is the place in physical words: the kind of space, its surfaces, furniture, light and time of day, from the script and its setting. Where the script says little, describe a likely place that fits the reel's setting and region, in one or two sentences. Never put a person, a product or an action in it.
+- Name a location as the place, in two to four words with a capital first letter (for example "Tree-lined street", "Corner café", "Podcast studio desk"). Its description is the place in physical words: the kind of space, its surfaces, fixed furniture and fittings, light and time of day, from the script and its setting. Where the script says little, describe a likely place that fits the reel's setting and region, in one or two sentences. Never put a person, a product or an action in it, and never the shots' props (food, dishes, devices, bags): the shots bring those.
 - Shots in the same place share one location; a different place is a new one.`;
 
 /** Shared by the card and the draft: the house spec's shorthand (D1, D2…) means nothing to the
@@ -137,7 +137,8 @@ export const scriptCopilotPrompt = {
   // 5 (D447): products and locations in the draft, the import and the edit ops.
   // 6 (D447): one naming rule for them: the client's own products only, named as sold; places named
   //    and described as places.
-  version: 6,
+  // 7 (D457): a location's description is the place without the shots' props.
+  version: 7,
   rules,
   tasks: { extract, angles, card, draft, edit, inline, detect, import: importScript },
 } as const;

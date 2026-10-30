@@ -36,7 +36,10 @@ import { REF_ROLES } from "@/lib/nodes/ref-roles";
 //     product replaces the person's own item of that kind and is in every beat its wearer is in.
 // @14 (D455): the operator's direction is an order that outranks the shot text, the storyboard and
 //     the references, and is followed only by writing it into the beats, never by leaving out.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@14";
+// @15 (D457): graphics (review cards, claim cards, subtitles…) are added after generation, so a beat
+//     never shows one or holds space for it; the action leads each beat with at most two props; a
+//     background contributes its place, not the loose things lying in it.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@15";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -77,8 +80,8 @@ A CHARACTER OR PRODUCT REFERENCE CARRIES IDENTITY, NOT ITS BACKDROP. From it, ca
 
 What you write depends on the role. A PRODUCT is carried by its picture: you name it and never describe it. A place, a storyboard or a person needs words, because for those the video model reproduces only the elements the prompt NAMES: anything you leave unwritten is usually dropped or replaced. Study each image and write what its role asks:
 
-- BACKGROUND / LOCATION / SETTING / ENVIRONMENT — the subject is placed IN that place. Read it closely in your reference notes: the kind of space, its surfaces, the main furniture and props and where they sit. In every beat set there, name the setting and the few elements that beat's framing would show ("at the marble counter, the arched window behind her"). Do not write its light, palette or grade into the beats; the picture carries them. Do not swap in a different place or simplify it to a generic one.
-- STORYBOARD / SHOT REFERENCE / COMPOSITION — read the panels in order (left to right, top to bottom unless they are numbered) and map them to the shots in order, unless the direction maps them differently. For each shot, carry what its panel shows: shot size, camera angle and height, where the subject sits in frame, what they are doing, what is in the foreground and background, and any arrow or note indicating a camera move or action. Never carry the drawing style — sketch lines, greyscale, panel borders, handwritten notes — into any beat; a storyboard is a plan for the shot, not its appearance. Its packs and labels are drawn blank on purpose: never let a panel describe the product.
+- BACKGROUND / LOCATION / SETTING / ENVIRONMENT — the subject is placed IN that place. Read it closely in your reference notes: the kind of space, its surfaces and its fixed furniture. In every beat set there, name the place and at most two of its elements, the ones the action uses or stands beside ("at the marble counter, the arched window behind her"). Loose things lying in the picture (food, dishes, devices, bags) are not this shot's props unless its shot text calls for them. Do not write its light, palette or grade into the beats; the picture carries them. Do not swap in a different place or simplify it to a generic one.
+- STORYBOARD / SHOT REFERENCE / COMPOSITION — read the panels in order (left to right, top to bottom unless they are numbered) and map them to the shots in order, unless the direction maps them differently. For each shot, carry what its panel shows: shot size, camera angle and height, where the subject sits in frame, what they are doing, and any arrow or note indicating a camera move or action. Never carry the drawing style — sketch lines, greyscale, panel borders, handwritten notes — into any beat; a storyboard is a plan for the shot, not its appearance. Its packs and labels are drawn blank on purpose: never let a panel describe the product.
 - CHARACTER / PERSON / AVATAR — describe the person so they read as the same individual in every beat they appear in: apparent age and build, skin tone, hair (colour, length, style), facial hair or glasses, and EVERY visible wardrobe item with its colour and material (top, layers, bottoms, footwear), plus accessories (jewellery, watch, bag, headwear), as the direction leaves them: an item the direction removes or changes is written as directed, never as pictured. Repeat that description, not a shortened one, in every beat the character appears in, and only in the beats whose shot text involves a person.
 - PRODUCT — name it by what it is, in a few words ("the tea pouch", "the sliders"), and say how many when there is more than one. Never describe its colour, material, shape, components, label text, lettering or logo: the reference carries all of that, and prose competing with it produces a hybrid of the two.
 - STYLE / MOOD / LOOK — the picture carries its light and colour. Write nothing about it into the beats, and never take its subject or its location.
@@ -100,7 +103,7 @@ NOT EVERY ATTACHMENT IS A THING THAT CAN APPEAR IN A SCENE. Decide which KIND ea
 - A PRODUCT, PERSON, GARMENT or SURFACE — something physical that exists in the world of the shot. Name it wherever the shot puts it.
 - A BRAND MARK — a logo, wordmark or lock-up, usually alone on a plain white background. This is a GRAPHIC, not an object. It is not footwear, it is not worn, it does not walk, and it cannot be set down on a surface. NEVER name it as a product and never let it stand in for one: a mark misread as a shoe is the single worst reference error, because the beat then asks the model to animate a logo as if it had feet.
 
-  When a shot asks for the logo — "…followed by logo", "end on the brand mark" — write the shot the frame actually needs and stop there: the product arrangement, the final held framing, and clear, uncluttered space where the mark will sit. The lock-up is composited in post, where the type is exact. Generated lettering is not, and this request carries a standing instruction against screen-space type anyway.
+  When a shot asks for the logo — "…followed by logo", "end on the brand mark" — write the shot the frame actually needs and stop there: the product arrangement and the final held framing, with no space held for the mark. The lock-up is composited in post, where the type is exact. Generated lettering is not, and this request carries a standing instruction against screen-space type anyway.
 
 USE ONLY THE REFERENCES THIS SHOT CALLS FOR. The attachments are a library, not a checklist. Name a product where the shot's own content asks for it and leave the rest out — forcing an unrelated product into a beat in order to "use" it is worse than omitting it. The operator adds any others by hand. Backgrounds, storyboards and characters are the exception: a background applies to every shot it plausibly belongs in, a character to the shots whose text involves a person (or only the shots the direction names), and a storyboard's panels map onto the shots. A product-only shot shows nobody.`;
 }
@@ -139,6 +142,16 @@ following it: the pictures put it straight back. Write each order into every bea
 plain positive words ("Maya should be barefoot" becomes "Maya, barefoot on the rug, ..." in each
 beat she is in). When an order changes what a reference shows (an item of clothing, a prop, the
 time of day), write the changed version in each of those beats, never the pictured original.
+
+GRAPHICS ARE ADDED AFTER GENERATION. Review cards, claim cards, badges, subtitles, captions, price
+tags, supers and every other on-screen graphic are put in by hand in the edit. When a shot text
+mentions one, write the shot without it: never a card, screen, sign, sticker, box or panel standing
+in for it, and no space held for it in the frame. A shot that is only a graphic ("hold on the claim
+card over the pack") is written as the scene under it ("the pack on the counter, held steady").
+
+THE ACTION COMES FIRST. Open each beat with who does what, then where. Name the place and at most
+two props, the ones the action uses. A list of everything on the counter crowds the action out, and
+the video model then drops the very moment the shot is for.
 
 THE SHOT TEXT IS THE BRIEF
 The operator's shot text is what that shot IS. Your beat RENDERS it; it does not replace it. Do not

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
 import { parseRegionalKits } from "../kits";
-import { blankAreas, panelAspect } from "../panel-prompt";
+import { blankAreas, panelAspect, PANEL_NO_GRAPHICS_CLAUSE } from "../panel-prompt";
 import { castReadyForPanels, estimatePanelCredits, panelInputs, panelReferenceCap, type PanelInputs } from "../panel-inputs";
 import { shotKey } from "../keys";
 import type { ScriptDoc } from "@/lib/scripts/schema";
@@ -112,12 +112,15 @@ describe("panelInputs on Reel 01 (D342)", () => {
     expect(s09.prompt).not.toContain("reference images show");
   });
 
-  it("leaves the review card, the claim card and the pack blank (spec §6.3)", () => {
-    expect(blankAreas(shot("s08"))).toEqual(["review card"]);
-    expect(blankAreas(shot("s13"))).toEqual(["claim card", "pack"]);
+  // D457 — a review card or claim card is added by hand after generation: no blank box for it.
+  it("leaves only the pack blank, and draws a card's scene without the card (spec §6.3, D457)", () => {
+    expect(blankAreas(shot("s08"))).toEqual([]);
+    expect(blankAreas(shot("s13"))).toEqual(["pack"]);
     expect(blankAreas(shot("s14"))).toEqual(["pack"]);
     expect(blankAreas(shot("s03"))).toEqual([]);
-    expect(inputs("s08").prompt).toContain("plain blank rectangle where the review card");
+    expect(inputs("s08").prompt).not.toMatch(/blank rectangle/);
+    expect(inputs("s08").prompt).toContain(PANEL_NO_GRAPHICS_CLAUSE);
+    expect(inputs("s03").prompt).not.toContain(PANEL_NO_GRAPHICS_CLAUSE);
     expect(inputs("s14").prompt).toContain("plain blank pouch with no printing");
   });
 

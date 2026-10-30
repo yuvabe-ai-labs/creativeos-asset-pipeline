@@ -44,7 +44,7 @@ describe("the script copilot's shared instructions", () => {
   });
 
   it("is version 6", () => {
-    expect(scriptCopilotPrompt.version).toBe(6);
+    expect(scriptCopilotPrompt.version).toBe(7);
   });
 
   it("commit each angle to a product moment and proof, with a review theme only where reviews fit", () => {

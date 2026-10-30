@@ -460,13 +460,24 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
     expect(system).toMatch(/an item the direction removes or changes is written as directed/);
   });
 
+  // D457 — Reel 07: a review card and a claim card were rendered as real cards with garbled text; the
+  // phone buzz and the tote were lost under lists of counter props; the plate's props rode every clip.
+  it.each(writers)("%s: graphics come after generation, the action leads, a background gives its place", (_, system) => {
+    expect(system).toMatch(/GRAPHICS ARE ADDED AFTER GENERATION/);
+    expect(system).toMatch(/no space held for it in the frame/);
+    expect(system).toMatch(/THE ACTION COMES FIRST/);
+    expect(system).toMatch(/at most\s+two props/);
+    expect(system).toMatch(/Loose things lying in the picture/);
+    expect(system).not.toMatch(/uncluttered space where the mark will sit/);
+  });
+
   it.each(writers)("%s: still forbids writing the reference numbers into beats", (_, system) => {
     expect(system).toMatch(/"reference image 2"/);
   });
 
   it("bumps every prompt id", () => {
-    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@14");
-    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@11");
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@10");
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@15");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@12");
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@11");
   });
 });

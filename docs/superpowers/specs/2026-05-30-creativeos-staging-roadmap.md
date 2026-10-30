@@ -8238,3 +8238,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Products as File nodes (tried, reverted at the user word: a product has angles). Every location as a Composite (an uploaded photo has no generation to record).
 
 **Originated →** conversation in this session.
+
+### D457 — Graphics are added after generation; the action leads each beat; a location is the place, without the shots props *(recorded 2026-10-30; amends D448, spec 3 §6.3; refines D453)*
+
+**Decision.** (1) Review cards, claim cards, badges, subtitles and captions are put in by hand after generation. The multishot writers (generate@15, kling@12, seedance@11) write a shot that mentions one without it: no card, screen, sign or box standing in for it and no space held for it; a shot that is only a graphic is written as the scene under it. The logo rule no longer holds space for the mark. Storyboard panels no longer draw a blank rectangle for a review or claim card (only the pack stays blank until the product has a picture); a shot that mentions a card, badge or caption gets PANEL_NO_GRAPHICS_CLAUSE. (2) THE ACTION COMES FIRST: a beat opens with who does what, then where, and names the place and at most two props, the ones the action uses. The background role names the place and at most two of its elements; loose things lying in the plate are not the shot props unless its text calls for them; the storyboard role no longer carries the panel foreground and background inventory. (3) A location description is the place without the shots props (script-copilot 7), and the plate prompt (location-plate@3) bans loose things on the set (food, dishes, devices, bags) even when the description names them, and no longer copies the reel Setting & Camera line in.
+
+**Why.** Reel 07 on staging, 30 Oct 2026: S5 rendered an Amazon review card with garbled text, S8 a blank then garbled paper card held over the pack, both seeded by the panels own blank rectangles; S3 lost the phone buzz and S7 v2 the rinse and the tote under lists of counter props; the plate copied the setting line props (bowl, yogurt tub, apple, nuts, laptop) and every clip inherited them, breaking continuity. User: overlays are done manually after generation, so no layouts or boxes for them.
+
+**Rejected.** Leaving clear space for an overlay (the user places it by hand; a held space reads as an empty box). Drawing the overlay in the panel for approval (it rides into the video).
+
+**Originated →** conversation in this session (Reel 07 analysis, staging).
