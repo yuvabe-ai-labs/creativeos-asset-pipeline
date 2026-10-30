@@ -202,3 +202,14 @@ ADRs D446–D451 appended to the roadmap §7: D446 (script products and location
 D447 (copilot fills them), D448 (location plates), D449 (panels draw the real product, reverses
 D342 in part), D450 (Product and Location nodes wired into their shots, refines D382, D436, D308, D443), D451
 (review shows them).
+
+## 11. Decided while the user was away (2026-10-30)
+
+Recorded so they can be reviewed; each is also in its ADR.
+
+- **Redraw (D449).** One popover for panels and plates: a note with suggestion chips, then "Change this picture" (the current picture is the reference; needs a note) or "Draw a new one" (fresh, note added). The panel prompt box stays for full prompt edits.
+- **Plate double-draw (D449).** Drawing state comes from every in-flight call; a location already drawing can't start another.
+- **Naming (D447, copilot v6).** Products are only the client's own on-screen products, named as sold (brand, what it is, variant), never the brand alone, a competitor's or a prop. Locations are named as places ("Tree-lined street") and described physically; a thin script gets a likely place for its setting and region.
+- **Panel reference order (D449).** Faces, plate, main packshots, other views, angles, house style.
+- **Asset nodes (D450).** Placed in a column under the Script node; a second Fan out reuses this script's nodes. A node holds the script's data as it was when added (re-add the script to pick up later changes).
+- **Library picker.** Brand-kit products and backgrounds, and KB images. Generated canvas images are not offered: they belong to canvases, and the script page has none.

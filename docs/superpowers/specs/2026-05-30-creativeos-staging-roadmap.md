@@ -8162,3 +8162,29 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** The same set drawn once is what keeps a background the same across every panel and clip set there; a person or a product in the plate would ride into every shot that uses it.
 
 **Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §4.3.
+
+### D449 — Panels and plates are drawn with the script's real location and product; Redraw asks first *(recorded 2026-10-30; reverses D342 for products that have pictures; refines D344, D345)*
+
+**Decision.** (1) A storyboard panel's references are, within the model's 14: the people's fronts, the shot's location plate, each product's main picture, the people's other views, the products' other angles, then the house style. The prompt sets the shot in the plate's place and draws each product "exactly as pictured"; a product with no picture is still a plain blank pack, and cards and captions stay blank. The shot fingerprint includes the shot's location and products with their picture URLs, so a panel goes out of date when they change (a shot with neither keeps its old fingerprint). (2) Redraw on a panel and on a location plate opens one popover: "What should change?" with suggestion chips, then **Change this picture** (the current picture is the only reference and only the note changes; needs a note) or **Draw a new one** (from the script, the note added as one line). Panels gain draw kinds `change` and `fresh`; the plate route takes `{ mode, note }`. (3) Plate drawing state comes from every in-flight call (`useMutationState`), and a location already drawing cannot start a second draw.
+
+**Why.** User, 30 Oct 2026: the storyboard should show the real product (the client approves what the clip will show); redrawing was a dice roll that threw away what worked ("ask any changes, or regenerate completely… the regeneration part is hard"); and clicking Generate on a second location stopped the first one's spinner, leading to a duplicate billed draw.
+
+**Rejected.** Keeping the blank pouch for every pack (D342 as written): the approved board would not match the clip. Redraw as one button with an optional prompt field: the common case is "nearly right, fix one thing", which needs the current picture as the reference.
+
+**Originated →** conversation in this session; [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §5.
+
+### D450 — A script's products and locations are nodes on the canvas, wired into the clips that use them *(recorded 2026-10-30; refines D382, D383, D436, D308, D443)*
+
+**Decision.** When a script is added to a canvas its products, locations and per-shot picks (keyed by row name, "S3") are frozen onto the Script node with its storyboard. Fan out makes ONE Product or Location node per asset the new clips use (reusing this script's node already on the canvas) and wires it into each Shot/Multishot's image handle. A Product node shows its main picture and picture count; a Location node its plate. Like an Avatar node (D436), each becomes image rows wherever it is read: main picture first, then angles (`{nodeId}:{n}`), tagged `data.scriptAsset`. `getPromptUpstream` reads those wired into the prompt node's Shot/Multishot (the one exception to D383, which still holds for every other image there), and a node wired straight into a prompt, gen node or composite expands in place; the browser (`useMentionUpstream`) adds the same rows in the same order. Reference priority: avatar front, cited, main packshots and plates, avatar sheet, other angles, the rest. The roles line labels them from the script ("the product (Brandname pouch)", "…, another angle"), ahead of the writer's reading.
+
+**Why.** User, 30 Oct 2026: products and backgrounds belong to the script, shared across shots; asked for them connected "like shot node, just like storyboard" so a shared set is visible as one node with a line into each clip, and a pick is edited by wiring.
+
+**Rejected.** Resolving them invisibly from the script like the presenter (D299): no way to see or change which clip gets which. One node per clip: a shared set would not read as shared.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §6.
+
+### D451 — A share shows products and locations, and its version line counts their changes *(recorded 2026-10-30; refines D348)*
+
+**Decision.** The review page shows the frozen script's products and locations read-only, with their pictures, and each shot's picks. A change to a shot's picks counts as that shot revised; a change to the script's products or locations (names, words, pictures) counts with the context. A share frozen before these existed reads as having none, so it is never a change.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §7.
