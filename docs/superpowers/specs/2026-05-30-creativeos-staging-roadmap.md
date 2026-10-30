@@ -8198,3 +8198,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** The panel as a first frame (the clip would open as a drawing). Photoreal storyboard panels in place of the sketch: the sketch stays the approval artefact, and a photoreal keyframe step is the proposed next step instead.
 
 **Originated →** conversation in this session (research: Gemini Omni docs and prompt guide, Kling 3.0 Omni guide and sketch-to-video page, Google Flow help).
+
+### D453 — The multishot writer makes the clip follow its storyboard, whatever the shot count *(recorded 2026-10-30; refines D263, D452, D444)*
+
+**Decision.** (1) The storyboard is the approved picture of the clip: the writer lays its frames across the beats by time. As many frames as beats, each beat is its frame; more frames than beats, a beat carries the frames in its share of the time as one continuous take on one simple camera, every frame's moment kept (the one exception to one action per beat); fewer frames, each frame sets the beats around it. Where the shot text and the storyboard disagree, the storyboard wins. (2) A worn or carried product replaces the person's own item of that kind and is named in every beat its wearer is in. (3) The avatar's own pictures are labelled a person (the sheet "…, profile sheet") before the writer's reading is consulted. (4) Storyboard panels go last in the image order, after the presenter's pictures, on the server and in the browser. Prompt ids: multishot-prompt-generate@13, -kling@10, -seedance@9.
+
+**Why.** Analysis of the Reel 03 canvas, 30 Oct 2026: S1's panel drew four moments for one 5s cut and the writer kept one (the watch), so three never happened; S4's panel showed him reaching friends and the writer chose "walking", so no friends; S3's beat put him in "white sneakers… wearing the sliders"; S4's beat never named the sliders; the writer read the avatar's profile sheet as a "storyboard" and the request said so; the panel led the references as IMAGE_REF_0.
+
+**Rejected.** Re-cutting the clip to one shot per storyboard frame (built, then removed at the user's word): a storyboard will not match the number of shots, and the writer must honour it within the shots the clip has.
+
+**Originated →** conversation in this session (canvas analysis of reel-03-not-just-another-chappal on staging).
