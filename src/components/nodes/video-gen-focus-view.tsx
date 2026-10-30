@@ -135,6 +135,7 @@ import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
+import { NO_PROMPT_NODE_MESSAGE, UNWRITTEN_PROMPT_MESSAGE } from "@/lib/video-gen/prompt-messages";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1383,14 +1384,31 @@ export function VideoGenFocusView({
   // `loadingConnected`: the inputs on screen may be the cached copy, not yet confirmed by this
   // open's re-read — never generate (and post roles) from those.
   // D390 — a clip in the Editor's reel can't generate; the reason replaces the action.
+  // Generate needs a written prompt. Said here, with a way to it, rather than as an error after the
+  // click: an unwritten prompt used to fail with "no connected node" while the wire was right there.
+  const promptGap = loadingConnected
+    ? null
+    : !promptNode
+      ? NO_PROMPT_NODE_MESSAGE
+      : promptNode.text === null
+        ? UNWRITTEN_PROMPT_MESSAGE[promptNode.type === "video-prompt" ? "video-prompt" : "multishot-prompt"]
+        : null;
+  function openPromptNode() {
+    if (!promptNode) return;
+    onOpenChange(false);
+    focusStoreApi.getState().setFocusedNodeId(promptNode.id);
+  }
   const disableGenerate =
     Boolean(lockReason) ||
     loadingConnected ||
+    Boolean(promptGap) ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = lockReason
     ? lockReason
     : loadingConnected
     ? "Loading connected inputs…"
+    : promptGap
+    ? promptGap
     : constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
@@ -1876,7 +1894,18 @@ export function VideoGenFocusView({
                     disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
                     disabledReason={disableGenerate ? disableGenerateReason : null}
                     credits={estimatedCredits}
-                    notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
+                    notice={
+                      viewing.isViewingOther ? (
+                        <ActiveOnlyNotice label={viewedLabel} />
+                      ) : promptGap && promptNode ? (
+                        <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          {promptGap}
+                          <Button variant="link" size="xs" className="h-auto shrink-0 px-0" onClick={openPromptNode}>
+                            Open the prompt
+                          </Button>
+                        </span>
+                      ) : undefined
+                    }
                   />
                 </div>
               )}

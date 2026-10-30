@@ -13,6 +13,7 @@ import {
   type RefEntry,
 } from "@/lib/nodes/ref-binding";
 import { dialectForCapability, imageRefDialect, type TokenDialect } from "@/lib/nodes/prompt-token-dialect";
+import { NO_PROMPT_NODE_MESSAGE, UNWRITTEN_PROMPT_MESSAGE } from "./prompt-messages";
 import { asRefRoles, type RefRole } from "@/lib/nodes/ref-roles";
 import { scriptAssetTagOf } from "@/lib/scripts/asset-nodes";
 
@@ -74,8 +75,8 @@ function refIdsOf(promptUpstream: UpstreamOutput[]): string[] {
   return refEntriesOf(promptUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id);
 }
 
-const NO_PROMPT_NODE_ERROR =
-  "No connected video-prompt or multishot-prompt node with output found.";
+const NO_PROMPT_NODE_ERROR = NO_PROMPT_NODE_MESSAGE;
+const UNWRITTEN_PROMPT_ERROR = UNWRITTEN_PROMPT_MESSAGE;
 
 const NO_MULTISHOT_CUTS_ERROR =
   "The connected multishot-prompt node's upstream Multishot node (with its cut list) could not be found.";
@@ -104,7 +105,7 @@ export async function resolveVideoGenPrompt(
   if (!promptNode) return { ok: false, reason: NO_PROMPT_NODE_ERROR };
 
   if (promptNode.type === "video-prompt") {
-    if (!promptNode.activeOutput) return { ok: false, reason: NO_PROMPT_NODE_ERROR };
+    if (!promptNode.activeOutput) return { ok: false, reason: UNWRITTEN_PROMPT_ERROR["video-prompt"] };
     const promptUpstream = await fetchUpstream(promptNode.nodeId);
     const dialect = singleTakeRefDialect(singleTakeTarget, refIdsOf(promptUpstream));
     const text = String(promptNode.activeOutput);
@@ -124,7 +125,7 @@ export async function resolveVideoGenPrompt(
   // multishot-prompt: activeOutput is a MultishotPlan, never a string.
   const plan = promptNode.activeOutput as MultishotPlan | null | undefined;
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.beats)) {
-    return { ok: false, reason: NO_PROMPT_NODE_ERROR };
+    return { ok: false, reason: UNWRITTEN_PROMPT_ERROR["multishot-prompt"] };
   }
 
   const promptUpstream = await fetchUpstream(promptNode.nodeId);

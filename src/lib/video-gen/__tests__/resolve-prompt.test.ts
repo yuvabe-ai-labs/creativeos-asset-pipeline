@@ -48,7 +48,7 @@ describe("resolveVideoGenPrompt", () => {
     const videoPromptNode = output({ nodeId: "vp-1", type: "video-prompt", activeOutput: null });
     const result = await resolveVideoGenPrompt([videoPromptNode], async () => []);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/video-prompt/);
+    if (!result.ok) expect(result.reason).toBe("The motion prompt isn't written yet. Open it and press Generate first.");
   });
 
   it("resolves a multishot-prompt upstream via renderPlan(plan, cuts), never String(activeOutput)", async () => {
@@ -257,8 +257,7 @@ describe("resolveVideoGenPrompt", () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.reason).toMatch(/video-prompt/);
-      expect(result.reason).toMatch(/multishot-prompt/);
+      expect(result.reason).toBe("Connect a Motion prompt or a Multishot prompt to this Video Gen.");
     }
   });
 });
