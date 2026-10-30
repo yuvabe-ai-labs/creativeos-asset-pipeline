@@ -153,3 +153,44 @@ export function canvasAssetRows(
   }
   return { direct, viaShot };
 }
+
+/** A script asset reaching a focus view through the clip's Shot or Multishot. */
+export type ShotAssetEntry = {
+  nodeId: string;
+  kind: "product" | "location";
+  name: string;
+  /** The main picture or the plate; null while the script had none. */
+  url: string | null;
+  pictures: number;
+};
+
+const PROMPT_TYPES = new Set(["prompt", "video-prompt", "multishot-prompt"]);
+
+/**
+ * D450 — the Product / Location nodes wired into the Shot or Multishot that feeds `nodeId`: straight
+ * in (a prompt node), or through its prompt node (a gen node). What the focus views list under
+ * "From the shot"; the same images the server sends.
+ */
+export function shotAssetEntries(
+  nodeId: string,
+  nodes: Array<{ id: string; type?: string; data: unknown }>,
+  edges: Array<{ source: string; target: string }>,
+): ShotAssetEntry[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  type CanvasNode = (typeof nodes)[number];
+  const sources = (id: string): CanvasNode[] =>
+    edges.filter((e) => e.target === id).map((e) => byId.get(e.source)).filter((n): n is CanvasNode => n !== undefined);
+  const direct = sources(nodeId);
+  const viaPrompt = direct.filter((n) => PROMPT_TYPES.has(n.type ?? "")).flatMap((p) => sources(p.id));
+  const shots = [...direct, ...viaPrompt].filter((n) => n.type === "shot" || n.type === "multishot");
+  const out: ShotAssetEntry[] = [];
+  for (const shot of shots) {
+    for (const n of sources(shot.id)) {
+      if (!n.type || !isScriptAssetNodeType(n.type) || out.some((o) => o.nodeId === n.id)) continue;
+      const d = n.data as Partial<ProductNodeData & LocationNodeData>;
+      const images = n.type === "product" ? d.images ?? [] : d.image ? [d.image] : [];
+      out.push({ nodeId: n.id, kind: n.type, name: d.name ?? n.type, url: images[0]?.url ?? null, pictures: images.length });
+    }
+  }
+  return out;
+}

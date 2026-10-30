@@ -801,7 +801,7 @@ export function MultishotPromptFocusView({
                           Uncited stays legitimate for an image the sequence never needed. */}
                       {promptRefImages.length > 0 ? (
                         <ReferenceImageStrip
-                          upstream={upstream}
+                          upstream={mentionUpstream}
                           omni
                           uncitedIndices={uncitedIndices}
                         />

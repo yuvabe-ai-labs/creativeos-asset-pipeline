@@ -90,6 +90,7 @@ import { ApprovalStatusBadge } from "@/components/review/approval-status-badge";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 import { PresenterSwitch } from "./presenter-switch";
+import { ShotAssetsRail } from "./shot-assets-rail";
 import { useMentionUpstream } from "@/hooks/use-mention-upstream";
 
 type PromptFocusViewProps = {
@@ -656,6 +657,7 @@ export function PromptFocusView({
               })
             )}
             <PresenterSwitch promptNodeId={nodeId} />
+            <ShotAssetsRail nodeId={nodeId} editable={editable} />
 
             <div className="mx-2.5 my-2 h-px bg-border" />
             <RailItem

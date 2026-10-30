@@ -1,6 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getPromptUpstream, withAvatarImages } from "@/lib/avatars/presenter-server";
-import { scriptAssetIds, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
+import { scriptAssetIds, scriptAssetTagOf, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
 import { planCitedRefIds, renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { multishotVoiceover } from "@/lib/nodes/voiceover";
@@ -69,13 +69,18 @@ export async function GET(
         })
         .map((u) => {
           const d = u.data as Record<string, unknown>;
+          // D450 — a script's product or location picture goes by its name ("Chupps, angle 2").
+          const tag = scriptAssetTagOf(d);
           return {
             id: u.nodeId,
             type: u.type,
             imageUrl: isGeneratedImageType(u.type)
               ? (u.activeOutput as string)
               : (d.fileUrl as string),
-            filename: typeof d.filename === "string" ? d.filename : undefined,
+            filename: tag
+              ? tag.angle > 0 ? `${tag.name}, angle ${tag.angle + 1}` : tag.name
+              : typeof d.filename === "string" ? d.filename : undefined,
+            ...(tag ? { asset: { kind: tag.kind, nodeId: u.nodeId.replace(/:\d+$/, ""), angle: tag.angle } } : {}),
             fileSizeBytes: d.fileSizeBytes as number | undefined,
             imageWidth: d.imageWidth as number | undefined,
             imageHeight: d.imageHeight as number | undefined,

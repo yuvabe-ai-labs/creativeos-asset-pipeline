@@ -22,6 +22,7 @@ import { normalizeTitle } from "@/lib/nodes/title";
 import { AddConnection } from "./add-connection";
 import { RailItem } from "./focus-rail-item";
 import { PresenterSwitch } from "./presenter-switch";
+import { ShotAssetsRail } from "./shot-assets-rail";
 import {
   ConnectedDetailView,
   NodeIcon,
@@ -332,6 +333,7 @@ export function PromptFocusShell({
               })
             )}
             <PresenterSwitch promptNodeId={nodeId} />
+            <ShotAssetsRail nodeId={nodeId} editable={editable} />
 
             <div className="mx-2.5 my-2 h-px bg-border" />
             {/* D383: History shows the list beside the version on screen, like every other

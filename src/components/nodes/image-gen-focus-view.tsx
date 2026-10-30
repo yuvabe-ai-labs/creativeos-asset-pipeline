@@ -126,6 +126,7 @@ import { usdToFinalCredits } from "@/lib/credits/units";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
+import { ShotAssetsRail } from "./shot-assets-rail";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export type ImageGenFocusViewProps = {
@@ -1111,6 +1112,7 @@ export function ImageGenFocusView({
                 );
               })
             )}
+            <ShotAssetsRail nodeId={nodeId} editable={editable} />
 
             <div className="mx-2.5 my-2 h-px bg-border" />
             <RailItem

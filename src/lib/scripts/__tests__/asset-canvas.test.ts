@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { scriptDocSchema, type ScriptDoc } from "../schema";
-import { canvasAssetRows, scriptAssetCanvasNodes, scriptCanvasAssets } from "../asset-canvas";
+import { canvasAssetRows, scriptAssetCanvasNodes, scriptCanvasAssets, shotAssetEntries } from "../asset-canvas";
 import reel01 from "../fixtures/reel-01.json";
 
 // D450 — products and locations on a canvas: frozen on the Script node, one node each at Fan out.
@@ -88,5 +88,34 @@ describe("canvasAssetRows", () => {
     const out = canvasAssetRows("mp", nodes, edges);
     expect(out.direct.get("pouch")?.map((r) => [r.id, r.label])).toEqual([["pouch", "Brandname pouch"], ["pouch:1", "Brandname pouch, angle 2"]]);
     expect(out.viaShot.map((r) => [r.id, r.fileUrl])).toEqual([["kitchen", "https://x/k.png"]]);
+  });
+});
+
+describe("shotAssetEntries (D450: the focus views' From the shot)", () => {
+  const nodes = [
+    { id: "ig", type: "image-gen", data: {} },
+    { id: "pr", type: "prompt", data: {} },
+    { id: "sh", type: "shot", data: {} },
+    { id: "pouch", type: "product", data: { name: "Chupps", images: [{ url: "https://x/p0.png" }, { url: "https://x/p1.png" }] } },
+    { id: "cafe", type: "location", data: { name: "Corner café", image: null } },
+  ];
+  const edges = [
+    { source: "sh", target: "pr" },
+    { source: "pr", target: "ig" },
+    { source: "pouch", target: "sh" },
+    { source: "cafe", target: "sh" },
+  ];
+
+  it("finds the shot's assets from its prompt node, and from a gen node through its prompt", () => {
+    const expected = [
+      { nodeId: "pouch", kind: "product", name: "Chupps", url: "https://x/p0.png", pictures: 2 },
+      { nodeId: "cafe", kind: "location", name: "Corner café", url: null, pictures: 0 },
+    ];
+    expect(shotAssetEntries("pr", nodes, edges)).toEqual(expected);
+    expect(shotAssetEntries("ig", nodes, edges)).toEqual(expected);
+  });
+
+  it("is empty for a node with no shot behind it", () => {
+    expect(shotAssetEntries("sh", nodes, edges)).toEqual([]);
   });
 });

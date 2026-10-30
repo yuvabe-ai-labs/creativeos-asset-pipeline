@@ -8,6 +8,8 @@ export type UpstreamImage = {
   type: string;
   imageUrl: string;
   filename?: string;
+  /** D450 — a script's product or location picture: what it is, and the node it comes from. */
+  asset?: { kind: "product" | "location"; nodeId: string; angle: number };
 };
 
 export type UpstreamPromptNode = {

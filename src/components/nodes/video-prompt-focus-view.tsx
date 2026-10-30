@@ -600,7 +600,7 @@ export function VideoPromptFocusView({
                   {/* The attached references, as pictures with the token each answers to. Sits
                       directly under the instruction because that is where they were mentioned. */}
                   <ReferenceImageStrip
-                    upstream={upstream}
+                    upstream={mentionUpstream}
                     omni={effectiveProvider === "gemini-omni"}
                   />
 

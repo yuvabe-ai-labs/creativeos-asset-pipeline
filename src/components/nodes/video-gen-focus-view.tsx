@@ -21,6 +21,8 @@ import {
   FileInput,
   History,
   ImageIcon,
+  MapPin,
+  Package,
   PencilLine,
   SlidersHorizontal,
   type LucideIcon,
@@ -1490,12 +1492,13 @@ export function VideoGenFocusView({
   }
 
   // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
-  const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
+  const connectedItems: { id: string; type: "prompt" | "image"; label: string; asset?: UpstreamImage["asset"] }[] = [
     ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Motion prompt" }] : []),
     ...upstreamImages.map((img) => ({
       id: img.id,
       type: "image" as const,
       label: img.filename || "Image",
+      asset: img.asset,
     })),
   ];
   const connectedCount = connectedItems.length;
@@ -1622,13 +1625,18 @@ export function VideoGenFocusView({
               connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
                 const outReason = c.type === "image" ? leftOutReason.get(c.id) : undefined;
-                const remove = editable ? removeFor(c.id, c.label) : null;
+                // D450 — a script's picture is unwired at its node (an angle is no node of its own).
+                const remove = editable ? removeFor(c.asset?.nodeId ?? c.id, c.label) : null;
                 return (
                   <RailItem
                     key={c.id}
                     icon={
                       c.type === "prompt" ? (
                         <PencilLine className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : c.asset?.kind === "product" ? (
+                        <Package className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : c.asset?.kind === "location" ? (
+                        <MapPin className="size-4 text-primary" strokeWidth={1.5} />
                       ) : (
                         <ImageIcon className="size-4 text-primary" strokeWidth={1.5} />
                       )
