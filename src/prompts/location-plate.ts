@@ -26,7 +26,7 @@ export function locationPlatePrompt(args: {
   /** D449 — Redraw's note on a fresh draw. */
   note?: string;
 }): string {
-  const { location, doc, kit, aspect } = args;
+  const { location, kit, aspect } = args;
   const note = args.note?.trim() ?? "";
   return [
     `An empty location plate for a short video: ${sentence(location.name)}${location.description.trim() ? ` ${sentence(location.description)}` : ""}`,
