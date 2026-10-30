@@ -11,12 +11,12 @@ vi.mock("@/lib/api/route-helpers", async () => {
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(async () => ({ userId: "u1" })) }));
 vi.mock("@/lib/db/canvas-graph", () => ({ getCanvasNode: vi.fn(), insertNodesWithFirstVersions: vi.fn() }));
 vi.mock("@/lib/db/scripts", () => ({ getScript: vi.fn() }));
-vi.mock("@/lib/db/script-panels", () => ({ listPanelRecipes: vi.fn() }));
+vi.mock("@/lib/db/script-panels", () => ({ listPanelRecipes: vi.fn(), listPlateRecipes: vi.fn(async () => []) }));
 vi.mock("@/lib/storage", () => ({ uploadScriptHouseStyle: vi.fn(async () => ({ path: "p", url: "https://cdn/house-style.jpg" })) }));
 
 import { getCanvasNode, insertNodesWithFirstVersions } from "@/lib/db/canvas-graph";
 import { getScript } from "@/lib/db/scripts";
-import { listPanelRecipes } from "@/lib/db/script-panels";
+import { listPanelRecipes, listPlateRecipes } from "@/lib/db/script-panels";
 import { HOUSE_STYLE_REF } from "@/lib/scripts/visualise/house-style";
 import { POST } from "./route";
 
@@ -40,7 +40,7 @@ beforeEach(() => {
   vi.mocked(listPanelRecipes).mockResolvedValue([recipe]);
 });
 
-describe("POST /api/canvas/[id]/storyboard-composites (D454)", () => {
+describe("POST /api/canvas/[id]/script-composites (D454)", () => {
   it("makes a Composite per panel whose v1 is the panel as it was drawn", async () => {
     const res = await post(body);
     expect(res.status).toBe(201);
@@ -83,5 +83,50 @@ describe("POST /api/canvas/[id]/storyboard-composites (D454)", () => {
     const res = await post(body);
     expect((await res.json()).nodes).toEqual([]);
     expect(vi.mocked(insertNodesWithFirstVersions).mock.calls[0][1]).toEqual([]);
+  });
+});
+
+// D456 — a location plate the script page generated arrives as a Composite with that generation as v1.
+describe("POST /api/canvas/[id]/script-composites, a generated plate (D456)", () => {
+  const PLATE_ID = "22222222-2222-4222-8222-222222222222";
+  const plateBody = { scriptNodeId: "sn", plates: [{ nodeId: PLATE_ID, locationId: "kitchen", position: { x: 0, y: 500 } }] };
+  const kitchen = { id: "kitchen", name: "Home kitchen", description: "Teal walls.", image: { url: "https://cdn/k.png", source: "plate" } };
+  const plateRecipe = {
+    url: "https://cdn/k.png", generationId: "g9", modelUsed: "gemini:gemini-nano-banana-2.1",
+    params: { aspect_ratio: "9:16" }, inputs: { prompt: "An empty home kitchen with teal walls.", promptId: "location-plate@2" },
+  };
+  beforeEach(() => {
+    vi.mocked(getCanvasNode).mockResolvedValue({
+      id: "sn", type: "script", position: { x: 0, y: 0 },
+      data: { assets: { scriptId: "sc1", products: [], locations: [kitchen], picks: {} } },
+    });
+    vi.mocked(listPlateRecipes).mockResolvedValue([plateRecipe]);
+  });
+
+  it("makes the location's Composite, marked as the script's location, with the plate as v1", async () => {
+    const res = await post(plateBody);
+    expect(res.status).toBe(201);
+    expect(listPlateRecipes).toHaveBeenCalledWith("sc1", ["https://cdn/k.png"]);
+    const [entry] = vi.mocked(insertNodesWithFirstVersions).mock.calls[0][1];
+    expect(entry.node).toMatchObject({
+      id: PLATE_ID, type: "composite",
+      data: {
+        title: "Home kitchen", instruction: plateRecipe.inputs.prompt, modelId: plateRecipe.modelUsed,
+        scriptId: "sc1", scriptAsset: { kind: "location", id: "kitchen", name: "Home kitchen", angle: 0 },
+      },
+    });
+    expect(entry.version).toMatchObject({
+      output: "https://cdn/k.png",
+      inputsUsed: { source: "script-plate", prompt: plateRecipe.inputs.prompt, generationId: "g9" },
+    });
+  });
+
+  it("refuses a location whose picture was not generated", async () => {
+    vi.mocked(getCanvasNode).mockResolvedValue({
+      id: "sn", type: "script", position: { x: 0, y: 0 },
+      data: { assets: { scriptId: "sc1", products: [], locations: [{ ...kitchen, image: { url: "https://cdn/k.png", source: "upload" } }], picks: {} } },
+    });
+    expect((await post(plateBody)).status).toBe(400);
+    expect(insertNodesWithFirstVersions).not.toHaveBeenCalled();
   });
 });

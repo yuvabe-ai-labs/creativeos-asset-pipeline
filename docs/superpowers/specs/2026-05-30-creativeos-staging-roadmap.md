@@ -8228,3 +8228,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Sending the direction to the video model as well (the Rules for every shot field already does that, as written; the direction is for the writer). Keeping a weak label and relying on the model to infer priority (it obeyed by omission).
 
 **Originated →** conversation in this session (Reel 04 multishot prompt, staging).
+
+### D456 — What the script generated reaches the canvas as a Composite; products stay Product nodes *(recorded 2026-10-30; amends D450; extends D454)*
+
+**Decision.** (1) A location whose picture the script page generated (`image.source = "plate"`) is no longer a Location node: Fan out asks the same route as the storyboard panels (renamed `POST /api/canvas/[id]/script-composites`, body `panels` and `plates`) to make a Composite whose v1 is that generation, found by the picture it made among the script generations (prompt as `instruction` and in `inputs_used`, `source: "script-plate"`, model and params). The Composite carries `scriptId` and a `scriptAsset` location tag, so every reader (server `withScriptAssetImages` and the shot expansion, the browser `canvasAssetRows` and `shotAssetEntries`, a composite wired into another) reads its current picture as the location, and a second Fan out reuses it. (2) A location picture that was uploaded or picked stays a Location node; a product stays a Product node, because it carries its angles. (3) Double-clicking a Product or Location node opens the picture full screen (FullScreenImageZoom, which gains optional previous and next for a product angles).
+
+**Why.** User, 30 Oct 2026: anything generated should be editable and regenerable on the canvas the way the storyboard Composites are; a product is a set of angles, so it keeps its own node. And a quick way to look closely at a product or a background.
+
+**Rejected.** Products as File nodes (tried, reverted at the user word: a product has angles). Every location as a Composite (an uploaded photo has no generation to record).
+
+**Originated →** conversation in this session.

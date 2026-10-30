@@ -2,7 +2,7 @@ import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import { panelForRow, type StoryboardPanel } from "./storyboard";
-import type { StoryboardCompositeRequest } from "./storyboard-composite";
+import type { StoryboardCompositeRequest } from "./script-composites";
 
 /** Fan out's row pitch without a storyboard. */
 export const SHOT_ROW_PITCH = 170;

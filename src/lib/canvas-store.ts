@@ -50,7 +50,7 @@ import {
 } from "@/lib/scripts/storyboard-canvas";
 import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import { scriptAssetCanvasNodes, type ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
-import { createStoryboardComposites } from "@/services/storyboard-composites.service";
+import { createScriptComposites } from "@/services/script-composites.service";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -703,7 +703,8 @@ export function createCanvasStore(
         target: n.id,
       }));
       const panels = storyboardPanelNodes(created, shots, storyboardPanels);
-      // D450 — one Product / Location node per asset the new clips use, wired into each of them.
+      // D450 — one Product / Location node per asset the new clips use, wired into each of them;
+      // D456 — a generated plate is a Composite, made with the storyboard panels below.
       const assetNodes = scriptAssetCanvasNodes({
         created,
         shots,
@@ -724,15 +725,18 @@ export function createCanvasStore(
           }
         : null;
 
+      // A generated plate's edges wait for its Composite, like the storyboard panels'.
+      const plateIds = new Set(assetNodes.plates.map((p) => p.nodeId));
       set({
         nodes: [...get().nodes, ...created, ...(assetNodes.nodes as AppNode[])],
-        edges: [...get().edges, ...createdEdges, ...assetNodes.edges],
+        edges: [...get().edges, ...createdEdges, ...assetNodes.edges.filter((e) => !plateIds.has(e.source))],
         fanOutLayout,
       });
-      // D454 — the storyboard Composites are made on the server, each with its panel as v1; they
-      // join the canvas, wired into their shots, as soon as it answers.
-      if (panels.requests.length > 0) {
-        createStoryboardComposites(canvasId, { scriptNodeId, panels: panels.requests })
+      // D454, D456 — what the script generated (storyboard panels, location plates) becomes
+      // Composites made on the server, each with its picture as v1; they join the canvas, wired
+      // into their clips, as soon as it answers.
+      if (panels.requests.length > 0 || assetNodes.plates.length > 0) {
+        createScriptComposites(canvasId, { scriptNodeId, panels: panels.requests, plates: assetNodes.plates })
           .then((made) => {
             const ids = new Set(made.map((m) => m.id));
             set({
@@ -740,11 +744,11 @@ export function createCanvasStore(
                 ...get().nodes,
                 ...made.map((m) => ({ id: m.id, type: "composite", position: m.position, data: { ...m.data, parsed: m.output } }) as AppNode),
               ],
-              edges: [...get().edges, ...panels.edges.filter((e) => ids.has(e.source))],
+              edges: [...get().edges, ...[...panels.edges, ...assetNodes.edges].filter((e) => ids.has(e.source))],
             });
           })
           .catch((e: unknown) => {
-            toast.error(e instanceof Error ? e.message : "Couldn't add the storyboard.");
+            toast.error(e instanceof Error ? e.message : "Couldn't add the script's pictures.");
           });
       }
       if (fanOutLayout) {

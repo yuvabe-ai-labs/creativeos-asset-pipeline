@@ -1,13 +1,15 @@
 import type { CompositeNodeData } from "@/lib/canvas-nodes";
-import type { PanelRecipe } from "@/lib/db/script-panels";
+import type { PanelRecipe, PlateRecipe } from "@/lib/db/script-panels";
 import { PANEL_MODEL_ID } from "./visualise/constants";
 import { panelTitle, type StoryboardPanel } from "./storyboard";
-import type { StoryboardCompositeData } from "./asset-nodes";
+import type { LocationCompositeMark, StoryboardCompositeData } from "./asset-nodes";
+import type { ScriptLocation } from "./schema";
 
 // D454 — a storyboard panel on the canvas is a Composite, not a File: the panel the script drew
 // is its v1, recorded as it was made (the prompt, the model and its settings, every reference
 // picture), so the operator can redraw it, edit it, or make it real by wiring an avatar or a
-// product, all with the Composite's own versions.
+// product, all with the Composite's own versions. D456 — so is a location plate the script page
+// generated: what the script generated arrives as a Composite with its generation as v1.
 
 /** What a storyboard Composite's v1 says it is, in `inputs_used.source`. */
 export const STORYBOARD_VERSION_SOURCE = "storyboard";
@@ -64,4 +66,40 @@ export const sketchStyleParagraph = (prompt: string): string => prompt.split(/\n
 export function drawsAsSketch(instruction: string, recipePrompt: string): boolean {
   const style = sketchStyleParagraph(recipePrompt);
   return style.length > 0 && instruction.trim().startsWith(style);
+}
+
+/** D456 — what a generated plate's Composite v1 says it is, in `inputs_used.source`. */
+export const SCRIPT_PLATE_SOURCE = "script-plate";
+
+/** What the browser sends for each generated plate Fan out places; the server builds the rest. */
+export type ScriptPlateRequest = { nodeId: string; locationId: string; position: { x: number; y: number } };
+
+/** A generated plate's Composite: named as the location, marked as its picture, and set up to draw
+ *  as the plate was drawn. */
+export function plateCompositeData(
+  scriptId: string,
+  location: ScriptLocation,
+  recipe: PlateRecipe,
+): CompositeNodeData & LocationCompositeMark {
+  return {
+    title: location.name,
+    instruction: typeof recipe.inputs.prompt === "string" ? recipe.inputs.prompt : location.description,
+    modelId: recipe.modelUsed ?? PANEL_MODEL_ID,
+    params: recipe.params,
+    scriptId,
+    scriptAsset: { kind: "location", id: location.id, name: location.name, angle: 0 },
+  };
+}
+
+/** The plate's v1 `inputs_used`: the prompt it was drawn with. */
+export function plateVersionInputs(recipe: PlateRecipe): Record<string, unknown> {
+  const prompt = typeof recipe.inputs.prompt === "string" ? recipe.inputs.prompt : "";
+  return {
+    source: SCRIPT_PLATE_SOURCE,
+    promptId: recipe.inputs.promptId ?? null,
+    instruction: prompt,
+    prompt,
+    referenceImageUrls: [],
+    generationId: recipe.generationId,
+  };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Package } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,7 @@ import type { ProductNodeData } from "@/lib/scripts/asset-nodes";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeMedia } from "./node-media";
+import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 type Measured = { mediaWidth?: number; mediaHeight?: number };
@@ -27,10 +29,20 @@ export function ProductNode({ id, data, selected }: NodeProps) {
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const connState = useNodeConnectionState(id, "product");
   const angles = (d.images?.length ?? 0) - 1;
+  // Double-click: every picture of the product, full screen, its angles a step apart.
+  const [zoomed, setZoomed] = useState<number | null>(null);
+  const images = d.images ?? [];
+  const count = images.length;
 
   return (
+    <>
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
       <div
+        onDoubleClick={(e) => {
+          if (!main) return;
+          e.stopPropagation();
+          setZoomed(0);
+        }}
         style={box ? { width: box.cardWidth } : undefined}
         className={cn(
           !box && "w-44",
@@ -50,5 +62,15 @@ export function ProductNode({ id, data, selected }: NodeProps) {
         <Handle type="source" position={Position.Right} className="!size-4 !border-2 !border-card !bg-primary" />
       </div>
     </NodeContextMenu>
+    {zoomed !== null && images[zoomed] && (
+      <FullScreenImageZoom
+        imageUrl={images[zoomed].url}
+        title={count > 1 ? `${d.name ?? "Product"} · ${zoomed + 1} of ${count}` : d.name}
+        onClose={() => setZoomed(null)}
+        onPrev={zoomed > 0 ? () => setZoomed(zoomed - 1) : undefined}
+        onNext={zoomed < count - 1 ? () => setZoomed(zoomed + 1) : undefined}
+      />
+    )}
+    </>
   );
 }

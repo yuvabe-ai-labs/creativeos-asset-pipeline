@@ -4,7 +4,7 @@ import {
   recipeReferenceUrls,
   storyboardCompositeData,
   storyboardVersionInputs,
-} from "../storyboard-composite";
+} from "../script-composites";
 import type { PanelRecipe } from "@/lib/db/script-panels";
 
 const recipe: PanelRecipe = {

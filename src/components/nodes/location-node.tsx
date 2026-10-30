@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,7 @@ import type { LocationNodeData } from "@/lib/scripts/asset-nodes";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeMedia } from "./node-media";
+import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
 import { useNodeConnectionState } from "./use-node-connection-state";
 
 type Measured = { mediaWidth?: number; mediaHeight?: number };
@@ -25,10 +27,18 @@ export function LocationNode({ id, data, selected }: NodeProps) {
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const connState = useNodeConnectionState(id, "location");
+  // Double-click: the picture full screen.
+  const [zoomed, setZoomed] = useState(false);
 
   return (
+    <>
     <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
       <div
+        onDoubleClick={(e) => {
+          if (!d.image) return;
+          e.stopPropagation();
+          setZoomed(true);
+        }}
         style={box ? { width: box.cardWidth } : undefined}
         className={cn(
           !box && "w-52",
@@ -48,5 +58,7 @@ export function LocationNode({ id, data, selected }: NodeProps) {
         <Handle type="source" position={Position.Right} className="!size-4 !border-2 !border-card !bg-primary" />
       </div>
     </NodeContextMenu>
+    {zoomed && d.image && <FullScreenImageZoom imageUrl={d.image.url} title={d.name} onClose={() => setZoomed(false)} />}
+    </>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Download, Maximize2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Maximize2, X, ZoomIn, ZoomOut } from "lucide-react";
 import {
   TransformComponent,
   TransformWrapper,
@@ -15,19 +15,28 @@ type Props = {
   title?: string;
   onClose: () => void;
   onDownload?: () => void;
+  /** Several pictures of one thing (a product's angles): step between them with the arrows or the
+   *  arrow keys. Absent at either end. */
+  onPrev?: () => void;
+  onNext?: () => void;
 };
 
 /** Portal-rendered full-screen image viewer with pan / zoom / reset controls.
- *  Reused by the image-gen focus view and the reference-image picker. */
+ *  Reused by the image-gen focus view, the reference-image picker and the script's product and
+ *  location nodes. */
 export function FullScreenImageZoom({
   imageUrl,
   title,
   onClose,
   onDownload,
+  onPrev,
+  onNext,
 }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") onPrev?.();
+      if (e.key === "ArrowRight") onNext?.();
     }
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -36,7 +45,7 @@ export function FullScreenImageZoom({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [onClose]);
+  }, [onClose, onPrev, onNext]);
 
   if (typeof document === "undefined") return null;
 
@@ -56,7 +65,35 @@ export function FullScreenImageZoom({
       >
         <X className="size-5" strokeWidth={1.5} />
       </Button>
+      {/* Which picture of the set is showing; a single picture keeps the plain view. */}
+      {title && (onPrev || onNext) && (
+        <p className="pointer-events-none absolute left-5 top-5 z-10 select-none text-sm text-white/70">{title}</p>
+      )}
+      {onPrev && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onPrev}
+          aria-label="Previous picture"
+          className="absolute left-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full text-white/60 hover:bg-white/10 hover:text-white"
+        >
+          <ChevronLeft className="size-6" strokeWidth={1.5} />
+        </Button>
+      )}
+      {onNext && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onNext}
+          aria-label="Next picture"
+          className="absolute right-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full text-white/60 hover:bg-white/10 hover:text-white"
+        >
+          <ChevronRight className="size-6" strokeWidth={1.5} />
+        </Button>
+      )}
+      {/* Keyed by the picture, so stepping to another starts it fitted rather than at the last zoom. */}
       <TransformWrapper
+        key={imageUrl}
         doubleClick={{ mode: "reset" }}
         minScale={0.5}
         maxScale={8}

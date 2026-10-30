@@ -9,15 +9,21 @@ import { nodeGenerationStatus } from "./generations/node-status";
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
-// D454 — the server makes the storyboard Composites; here it echoes what it was asked for.
-vi.mock("@/services/storyboard-composites.service", () => ({
-  createStoryboardComposites: vi.fn(async (_canvasId: string, body: { panels: { nodeId: string; label: string; position: { x: number; y: number } }[] }) =>
-    body.panels.map((p) => ({
+// D454, D456 — the server makes the storyboard and plate Composites; here it echoes what it was asked for.
+type Placed = { nodeId: string; position: { x: number; y: number } };
+vi.mock("@/services/script-composites.service", () => ({
+  createScriptComposites: vi.fn(async (_canvasId: string, body: { panels: (Placed & { label: string })[]; plates: (Placed & { locationId: string })[] }) => [
+    ...body.panels.map((p) => ({
       id: p.nodeId, position: p.position, output: `https://x/${p.label}.png`,
       data: { title: `${p.label} · HOOK — storyboard`, storyboardPanel: p.label, storyboardSketchUrl: `https://x/${p.label}.png` },
-    }))),
+    })),
+    ...body.plates.map((p) => ({
+      id: p.nodeId, position: p.position, output: `https://x/${p.locationId}.png`,
+      data: { title: p.locationId, scriptId: "script-1", scriptAsset: { kind: "location", id: p.locationId, name: p.locationId, angle: 0 } },
+    })),
+  ]),
 }));
-import { createStoryboardComposites } from "@/services/storyboard-composites.service";
+import { createScriptComposites } from "@/services/script-composites.service";
 const settle = () => new Promise((r) => setTimeout(r, 0));
 import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
@@ -391,7 +397,7 @@ describe("fanOutShots with an approved storyboard (D382, D454)", () => {
     const store = createCanvasStore([scriptNode(rows)], []);
     store.getState().fanOutShots("sb", "canvas-1");
     await settle();
-    expect(vi.mocked(createStoryboardComposites)).toHaveBeenLastCalledWith("canvas-1", expect.objectContaining({ scriptNodeId: "sb" }));
+    expect(vi.mocked(createScriptComposites)).toHaveBeenLastCalledWith("canvas-1", expect.objectContaining({ scriptNodeId: "sb" }));
     expect(panelNodes(store).map((n) => (n.data as { parsed?: string }).parsed)).toEqual(["https://x/S1.png", "https://x/S2.png"]);
   });
 
@@ -1308,12 +1314,18 @@ describe("fanOutShots with script products and locations (D450)", () => {
   const scriptNode = (): AppNode =>
     ({ id: "sa", type: "script", position: { x: 0, y: 0 }, data: { title: "Reel", groupingVersion: 3, parsed: { visual_script: { shots: rows } }, assets } }) as AppNode;
 
-  it("adds one Location and one Product node and wires each into the clips that use it", () => {
+  // D456 — the kitchen's plate was generated, so it arrives as a Composite once the server answers.
+  it("adds the generated plate as a Composite and the product as a Product node, each wired into the clips that use it", async () => {
     const store = createCanvasStore([scriptNode()], []);
     store.getState().fanOutShots("sa", "canvas-1");
+    await settle();
+    expect(vi.mocked(createScriptComposites)).toHaveBeenLastCalledWith("canvas-1", expect.objectContaining({
+      plates: [expect.objectContaining({ locationId: "kitchen" })],
+    }));
     const { nodes, edges } = store.getState();
     const clips = nodes.filter((n) => n.type === "shot" || n.type === "multishot").map((n) => n.id);
-    const location = nodes.filter((n) => n.type === "location");
+    const location = nodes.filter((n) => n.type === "composite");
+    expect(nodes.filter((n) => n.type === "location")).toHaveLength(0);
     const product = nodes.filter((n) => n.type === "product");
     expect(location).toHaveLength(1);
     expect(product).toHaveLength(1);
@@ -1322,13 +1334,23 @@ describe("fanOutShots with script products and locations (D450)", () => {
     expect(into(product[0].id)).toHaveLength(1);
   });
 
-  it("wires a second Fan out into the nodes already there", () => {
+  it("wires a second Fan out into the nodes already there", async () => {
     const store = createCanvasStore([scriptNode()], []);
     store.getState().fanOutShots("sa", "canvas-1");
-    const before = store.getState().nodes.filter((n) => n.type === "location").length;
+    await settle();
+    const before = store.getState().nodes.filter((n) => n.type === "composite").length;
     const clip = store.getState().nodes.find((n) => n.type === "shot" || n.type === "multishot")!;
     store.setState({ nodes: store.getState().nodes.filter((n) => n.id !== clip.id) });
     store.getState().fanOutShots("sa", "canvas-1");
-    expect(store.getState().nodes.filter((n) => n.type === "location")).toHaveLength(before);
+    await settle();
+    expect(store.getState().nodes.filter((n) => n.type === "composite")).toHaveLength(before);
+  });
+
+  it("keeps an uploaded location a Location node", () => {
+    const uploaded = { ...assets, locations: [{ ...assets.locations[0], image: { url: "https://x/k.png", source: "upload" } }] };
+    const node = scriptNode();
+    const store = createCanvasStore([{ ...node, data: { ...node.data, assets: uploaded } } as AppNode], []);
+    store.getState().fanOutShots("sa", "canvas-1");
+    expect(store.getState().nodes.filter((n) => n.type === "location")).toHaveLength(1);
   });
 });

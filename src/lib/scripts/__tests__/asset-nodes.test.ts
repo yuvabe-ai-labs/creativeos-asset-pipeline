@@ -78,3 +78,26 @@ describe("storyboard panels", () => {
     expect(storyboardPanelRow(panel(null))).toBeNull();
   });
 });
+
+// D456 — a generated plate's Composite is the script's location: its current picture, once.
+describe("a generated plate's Composite", () => {
+  const plate = {
+    nodeId: "kc", type: "composite", activeOutput: "https://x/k2.png",
+    data: { scriptId: "sc1", scriptAsset: { kind: "location", id: "kitchen", name: "Home kitchen", angle: 0 } },
+  };
+
+  it("reads as the location row, from its current picture", () => {
+    const [row] = withScriptAssetImages([plate]);
+    expect(row).toMatchObject({ nodeId: "kc", type: "file", data: { fileUrl: "https://x/k2.png", title: "Home kitchen" } });
+    expect(scriptAssetTagOf(row.data)).toEqual({ kind: "location", id: "kitchen", name: "Home kitchen", angle: 0 });
+  });
+
+  it("is expanded once, however often the readers pass over it", () => {
+    expect(withScriptAssetImages(withScriptAssetImages([plate]))).toEqual(withScriptAssetImages([plate]));
+  });
+
+  it("is an ordinary Composite without the script's mark", () => {
+    const plain = { ...plate, data: { scriptAsset: plate.data.scriptAsset } };
+    expect(withScriptAssetImages([plain])).toEqual([plain]);
+  });
+});

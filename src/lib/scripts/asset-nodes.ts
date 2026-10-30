@@ -29,6 +29,17 @@ export function isScriptAssetNodeType(type: string): type is ScriptAssetNodeType
   return (SCRIPT_ASSET_NODE_TYPES as readonly string[]).includes(type);
 }
 
+/** D456 — a location plate the script page generated arrives as a Composite (its generation as v1,
+ *  like a storyboard panel), marked as the script's location. */
+export type LocationCompositeMark = { scriptId: string; scriptAsset: ScriptAssetTag };
+
+/** A script's product or location on the canvas: a Product or Location node, or a generated plate's
+ *  Composite. The rows it expands to carry no `scriptId`, so expanding twice changes nothing. */
+export function isScriptAssetNode(node: Pick<UpstreamOutput, "type" | "data">): boolean {
+  if (isScriptAssetNodeType(node.type)) return true;
+  return node.type === "composite" && typeof node.data.scriptId === "string" && scriptAssetTagOf(node.data)?.kind === "location";
+}
+
 /** What a row says it is: read by the reference ranking and the roles line. D452 — "storyboard" is
  *  a panel wired into the clip's Shot or Multishot; D454 — a Composite, "still" once made real. */
 export type ScriptAssetTag = { kind: ScriptAssetNodeType | "storyboard" | "still"; id: string; name: string; angle: number };
@@ -54,6 +65,9 @@ export function scriptAssetTagOf(data: Record<string, unknown>): ScriptAssetTag 
   return { kind: tag.kind, id: String(tag.id ?? ""), name: tag.name, angle: typeof tag.angle === "number" ? tag.angle : 0 };
 }
 
+const LOCATION_TEXT = (name: string) =>
+  `${name}, the location: the place this shot happens in, shown empty. Set the shot there; never copy its emptiness.`;
+
 function row(nodeId: string, url: string, tag: ScriptAssetTag, text: string): UpstreamOutput {
   return {
     nodeId: scriptAssetRowId(nodeId, tag.angle),
@@ -67,9 +81,15 @@ function row(nodeId: string, url: string, tag: ScriptAssetTag, text: string): Up
 /**
  * One Product or Location node as the image rows every reader already handles (File rows, as the
  * presenter's are). A node with no picture yet becomes no rows: there is nothing to send, and the
- * writer still reads the shot's own text.
+ * writer still reads the shot's own text. D456 — a generated plate's Composite is its current
+ * picture: `activeOutput` on the server, `data.parsed` in the browser.
  */
-export function scriptAssetRows(node: Pick<UpstreamOutput, "nodeId" | "type" | "data">): UpstreamOutput[] {
+export function scriptAssetRows(node: Pick<UpstreamOutput, "nodeId" | "type" | "data"> & { activeOutput?: unknown }): UpstreamOutput[] {
+  if (node.type === "composite") {
+    const tag = isScriptAssetNode(node) ? scriptAssetTagOf(node.data) : null;
+    if (!tag || typeof node.activeOutput !== "string" || !node.activeOutput) return [];
+    return [row(node.nodeId, node.activeOutput, { ...tag, angle: 0 }, LOCATION_TEXT(tag.name))];
+  }
   if (node.type === "product") {
     const d = node.data as Partial<ProductNodeData>;
     const name = d.name ?? "the product";
@@ -83,8 +103,7 @@ export function scriptAssetRows(node: Pick<UpstreamOutput, "nodeId" | "type" | "
     const d = node.data as Partial<LocationNodeData>;
     if (!d.image) return [];
     const name = d.name ?? "the location";
-    return [row(node.nodeId, d.image.url, { kind: "location", id: d.locationId ?? "", name, angle: 0 },
-      `${name}, the location: the place this shot happens in, shown empty. Set the shot there; never copy its emptiness.`)];
+    return [row(node.nodeId, d.image.url, { kind: "location", id: d.locationId ?? "", name, angle: 0 }, LOCATION_TEXT(name))];
   }
   return [];
 }
@@ -129,9 +148,9 @@ export function storyboardPanelRow(node: Pick<UpstreamOutput, "nodeId" | "type" 
     : `The ${panel.label} still: the approved picture of this shot. Match its moment, people, products, place and framing.`);
 }
 
-/** Every row in `rows`, with each Product / Location node expanded in its place. */
-export function withScriptAssetImages<T extends Pick<UpstreamOutput, "nodeId" | "type" | "data">>(rows: T[]): (T | UpstreamOutput)[] {
-  return rows.flatMap((r): (T | UpstreamOutput)[] => (isScriptAssetNodeType(r.type) ? scriptAssetRows(r) : [r]));
+/** Every row in `rows`, with each script product or location node expanded in its place. */
+export function withScriptAssetImages<T extends Pick<UpstreamOutput, "nodeId" | "type" | "data"> & { activeOutput?: unknown }>(rows: T[]): (T | UpstreamOutput)[] {
+  return rows.flatMap((r): (T | UpstreamOutput)[] => (isScriptAssetNode(r) ? scriptAssetRows(r) : [r]));
 }
 
 /** D450 — the ids of a script's main pictures (packshots, plates) and of its other angles among

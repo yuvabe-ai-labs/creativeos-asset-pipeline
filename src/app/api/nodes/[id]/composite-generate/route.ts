@@ -1,6 +1,6 @@
 import { imageGenRegistry } from "@/lib/image-gen/registry";
 import { getStoryboardVersionInputs, getVersionById } from "@/lib/db/versions";
-import { STORYBOARD_PROMPT_ID, drawsAsSketch } from "@/lib/scripts/storyboard-composite";
+import { STORYBOARD_PROMPT_ID, drawsAsSketch } from "@/lib/scripts/script-composites";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import { apiError, withNode } from "@/lib/api/route-helpers";
 import { loadCompositeInputs } from "@/lib/composite/load-inputs";

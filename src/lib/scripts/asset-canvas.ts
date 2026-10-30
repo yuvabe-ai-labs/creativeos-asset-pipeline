@@ -2,11 +2,13 @@ import type { Edge, XYPosition } from "@xyflow/react";
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import type { Product, ScriptDoc, ScriptLocation } from "./schema";
 import { shotLabel } from "./storyboard";
+import type { ScriptPlateRequest } from "./script-composites";
 import {
-  isScriptAssetNodeType,
+  isScriptAssetNode,
   locationNodeData,
   productNodeData,
   scriptAssetRows,
+  scriptAssetTagOf,
   storyboardPanelName,
   storyboardPanelOf,
   type LocationNodeData,
@@ -16,6 +18,8 @@ import {
 // D450 — a script's products and locations on a canvas: frozen onto the Script node when it is
 // added (like its storyboard, D381/D385), made into ONE node each by Fan out, and wired into every
 // new Shot/Multishot that uses them — so a shared set is one node with a line into each clip.
+// D456 — a location whose plate the script page generated is a Composite instead, made on the
+// server with that generation as v1 (script-composites), like a storyboard panel.
 
 /** What the Script node carries: the script's assets and each shot's picks, keyed by the shot's
  *  row name ("S3"), which is how a fanned-out node finds its script shots (D380). */
@@ -49,7 +53,9 @@ const ASSET_PITCH = 300;
 /**
  * Fan out's asset nodes: one per product and location any new clip uses, reusing one already on
  * the canvas for this script (a second Fan out wires into it rather than adding a twin), and an
- * edge into each clip's `image` handle per pick. Placed in a column under the Script node.
+ * edge into each clip's `image` handle per pick. Placed in a column under the Script node. A
+ * generated plate comes back as a request, not a node: the server makes its Composite, and its
+ * edges are added once it exists.
  */
 export function scriptAssetCanvasNodes(args: {
   created: Seeded[];
@@ -58,37 +64,45 @@ export function scriptAssetCanvasNodes(args: {
   existing: Array<{ id: string; type?: string; data: unknown }>;
   origin: XYPosition;
   newId: () => string;
-}): { nodes: AssetNode[]; edges: Edge[] } {
+}): { nodes: AssetNode[]; plates: ScriptPlateRequest[]; edges: Edge[] } {
   const { created, shots, assets, existing, origin, newId } = args;
-  if (!assets) return { nodes: [], edges: [] };
+  if (!assets) return { nodes: [], plates: [], edges: [] };
 
   const keyOf = (kind: "product" | "location", id: string) => `${kind}:${id}`;
   const onCanvas = new Map<string, string>();
   for (const n of existing) {
-    if (!n.type || !isScriptAssetNodeType(n.type)) continue;
-    const d = n.data as Partial<ProductNodeData & LocationNodeData>;
-    if (d.scriptId !== assets.scriptId) continue;
+    const data = n.data as Record<string, unknown>;
+    if (!isScriptAssetNode({ type: n.type ?? "", data }) || data.scriptId !== assets.scriptId) continue;
+    if (n.type === "composite") {
+      const tag = scriptAssetTagOf(data);
+      if (tag) onCanvas.set(keyOf("location", tag.id), n.id);
+      continue;
+    }
+    const d = data as Partial<ProductNodeData & LocationNodeData>;
     const id = n.type === "product" ? d.productId : d.locationId;
-    if (id) onCanvas.set(keyOf(n.type, id), n.id);
+    if (id) onCanvas.set(keyOf(n.type as "product" | "location", id), n.id);
   }
 
   const nodes: AssetNode[] = [];
+  const plates: ScriptPlateRequest[] = [];
   const edges: Edge[] = [];
   const nodeFor = (kind: "product" | "location", id: string): string | null => {
     const key = keyOf(kind, id);
     const known = onCanvas.get(key);
     if (known) return known;
-    const position = { x: origin.x, y: origin.y + nodes.length * ASSET_PITCH };
+    const position = { x: origin.x, y: origin.y + (nodes.length + plates.length) * ASSET_PITCH };
+    const made = newId();
     if (kind === "product") {
       const p = assets.products.find((x) => x.id === id);
       if (!p) return null;
-      nodes.push({ id: newId(), type: "product", position, data: productNodeData(assets.scriptId, p) });
+      nodes.push({ id: made, type: "product", position, data: productNodeData(assets.scriptId, p) });
     } else {
       const l = assets.locations.find((x) => x.id === id);
       if (!l) return null;
-      nodes.push({ id: newId(), type: "location", position, data: locationNodeData(assets.scriptId, l) });
+      // D456 — a generated plate: the server makes its Composite.
+      if (l.image?.source === "plate") plates.push({ nodeId: made, locationId: l.id, position });
+      else nodes.push({ id: made, type: "location", position, data: locationNodeData(assets.scriptId, l) });
     }
-    const made = nodes[nodes.length - 1].id;
     onCanvas.set(key, made);
     return made;
   };
@@ -110,14 +124,25 @@ export function scriptAssetCanvasNodes(args: {
       if (source) edges.push({ id: newId(), source, target: clip.id, targetHandle: "image" });
     }
   }
-  return { nodes, edges };
+  return { nodes, plates, edges };
 }
 
 /** What the browser needs to show a prompt node's pictures. */
 export type AssetUpstreamRow = { id: string; label: string; type: "file"; fileUrl: string; fileKind: "image" };
 
-function rowsOf(node: { id: string; type?: string; data: unknown }): AssetUpstreamRow[] {
-  return scriptAssetRows({ nodeId: node.id, type: node.type ?? "", data: node.data as Record<string, unknown> }).map((r) => {
+type CanvasNodeLike = { id: string; type?: string; data: unknown };
+
+/** A canvas node as the server reads it: a Composite's picture is display-hydrated onto
+ *  `data.parsed` (D19), the server's activeOutput. */
+function asUpstream(n: CanvasNodeLike) {
+  const data = n.data as Record<string, unknown>;
+  return { nodeId: n.id, type: n.type ?? "", data, activeOutput: data.parsed };
+}
+
+const isAsset = (n: CanvasNodeLike) => isScriptAssetNode(asUpstream(n));
+
+function rowsOf(node: CanvasNodeLike): AssetUpstreamRow[] {
+  return scriptAssetRows(asUpstream(node)).map((r) => {
     const tag = r.data.scriptAsset as { name: string; angle: number };
     return {
       id: r.nodeId,
@@ -154,10 +179,10 @@ export function canvasAssetRows(
   const viaShot: AssetUpstreamRow[] = [];
   const panels: AssetUpstreamRow[] = [];
   for (const source of into(promptNodeId)) {
-    if (source.type && isScriptAssetNodeType(source.type)) direct.set(source.id, rowsOf(source));
+    if (isAsset(source)) direct.set(source.id, rowsOf(source));
     if (source.type === "shot" || source.type === "multishot") {
       for (const asset of into(source.id)) {
-        if (asset.type && isScriptAssetNodeType(asset.type)) viaShot.push(...rowsOf(asset));
+        if (isAsset(asset)) viaShot.push(...rowsOf(asset));
         // D452 — the shot's storyboard panels, after every real picture (as getPromptUpstream).
         const panel = canvasPanelOf(asset);
         if (panel) panels.push({ id: asset.id, label: storyboardPanelName(panel), type: "file", fileUrl: panel.url, fileKind: "image" });
@@ -205,10 +230,17 @@ export function shotAssetEntries(
       if (panel && !panels.some((p) => p.nodeId === n.id)) {
         panels.push({ nodeId: n.id, kind: "storyboard", name: storyboardPanelName(panel), url: panel.url, pictures: 1 });
       }
-      if (!n.type || !isScriptAssetNodeType(n.type) || out.some((o) => o.nodeId === n.id)) continue;
+      if (!isAsset(n) || out.some((o) => o.nodeId === n.id)) continue;
+      // D456 — a generated plate's Composite: the location, its current picture.
+      if (n.type === "composite") {
+        const tag = scriptAssetTagOf(n.data as Record<string, unknown>)!;
+        const [plate] = rowsOf(n);
+        out.push({ nodeId: n.id, kind: "location", name: tag.name, url: plate?.fileUrl ?? null, pictures: plate ? 1 : 0 });
+        continue;
+      }
       const d = n.data as Partial<ProductNodeData & LocationNodeData>;
       const images = n.type === "product" ? d.images ?? [] : d.image ? [d.image] : [];
-      out.push({ nodeId: n.id, kind: n.type, name: d.name ?? n.type, url: images[0]?.url ?? null, pictures: images.length });
+      out.push({ nodeId: n.id, kind: n.type as "product" | "location", name: d.name ?? n.type ?? "", url: images[0]?.url ?? null, pictures: images.length });
     }
   }
   return [...out, ...panels];

@@ -11,10 +11,13 @@ function doc(): ScriptDoc {
     { id: "pouch", name: "Brandname pouch", images: [{ url: "https://x/p0.png", source: "upload" }, { url: "https://x/p1.png", source: "upload" }] },
     { id: "jar", name: "Brandname jar", images: [] },
   ];
-  d.locations = [{ id: "kitchen", name: "Home kitchen", description: "Teal walls.", image: { url: "https://x/k.png", source: "plate" } }];
+  d.locations = [
+    { id: "kitchen", name: "Home kitchen", description: "Teal walls.", image: { url: "https://x/k.png", source: "plate" } },
+    { id: "park", name: "Park path", description: "", image: { url: "https://x/park.png", source: "upload" } },
+  ];
   d.shots[0] = { ...d.shots[0], products: ["pouch"], location: "kitchen" };
   d.shots[1] = { ...d.shots[1], location: "kitchen" };
-  d.shots[2] = { ...d.shots[2], products: ["pouch", "jar"] };
+  d.shots[2] = { ...d.shots[2], products: ["pouch", "jar"], location: "park" };
   return d;
 }
 
@@ -29,7 +32,7 @@ describe("scriptCanvasAssets", () => {
     expect(a.picks).toEqual({
       S1: { products: ["pouch"], location: "kitchen" },
       S2: { products: [], location: "kitchen" },
-      S3: { products: ["pouch", "jar"], location: null },
+      S3: { products: ["pouch", "jar"], location: "park" },
     });
     expect(scriptCanvasAssets("script-1", scriptDocSchema.parse(structuredClone(reel01)))).toBeNull();
   });
@@ -38,17 +41,19 @@ describe("scriptCanvasAssets", () => {
 describe("scriptAssetCanvasNodes", () => {
   const assets = scriptCanvasAssets("script-1", doc())!;
 
-  it("makes one node per asset and wires it into every clip that uses it", () => {
+  it("makes one node per asset and wires it into every clip that uses it, a generated plate as a request", () => {
     n = 0;
     const out = scriptAssetCanvasNodes({
       created: [clip("a", [0]), clip("b", [1]), clip("c", [2])],
       shots: rows, assets, existing: [], origin: { x: 0, y: 500 }, newId,
     });
+    // D456 — the kitchen's plate was generated: the server makes its Composite.
+    expect(out.plates).toEqual([{ nodeId: expect.any(String), locationId: "kitchen", position: { x: 0, y: 500 } }]);
     expect(out.nodes.map((x) => [x.type, x.data.name])).toEqual([
-      ["location", "Home kitchen"], ["product", "Brandname pouch"], ["product", "Brandname jar"],
+      ["product", "Brandname pouch"], ["location", "Park path"], ["product", "Brandname jar"],
     ]);
-    const kitchen = out.nodes[0].id;
-    const pouch = out.nodes[1].id;
+    const kitchen = out.plates[0].nodeId;
+    const pouch = out.nodes[0].id;
     expect(out.edges.filter((e) => e.source === kitchen).map((e) => e.target)).toEqual(["a", "b"]);
     expect(out.edges.filter((e) => e.source === pouch).map((e) => e.target)).toEqual(["a", "c"]);
     expect(out.edges.every((e) => e.targetHandle === "image")).toBe(true);
@@ -63,12 +68,20 @@ describe("scriptAssetCanvasNodes", () => {
     const existing = [{ id: "old-kitchen", type: "location", data: { scriptId: "script-1", locationId: "kitchen" } }];
     const out = scriptAssetCanvasNodes({ created: [clip("b", [1])], shots: rows, assets, existing, origin: { x: 0, y: 0 }, newId });
     expect(out.nodes).toEqual([]);
+    expect(out.plates).toEqual([]);
     expect(out.edges.map((e) => [e.source, e.target])).toEqual([["old-kitchen", "b"]]);
+  });
+
+  it("reuses a generated plate's Composite already on the canvas", () => {
+    const existing = [{ id: "kitchen-cmp", type: "composite", data: { scriptId: "script-1", scriptAsset: { kind: "location", id: "kitchen", name: "Home kitchen", angle: 0 } } }];
+    const out = scriptAssetCanvasNodes({ created: [clip("b", [1])], shots: rows, assets, existing, origin: { x: 0, y: 0 }, newId });
+    expect(out.plates).toEqual([]);
+    expect(out.edges.map((e) => [e.source, e.target])).toEqual([["kitchen-cmp", "b"]]);
   });
 
   it("does nothing for a script that has no assets", () => {
     expect(scriptAssetCanvasNodes({ created: [clip("a", [0])], shots: rows, assets: undefined, existing: [], origin: { x: 0, y: 0 }, newId }))
-      .toEqual({ nodes: [], edges: [] });
+      .toEqual({ nodes: [], plates: [], edges: [] });
   });
 });
 
@@ -88,6 +101,18 @@ describe("canvasAssetRows", () => {
     const out = canvasAssetRows("mp", nodes, edges);
     expect(out.direct.get("pouch")?.map((r) => [r.id, r.label])).toEqual([["pouch", "Brandname pouch"], ["pouch:1", "Brandname pouch, angle 2"]]);
     expect(out.viaShot.map((r) => [r.id, r.fileUrl])).toEqual([["kitchen", "https://x/k.png"]]);
+  });
+
+  // D456 — a generated plate's Composite reads as the location, its current picture.
+  it("reads a generated plate's Composite as the location", () => {
+    const nodes = [
+      { id: "mp", type: "multishot-prompt", data: {} },
+      { id: "ms", type: "multishot", data: {} },
+      { id: "kc", type: "composite", data: { parsed: "https://x/k2.png", scriptId: "script-1", scriptAsset: { kind: "location", id: "kitchen", name: "Home kitchen", angle: 0 } } },
+    ];
+    const edges = [{ source: "ms", target: "mp" }, { source: "kc", target: "ms" }];
+    expect(canvasAssetRows("mp", nodes, edges).viaShot.map((r) => [r.id, r.label, r.fileUrl])).toEqual([["kc", "Home kitchen", "https://x/k2.png"]]);
+    expect(shotAssetEntries("mp", nodes, edges)).toEqual([{ nodeId: "kc", kind: "location", name: "Home kitchen", url: "https://x/k2.png", pictures: 1 }]);
   });
 });
 

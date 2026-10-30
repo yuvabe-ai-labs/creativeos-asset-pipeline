@@ -70,6 +70,33 @@ export async function listPanelRecipes(scriptId: string, takeIds: string[]): Pro
   });
 }
 
+/** D456 — a generated location plate and the generation that drew it, found by the picture it made
+ *  (a location keeps only its picture's URL). */
+export type PlateRecipe = {
+  url: string;
+  generationId: string;
+  modelUsed: string | null;
+  params: Record<string, unknown>;
+  inputs: Record<string, unknown>;
+};
+
+/** The script's finished generations that made any of `urls`. One query. */
+export async function listPlateRecipes(scriptId: string, urls: string[]): Promise<PlateRecipe[]> {
+  if (!isUuid(scriptId) || urls.length === 0) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("id, output_snapshot, model_used, params_snapshot, inputs_snapshot")
+    .eq("script_id", scriptId)
+    .eq("status", "succeeded")
+    .in("output_snapshot", urls);
+  if (error) throw error;
+  type Row = { id: string; output_snapshot: string; model_used: string | null; params_snapshot: Record<string, unknown> | null; inputs_snapshot: Record<string, unknown> | null };
+  return ((data ?? []) as Row[]).map((r) => ({
+    url: r.output_snapshot, generationId: r.id, modelUsed: r.model_used, params: r.params_snapshot ?? {}, inputs: r.inputs_snapshot ?? {},
+  }));
+}
+
 /** A take starts "running" before the model is called, holding what it is drawn from. */
 export async function insertPanelTake(input: {
   clientId: string;
