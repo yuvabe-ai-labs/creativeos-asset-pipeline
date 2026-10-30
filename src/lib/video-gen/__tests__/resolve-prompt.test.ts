@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveVideoGenPrompt } from "../resolve-prompt";
+import { resolveVideoGenPrompt, refRoleLabels, roleDialectOfResolved } from "../resolve-prompt";
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
@@ -303,5 +303,54 @@ describe("resolveVideoGenPrompt reference binding (BUG-010)", () => {
     const res = await resolveVideoGenPrompt([mp], async (id) => (id === "mp" ? [ms, img("a", "A.png"), img("b", "B.png")] : []));
     expect(res.ok && res.prompt).toContain("<IMAGE_REF_1>");
     expect(res.ok && res.prompt).not.toContain("@[");
+  });
+});
+
+// D443 — what each sent image is, for the "Reference roles:" line.
+describe("refRoleLabels / roleDialectOfResolved", () => {
+  async function resolvedWith(p: MultishotPlan, extra: UpstreamOutput[] = []) {
+    const promptNode = output({ nodeId: "mp", type: "multishot-prompt", activeOutput: p });
+    const multishot = output({ nodeId: "ms", type: "multishot", data: { cuts } });
+    const result = await resolveVideoGenPrompt([promptNode], async () => [multishot, ...extra]);
+    if (!result.ok) throw new Error("expected a resolved prompt");
+    return result;
+  }
+
+  it("labels images from the plan's reference roles", async () => {
+    const r = await resolvedWith({ ...plan, refRoles: [{ id: "f1", role: "product", name: "pouch" }] });
+    expect(refRoleLabels(r, [])).toEqual(new Map([["f1", { role: "product", name: "pouch" }]]));
+  });
+
+  it("labels the presenter as a person when the plan does not", async () => {
+    const presenter = output({ nodeId: "av", type: "file", data: { presenter: true, title: "Maya" } });
+    const sheet = output({ nodeId: "av:sheet", type: "file", data: { presenter: "sheet", title: "Maya" } });
+    const r = await resolvedWith(plan);
+    expect(refRoleLabels(r, [presenter, sheet])).toEqual(
+      new Map([
+        ["av", { role: "person", name: "Maya" }],
+        ["av:sheet", { role: "person", name: "Maya" }],
+      ]),
+    );
+  });
+
+  it("keeps the plan's reading over the fallback", async () => {
+    const presenter = output({ nodeId: "av", type: "file", data: { presenter: true, title: "Maya" } });
+    const r = await resolvedWith({ ...plan, refRoles: [{ id: "av", role: "person", name: "the host" }] });
+    expect(refRoleLabels(r, [presenter]).get("av")).toEqual({ role: "person", name: "the host" });
+  });
+
+  it("numbers in the plan's own model's tokens", async () => {
+    const r = await resolvedWith({ ...plan, targetModel: KLING_OMNI_MODEL_ID });
+    expect(roleDialectOfResolved(r, ["f1"])?.tokenForId("f1", "x")).toBe("@image_1");
+    const omni = await resolvedWith({ ...plan, targetModel: GEMINI_OMNI_MODEL_ID });
+    expect(roleDialectOfResolved(omni, ["f1"])?.tokenForId("f1", "x")).toBe("<IMAGE_REF_0>");
+  });
+
+  it("uses the single-take lane's dialect, or none", async () => {
+    const vp = output({ nodeId: "vp", type: "video-prompt", activeOutput: "Slow push in." });
+    const r = await resolveVideoGenPrompt([vp], async () => []);
+    if (!r.ok) throw new Error("expected a resolved prompt");
+    expect(roleDialectOfResolved(r, ["f1"], "gemini-omni")?.tokenForId("f1", "x")).toBe("<IMAGE_REF_0>");
+    expect(roleDialectOfResolved(r, ["f1"], undefined)).toBeNull();
   });
 });

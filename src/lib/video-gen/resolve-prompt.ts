@@ -12,7 +12,8 @@ import {
   singleTakeRefDialect,
   type RefEntry,
 } from "@/lib/nodes/ref-binding";
-import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { dialectForCapability, imageRefDialect, type TokenDialect } from "@/lib/nodes/prompt-token-dialect";
+import { asRefRoles, type RefRole } from "@/lib/nodes/ref-roles";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
 //   shot      -> video-prompt      -> video-gen   (activeOutput is a STRING)
@@ -206,4 +207,42 @@ export function renderResolvedPrompt(
   const text = String(resolved.promptNode.activeOutput ?? "");
   const dialect = singleTakeRefDialect(singleTakeTarget, refOrder);
   return dialect ? renderRefs(text, dialect).text : text;
+}
+
+/**
+ * D443 — what each image is, by id, for the request's "Reference roles:" line.
+ *
+ * The plan's own reading first (multishot lane: the writer looked at every attachment). Then the
+ * presenter's rows, which every reader already marks with `data.presenter` and the avatar's name:
+ * a person, even on the single-take lane where no writer read the images. Anything else goes
+ * unlabelled rather than guessed.
+ */
+export function refRoleLabels(
+  resolved: Extract<ResolvedPrompt, { ok: true }>,
+  rows: readonly UpstreamOutput[],
+): Map<string, { role: RefRole; name: string }> {
+  const labels = new Map<string, { role: RefRole; name: string }>();
+  if (resolved.cuts) {
+    const plan = resolved.promptNode.activeOutput as MultishotPlan;
+    for (const e of asRefRoles(plan.refRoles) ?? []) labels.set(e.id, { role: e.role, name: e.name });
+  }
+  for (const row of rows) {
+    if (labels.has(row.nodeId) || !row.data.presenter) continue;
+    labels.set(row.nodeId, { role: "person", name: typeof row.data.title === "string" ? row.data.title : "" });
+  }
+  return labels;
+}
+
+/**
+ * D443 — the token dialect the request's prompt is numbered in, over `sentIds` (the references
+ * actually sent), so the roles line can never point at a different picture than the prompt does.
+ * Null on a lane whose prompt carries no image tokens (Veo, single-take Kling).
+ */
+export function roleDialectOfResolved(
+  resolved: Extract<ResolvedPrompt, { ok: true }>,
+  sentIds: string[],
+  singleTakeTarget?: string,
+): TokenDialect | null {
+  if (resolved.cuts) return dialectForCapability(multishotCapabilityFor(resolved.targetModel), sentIds);
+  return singleTakeRefDialect(singleTakeTarget, sentIds);
 }

@@ -410,6 +410,57 @@ describe("POST video-generate — references within the cap (D308)", () => {
   });
 });
 
+// D443/D445 — each sent image is labelled, and no model is left without the no-text guard.
+describe("POST video-generate — reference roles and the no-text line", () => {
+  const omniCuts: MultishotCut[] = [
+    { id: "c1", text: "keys", seconds: 3 },
+    { id: "c2", text: "cab", seconds: 5 },
+  ];
+  const payload = () =>
+    mocks.triggerTask.mock.calls[0][1] as unknown as { prompt: string; referenceUrls: string[] };
+
+  it("tells Omni what each sent image is, ahead of the ladder", async () => {
+    mocks.graph = buildGraph(omniCuts, GEMINI_OMNI_MODEL_ID, {
+      ...PLAN,
+      refRoles: [{ id: "ig", role: "product", name: "pouch" }],
+    });
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {}, imageRoles: { ig: "reference" } });
+    expect(res.status).toBe(202);
+    expect(payload().prompt.startsWith("Reference roles: <IMAGE_REF_0> is the product (pouch)")).toBe(true);
+    // Recorded as sent, so the version history shows the line too.
+    expect((mocks.insertGeneration.mock.calls[0] as unknown as [{ inputsSnapshot: { prompt: string } }])[0].inputsSnapshot.prompt)
+      .toContain("Reference roles:");
+  });
+
+  it("puts the no-text line ahead of Kling's triples", async () => {
+    mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, {
+      ...PLAN,
+      refRoles: [{ id: "ig", role: "product", name: "pouch" }],
+    });
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: { ig: "reference" } });
+    expect(res.status).toBe(202);
+    const prompt = payload().prompt;
+    expect(prompt.indexOf("No on-screen text.")).toBeGreaterThan(-1);
+    expect(prompt.indexOf("No on-screen text.")).toBeLessThan(prompt.indexOf("shot 1, "));
+    expect(prompt).toContain("@image_1 is the product (pouch)");
+  });
+
+  // The plan passed Kling's 3072 ceiling on its own; the added lines must not tip it over.
+  it("drops the roles line rather than push Kling over its whole-prompt ceiling", async () => {
+    const long = (n: number) => "x".repeat(n);
+    mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, {
+      ...PLAN,
+      look: long(2000),
+      beats: [{ cutId: "c1", text: long(480) }, { cutId: "c2", text: long(480) }],
+      refRoles: [{ id: "ig", role: "product", name: long(60) }],
+    });
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: { ig: "reference" } });
+    expect(res.status).toBe(202);
+    expect(payload().prompt.length).toBeLessThanOrEqual(3072);
+    expect(payload().prompt).not.toContain("Reference roles:");
+  });
+});
+
 // D390 — a clip in the Editor's reel can't generate, whoever asks.
 describe("the Editor's generation lock", () => {
   it("refuses with the reason and records nothing", async () => {

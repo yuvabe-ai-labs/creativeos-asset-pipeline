@@ -18,7 +18,15 @@ import {
   orderImagesForPromptTokens,
   type UpstreamImageRef,
 } from "@/lib/video-gen/assign-image-roles";
-import { citedIdsOfResolved, renderResolvedPrompt, resolveVideoGenPrompt } from "@/lib/video-gen/resolve-prompt";
+import {
+  citedIdsOfResolved,
+  refRoleLabels,
+  renderResolvedPrompt,
+  resolveVideoGenPrompt,
+  roleDialectOfResolved,
+} from "@/lib/video-gen/resolve-prompt";
+import { referenceRolesLine } from "@/lib/nodes/ref-roles";
+import { withRequestLines } from "@/lib/video-gen/request-prompt";
 import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
@@ -274,6 +282,21 @@ export async function POST(
     // With nothing left out the prompt is numbered exactly as it was resolved; otherwise its tokens
     // count only what is sent, and a cited image left out is written as its name.
     if (selection.leftOut.length > 0) prompt = renderResolvedPrompt(resolved, selection.sent, singleTake);
+    // D443 — say what each sent image is (product, location, person…), numbered over exactly what
+    // is sent so it agrees with the prompt's own tokens; D445 — and no on-screen text on every model.
+    const rolesLine = referenceRolesLine(
+      selection.sent,
+      refRoleLabels(resolved, allUpstream),
+      roleDialectOfResolved(resolved, selection.sent, singleTake),
+    );
+    // The plan was measured against the model's whole-prompt ceiling (Kling: 3072) BEFORE these
+    // lines, so they give way rather than push a passing prompt over it: roles first, then all.
+    const maxChars = resolved.cuts ? multishotCapabilityFor(resolved.targetModel).maxPromptChars : null;
+    const fits = (text: string) => maxChars === null || text.length <= maxChars;
+    prompt = [
+      withRequestLines(prompt, { provider: config.provider, rolesLine }),
+      withRequestLines(prompt, { provider: config.provider, rolesLine: "" }),
+    ].find(fits) ?? prompt;
     // If model doesn't support end frame, clear it
     if (!config.imageInputs.endFrame) endFrameUrl = undefined;
 
