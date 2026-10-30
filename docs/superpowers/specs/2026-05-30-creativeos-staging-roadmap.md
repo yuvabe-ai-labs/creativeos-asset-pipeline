@@ -8136,3 +8136,29 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** The writers were told "the request carries a standing instruction against screen-space type", which was true only on Omni.
 
 **Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §7.
+
+### D446 — A script has its own products and locations, and each shot picks them *(recorded 2026-10-30; refines D338)*
+
+**Decision.** The script doc gains `products` (a name and up to 6 images, the main packshot first, then angles) and `locations` (a name, a description and one plate image), at most 8 and 6, both defaulted to empty so every stored script still parses. Each shot gains `products` (none, one or several ids) and `location` (one id or none), checked against the script's own lists like `onScreen` against the cast. They belong to the script only, not to a client library. Every change goes through one pure function (`applyAssetOp`, src/lib/scripts/assets.ts) and one stage-aware write (`changeScriptAssets`): at Generate through `changeGenerateScript` (D337), at Visualise and In review on `updated_at` like a cast avatar link, which widens D338's single Visualise write to these pictures and picks. Images come by upload (a signed URL straight to the script's own folder, rule 8) or by picking a brand-kit or KB image, which the route checks belongs to the client (rule 14). The script page shows Products and Locations beside the cast and two pickers on every shot, editable in Generate and Visualise and read-only on the review page.
+
+**Why.** User, 30 Oct 2026: everything has to be figured out at script level, where characters and storyboards are planned. Products had no record anywhere, and a set existed only as `settingAndCamera` text, so each clip re-imagined it. Products can have angles.
+
+**Rejected.** (1) A client-level library of products and locations, like Avatars: the user chose per script. (2) Pickers only through the copilot, as `onScreen` is today: a wrong pick should be one click to fix. (3) Uploading bytes through our route: Vercel's body limit and rule 8.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §3, §4.2.
+
+### D447 — The copilot names products and locations and sets each shot's picks, never their pictures *(recorded 2026-10-30; refines D331, D332, D370)*
+
+**Decision.** The draft and the import return `products` and `locations` (keys, names, a place's description) and each shot's product keys and location key; code makes ids from names and drops a key it does not know, as for cast. Edit ops `add_product`, `update_product`, `remove_product`, `add_location`, `update_location`, `remove_location` call the same pure operations as the script page, and a rewritten shot carries its picks. An import adds one open item to check what it read and to add pictures. The copilot never sets an image. Prompt `script-copilot` version 5.
+
+**Why.** The script already knows which products and places its shots show; asking the person to re-enter them would be the gap this closes.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §4.1.
+
+### D448 — A location's plate is drawn once, as an empty set, and billed to the script *(recorded 2026-10-30)*
+
+**Decision.** "Generate" on a location draws its plate with Nano Banana 2.1 through `runBilledImageGeneration` owned by the script, exactly as a storyboard panel is billed, and stores it beside the script's other pictures. The prompt (`location-plate@1`) is the location's description, the reel's setting, the matching regional kit's home (never its wardrobe) and the frame, with no people, hands, products, packaging or lettering. A plate can also be uploaded or picked, and drawn again.
+
+**Why.** The same set drawn once is what keeps a background the same across every panel and clip set there; a person or a product in the plate would ride into every shot that uses it.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §4.3.
