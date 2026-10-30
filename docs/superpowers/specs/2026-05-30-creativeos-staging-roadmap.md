@@ -8188,3 +8188,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Decision.** The review page shows the frozen script's products and locations read-only, with their pictures, and each shot's picks. A change to a shot's picks counts as that shot revised; a change to the script's products or locations (names, words, pictures) counts with the context. A share frozen before these existed reads as having none, so it is never a change.
 
 **Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §7.
+
+### D452 — A clip's storyboard panel is sent as a composition reference, never a first frame *(recorded 2026-10-30; refines D382, D383, D443)*
+
+**Decision.** A storyboard panel wired into a clip's Shot or Multishot (Fan out's panel File node, now marked `storyboardPanel`; older ones recognised by their "S3-storyboard" name) is read with the clip's products and locations and sent as a reference, ranked after every real picture (faces, packshots, plates, the sheet, angles, other wired images). The writer sees it as the shot's storyboard; the roles line calls it "a rough storyboard sketch: follow only its composition, staging and camera framing, with its people and objects as placeholders for the other references, and never show the drawing, its lines or colours". It is never a first frame, and it can be switched off per image in Video Gen. Other images wired to a Shot or Multishot are still not read (D383).
+
+**Why.** User, 30 Oct 2026: send the storyboard so the clip follows the story, not the cartoon look. Google documents a drawing used "only as a guide for movement, do not show the drawing"; Kling says a first frame sets the clip's visual style, so a sketch there yields a sketch-looking video; Flow warns that references of mixed looks blend, hence the lowest rank and the placeholder wording.
+
+**Rejected.** The panel as a first frame (the clip would open as a drawing). Photoreal storyboard panels in place of the sketch: the sketch stays the approval artefact, and a photoreal keyframe step is the proposed next step instead.
+
+**Originated →** conversation in this session (research: Gemini Omni docs and prompt guide, Kling 3.0 Omni guide and sketch-to-video page, Google Flow help).
