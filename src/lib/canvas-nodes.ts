@@ -152,6 +152,9 @@ export type CompositeNodeData = {
   modelId?: string;
   params?: Record<string, unknown>;
   parsed?: unknown; // D19: active version output (image URL) — display only, never persisted
+  /** D454 — on a storyboard Composite (Fan out's): the shot it draws, and the approved sketch. */
+  storyboardPanel?: string;
+  storyboardSketchUrl?: string;
 };
 
 export type VideoPromptNodeData = {

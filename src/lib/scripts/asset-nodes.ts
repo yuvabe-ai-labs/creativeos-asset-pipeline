@@ -30,8 +30,10 @@ export function isScriptAssetNodeType(type: string): type is ScriptAssetNodeType
 }
 
 /** What a row says it is: read by the reference ranking and the roles line. D452 — "storyboard" is
- *  a panel wired into the clip's Shot or Multishot (a File node, not a node type of its own). */
-export type ScriptAssetTag = { kind: ScriptAssetNodeType | "storyboard"; id: string; name: string; angle: number };
+ *  a panel wired into the clip's Shot or Multishot; D454 — a Composite, "still" once made real. */
+export type ScriptAssetTag = { kind: ScriptAssetNodeType | "storyboard" | "still"; id: string; name: string; angle: number };
+
+const TAG_KINDS: readonly ScriptAssetTag["kind"][] = ["product", "location", "storyboard", "still"];
 
 export function productNodeData(scriptId: string, p: Product): ProductNodeData {
   return { scriptId, productId: p.id, name: p.name, images: p.images };
@@ -48,7 +50,7 @@ export const scriptAssetRowId = (nodeId: string, angle: number) => (angle === 0 
 /** The tag on an upstream row, or null when the row is not a script asset's picture. */
 export function scriptAssetTagOf(data: Record<string, unknown>): ScriptAssetTag | null {
   const tag = data.scriptAsset as Partial<ScriptAssetTag> | undefined;
-  if (!tag || (tag.kind !== "product" && tag.kind !== "location" && tag.kind !== "storyboard") || typeof tag.name !== "string") return null;
+  if (!tag || !tag.kind || !TAG_KINDS.includes(tag.kind) || typeof tag.name !== "string") return null;
   return { kind: tag.kind, id: String(tag.id ?? ""), name: tag.name, angle: typeof tag.angle === "number" ? tag.angle : 0 };
 }
 
@@ -87,29 +89,44 @@ export function scriptAssetRows(node: Pick<UpstreamOutput, "nodeId" | "type" | "
   return [];
 }
 
-/**
- * D452 — the shot's storyboard label when `node` is one of its panels: the File node Fan out wires
- * into a Shot/Multishot (marked `storyboardPanel` since D452; before that, recognised by the
- * "S3-storyboard.jpg" name Fan out gives it). Null for any other picture.
- */
-export function storyboardPanelLabel(node: Pick<UpstreamOutput, "type" | "data">): string | null {
-  if (node.type !== "file" || node.data.fileKind !== "image" || typeof node.data.fileUrl !== "string") return null;
-  if (typeof node.data.storyboardPanel === "string" && node.data.storyboardPanel) return node.data.storyboardPanel;
-  const m = typeof node.data.filename === "string" ? node.data.filename.match(/^(S\d+)-storyboard\.[a-z0-9]+$/i) : null;
-  return m ? m[1].toUpperCase() : null;
-}
+/** D454 — what Fan out puts on a storyboard Composite: the shot it draws, and the approved sketch
+ *  it starts from (its first version). */
+export type StoryboardCompositeData = { storyboardPanel: string; storyboardSketchUrl: string };
 
 /**
- * D452 — a storyboard panel as a reference row: a sketch of the shot's composition, staging and
- * framing. Never a first frame (a first frame sets the clip's look, and this is a drawing); ranked
- * after every real reference; and told it is a placeholder drawing (the roles line says so).
+ * D454 — a Shot/Multishot's storyboard: the Composite Fan out wires into it, and what it shows now.
+ * `sketch` while its picture is still the approved sketch; once the operator has made it real
+ * (wired an avatar or product and edited it), it is the shot's approved still. `output` is the
+ * Composite's current picture: the active version on the server, `data.parsed` in the browser.
+ * Null for any other node, and for a Composite with no picture.
  */
-export function storyboardPanelRow(node: Pick<UpstreamOutput, "nodeId" | "type" | "data">): UpstreamOutput | null {
-  const label = storyboardPanelLabel(node);
-  if (!label) return null;
-  return row(node.nodeId, String(node.data.fileUrl), { kind: "storyboard", id: label, name: `${label} storyboard`, angle: 0 },
-    `The ${label} storyboard panel: a rough sketch of this shot's composition, staging and camera framing. ` +
-      "Follow its layout; its people and objects are placeholders for the other references. Never describe or copy the drawing style.");
+export function storyboardPanelOf(
+  node: Pick<UpstreamOutput, "type" | "data">,
+  output: unknown,
+): { label: string; url: string; sketch: boolean } | null {
+  const d = node.data as Partial<StoryboardCompositeData>;
+  if (node.type !== "composite" || typeof d.storyboardPanel !== "string" || !d.storyboardPanel) return null;
+  if (typeof output !== "string" || !output) return null;
+  return { label: d.storyboardPanel, url: output, sketch: output === d.storyboardSketchUrl };
+}
+
+/** "S3 storyboard" while it is the sketch, "S3 still" once it has been made real. */
+export const storyboardPanelName = (p: { label: string; sketch: boolean }) => `${p.label} ${p.sketch ? "storyboard" : "still"}`;
+
+/**
+ * D452 — a storyboard panel as a reference row. The sketch: a guide to the shot's composition,
+ * staging and framing, ranked after every real reference and told it is a placeholder drawing.
+ * D454 — made real, it is the shot's approved still: a real picture to match, ranked with the
+ * script's main pictures.
+ */
+export function storyboardPanelRow(node: Pick<UpstreamOutput, "nodeId" | "type" | "data" | "activeOutput">): UpstreamOutput | null {
+  const panel = storyboardPanelOf(node, node.activeOutput);
+  if (!panel) return null;
+  const tag: ScriptAssetTag = { kind: panel.sketch ? "storyboard" : "still", id: panel.label, name: storyboardPanelName(panel), angle: 0 };
+  return row(node.nodeId, panel.url, tag, panel.sketch
+    ? `The ${panel.label} storyboard panel: a rough sketch of this shot's composition, staging and camera framing. ` +
+      "Follow its layout; its people and objects are placeholders for the other references. Never describe or copy the drawing style."
+    : `The ${panel.label} still: the approved picture of this shot. Match its moment, people, products, place and framing.`);
 }
 
 /** Every row in `rows`, with each Product / Location node expanded in its place. */
@@ -127,6 +144,7 @@ export function scriptAssetIds(rows: Array<Pick<UpstreamOutput, "nodeId" | "data
     const tag = scriptAssetTagOf(r.data);
     if (!tag) continue;
     if (tag.kind === "storyboard") storyboard.push(r.nodeId);
+    // D454 — a storyboard made real ranks with the main pictures.
     else (tag.angle === 0 ? main : angles).push(r.nodeId);
   }
   return { main, angles, storyboard };

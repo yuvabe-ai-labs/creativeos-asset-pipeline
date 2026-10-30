@@ -29,6 +29,7 @@ import {
   pathForAvatarGenerated,
   pathForScriptPanel,
   pathForScriptAsset,
+  pathForScriptHouseStyle,
   pathForAvatarVoicePreview,
   pathForAvatarVoiceSample,
   pathForAvatarNamedVoiceSample,
@@ -571,6 +572,17 @@ export async function uploadScriptAsset(args: {
   contentType: string;
 }): Promise<UploadResult> {
   return _upload(pathForScriptAsset(args), args.body, args.contentType);
+}
+
+/** D454 — the house style picture as a stored file, so a storyboard Composite sends a URL, never
+ *  its bytes in a task payload. */
+export async function uploadScriptHouseStyle(args: {
+  clientId: string;
+  scriptId: string;
+  styleId: string;
+  body: Buffer;
+}): Promise<UploadResult> {
+  return _upload(pathForScriptHouseStyle(args), args.body, "image/jpeg");
 }
 
 export async function uploadScriptPanel(args: {

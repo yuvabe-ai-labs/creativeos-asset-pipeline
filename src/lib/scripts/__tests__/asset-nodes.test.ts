@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scriptAssetIds, scriptAssetRows, scriptAssetTagOf, storyboardPanelLabel, storyboardPanelRow, withScriptAssetImages } from "../asset-nodes";
+import { scriptAssetIds, scriptAssetRows, scriptAssetTagOf, storyboardPanelOf, storyboardPanelRow, withScriptAssetImages } from "../asset-nodes";
 
 // D450 — a Product or Location node becomes the image rows every reader already handles.
 
@@ -44,22 +44,37 @@ describe("scriptAssetRows", () => {
   });
 });
 
-// D452 — a storyboard panel wired into the clip's shot is a composition guide, sent last.
+// D452, D454 — a storyboard is a Composite wired into the clip's shot: while it shows the
+// approved sketch it is a composition guide, sent last; made real, it is the shot's still.
 describe("storyboard panels", () => {
-  const panel = (data: Record<string, unknown>) => ({ nodeId: "pn", type: "file", data: { fileKind: "image", fileUrl: "https://x/s3.png", ...data } });
+  const sketch = "https://x/s3.png";
+  const panel = (activeOutput: unknown, data: Record<string, unknown> = {}) =>
+    ({ nodeId: "pn", type: "composite", activeOutput, data: { storyboardPanel: "S3", storyboardSketchUrl: sketch, ...data } });
 
-  it("recognises a panel by its marker, or by the name Fan out gave it before the marker", () => {
-    expect(storyboardPanelLabel(panel({ storyboardPanel: "S3" }))).toBe("S3");
-    expect(storyboardPanelLabel(panel({ filename: "S3-storyboard.jpg" }))).toBe("S3");
-    expect(storyboardPanelLabel(panel({ filename: "holiday.jpg" }))).toBeNull();
-    expect(storyboardPanelLabel({ type: "image-gen", data: { storyboardPanel: "S3" } })).toBeNull();
+  it("recognises a storyboard Composite by its marker, and nothing else", () => {
+    expect(storyboardPanelOf(panel(sketch), sketch)).toEqual({ label: "S3", url: sketch, sketch: true });
+    expect(storyboardPanelOf({ type: "composite", data: {} }, sketch)).toBeNull();
+    expect(storyboardPanelOf({ type: "file", data: { storyboardPanel: "S3", fileUrl: sketch } }, sketch)).toBeNull();
   });
 
-  it("makes it a row tagged as the shot's storyboard, telling the writer it is a placeholder sketch", () => {
-    const row = storyboardPanelRow(panel({ filename: "S3-storyboard.jpg" }))!;
+  it("makes the sketch a row tagged as the shot's storyboard, telling the writer it is a placeholder", () => {
+    const row = storyboardPanelRow(panel(sketch))!;
     expect(row.nodeId).toBe("pn");
+    expect(row.data.fileUrl).toBe(sketch);
     expect(scriptAssetTagOf(row.data)).toEqual({ kind: "storyboard", id: "S3", name: "S3 storyboard", angle: 0 });
     expect(String(row.data.processedOutput)).toMatch(/placeholders/);
     expect(scriptAssetIds([row])).toEqual({ main: [], angles: [], storyboard: ["pn"] });
+  });
+
+  it("makes a storyboard made real the shot's still: a picture to match, ranked with the main pictures", () => {
+    const row = storyboardPanelRow(panel("https://x/real.png"))!;
+    expect(row.data.fileUrl).toBe("https://x/real.png");
+    expect(scriptAssetTagOf(row.data)).toEqual({ kind: "still", id: "S3", name: "S3 still", angle: 0 });
+    expect(String(row.data.processedOutput)).toMatch(/approved picture of this shot/);
+    expect(scriptAssetIds([row])).toEqual({ main: ["pn"], angles: [], storyboard: [] });
+  });
+
+  it("sends nothing for a storyboard Composite with no picture", () => {
+    expect(storyboardPanelRow(panel(null))).toBeNull();
   });
 });

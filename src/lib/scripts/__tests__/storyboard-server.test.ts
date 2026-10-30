@@ -25,8 +25,8 @@ describe("loadCurrentStoryboard (D385)", () => {
       [s1]: { takeId: "t9", url: "https://x/redrawn.png" },
     });
     expect(await loadCurrentStoryboard(script())).toEqual([
-      { label: "S1", beat: doc.shots[0].beat, shotId: s1, url: "https://x/redrawn.png" },
-      { label: "S2", beat: doc.shots[1].beat, shotId: s2, url: "https://x/p2.png" },
+      { label: "S1", beat: doc.shots[0].beat, shotId: s1, url: "https://x/redrawn.png", takeId: "t9" },
+      { label: "S2", beat: doc.shots[1].beat, shotId: s2, url: "https://x/p2.png", takeId: "t2" },
     ]);
     expect(getPickedPanels).toHaveBeenCalledWith("sc1");
   });

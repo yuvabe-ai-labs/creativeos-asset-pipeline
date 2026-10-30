@@ -9,6 +9,16 @@ import { nodeGenerationStatus } from "./generations/node-status";
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
+// D454 — the server makes the storyboard Composites; here it echoes what it was asked for.
+vi.mock("@/services/storyboard-composites.service", () => ({
+  createStoryboardComposites: vi.fn(async (_canvasId: string, body: { panels: { nodeId: string; label: string; position: { x: number; y: number } }[] }) =>
+    body.panels.map((p) => ({
+      id: p.nodeId, position: p.position, output: `https://x/${p.label}.png`,
+      data: { title: `${p.label} · HOOK — storyboard`, storyboardPanel: p.label, storyboardSketchUrl: `https://x/${p.label}.png` },
+    }))),
+}));
+import { createStoryboardComposites } from "@/services/storyboard-composites.service";
+const settle = () => new Promise((r) => setTimeout(r, 0));
 import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
@@ -214,7 +224,7 @@ describe("fanOutShots", () => {
 
   it("creates one Shot per shot carrying the full script (one shot) + a lineage edge", () => {
     const store = createCanvasStore([scriptNode], []);
-    store.getState().fanOutShots("script-1");
+    store.getState().fanOutShots("script-1", "canvas-1");
 
     const { nodes, edges } = store.getState();
     const shots = nodes.filter((n) => n.type === "shot");
@@ -247,7 +257,7 @@ describe("fanOutShots", () => {
   it("does nothing for a script with no parsed shots", () => {
     const bare = { id: "s2", type: "script", position: { x: 0, y: 0 }, data: { title: "" } } as AppNode;
     const store = createCanvasStore([bare], []);
-    store.getState().fanOutShots("s2");
+    store.getState().fanOutShots("s2", "canvas-1");
     expect(store.getState().nodes.filter((n) => n.type === "shot")).toHaveLength(0);
   });
 
@@ -274,7 +284,7 @@ describe("fanOutShots", () => {
     } as AppNode;
 
     const store = createCanvasStore([reelB], []);
-    store.getState().fanOutShots("script-b");
+    store.getState().fanOutShots("script-b", "canvas-1");
     const created = store.getState().nodes.filter((n) => n.id !== "script-b");
 
     // 5 shots -> 3 generations, after the trailing rebalance: [0,1] [2] [3,4]. A group of >1 row
@@ -318,7 +328,7 @@ describe("fanOutShots", () => {
     } as AppNode;
 
     const store = createCanvasStore([reelA], []);
-    store.getState().fanOutShots("script-1");
+    store.getState().fanOutShots("script-1", "canvas-1");
     const shots = store.getState().nodes.filter((n) => n.type === "shot");
 
     const first = shots[0].data as {
@@ -352,7 +362,7 @@ describe("fanOutShots", () => {
     } as AppNode;
 
     const store = createCanvasStore([reelB], []);
-    store.getState().fanOutShots("script-b");
+    store.getState().fanOutShots("script-b", "canvas-1");
     const multishots = store.getState().nodes.filter((n) => n.type === "multishot");
 
     const data = multishots[0].data as { cuts?: { voiceover?: unknown }[]; sequenceVoiceover?: unknown };
@@ -361,9 +371,9 @@ describe("fanOutShots", () => {
   });
 });
 
-describe("fanOutShots with an approved storyboard (D382)", () => {
+describe("fanOutShots with an approved storyboard (D382, D454)", () => {
   const panels = [1, 2].map((n) => ({
-    label: `S${n}`, beat: "HOOK", shotId: `s0${n}`,
+    label: `S${n}`, beat: "HOOK", shotId: `s0${n}`, takeId: `t${n}`,
     url: `https://x.supabase.co/storage/v1/object/public/assets/clients/c/scripts/s/panels/s0${n}/panel__a.png`,
   }));
   const scriptNode = (rows: object[], extra: object = {}): AppNode =>
@@ -375,11 +385,20 @@ describe("fanOutShots with an approved storyboard (D382)", () => {
     { label: "S1", description: "a", duration_seconds: 3 },
     { label: "S2", description: "b", duration_seconds: 4 },
   ];
-  const panelNodes = (s: ReturnType<typeof createCanvasStore>) => s.getState().nodes.filter((n) => n.type === "file");
+  const panelNodes = (s: ReturnType<typeof createCanvasStore>) => s.getState().nodes.filter((n) => n.type === "composite");
 
-  it("wires each new shot's panel into its image handle: one row per shot, its panel under it", () => {
+  it("asks the server for a Composite per panel, showing the panel, for this canvas and script", async () => {
     const store = createCanvasStore([scriptNode(rows)], []);
-    store.getState().fanOutShots("sb");
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
+    expect(vi.mocked(createStoryboardComposites)).toHaveBeenLastCalledWith("canvas-1", expect.objectContaining({ scriptNodeId: "sb" }));
+    expect(panelNodes(store).map((n) => (n.data as { parsed?: string }).parsed)).toEqual(["https://x/S1.png", "https://x/S2.png"]);
+  });
+
+  it("wires each new shot's panel into its image handle: one row per shot, its panel under it", async () => {
+    const store = createCanvasStore([scriptNode(rows)], []);
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
     const shots = store.getState().nodes.filter((n) => n.type === "shot");
     expect(shots.map((s) => s.position.y)).toEqual([0, STORYBOARD_ROW_PITCH]);
     const files = panelNodes(store);
@@ -392,9 +411,10 @@ describe("fanOutShots with an approved storyboard (D382)", () => {
     expect(files[0].position.y + PANEL_CARD.height).toBeLessThan(shots[1].position.y);
   });
 
-  it("lays the new rows out again from the cards' measured sizes, until a node is dragged", () => {
+  it("lays the new rows out again from the cards' measured sizes, until a node is dragged", async () => {
     const store = createCanvasStore([scriptNode(rows)], []);
-    store.getState().fanOutShots("sb");
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
     const [s1, s2] = store.getState().nodes.filter((n) => n.type === "shot");
     const [p1] = panelNodes(store);
     const dims = (id: string, width: number, height: number) =>
@@ -412,34 +432,39 @@ describe("fanOutShots with an approved storyboard (D382)", () => {
     expect(after(s2.id)).toEqual({ x: 900, y: 50 });
   });
 
-  it("wires a row fanned out as a Multishot too", () => {
+  it("wires a row fanned out as a Multishot too", async () => {
     const store = createCanvasStore([scriptNode(rows, { groupModes: { [generationKey([1])]: true } })], []);
-    store.getState().fanOutShots("sb");
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
     const ms = store.getState().nodes.find((n) => n.type === "multishot")!;
     expect(store.getState().edges.some((e) => e.target === ms.id && e.targetHandle === "image")).toBe(true);
   });
 
-  it("adds no second panel when fanned out again", () => {
+  it("adds no second panel when fanned out again", async () => {
     const store = createCanvasStore([scriptNode(rows)], []);
-    store.getState().fanOutShots("sb");
-    store.getState().fanOutShots("sb");
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
     expect(panelNodes(store)).toHaveLength(2);
   });
 
-  it("gives a renamed row no panel", () => {
+  it("gives a renamed row no panel", async () => {
     const store = createCanvasStore([scriptNode([rows[0], { ...rows[1], label: "Shot 2" }])], []);
-    store.getState().fanOutShots("sb");
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
     expect(panelNodes(store).map((f) => (f.data as { title: string }).title)).toEqual(["S1 · HOOK — storyboard"]);
   });
 
-  it("is unchanged for a script without a storyboard, or a parse without names", () => {
+  it("is unchanged for a script without a storyboard, or a parse without names", async () => {
     const plain = createCanvasStore([scriptNode(rows, { storyboard: undefined })], []);
-    plain.getState().fanOutShots("sb");
+    plain.getState().fanOutShots("sb", "canvas-1");
     expect(panelNodes(plain)).toEqual([]);
     expect(plain.getState().nodes.filter((n) => n.type === "shot").map((s) => s.position.y)).toEqual([0, 170]);
 
     const unnamed = createCanvasStore([scriptNode(rows.map(({ description, duration_seconds }) => ({ description, duration_seconds })))], []);
-    unnamed.getState().fanOutShots("sb");
+    unnamed.getState().fanOutShots("sb", "canvas-1");
+    await settle();
     expect(panelNodes(unnamed)).toEqual([]);
   });
 });
@@ -459,7 +484,7 @@ describe("fanOutShots is incremental", () => {
 
   it("creates one node per generation, typed by its mode", () => {
     const store = createCanvasStore([scriptNode()], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
 
     const created = store.getState().nodes.filter((n) => n.id !== "sc");
     expect(created.map((n) => n.type)).toEqual(["multishot", "shot"]);
@@ -467,7 +492,7 @@ describe("fanOutShots is incremental", () => {
 
   it("gives the multishot node cuts summing to its budget", () => {
     const store = createCanvasStore([scriptNode()], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
 
     const ms = store.getState().nodes.find((n) => n.type === "multishot")!;
     const data = ms.data as { cuts?: { seconds: number }[]; totalSeconds?: number };
@@ -481,19 +506,19 @@ describe("fanOutShots is incremental", () => {
   // The bug this task fixes: a second press used to duplicate the whole row of nodes.
   it("creates nothing on a second call with no changes", () => {
     const store = createCanvasStore([scriptNode()], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     const after = store.getState().nodes.length;
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     expect(store.getState().nodes.length).toBe(after);
   });
 
   it("creates only the generation that is missing", () => {
     const store = createCanvasStore([scriptNode()], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     const doomed = store.getState().nodes.find((n) => n.type === "shot")!;
     store.getState().deleteNode(doomed.id);
 
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     const shotNodes = store.getState().nodes.filter((n) => n.type === "shot");
     const multishotNodes = store.getState().nodes.filter((n) => n.type === "multishot");
     expect(shotNodes).toHaveLength(1);
@@ -502,7 +527,7 @@ describe("fanOutShots is incremental", () => {
 
   it("honours an override when choosing the node type", () => {
     const store = createCanvasStore([scriptNode({ groupModes: { "0-1": false, "2": true } })], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
 
     const created = store.getState().nodes.filter((n) => n.id !== "sc");
     expect(created.map((n) => n.type)).toEqual(["shot", "multishot"]);
@@ -512,7 +537,7 @@ describe("fanOutShots is incremental", () => {
   // the Composer, the card and node-output all read the first row, so a 3+5s take read as 3s.
   it("merges a multi-row single take into one shot row", () => {
     const store = createCanvasStore([scriptNode({ groupModes: { "0-1": false } })], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
 
     const shot = store.getState().nodes.find((n) => n.type === "shot")!;
     const rows = (shot.data as { script?: { visual_script?: { shots?: unknown[] } } }).script
@@ -547,16 +572,16 @@ describe("fanOutShots toasts", () => {
 
   it("reports one clip, singular, for a single generation", () => {
     const store = createCanvasStore([oneGeneration], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     expect(toast.success).toHaveBeenCalledTimes(1);
     expect(toast.success).toHaveBeenCalledWith("1 clip added");
   });
 
   it("reports only the no-op on a second press", () => {
     const store = createCanvasStore([oneGeneration], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     vi.clearAllMocks();
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     expect(toast.info).toHaveBeenCalledWith("Every shot is already on the canvas");
     expect(toast.success).not.toHaveBeenCalled();
   });
@@ -756,7 +781,7 @@ describe("setGenerationMode under groupingVersion 2", () => {
   // inside Kling's 15, so it must not arrive on the Omni default already failing.
   it("fans out a multishot generation on the model that fits it", () => {
     const store = createCanvasStore([v2Node({ "0-1-2": true })], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
 
     const ms = store.getState().nodes.find((n) => n.type === "multishot");
     expect((ms?.data as { targetModel?: string }).targetModel).toBe(KLING_OMNI_MODEL_ID);
@@ -765,7 +790,7 @@ describe("setGenerationMode under groupingVersion 2", () => {
   // The common flow: fan out with the switch off, THEN flip it. The conversion picks too.
   it("converts to multishot on the model that fits it", () => {
     const store = createCanvasStore([v2Node()], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     store.getState().setGenerationMode("sc", "0-1-2", true);
 
     const ms = store.getState().nodes.find((n) => n.type === "multishot");
@@ -894,7 +919,7 @@ describe("setGenerationMode swaps an existing node's type", () => {
       [{ id: "sc", type: "script", position: { x: 0, y: 0 }, data: { parsed } } as AppNode],
       [],
     );
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     return store;
   };
 
@@ -1097,7 +1122,7 @@ describe("scene beats become cuts (D286)", () => {
 
   it("flipping a fanned-out scene to multishot builds one cut per fresh beat", () => {
     const store = createCanvasStore([v3Script(stampedRow)], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     store.getState().setGenerationMode("sc", "0", true);
     expect(cutsOf(store)).toEqual([["Jar", 2], ["Spoon", 2], ["Hand", 2]]);
   });
@@ -1105,7 +1130,7 @@ describe("scene beats become cuts (D286)", () => {
   // Operator, 2026-09-29: "by default have the VO at sequence level".
   it("puts every line on the sequence and leaves each cut silent", () => {
     const store = createCanvasStore([v3Script(stampedRow)], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     store.getState().setGenerationMode("sc", "0", true);
     const data = multishotData(store);
     expect(data.cuts.every((c) => c.voiceover === undefined)).toBe(true);
@@ -1114,14 +1139,14 @@ describe("scene beats become cuts (D286)", () => {
 
   it("fans out a scene already set to multishot with its beats and sequence lines", () => {
     const store = createCanvasStore([v3Script(stampedRow, { groupModes: { "0": true } })], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     expect(cutsOf(store)).toHaveLength(3);
     expect(multishotData(store).sequenceVoiceover).toHaveLength(2);
   });
 
   it("uses one cut, with every line on the sequence, when the beats are stale", () => {
     const store = createCanvasStore([v3Script({ ...stampedRow, description: "Edited" })], []);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     store.getState().setGenerationMode("sc", "0", true);
     expect(cutsOf(store)).toEqual([["Edited", 6]]);
     expect(multishotData(store).cuts[0].voiceover).toBeUndefined();
@@ -1131,7 +1156,7 @@ describe("scene beats become cuts (D286)", () => {
   it("uses cached beats written by cacheSceneBeats", () => {
     const store = createCanvasStore([v3Script(plain)], []);
     store.getState().cacheSceneBeats("sc", sceneFingerprint(plain), BEATS);
-    store.getState().fanOutShots("sc");
+    store.getState().fanOutShots("sc", "canvas-1");
     store.getState().setGenerationMode("sc", "0", true);
     expect(cutsOf(store)).toHaveLength(3);
   });
@@ -1285,7 +1310,7 @@ describe("fanOutShots with script products and locations (D450)", () => {
 
   it("adds one Location and one Product node and wires each into the clips that use it", () => {
     const store = createCanvasStore([scriptNode()], []);
-    store.getState().fanOutShots("sa");
+    store.getState().fanOutShots("sa", "canvas-1");
     const { nodes, edges } = store.getState();
     const clips = nodes.filter((n) => n.type === "shot" || n.type === "multishot").map((n) => n.id);
     const location = nodes.filter((n) => n.type === "location");
@@ -1299,11 +1324,11 @@ describe("fanOutShots with script products and locations (D450)", () => {
 
   it("wires a second Fan out into the nodes already there", () => {
     const store = createCanvasStore([scriptNode()], []);
-    store.getState().fanOutShots("sa");
+    store.getState().fanOutShots("sa", "canvas-1");
     const before = store.getState().nodes.filter((n) => n.type === "location").length;
     const clip = store.getState().nodes.find((n) => n.type === "shot" || n.type === "multishot")!;
     store.setState({ nodes: store.getState().nodes.filter((n) => n.id !== clip.id) });
-    store.getState().fanOutShots("sa");
+    store.getState().fanOutShots("sa", "canvas-1");
     expect(store.getState().nodes.filter((n) => n.type === "location")).toHaveLength(before);
   });
 });

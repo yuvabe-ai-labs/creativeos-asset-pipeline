@@ -43,7 +43,7 @@ describe("GET /api/clients/[id]/scripts/[scriptId]", () => {
 
   it("returns the approved storyboard beside the script (D381)", async () => {
     vi.mocked(getScript).mockResolvedValue(scriptWithLead(null));
-    const panels = [{ label: "S1", beat: "HOOK", shotId: "s01", url: "https://x/p.png" }];
+    const panels = [{ label: "S1", beat: "HOOK", shotId: "s01", url: "https://x/p.png", takeId: "t1" }];
     vi.mocked(loadCurrentStoryboard).mockResolvedValue(panels);
     const { GET } = await import("./route");
     const res = await GET(req(), { params });

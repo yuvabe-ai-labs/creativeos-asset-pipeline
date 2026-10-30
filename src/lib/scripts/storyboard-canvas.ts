@@ -1,7 +1,8 @@
 import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { ReelShot } from "@/lib/nodes/reel-script";
-import { panelForRow, panelTitle, type StoryboardPanel } from "./storyboard";
+import { panelForRow, type StoryboardPanel } from "./storyboard";
+import type { StoryboardCompositeRequest } from "./storyboard-composite";
 
 /** Fan out's row pitch without a storyboard. */
 export const SHOT_ROW_PITCH = 170;
@@ -12,11 +13,10 @@ export const FAN_OUT_CARDS = {
   shot: { width: 224, height: 280 },
   multishot: { width: 320, height: 360 },
 } as const;
-/** A panel's File card before it is measured: a 2:3 panel (what GPT Image returns) at the input
- *  tier is 202 wide, with a header above the image and the filename and Open link below it —
- *  466 tall as measured on staging, 22 Oct 2026. Only the starting guess: settleFanOutRows
- *  lays rows out again from what renders. */
-export const PANEL_CARD = { width: 202, height: 466 } as const;
+/** D454 — a panel's Composite card before it is measured: a 9:16 panel at the output tier is
+ *  about 307 wide, with the header above the image and Open and credits below it. Only the
+ *  starting guess: settleFanOutRows lays rows out again from what renders. */
+export const PANEL_CARD = { width: 307, height: 640 } as const;
 /** Between a card and the panel under it, and between two panels side by side. */
 export const PANEL_GAP = 24;
 /** Empty canvas between one shot's row and the next. */
@@ -77,25 +77,21 @@ export function settleFanOutRows(nodes: ReadonlyMap<string, Placed>, layout: Fan
   return moves;
 }
 
-function extOf(url: string): string {
-  return (url.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i)?.[1] ?? "png").toLowerCase();
-}
-
 /**
- * D382 — a File node per approved panel of each NEW shot or multishot node, wired into its image
- * handle: on a Shot it grounds the Shot Composer, on a Multishot it is there to see (D383). The
- * node points at the panel's stored image, never a copy, and never-deleting it is node-file-
- * cleanup's rule (only a node's own upload slot is removed). Rows are matched by name; a row with
- * none, or a name the storyboard lacks, gets nothing. Nothing is wired past the shot (spec §2.5).
+ * D382, D454 — where each NEW shot or multishot node's approved panels go: a Composite per panel
+ * (made on the server, which records the panel as its v1), wired into the node's image handle.
+ * On a Shot it grounds the Shot Composer; on a Multishot it is the clip's storyboard. Rows are
+ * matched by name; a row with none, or a name the storyboard lacks, gets nothing. Nothing is
+ * wired past the shot (spec §2.5). The edges are added once the server has made the nodes.
  */
 export function storyboardPanelNodes(
   created: readonly AppNode[],
   rows: readonly ReelShot[],
   panels: readonly StoryboardPanel[] | undefined,
-): { nodes: AppNode[]; edges: Edge[] } {
-  const nodes: AppNode[] = [];
+): { requests: StoryboardCompositeRequest[]; edges: Edge[] } {
+  const requests: StoryboardCompositeRequest[] = [];
   const edges: Edge[] = [];
-  if (!panels || panels.length === 0) return { nodes, edges };
+  if (!panels || panels.length === 0) return { requests, edges };
 
   for (const target of created) {
     if (target.type !== "shot" && target.type !== "multishot") continue;
@@ -111,24 +107,10 @@ export function storyboardPanelNodes(
     const left = target.position.x + (card.width - groupWidth) / 2;
     const top = target.position.y + card.height + PANEL_GAP;
     for (const [i, panel] of matched.entries()) {
-      const ext = extOf(panel.url);
       const id = crypto.randomUUID();
-      nodes.push({
-        id,
-        type: "file",
-        position: { x: left + i * (PANEL_CARD.width + PANEL_GAP), y: top },
-        data: {
-          title: panelTitle(panel),
-          filename: `${panel.label}-storyboard.${ext}`,
-          fileExt: ext,
-          fileKind: "image",
-          fileUrl: panel.url,
-          // D452 — read by the clip's prompt and video as its composition guide.
-          storyboardPanel: panel.label,
-        },
-      } as AppNode);
+      requests.push({ nodeId: id, label: panel.label, position: { x: left + i * (PANEL_CARD.width + PANEL_GAP), y: top } });
       edges.push({ id: crypto.randomUUID(), source: id, target: target.id, targetHandle: "image" });
     }
   }
-  return { nodes, edges };
+  return { requests, edges };
 }

@@ -14,7 +14,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { dialectForCapability, imageRefDialect, type TokenDialect } from "@/lib/nodes/prompt-token-dialect";
 import { NO_PROMPT_NODE_MESSAGE, UNWRITTEN_PROMPT_MESSAGE } from "./prompt-messages";
-import { asRefRoles, type RefRole } from "@/lib/nodes/ref-roles";
+import { asRefRoles, type LabelRole } from "@/lib/nodes/ref-roles";
 import { scriptAssetTagOf } from "@/lib/scripts/asset-nodes";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
@@ -223,8 +223,8 @@ export function renderResolvedPrompt(
 export function refRoleLabels(
   resolved: Extract<ResolvedPrompt, { ok: true }>,
   rows: readonly UpstreamOutput[],
-): Map<string, { role: RefRole; name: string }> {
-  const labels = new Map<string, { role: RefRole; name: string }>();
+): Map<string, { role: LabelRole; name: string }> {
+  const labels = new Map<string, { role: LabelRole; name: string }>();
   for (const row of rows) {
     const tag = scriptAssetTagOf(row.data);
     // An extra angle says so, or the back of a pouch reads as a second product.

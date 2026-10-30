@@ -7,7 +7,8 @@ import {
   locationNodeData,
   productNodeData,
   scriptAssetRows,
-  storyboardPanelLabel,
+  storyboardPanelName,
+  storyboardPanelOf,
   type LocationNodeData,
   type ProductNodeData,
 } from "./asset-nodes";
@@ -128,6 +129,13 @@ function rowsOf(node: { id: string; type?: string; data: unknown }): AssetUpstre
   });
 }
 
+/** D454 — a storyboard Composite on the canvas: its current picture is display-hydrated onto
+ *  `data.parsed` (D19), the server's activeOutput. */
+function canvasPanelOf(n: { type?: string; data: unknown }) {
+  const data = n.data as Record<string, unknown>;
+  return storyboardPanelOf({ type: n.type ?? "", data }, data.parsed);
+}
+
 /**
  * D450 — the browser's half of getPromptUpstream's expansion, from the canvas store: a Product or
  * Location node wired straight into the prompt node, in its place; then those wired into the
@@ -151,8 +159,8 @@ export function canvasAssetRows(
       for (const asset of into(source.id)) {
         if (asset.type && isScriptAssetNodeType(asset.type)) viaShot.push(...rowsOf(asset));
         // D452 — the shot's storyboard panels, after every real picture (as getPromptUpstream).
-        const label = storyboardPanelLabel({ type: asset.type ?? "", data: asset.data as Record<string, unknown> });
-        if (label) panels.push({ id: asset.id, label: `${label} storyboard`, type: "file", fileUrl: String((asset.data as { fileUrl?: unknown }).fileUrl), fileKind: "image" });
+        const panel = canvasPanelOf(asset);
+        if (panel) panels.push({ id: asset.id, label: storyboardPanelName(panel), type: "file", fileUrl: panel.url, fileKind: "image" });
       }
     }
   }
@@ -193,9 +201,9 @@ export function shotAssetEntries(
   const panels: ShotAssetEntry[] = [];
   for (const shot of shots) {
     for (const n of sources(shot.id)) {
-      const label = storyboardPanelLabel({ type: n.type ?? "", data: n.data as Record<string, unknown> });
-      if (label && !panels.some((p) => p.nodeId === n.id)) {
-        panels.push({ nodeId: n.id, kind: "storyboard", name: `${label} storyboard`, url: String((n.data as { fileUrl?: unknown }).fileUrl), pictures: 1 });
+      const panel = canvasPanelOf(n);
+      if (panel && !panels.some((p) => p.nodeId === n.id)) {
+        panels.push({ nodeId: n.id, kind: "storyboard", name: storyboardPanelName(panel), url: panel.url, pictures: 1 });
       }
       if (!n.type || !isScriptAssetNodeType(n.type) || out.some((o) => o.nodeId === n.id)) continue;
       const d = n.data as Partial<ProductNodeData & LocationNodeData>;

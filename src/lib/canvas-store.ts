@@ -50,6 +50,7 @@ import {
 } from "@/lib/scripts/storyboard-canvas";
 import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import { scriptAssetCanvasNodes, type ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
+import { createStoryboardComposites } from "@/services/storyboard-composites.service";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -99,7 +100,7 @@ export type CanvasState = {
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => Promise<void>;
   duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
-  fanOutShots: (scriptNodeId: string) => void;
+  fanOutShots: (scriptNodeId: string, canvasId: string) => void;
   /** D227 — set one generation's mode from the Script's Visual script list. */
   setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
   /** D286 — cache one scene's fresh split on the Script node (never in `parsed`). */
@@ -565,7 +566,7 @@ export function createCanvasStore(
     // With an approved storyboard (D382) each NEW node also gets its panel, wired into its image
     // handle. Only new nodes: a re-run never adds a second panel, and one the person deleted
     // stays deleted (spec A5).
-    fanOutShots: (scriptNodeId) => {
+    fanOutShots: (scriptNodeId, canvasId) => {
       const script = get().nodes.find((n) => n.id === scriptNodeId);
       if (!script) return;
       const data = script.data as {
@@ -713,7 +714,7 @@ export function createCanvasStore(
       });
       // D382 amended — the rows just made are laid out again from their measured sizes as they
       // render (settleFanOut), for long enough that every panel image has loaded.
-      const fanOutLayout: FanOutLayout | null = panels.nodes.length > 0
+      const fanOutLayout: FanOutLayout | null = panels.requests.length > 0
         ? {
             top: baseY,
             rows: created.map((n) => ({
@@ -724,10 +725,28 @@ export function createCanvasStore(
         : null;
 
       set({
-        nodes: [...get().nodes, ...created, ...panels.nodes, ...(assetNodes.nodes as AppNode[])],
-        edges: [...get().edges, ...createdEdges, ...panels.edges, ...assetNodes.edges],
+        nodes: [...get().nodes, ...created, ...(assetNodes.nodes as AppNode[])],
+        edges: [...get().edges, ...createdEdges, ...assetNodes.edges],
         fanOutLayout,
       });
+      // D454 — the storyboard Composites are made on the server, each with its panel as v1; they
+      // join the canvas, wired into their shots, as soon as it answers.
+      if (panels.requests.length > 0) {
+        createStoryboardComposites(canvasId, { scriptNodeId, panels: panels.requests })
+          .then((made) => {
+            const ids = new Set(made.map((m) => m.id));
+            set({
+              nodes: [
+                ...get().nodes,
+                ...made.map((m) => ({ id: m.id, type: "composite", position: m.position, data: { ...m.data, parsed: m.output } }) as AppNode),
+              ],
+              edges: [...get().edges, ...panels.edges.filter((e) => ids.has(e.source))],
+            });
+          })
+          .catch((e: unknown) => {
+            toast.error(e instanceof Error ? e.message : "Couldn't add the storyboard.");
+          });
+      }
       if (fanOutLayout) {
         setTimeout(() => {
           if (get().fanOutLayout === fanOutLayout) set({ fanOutLayout: null });

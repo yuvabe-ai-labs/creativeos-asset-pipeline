@@ -4,7 +4,7 @@ import type { CompositeRef } from "@/lib/composite/references";
 
 vi.mock("server-only", () => ({}));
 
-const stored = { instruction: "" };
+const stored: Record<string, unknown> = { instruction: "" };
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
@@ -48,7 +48,11 @@ vi.mock("@/lib/image-gen/start-generation", () => ({
 }));
 
 const getVersionById = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => null);
-vi.mock("@/lib/db/versions", () => ({ getVersionById: (...a: unknown[]) => getVersionById(...a) }));
+const getStoryboardVersionInputs = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => null);
+vi.mock("@/lib/db/versions", () => ({
+  getVersionById: (...a: unknown[]) => getVersionById(...a),
+  getStoryboardVersionInputs: (...a: unknown[]) => getStoryboardVersionInputs(...a),
+}));
 
 import { POST } from "./route";
 import { COMPOSITE_PROMPT_ID } from "@/prompts/composite-generate";
@@ -63,6 +67,7 @@ const sent = () => start.mock.calls[0][0] as { prompt: string; referenceUrls: st
 
 beforeEach(() => {
   vi.clearAllMocks();
+  for (const k of Object.keys(stored)) delete stored[k];
   stored.instruction = "";
   loadCompositeInputs.mockResolvedValue({ ok: true, refs: [AVATAR_REF, SHEET_REF, FILE_REF], avatarIds: ["av-1"], contexts: [] });
 });
@@ -243,5 +248,43 @@ describe("POST composite-generate (D312)", () => {
       expect(res.status).toBe(400);
       expect(start).not.toHaveBeenCalled();
     });
+  });
+});
+
+// D454 — a storyboard Composite redraws as its panel was drawn, until the operator makes it real.
+describe("POST composite-generate on a storyboard Composite (D454)", () => {
+  const PANEL_PROMPT = "Draw a loose marker sketch.\n\nThis shot: he checks his watch. Reference image 1 shows Maya.";
+  beforeEach(() => {
+    stored.storyboardPanel = "S1";
+    getStoryboardVersionInputs.mockResolvedValue({
+      source: "storyboard", prompt: PANEL_PROMPT, referenceImageUrls: ["https://cdn/maya.png", "https://cdn/house-style.jpg"],
+    });
+    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF], avatarIds: [], contexts: [] });
+  });
+
+  it("redraws with the panel's pictures first, then what is wired, and the prompt as written", async () => {
+    const res = await post({ instruction: PANEL_PROMPT, modelId: "gemini:gemini-3-pro-image" });
+    expect(res.status).toBe(202);
+    expect(getStoryboardVersionInputs).toHaveBeenCalledWith("node-1");
+    expect(sent().referenceUrls).toEqual(["https://cdn/maya.png", "https://cdn/house-style.jpg", "https://cdn/sandals.png"]);
+    expect(sent().prompt).toBe(PANEL_PROMPT);
+    expect(sent().inputsUsed).toMatchObject({ mode: "storyboard", promptId: "storyboard-panel" });
+  });
+
+  it("numbers a mentioned wired picture after the panel's own", async () => {
+    await post({ instruction: `${PANEL_PROMPT} Hold @[File: Sandals.png](n-file).`, modelId: "gemini:gemini-3-pro-image" });
+    expect(sent().prompt).toContain("Sandals.png (image 3)");
+  });
+
+  it("is an ordinary composite once the drawing-style paragraph is gone", async () => {
+    await post({ instruction: "A real photo of him checking his watch.", modelId: "gemini:gemini-3-pro-image" });
+    expect(sent().referenceUrls).toEqual(["https://cdn/sandals.png"]);
+    expect(sent().inputsUsed).toMatchObject({ promptId: COMPOSITE_PROMPT_ID });
+  });
+
+  it("never looks for a recipe on an ordinary composite", async () => {
+    delete stored.storyboardPanel;
+    await post({ instruction: PANEL_PROMPT, modelId: "gemini:gemini-3-pro-image" });
+    expect(getStoryboardVersionInputs).not.toHaveBeenCalled();
   });
 });

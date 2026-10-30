@@ -338,6 +338,12 @@ export function pathForScriptAsset(args: { clientId: string; scriptId: string; k
   return `${scriptAssetsPrefix(args.clientId, args.scriptId)}${args.kind}/${name}`;
 }
 
+/** D454 — the house style picture a storyboard Composite re-sends, one fixed file per script and
+ *  style version (writing it again overwrites the same bytes). */
+export function pathForScriptHouseStyle(args: { clientId: string; scriptId: string; styleId: string }): string {
+  return `${scriptAssetsPrefix(args.clientId, args.scriptId)}${sanitizeSlug(args.styleId.replace(/:/g, "-"))}.jpg`;
+}
+
 export function pathForScriptPanel(args: { clientId: string; scriptId: string; shotId: string; ext: string }): string {
   const shot = sanitizeSlug(args.shotId).replace(/^[.-]+/, "") || "shot";
   const name = buildStoredName(undefined, { slug: "panel", ext: args.ext });

@@ -1,5 +1,6 @@
 import { imageGenRegistry } from "@/lib/image-gen/registry";
-import { getVersionById } from "@/lib/db/versions";
+import { getStoryboardVersionInputs, getVersionById } from "@/lib/db/versions";
+import { STORYBOARD_PROMPT_ID, drawsAsSketch } from "@/lib/scripts/storyboard-composite";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import { apiError, withNode } from "@/lib/api/route-helpers";
 import { loadCompositeInputs } from "@/lib/composite/load-inputs";
@@ -127,6 +128,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           baseVersionId: base.id,
           baseImageUrl: base.output,
           intent,
+          instruction: rawInstruction,
+          prompt,
+          referenceImageUrls: referenceUrls,
+          avatarIds,
+        },
+      });
+    }
+
+    // D454 — a storyboard Composite whose instruction still opens with the panel's drawing style
+    // is redrawn as the script page draws a panel: the pictures it was drawn from first (so the
+    // prompt's "Reference image N" still points at them), then anything wired, and the prompt as
+    // written, without the composite's photo rules.
+    const recipe = typeof (node.data as Record<string, unknown> | null)?.storyboardPanel === "string"
+      ? await getStoryboardVersionInputs(nodeId)
+      : null;
+    const recipeUrls = Array.isArray(recipe?.referenceImageUrls)
+      ? recipe.referenceImageUrls.filter((u): u is string => typeof u === "string")
+      : [];
+    if (recipe && typeof recipe.prompt === "string" && drawsAsSketch(rawInstruction, recipe.prompt)) {
+      const extras: CompositeRef[] = refs.map((r, i) => ({ ...r, position: recipeUrls.length + i + 1 }));
+      const images = [...recipeUrls.map((url) => ({ url })), ...referenceImagesOf(extras)];
+      const problem = referenceProblem(images, config);
+      if (problem) return apiError(problem.message, problem.status);
+      const prompt = resolveCompositeMentions(rawInstruction, extras);
+      const referenceUrls = images.map((i) => i.url);
+      return runCompositeGeneration({
+        ...run,
+        prompt,
+        referenceUrls,
+        inputsUsed: {
+          promptId: STORYBOARD_PROMPT_ID,
+          mode: "storyboard",
           instruction: rawInstruction,
           prompt,
           referenceImageUrls: referenceUrls,

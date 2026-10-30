@@ -51,7 +51,7 @@ describe("getPromptUpstream with the clip's storyboard panel (D452)", () => {
     vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
       ? [shotRow([narratorLine])]
       : [
-          { nodeId: "panel", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/panel.png", filename: "S1-storyboard.png" } },
+          { nodeId: "panel", type: "composite", activeOutput: "https://x/panel.png", versionId: "v1", data: { storyboardPanel: "S1", storyboardSketchUrl: "https://x/panel.png" } },
           { nodeId: "loc", type: "location", activeOutput: null, versionId: null, data: { name: "Home kitchen", locationId: "kitchen", image: { url: "https://x/k.png" } } },
         ]) as never);
     const ups = await getPromptUpstream("prompt-1");
@@ -63,7 +63,7 @@ describe("getPromptUpstream with the clip's storyboard panel (D452)", () => {
   it("puts the panel after the presenter's pictures", async () => {
     vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
       ? [shotRow([narratorLine])]
-      : [{ nodeId: "panel", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/panel.png", storyboardPanel: "S1" } }]) as never);
+      : [{ nodeId: "panel", type: "composite", activeOutput: "https://x/panel.png", versionId: "v1", data: { storyboardPanel: "S1", storyboardSketchUrl: "https://x/panel.png" } }]) as never);
     const ups = await getPromptUpstream("prompt-1");
     expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet", "panel"]);
   });
