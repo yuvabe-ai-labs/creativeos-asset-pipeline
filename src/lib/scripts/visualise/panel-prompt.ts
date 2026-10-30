@@ -1,6 +1,6 @@
 import { AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarViewId } from "@/lib/avatars/schema";
-import type { ScriptDoc, Shot } from "@/lib/scripts/schema";
+import type { Product, ScriptDoc, ScriptLocation, Shot } from "@/lib/scripts/schema";
 import { PANEL_ASPECTS, PANEL_DEFAULT_ASPECT } from "./constants";
 import type { RegionalKit } from "./kits";
 
@@ -15,7 +15,15 @@ export type PanelPerson = {
   /** The four views, or none while the person's avatar is not ready. */
   views: { view: AvatarViewId; url: string }[];
 };
-export type PanelReference = { url: string; castId: string; view: AvatarViewId };
+/** A person's view, or (D449) the shot's location plate or one of its products' pictures. */
+export type PanelReference =
+  | { url: string; castId: string; view: AvatarViewId }
+  | { url: string; asset: "location"; assetId: string }
+  | { url: string; asset: "product"; assetId: string; angle: number };
+
+/** D449 — the shot's own location and products, from the script (phase 2 of D446). */
+export type PanelAssets = { location: ScriptLocation | null; products: Product[] };
+export const NO_PANEL_ASSETS: PanelAssets = { location: null, products: [] };
 
 // The house style, the same block first in every panel (approved in testing, 8 Oct 2026: a loose
 // one-line style let some panels come back framed and others full bleed, with drifting lines).
@@ -47,6 +55,12 @@ export function panelChangePrompt(note: string): string {
   ].join("\n");
 }
 
+/** D449 — with the real product in the frame, its own packaging is drawn as pictured; nothing else
+ *  gets lettering. (The pack-only rule above still holds for every other container.) */
+export const PANEL_NO_TEXT_WITH_PRODUCTS_CLAUSE =
+  "Never draw any text, letters, numbers, captions or price tags of your own. The products in the reference " +
+  "images keep their packaging exactly as pictured; every other container, jar, packet and box is plain and unlabelled.";
+
 export const PANEL_NO_TEXT_CLAUSE =
   "Never draw any text, letters, numbers, logos, brand names, labels, price tags or captions anywhere " +
   "in the frame. Every container, jar, packet and box is plain and unlabelled.";
@@ -74,9 +88,37 @@ const sentence = (s: string) => s.trim().replace(/\.?\s*$/, ".");
 
 function referenceNumbers(references: PanelReference[], castId: string): string {
   return references
-    .map((r, i) => (r.castId === castId ? `${i + 1} (${AVATAR_VIEW_LABELS[r.view].toLowerCase()})` : null))
+    .map((r, i) => ("castId" in r && r.castId === castId ? `${i + 1} (${AVATAR_VIEW_LABELS[r.view].toLowerCase()})` : null))
     .filter(Boolean)
     .join(", ");
+}
+
+const numbersOf = (references: PanelReference[], test: (r: PanelReference) => boolean) =>
+  references.flatMap((r, i) => (test(r) ? [i + 1] : []));
+const list = (ns: number[]) => (ns.length <= 1 ? String(ns[0] ?? "") : `${ns.slice(0, -1).join(", ")} and ${ns.at(-1)}`);
+
+/** D449 — where the shot happens: its plate when sent, else the place in words. */
+function locationClause(location: ScriptLocation | null, references: PanelReference[]): string {
+  if (!location) return "";
+  const [n] = numbersOf(references, (r) => "asset" in r && r.asset === "location");
+  if (n) {
+    return `The shot is set in ${location.name}: reference image ${n} shows this exact place, empty. Draw the shot there, ` +
+      "with the same walls, surfaces, furniture and light, seen from this shot's own camera. The people and the action go in it.";
+  }
+  return `The shot is set in ${location.name}${location.description.trim() ? `: ${sentence(location.description)}` : "."}`;
+}
+
+/** D449 — the products the shot shows: copied from their pictures, or a blank pack until one exists. */
+function productsClause(products: Product[], references: PanelReference[]): string {
+  if (products.length === 0) return "";
+  const lines = products.map((p) => {
+    const ns = numbersOf(references, (r) => "asset" in r && r.asset === "product" && r.assetId === p.id);
+    return ns.length > 0
+      ? `- ${p.name}: reference image${ns.length > 1 ? "s" : ""} ${list(ns)} show${ns.length > 1 ? "" : "s"} it. Draw exactly this product, ` +
+        "in the same shape, colours and proportions, wherever the shot shows it."
+      : `- ${p.name}: draw it as a plain blank pack with no printing; the real one is added in the edit.`;
+  });
+  return ["Products in this shot (exactly these):", ...lines].join("\n");
 }
 
 function peopleClause(people: PanelPerson[], references: PanelReference[]): string {
@@ -101,9 +143,17 @@ export function buildPanelPrompt(input: {
   kit: RegionalKit | null;
   people: PanelPerson[];
   references: PanelReference[];
+  /** D449 — the shot's location and products; none when the script has neither. */
+  assets?: PanelAssets;
 }): string {
   const { doc, shot, kit, people, references } = input;
-  const blanks = blankAreas(shot).map((id) => BLANK_AREAS.find((a) => a.id === id)!.clause);
+  const assets = input.assets ?? NO_PANEL_ASSETS;
+  // D449 — a product with a picture is drawn as itself, so the blank-pouch stand-in goes.
+  const realProduct = references.some((r) => "asset" in r && r.asset === "product");
+  const blanks = blankAreas(shot)
+    .filter((id) => !(id === "pack" && realProduct))
+    .map((id) => BLANK_AREAS.find((a) => a.id === id)!.clause);
+  const peopleRefs = references.some((r) => "castId" in r);
   return [
     PANEL_STYLE_BLOCK,
     styleReferenceClause(references.length + 1),
@@ -114,9 +164,11 @@ export function buildPanelPrompt(input: {
       ? `Regional kit (${kit.region}). Kitchen and home: ${kit.kitchen}. At the table: ${kit.table}. ` +
         `Wardrobe: ${kit.wardrobe}. Use what fits this shot. The home is Indian, never European or Western.`
       : "",
+    locationClause(assets.location, references),
     people.length === 0 ? PANEL_NOBODY_CLAUSE : peopleClause(people, references),
+    productsClause(assets.products, references),
     ...blanks,
-    references.length > 0 ? PANEL_REFERENCE_CLAUSE : "",
-    PANEL_NO_TEXT_CLAUSE,
+    peopleRefs ? PANEL_REFERENCE_CLAUSE : "",
+    realProduct ? PANEL_NO_TEXT_WITH_PRODUCTS_CLAUSE : PANEL_NO_TEXT_CLAUSE,
   ].filter(Boolean).join("\n\n");
 }

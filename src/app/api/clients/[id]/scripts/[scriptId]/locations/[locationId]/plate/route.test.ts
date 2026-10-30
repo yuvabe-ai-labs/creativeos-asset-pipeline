@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { makeScript, SCRIPT_ID } from "@/lib/scripts/visualise/__tests__/fixtures";
 import type { AssetOpBuilder } from "@/lib/db/script-assets";
+import type { ScriptImage } from "@/lib/scripts/schema";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
@@ -33,7 +34,7 @@ const base = makeScript();
 const script = (stage = "visualise" as const) => ({
   ...base,
   stage,
-  doc: { ...base.doc, locations: [{ id: "kitchen", name: "Kitchen", description: "Teal walls.", image: null }] },
+  doc: { ...base.doc, locations: [{ id: "kitchen", name: "Kitchen", description: "Teal walls.", image: null as ScriptImage | null }] },
 });
 
 beforeEach(() => {

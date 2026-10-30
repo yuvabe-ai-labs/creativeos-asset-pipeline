@@ -3,11 +3,11 @@ import { AVATAR_VIEWS } from "@/lib/avatars/constants";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
 import { hasFourViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
-import type { CastMember, ScriptDoc, Shot } from "@/lib/scripts/schema";
+import type { CastMember, Product, ScriptDoc, Shot } from "@/lib/scripts/schema";
 import { PANEL_MODEL_ID } from "./constants";
 import { faceKey, shotKey } from "./keys";
 import { pickKit, type RegionalKit } from "./kits";
-import { buildPanelPrompt, type PanelPerson, type PanelReference } from "./panel-prompt";
+import { buildPanelPrompt, NO_PANEL_ASSETS, type PanelAssets, type PanelPerson, type PanelReference } from "./panel-prompt";
 import type { PanelFaces } from "./schema";
 
 // D341, D342 — everything one panel is drawn from, in one pure function. The browser runs it to
@@ -23,12 +23,36 @@ export function panelReferenceCap(modelId: string = PANEL_MODEL_ID): number {
   return Math.max(0, (imageGenClientModelMap[modelId]?.maxReferenceImages ?? 0) - 1);
 }
 
-/** Every person's Front first, then the other views person by person, cut at the model's cap:
- *  if four views per person are too many, the fronts are what is kept (spec §13 risk 4). */
-export function selectPanelReferences(people: PanelPerson[], cap: number): PanelReference[] {
-  const refs = (p: PanelPerson, front: boolean) =>
+/** Cut at the model's cap, in priority order: every person's Front, then (D449) the shot's location
+ *  plate and each product's main picture, then the people's other views, then product angles. If
+ *  there is not room for everything, a face, the place and the product are what is kept (spec §13
+ *  risk 4). */
+export function selectPanelReferences(people: PanelPerson[], cap: number, assets: PanelAssets = NO_PANEL_ASSETS): PanelReference[] {
+  const refs = (p: PanelPerson, front: boolean): PanelReference[] =>
     p.views.filter((v) => (v.view === "front") === front).map((v) => ({ url: v.url, castId: p.castId, view: v.view }));
-  return [...people.flatMap((p) => refs(p, true)), ...people.flatMap((p) => refs(p, false))].slice(0, Math.max(0, cap));
+  const plate: PanelReference[] = assets.location?.image
+    ? [{ url: assets.location.image.url, asset: "location", assetId: assets.location.id }]
+    : [];
+  const productImages = (main: boolean): PanelReference[] =>
+    assets.products.flatMap((p) =>
+      p.images
+        .map((img, angle) => ({ url: img.url, asset: "product" as const, assetId: p.id, angle }))
+        .filter((r) => (r.angle === 0) === main));
+  return [
+    ...people.flatMap((p) => refs(p, true)),
+    ...plate,
+    ...productImages(true),
+    ...people.flatMap((p) => refs(p, false)),
+    ...productImages(false),
+  ].slice(0, Math.max(0, cap));
+}
+
+/** D449 — the shot's own location and products, from the script. */
+export function panelAssets(doc: ScriptDoc, shot: Shot): PanelAssets {
+  return {
+    location: doc.locations.find((l) => l.id === shot.location) ?? null,
+    products: shot.products.map((id) => doc.products.find((p) => p.id === id)).filter((p): p is Product => p !== undefined),
+  };
 }
 
 export type PanelInputs = {
@@ -68,7 +92,8 @@ export function panelInputs(input: {
     const avatar = avatarOf(m);
     if (avatar) faces[m.id] = { avatarId: avatar.id, faceKey: faceKey(avatar) };
   }
-  const references = selectPanelReferences(people, cap);
+  const assets = panelAssets(doc, shot);
+  const references = selectPanelReferences(people, cap, assets);
   const kit = pickKit(kits, doc, shot);
   return {
     people,
@@ -77,7 +102,7 @@ export function panelInputs(input: {
     waitingFor: members.filter((m) => !castReadyForPanels(avatarOf(m))).map((m) => m.name),
     faces,
     shotKey: shotKey(doc, shot),
-    prompt: buildPanelPrompt({ doc, shot, kit, people, references }),
+    prompt: buildPanelPrompt({ doc, shot, kit, people, references, assets }),
   };
 }
 
