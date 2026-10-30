@@ -219,3 +219,23 @@ describe("buildMultishotUserTurn — sequence voiceover (D286)", () => {
     expect(buildMultishotUserTurn({ ...base, sequenceVoiceover: [] })).not.toContain("whole sequence");
   });
 });
+
+// D455 — the Direction is an order the beats must carry; the video model never reads it.
+describe("buildMultishotUserTurn, the operator's direction (D455)", () => {
+  const turn = buildMultishotUserTurn({
+    clientContext: "",
+    upstream: [],
+    cuts,
+    instruction: "She should be barefoot",
+    cutInstructions: { c2: "close the door slowly" },
+  });
+
+  it("labels the direction as orders to write into the beats, ahead of the shots", () => {
+    expect(turn).toContain("The operator's direction. These are orders: write each one into every beat it touches.\nShe should be barefoot");
+    expect(turn.indexOf("She should be barefoot")).toBeLessThan(turn.indexOf("cutId: c1"));
+  });
+
+  it("labels a shot's own instruction as an order for that beat", () => {
+    expect(turn).toContain("Operator's order for THIS shot (write it into this beat): close the door slowly");
+  });
+});

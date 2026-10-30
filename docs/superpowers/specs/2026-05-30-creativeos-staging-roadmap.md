@@ -8218,3 +8218,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Photoreal storyboard panels on the script page (the storyboard stays a sketch, user). Pre-wiring the shot avatar, product and location into the Composite (the operator wires them when wanted, user). Seeding v1 lazily from the canvas autosave (every save would have to check for nodes to seed). Keeping the File-node panels readable (no old data to keep, user).
 
 **Originated →** conversation in this session.
+
+### D455 — The multishot writer treats the operator direction as orders it must write into the beats *(recorded 2026-10-30; refines D453, D319, D281)*
+
+**Decision.** (1) A shared rule, THE OPERATOR DIRECTION COMES FIRST, opens the shot contract for every multishot writer: the direction and any per-shot instruction are orders that outrank the shot text, the storyboard, the brand context and what any reference shows; the video model never reads the direction, only the beats and the pictures, so an order is followed only when the beats say it, in plain positive words, in every beat it touches. Leaving something out is not following it. (2) The storyboard rule says the direction still outranks it; the character rule writes wardrobe as the direction leaves it, never as pictured. (3) The user turn labels the direction "The operator direction. These are orders: write each one into every beat it touches." and a per-shot instruction "Operator order for THIS shot (write it into this beat)". Prompt ids: multishot-prompt-generate@14, -kling@11, -seedance@10. The single-take Motion prompt is unchanged: its instruction is the task itself, stated last.
+
+**Why.** Reel 04 on staging, 30 Oct 2026: S2 with no direction read "Ram ... in white low-top sneakers" (from his profile sheet). With the direction "Ram should not wear a shoe, should be barefooted" the writer dropped the sneakers and never wrote barefoot, so his pictures put the sneakers back. The direction reached the writer only as "For the sequence as a whole", and the only rules about direction were about assigning reference roles; the character rule asked for every pictured wardrobe item, footwear included.
+
+**Rejected.** Sending the direction to the video model as well (the Rules for every shot field already does that, as written; the direction is for the writer). Keeping a weak label and relying on the model to infer priority (it obeyed by omission).
+
+**Originated →** conversation in this session (Reel 04 multishot prompt, staging).

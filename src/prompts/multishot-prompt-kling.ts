@@ -33,7 +33,8 @@ import {
 // @9 (D441–D444): shares the named-not-described product rule, the operator's rules in place of the
 //     look, and the reading's role enum and name.
 // @10 (D453): shares the storyboard-moment and worn-product rules and the reading's frames.
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@10";
+// @11 (D455): shares the rule that the operator's direction comes first and is written into beats.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@11";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 

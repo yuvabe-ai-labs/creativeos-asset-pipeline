@@ -450,13 +450,23 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
     expect(system).toMatch(/A product-only shot shows nobody/);
   });
 
+  // D455 — on Reel 04 "Ram should be barefoot" was obeyed by dropping his sneakers from the beat,
+  // never by saying barefoot, so his pictures put the sneakers back.
+  it.each(writers)("%s: the operator's direction outranks everything and is written into the beats", (_, system) => {
+    expect(system).toMatch(/THE OPERATOR'S DIRECTION COMES FIRST/);
+    expect(system).toMatch(/outrank everything else here: the shot text, the storyboard/);
+    expect(system).toMatch(/Leaving something out is not\s+following it/);
+    expect(system).toMatch(/the operator's direction still outranks both/);
+    expect(system).toMatch(/an item the direction removes or changes is written as directed/);
+  });
+
   it.each(writers)("%s: still forbids writing the reference numbers into beats", (_, system) => {
     expect(system).toMatch(/"reference image 2"/);
   });
 
   it("bumps every prompt id", () => {
-    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@13");
-    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@10");
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@9");
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@14");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@11");
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@10");
   });
 });

@@ -37,7 +37,8 @@ import {
 // @8 (D441–D445): shares the named-not-described product rule, the operator's rules in place of the
 //     look, and the reading's role enum and name; no 【】 subtitles (no on-screen text, D445).
 // @9 (D453): shares the storyboard-moment and worn-product rules and the reading's frames.
-export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@9";
+// @10 (D455): shares the rule that the operator's direction comes first and is written into beats.
+export const MULTISHOT_SEEDANCE_PROMPT_ID = "multishot-prompt-seedance@10";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Seedance 2.5.
 

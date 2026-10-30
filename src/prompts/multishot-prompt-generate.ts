@@ -34,7 +34,9 @@ import { REF_ROLES } from "@/lib/nodes/ref-roles";
 //     appears only in shots that involve a person.
 // @13 (D453): the storyboard decides what each beat shows, whatever the number of shots; a worn
 //     product replaces the person's own item of that kind and is in every beat its wearer is in.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@13";
+// @14 (D455): the operator's direction is an order that outranks the shot text, the storyboard and
+//     the references, and is followed only by writing it into the beats, never by leaving out.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@14";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -77,7 +79,7 @@ What you write depends on the role. A PRODUCT is carried by its picture: you nam
 
 - BACKGROUND / LOCATION / SETTING / ENVIRONMENT — the subject is placed IN that place. Read it closely in your reference notes: the kind of space, its surfaces, the main furniture and props and where they sit. In every beat set there, name the setting and the few elements that beat's framing would show ("at the marble counter, the arched window behind her"). Do not write its light, palette or grade into the beats; the picture carries them. Do not swap in a different place or simplify it to a generic one.
 - STORYBOARD / SHOT REFERENCE / COMPOSITION — read the panels in order (left to right, top to bottom unless they are numbered) and map them to the shots in order, unless the direction maps them differently. For each shot, carry what its panel shows: shot size, camera angle and height, where the subject sits in frame, what they are doing, what is in the foreground and background, and any arrow or note indicating a camera move or action. Never carry the drawing style — sketch lines, greyscale, panel borders, handwritten notes — into any beat; a storyboard is a plan for the shot, not its appearance. Its packs and labels are drawn blank on purpose: never let a panel describe the product.
-- CHARACTER / PERSON / AVATAR — describe the person so they read as the same individual in every beat they appear in: apparent age and build, skin tone, hair (colour, length, style), facial hair or glasses, and EVERY visible wardrobe item with its colour and material (top, layers, bottoms, footwear), plus accessories (jewellery, watch, bag, headwear). Repeat that description, not a shortened one, in every beat the character appears in, and only in the beats whose shot text involves a person.
+- CHARACTER / PERSON / AVATAR — describe the person so they read as the same individual in every beat they appear in: apparent age and build, skin tone, hair (colour, length, style), facial hair or glasses, and EVERY visible wardrobe item with its colour and material (top, layers, bottoms, footwear), plus accessories (jewellery, watch, bag, headwear), as the direction leaves them: an item the direction removes or changes is written as directed, never as pictured. Repeat that description, not a shortened one, in every beat the character appears in, and only in the beats whose shot text involves a person.
 - PRODUCT — name it by what it is, in a few words ("the tea pouch", "the sliders"), and say how many when there is more than one. Never describe its colour, material, shape, components, label text, lettering or logo: the reference carries all of that, and prose competing with it produces a hybrid of the two.
 - STYLE / MOOD / LOOK — the picture carries its light and colour. Write nothing about it into the beats, and never take its subject or its location.
 
@@ -128,7 +130,17 @@ the sequence as a whole. A beat states light only when its shot text does.`;
  * ours rather than a vendor's, and also shared verbatim (D231/D238) for the same reason as the rules
  * block above.
  */
-export const MULTISHOT_SHOT_TEXT_CONTRACT = `THE SHOT TEXT IS THE BRIEF
+export const MULTISHOT_SHOT_TEXT_CONTRACT = `THE OPERATOR'S DIRECTION COMES FIRST
+The operator's direction for the sequence, and any instruction for one shot, are orders. They
+outrank everything else here: the shot text, the storyboard, the brand context and what any
+reference shows. The video model never reads the direction. It reads only your beats and the
+pictures, so a direction is followed only when your beats SAY it. Leaving something out is not
+following it: the pictures put it straight back. Write each order into every beat it touches, in
+plain positive words ("Maya should be barefoot" becomes "Maya, barefoot on the rug, ..." in each
+beat she is in). When an order changes what a reference shows (an item of clothing, a prop, the
+time of day), write the changed version in each of those beats, never the pictured original.
+
+THE SHOT TEXT IS THE BRIEF
 The operator's shot text is what that shot IS. Your beat RENDERS it; it does not replace it. Do not
 substitute a different subject, setting or action, and do not add people, props or places the shot
 text does not call for — except what an attached background or storyboard reference brings with it
@@ -161,7 +173,7 @@ time, whatever the number of either:
 - Fewer frames than beats: each frame sets the beats around it; the beats between two frames
   continue the earlier frame's moment.
 When the shot text and the storyboard disagree, the storyboard wins: it is the later, approved
-version. Never describe the drawing itself (its lines, sketch style or colours): it is a plan,
+version, and the operator's direction still outranks both. Never describe the drawing itself (its lines, sketch style or colours): it is a plan,
 and the other references are what things look like.
 
 WORN PRODUCTS. When the product is something worn or carried (footwear, clothing, eyewear, a watch,

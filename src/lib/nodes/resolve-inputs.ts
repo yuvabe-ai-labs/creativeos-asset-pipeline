@@ -332,8 +332,9 @@ export function buildMultishotUserTurn(args: {
     blocks.push(`${u.label}:\n${u.text.trim()}`);
   }
 
+  // D455 — the video model never reads the direction, so it is framed as orders the beats carry.
   if (args.instruction.trim()) {
-    blocks.push(`For the sequence as a whole:\n${args.instruction.trim()}`);
+    blocks.push(`The operator's direction. These are orders: write each one into every beat it touches.\n${args.instruction.trim()}`);
   }
 
   const shots = args.cuts
@@ -343,7 +344,7 @@ export function buildMultishotUserTurn(args: {
         `  Shot text: ${cut.text.trim() || "(none — write it from the sequence context)"}`,
       ];
       const steer = (args.cutInstructions[cut.id] ?? "").trim();
-      if (steer) lines.push(`  Operator instruction for THIS shot: ${steer}`);
+      if (steer) lines.push(`  Operator's order for THIS shot (write it into this beat): ${steer}`);
 
       // D307 — no voiceover rides a cut; every line is in the sequence block below.
 
