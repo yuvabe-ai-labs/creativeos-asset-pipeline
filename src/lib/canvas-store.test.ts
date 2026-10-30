@@ -1267,3 +1267,43 @@ describe("generationLocks", () => {
     expect(store.getState().generationLocks).toBe(before);
   });
 });
+
+// D450 — a script's products and locations become one node each, wired into the clips that use them.
+describe("fanOutShots with script products and locations (D450)", () => {
+  const rows = [
+    { label: "S1", description: "a", duration_seconds: 3 },
+    { label: "S2", description: "b", duration_seconds: 4 },
+  ];
+  const assets = {
+    scriptId: "script-1",
+    products: [{ id: "pouch", name: "Brandname pouch", images: [{ url: "https://x/p.png", source: "upload" }] }],
+    locations: [{ id: "kitchen", name: "Home kitchen", description: "", image: { url: "https://x/k.png", source: "plate" } }],
+    picks: { S1: { products: ["pouch"], location: "kitchen" }, S2: { products: [], location: "kitchen" } },
+  };
+  const scriptNode = (): AppNode =>
+    ({ id: "sa", type: "script", position: { x: 0, y: 0 }, data: { title: "Reel", groupingVersion: 3, parsed: { visual_script: { shots: rows } }, assets } }) as AppNode;
+
+  it("adds one Location and one Product node and wires each into the clips that use it", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sa");
+    const { nodes, edges } = store.getState();
+    const clips = nodes.filter((n) => n.type === "shot" || n.type === "multishot").map((n) => n.id);
+    const location = nodes.filter((n) => n.type === "location");
+    const product = nodes.filter((n) => n.type === "product");
+    expect(location).toHaveLength(1);
+    expect(product).toHaveLength(1);
+    const into = (id: string) => edges.filter((e) => e.source === id && e.targetHandle === "image").map((e) => e.target);
+    expect(into(location[0].id).length).toBe(clips.length);
+    expect(into(product[0].id)).toHaveLength(1);
+  });
+
+  it("wires a second Fan out into the nodes already there", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sa");
+    const before = store.getState().nodes.filter((n) => n.type === "location").length;
+    const clip = store.getState().nodes.find((n) => n.type === "shot" || n.type === "multishot")!;
+    store.setState({ nodes: store.getState().nodes.filter((n) => n.id !== clip.id) });
+    store.getState().fanOutShots("sa");
+    expect(store.getState().nodes.filter((n) => n.type === "location")).toHaveLength(before);
+  });
+});

@@ -432,6 +432,20 @@ describe("POST video-generate — reference roles and the no-text line", () => {
       .toContain("Reference roles:");
   });
 
+  // D450 — a script's Product node wired into the Multishot reaches the request, labelled by the script.
+  it("sends a product wired into the clip's multishot, ranked and labelled", async () => {
+    mocks.graph = buildGraph(omniCuts, GEMINI_OMNI_MODEL_ID, PLAN);
+    mocks.graph.ms = [{
+      nodeId: "pouch", type: "product", activeOutput: null, versionId: null,
+      data: { scriptId: "s", productId: "pouch", name: "Brandname pouch", images: [{ url: "https://img.example/pouch.png", source: "upload" }] },
+    }];
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {}, imageRoles: {} });
+    expect(res.status).toBe(202);
+    expect(payload().referenceUrls).toContain("https://img.example/pouch.png");
+    expect(payload().prompt).toContain("is the product (Brandname pouch): keep it exactly as pictured");
+    expect(payload().prompt).toMatch(/<IMAGE_REF_\d> is the product/);
+  });
+
   it("puts the no-text line ahead of Kling's triples", async () => {
     mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, {
       ...PLAN,

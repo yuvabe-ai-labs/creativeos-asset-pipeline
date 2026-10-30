@@ -49,6 +49,7 @@ import {
   FAN_OUT_SETTLE_MS, SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, settleFanOutRows, storyboardPanelNodes, type FanOutLayout,
 } from "@/lib/scripts/storyboard-canvas";
 import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
+import { scriptAssetCanvasNodes, type ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -166,6 +167,11 @@ function defaultData(type: string): AppNode["data"] {
     case "avatar":
       // Filled by whoever adds the node (the gallery) — an Avatar node is never added bare.
       return { avatarId: "" };
+    // D450 — made by Fan out with the script's data; never added bare.
+    case "product":
+      return { scriptId: "", productId: "", name: "", images: [] };
+    case "location":
+      return { scriptId: "", locationId: "", name: "", description: "", image: null };
     case "text":
       return {};
     case "shot":
@@ -569,6 +575,7 @@ export function createCanvasStore(
         groupingVersion?: GroupingVersion;
         sceneBeats?: SceneBeatCache;
         storyboard?: ScriptStoryboard;
+        assets?: ScriptCanvasAssets;
       };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
@@ -695,6 +702,15 @@ export function createCanvasStore(
         target: n.id,
       }));
       const panels = storyboardPanelNodes(created, shots, storyboardPanels);
+      // D450 — one Product / Location node per asset the new clips use, wired into each of them.
+      const assetNodes = scriptAssetCanvasNodes({
+        created,
+        shots,
+        assets: data.assets,
+        existing: get().nodes,
+        origin: { x: script.position.x, y: script.position.y + 420 },
+        newId: () => crypto.randomUUID(),
+      });
       // D382 amended — the rows just made are laid out again from their measured sizes as they
       // render (settleFanOut), for long enough that every panel image has loaded.
       const fanOutLayout: FanOutLayout | null = panels.nodes.length > 0
@@ -708,8 +724,8 @@ export function createCanvasStore(
         : null;
 
       set({
-        nodes: [...get().nodes, ...created, ...panels.nodes],
-        edges: [...get().edges, ...createdEdges, ...panels.edges],
+        nodes: [...get().nodes, ...created, ...panels.nodes, ...(assetNodes.nodes as AppNode[])],
+        edges: [...get().edges, ...createdEdges, ...panels.edges, ...assetNodes.edges],
         fanOutLayout,
       });
       if (fanOutLayout) {

@@ -88,5 +88,17 @@ export function scriptAssetRows(node: Pick<UpstreamOutput, "nodeId" | "type" | "
 
 /** Every row in `rows`, with each Product / Location node expanded in its place. */
 export function withScriptAssetImages<T extends Pick<UpstreamOutput, "nodeId" | "type" | "data">>(rows: T[]): (T | UpstreamOutput)[] {
-  return rows.flatMap((r) => (isScriptAssetNodeType(r.type) ? scriptAssetRows(r) : [r]));
+  return rows.flatMap((r): (T | UpstreamOutput)[] => (isScriptAssetNodeType(r.type) ? scriptAssetRows(r) : [r]));
+}
+
+/** D450 — the ids of a script's main pictures (packshots, plates) and of its other angles among
+ *  `rows`, for the reference ranking (selectReferences' assetMainIds / assetAngleIds). */
+export function scriptAssetIds(rows: Array<Pick<UpstreamOutput, "nodeId" | "data">>): { main: string[]; angles: string[] } {
+  const main: string[] = [];
+  const angles: string[] = [];
+  for (const r of rows) {
+    const tag = scriptAssetTagOf(r.data);
+    if (tag) (tag.angle === 0 ? main : angles).push(r.nodeId);
+  }
+  return { main, angles };
 }

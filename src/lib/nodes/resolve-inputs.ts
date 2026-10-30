@@ -28,6 +28,10 @@ const TYPE_LABEL: Record<string, string> = {
  *  "Presenter: Riya" rather than "File: Riya". */
 function labelOf(u: { type: string; data: Record<string, unknown> }): string {
   if (u.data.presenter === "sheet") return "Avatar sheet";
+  // D450 — a script's product or location picture reads as what it is: "Product: Brandname pouch".
+  const asset = (u.data.scriptAsset as { kind?: string } | undefined)?.kind;
+  if (asset === "product") return "Product";
+  if (asset === "location") return "Location";
   return u.data.presenter === true ? "Avatar" : TYPE_LABEL[u.type] ?? u.type;
 }
 

@@ -21,6 +21,9 @@ export type UpstreamPromptNode = {
   /** D308 — the shot's avatar, when it is in the shot: its front and its profile sheet. */
   avatarFrontId?: string | null;
   avatarSheetId?: string | null;
+  /** D450 — a script's main packshots and plates, and its other product angles. */
+  assetMainIds?: string[];
+  assetAngleIds?: string[];
 };
 
 export type StartGenerationPayload = {

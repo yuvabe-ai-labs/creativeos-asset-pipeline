@@ -32,6 +32,7 @@ import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/m
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
 import { getPromptUpstream, presenterVoiceForSeedance, withAvatarImages } from "@/lib/avatars/presenter-server";
+import { scriptAssetIds, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
 import { referenceCapFor, selectReferences, sheetsUnusable } from "@/lib/video-gen/select-references";
 import {
   missingRefsMessage,
@@ -86,7 +87,8 @@ export async function POST(
 
     // Resolve upstream nodes — same 2-level traversal as upstream-images route
     // D436 — an Avatar wired straight in is its images.
-    const upstream = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
+    // D450 — a Product or Location node wired straight here is its pictures, like an avatar.
+    const upstream = withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)));
 
     // Two prompt-node lanes can feed this node (see resolve-prompt.ts): a video-prompt node's
     // STRING output, or a multishot-prompt node's MultishotPlan OBJECT rendered against its
@@ -253,6 +255,7 @@ export async function POST(
     const singleTake = singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider);
     const avatarFrontId = promptUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null;
     const avatarSheet = promptUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null;
+    const assetIds = scriptAssetIds(allUpstream);
     // D428 — on Omni each frame takes one of the reference slots.
     const refCap = referenceCapFor(config.imageInputs, {
       hasStartFrame: Boolean(startFrameUrl),
@@ -266,6 +269,9 @@ export async function POST(
       citedIds: citedIdsOfResolved(resolved, singleTake),
       avatarFrontId,
       avatarSheetId: avatarSheet,
+      // D450 — a script's packshots and plates right after cited images; other angles after the sheet.
+      assetMainIds: new Set(assetIds.main),
+      assetAngleIds: new Set(assetIds.angles),
       framesExcludeReferences: areFramesAndRefsExclusive(videoGenClientModelMap[modelId]?.rules),
       unusable: config.provider === "seedance"
         ? sheetsUnusable(orderedImages.map((img) => img.nodeId), "Seedance can't use the profile sheet")

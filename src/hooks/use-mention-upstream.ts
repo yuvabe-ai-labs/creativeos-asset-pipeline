@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { canvasAssetRows } from "@/lib/scripts/asset-canvas";
 import { useClientId } from "@/components/canvas/client-id-context";
 import { useCachedAvatars } from "@/hooks/queries/avatars";
 import { useShotPresenter } from "@/hooks/use-shot-presenter";
@@ -39,6 +41,17 @@ export function useMentionUpstream(promptNodeId: string, upstream: UpstreamNode[
       }),
     [upstream, wired],
   );
+  // D450 — a script's Product / Location nodes: wired straight in, in their place; wired into this
+  // node's Shot or Multishot, after the node's own inputs. getPromptUpstream adds the same rows,
+  // with the same ids, in the same order, so a mention resolves to the same picture.
+  const nodes = useCanvasStore((s) => s.nodes);
+  const edges = useCanvasStore((s) => s.edges);
+  const assets = useMemo(() => canvasAssetRows(promptNodeId, nodes, edges), [promptNodeId, nodes, edges]);
+  const withAssets = useMemo(() => {
+    const rows = expanded.flatMap((u): UpstreamNode[] => assets.direct.get(u.id) ?? [u]);
+    const seen = new Set(rows.map((r) => r.id));
+    return [...rows, ...assets.viaShot.filter((r) => !seen.has(r.id) && !!seen.add(r.id))];
+  }, [expanded, assets]);
   const presenter = useShotPresenter(promptNodeId);
   const avatarNodeId = presenter?.inShot ? presenter.avatarNodeId : null;
   const name = presenter?.avatar.name.trim() || "Avatar";
@@ -46,11 +59,11 @@ export function useMentionUpstream(promptNodeId: string, upstream: UpstreamNode[
   const sheetUrl = presenter?.avatar.sheet && !presenter.avatar.sheetStale ? presenter.avatar.sheet.url : undefined;
 
   return useMemo(() => {
-    if (!avatarNodeId || !frontUrl || expanded.some((u) => u.id === avatarNodeId)) return expanded;
+    if (!avatarNodeId || !frontUrl || withAssets.some((u) => u.id === avatarNodeId)) return withAssets;
     const rows: UpstreamNode[] = [{ id: avatarNodeId, label: name, type: "avatar", fileUrl: frontUrl, fileKind: "image" }];
     if (sheetUrl) {
       rows.push({ id: avatarSheetId(avatarNodeId), label: `${name} sheet`, type: "avatar", fileUrl: sheetUrl, fileKind: "image" });
     }
-    return [...expanded, ...rows];
-  }, [expanded, avatarNodeId, name, frontUrl, sheetUrl]);
+    return [...withAssets, ...rows];
+  }, [withAssets, avatarNodeId, name, frontUrl, sheetUrl]);
 }

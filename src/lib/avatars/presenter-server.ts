@@ -8,6 +8,7 @@ import {
   seedingScriptId, withAvatarAsSpeaker,
 } from "./presenter";
 import { prepareNamedVoiceReference } from "./voice-reference";
+import { isScriptAssetNodeType, scriptAssetRows, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
 
 // D299 — the presenter of a shot, from the database, and the virtual input it becomes.
 
@@ -73,8 +74,29 @@ export async function withAvatarImages(nodeId: string, ups: UpstreamOutput[]): P
  *  the presenter as a virtual File input when it is in the shot. Use this, not
  *  `getUpstreamOutputs`, wherever a Prompt, Motion Prompt or Multishot Prompt node's upstream is read. */
 export async function getPromptUpstream(nodeId: string): Promise<UpstreamOutput[]> {
-  const ups = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
+  const direct = withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)));
+  const ups = await withShotAssets(direct);
   return withPresenterRow(ups, await loadPresenterForPromptNode(nodeId, ups));
+}
+
+/**
+ * D450 — the Product and Location nodes wired into this prompt node's Shot or Multishot, as image
+ * rows after the node's own. The one place a picture wired to a shot is read (D383 still holds for
+ * every other image there): Fan out wires a script's assets to the clips that use them, and the
+ * clip's prompt is where they have to arrive. One read per shot row, which is normally one.
+ */
+async function withShotAssets(ups: UpstreamOutput[]): Promise<UpstreamOutput[]> {
+  const shots = ups.filter((u) => u.type === "shot" || u.type === "multishot");
+  if (shots.length === 0) return ups;
+  const batches = await Promise.all(shots.map((s) => getUpstreamOutputs(s.nodeId)));
+  const seen = new Set(ups.map((u) => u.nodeId));
+  const out = [...ups];
+  for (const row of batches.flat().filter((r) => isScriptAssetNodeType(r.type)).flatMap(scriptAssetRows)) {
+    if (seen.has(row.nodeId)) continue;
+    seen.add(row.nodeId);
+    out.push(row);
+  }
+  return out;
 }
 
 /** D440 — a gen node takes what is wired into its prompt node as well as what is wired into it, as

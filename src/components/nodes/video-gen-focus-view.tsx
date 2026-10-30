@@ -1280,6 +1280,8 @@ export function VideoGenFocusView({
     citedIds: new Set(promptNode?.citedIds ?? []),
     avatarFrontId: promptNode?.avatarFrontId ?? null,
     avatarSheetId: promptNode?.avatarSheetId ?? null,
+    assetMainIds: new Set(promptNode?.assetMainIds ?? []),
+    assetAngleIds: new Set(promptNode?.assetAngleIds ?? []),
     framesExcludeReferences: areFramesAndRefsExclusive(currentModel?.rules),
     unusable: currentModel?.provider === "seedance"
       ? sheetsUnusable(upstreamImages.map((img) => img.id), "Seedance can't use the profile sheet")

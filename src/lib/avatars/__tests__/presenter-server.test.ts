@@ -29,6 +29,21 @@ beforeEach(() => {
   vi.mocked(getAvatar).mockResolvedValue(avatar);
 });
 
+describe("getPromptUpstream with script products and locations (D450)", () => {
+  it("reads the Product and Location nodes wired into the prompt node's shot, after its own inputs", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [
+          { nodeId: "loc", type: "location", activeOutput: null, versionId: null, data: { name: "Home kitchen", locationId: "kitchen", image: { url: "https://x/k.png" } } },
+          { nodeId: "panel", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/panel.png" } },
+        ]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "loc"]);
+    expect(ups[1].data).toMatchObject({ fileUrl: "https://x/k.png", scriptAsset: { kind: "location", name: "Home kitchen" } });
+  });
+});
+
 describe("getPromptUpstream", () => {
   it("adds the presenter as a virtual image input when the shot has an on-camera line", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine])] as never);

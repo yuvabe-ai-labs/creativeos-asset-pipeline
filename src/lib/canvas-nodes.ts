@@ -1,6 +1,8 @@
 // Pure node types + mappers. Uses ONLY `import type` from React Flow, so this
 // file is safe to import from Server Components (no React Flow runtime pulled in).
 import type { Node } from "@xyflow/react";
+import type { LocationNodeData, ProductNodeData } from "@/lib/scripts/asset-nodes";
+import type { ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
 import type { NodeRow } from "@/lib/db/types";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import type { SignalMode } from "@/lib/market/constants";
@@ -47,6 +49,11 @@ export type ScriptNodeData = {
    * shows. Absent = it came with none. Saved with the node (only `parsed` is display-only).
    */
   storyboard?: ScriptStoryboard;
+  /**
+   * D450 — the script's products, locations and each shot's picks, frozen when it was added (as the
+   * storyboard is): what Fan out turns into Product and Location nodes. Absent = it had none.
+   */
+  assets?: ScriptCanvasAssets;
 };
 
 /** D298 — an avatar on the canvas. Only the id: the avatar is read live, so a name, face or
@@ -304,6 +311,8 @@ export type AppNode =
   | Node<ScriptNodeData, "script">
   | Node<KBNodeData, "kb">
   | Node<AvatarNodeData, "avatar">
+  | Node<ProductNodeData, "product">
+  | Node<LocationNodeData, "location">
   | Node<FileNodeData, "file">
   | Node<TextNodeData, "text">
   | Node<PromptNodeData, "prompt">
@@ -335,6 +344,12 @@ export const VALID_CONNECTIONS: Record<string, readonly string[]> = {
   // wherever a picture can go into a generation: a prompt node or a gen node directly. Every
   // reader expands it to those images (withAvatarImages), exactly as the presenter's.
   avatar:             ["script", "composite", "prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen"],
+  // D450 — a script's product or location: a set of pictures, wired by Fan out into each Shot or
+  // Multishot that uses it (where, unlike any other image there, its pictures ARE read: one hop on,
+  // by the prompt node and the gen node). Like an avatar it may also go straight into a prompt, a
+  // gen node or a composite.
+  product:            ["shot", "multishot", "prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "composite"],
+  location:           ["shot", "multishot", "prompt", "image-gen", "video-prompt", "multishot-prompt", "video-gen", "composite"],
   // D320 — a script, shot or multishot also feeds a composite as CONTEXT: which moment of the
   // video the picture is a still for. It adds no image; the composite's prompt reads its shots.
   script:             ["prompt", "composite"],
