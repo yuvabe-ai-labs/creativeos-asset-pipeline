@@ -10,11 +10,11 @@ import {
 import { refEntriesOf, resolveRefMentions } from "@/lib/nodes/ref-binding";
 import { resolvePlanMentions } from "@/lib/nodes/plan-mentions";
 import {
-  MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
   planSchemaForCuts,
   refineInstruction,
 } from "@/prompts/multishot-prompt-generate";
+import { refRolesFromReading } from "@/lib/nodes/ref-roles";
 import { multishotPromptFor } from "@/prompts/multishot-prompt-for";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import { buildUserContent, isVisionAttachment } from "@/lib/nodes/compose-message";
@@ -45,13 +45,13 @@ export async function POST(
       instruction?: unknown;
       slices?: unknown;
       cutInstructions?: unknown;
-      /** "all" (default) rewrites everything; "look" and "cut" rewrite one fragment. */
+      /** "all" (default) rewrites everything; "cut" rewrites one shot. (D442: no "look".) */
       scope?: unknown;
       /** The operator's one-off steer. Never persisted on the node — see paramsUsed below. */
       note?: unknown;
       /** Required when scope is "cut". */
       cutId?: unknown;
-      /** The plan being refined. Required when scope is "look" or "cut". */
+      /** The plan being refined. Required when scope is "cut"; on "all" it carries the rules. */
       plan?: unknown;
     } | null;
 
@@ -62,8 +62,8 @@ export async function POST(
         : {}
     ) as Record<string, string>;
 
-    const scope =
-      body?.scope === "look" || body?.scope === "cut" ? body.scope : ("all" as const);
+    // D442 — an old client's "look" scope reads as a whole write: the look is the operator's now.
+    const scope = body?.scope === "cut" ? ("cut" as const) : ("all" as const);
     const cutId = typeof body?.cutId === "string" ? body.cutId : null;
     const note = typeof body?.note === "string" ? body.note : "";
 
@@ -79,7 +79,7 @@ export async function POST(
     if (scope === "cut" && !cutId) {
       return apiError("No shot was named for this rewrite", 400);
     }
-    // Scoped to "cut" only — a stale cutId riding along on a scope: "all" or "look" request is
+    // Scoped to "cut" only — a stale cutId riding along on a scope: "all" request is
     // irrelevant to that request and should not 400 it.
     if (scope === "cut" && !resolved.cuts.some((c) => c.id === cutId)) {
       return apiError("That shot is not on this node", 400);
@@ -124,6 +124,8 @@ export async function POST(
         instruction: resolveRefMentions(instruction, refs),
         cutInstructions,
         scriptNotes: resolved.scriptNotes,
+        // D442 — the operator's rules for every shot, which the writer obeys and never writes.
+        rules: previousPlan?.look ?? "",
         // D286 — lines spanning every shot, stated once so the writer frames for them.
         sequenceVoiceover: resolved.sequenceVoiceover,
         // D267 (Task 5) — the same per-cut ceiling `checkPlanLimits` measures the rendered
@@ -140,7 +142,7 @@ export async function POST(
         // the same shot the turn's own shot list already names. Unresolved, it would reach the
         // writer as literal markup and be read as prose.
         note: resolvePlanMentions(note, resolved.cuts),
-        plan: previousPlan ? renderPlanRefs(previousPlan, planCap, refIds) : { look: "", beats: [] },
+        plan: previousPlan ? renderPlanRefs(previousPlan, planCap, refIds) : { beats: [] },
       });
 
     const model = `openai:${spec.model}`;
@@ -231,15 +233,11 @@ export async function POST(
           // writer referenced a shot that isn't in this node." unreachable rather than merely
           // caught — see that function's note for the failure it replaced.
           //
-          // The two refine schemas need no such treatment: neither contains a `cutId` at all. A
+          // The one-shot refine schema needs no such treatment: it contains no `cutId` at all. A
           // "cut" refine names its shot in the INSTRUCTION and returns bare text, which is why that
           // path never produced this error in the first place.
           const schema =
-            scope === "look"
-              ? MULTISHOT_LOOK_SCHEMA
-              : scope === "cut"
-                ? MULTISHOT_BEAT_SCHEMA
-                : planSchemaForCuts(resolved.cuts.map((c) => c.id));
+            scope === "cut" ? MULTISHOT_BEAT_SCHEMA : planSchemaForCuts(resolved.cuts.map((c) => c.id));
 
           const completion = await openai.chat.completions.create({
             model: spec.model,
@@ -277,7 +275,7 @@ export async function POST(
                   // Positional throughout, so the merged whole stores uniformly below.
                   renderPlanRefs(previousPlan!, planCap, refIds),
                   scope,
-                  (raw ?? {}) as { look?: string; text?: string },
+                  (raw ?? {}) as { text?: string },
                   cutId ?? undefined,
                   resolved.cuts,
                 );
@@ -295,9 +293,20 @@ export async function POST(
           // the node now says would be the same silent reinterpretation this stamp exists to
           // prevent — `mergeRefinedPlan` carries the original stamp through instead. D239's way
           // out of a mismatch is a regenerate, and a regenerate is exactly scope "all".
+          //
+          // D442 — a whole write also carries the operator's rules forward (the writer returns no
+          // look), and D443 keeps the writer's reading of each image as the plan's reference roles,
+          // numbered over the same attachment order the images were labelled in. A one-shot refine
+          // keeps both from the plan it merged into.
+          const refRoles = scope === "all" ? refRolesFromReading(raw?.references, refIds) : [];
           const stamped =
             scope === "all"
-              ? { ...parsed.plan, targetModel: multishotCapabilityFor(resolved.targetModel).id }
+              ? {
+                  ...parsed.plan,
+                  look: previousPlan?.look ?? "",
+                  ...(refRoles.length > 0 ? { refRoles } : {}),
+                  targetModel: multishotCapabilityFor(resolved.targetModel).id,
+                }
               : parsed.plan;
 
           // BUG-010 — stored by image id, so a later disconnect cannot re-point a citation.

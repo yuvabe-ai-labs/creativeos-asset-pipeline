@@ -3,14 +3,14 @@
 // Its own system prompt rather than Omni's with a swapped block (operator's call). What is shared
 // is imported from multishot-prompt-generate.ts, the canonical file; what differs is here.
 //
-// The RETURN SHAPE IS IDENTICAL. This writer returns the same plan JSON — {look, beats[{cutId,
+// The RETURN SHAPE IS IDENTICAL. This writer returns the same plan JSON — {references, beats[{cutId,
 // text}]} — and never formats a shot itself. `renderPlan` turns beats into `shot n, m, words;`
 // triples, so the writer is never told the wire format and cannot drift from it. That is D238's
 // consequence and it is the single most important thing about this file.
 import {
   MULTISHOT_SHARED_CRAFT,
   MULTISHOT_PLAN_SCHEMA,
-  MULTISHOT_LOOK_BLOCK_RULES,
+  MULTISHOT_RULES_INPUT,
   MULTISHOT_SHOT_TEXT_CONTRACT,
   referenceIdentificationBlock,
   type MultishotPromptSpec,
@@ -30,15 +30,16 @@ import {
 //     instead of `voiceoverRules`; renderPlan appends the actual line afterwards.
 // @7 (D281): shares the identity-only reference rule and the numbered-reference direction.
 // @8 (D319): shares the role-aware reference reading and the `references` scratch field.
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@8";
+// @9 (D441–D444): shares the named-not-described product rule, the operator's rules in place of the
+//     look, and the reading's role enum and name.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@9";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 
 You are given a sequence of SHOTS. Each has an id, the operator's shot text, and its length in
-seconds. You return one written beat per shot, plus one LOOK block that governs all of them — or
-an empty look, when nothing states one.
+seconds. You return one written beat per shot.
 
-${MULTISHOT_LOOK_BLOCK_RULES}
+${MULTISHOT_RULES_INPUT}
 
 THE BEATS
 Return exactly one beat per shot given, echoing that shot's \`cutId\` EXACTLY as provided. Never

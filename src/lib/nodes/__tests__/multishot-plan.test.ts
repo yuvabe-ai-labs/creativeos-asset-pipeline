@@ -45,6 +45,26 @@ describe("parsePlan", () => {
     expect(result.ok).toBe(true);
   });
 
+  // D443 — the reference roles ride on the plan, so a refine round-trip must not drop them.
+  it("keeps well-formed reference roles and drops malformed rows", () => {
+    const result = parsePlan(
+      raw({
+        refRoles: [
+          { id: "f1", role: "product", name: "Jackfruit365 pouch" },
+          { id: "f2", role: "nonsense", name: "x" },
+        ],
+      }),
+      cuts,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.plan.refRoles).toEqual([{ id: "f1", role: "product", name: "Jackfruit365 pouch" }]);
+  });
+
+  it("leaves refRoles absent when the plan has none", () => {
+    const result = parsePlan(raw(), cuts);
+    expect(result.ok && "refRoles" in result.plan).toBe(false);
+  });
+
   // Rejected WHOLE, never partially applied — a half-applied plan leaves the node in a state
   // neither the model nor the operator authored.
   it("rejects a beat naming a cut that is not on this node", () => {
@@ -330,7 +350,10 @@ describe("checkPlanLimits", () => {
     };
     const res = checkPlanLimits(long, planCuts, KLING);
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toContain("3072");
+    if (!res.ok) {
+      expect(res.reason).toContain("3072");
+      expect(res.reason).toContain("Shorten the rules or the longest shots.");
+    }
   });
 
   // Measured on what is actually SENT, not on the raw beats: the rendered string carries the
@@ -392,14 +415,6 @@ describe("mergeRefinedPlan", () => {
     ],
   };
 
-  it("replaces only the look", () => {
-    const out = mergeRefinedPlan(plan, "look", { look: "Overcast, flat and soft." }, undefined, cuts);
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
-    expect(out.plan.look).toBe("Overcast, flat and soft.");
-    expect(out.plan.beats).toEqual(plan.beats);
-  });
-
   // The whole point of the narrow schema: a beat the operator hand-edited cannot be touched by a
   // rewrite of a different beat, because the model was never asked for it.
   it("replaces only the named beat and leaves the others identical", () => {
@@ -428,19 +443,21 @@ describe("mergeRefinedPlan", () => {
     expect(mergeRefinedPlan(plan, "cut", { text: "  " }, "c1", cuts).ok).toBe(false);
   });
 
-  // D262 — rewriting the look on a script that states none SHOULD come back blank. That is the
-  // writer following its rule, not failing.
-  it("accepts an empty look rewrite, clearing the look", () => {
-    const out = mergeRefinedPlan(plan, "look", { look: "   " }, undefined, cuts);
+  // D442/D443 — the operator's rules and the reference roles are not the beat's to change.
+  it("keeps the rules and the reference roles through a cut rewrite", () => {
+    const withRoles: MultishotPlan = { ...plan, refRoles: [{ id: "f1", role: "product", name: "pouch" }] };
+    const out = mergeRefinedPlan(withRoles, "cut", { text: "A palm sweeps keys off oak." }, "c2", cuts);
     expect(out.ok).toBe(true);
-    if (out.ok) expect(out.plan.look).toBe("");
+    if (!out.ok) return;
+    expect(out.plan.look).toBe(plan.look);
+    expect(out.plan.refRoles).toEqual([{ id: "f1", role: "product", name: "pouch" }]);
   });
 
   // The merged whole goes through parsePlan, so a plan whose cut list changed underneath the
   // operator fails here rather than being written with a beat missing.
   it("rejects when the cuts no longer match the plan", () => {
     const fewer: MultishotCut[] = [{ id: "c1", text: "keys", seconds: 2 }];
-    expect(mergeRefinedPlan(plan, "look", { look: "New look." }, undefined, fewer).ok).toBe(false);
+    expect(mergeRefinedPlan(plan, "cut", { text: "New beat." }, "c1", fewer).ok).toBe(false);
   });
 });
 
@@ -535,23 +552,6 @@ describe("the plan's targetModel stamp (D236)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.plan.targetModel).toBeUndefined();
-  });
-
-  // A narrow refine rewrites one fragment and leaves the rest as the original writer left it, so
-  // the plan must come back out still describing that writer. Losing the stamp on the first look
-  // rewrite would quietly demote a Kling plan to Omni's format.
-  it("mergeRefinedPlan carries the stamp through a look refine", () => {
-    const kling: MultishotPlan = {
-      version: 1,
-      look: "Late afternoon, warm low sun.",
-      beats: cuts.map((c) => ({ cutId: c.id, text: `beat for ${c.id}` })),
-      targetModel: KLING_OMNI_MODEL_ID,
-    };
-    const out = mergeRefinedPlan(kling, "look", { look: "Overcast, flat and soft." }, undefined, cuts);
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
-    expect(out.plan.look).toBe("Overcast, flat and soft.");
-    expect(out.plan.targetModel).toBe(KLING_OMNI_MODEL_ID);
   });
 
   it("mergeRefinedPlan carries the stamp through a cut refine", () => {

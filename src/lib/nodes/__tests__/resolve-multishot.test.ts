@@ -160,6 +160,22 @@ describe("buildMultishotUserTurn script notes", () => {
   });
 });
 
+// D442 — the operator's rules for every shot reach the writer as input, never as text to write.
+describe("buildMultishotUserTurn rules for every shot", () => {
+  const base = { clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {} };
+
+  it("carries the rules when present, marked as not to be restated", () => {
+    const turn = buildMultishotUserTurn({ ...base, rules: "The phone stays in his left hand." });
+    expect(turn).toContain("The phone stays in his left hand.");
+    expect(turn).toMatch(/Rules for every shot.*never restate them/);
+  });
+
+  it("omits the block when there are none", () => {
+    expect(buildMultishotUserTurn({ ...base, rules: "  " })).not.toMatch(/Rules for every shot/);
+    expect(buildMultishotUserTurn(base)).not.toMatch(/Rules for every shot/);
+  });
+});
+
 // D267 (Task 5) — inverts BUG-009's fix. Handing the writer the WHOLE reel's voiceover under
 // "every line must appear exactly once" was unsatisfiable on a short sequence: asked to place six
 // lines into one beat, the writer kept one and dropped the rest — once writing CLIP 6's CTA into

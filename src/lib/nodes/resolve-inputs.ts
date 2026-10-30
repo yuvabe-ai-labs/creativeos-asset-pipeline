@@ -298,6 +298,8 @@ export function buildMultishotUserTurn(args: {
   maxCutChars?: number | null;
   /** D286 — lines that play over every shot. Stated once, above the shots, never per shot. */
   sequenceVoiceover?: VoLine[];
+  /** D442 — the operator's "Rules for every shot" (the plan's `look`). The writer obeys them. */
+  rules?: string;
 }): string {
   const blocks: string[] = [];
 
@@ -307,6 +309,13 @@ export function buildMultishotUserTurn(args: {
   // brand context above it (not a source of setting).
   const notes = (args.scriptNotes ?? "").trim();
   if (notes) blocks.push(`The script's production notes:\n${notes}`);
+
+  const rules = (args.rules ?? "").trim();
+  if (rules) {
+    blocks.push(
+      `Rules for every shot (added above your beats as written; obey them, never restate them):\n${rules}`,
+    );
+  }
 
   for (const u of args.upstream) {
     if (!u.text.trim()) continue;
