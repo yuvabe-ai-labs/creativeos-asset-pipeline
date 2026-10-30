@@ -67,7 +67,10 @@ const draft = `Write the full first draft from the confirmed card, in the client
 header: title; format (the client's word for it); region; postDate as written, with the occasion in brackets; theme; aspect, targetLength and production as the KB says.
 context: purpose (what the reel is for); settingAndCamera (the setting and what is in it, occasion props, light, camera); disclaimers (which apply and why, or "None apply." when none does, never blank; ${disclaimerNames}); watchOuts (at least one, including every item still to confirm).
 cast: for each person a short key, the name, and a description in words (age, place, clothing, identity markers, voice). For a client avatar reuse its story and add this reel's styling, and give its avatarId; else null. Exactly one lead.
-shots, in order: beat label, lengthSeconds, visual, vo, onScreenText, and onScreen as the cast keys of who is on screen (empty for B-roll).
+products: each product the reel shows on screen, as a short key and the name the client uses for it (an empty list when it shows none).
+locations: each distinct place the shots happen in, as a short key, a name and a description of the place in words (the space, its surfaces, furniture and light); one per set, an empty list when the setting is never shown.
+shots, in order: beat label, lengthSeconds, visual, vo, onScreenText, onScreen as the cast keys of who is on screen (empty for B-roll), products as the product keys it shows (empty when none), and location as the key of where it happens ("" when it is no particular place).
+You never add pictures: the person adds every product's and location's images.
 Follow the beats on the confirmed card, in order, using the client's examples for layout and voice. A topic beat is labelled for this reel's topic.
 summary: one line describing the draft.
 suggestions: two or three short replies (under 60 characters each) the person might send next, written for this brand and this reel. Never a claim, a price or an offer the KB doesn't give. Here: edits they might ask for next.`;
@@ -87,7 +90,10 @@ Operations (fields an operation does not use are null):
 - set_lead: cast.castId.
 - link_avatar: cast.castId and cast.avatarId (a saved avatar's id, or null to unlink).
 - confirm_item: itemId, when the person confirms one of the items to confirm.
-In a shot, onScreen lists cast ids.
+- add_product: product.name. update_product: product.productId and product.name. remove_product: product.productId.
+- add_location: location.name and location.description. update_location: location.locationId, location.name and location.description. remove_location: location.locationId.
+In a shot, onScreen lists cast ids, products lists product ids, and location is a location id or "" for none. Give every shot you write its products and location, unchanged unless the change is about them.
+Never set or describe pictures: the person adds every product's and location's images.
 When the person pastes a review, put it verbatim in the review shot's VO in place of the placeholder, inside the existing quote marks, and never change its words.
 When the message is a question rather than a change, return no operations and answer it.
 reply: one line saying what you changed, or the answer.
@@ -105,6 +111,7 @@ const importScript = `The person pasted a whole reel script. Turn it into this a
 - One shot per row or scene of the paste, in order. The number of shots equals the number of rows or scenes.
 - beat and lengthSeconds come from the paste: "HOOK 0-4s" is beat "HOOK" and lengthSeconds 4; "0:04-0:09" is 5. When the paste gives a shot no timing, lengthSeconds is 0; the app estimates it. When the paste has no beat labels at all, label each shot yourself (HOOK, INTRO, …) and set guessed.beats.
 - cast: every person the paste names, with their description as written, and exactly one lead (the one the paste calls the lead, else the one on screen most). onScreen lists the keys of who is on screen in the shot. When nobody is named, return one person named "Narrator" as the lead and set guessed.lead.
+- products: each product the paste shows on screen, with a short key and its name as written. locations: each distinct place the shots happen in, with a short key, its name and a description taken from the paste's words. In each shot, products lists the keys of the products it shows and location the key of where it happens ("" when none). Empty lists when the paste names none.
 - Square-bracket placeholders stay exactly as written.
 - Anything with no place in these fields (a music cue, a props list, a director's note, a link, a disclaimer this reel does not use) goes into kept, word for word: name says in two or three words what it is ("music cue"), text is the piece as written.
 - A field the paste does not give is "" (an empty list for watchOuts). Never invent it.
@@ -114,7 +121,8 @@ summary: one line describing the script.`;
 
 export const scriptCopilotPrompt = {
   id: "script-copilot",
-  version: 4,
+  // 5 (D447): products and locations in the draft, the import and the edit ops.
+  version: 5,
   rules,
   tasks: { extract, angles, card, draft, edit, inline, detect, import: importScript },
 } as const;

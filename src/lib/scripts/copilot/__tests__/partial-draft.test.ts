@@ -6,8 +6,8 @@ const full = JSON.stringify({
   context: { purpose: "p", settingAndCamera: "s", disclaimers: "D1", watchOuts: ["w"] },
   cast: [{ key: "sara", name: "Saraswathi", description: "55", avatarId: null, isLead: true }],
   shots: [
-    { beat: "HOOK", lengthSeconds: 5, visual: "v1", vo: "Happy \"Piravi\".", onScreenText: "Kerala Piravi", onScreen: ["sara"] },
-    { beat: "INTRO", lengthSeconds: 6, visual: "v2", vo: "Red rice.", onScreenText: "Red rice", onScreen: [] },
+    { beat: "HOOK", lengthSeconds: 5, visual: "v1", vo: "Happy \"Piravi\".", onScreenText: "Kerala Piravi", onScreen: ["sara"], products: [], location: "" },
+    { beat: "INTRO", lengthSeconds: 6, visual: "v2", vo: "Red rice.", onScreenText: "Red rice", onScreen: [], products: [], location: "" },
   ],
   summary: "s",
 });

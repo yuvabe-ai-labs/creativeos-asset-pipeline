@@ -18,8 +18,22 @@ describe("the script copilot's shared instructions", () => {
     expect(scriptCopilotPrompt.rules).toContain("When the conversation so far and the script or brief disagree, the script and brief win.");
   });
 
-  it("is version 4", () => {
-    expect(scriptCopilotPrompt.version).toBe(4);
+  // D447 — the copilot names products and places and sets each shot's picks, never their pictures.
+  it("asks for products and locations in the draft, the import and the edits, never their pictures", () => {
+    const { draft, edit, import: imp } = scriptCopilotPrompt.tasks;
+    for (const t of [draft, imp]) {
+      expect(t).toMatch(/products/);
+      expect(t).toMatch(/locations/);
+    }
+    for (const o of ["add_product", "update_product", "remove_product", "add_location", "update_location", "remove_location"]) {
+      expect(edit).toContain(o);
+    }
+    expect(draft).toMatch(/You never add pictures/);
+    expect(edit).toMatch(/Never set or describe pictures/);
+  });
+
+  it("is version 5", () => {
+    expect(scriptCopilotPrompt.version).toBe(5);
   });
 
   it("commit each angle to a product moment and proof, with a review theme only where reviews fit", () => {

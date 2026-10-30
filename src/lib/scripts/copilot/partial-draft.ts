@@ -92,8 +92,9 @@ export function parsePartialDraft(text: string): PartialDraft | null {
     .filter((c): c is Record<string, unknown> => !!c && typeof c === "object" && str((c as Record<string, unknown>).name))
     .map((c) => ({ key: str(c.key) ? c.key : "", name: c.name as string, description: str(c.description) ? c.description : "", isLead: c.isLead === true }));
 
-  // A shot is shown once every field has arrived. `onScreen` is written last, so a shot that has it
-  // has its visual, VO and card complete; a half-arrived shot fails the schema and waits.
+  // A shot is shown once every field has arrived. `location` is written last (D447; `onScreen`
+  // before it), so a shot that has it has its visual, VO and card complete; a half-arrived shot fails
+  // the schema and waits.
   const shots = (Array.isArray(o.shots) ? o.shots : [])
     .map((s) => shotFieldsSchema.safeParse(s))
     .flatMap((r) => (r.success ? [r.data] : []));
