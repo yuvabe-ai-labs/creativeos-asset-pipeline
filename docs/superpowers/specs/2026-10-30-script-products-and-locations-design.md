@@ -31,7 +31,7 @@ there too, and everything downstream follows them.
 | Who sets each shot's products and location? | **The copilot, plus pickers on each shot row** |
 | Where does a packshot come from? | **Upload, or pick** from brand-kit products, KB images, generated images |
 | How many images per product? | **Several: a main packshot plus angles** |
-| How do they reach clips? | **Resolved from the script like the presenter**, never wired by hand |
+| How do they reach clips? | **Visible Product and Location nodes**, one per asset, wired into every shot that uses it |
 
 ## 3. Script data (D446)
 
@@ -136,26 +136,38 @@ export const locationSchema = z.object({
 
 ## 6. Canvas and clips (D450)
 
-- **Frozen on the Script node** when the script is added (`add-to-canvas.ts`), like the
-  storyboard (D381/D385): `ScriptNodeData.assets = { products, locations, shots: { [shotId]:
-  { products, location } } }`.
-- **Resolved like the presenter (D299).** For a prompt node whose upstream Shot/Multishot was
-  seeded from a script (`seededFrom`), its shots are found by row label (`S{n}` → the doc's shot,
-  as `storyboardFor` does; never by position, D380) and their picks unioned. Each pick becomes
-  virtual `file` rows: `data.scriptAsset = { kind: "product" | "location", id, name, angle }`,
-  `fileUrl`, and an identity-only `processedOutput` for the writer ("Jackfruit365 pouch, the
-  product: copy it exactly, never its backdrop"). Row ids: `asset:{productId}:{n}`,
-  `asset:location:{locationId}`.
-- Added in `getPromptUpstream` (server) and the browser's upstream hook, so the writer, Video Gen's
-  focus view and the request all see the same images. One read of the Script node's data; no
-  request or channel per node (performance rule 1).
-- **Turning one off** uses the existing per-image `off` role in Video Gen.
+Products and locations are **visible nodes on the canvas**, wired like the storyboard panels (D382),
+so a shared background can be seen at a glance and a pick is edited by wiring.
+
+- **Two node types, Product and Location**, modelled on the Avatar node (D436: an avatar is a set
+  of images, wired wherever a picture goes). A node holds its asset's name and images, frozen from
+  the script when the script is added (D381/D385). A Product node shows its main packshot with the
+  angle count; a Location node shows its plate.
+- **One node per product and per location for the whole canvas.** Fan out (`fanOutShots`) creates
+  them beside the script and wires each into **every new Shot/Multishot that uses it**, matching
+  shots by row label (`S{n}` → the doc's shot, as `storyboardFor` does; never by position, D380).
+  A Multishot gets the union of its shots' picks. A node that already exists on the canvas is
+  reused, not duplicated; an asset with no image yet still gets its node, marked "needs a picture".
+- **Wiring is the edit.** Deleting an edge takes the asset out of that shot; drawing one adds it to
+  another. What is wired is what is sent.
+- **Reaching the clip.** When a prompt node's (Motion Prompt, Multishot Prompt) or a gen node's
+  upstream is read, any Product or Location node wired into its Shot/Multishot is expanded into
+  image rows, the same way `withAvatarImages` expands an Avatar node: main packshot first, then
+  angles, each a `file` row with `data.scriptAsset = { kind, id, name, angle }` and an
+  identity-only `processedOutput` for the writer ("Jackfruit365 pouch, the product: copy it
+  exactly, never its backdrop"). Wired straight into a prompt or gen node they expand the same way.
+  Row ids: the node id for the main image, `{nodeId}:{n}` for angle n.
+  Storyboard panel File nodes are not expanded: a panel still never goes to the video model.
+- The server and the browser (Video Gen's focus view) apply the same expansion, so the writer, the
+  references list and the request agree. One extra upstream read per request at most; no request
+  or channel per node on mount (performance rule 1).
+- **Turning one image off** uses the existing per-image `off` role in Video Gen.
 - **Reference priority** (`selectReferences`, D308): avatar front; cited images; **main packshots
-  and the location plate**; avatar sheet; **extra product angles**; the rest. Kling's 5 slots go to
+  and location plates**; avatar sheet; **extra product angles**; the rest. Kling's 5 slots go to
   the face, the product and the place before a third angle.
-- **Labels (D443):** a `scriptAsset` row is labelled from the script, ahead of the writer's
-  reading and the presenter fallback: `product` / `location` with the asset's name, and ", another
-  angle" for an extra angle so the back of a pouch is not read as a second product.
+- **Labels (D443):** a `scriptAsset` row is labelled from its node, ahead of the writer's reading
+  and the presenter fallback: `product` / `location` with the asset's name, and ", another angle"
+  on an extra angle so the back of a pouch is not read as a second product.
 
 ## 7. Client review (D451)
 
@@ -168,7 +180,7 @@ export const locationSchema = z.object({
 1. **Script data and authoring:** schema, copilot ops and prompts, script-page sections, pickers,
    image routes, plate generation.
 2. **Storyboard:** panel inputs, prompt, fingerprint.
-3. **Canvas and clips:** frozen assets, virtual rows, reference priority, labels, review display.
+3. **Canvas and clips:** Product and Location nodes, Fan out wiring, expansion into image rows, reference priority, labels, review display.
 
 Each phase ships on its own; phase 2 and 3 do nothing for a script with no products or locations.
 
@@ -180,12 +192,13 @@ Each phase ships on its own; phase 2 and 3 do nothing for a script with no produ
 - Routes: upload, pick, reorder, delete, plate generation billed to the script.
 - Panels: reference order and cap; product clause replaces the blank pouch only with a packshot;
   fingerprint changes.
-- Canvas: label → shot mapping; union across a Multishot's shots; virtual rows on the server and in
-  the browser agree; priority with Kling's cap; labels with angles.
+- Canvas: label → shot mapping; one node per asset reused across shots; union across a Multishot's
+  shots; expansion on the server and in the browser agree; panels never expanded; priority with
+  Kling's cap; labels with angles.
 
 ## 10. Records
 
 ADRs D446–D451 appended to the roadmap §7: D446 (script products and locations, refines D338),
 D447 (copilot fills them), D448 (location plates), D449 (panels draw the real product, reverses
-D342 in part), D450 (resolved onto the canvas like the presenter, refines D299, D308, D443), D451
+D342 in part), D450 (Product and Location nodes wired into their shots, refines D382, D436, D308, D443), D451
 (review shows them).
