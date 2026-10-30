@@ -18,8 +18,33 @@ describe("the script copilot's shared instructions", () => {
     expect(scriptCopilotPrompt.rules).toContain("When the conversation so far and the script or brief disagree, the script and brief win.");
   });
 
-  it("is version 4", () => {
-    expect(scriptCopilotPrompt.version).toBe(4);
+  // D447 — the copilot names products and places and sets each shot's picks, never their pictures.
+  it("asks for products and locations in the draft, the import and the edits, never their pictures", () => {
+    const { draft, edit, import: imp } = scriptCopilotPrompt.tasks;
+    for (const t of [draft, imp]) {
+      expect(t).toMatch(/products/);
+      expect(t).toMatch(/locations/);
+    }
+    for (const o of ["add_product", "update_product", "remove_product", "add_location", "update_location", "remove_location"]) {
+      expect(edit).toContain(o);
+    }
+    expect(draft).toMatch(/You never add pictures/);
+    expect(edit).toMatch(/Never set or describe pictures/);
+  });
+
+  // D447 — the user saw "ordinary pair of slippers", the brand alone and "coffee" as a place.
+  it("names products as sold and places as places, the same way in the draft, the import and the edits", () => {
+    const { draft, edit, import: imp } = scriptCopilotPrompt.tasks;
+    for (const t of [draft, edit, imp]) {
+      expect(t).toMatch(/Never the brand on its own, never a competitor's product, and never an ordinary prop/);
+      expect(t).toMatch(/Name a product the way the client sells it/);
+      expect(t).toMatch(/Name a location as the place/);
+      expect(t).toMatch(/Shots in the same place share one location/);
+    }
+  });
+
+  it("is version 6", () => {
+    expect(scriptCopilotPrompt.version).toBe(6);
   });
 
   it("commit each angle to a product moment and proof, with a review theme only where reviews fit", () => {

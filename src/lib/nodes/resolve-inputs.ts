@@ -28,6 +28,11 @@ const TYPE_LABEL: Record<string, string> = {
  *  "Presenter: Riya" rather than "File: Riya". */
 function labelOf(u: { type: string; data: Record<string, unknown> }): string {
   if (u.data.presenter === "sheet") return "Avatar sheet";
+  // D450 — a script's product or location picture reads as what it is: "Product: Brandname pouch".
+  const asset = (u.data.scriptAsset as { kind?: string } | undefined)?.kind;
+  if (asset === "product") return "Product";
+  if (asset === "location") return "Location";
+  if (asset === "storyboard") return "Storyboard";
   return u.data.presenter === true ? "Avatar" : TYPE_LABEL[u.type] ?? u.type;
 }
 
@@ -298,6 +303,8 @@ export function buildMultishotUserTurn(args: {
   maxCutChars?: number | null;
   /** D286 — lines that play over every shot. Stated once, above the shots, never per shot. */
   sequenceVoiceover?: VoLine[];
+  /** D442 — the operator's "Rules for every shot" (the plan's `look`). The writer obeys them. */
+  rules?: string;
 }): string {
   const blocks: string[] = [];
 
@@ -307,6 +314,13 @@ export function buildMultishotUserTurn(args: {
   // brand context above it (not a source of setting).
   const notes = (args.scriptNotes ?? "").trim();
   if (notes) blocks.push(`The script's production notes:\n${notes}`);
+
+  const rules = (args.rules ?? "").trim();
+  if (rules) {
+    blocks.push(
+      `Rules for every shot (added above your beats as written; obey them, never restate them):\n${rules}`,
+    );
+  }
 
   for (const u of args.upstream) {
     if (!u.text.trim()) continue;
@@ -318,8 +332,9 @@ export function buildMultishotUserTurn(args: {
     blocks.push(`${u.label}:\n${u.text.trim()}`);
   }
 
+  // D455 — the video model never reads the direction, so it is framed as orders the beats carry.
   if (args.instruction.trim()) {
-    blocks.push(`For the sequence as a whole:\n${args.instruction.trim()}`);
+    blocks.push(`The operator's direction. These are orders: write each one into every beat it touches.\n${args.instruction.trim()}`);
   }
 
   const shots = args.cuts
@@ -329,7 +344,7 @@ export function buildMultishotUserTurn(args: {
         `  Shot text: ${cut.text.trim() || "(none — write it from the sequence context)"}`,
       ];
       const steer = (args.cutInstructions[cut.id] ?? "").trim();
-      if (steer) lines.push(`  Operator instruction for THIS shot: ${steer}`);
+      if (steer) lines.push(`  Operator's order for THIS shot (write it into this beat): ${steer}`);
 
       // D307 — no voiceover rides a cut; every line is in the sequence block below.
 

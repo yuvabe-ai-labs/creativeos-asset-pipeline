@@ -12,8 +12,16 @@ export const shotFieldsSchema = z.object({
   onScreenText: z.string(),
   /** Cast member ids (edits) or cast keys (the first draft) of who is on screen; empty = B-roll. */
   onScreen: z.array(z.string()),
+  /** D447 — product ids (edits) or keys (the first draft) this shot shows; empty when none. */
+  products: z.array(z.string()),
+  /** D447 — the location id (edits) or key (the first draft) it is set in; "" when none. */
+  location: z.string(),
 });
 export type ShotFields = z.infer<typeof shotFieldsSchema>;
+
+/** D447 — a product the script shows, and a place its shots happen in. Never with images. */
+const productOutputSchema = z.object({ key: z.string(), name: z.string() });
+const locationOutputSchema = z.object({ key: z.string(), name: z.string(), description: z.string() });
 
 export const draftOutputSchema = z.object({
   header: z.object({
@@ -29,6 +37,8 @@ export const draftOutputSchema = z.object({
     avatarId: z.string().nullable(), isLead: z.boolean(),
   })),
   shots: z.array(shotFieldsSchema),
+  products: z.array(productOutputSchema),
+  locations: z.array(locationOutputSchema),
   summary: z.string(),
   /** Edits the person might ask for next, for this brand (brand-neutral spec §3.1). */
   suggestions: z.array(z.string()),
@@ -46,6 +56,8 @@ export const importOutputSchema = z.object({
   context: draftOutputSchema.shape.context,
   cast: z.array(z.object({ key: z.string(), name: z.string(), description: z.string(), isLead: z.boolean() })),
   shots: z.array(shotFieldsSchema),
+  products: z.array(productOutputSchema),
+  locations: z.array(locationOutputSchema),
   kept: z.array(z.object({ name: z.string(), text: z.string() })),
   guessed: z.object({ beats: z.boolean(), lead: z.boolean() }),
   summary: z.string(),
@@ -102,6 +114,8 @@ export const cardOutputSchema = z.object({
 export const EDIT_OPS = [
   "set_field", "update_shot", "insert_shot", "remove_shot", "split_shot", "move_shot",
   "set_watch_outs", "update_cast", "add_cast", "remove_cast", "set_lead", "link_avatar", "confirm_item",
+  // D447 — products and locations, by name and description only; the copilot never sets images.
+  "add_product", "update_product", "remove_product", "add_location", "update_location", "remove_location",
 ] as const;
 
 /** One edit operation. A flat object (unused fields null) rather than a union, so both providers'
@@ -119,6 +133,8 @@ export const editOpSchema = z.object({
     castId: z.string().nullable(), name: z.string(), description: z.string(), avatarId: z.string().nullable(),
   }).nullable(),
   itemId: z.string().nullable(),
+  product: z.object({ productId: z.string().nullable(), name: z.string() }).nullable(),
+  location: z.object({ locationId: z.string().nullable(), name: z.string(), description: z.string() }).nullable(),
 });
 export type EditOp = z.infer<typeof editOpSchema>;
 

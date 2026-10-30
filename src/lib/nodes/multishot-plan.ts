@@ -10,22 +10,28 @@ import { dialectForCapability } from "./prompt-token-dialect";
 import { renderRefs, toStoredRefs, citedRefIds, type RefEntry } from "./ref-binding";
 import { renderVoiceover } from "./voiceover";
 import type { VoLine } from "./reel-script";
+import { asRefRoles, type RefRoleEntry } from "./ref-roles";
 
 export type MultishotBeat = { cutId: string; text: string };
 
 export type MultishotPlan = {
   version: 1;
   /**
-   * The look & atmosphere block: light direction, time of day, lens feel, palette, grade.
-   * Governs every beat, rendered ABOVE the ladder.
+   * D442 — "Rules for every shot": the OPERATOR's text, rendered ABOVE the ladder exactly as typed.
    *
-   * D262 — may be EMPTY, and empty means "the script states no look". It was required, which
-   * forced the writer to invent one whenever a script gave none, and it filled the gap from the
-   * brand context — a season, a weather, a place the script never asked for. Only stated look
-   * direction is transcribed now; with none, nothing is sent and each shot's own text carries it.
+   * Named `look` because it was the writer's look & atmosphere block (D231, D262), and stored plans
+   * keep the key so nothing migrates. The writer no longer writes it: its light, palette and grade
+   * words re-lit the product itself, and operators deleted it or used the field for rules ("the
+   * phone stays in his left hand"). A whole regenerate carries it forward; empty sends nothing.
    */
   look: string;
   beats: MultishotBeat[];
+  /**
+   * D443 — what each attached image is, from the writer's reading of it, keyed by image id. Feeds
+   * the "Reference roles:" line the video request carries (`referenceRolesLine`). Absent on plans
+   * written before it existed; an image with no entry is simply not labelled.
+   */
+  refRoles?: RefRoleEntry[];
   /**
    * D236 — the model whose writer produced these beats. Absent = Gemini Omni: every plan written
    * before this field existed was Omni's, because it was the only multishot model. That fallback
@@ -95,6 +101,8 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
     return { ok: false, reason: "The plan does not cover every shot in this node." };
   }
 
+  const refRoles = asRefRoles(candidate.refRoles);
+
   // Reordered to CUT order, not rejected: cut order is the edit, and the order the beats happen
   // to arrive in is an artifact of generation.
   //
@@ -111,6 +119,9 @@ export function parsePlan(raw: unknown, cuts: MultishotCut[]): PlanParseResult {
       version: 1,
       look,
       beats: cuts.map((c) => ({ cutId: c.id, text: byId.get(c.id)! })),
+      // D443 — copied for the same reason as the stamp below: a field this does not copy, every
+      // refine round-trip silently deletes.
+      ...(refRoles ? { refRoles } : {}),
       ...(typeof candidate.targetModel === "string"
         ? { targetModel: candidate.targetModel }
         : {}),
@@ -361,7 +372,7 @@ export function checkPlanLimits(
     if (rendered.length > cap.maxPromptChars) {
       return {
         ok: false,
-        reason: `The whole prompt is ${rendered.length} characters · ${cap.label} allows ${cap.maxPromptChars}. Shorten the look block or the longest shots.`,
+        reason: `The whole prompt is ${rendered.length} characters · ${cap.label} allows ${cap.maxPromptChars}. Shorten the rules or the longest shots.`,
       };
     }
   }
@@ -369,14 +380,14 @@ export function checkPlanLimits(
   return { ok: true };
 }
 
-/** What a narrow refine returns: one of the two, never both. */
-export type PlanFragment = { look?: string; text?: string };
+/** What a narrow (one-shot) refine returns. */
+export type PlanFragment = { text?: string };
 
 /**
  * Merge a narrowly-scoped rewrite into an existing plan, then validate the whole.
  *
- * A `"look"` or `"cut"` refine asks the model for ONLY the fragment being rewritten, so the beats
- * it did not touch are untouched by CONSTRUCTION — there is nothing to drift. This replaces asking
+ * A `"cut"` refine asks the model for ONLY the beat being rewritten, so the beats it did not touch
+ * — and the operator's rules (D442) — are untouched by CONSTRUCTION — there is nothing to drift. This replaces asking
  * for the whole plan with "leave the rest unchanged", which is an instruction models drift on, and
  * whose drift silently overwrote beats the operator had hand-edited.
  *
@@ -386,17 +397,12 @@ export type PlanFragment = { look?: string; text?: string };
  */
 export function mergeRefinedPlan(
   plan: MultishotPlan,
-  scope: "look" | "cut",
+  // D442 — "cut" only: the look-rewrite scope went with the writer's look block.
+  _scope: "cut",
   fragment: PlanFragment,
   cutId: string | undefined,
   cuts: MultishotCut[],
 ): PlanParseResult {
-  if (scope === "look") {
-    // D262 — a blank rewrite is the writer following its rule on a script that states no look,
-    // so it clears the look rather than failing the refine.
-    return parsePlan({ ...plan, look: (fragment.look ?? "").trim() }, cuts);
-  }
-
   if (!cutId) return { ok: false, reason: "No shot was named for this rewrite." };
   const text = (fragment.text ?? "").trim();
   if (!text) return { ok: false, reason: "The writer returned an empty shot." };

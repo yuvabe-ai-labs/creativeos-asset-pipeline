@@ -29,6 +29,46 @@ beforeEach(() => {
   vi.mocked(getAvatar).mockResolvedValue(avatar);
 });
 
+describe("getPromptUpstream with script products and locations (D450)", () => {
+  it("reads the Product and Location nodes wired into the prompt node's shot, after its own inputs", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [
+          { nodeId: "loc", type: "location", activeOutput: null, versionId: null, data: { name: "Home kitchen", locationId: "kitchen", image: { url: "https://x/k.png" } } },
+          { nodeId: "panel", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/panel.png" } },
+        ]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    // D452 — the panel is not marked and not named as one, so it stays unread.
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "loc"]);
+    expect(ups[1].data).toMatchObject({ fileUrl: "https://x/k.png", scriptAsset: { kind: "location", name: "Home kitchen" } });
+  });
+});
+
+describe("getPromptUpstream with the clip's storyboard panel (D452)", () => {
+  it("reads the shot's panel after its product and location pictures", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [
+          { nodeId: "panel", type: "composite", activeOutput: "https://x/panel.png", versionId: "v1", data: { storyboardPanel: "S1", storyboardSketchUrl: "https://x/panel.png" } },
+          { nodeId: "loc", type: "location", activeOutput: null, versionId: null, data: { name: "Home kitchen", locationId: "kitchen", image: { url: "https://x/k.png" } } },
+        ]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "loc", "panel"]);
+    expect(ups[2].data.scriptAsset).toMatchObject({ kind: "storyboard", name: "S1 storyboard" });
+  });
+
+  // D453 — on Reel 03 the panel led as IMAGE_REF_0; it now comes after the avatar too.
+  it("puts the panel after the presenter's pictures", async () => {
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [{ nodeId: "panel", type: "composite", activeOutput: "https://x/panel.png", versionId: "v1", data: { storyboardPanel: "S1", storyboardSketchUrl: "https://x/panel.png" } }]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet", "panel"]);
+  });
+});
+
 describe("getPromptUpstream", () => {
   it("adds the presenter as a virtual image input when the shot has an on-camera line", async () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine])] as never);

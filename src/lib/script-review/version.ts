@@ -4,9 +4,13 @@ import { scopeIncludes } from "./constants";
 import { partLabel } from "./parts";
 import type { AvatarSnapshot, ChangedPart, Part, VersionContent } from "./types";
 
-const shotText = (s: Shot) => JSON.stringify([s.beat, s.lengthSeconds, s.visual, s.vo, s.onScreenText, s.onScreen]);
+// D451 — a shot's products and location are part of the shot; a share frozen before they existed
+// reads as none, so it is never a change.
+const shotText = (s: Shot) =>
+  JSON.stringify([s.beat, s.lengthSeconds, s.visual, s.vo, s.onScreenText, s.onScreen, s.products ?? [], s.location ?? null]);
 const memberText = (c: CastMember) => JSON.stringify([c.name, c.description, c.isLead]);
-const contextText = (d: ScriptDoc) => JSON.stringify([d.header, d.context]);
+/** D451 — the script's products and locations (names, words and pictures) count with the context. */
+const contextText = (d: ScriptDoc) => JSON.stringify([d.header, d.context, d.products ?? [], d.locations ?? []]);
 /** An avatar as compared between shares. The sheet is left out: it changes exactly when its views
  *  do, and a version from before D395 has none, which is not a change to the person. */
 const avatarText = (a: AvatarSnapshot | undefined) =>

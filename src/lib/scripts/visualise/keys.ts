@@ -17,16 +17,26 @@ export function fingerprint(text: string): string {
 }
 
 /** Everything in the script a panel is drawn from: the shot's visual and on-screen text (its
- *  blank areas), who is on screen and how they are described, the setting, aspect and region.
- *  Never the VO or the length, which are not drawn. */
+ *  blank areas), who is on screen and how they are described, the setting, aspect and region, and
+ *  (D449) its location and products with their pictures. Never the VO or the length, which are not
+ *  drawn. A shot with neither keeps the fingerprint it had before they existed. */
 export function shotKey(doc: ScriptDoc, shot: Shot): string {
   const people = shot.onScreen.map((id) => {
     const c = doc.cast.find((m) => m.id === id);
     return c ? [c.id, c.name, c.description] : [id];
   });
+  const location = doc.locations.find((l) => l.id === shot.location);
+  const products = shot.products.map((id) => {
+    const p = doc.products.find((x) => x.id === id);
+    return p ? [p.id, p.name, ...p.images.map((i) => i.url)] : [id];
+  });
+  const assets = location || products.length > 0
+    ? { location: location ? [location.id, location.name, location.description, location.image?.url ?? ""] : null, products }
+    : {};
   return fingerprint(JSON.stringify({
     visual: shot.visual, text: shot.onScreenText, onScreen: shot.onScreen, people,
     setting: doc.context.settingAndCamera, aspect: doc.header.aspect, region: doc.header.region,
+    ...assets,
   }));
 }
 

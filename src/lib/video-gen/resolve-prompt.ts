@@ -12,7 +12,10 @@ import {
   singleTakeRefDialect,
   type RefEntry,
 } from "@/lib/nodes/ref-binding";
-import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
+import { dialectForCapability, imageRefDialect, type TokenDialect } from "@/lib/nodes/prompt-token-dialect";
+import { NO_PROMPT_NODE_MESSAGE, UNWRITTEN_PROMPT_MESSAGE } from "./prompt-messages";
+import { asRefRoles, type LabelRole } from "@/lib/nodes/ref-roles";
+import { scriptAssetTagOf } from "@/lib/scripts/asset-nodes";
 
 // Two prompt-node lanes feed Video Gen (see AGENTS.md / the multishot spec):
 //   shot      -> video-prompt      -> video-gen   (activeOutput is a STRING)
@@ -72,8 +75,8 @@ function refIdsOf(promptUpstream: UpstreamOutput[]): string[] {
   return refEntriesOf(promptUpstream.map((u) => mapUpstreamForVideo(u))).map((r) => r.id);
 }
 
-const NO_PROMPT_NODE_ERROR =
-  "No connected video-prompt or multishot-prompt node with output found.";
+const NO_PROMPT_NODE_ERROR = NO_PROMPT_NODE_MESSAGE;
+const UNWRITTEN_PROMPT_ERROR = UNWRITTEN_PROMPT_MESSAGE;
 
 const NO_MULTISHOT_CUTS_ERROR =
   "The connected multishot-prompt node's upstream Multishot node (with its cut list) could not be found.";
@@ -102,7 +105,7 @@ export async function resolveVideoGenPrompt(
   if (!promptNode) return { ok: false, reason: NO_PROMPT_NODE_ERROR };
 
   if (promptNode.type === "video-prompt") {
-    if (!promptNode.activeOutput) return { ok: false, reason: NO_PROMPT_NODE_ERROR };
+    if (!promptNode.activeOutput) return { ok: false, reason: UNWRITTEN_PROMPT_ERROR["video-prompt"] };
     const promptUpstream = await fetchUpstream(promptNode.nodeId);
     const dialect = singleTakeRefDialect(singleTakeTarget, refIdsOf(promptUpstream));
     const text = String(promptNode.activeOutput);
@@ -122,7 +125,7 @@ export async function resolveVideoGenPrompt(
   // multishot-prompt: activeOutput is a MultishotPlan, never a string.
   const plan = promptNode.activeOutput as MultishotPlan | null | undefined;
   if (!plan || typeof plan !== "object" || !Array.isArray(plan.beats)) {
-    return { ok: false, reason: NO_PROMPT_NODE_ERROR };
+    return { ok: false, reason: UNWRITTEN_PROMPT_ERROR["multishot-prompt"] };
   }
 
   const promptUpstream = await fetchUpstream(promptNode.nodeId);
@@ -206,4 +209,51 @@ export function renderResolvedPrompt(
   const text = String(resolved.promptNode.activeOutput ?? "");
   const dialect = singleTakeRefDialect(singleTakeTarget, refOrder);
   return dialect ? renderRefs(text, dialect).text : text;
+}
+
+/**
+ * D443 — what each image is, by id, for the request's "Reference roles:" line.
+ *
+ * D450 — a script's product and location pictures say what they are themselves, and win: the
+ * script decided them, the writer only guessed. Then the plan's own reading (multishot lane: the writer looked at every attachment). Then the
+ * presenter's rows, which every reader already marks with `data.presenter` and the avatar's name:
+ * a person, even on the single-take lane where no writer read the images. Anything else goes
+ * unlabelled rather than guessed.
+ */
+export function refRoleLabels(
+  resolved: Extract<ResolvedPrompt, { ok: true }>,
+  rows: readonly UpstreamOutput[],
+): Map<string, { role: LabelRole; name: string }> {
+  const labels = new Map<string, { role: LabelRole; name: string }>();
+  for (const row of rows) {
+    const tag = scriptAssetTagOf(row.data);
+    // An extra angle says so, or the back of a pouch reads as a second product.
+    if (tag) labels.set(row.nodeId, { role: tag.kind, name: tag.angle > 0 ? `${tag.name}, another angle` : tag.name });
+  }
+  // D453 — the avatar's own pictures are a person before the writer's reading is consulted: on the
+  // Reel 03 canvas the writer read the profile sheet as a "storyboard", and the request said so.
+  for (const row of rows) {
+    if (labels.has(row.nodeId) || !row.data.presenter) continue;
+    const name = typeof row.data.title === "string" ? row.data.title : "";
+    labels.set(row.nodeId, { role: "person", name: row.data.presenter === "sheet" && name ? `${name}, profile sheet` : name });
+  }
+  if (resolved.cuts) {
+    const plan = resolved.promptNode.activeOutput as MultishotPlan;
+    for (const e of asRefRoles(plan.refRoles) ?? []) if (!labels.has(e.id)) labels.set(e.id, { role: e.role, name: e.name });
+  }
+  return labels;
+}
+
+/**
+ * D443 — the token dialect the request's prompt is numbered in, over `sentIds` (the references
+ * actually sent), so the roles line can never point at a different picture than the prompt does.
+ * Null on a lane whose prompt carries no image tokens (Veo, single-take Kling).
+ */
+export function roleDialectOfResolved(
+  resolved: Extract<ResolvedPrompt, { ok: true }>,
+  sentIds: string[],
+  singleTakeTarget?: string,
+): TokenDialect | null {
+  if (resolved.cuts) return dialectForCapability(multishotCapabilityFor(resolved.targetModel), sentIds);
+  return singleTakeRefDialect(singleTakeTarget, sentIds);
 }

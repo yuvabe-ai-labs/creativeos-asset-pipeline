@@ -52,7 +52,7 @@ describe("presenterUpstreamRow", () => {
         title: "Riya",
         fileKind: "image",
         fileUrl: avatar.front!.url,
-        processedOutput: "Riya, the person on camera in this shot. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.",
+        processedOutput: "Riya, the person on camera when a shot shows someone. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.",
       },
       activeOutput: null,
       versionId: null,

@@ -2,7 +2,8 @@ import { scriptDocSchema, type ScriptDoc, type Shot } from "../schema";
 import type { EditOp } from "./output";
 import type { ScriptNotes } from "./schema";
 import { parseFieldPath, writeField } from "./fields";
-import { carryShot, castIdFor, toShot } from "./draft";
+import { assetResolverFor, carryShot, castIdFor, toShot } from "./draft";
+import { applyAssetOp, type AssetOp } from "../assets";
 
 // Spec 2 §9 — a copilot edit is a list of typed operations applied here, all or nothing (D332).
 // Anything an operation does not name is carried over untouched, so "only the targeted part
@@ -57,7 +58,7 @@ function applyOne(w: Work, op: EditOp): void {
       const id = need(op.shotId, "a shot id");
       const i = shotIndex(doc, id);
       const shots = [...doc.shots];
-      shots[i] = toShot(id, need(op.shot, "the shot"), resolver(doc));
+      shots[i] = toShot(id, need(op.shot, "the shot"), resolver(doc), assetResolverFor(doc));
       w.doc = withShots(doc, shots);
       w.touched.add(id);
       return;
@@ -66,7 +67,7 @@ function applyOne(w: Work, op: EditOp): void {
       const at = op.afterShotId === null ? 0 : shotIndex(doc, op.afterShotId) + 1;
       const id = w.gen.newShotId(w.taken);
       const shots = [...doc.shots];
-      shots.splice(at, 0, toShot(id, need(op.shot, "the shot"), resolver(doc)));
+      shots.splice(at, 0, toShot(id, need(op.shot, "the shot"), resolver(doc), assetResolverFor(doc)));
       w.doc = withShots(doc, shots);
       w.touched.add(id);
       return;
@@ -82,9 +83,9 @@ function applyOne(w: Work, op: EditOp): void {
     case "split_shot": {
       const id = need(op.shotId, "a shot id");
       const i = shotIndex(doc, id);
-      const first = toShot(id, need(op.shot, "the first half"), resolver(doc));
+      const first = toShot(id, need(op.shot, "the first half"), resolver(doc), assetResolverFor(doc));
       const secondId = w.gen.newShotId(w.taken);
-      const second = toShot(secondId, need(op.second, "the second half"), resolver(doc));
+      const second = toShot(secondId, need(op.second, "the second half"), resolver(doc), assetResolverFor(doc));
       const shots = [...doc.shots];
       shots.splice(i, 1, first, second);
       w.doc = withShots(doc, shots);
@@ -148,6 +149,25 @@ function applyOne(w: Work, op: EditOp): void {
       w.doc = { ...doc, cast: doc.cast.map((m) => (m.id === id ? { ...m, avatarId: c.avatarId } : m)) };
       return;
     }
+    // D447 — products and locations go through the same pure operations as the script page's.
+    case "add_product":
+      return asset(w, { op: "add_product", name: need(op.product, "the product").name });
+    case "update_product": {
+      const p = need(op.product, "the product");
+      return asset(w, { op: "rename_product", productId: need(p.productId, "a product id"), name: p.name });
+    }
+    case "remove_product":
+      return asset(w, { op: "remove_product", productId: need(need(op.product, "the product").productId, "a product id") });
+    case "add_location": {
+      const l = need(op.location, "the location");
+      return asset(w, { op: "add_location", name: l.name, description: l.description });
+    }
+    case "update_location": {
+      const l = need(op.location, "the location");
+      return asset(w, { op: "update_location", locationId: need(l.locationId, "a location id"), name: l.name, description: l.description });
+    }
+    case "remove_location":
+      return asset(w, { op: "remove_location", locationId: need(need(op.location, "the location").locationId, "a location id") });
     case "confirm_item": {
       const out = writeField(doc, w.notes, { kind: "confirm", itemId: need(op.itemId, "an item id") }, "yes");
       if ("error" in out) throw new OpError(out.error);
@@ -155,6 +175,13 @@ function applyOne(w: Work, op: EditOp): void {
       return;
     }
   }
+}
+
+function asset(w: Work, op: AssetOp): void {
+  const r = applyAssetOp(w.doc, op);
+  if (!r.ok) throw new OpError(r.error.replace(/\.$/, ""));
+  w.doc = r.doc;
+  for (const id of r.touchedShotIds) w.touched.add(id);
 }
 
 export function applyOps(doc: ScriptDoc, notes: ScriptNotes, ops: EditOp[], gen: OpsGen): OpsResult {

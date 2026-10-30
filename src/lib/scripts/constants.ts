@@ -13,6 +13,11 @@ export const SCRIPT_STAGE_LABEL: Record<ScriptStage, string> = {
 /** The gallery's Scripts tab drags `{ scriptId }` under this type (mirrors AVATAR_DRAG_MIME). */
 export const SCRIPT_DRAG_MIME = "application/x-creativeos-script";
 
+// D446 — a product image or location plate: a photo, never svg (the avatar image rule).
+export const SCRIPT_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
+export const SCRIPT_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
+export const SCRIPT_IMAGE_MAX_LABEL = "15 MB";
+
 export function isScriptStage(value: unknown): value is ScriptStage {
   return typeof value === "string" && (SCRIPT_STAGES as readonly string[]).includes(value);
 }
@@ -27,3 +32,6 @@ export const SCRIPT_DELETE_BLOCKED: Record<ScriptDeleteBlock, string> = {
   shared: "This script has been shared with the client, so it can't be deleted.",
   drawing: "A panel is still being drawn. Try again when it finishes.",
 };
+
+/** D449 — starting points for a location plate's Redraw note: physical changes to the set. */
+export const PLATE_REDRAW_SUGGESTIONS = ["Warmer light", "Fewer props", "Wider view", "More lived-in"];

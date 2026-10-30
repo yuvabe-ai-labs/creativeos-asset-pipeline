@@ -133,7 +133,7 @@ export function useCopilotChat(canvasId: string) {
       // it sees it this tick — and self-guards on zero shots, so the count>0 check here only
       // picks the chat wording. This is the whole "parse fans out automatically" feature.
       const count = output.visual_script?.shots?.length ?? 0;
-      if (count > 0) storeApi.getState().fanOutShots(target.id);
+      if (count > 0) storeApi.getState().fanOutShots(target.id, canvasId);
       highlightNode(target.id);
       setMessages((m) => [
         ...m,

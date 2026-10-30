@@ -160,6 +160,22 @@ describe("buildMultishotUserTurn script notes", () => {
   });
 });
 
+// D442 — the operator's rules for every shot reach the writer as input, never as text to write.
+describe("buildMultishotUserTurn rules for every shot", () => {
+  const base = { clientContext: "", upstream: [], cuts, instruction: "", cutInstructions: {} };
+
+  it("carries the rules when present, marked as not to be restated", () => {
+    const turn = buildMultishotUserTurn({ ...base, rules: "The phone stays in his left hand." });
+    expect(turn).toContain("The phone stays in his left hand.");
+    expect(turn).toMatch(/Rules for every shot.*never restate them/);
+  });
+
+  it("omits the block when there are none", () => {
+    expect(buildMultishotUserTurn({ ...base, rules: "  " })).not.toMatch(/Rules for every shot/);
+    expect(buildMultishotUserTurn(base)).not.toMatch(/Rules for every shot/);
+  });
+});
+
 // D267 (Task 5) — inverts BUG-009's fix. Handing the writer the WHOLE reel's voiceover under
 // "every line must appear exactly once" was unsatisfiable on a short sequence: asked to place six
 // lines into one beat, the writer kept one and dropped the rest — once writing CLIP 6's CTA into
@@ -201,5 +217,25 @@ describe("buildMultishotUserTurn — sequence voiceover (D286)", () => {
 
   it("adds nothing when there are no sequence lines", () => {
     expect(buildMultishotUserTurn({ ...base, sequenceVoiceover: [] })).not.toContain("whole sequence");
+  });
+});
+
+// D455 — the Direction is an order the beats must carry; the video model never reads it.
+describe("buildMultishotUserTurn, the operator's direction (D455)", () => {
+  const turn = buildMultishotUserTurn({
+    clientContext: "",
+    upstream: [],
+    cuts,
+    instruction: "She should be barefoot",
+    cutInstructions: { c2: "close the door slowly" },
+  });
+
+  it("labels the direction as orders to write into the beats, ahead of the shots", () => {
+    expect(turn).toContain("The operator's direction. These are orders: write each one into every beat it touches.\nShe should be barefoot");
+    expect(turn.indexOf("She should be barefoot")).toBeLessThan(turn.indexOf("cutId: c1"));
+  });
+
+  it("labels a shot's own instruction as an order for that beat", () => {
+    expect(turn).toContain("Operator's order for THIS shot (write it into this beat): close the door slowly");
   });
 });

@@ -2,7 +2,8 @@ import { SPINE } from "./video-prompt-shared";
 
 export const videoPromptGenerateKlingPrompt = {
   id: "video-prompt-generate-kling",
-  version: 4,
+  // 5 (D441): preservation pins the product to its picture instead of describing it.
+  version: 5,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Kling.
 ${SPINE}

@@ -8090,3 +8090,151 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping images on a Motion Prompt as vision context only (the original split): it made the same wire mean different things on the two video lanes.
 
 **Originated →** conversation in this session.
+
+### D441 — A referenced product is named and pinned to its picture, never described *(recorded 2026-10-30; refines D319, D263)*
+
+**Decision.** Every video-prompt writer (multishot Omni, Kling, Seedance; single-take Veo, Kling, Omni, Seedance) names a referenced product in a few words ("the tea pouch") and pins it to its picture ("exactly as in its reference"). It never writes the product's colour, material, shape, components, label text, lettering or logo. The PRODUCT role's "name every distinct element… each one's colour and material", the schema's "for a product, every component and colour", the multishot PRESERVATION rule ("shape, proportions, colour, lettering or logo held exactly") and the single-take spine's "restate… label text, logo, lettering, colours" are gone; the single-take wording is shared as `REFERENCE_PRESERVATION`.
+
+**Why.** User, 30 Oct 2026: when the prompt describes the product, the product looks wrong; the text takes precedence over the references. J365's last 200 production clips: 75 carried a product-appearance line, and that wording came from our own writer. Google Flow ("your text prompt should complement, not contradict, your visual inputs"), Google's and fal's Omni examples, and Kling's and Runway's guides all point at a referenced subject by its token and leave its appearance to the image.
+
+**Rejected.** Keeping a "short" appearance line ("the yellow pouch"): colour words were exactly what came back wrong.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §3.
+
+### D442 — The look block becomes the operator's "Rules for every shot" *(recorded 2026-10-30; refines D231, D262; closes YUV-371)*
+
+**Decision.** The multishot writer no longer writes a look & atmosphere block: `look` leaves the plan schema, and the look refine scope, schema, rules and suggestion chips are deleted. The stored `MultishotPlan.look` keeps its name, so nothing migrates, and the focus view shows it as **Rules for every shot**, a plain text box the operator fills in, sent above the ladder as written. A whole regenerate carries it forward, and the writer receives it in the user turn to obey, never to restate. Saved look text stays visible and keeps being sent until the operator clears it.
+
+**Why.** YUV-371, and the user's report that the look and atmosphere section changes the product's look. Its light, palette and grade words acted on the product as much as the set ("the palette is yellow packaging against warm wood"). Operators deleted it, or used the field for rules ("strictly do not use the same hand for eating and picking the phone"): 28 of 89 J365 plan versions held one, and most clips were sent without.
+
+**Rejected.** Deleting the field outright: it would remove the only place operators put rules that apply to every shot.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §4.
+
+### D443 — Every image sent to a video model is labelled with its role *(recorded 2026-10-30; refines D233, D319)*
+
+**Decision.** The writer's reference reading now gives each image a role from a fixed list (product, person, location, storyboard, style, brand mark, other) and a short name. The multishot-prompt route keeps this as the plan's `refRoles`, keyed by image id. The video-generate route adds one line, after reference selection and numbered in the lane's own tokens: "Reference roles: <IMAGE_REF_0> is the product (tea pouch): keep it exactly as pictured. <IMAGE_REF_1> is the location (podcast set): the place, not a subject…". The presenter's rows are labelled a person when the plan has no reading for them (including the single-take lane). Every wired image is still sent and @ mentions stay optional. The writer still writes no tokens (D233); code writes the line. On Kling the line gives way rather than push the prompt over the 3072-character ceiling.
+
+**Why.** About 90% of clips on every client sent images the prompt never named (J365 167/200, Madras 52/55, Penguin 35/35), and Omni's header listed them with no role, so the model guessed which picture was the product. Runway's Seedance guide: "an unassigned reference leaves the model free to borrow anything from it."
+
+**Rejected.** (1) Sending only images a shot @-mentions: the user prefers sending all and letting the model infer. (2) A role picker per image: more clicking, and D281 already rejected it. (3) Labelling by source only: products and locations all arrive as plain files. (4) The writer binding images to shots: the user wants that decided at script level (next project: script-level Products and Locations).
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §5.
+
+### D444 — The multishot writer gets cleaner input, and a character only goes where a person does *(recorded 2026-10-30; refines D262, D438)*
+
+**Decision.** The Multishot Prompt node's default KB slices are Casting, Personality, Tone and Compliance (`DEFAULT_MULTISHOT_PROMPT_SLICES`); Visual Style and Image Direction are off unless switched on. The shot-text contract no longer claims the brand context names the product (the KB has no product field). A character reference applies only to shots whose text involves a person, and "a product-only shot shows nobody"; the presenter's text block says "the person on camera when a shot shows someone".
+
+**Why.** The default slices sent KB lighting, environment and surfaces as "brand context", the same material the prompt told the writer never to use for setting. D438 put the presenter in every shot by default, and the writer was told to repeat the character in every beat, so B-roll product shots pulled the presenter in.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §6.
+
+### D445 — "No on-screen text" on every video model *(recorded 2026-10-30; refines D428)*
+
+**Decision.** Kling requests carry "No on-screen text." ahead of the shot triples, and Seedance requests close with it (`withRequestLines`); Omni already had it from composeOmniPrompt. The Seedance writers no longer offer 【】 for subtitles.
+
+**Why.** The writers were told "the request carries a standing instruction against screen-space type", which was true only on Omni.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §7.
+
+### D446 — A script has its own products and locations, and each shot picks them *(recorded 2026-10-30; refines D338)*
+
+**Decision.** The script doc gains `products` (a name and up to 6 images, the main packshot first, then angles) and `locations` (a name, a description and one plate image), at most 8 and 6, both defaulted to empty so every stored script still parses. Each shot gains `products` (none, one or several ids) and `location` (one id or none), checked against the script's own lists like `onScreen` against the cast. They belong to the script only, not to a client library. Every change goes through one pure function (`applyAssetOp`, src/lib/scripts/assets.ts) and one stage-aware write (`changeScriptAssets`): at Generate through `changeGenerateScript` (D337), at Visualise and In review on `updated_at` like a cast avatar link, which widens D338's single Visualise write to these pictures and picks. Images come by upload (a signed URL straight to the script's own folder, rule 8) or by picking a brand-kit or KB image, which the route checks belongs to the client (rule 14). The script page shows Products and Locations beside the cast and two pickers on every shot, editable in Generate and Visualise and read-only on the review page.
+
+**Why.** User, 30 Oct 2026: everything has to be figured out at script level, where characters and storyboards are planned. Products had no record anywhere, and a set existed only as `settingAndCamera` text, so each clip re-imagined it. Products can have angles.
+
+**Rejected.** (1) A client-level library of products and locations, like Avatars: the user chose per script. (2) Pickers only through the copilot, as `onScreen` is today: a wrong pick should be one click to fix. (3) Uploading bytes through our route: Vercel's body limit and rule 8.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §3, §4.2.
+
+### D447 — The copilot names products and locations and sets each shot's picks, never their pictures *(recorded 2026-10-30; refines D331, D332, D370)*
+
+**Decision.** The draft and the import return `products` and `locations` (keys, names, a place's description) and each shot's product keys and location key; code makes ids from names and drops a key it does not know, as for cast. Edit ops `add_product`, `update_product`, `remove_product`, `add_location`, `update_location`, `remove_location` call the same pure operations as the script page, and a rewritten shot carries its picks. An import adds one open item to check what it read and to add pictures. The copilot never sets an image. Prompt `script-copilot` version 5.
+
+**Why.** The script already knows which products and places its shots show; asking the person to re-enter them would be the gap this closes.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §4.1.
+
+### D448 — A location's plate is drawn once, as an empty set, and billed to the script *(recorded 2026-10-30)*
+
+**Decision.** "Generate" on a location draws its plate with Nano Banana 2.1 through `runBilledImageGeneration` owned by the script, exactly as a storyboard panel is billed, and stores it beside the script's other pictures. The prompt (`location-plate@1`) is the location's description, the reel's setting, the matching regional kit's home (never its wardrobe) and the frame, with no people, hands, products, packaging or lettering. A plate can also be uploaded or picked, and drawn again.
+
+**Why.** The same set drawn once is what keeps a background the same across every panel and clip set there; a person or a product in the plate would ride into every shot that uses it.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §4.3.
+
+### D449 — Panels and plates are drawn with the script's real location and product; Redraw asks first *(recorded 2026-10-30; reverses D342 for products that have pictures; refines D344, D345)*
+
+**Decision.** (1) A storyboard panel's references are, within the model's 14: the people's fronts, the shot's location plate, each product's main picture, the people's other views, the products' other angles, then the house style. The prompt sets the shot in the plate's place and draws each product "exactly as pictured"; a product with no picture is still a plain blank pack, and cards and captions stay blank. The shot fingerprint includes the shot's location and products with their picture URLs, so a panel goes out of date when they change (a shot with neither keeps its old fingerprint). (2) Redraw on a panel and on a location plate opens one popover: "What should change?" with suggestion chips, then **Change this picture** (the current picture is the only reference and only the note changes; needs a note) or **Draw a new one** (from the script, the note added as one line). Panels gain draw kinds `change` and `fresh`; the plate route takes `{ mode, note }`. (3) Plate drawing state comes from every in-flight call (`useMutationState`), and a location already drawing cannot start a second draw.
+
+**Why.** User, 30 Oct 2026: the storyboard should show the real product (the client approves what the clip will show); redrawing was a dice roll that threw away what worked ("ask any changes, or regenerate completely… the regeneration part is hard"); and clicking Generate on a second location stopped the first one's spinner, leading to a duplicate billed draw.
+
+**Rejected.** Keeping the blank pouch for every pack (D342 as written): the approved board would not match the clip. Redraw as one button with an optional prompt field: the common case is "nearly right, fix one thing", which needs the current picture as the reference.
+
+**Originated →** conversation in this session; [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §5.
+
+### D450 — A script's products and locations are nodes on the canvas, wired into the clips that use them *(recorded 2026-10-30; refines D382, D383, D436, D308, D443)*
+
+**Decision.** When a script is added to a canvas its products, locations and per-shot picks (keyed by row name, "S3") are frozen onto the Script node with its storyboard. Fan out makes ONE Product or Location node per asset the new clips use (reusing this script's node already on the canvas) and wires it into each Shot/Multishot's image handle. A Product node shows its main picture and picture count; a Location node its plate. Like an Avatar node (D436), each becomes image rows wherever it is read: main picture first, then angles (`{nodeId}:{n}`), tagged `data.scriptAsset`. `getPromptUpstream` reads those wired into the prompt node's Shot/Multishot (the one exception to D383, which still holds for every other image there), and a node wired straight into a prompt, gen node or composite expands in place; the browser (`useMentionUpstream`) adds the same rows in the same order. Reference priority: avatar front, cited, main packshots and plates, avatar sheet, other angles, the rest. The roles line labels them from the script ("the product (Brandname pouch)", "…, another angle"), ahead of the writer's reading.
+
+**Why.** User, 30 Oct 2026: products and backgrounds belong to the script, shared across shots; asked for them connected "like shot node, just like storyboard" so a shared set is visible as one node with a line into each clip, and a pick is edited by wiring.
+
+**Rejected.** Resolving them invisibly from the script like the presenter (D299): no way to see or change which clip gets which. One node per clip: a shared set would not read as shared.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §6.
+
+### D451 — A share shows products and locations, and its version line counts their changes *(recorded 2026-10-30; refines D348)*
+
+**Decision.** The review page shows the frozen script's products and locations read-only, with their pictures, and each shot's picks. A change to a shot's picks counts as that shot revised; a change to the script's products or locations (names, words, pictures) counts with the context. A share frozen before these existed reads as having none, so it is never a change.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §7.
+
+### D452 — A clip's storyboard panel is sent as a composition reference, never a first frame *(recorded 2026-10-30; refines D382, D383, D443)*
+
+**Decision.** A storyboard panel wired into a clip's Shot or Multishot (Fan out's panel File node, now marked `storyboardPanel`; older ones recognised by their "S3-storyboard" name) is read with the clip's products and locations and sent as a reference, ranked after every real picture (faces, packshots, plates, the sheet, angles, other wired images). The writer sees it as the shot's storyboard; the roles line calls it "a rough storyboard sketch: follow only its composition, staging and camera framing, with its people and objects as placeholders for the other references, and never show the drawing, its lines or colours". It is never a first frame, and it can be switched off per image in Video Gen. Other images wired to a Shot or Multishot are still not read (D383).
+
+**Why.** User, 30 Oct 2026: send the storyboard so the clip follows the story, not the cartoon look. Google documents a drawing used "only as a guide for movement, do not show the drawing"; Kling says a first frame sets the clip's visual style, so a sketch there yields a sketch-looking video; Flow warns that references of mixed looks blend, hence the lowest rank and the placeholder wording.
+
+**Rejected.** The panel as a first frame (the clip would open as a drawing). Photoreal storyboard panels in place of the sketch: the sketch stays the approval artefact, and a photoreal keyframe step is the proposed next step instead.
+
+**Originated →** conversation in this session (research: Gemini Omni docs and prompt guide, Kling 3.0 Omni guide and sketch-to-video page, Google Flow help).
+
+### D453 — The multishot writer makes the clip follow its storyboard, whatever the shot count *(recorded 2026-10-30; refines D263, D452, D444)*
+
+**Decision.** (1) The storyboard is the approved picture of the clip: the writer lays its frames across the beats by time. As many frames as beats, each beat is its frame; more frames than beats, a beat carries the frames in its share of the time as one continuous take on one simple camera, every frame's moment kept (the one exception to one action per beat); fewer frames, each frame sets the beats around it. Where the shot text and the storyboard disagree, the storyboard wins. (2) A worn or carried product replaces the person's own item of that kind and is named in every beat its wearer is in. (3) The avatar's own pictures are labelled a person (the sheet "…, profile sheet") before the writer's reading is consulted. (4) Storyboard panels go last in the image order, after the presenter's pictures, on the server and in the browser. Prompt ids: multishot-prompt-generate@13, -kling@10, -seedance@9.
+
+**Why.** Analysis of the Reel 03 canvas, 30 Oct 2026: S1's panel drew four moments for one 5s cut and the writer kept one (the watch), so three never happened; S4's panel showed him reaching friends and the writer chose "walking", so no friends; S3's beat put him in "white sneakers… wearing the sliders"; S4's beat never named the sliders; the writer read the avatar's profile sheet as a "storyboard" and the request said so; the panel led the references as IMAGE_REF_0.
+
+**Rejected.** Re-cutting the clip to one shot per storyboard frame (built, then removed at the user's word): a storyboard will not match the number of shots, and the writer must honour it within the shots the clip has.
+
+**Originated →** conversation in this session (canvas analysis of reel-03-not-just-another-chappal on staging).
+
+### D454 — Fan out puts each storyboard panel on the canvas as a Composite whose v1 is the panel *(recorded 2026-10-30; amends D382, D452; refines D312)*
+
+**Decision.** (1) Fan out no longer makes a File node per approved panel. It asks a new route (`POST /api/canvas/[id]/storyboard-composites`) to make a Composite per panel, wired into the Shot or Multishot image handle as before. The route reads the panel take and its generation, and writes the Composite with the panel as v1: the take prompt as `instruction` and in `inputs_used`, the model and its params, and every reference picture in order (`inputs_used.source = "storyboard"`). The inline house style picture is stored once per script under the script assets prefix and recorded by URL, so no bytes travel in a task payload. The Script node frozen storyboard now carries each panel `takeId`. (2) The storyboard stays a sketch. On the Composite, Generate redraws it as the script page does (the recorded pictures first, so the prompt "Reference image N" still points at them, then anything wired; the prompt as written, without the composite photo rules) while the instruction still opens with the panel drawing-style paragraph. Remove that paragraph, or use Edit, and it is an ordinary Composite: the operator connects an avatar or a product to make it real, or adds more Composites for extra scenes. (3) Readers tell the two apart: while the Composite active picture is still `storyboardSketchUrl` it is the shot storyboard (D452 sketch clause, ranked last); once it is anything else it is the shot approved still (tag and role `still`: "match its moment, people, products, place and framing", ranked with the script main pictures). (4) A Product or Location wired into a Composite now sends its pictures (server `loadCompositeInputs`, browser `compositeUpstreamItems`); before, it sent nothing. (5) File-node panels on older canvases are no longer read as storyboards (user: the old data is theirs alone).
+
+**Why.** User, 30 Oct 2026: a panel as a File node could not be redrawn or edited on the canvas; as a Composite with its first generation as v1 (prompt, settings and pictures saved), regenerations and edits happen in place, and connecting an avatar or product makes it real when wanted. The still/sketch split keeps the request honest: telling the video model to ignore the colours of a realistic picture would undo the point of making it.
+
+**Rejected.** Photoreal storyboard panels on the script page (the storyboard stays a sketch, user). Pre-wiring the shot avatar, product and location into the Composite (the operator wires them when wanted, user). Seeding v1 lazily from the canvas autosave (every save would have to check for nodes to seed). Keeping the File-node panels readable (no old data to keep, user).
+
+**Originated →** conversation in this session.
+
+### D455 — The multishot writer treats the operator direction as orders it must write into the beats *(recorded 2026-10-30; refines D453, D319, D281)*
+
+**Decision.** (1) A shared rule, THE OPERATOR DIRECTION COMES FIRST, opens the shot contract for every multishot writer: the direction and any per-shot instruction are orders that outrank the shot text, the storyboard, the brand context and what any reference shows; the video model never reads the direction, only the beats and the pictures, so an order is followed only when the beats say it, in plain positive words, in every beat it touches. Leaving something out is not following it. (2) The storyboard rule says the direction still outranks it; the character rule writes wardrobe as the direction leaves it, never as pictured. (3) The user turn labels the direction "The operator direction. These are orders: write each one into every beat it touches." and a per-shot instruction "Operator order for THIS shot (write it into this beat)". Prompt ids: multishot-prompt-generate@14, -kling@11, -seedance@10. The single-take Motion prompt is unchanged: its instruction is the task itself, stated last.
+
+**Why.** Reel 04 on staging, 30 Oct 2026: S2 with no direction read "Ram ... in white low-top sneakers" (from his profile sheet). With the direction "Ram should not wear a shoe, should be barefooted" the writer dropped the sneakers and never wrote barefoot, so his pictures put the sneakers back. The direction reached the writer only as "For the sequence as a whole", and the only rules about direction were about assigning reference roles; the character rule asked for every pictured wardrobe item, footwear included.
+
+**Rejected.** Sending the direction to the video model as well (the Rules for every shot field already does that, as written; the direction is for the writer). Keeping a weak label and relying on the model to infer priority (it obeyed by omission).
+
+**Originated →** conversation in this session (Reel 04 multishot prompt, staging).
+
+### D456 — What the script generated reaches the canvas as a Composite; products stay Product nodes *(recorded 2026-10-30; amends D450; extends D454)*
+
+**Decision.** (1) A location whose picture the script page generated (`image.source = "plate"`) is no longer a Location node: Fan out asks the same route as the storyboard panels (renamed `POST /api/canvas/[id]/script-composites`, body `panels` and `plates`) to make a Composite whose v1 is that generation, found by the picture it made among the script generations (prompt as `instruction` and in `inputs_used`, `source: "script-plate"`, model and params). The Composite carries `scriptId` and a `scriptAsset` location tag, so every reader (server `withScriptAssetImages` and the shot expansion, the browser `canvasAssetRows` and `shotAssetEntries`, a composite wired into another) reads its current picture as the location, and a second Fan out reuses it. (2) A location picture that was uploaded or picked stays a Location node; a product stays a Product node, because it carries its angles. (3) Double-clicking a Product or Location node opens the picture full screen (FullScreenImageZoom, which gains optional previous and next for a product angles).
+
+**Why.** User, 30 Oct 2026: anything generated should be editable and regenerable on the canvas the way the storyboard Composites are; a product is a set of angles, so it keeps its own node. And a quick way to look closely at a product or a background.
+
+**Rejected.** Products as File nodes (tried, reverted at the user word: a product has angles). Every location as a Composite (an uploaded photo has no generation to record).
+
+**Originated →** conversation in this session.

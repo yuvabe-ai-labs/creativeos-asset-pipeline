@@ -1,5 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getPromptUpstream, withAvatarImages } from "@/lib/avatars/presenter-server";
+import { scriptAssetIds, scriptAssetTagOf, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
 import { planCitedRefIds, renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { multishotVoiceover } from "@/lib/nodes/voiceover";
@@ -24,7 +25,7 @@ export async function GET(
   return withNode(req, params, async (nodeId, node) => {
     try {
       // D436 — an Avatar wired straight in is its images, as on the generate routes.
-      const direct = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
+      const direct = withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)));
 
       // Also collect upstream of any prompt nodes (2-level traversal): a Video Gen's Motion or
       // Multishot Prompt, an Image Gen's Prompt (D440; its presenter's face included). Surfaces
@@ -68,13 +69,18 @@ export async function GET(
         })
         .map((u) => {
           const d = u.data as Record<string, unknown>;
+          // D450 — a script's product or location picture goes by its name ("Chupps, angle 2").
+          const tag = scriptAssetTagOf(d);
           return {
             id: u.nodeId,
             type: u.type,
             imageUrl: isGeneratedImageType(u.type)
               ? (u.activeOutput as string)
               : (d.fileUrl as string),
-            filename: typeof d.filename === "string" ? d.filename : undefined,
+            filename: tag
+              ? tag.angle > 0 ? `${tag.name}, angle ${tag.angle + 1}` : tag.name
+              : typeof d.filename === "string" ? d.filename : undefined,
+            ...(tag && (tag.kind === "product" || tag.kind === "location") ? { asset: { kind: tag.kind, nodeId: u.nodeId.replace(/:\d+$/, ""), angle: tag.angle } } : {}),
             fileSizeBytes: d.fileSizeBytes as number | undefined,
             imageWidth: d.imageWidth as number | undefined,
             imageHeight: d.imageHeight as number | undefined,
@@ -145,6 +151,11 @@ export async function GET(
             citedIds,
             avatarFrontId: ownUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null,
             avatarSheetId: ownUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null,
+            // D450 — the same asset ranking the request applies.
+            ...(() => {
+              const ids = scriptAssetIds([...direct, ...ownUpstream]);
+              return { assetMainIds: ids.main, assetAngleIds: ids.angles, storyboardIds: ids.storyboard };
+            })(),
           }
         : null;
 

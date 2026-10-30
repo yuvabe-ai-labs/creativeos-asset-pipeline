@@ -55,6 +55,11 @@ export function describeNode(node: { type?: string; data: Record<string, unknown
       return "Editor";
     case "client-review":
       return "client review";
+    // D450 — a script's product or location goes by its name.
+    case "product":
+      return snippet(d.name) || "product";
+    case "location":
+      return snippet(d.name) || "location";
     default:
       return node.type ?? "node";
   }
@@ -73,6 +78,8 @@ const NODE_ABBREV: Record<string, string> = {
   prompt: "PRM",
   shot: "SHOT",
   multishot: "MSHOT",
+  product: "PROD",
+  location: "LOC",
   "multishot-prompt": "MSPR",
   draw: "DRAW",
   "image-gen": "IMG",

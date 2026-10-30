@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { REFINE_SUGGESTIONS, type RefineScope } from "../refine-suggestions";
 
-const SCOPES: RefineScope[] = ["all", "look", "cut"];
+// D442 — no look scope: the rules are the operator's and the AI never rewrites them.
+const SCOPES: RefineScope[] = ["all", "cut"];
 
 describe("REFINE_SUGGESTIONS", () => {
+  it("offers no look chips", () => {
+    expect(Object.keys(REFINE_SUGGESTIONS).sort()).toEqual(["all", "cut"]);
+  });
+
   it("covers every scope with unique, non-empty chips", () => {
     for (const scope of SCOPES) {
       const chips = REFINE_SUGGESTIONS[scope];

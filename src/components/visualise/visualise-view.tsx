@@ -21,6 +21,8 @@ import { PanelShotStatus } from "./panel-shot-status";
 import { PanelTile } from "./panel-tile";
 import { StoryboardGrid } from "./storyboard-grid";
 import { VisualiseReadiness } from "./visualise-readiness";
+import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
+import { ScriptAssetsSection } from "@/components/scripts/script-assets-section";
 
 // Spec 3 §4, laid out as the Visualise board: the readiness line across the top; the script,
 // read-only, in a narrow left pane; the Visuals pane on the right with a cast card per person
@@ -62,6 +64,8 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   };
 
   return (
+    // D446 — products and locations are edited here too: their pictures are visual work.
+    <ScriptAssetsProvider clientId={clientId} scriptId={script.id}>
     <div className="flex flex-col gap-6">
       <VisualiseReadiness
         stage={script.stage}
@@ -81,6 +85,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
             avatarFaces={model.avatarFaces}
             compact
             cast={null}
+            assets={null}
             slots={review ? { context: review.contextMarker } : undefined}
             shotState={(t) => {
               const v = model.views.get(t.shot.id)!;
@@ -107,6 +112,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
               avatars={model.avatars}
               castMarker={review?.castMarker}
             />
+            <ScriptAssetsSection doc={script.doc} />
             <StoryboardGrid
               settings={
                 <AvatarAdvancedSettings className="max-w-sm">
@@ -133,6 +139,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
                   aspect={model.aspect}
                   credits={model.credits.get(t.shot.id) ?? null}
                   onDraw={() => void draws.draw(t.shot.id)}
+                  onRedraw={(body) => void draws.draw(t.shot.id, body)}
                   onOpen={() => setOpenShot(t.shot.id)}
                   marker={review?.panelMarker(t.shot.id)}
                 />
@@ -160,5 +167,6 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
         />
       )}
     </div>
+    </ScriptAssetsProvider>
   );
 }

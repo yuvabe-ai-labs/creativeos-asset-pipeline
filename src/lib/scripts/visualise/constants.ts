@@ -30,3 +30,6 @@ export const PANEL_TIMED_OUT = "The panel did not finish. Generate it again.";
 
 /** D346 — Generate all draws this many panels at once from the browser. */
 export const GENERATE_ALL_CONCURRENCY = 3;
+
+/** D449 — starting points for a panel's Redraw note: framing and staging, never a mood. */
+export const PANEL_REDRAW_SUGGESTIONS = ["Closer on the product", "Wider shot", "Face the camera", "Simpler background"];

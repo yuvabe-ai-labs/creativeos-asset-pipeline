@@ -6,7 +6,7 @@ import reel01 from "../fixtures/reel-01.json";
 
 const doc = scriptDocSchema.parse(reel01);
 const shot = (id: string, beat: string, lengthSeconds: number): Shot => ({
-  id, beat, lengthSeconds, visual: "", vo: "", onScreenText: "", onScreen: [],
+  id, beat, lengthSeconds, visual: "", vo: "", onScreenText: "", onScreen: [], products: [], location: null,
 });
 
 describe("timeline", () => {

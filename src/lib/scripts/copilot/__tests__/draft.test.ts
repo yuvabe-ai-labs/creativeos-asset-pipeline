@@ -5,7 +5,7 @@ import type { DraftOutput, ShotFields } from "../output";
 
 const AVATAR = "7a2d3c4e-0000-4000-8000-000000000002";
 const shot = (beat: string, vo: string, card: string, onScreen: string[] = ["sara"], lengthSeconds = 4): ShotFields =>
-  ({ beat, lengthSeconds, visual: `${beat} visual`, vo, onScreenText: card, onScreen });
+  ({ beat, lengthSeconds, visual: `${beat} visual`, vo, onScreenText: card, onScreen, products: [], location: "" });
 
 const draft = (over: Partial<DraftOutput> = {}): DraftOutput => ({
   header: { title: "Kerala Piravi at our table", format: "UGC", region: "South", postDate: "Sun 1 Nov (Kerala Piravi)", theme: "Kerala Piravi", aspect: "9:16", targetLength: "45 to 55 sec", production: "AI-generated" },
@@ -20,6 +20,8 @@ const draft = (over: Partial<DraftOutput> = {}): DraftOutput => ({
     shot("INTRO", "Red rice, thoran, curd.", "Red rice. Thoran.", ["Rajan", "nobody-here"]),
     shot("INTRO", "A new line on the split shot.", ""),
   ],
+  products: [],
+  locations: [],
   summary: "First draft.",
   suggestions: [],
   ...over,

@@ -2,6 +2,7 @@ import "server-only";
 import { getUpstreamOutputs, type UpstreamOutput } from "@/lib/db/nodes";
 import { getAvatar } from "@/lib/db/avatars";
 import { presenterUpstreamRows } from "@/lib/avatars/presenter";
+import { isScriptAssetNode, scriptAssetRows } from "@/lib/scripts/asset-nodes";
 import { compositeRefs, type CompositeRef } from "./references";
 import { compositeContextOf, type CompositeContext } from "./context";
 
@@ -25,6 +26,12 @@ export async function loadCompositeInputs(nodeId: string, clientId: string): Pro
     const context = compositeContextOf(row.nodeId, row.type, row.data, row.activeOutput);
     if (context) {
       contexts.push(context);
+      continue;
+    }
+    // D454 — a script's product or location is its pictures, as everywhere else (D450): before,
+    // a Product node wired into a composite sent nothing at all.
+    if (isScriptAssetNode(row)) {
+      rows.push(...scriptAssetRows(row));
       continue;
     }
     if (row.type !== "avatar") {

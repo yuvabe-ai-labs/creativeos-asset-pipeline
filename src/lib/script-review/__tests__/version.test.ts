@@ -16,6 +16,23 @@ describe("diffVersions", () => {
     expect(diffVersions(content(), content())).toEqual([]);
   });
 
+  // D451 — products and locations in what the client approved.
+  it("counts a shot's new pick as that shot, and a new product as the context; an older share is no change", () => {
+    const prev = content();
+    const next = content();
+    next.doc.products = [{ id: "pouch", name: "Pouch", images: [] }];
+    next.doc.shots[1] = { ...next.doc.shots[1], products: ["pouch"] };
+    const labels = diffVersions(prev, next).map((c) => c.part.kind === "shot" ? `${c.label} ${c.change}` : `${c.part.kind} ${c.change}`);
+    expect(labels).toEqual(["context revised", "S2 revised"]);
+
+    const legacy = content();
+    const raw = legacy.doc as unknown as { products?: unknown; locations?: unknown; shots: Array<Record<string, unknown>> };
+    delete raw.products;
+    delete raw.locations;
+    for (const s of raw.shots) { delete s.products; delete s.location; }
+    expect(diffVersions(legacy, content())).toEqual([]);
+  });
+
   it("names edited shots in script order", () => {
     const next = content();
     next.doc.shots[3].vo = "A new line";

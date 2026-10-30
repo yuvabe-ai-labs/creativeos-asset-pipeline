@@ -14,8 +14,8 @@ describe("storyboardFor", () => {
       [first.id]: { takeId: "t1", url: url(first.id) },
     });
     expect(out).toEqual([
-      { label: "S1", beat: first.beat, shotId: first.id, url: url(first.id) },
-      { label: "S3", beat: third.beat, shotId: third.id, url: url(third.id) },
+      { label: "S1", beat: first.beat, shotId: first.id, url: url(first.id), takeId: "t1" },
+      { label: "S3", beat: third.beat, shotId: third.id, url: url(third.id), takeId: "t3" },
     ]);
   });
 
@@ -32,7 +32,7 @@ describe("panelTitle", () => {
 });
 
 describe("panelForRow", () => {
-  const panels: StoryboardPanel[] = [{ label: "S3", beat: "HOOK", shotId: "s03", url: url("s03") }];
+  const panels: StoryboardPanel[] = [{ label: "S3", beat: "HOOK", shotId: "s03", url: url("s03"), takeId: "t3" }];
 
   it("matches a row by its name, ignoring case and spaces", () => {
     expect(panelForRow(panels, { label: "S3" })?.shotId).toBe("s03");

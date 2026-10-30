@@ -102,6 +102,20 @@ describe("addScriptToCanvas", () => {
 
   const PANELS = [{ label: "S1", beat: "HOOK", shotId: "s01", url: "https://x/p.png" }];
 
+  // D450 — the script's products, locations and picks ride on the node, frozen.
+  it("freezes the script's products and locations onto the node, and nothing when it has none", async () => {
+    const s = script();
+    s.doc = { ...s.doc, products: [{ id: "pouch", name: "Pouch", images: [] }], shots: s.doc.shots.map((x, i) => (i === 0 ? { ...x, products: ["pouch"] } : x)) };
+    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: s, leadAvatarId: null, storyboard: [] }) });
+    await addScriptToCanvas("s1", POS, d);
+    expect(d.addScriptNode).toHaveBeenCalledWith("n1", POS, expect.objectContaining({
+      assets: { scriptId: "s1", products: s.doc.products, locations: [], picks: { S1: { products: ["pouch"], location: null } } },
+    }));
+    const plain = deps();
+    await addScriptToCanvas("s1", POS, plain);
+    expect(vi.mocked(plain.addScriptNode).mock.calls[0][2]).not.toHaveProperty("assets");
+  });
+
   it("puts the approved storyboard on the new Script node (D381)", async () => {
     const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: null, storyboard: PANELS }) });
     await addScriptToCanvas("s1", POS, d);

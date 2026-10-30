@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveVideoGenPrompt } from "../resolve-prompt";
+import { resolveVideoGenPrompt, refRoleLabels, roleDialectOfResolved } from "../resolve-prompt";
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
@@ -48,7 +48,7 @@ describe("resolveVideoGenPrompt", () => {
     const videoPromptNode = output({ nodeId: "vp-1", type: "video-prompt", activeOutput: null });
     const result = await resolveVideoGenPrompt([videoPromptNode], async () => []);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/video-prompt/);
+    if (!result.ok) expect(result.reason).toBe("The motion prompt isn't written yet. Open it and press Generate first.");
   });
 
   it("resolves a multishot-prompt upstream via renderPlan(plan, cuts), never String(activeOutput)", async () => {
@@ -257,8 +257,7 @@ describe("resolveVideoGenPrompt", () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.reason).toMatch(/video-prompt/);
-      expect(result.reason).toMatch(/multishot-prompt/);
+      expect(result.reason).toBe("Connect a Motion prompt or a Multishot prompt to this Video Gen.");
     }
   });
 });
@@ -303,5 +302,79 @@ describe("resolveVideoGenPrompt reference binding (BUG-010)", () => {
     const res = await resolveVideoGenPrompt([mp], async (id) => (id === "mp" ? [ms, img("a", "A.png"), img("b", "B.png")] : []));
     expect(res.ok && res.prompt).toContain("<IMAGE_REF_1>");
     expect(res.ok && res.prompt).not.toContain("@[");
+  });
+});
+
+// D443 — what each sent image is, for the "Reference roles:" line.
+describe("refRoleLabels / roleDialectOfResolved", () => {
+  async function resolvedWith(p: MultishotPlan, extra: UpstreamOutput[] = []) {
+    const promptNode = output({ nodeId: "mp", type: "multishot-prompt", activeOutput: p });
+    const multishot = output({ nodeId: "ms", type: "multishot", data: { cuts } });
+    const result = await resolveVideoGenPrompt([promptNode], async () => [multishot, ...extra]);
+    if (!result.ok) throw new Error("expected a resolved prompt");
+    return result;
+  }
+
+  it("labels images from the plan's reference roles", async () => {
+    const r = await resolvedWith({ ...plan, refRoles: [{ id: "f1", role: "product", name: "pouch" }] });
+    expect(refRoleLabels(r, [])).toEqual(new Map([["f1", { role: "product", name: "pouch" }]]));
+  });
+
+  it("labels the presenter as a person when the plan does not", async () => {
+    const presenter = output({ nodeId: "av", type: "file", data: { presenter: true, title: "Maya" } });
+    const sheet = output({ nodeId: "av:sheet", type: "file", data: { presenter: "sheet", title: "Maya" } });
+    const r = await resolvedWith(plan);
+    expect(refRoleLabels(r, [presenter, sheet])).toEqual(
+      new Map([
+        ["av", { role: "person", name: "Maya" }],
+        ["av:sheet", { role: "person", name: "Maya, profile sheet" }],
+      ]),
+    );
+  });
+
+  // D453 — on Reel 03 the writer read the profile sheet as a storyboard; the avatar now wins.
+  it("labels the avatar's pictures a person whatever the writer read", async () => {
+    const presenter = output({ nodeId: "av", type: "file", data: { presenter: "sheet", title: "Maya" } });
+    const r = await resolvedWith({ ...plan, refRoles: [{ id: "av", role: "storyboard", name: "pose sheet" }] });
+    expect(refRoleLabels(r, [presenter]).get("av")).toEqual({ role: "person", name: "Maya, profile sheet" });
+  });
+
+  it("numbers in the plan's own model's tokens", async () => {
+    const r = await resolvedWith({ ...plan, targetModel: KLING_OMNI_MODEL_ID });
+    expect(roleDialectOfResolved(r, ["f1"])?.tokenForId("f1", "x")).toBe("@image_1");
+    const omni = await resolvedWith({ ...plan, targetModel: GEMINI_OMNI_MODEL_ID });
+    expect(roleDialectOfResolved(omni, ["f1"])?.tokenForId("f1", "x")).toBe("<IMAGE_REF_0>");
+  });
+
+  it("uses the single-take lane's dialect, or none", async () => {
+    const vp = output({ nodeId: "vp", type: "video-prompt", activeOutput: "Slow push in." });
+    const r = await resolveVideoGenPrompt([vp], async () => []);
+    if (!r.ok) throw new Error("expected a resolved prompt");
+    expect(roleDialectOfResolved(r, ["f1"], "gemini-omni")?.tokenForId("f1", "x")).toBe("<IMAGE_REF_0>");
+    expect(roleDialectOfResolved(r, ["f1"], undefined)).toBeNull();
+  });
+});
+
+// D450 — a script's product and location rows label themselves, ahead of the writer's reading.
+describe("refRoleLabels with script assets (D450)", () => {
+  it("labels a product's pictures and a location's plate from the script, angles as angles", async () => {
+    const promptNode = output({
+      nodeId: "mp", type: "multishot-prompt",
+      activeOutput: { ...plan, refRoles: [{ id: "pk", role: "other", name: "a bag" }] },
+    });
+    const multishot = output({ nodeId: "ms", type: "multishot", data: { cuts } });
+    const r = await resolveVideoGenPrompt([promptNode], async () => [multishot]);
+    if (!r.ok) throw new Error("expected a resolved prompt");
+    const tag = (kind: string, name: string, angle: number) => ({ scriptAsset: { kind, id: "x", name, angle } });
+    const rows = [
+      output({ nodeId: "pk", type: "file", data: tag("product", "Brandname pouch", 0) }),
+      output({ nodeId: "pk:1", type: "file", data: tag("product", "Brandname pouch", 1) }),
+      output({ nodeId: "lc", type: "file", data: tag("location", "Home kitchen", 0) }),
+    ];
+    expect(refRoleLabels(r, rows)).toEqual(new Map([
+      ["pk", { role: "product", name: "Brandname pouch" }],
+      ["pk:1", { role: "product", name: "Brandname pouch, another angle" }],
+      ["lc", { role: "location", name: "Home kitchen" }],
+    ]));
   });
 });

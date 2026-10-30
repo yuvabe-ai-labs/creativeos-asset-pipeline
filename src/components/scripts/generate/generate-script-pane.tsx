@@ -16,6 +16,7 @@ import { CastAvatarLink } from "./cast-avatar-link";
 import { InlineEditPrompt } from "./inline-edit-prompt";
 import { MarkFinalBar } from "./mark-final-bar";
 import { ScriptNotesPanel } from "./script-notes-panel";
+import { ScriptAssetsProvider } from "../script-assets-context";
 
 type Undo = { path: string; before: string };
 
@@ -102,10 +103,12 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft }: { clien
       />
       {script.doc ? (
         <ScriptEditProvider value={edit}>
-          <ScriptView
-            script={{ stage: script.stage, doc: script.doc }}
-            avatarFaces={avatarFaces}
-          />
+          <ScriptAssetsProvider clientId={clientId} scriptId={script.id}>
+            <ScriptView
+              script={{ stage: script.stage, doc: script.doc }}
+              avatarFaces={avatarFaces}
+            />
+          </ScriptAssetsProvider>
           <ScriptNotesPanel notes={script.notes} openItems={state.openItems} />
         </ScriptEditProvider>
       ) : draft ? (

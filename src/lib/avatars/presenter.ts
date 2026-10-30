@@ -71,7 +71,7 @@ export function presenterUpstreamRow(
       // A file node's processedOutput is its text block for the writer (node-output.ts). Identity
       // only: "as they appear in this image" once had the writer copy the portrait's plain
       // backdrop into the look as a "white studio" shot.
-      processedOutput: `${avatar.name}, ${lead ? "the" : "a"} person on camera in this shot. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.`,
+      processedOutput: `${avatar.name}, ${lead ? "the" : "a"} person on camera when a shot shows someone. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.`,
     },
     activeOutput: null,
     versionId: null,

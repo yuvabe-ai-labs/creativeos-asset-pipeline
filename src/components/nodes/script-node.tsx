@@ -6,6 +6,7 @@ import { AlertTriangle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasId } from "@/components/canvas/canvas-id-context";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { saveScriptOutputAction } from "@/lib/actions/nodes";
@@ -29,6 +30,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const fanOutShots = useCanvasStore((s) => s.fanOutShots);
+  const canvasId = useCanvasId();
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const d = data as {
@@ -183,7 +185,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       onSaveOutput={(output) => saveScriptOutputAction(id, output)}
       onFanOut={() => {
         // fanOutShots reports the outcome itself — including "already on the canvas".
-        fanOutShots(id);
+        fanOutShots(id, canvasId);
         handleFocusOpenChange(false);
       }}
     />

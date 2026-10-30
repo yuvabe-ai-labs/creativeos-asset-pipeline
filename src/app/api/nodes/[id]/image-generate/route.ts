@@ -1,5 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { withAvatarImages, withPromptInputs } from "@/lib/avatars/presenter-server";
+import { withScriptAssetImages } from "@/lib/scripts/asset-nodes";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { getVersionById } from "@/lib/db/versions";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
@@ -59,7 +60,7 @@ export async function POST(
     // Resolve upstream nodes. D436 — an Avatar wired straight in is its images. D440 — and what is
     // wired into the Prompt reaches this still too (its images, avatars and the presenter's face).
     const upstream = await withPromptInputs(
-      await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)),
+      withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId))),
       ["prompt"],
     );
 

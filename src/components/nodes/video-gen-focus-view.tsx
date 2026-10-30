@@ -21,6 +21,8 @@ import {
   FileInput,
   History,
   ImageIcon,
+  MapPin,
+  Package,
   PencilLine,
   SlidersHorizontal,
   type LucideIcon,
@@ -133,6 +135,7 @@ import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
 import { AddConnection } from "./add-connection";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
+import { NO_PROMPT_NODE_MESSAGE, UNWRITTEN_PROMPT_MESSAGE } from "@/lib/video-gen/prompt-messages";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1280,6 +1283,9 @@ export function VideoGenFocusView({
     citedIds: new Set(promptNode?.citedIds ?? []),
     avatarFrontId: promptNode?.avatarFrontId ?? null,
     avatarSheetId: promptNode?.avatarSheetId ?? null,
+    assetMainIds: new Set(promptNode?.assetMainIds ?? []),
+    assetAngleIds: new Set(promptNode?.assetAngleIds ?? []),
+    storyboardIds: new Set(promptNode?.storyboardIds ?? []),
     framesExcludeReferences: areFramesAndRefsExclusive(currentModel?.rules),
     unusable: currentModel?.provider === "seedance"
       ? sheetsUnusable(upstreamImages.map((img) => img.id), "Seedance can't use the profile sheet")
@@ -1379,14 +1385,31 @@ export function VideoGenFocusView({
   // `loadingConnected`: the inputs on screen may be the cached copy, not yet confirmed by this
   // open's re-read — never generate (and post roles) from those.
   // D390 — a clip in the Editor's reel can't generate; the reason replaces the action.
+  // Generate needs a written prompt. Said here, with a way to it, rather than as an error after the
+  // click: an unwritten prompt used to fail with "no connected node" while the wire was right there.
+  const promptGap = loadingConnected
+    ? null
+    : !promptNode
+      ? NO_PROMPT_NODE_MESSAGE
+      : promptNode.text === null
+        ? UNWRITTEN_PROMPT_MESSAGE[promptNode.type === "video-prompt" ? "video-prompt" : "multishot-prompt"]
+        : null;
+  function openPromptNode() {
+    if (!promptNode) return;
+    onOpenChange(false);
+    focusStoreApi.getState().setFocusedNodeId(promptNode.id);
+  }
   const disableGenerate =
     Boolean(lockReason) ||
     loadingConnected ||
+    Boolean(promptGap) ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = lockReason
     ? lockReason
     : loadingConnected
     ? "Loading connected inputs…"
+    : promptGap
+    ? promptGap
     : constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
@@ -1488,12 +1511,13 @@ export function VideoGenFocusView({
   }
 
   // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
-  const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
+  const connectedItems: { id: string; type: "prompt" | "image"; label: string; asset?: UpstreamImage["asset"] }[] = [
     ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Motion prompt" }] : []),
     ...upstreamImages.map((img) => ({
       id: img.id,
       type: "image" as const,
       label: img.filename || "Image",
+      asset: img.asset,
     })),
   ];
   const connectedCount = connectedItems.length;
@@ -1620,13 +1644,18 @@ export function VideoGenFocusView({
               connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
                 const outReason = c.type === "image" ? leftOutReason.get(c.id) : undefined;
-                const remove = editable ? removeFor(c.id, c.label) : null;
+                // D450 — a script's picture is unwired at its node (an angle is no node of its own).
+                const remove = editable ? removeFor(c.asset?.nodeId ?? c.id, c.label) : null;
                 return (
                   <RailItem
                     key={c.id}
                     icon={
                       c.type === "prompt" ? (
                         <PencilLine className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : c.asset?.kind === "product" ? (
+                        <Package className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : c.asset?.kind === "location" ? (
+                        <MapPin className="size-4 text-primary" strokeWidth={1.5} />
                       ) : (
                         <ImageIcon className="size-4 text-primary" strokeWidth={1.5} />
                       )
@@ -1866,7 +1895,18 @@ export function VideoGenFocusView({
                     disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
                     disabledReason={disableGenerate ? disableGenerateReason : null}
                     credits={estimatedCredits}
-                    notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
+                    notice={
+                      viewing.isViewingOther ? (
+                        <ActiveOnlyNotice label={viewedLabel} />
+                      ) : promptGap && promptNode ? (
+                        <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          {promptGap}
+                          <Button variant="link" size="xs" className="h-auto shrink-0 px-0" onClick={openPromptNode}>
+                            Open the prompt
+                          </Button>
+                        </span>
+                      ) : undefined
+                    }
                   />
                 </div>
               )}

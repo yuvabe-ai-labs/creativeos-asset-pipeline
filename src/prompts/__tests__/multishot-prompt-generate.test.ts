@@ -4,7 +4,6 @@ import {
   multishotPromptGenerate,
   MULTISHOT_PROMPT_ID,
   REFERENCE_IDENTIFICATION_BLOCK,
-  MULTISHOT_LOOK_SCHEMA,
   MULTISHOT_BEAT_SCHEMA,
   refineInstruction,
   MULTISHOT_PLAN_SCHEMA,
@@ -14,6 +13,7 @@ import { multishotPromptFor } from "../multishot-prompt-for";
 import { multishotPromptKling, MULTISHOT_KLING_PROMPT_ID } from "../multishot-prompt-kling";
 import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
 import { SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { REF_ROLES } from "@/lib/nodes/ref-roles";
 import {
   MULTISHOT_AUTHORING_MODEL,
   SUBJECT_SILENT_CAMERA,
@@ -37,9 +37,10 @@ describe("multishotPromptGenerate", () => {
   // is rejected at full price.
   // D319 — `references` is scratch work parsePlan drops; it must come FIRST, because strict
   // structured output generates in schema order and the point is to read the images before writing.
-  it("asks for a reference reading, then a look and beats keyed by cutId, and nothing else", () => {
+  // D442 — no look: the operator writes the rules for every shot.
+  it("asks for a reference reading, then beats keyed by cutId, and nothing else", () => {
     const props = spec.schema.properties;
-    expect(Object.keys(props)).toEqual(["references", "look", "beats"]);
+    expect(Object.keys(props)).toEqual(["references", "beats"]);
 
     const beat = props.beats.items;
     expect(Object.keys(beat.properties).sort()).toEqual(["cutId", "text"]);
@@ -55,7 +56,7 @@ describe("multishotPromptGenerate", () => {
   it("is a valid strict-mode schema at both the root and the beat item", () => {
     const root = spec.schema;
     expect(root.additionalProperties).toBe(false);
-    expect([...root.required].sort()).toEqual(["beats", "look", "references"]);
+    expect([...root.required].sort()).toEqual(["beats", "references"]);
 
     const beat = root.properties.beats.items;
     expect(beat.additionalProperties).toBe(false);
@@ -70,9 +71,17 @@ describe("multishotPromptGenerate", () => {
     expect(spec.system).toContain(REFERENCE_IDENTIFICATION_BLOCK);
   });
 
-  it("tells the writer to open with the look and to echo each cutId exactly", () => {
-    expect(spec.system).toMatch(/look/i);
+  it("tells the writer it writes no look, and to echo each cutId exactly", () => {
+    expect(spec.system).toMatch(/There is no look or atmosphere paragraph/);
     expect(spec.system).toMatch(/cutId/);
+  });
+
+  // D443 — the reading's role and name label each image in the video request, so the role is an
+  // enum the code can switch on, never free text.
+  it("reads each reference into a role from a fixed list and a short name", () => {
+    const reading = spec.schema.properties.references.items;
+    expect(reading.properties.role.enum).toEqual([...REF_ROLES]);
+    expect(reading.required).toContain("name");
   });
 
   // The levitation bug: a generated crane clause ("...lifts gently upward so the jar feels more
@@ -119,7 +128,7 @@ describe("multishotPromptGenerate", () => {
   it("still asks the writer to look at the images and name what it saw", () => {
     expect(spec.system).toMatch(/LOOK AT THEM/);
     expect(spec.system).toMatch(/name what you saw/i);
-    expect(spec.system).toMatch(/green ceramic mug/);
+    expect(spec.system).toMatch(/carrying the mug, exactly as in its reference/);
     expect(clientTermsIn(spec.system)).toEqual([]);
   });
 
@@ -141,13 +150,6 @@ describe("multishotPromptGenerate", () => {
 });
 
 describe("narrow refine schemas", () => {
-  // D319 — plus the scratch reference reading, first; mergeRefinedPlan reads only look / text.
-  it("the look schema asks for the look alone", () => {
-    expect(MULTISHOT_LOOK_SCHEMA.required).toEqual(["references", "look"]);
-    expect(MULTISHOT_LOOK_SCHEMA.additionalProperties).toBe(false);
-    expect(Object.keys(MULTISHOT_LOOK_SCHEMA.properties)).toEqual(["references", "look"]);
-  });
-
   it("the beat schema asks for the text alone", () => {
     expect(MULTISHOT_BEAT_SCHEMA.required).toEqual(["references", "text"]);
     expect(MULTISHOT_BEAT_SCHEMA.additionalProperties).toBe(false);
@@ -158,25 +160,22 @@ describe("narrow refine schemas", () => {
 describe("refineInstruction", () => {
   const plan = { version: 1 as const, look: "Warm low sun.", beats: [{ cutId: "c1", text: "Keys." }] };
 
-  it("names the beat being rewritten and carries the plan as context", () => {
+  // D442 — the beats travel as context; the rules are the operator's and never sent to copy back.
+  it("names the beat being rewritten and carries the beats as context", () => {
     const out = refineInstruction({ scope: "cut", cutId: "c1", note: "", plan });
     expect(out).toContain("c1");
-    expect(out).toContain("Warm low sun.");
+    expect(out).toContain("Keys.");
+    expect(out).not.toContain("Warm low sun.");
     expect(out).toMatch(/only the text for that shot/i);
-  });
-
-  it("asks for the look alone on a look refine", () => {
-    const out = refineInstruction({ scope: "look", cutId: null, note: "", plan });
-    expect(out).toMatch(/only the look/i);
   });
 
   // A one-off steer and a permanent brief are different things. Folding the note into the standing
   // instruction would make "try it darker" part of the shot's definition on every later generate.
   it("puts the note in its own block, only when there is one", () => {
-    const withNote = refineInstruction({ scope: "look", cutId: null, note: "colder", plan });
+    const withNote = refineInstruction({ scope: "cut", cutId: "c1", note: "colder", plan });
     expect(withNote).toContain("Apply this change, and only this change: colder");
 
-    const without = refineInstruction({ scope: "look", cutId: null, note: "   ", plan });
+    const without = refineInstruction({ scope: "cut", cutId: "c1", note: "   ", plan });
     expect(without).not.toContain("Apply this change");
   });
 
@@ -194,7 +193,7 @@ describe("refineInstruction", () => {
   // leave alone. Without the plan there is nothing to copy from, so it rewrote everything.
   it("sends the current plan and asks for untouched beats back verbatim", () => {
     const out = refineInstruction({ scope: "all", cutId: null, note: "change shot 2", plan });
-    expect(out).toContain(JSON.stringify(plan, null, 2));
+    expect(out).toContain(JSON.stringify({ beats: plan.beats }, null, 2));
     expect(out).toMatch(/rewrite ONLY those/);
     expect(out).toMatch(/character for character/i);
     expect(out).toMatch(/If the change names no shot in particular, rewrite the whole sequence/i);
@@ -211,7 +210,7 @@ describe("refineInstruction", () => {
       scope: "all",
       cutId: null,
       note: "punchier",
-      plan: { look: "", beats: [] },
+      plan: { beats: [] },
     });
     expect(out).toContain("punchier");
     expect(out).not.toMatch(/character for character/i);
@@ -239,9 +238,11 @@ describe("refineInstruction", () => {
 describe("no assumed look or setting (D262)", () => {
   const systems = MULTISHOT_MODELS.map((m) => [m.label, multishotPromptFor(m.id).system] as const);
 
-  it("tells every writer to leave the look empty when nothing states one", () => {
+  // D442 — no writer composes a look any more; each obeys the operator's rules instead.
+  it("tells every writer there is no look, and to obey the operator's rules", () => {
     for (const [label, system] of systems) {
-      expect(system, label).toMatch(/return an empty string/i);
+      expect(system, label).toMatch(/There is no look or atmosphere paragraph/);
+      expect(system, label).toMatch(/RULES FOR EVERY SHOT/);
     }
   });
 
@@ -259,9 +260,8 @@ describe("no assumed look or setting (D262)", () => {
     }
   });
 
-  it("tells the schema an empty look is allowed", () => {
-    expect(MULTISHOT_PLAN_SCHEMA.properties.look.description).toMatch(/empty/i);
-    expect(MULTISHOT_LOOK_SCHEMA.properties.look.description).toMatch(/empty/i);
+  it("has no look in the schema", () => {
+    expect("look" in MULTISHOT_PLAN_SCHEMA.properties).toBe(false);
   });
 });
 
@@ -298,9 +298,9 @@ describe("planSchemaForCuts", () => {
       };
     };
     expect(schema.additionalProperties).toBe(false);
-    expect([...schema.required].sort()).toEqual(["beats", "look", "references"]);
+    expect([...schema.required].sort()).toEqual(["beats", "references"]);
     // The reading must stay first even after the spread rebuilds `properties`.
-    expect(Object.keys(schema.properties)).toEqual(["references", "look", "beats"]);
+    expect(Object.keys(schema.properties)).toEqual(["references", "beats"]);
 
     const beat = schema.properties.beats.items;
     expect(beat.additionalProperties).toBe(false);
@@ -391,6 +391,8 @@ describe("voiceover performance rules", () => {
     expect(system).not.toContain("{} for dialogue");
     expect(system).toContain("() for music");
     expect(system).toContain("<> for sound effects");
+    // D445 — no on-screen text on any model, so no subtitle marker either.
+    expect(system).not.toContain("【】");
   });
 });
 
@@ -426,8 +428,36 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
     expect(system).toMatch(/EVERY visible wardrobe item/);
   });
 
-  it.each(writers)("%s: an attached background may set the look", (_, system) => {
-    expect(system).toMatch(/An attached background IS stated direction/);
+  // D441 — text about a product competes with its picture and the model draws a hybrid.
+  it.each(writers)("%s: a product is named and pinned, never described", (_, system) => {
+    expect(system).not.toMatch(/each one's colour and material/);
+    expect(system).not.toMatch(/every component and colour/);
+    expect(system).not.toMatch(/lettering or logo held exactly/);
+    expect(system).toMatch(/exactly as in its reference/);
+  });
+
+  // D453 — the canvas analysis: S4's beat ignored its panel, S3 put sneakers AND sliders on him.
+  it.each(writers)("%s: shows every storyboard moment whatever the shot count, and a worn product replaces the person's own", (_, system) => {
+    expect(system).toMatch(/A STORYBOARD IS THE APPROVED PICTURE OF THE CLIP/);
+    expect(system).toMatch(/whatever the number of either/);
+    expect(system).toMatch(/Every frame's moment appears; none is dropped for being short/);
+    expect(system).toMatch(/the storyboard wins/);
+    expect(system).toMatch(/in place of their own item of that kind: never\s+describe both/);
+  });
+
+  // D444 — the presenter is wired by default (D438); B-roll must not pull them in.
+  it.each(writers)("%s: a product-only shot shows nobody", (_, system) => {
+    expect(system).toMatch(/A product-only shot shows nobody/);
+  });
+
+  // D455 — on Reel 04 "Ram should be barefoot" was obeyed by dropping his sneakers from the beat,
+  // never by saying barefoot, so his pictures put the sneakers back.
+  it.each(writers)("%s: the operator's direction outranks everything and is written into the beats", (_, system) => {
+    expect(system).toMatch(/THE OPERATOR'S DIRECTION COMES FIRST/);
+    expect(system).toMatch(/outrank everything else here: the shot text, the storyboard/);
+    expect(system).toMatch(/Leaving something out is not\s+following it/);
+    expect(system).toMatch(/the operator's direction still outranks both/);
+    expect(system).toMatch(/an item the direction removes or changes is written as directed/);
   });
 
   it.each(writers)("%s: still forbids writing the reference numbers into beats", (_, system) => {
@@ -435,8 +465,8 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
   });
 
   it("bumps every prompt id", () => {
-    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@11");
-    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@8");
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@7");
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@14");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@11");
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@10");
   });
 });

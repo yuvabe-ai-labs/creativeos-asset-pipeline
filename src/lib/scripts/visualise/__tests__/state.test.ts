@@ -116,7 +116,7 @@ describe("out of date (D344, spec §3.6)", () => {
       { ...after.shots[s07], lengthSeconds: 3, visual: "Top-down on the bowl. She levels one tablespoon." },
       { ...after.shots[s07], id: "s07b", lengthSeconds: 3, visual: "She levels the second and stirs." });
     after.shots = after.shots.filter((s) => s.id !== "s14");
-    after.shots.push({ id: "s15", beat: "OUTRO", lengthSeconds: 4, visual: "The brass lamp, lit.", vo: "", onScreenText: "", onScreen: [] });
+    after.shots.push({ id: "s15", beat: "OUTRO", lengthSeconds: 4, visual: "The brass lamp, lit.", vo: "", onScreenText: "", onScreen: [], products: [], location: null });
 
     const views = viewsFor(after, avatars, takes, picks);
     expect(views.get("s03")).toMatchObject({ status: "out_of_date", staleBecause: ["shot"] });
@@ -149,6 +149,13 @@ describe("promptForDraw (D345)", () => {
     expect(promptForDraw({ kind: "edited", prompt: "  closer on her hands  " }, null, i)).toEqual({ ok: true, prompt: "closer on her hands", edited: true });
     expect(promptForDraw({ kind: "edited", prompt: "built" }, null, i)).toEqual({ ok: true, prompt: "built", edited: false });
     expect(promptForDraw({ kind: "reset" }, makeTake({ promptEdited: true, shotKey: "k" }), i)).toEqual({ ok: true, prompt: "built", edited: false });
+  });
+
+  // D449 — Redraw: a fresh draw carries its note as one more line; a change is built by the route.
+  it("draws fresh from the script, with the note added and marked edited", () => {
+    expect(promptForDraw({ kind: "fresh", note: "  closer on her hands " }, null, i)).toEqual({ ok: true, prompt: "built\nAlso: closer on her hands", edited: true });
+    expect(promptForDraw({ kind: "fresh", note: "" }, makeTake({ promptEdited: true, shotKey: "k" }), i)).toEqual({ ok: true, prompt: "built", edited: false });
+    expect(promptForDraw({ kind: "change", note: "x" }, null, i).ok).toBe(false);
   });
 
   it("refuses an empty or overlong prompt", () => {

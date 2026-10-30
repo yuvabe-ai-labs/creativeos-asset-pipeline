@@ -43,8 +43,8 @@ const DRAFT = {
   context: { purpose: "p", settingAndCamera: "s", disclaimers: "D1, D2, D4.", watchOuts: ["Keep it Kerala only."] },
   cast: [{ key: "sara", name: "Saraswathi", description: "55, Thrissur.", avatarId: null, isLead: true }],
   shots: [
-    { beat: "HOOK", lengthSeconds: 5, visual: "v", vo: "Happy Kerala Piravi.", onScreenText: "Kerala Piravi", onScreen: ["sara"] },
-    { beat: "REVIEW", lengthSeconds: 8, visual: "Use a real, cleared review on this theme: everyday ease.", vo: 'One customer wrote: "[real review, verbatim]".', onScreenText: "Customer review on Amazon", onScreen: [] },
+    { beat: "HOOK", lengthSeconds: 5, visual: "v", vo: "Happy Kerala Piravi.", onScreenText: "Kerala Piravi", onScreen: ["sara"], products: [], location: "" },
+    { beat: "REVIEW", lengthSeconds: 8, visual: "Use a real, cleared review on this theme: everyday ease.", vo: 'One customer wrote: "[real review, verbatim]".', onScreenText: "Customer review on Amazon", onScreen: [], products: [], location: "" },
   ],
   summary: "A couple's Piravi lunch.",
 };
@@ -228,7 +228,7 @@ describe("before the draft", () => {
 describe("after the draft: chat edits", () => {
   const written = script({ doc, brief: { ...EMPTY_BRIEF, phase: "written" }, docVersion: 5 });
   const op = (o: Partial<EditOp> & Pick<EditOp, "op">): EditOp => ({
-    path: null, value: null, shotId: null, afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null, ...o,
+    path: null, value: null, shotId: null, afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null, product: null, location: null, ...o,
   });
 
   it("gives the edit the conversation so far, so 'like before' has something to point back to", async () => {
@@ -277,7 +277,7 @@ describe("after the draft: chat edits", () => {
   });
 
   it("leaves a shot alone when the person typed into it while the copilot was rewriting it (final review 1)", async () => {
-    const m = fakeModel({ script_edit: [{ ops: [op({ op: "update_shot", shotId: "s03", shot: { beat: "INTRO", lengthSeconds: 4, visual: "Model visual.", vo: "Model line.", onScreenText: "Card", onScreen: ["meenakshi"] } })], reply: "Rewrote S3." }] });
+    const m = fakeModel({ script_edit: [{ ops: [op({ op: "update_shot", shotId: "s03", shot: { beat: "INTRO", lengthSeconds: 4, visual: "Model visual.", vo: "Model line.", onScreenText: "Card", onScreen: ["meenakshi"], products: [], location: "" } })], reply: "Rewrote S3." }] });
     const typed = { ...doc, shots: doc.shots.map((s) => (s.id === "s03" ? { ...s, visual: "Typed by the person." } : s)) };
     const out = ok(await run(written, "rewrite S3", deps(m.call), { ...written, doc: typed, docVersion: 6 }));
     expect(out.patch).toBeNull();
@@ -302,7 +302,7 @@ describe("acceptProposal", () => {
   const written = script({ doc, brief: { ...EMPTY_BRIEF, phase: "written" } });
   const card: ProposalCard = {
     kind: "proposal", status: "pending", summary: "Redid the hook.", before: [], after: [],
-    ops: [{ op: "remove_shot", path: null, value: null, shotId: "s02", afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null }],
+    ops: [{ op: "remove_shot", path: null, value: null, shotId: "s02", afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null, product: null, location: null }],
   };
   const gen = { newShotId: () => "x", avatarIds: new Set<string>() };
 
@@ -324,8 +324,8 @@ describe("acceptProposal", () => {
     const rewrite: ProposalCard = {
       ...card,
       before: [doc.shots[3]],
-      ops: [{ op: "update_shot", path: null, value: null, shotId: "s04", afterShotId: null, list: null, cast: null, itemId: null, second: null,
-        shot: { beat: "INTRO", lengthSeconds: 4, visual: "Proposed.", vo: "Proposed line.", onScreenText: "", onScreen: [] } }],
+      ops: [{ op: "update_shot", path: null, value: null, shotId: "s04", afterShotId: null, list: null, cast: null, itemId: null, product: null, location: null, second: null,
+        shot: { beat: "INTRO", lengthSeconds: 4, visual: "Proposed.", vo: "Proposed line.", onScreenText: "", onScreen: [], products: [], location: "" } }],
     };
     const typed = { ...written, doc: { ...doc, shots: doc.shots.map((s) => (s.id === "s04" ? { ...s, vo: "Pasted by the person." } : s)) } };
     const out = ok(acceptProposal(typed, rewrite, gen));

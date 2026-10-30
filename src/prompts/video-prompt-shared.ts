@@ -35,6 +35,19 @@ equally as "the camera rose" or "the subject rose" — say the camera rises, and
 rise to the subject. The subject stays in physical contact with the surface it rests on and
 does not rise, float, or lift off it.`;
 
+/**
+ * D441 — preservation that points at the picture instead of describing the product. Asking the
+ * writer to "restate the product's shape, its label text, logo, lettering, colours" put an
+ * inventory of the pack in front of the video model, which then drew the words rather than the
+ * reference ("the yellow pouch" came back the wrong yellow, the label as mush). Shared by the spine
+ * and Seedance's record, which has its own composition but the same preservation rule.
+ */
+export const REFERENCE_PRESERVATION = `the frame and any reference carry what things look like.
+   Name the product and pin it in a few words ("the jar exactly as in its reference"); never
+   describe its colour, shape, label text, lettering or logo, which competes with the picture.
+   Keep props where they are and the light as it is: no deformation, no added objects, no changed
+   quantities.`;
+
 // Provider-neutral core — no vendor name here; each variant names its own model in the header.
 export const SPINE = `A still image (the first frame) is provided. Describe how that frame should come to
 life over roughly 8 seconds.
@@ -54,20 +67,15 @@ STRUCTURE (image-to-video)
 2. Action — what physically moves (secondary motion: steam drifts, fabric sways, light shifts,
    liquid pours). Keep it grounded in what is already visible in the frame. Describe ONE focused
    moment — do not chain several distinct events ("A, then B, then C") in a single short clip.
-3. Preservation — restate the fixed, preservation-critical identity that must not change: the
-   product's shape, its label text, logo, lettering, colours, the positions of props, and the
-   lighting. Instruct that these be held exactly (no deformation, no drifting text, no changed
-   quantities).
+3. Preservation — ${REFERENCE_PRESERVATION}
 
 Do not invent new objects, people, settings, or styles that are not in the frame, and do not pad
-with generic scene description — but DO restate the preservation-critical identity above so the
-model holds it.
+with generic scene description.
 
 MULTI-IMAGE REFERENCES
 When the instruction references "the first image", "the second image" etc., each refers to a
 distinct visual input. Describe camera movement and secondary motion that serves the composition of
-all referenced frames — do not re-describe their visual content beyond the preservation-critical
-identity.
+all referenced frames — do not re-describe their visual content.
 
 If motion controls are provided, honor them exactly.`;
 

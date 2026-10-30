@@ -28,6 +28,8 @@ import {
   pathForAvatarImage,
   pathForAvatarGenerated,
   pathForScriptPanel,
+  pathForScriptAsset,
+  pathForScriptHouseStyle,
   pathForAvatarVoicePreview,
   pathForAvatarVoiceSample,
   pathForAvatarNamedVoiceSample,
@@ -547,6 +549,40 @@ export async function uploadEditorRender(path: string, bytes: Uint8Array, fileNa
     contentDisposition: `attachment; filename="${fileName}"`,
   });
   return { path, url: publicUrlFor(path) };
+}
+
+/** D446 — a signed URL for a product image or location plate the browser uploads itself. */
+export async function signScriptAssetUpload(args: {
+  clientId: string;
+  scriptId: string;
+  kind: "products" | "locations";
+  ext: string;
+  contentType: string;
+}): Promise<SignedUploadResult> {
+  return _sign(pathForScriptAsset(args), args.contentType);
+}
+
+/** D448 — a generated location plate, stored beside the script's other images. */
+export async function uploadScriptAsset(args: {
+  clientId: string;
+  scriptId: string;
+  kind: "products" | "locations";
+  ext: string;
+  body: Buffer | ArrayBuffer | Uint8Array;
+  contentType: string;
+}): Promise<UploadResult> {
+  return _upload(pathForScriptAsset(args), args.body, args.contentType);
+}
+
+/** D454 — the house style picture as a stored file, so a storyboard Composite sends a URL, never
+ *  its bytes in a task payload. */
+export async function uploadScriptHouseStyle(args: {
+  clientId: string;
+  scriptId: string;
+  styleId: string;
+  body: Buffer;
+}): Promise<UploadResult> {
+  return _upload(pathForScriptHouseStyle(args), args.body, "image/jpeg");
 }
 
 export async function uploadScriptPanel(args: {

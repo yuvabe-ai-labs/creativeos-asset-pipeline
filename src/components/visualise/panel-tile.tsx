@@ -8,6 +8,9 @@ import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
 import { waitingMessage, type PanelView } from "@/lib/scripts/visualise/state";
 import { PanelFrame } from "./panel-frame";
 import { PanelHoverLine } from "./panel-hover-line";
+import { RedrawPopover } from "@/components/shared/redraw-popover";
+import { PANEL_REDRAW_SUGGESTIONS } from "@/lib/scripts/visualise/constants";
+import type { DrawBody } from "@/lib/scripts/visualise/schema";
 
 type Props = {
   /** "S6" */
@@ -20,6 +23,8 @@ type Props = {
   aspect: string;
   credits: number | null;
   onDraw: () => void;
+  /** D449 — Redraw on a panel that has a take: change it by a note, or draw anew. */
+  onRedraw?: (body: DrawBody) => void;
   onOpen: () => void;
   /** Spec 4 merge point: a comment marker on the panel. */
   marker?: ReactNode;
@@ -44,7 +49,7 @@ function Hint({ text, children, className }: { text: string | null; children: Re
 // same three rows whatever its state, so the grid lines up (testing): the frame, the caption, one
 // button. Out of date and Failed sit on the frame as badges; why, and who an avatar is waited
 // for, are tooltips. An out-of-date panel stays visible and is never redrawn on its own.
-export function PanelTile({ label, time, description, view, aspect, credits, onDraw, onOpen, marker }: Props) {
+export function PanelTile({ label, time, description, view, aspect, credits, onDraw, onRedraw, onOpen, marker }: Props) {
   const busy = view.status === "generating";
   const action = busy ? "Drawing…" : view.pick ? "Regenerate" : view.failure ? "Generate again" : "Generate";
   const badge = view.status === "out_of_date"
@@ -70,10 +75,22 @@ export function PanelTile({ label, time, description, view, aspect, credits, onD
         <span className="tabular-nums">{time}</span>
       </figcaption>
       <Hint text={view.canGenerate ? null : waitingMessage(view.waitingFor)} className="block w-full">
-        <Button size="sm" className="w-full" variant={view.pick ? "outline" : "default"} disabled={!view.canGenerate || busy || credits === null} onClick={onDraw}>
-          {action}
-          <AvatarCreditCost credits={credits} />
-        </Button>
+        {view.pick && onRedraw && !busy ? (
+          <RedrawPopover
+            suggestions={PANEL_REDRAW_SUGGESTIONS}
+            credits={credits}
+            canChange={Boolean(view.pick.url)}
+            disabled={!view.canGenerate || credits === null}
+            className="w-full"
+            onChange={(note) => onRedraw({ kind: "change", note })}
+            onFresh={(note) => onRedraw({ kind: "fresh", note })}
+          />
+        ) : (
+          <Button size="sm" className="w-full" variant={view.pick ? "outline" : "default"} disabled={!view.canGenerate || busy || credits === null} onClick={onDraw}>
+            {action}
+            <AvatarCreditCost credits={credits} />
+          </Button>
+        )}
       </Hint>
       {marker}
     </figure>

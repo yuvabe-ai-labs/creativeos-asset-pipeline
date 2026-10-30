@@ -4,6 +4,7 @@ import {
   buildParseContext,
   normalizeSlices,
   DEFAULT_PARSE_SLICES,
+  DEFAULT_MULTISHOT_PROMPT_SLICES,
 } from "./parse-context";
 
 // Minimal KBField factory — buildParseContext only reads `.value`.
@@ -97,5 +98,15 @@ describe("buildParseContext", () => {
       },
     } as unknown as TraceableBrandKB;
     expect(buildParseContext(emptyKb, DEFAULT_PARSE_SLICES)).toBe("");
+  });
+});
+
+// D444 — the multishot writer's default brand context carries no visual slices: their lighting,
+// environment and surfaces leaked into the product and the set of every shot.
+describe("DEFAULT_MULTISHOT_PROMPT_SLICES", () => {
+  it("is voice, casting and compliance only", () => {
+    expect(DEFAULT_MULTISHOT_PROMPT_SLICES).toEqual(["casting", "personality", "tone_of_voice", "compliance"]);
+    expect(DEFAULT_MULTISHOT_PROMPT_SLICES).not.toContain("visual_identity");
+    expect(DEFAULT_MULTISHOT_PROMPT_SLICES).not.toContain("image_direction");
   });
 });
