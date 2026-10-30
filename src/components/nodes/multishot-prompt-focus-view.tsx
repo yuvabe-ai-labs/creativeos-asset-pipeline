@@ -8,8 +8,7 @@ import {
   Palette,
   BadgeCheck,
   ExternalLink,
-  Sun,
-  RefreshCw,
+  ListChecks,
   ChevronDown,
   TriangleAlert,
   Compass,
@@ -96,7 +95,7 @@ type MultishotPromptFocusViewProps = {
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
-const SHOW_PER_BEAT_REGENERATE = true; // the look and per-beat rewrite + refine buttons
+const SHOW_PER_BEAT_REGENERATE = true; // the per-beat rewrite + refine buttons
 
 // The Multishot Prompt node's focus view (D231, §8). Wraps PromptFocusShell — the sheet frame,
 // connected-inputs rail, version chips, approval controls and the live-update wiring are all the
@@ -161,10 +160,11 @@ export function MultishotPromptFocusView({
     nodeModel: targetModel,
     planModel: planDraft ? planDraft.targetModel : null,
   });
-  // The look accordion, CLOSED by default (operator request 2026-09-08). The ladder is the
-  // working surface and should own the column on arrival; the look is written once and then
-  // mostly left alone. Collapsed it still shows a one-line preview, so it is summarised rather
-  // than hidden — which is what makes closing it safe for a block that governs every beat.
+  // The rules accordion (the plan's `look`, D442), CLOSED by default (operator request
+  // 2026-09-08). The ladder is the working surface and should own the column on arrival; the rules
+  // are written once and then mostly left alone. Collapsed it still shows a one-line preview, so it
+  // is summarised rather than hidden, which is what makes closing it safe for text sent with every
+  // shot.
   const [lookOpen, setLookOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -203,7 +203,7 @@ export function MultishotPromptFocusView({
   const [evalSaving, setEvalSaving] = useState(false);
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const isReadOnly = !editable;
-  // What `@` offers inside a refine note: the look block, then every shot by position. Derived
+  // What `@` offers inside a refine note: every shot by position. Derived
   // from the CUTS rather than the plan's beats — the ladder is what the operator sees, and it
   // exists before a plan does.
   const planMentions = useMemo(() => planMentionables(cuts), [cuts]);
@@ -236,7 +236,7 @@ export function MultishotPromptFocusView({
     : null;
 
   // The attached images in `<IMAGE_REF_N>` order — shared by every chip editor on this node
-  // (sequence steer, per-cut instructions, the look block, every beat) so a reference binds to
+  // (sequence steer, per-cut instructions, the rules, every beat) so a reference binds to
   // the same picture wherever it is mentioned.
   const promptRefImages = visionAttachmentsOf(mentionUpstream).map((u) => ({
     id: u.id,
@@ -471,7 +471,7 @@ export function MultishotPromptFocusView({
   // Shared POST helper for every call to this node's runAction — a full generate, or a scoped
   // refine. One fetch/parse path so the callers below cannot drift on error handling.
   async function postMultishotPrompt(extra?: {
-    scope?: "look" | "cut";
+    scope?: "cut";
     cutId?: string;
     note?: string;
     plan?: MultishotPlan;
@@ -494,7 +494,7 @@ export function MultishotPromptFocusView({
   }
 
   /**
-   * A scoped rewrite: the look, one beat, or the whole plan, optionally steered by a note.
+   * A scoped rewrite: one beat or the whole plan, optionally steered by a note.
    *
    * The response is ALREADY the merged whole — the route merges the model's narrow fragment into
    * the plan we sent before it validates or records anything. So this assigns it wholesale and
@@ -530,7 +530,7 @@ export function MultishotPromptFocusView({
       setActiveVersionId(json.versionId ?? null);
       await fetchVersions();
       toast.success(
-        scope === "look" ? "Look rewritten" : scope === "cut" ? "Shot rewritten" : "Multishot prompt generated",
+        scope === "cut" ? "Shot rewritten" : "Multishot prompt generated",
       );
     } catch (e) {
       const message = e instanceof Error ? e.message : "Rewrite failed";
@@ -660,7 +660,7 @@ export function MultishotPromptFocusView({
       <div className="flex flex-col gap-3">
         {plan.look.trim() && (
           <div className="rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
-            <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
+            <span className="text-eyebrow text-primary">Rules for every shot</span>
             <MentionInstructionEditor value={plan.look} onChange={() => {}} upstream={mentionUpstream} dialect={beatDialect} disabled />
           </div>
         )}
@@ -775,7 +775,7 @@ export function MultishotPromptFocusView({
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       Generate a multishot prompt first — this shows the exact compiled string,
-                      look block and ladder together, as it ships.
+                      rules and ladder together, as it ships.
                     </p>
                   )}
                 </div>
@@ -917,8 +917,8 @@ export function MultishotPromptFocusView({
                     />
                   </div>
 
-                  {/* OUTPUT. The look block first — a distinct card, never numbered, because it
-                      governs every beat below and rendering it as "beat 0" would say a global
+                  {/* OUTPUT. The rules first — a distinct card, never numbered, because they
+                      govern every beat below and rendering them as "beat 0" would say a global
                       constraint was local to shot 1 — then every beat as a row in one container.
                       `min-w-0` is load-bearing on a flex-1 column: without it the column cannot
                       shrink below its content's intrinsic width, the row overflows, and the
@@ -1024,11 +1024,11 @@ export function MultishotPromptFocusView({
                           </div>
                         )}
 
-                        {/* Collapsible, closed by default (operator request 2026-09-08). The look
-                            governs every beat, but it is written once and then mostly left alone
-                            while the ladder below is the working surface — so the ladder gets the
-                            column on arrival. The collapsed header carries a one-line preview, so
-                            the look is summarised rather than hidden. */}
+                        {/* D442 — "Rules for every shot": the operator's own text, sent above the
+                            ladder as written. Once the writer's look & atmosphere block; the AI no
+                            longer writes or rewrites it, so there is no refine here. Collapsible,
+                            closed by default (operator request 2026-09-08), with a one-line
+                            preview so the rules are summarised rather than hidden. */}
                         <div className="shrink-0 rounded-xl border-2 border-primary/20 bg-primary/[0.03] p-3">
                           <div className="flex items-center gap-2">
                             <Button
@@ -1044,49 +1044,18 @@ export function MultishotPromptFocusView({
                                 )}
                                 strokeWidth={1.5}
                               />
-                              <Sun className="size-3.5 text-primary" strokeWidth={1.5} />
-                              <span className="text-eyebrow text-primary">Look &amp; atmosphere</span>
+                              <ListChecks className="size-3.5 text-primary" strokeWidth={1.5} />
+                              <span className="text-eyebrow text-primary">Rules for every shot</span>
                             </Button>
-                            {/* D262 — an empty look is deliberate (the script states none), so it
-                                says so rather than showing a blank that reads as a failed write. */}
                             {!lookOpen && (
                               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                                {planDraft.look.trim() || "Not stated in the script — nothing is added"}
+                                {planDraft.look.trim() || "None yet. Add rules every shot must follow."}
                               </span>
-                            )}
-                            {SHOW_PER_BEAT_REGENERATE && (
-                              <div className="ml-auto flex items-center gap-0.5">
-                                <RefineWithAI
-                                  scope="look"
-                                  busy={refining?.scope === "look"}
-                                  disabled={isReadOnly || !!refining || dirty || !connected}
-                                  onSubmit={(note) => runRefine("look", { note })}
-                                  mentionables={planMentions}
-                                  label="Refine the look with AI"
-                                />
-                                <Button
-                                  variant="ghost"
-                                  onClick={() => runRefine("look")}
-                                  disabled={!!refining || isReadOnly || dirty || !connected}
-                                  aria-label="Rewrite the look"
-                                  className="h-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
-                                >
-                                  <RefreshCw
-                                    className={cn("size-3.5", refining?.scope === "look" && "animate-spin")}
-                                    strokeWidth={1.5}
-                                  />
-                                </Button>
-                              </div>
                             )}
                           </div>
                           {lookOpen && (
                             <>
-                          {refining?.scope === "look" && (
-                            <div className="mt-2">
-                              <RefineProgress label="Rewriting the look…" hint="beats untouched" />
-                            </div>
-                          )}
-                          {/* Locked for the duration of ANY refine, not just a look-scoped one — a
+                          {/* Locked for the duration of ANY refine — a
                               keystroke here during a beat or whole-plan refine still gets persisted
                               to planDraft, and then silently discarded the instant the refine
                               resolves and overwrites the whole plan with the snapshot it captured
@@ -1097,9 +1066,11 @@ export function MultishotPromptFocusView({
                             upstream={mentionUpstream}
                             dialect={beatDialect}
                             disabled={isReadOnly || !!refining}
+                            placeholder="For example: the phone always stays in his left hand."
                           />
                           <p className="mt-2 text-[0.65rem] text-muted-foreground">
-                            Governs every beat below.
+                            Sent above every shot exactly as written. The AI follows these and never
+                            changes them.
                           </p>
                             </>
                           )}
