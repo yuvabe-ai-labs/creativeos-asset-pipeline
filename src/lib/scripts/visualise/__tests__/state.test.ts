@@ -116,7 +116,7 @@ describe("out of date (D344, spec §3.6)", () => {
       { ...after.shots[s07], lengthSeconds: 3, visual: "Top-down on the bowl. She levels one tablespoon." },
       { ...after.shots[s07], id: "s07b", lengthSeconds: 3, visual: "She levels the second and stirs." });
     after.shots = after.shots.filter((s) => s.id !== "s14");
-    after.shots.push({ id: "s15", beat: "OUTRO", lengthSeconds: 4, visual: "The brass lamp, lit.", vo: "", onScreenText: "", onScreen: [] });
+    after.shots.push({ id: "s15", beat: "OUTRO", lengthSeconds: 4, visual: "The brass lamp, lit.", vo: "", onScreenText: "", onScreen: [], products: [], location: null });
 
     const views = viewsFor(after, avatars, takes, picks);
     expect(views.get("s03")).toMatchObject({ status: "out_of_date", staleBecause: ["shot"] });

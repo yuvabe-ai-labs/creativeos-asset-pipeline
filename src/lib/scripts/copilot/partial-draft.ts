@@ -135,6 +135,11 @@ export function previewDoc(p: PartialDraft): ScriptDoc {
       vo: s.vo,
       onScreenText: s.onScreenText,
       onScreen: s.onScreen.map((r) => byRef.get(r.trim().toLowerCase())).filter((x): x is string => !!x),
+      // D446 — the streaming preview shows no picks; the finished draft resolves them (draft.ts).
+      products: [],
+      location: null,
     })),
+    products: [],
+    locations: [],
   };
 }

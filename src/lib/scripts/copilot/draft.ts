@@ -56,6 +56,8 @@ export function toShot(id: string, f: ShotFields, resolve: (ref: string) => stri
     vo: cut(f.vo, 1000),
     onScreenText: cut(f.onScreenText, 500),
     onScreen,
+    products: [],
+    location: null,
   };
 }
 
