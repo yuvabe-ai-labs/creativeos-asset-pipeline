@@ -328,6 +328,16 @@ export function extForContentType(contentType: string): string {
 
 /** D338 — a storyboard panel take, under its script, one folder per shot. A shot id is the
  *  script's own text, so it is slugged before it becomes a folder. */
+/** D446 — where a script keeps its own product images and location plates. */
+export function scriptAssetsPrefix(clientId: string, scriptId: string): string {
+  return `clients/${clientId}/scripts/${scriptId}/assets/`;
+}
+
+export function pathForScriptAsset(args: { clientId: string; scriptId: string; kind: "products" | "locations"; ext: string }): string {
+  const name = buildStoredName(undefined, { slug: args.kind === "products" ? "product" : "location", ext: args.ext });
+  return `${scriptAssetsPrefix(args.clientId, args.scriptId)}${args.kind}/${name}`;
+}
+
 export function pathForScriptPanel(args: { clientId: string; scriptId: string; shotId: string; ext: string }): string {
   const shot = sanitizeSlug(args.shotId).replace(/^[.-]+/, "") || "shot";
   const name = buildStoredName(undefined, { slug: "panel", ext: args.ext });

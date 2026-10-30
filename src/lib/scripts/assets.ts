@@ -1,4 +1,6 @@
+import { z } from "zod";
 import {
+  scriptImageSchema,
   scriptDocSchema,
   MAX_LOCATIONS,
   MAX_PRODUCT_IMAGES,
@@ -23,6 +25,34 @@ export type AssetOp =
   | { op: "remove_location"; locationId: string }
   | { op: "set_location_image"; locationId: string; image: ScriptImage | null }
   | { op: "set_shot_assets"; shotId: string; products: string[]; location: string | null };
+
+/** The same ops as a request body (the script page posts one at a time). */
+export const assetOpSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("add_product"), name: z.string() }),
+  z.object({ op: z.literal("rename_product"), productId: z.string(), name: z.string() }),
+  z.object({ op: z.literal("remove_product"), productId: z.string() }),
+  z.object({ op: z.literal("set_product_images"), productId: z.string(), images: z.array(scriptImageSchema) }),
+  z.object({ op: z.literal("add_location"), name: z.string(), description: z.string() }),
+  z.object({ op: z.literal("update_location"), locationId: z.string(), name: z.string(), description: z.string() }),
+  z.object({ op: z.literal("remove_location"), locationId: z.string() }),
+  z.object({ op: z.literal("set_location_image"), locationId: z.string(), image: scriptImageSchema.nullable() }),
+  z.object({ op: z.literal("set_shot_assets"), shotId: z.string(), products: z.array(z.string()), location: z.string().nullable() }),
+]) satisfies z.ZodType<AssetOp>;
+
+/** Every image URL an op would put in the doc. */
+export function opImageUrls(op: AssetOp): string[] {
+  if (op.op === "set_product_images") return op.images.map((i) => i.url);
+  if (op.op === "set_location_image" && op.image) return [op.image.url];
+  return [];
+}
+
+/** Every image URL the doc already holds. */
+export function docImageUrls(doc: ScriptDoc): Set<string> {
+  return new Set([
+    ...doc.products.flatMap((p) => p.images.map((i) => i.url)),
+    ...doc.locations.flatMap((l) => (l.image ? [l.image.url] : [])),
+  ]);
+}
 
 export type AssetOpResult =
   | { ok: true; doc: ScriptDoc; touchedShotIds: string[] }

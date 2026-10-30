@@ -13,6 +13,11 @@ export const SCRIPT_STAGE_LABEL: Record<ScriptStage, string> = {
 /** The gallery's Scripts tab drags `{ scriptId }` under this type (mirrors AVATAR_DRAG_MIME). */
 export const SCRIPT_DRAG_MIME = "application/x-creativeos-script";
 
+// D446 — a product image or location plate: a photo, never svg (the avatar image rule).
+export const SCRIPT_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
+export const SCRIPT_IMAGE_MAX_BYTES = 15 * 1024 * 1024;
+export const SCRIPT_IMAGE_MAX_LABEL = "15 MB";
+
 export function isScriptStage(value: unknown): value is ScriptStage {
   return typeof value === "string" && (SCRIPT_STAGES as readonly string[]).includes(value);
 }
