@@ -50,8 +50,9 @@ suggestions: two or three short replies (under 60 characters each) the person mi
  *  drawn from, so it is written as a place someone could build. */
 const assetNaming = `Products and locations:
 - A product is one of the client's own products that the reel shows on screen. Never the brand on its own, never a competitor's product, and never an ordinary prop (a cup, a phone, or a plain item the script compares the product with).
+- A shot picks a product whenever the product is in it in any form: the pack on screen, the product itself being used (poured, mixed in, applied, worn or held), or its voiceover naming it. A shot that uses the product without showing the pack still picks it.
 - Name a product the way the client sells it: the brand, then what it is, then the variant when the script or the brand KB gives one (for example "Brandname V-Strap slippers", "Brandname green tea pouch"). Use the KB's own product names where they fit.
-- Name a location as the place, in two to four words with a capital first letter (for example "Tree-lined street", "Corner café", "Podcast studio desk"). Its description is the place in physical words: the kind of space, its surfaces, furniture, light and time of day, from the script and its setting. Where the script says little, describe a likely place that fits the reel's setting and region, in one or two sentences. Never put a person, a product or an action in it.
+- Name a location as the place, in two to four words with a capital first letter (for example "Tree-lined street", "Corner café", "Podcast studio desk"). Its description is the place in physical words: the kind of space, its surfaces, fixed furniture and fittings, light and time of day, from the script and its setting. Where the script says little, describe a likely place that fits the reel's setting and region, in one or two sentences. Never put a person, a product or an action in it, and never the shots' props (food, dishes, devices, bags): the shots bring those.
 - Shots in the same place share one location; a different place is a new one.`;
 
 /** Shared by the card and the draft: the house spec's shorthand (D1, D2…) means nothing to the
@@ -79,7 +80,7 @@ context: purpose (what the reel is for); settingAndCamera (the setting and what 
 cast: for each person a short key, the name, and a description in words (age, place, clothing, identity markers, voice). For a client avatar reuse its story and add this reel's styling, and give its avatarId; else null. Exactly one lead.
 products: each product the reel shows on screen, as a short key and the name the client uses for it (an empty list when it shows none).
 locations: each distinct place the shots happen in, as a short key, a name and a description of the place in words (the space, its surfaces, furniture and light); one per set, an empty list when the setting is never shown.
-shots, in order: beat label, lengthSeconds, visual, vo, onScreenText, onScreen as the cast keys of who is on screen (empty for B-roll), products as the product keys it shows (empty when none), and location as the key of where it happens ("" when it is no particular place).
+shots, in order: beat label, lengthSeconds, visual, vo, onScreenText, onScreen as the cast keys of who is on screen (empty for B-roll), products as the keys of the products it shows, uses or names in its visual or its vo (empty when none), and location as the key of where it happens ("" when it is no particular place).
 You never add pictures: the person adds every product's and location's images.
 ${assetNaming}
 Follow the beats on the confirmed card, in order, using the client's examples for layout and voice. A topic beat is labelled for this reel's topic.
@@ -123,7 +124,7 @@ const importScript = `The person pasted a whole reel script. Turn it into this a
 - One shot per row or scene of the paste, in order. The number of shots equals the number of rows or scenes.
 - beat and lengthSeconds come from the paste: "HOOK 0-4s" is beat "HOOK" and lengthSeconds 4; "0:04-0:09" is 5. When the paste gives a shot no timing, lengthSeconds is 0; the app estimates it. When the paste has no beat labels at all, label each shot yourself (HOOK, INTRO, …) and set guessed.beats.
 - cast: every person the paste names, with their description as written, and exactly one lead (the one the paste calls the lead, else the one on screen most). onScreen lists the keys of who is on screen in the shot. When nobody is named, return one person named "Narrator" as the lead and set guessed.lead.
-- products: each of the client's products the paste shows on screen, with a short key. locations: each distinct place the shots happen in, with a short key, a name and a description built from the paste's words. Name and describe both as below; this is the one place the import writes words the paste does not, so the paste's own fields stay exactly as written. In each shot, products lists the keys of the products it shows and location the key of where it happens ("" when none). Empty lists when the paste shows none.
+- products: each of the client's products the paste shows on screen, with a short key. locations: each distinct place the shots happen in, with a short key, a name and a description built from the paste's words. Name and describe both as below; this is the one place the import writes words the paste does not, so the paste's own fields stay exactly as written. In each shot, products lists the keys of the products it shows, uses or names in its visual or its vo, and location the key of where it happens ("" when none). Empty lists when the paste shows none.
 ${assetNaming}
 - Square-bracket placeholders stay exactly as written.
 - Anything with no place in these fields (a music cue, a props list, a director's note, a link, a disclaimer this reel does not use) goes into kept, word for word: name says in two or three words what it is ("music cue"), text is the piece as written.
@@ -137,7 +138,9 @@ export const scriptCopilotPrompt = {
   // 5 (D447): products and locations in the draft, the import and the edit ops.
   // 6 (D447): one naming rule for them: the client's own products only, named as sold; places named
   //    and described as places.
-  version: 6,
+  // 7 (D457): a location's description is the place without the shots' props.
+  // 8 (D458): a shot picks a product it uses or its voiceover names, not only one whose pack shows.
+  version: 8,
   rules,
   tasks: { extract, angles, card, draft, edit, inline, detect, import: importScript },
 } as const;

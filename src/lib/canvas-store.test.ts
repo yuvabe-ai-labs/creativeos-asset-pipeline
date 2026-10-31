@@ -1334,6 +1334,48 @@ describe("fanOutShots with script products and locations (D450)", () => {
     expect(into(product[0].id)).toHaveLength(1);
   });
 
+  // D460 — no gap filling in seconds later: the plate shows at once, then the server fills it in.
+  it("shows the plate's Composite at once, wired and showing its picture, before the server answers", () => {
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sa", "canvas-1");
+    const plate = store.getState().nodes.find((n) => n.type === "composite")!;
+    expect(plate.data).toMatchObject({ title: "Home kitchen", parsed: "https://x/k.png", scriptAsset: { kind: "location", id: "kitchen" } });
+    expect(store.getState().edges.some((e) => e.source === plate.id && e.targetHandle === "image")).toBe(true);
+  });
+
+  it("takes a plate off the canvas when the server cannot record it", async () => {
+    vi.mocked(createScriptComposites).mockResolvedValueOnce([]);
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sa", "canvas-1");
+    const plate = store.getState().nodes.find((n) => n.type === "composite")!;
+    await settle();
+    expect(store.getState().nodes.some((n) => n.id === plate.id)).toBe(false);
+    expect(store.getState().edges.some((e) => e.source === plate.id)).toBe(false);
+    expect(store.getState().removedNodeIds).toContain(plate.id);
+  });
+
+  it("takes every pending picture off, and says so, when the server fails", async () => {
+    vi.mocked(createScriptComposites).mockRejectedValueOnce(new Error("Couldn't add the script's pictures."));
+    const store = createCanvasStore([scriptNode()], []);
+    store.getState().fanOutShots("sa", "canvas-1");
+    await settle();
+    expect(store.getState().nodes.filter((n) => n.type === "composite")).toEqual([]);
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Couldn't add the script's pictures.");
+  });
+
+  // D460 — the products and places sat on the Script card and spilled into the clips.
+  it("places the assets in a column left of the script, under its presenter avatar", () => {
+    const avatar = { id: "av", type: "avatar", position: { x: -320, y: 0 }, measured: { width: 280, height: 500 }, data: { avatarId: "a1" } } as AppNode;
+    const store = createCanvasStore([scriptNode(), avatar], [{ id: "e-av", source: "av", target: "sa" }]);
+    store.getState().fanOutShots("sa", "canvas-1");
+    const { nodes, fanOutLayout } = store.getState();
+    const product = nodes.find((n) => n.type === "product")!;
+    expect(product.position.x + 340).toBeLessThanOrEqual(-40);
+    expect(product.position.y).toBeGreaterThanOrEqual(500);
+    expect(fanOutLayout?.column).toMatchObject({ right: -40, top: 540 });
+    expect(fanOutLayout?.column?.ids).toEqual(expect.arrayContaining([product.id]));
+  });
+
   it("wires a second Fan out into the nodes already there", async () => {
     const store = createCanvasStore([scriptNode()], []);
     store.getState().fanOutShots("sa", "canvas-1");

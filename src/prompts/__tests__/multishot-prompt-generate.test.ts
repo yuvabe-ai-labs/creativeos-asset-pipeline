@@ -460,13 +460,34 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
     expect(system).toMatch(/an item the direction removes or changes is written as directed/);
   });
 
+  // D457 — Reel 07: a review card and a claim card were rendered as real cards with garbled text; the
+  // phone buzz and the tote were lost under lists of counter props; the plate's props rode every clip.
+  it.each(writers)("%s: graphics come after generation, the action leads, a background gives its place", (_, system) => {
+    expect(system).toMatch(/GRAPHICS ARE ADDED AFTER GENERATION/);
+    expect(system).toMatch(/no space held for it in the frame/);
+    expect(system).toMatch(/THE ACTION COMES FIRST/);
+    expect(system).toMatch(/at most\s+two props/);
+    expect(system).toMatch(/Loose things lying in the picture/);
+    expect(system).not.toMatch(/uncluttered space where the mark will sit/);
+  });
+
+  // D458 — Reel 07: apple became jackfruit, an unlabelled tub got a brand, and one camera note
+  // ("Handheld, top-down on the bowl") opened every beat.
+  it.each(writers)("%s: props keep their names, and the camera is set shot by shot, steady by default", (_, system) => {
+    expect(system).toMatch(/PROPS KEEP THEIR NAMES/);
+    expect(system).toMatch(/never turn the product's name into an\s+ingredient or a prop/);
+    expect(system).toMatch(/"plain, no label"/);
+    expect(system).toMatch(/THE CAMERA IS SET SHOT BY SHOT/);
+    expect(system).toMatch(/write handheld only when the shot text or the direction asks for it/);
+  });
+
   it.each(writers)("%s: still forbids writing the reference numbers into beats", (_, system) => {
     expect(system).toMatch(/"reference image 2"/);
   });
 
   it("bumps every prompt id", () => {
-    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@14");
-    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@11");
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@10");
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@16");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@13");
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@12");
   });
 });

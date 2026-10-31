@@ -44,7 +44,7 @@ describe("the script copilot's shared instructions", () => {
   });
 
   it("is version 6", () => {
-    expect(scriptCopilotPrompt.version).toBe(6);
+    expect(scriptCopilotPrompt.version).toBe(8);
   });
 
   it("commit each angle to a product moment and proof, with a review theme only where reviews fit", () => {
@@ -64,6 +64,16 @@ describe("the script copilot's shared instructions", () => {
     for (const task of ["extract", "angles", "card", "draft", "edit"] as const) {
       expect(scriptCopilotPrompt.tasks[task]).toContain("suggestions:");
     }
+  });
+});
+
+// D458 — Reel 07's S4 stirred the flour in with no product picked: only shots showing the pack got it.
+describe("the script copilot's product picks (D458)", () => {
+  it("picks a product a shot uses or names, not only one whose pack shows", () => {
+    for (const task of [scriptCopilotPrompt.tasks.draft, scriptCopilotPrompt.tasks.import]) {
+      expect(task).toMatch(/products it shows, uses or names in its visual or its vo/);
+    }
+    expect(scriptCopilotPrompt.rules + scriptCopilotPrompt.tasks.draft).toMatch(/A shot that uses the product without showing the pack still picks it/);
   });
 });
 

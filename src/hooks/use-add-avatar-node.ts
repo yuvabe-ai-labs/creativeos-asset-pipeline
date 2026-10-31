@@ -3,10 +3,7 @@
 import { useCallback } from "react";
 import type { XYPosition } from "@xyflow/react";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
-import { presenterAvatarId } from "@/lib/avatars/canvas";
-
-/** How far left of its script a presenter is placed: a Script card's width plus a gap. */
-const PRESENTER_OFFSET_X = 240;
+import { PRESENTER_OFFSET_X, presenterAvatarId } from "@/lib/avatars/canvas";
 
 // D298 — the one way an Avatar node is added: from the gallery's tile, a drop on the canvas, or a
 // drop on a Script. With `presenterOf`, it is placed beside that script and connected to it; the

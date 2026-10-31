@@ -1,7 +1,7 @@
 import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
-import { getCanvasNode, insertNodesWithFirstVersions } from "@/lib/db/canvas-graph";
+import { getCanvasNode, insertNodesWithFirstVersions, NodeIdConflictError } from "@/lib/db/canvas-graph";
 import { getScript } from "@/lib/db/scripts";
 import { listPanelRecipes, listPlateRecipes } from "@/lib/db/script-panels";
 import { uploadScriptHouseStyle } from "@/lib/storage";
@@ -98,7 +98,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           }];
         }),
       ];
-      await insertNodesWithFirstVersions(canvasId, made, caller.userId);
+      try {
+        await insertNodesWithFirstVersions(canvasId, made, caller.userId);
+      } catch (e) {
+        if (e instanceof NodeIdConflictError) return apiError("Those pictures could not be added here. Run Fan out again.", 409);
+        throw e;
+      }
 
       return apiOk({
         nodes: made.map(({ node, version }) => ({ id: node.id, position: node.position, data: node.data, output: version.output })),

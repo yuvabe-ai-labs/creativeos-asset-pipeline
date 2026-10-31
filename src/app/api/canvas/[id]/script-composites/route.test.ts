@@ -9,12 +9,15 @@ vi.mock("@/lib/api/route-helpers", async () => {
   };
 });
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(async () => ({ userId: "u1" })) }));
-vi.mock("@/lib/db/canvas-graph", () => ({ getCanvasNode: vi.fn(), insertNodesWithFirstVersions: vi.fn() }));
+vi.mock("@/lib/db/canvas-graph", () => {
+  class NodeIdConflictError extends Error {}
+  return { getCanvasNode: vi.fn(), insertNodesWithFirstVersions: vi.fn(), NodeIdConflictError };
+});
 vi.mock("@/lib/db/scripts", () => ({ getScript: vi.fn() }));
 vi.mock("@/lib/db/script-panels", () => ({ listPanelRecipes: vi.fn(), listPlateRecipes: vi.fn(async () => []) }));
 vi.mock("@/lib/storage", () => ({ uploadScriptHouseStyle: vi.fn(async () => ({ path: "p", url: "https://cdn/house-style.jpg" })) }));
 
-import { getCanvasNode, insertNodesWithFirstVersions } from "@/lib/db/canvas-graph";
+import { getCanvasNode, insertNodesWithFirstVersions, NodeIdConflictError } from "@/lib/db/canvas-graph";
 import { getScript } from "@/lib/db/scripts";
 import { listPanelRecipes, listPlateRecipes } from "@/lib/db/script-panels";
 import { HOUSE_STYLE_REF } from "@/lib/scripts/visualise/house-style";
@@ -63,6 +66,14 @@ describe("POST /api/canvas/[id]/script-composites (D454)", () => {
       }),
     });
     expect((await res.json()).nodes).toEqual([{ id: NODE_ID, position: { x: 10, y: 20 }, data: entries[0].node.data, output: recipe.url }]);
+  });
+
+  // D460 — an id the browser sent that belongs to another canvas is refused, never overwritten.
+  it("refuses, plainly, ids that are another canvas's nodes", async () => {
+    vi.mocked(insertNodesWithFirstVersions).mockRejectedValueOnce(new NodeIdConflictError("x"));
+    const res = await post(body);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Those pictures could not be added here. Run Fan out again.");
   });
 
   it("refuses a script that is not this canvas's client's", async () => {

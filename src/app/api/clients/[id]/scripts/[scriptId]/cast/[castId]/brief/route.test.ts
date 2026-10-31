@@ -9,12 +9,14 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/scripts", () => ({ getScript: vi.fn() }));
 vi.mock("@/lib/avatars/brief", () => ({ briefFront: vi.fn() }));
+vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn() }));
 
 import { resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
 import { briefFront } from "@/lib/avatars/brief";
+import { getActiveKBVersion } from "@/lib/db/kb";
 
 const paramsFor = (castId: string) => Promise.resolve({ id: "c1", scriptId: SCRIPT_ID, castId });
 const post = (body: unknown) =>
@@ -30,6 +32,9 @@ beforeEach(() => {
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1" } as never);
   vi.mocked(getScript).mockResolvedValue(makeScript());
   vi.mocked(briefFront).mockResolvedValue(FRONT);
+  vi.mocked(getActiveKBVersion).mockResolvedValue({
+    output: { target_audience: { human_casting: { value: "Working Indian adults, 25 to 45, real not model-like" }, lifestyle: { value: "Busy city homes" } } },
+  } as never);
 });
 
 describe("POST …/cast/:castId/brief (D395)", () => {
@@ -42,6 +47,10 @@ describe("POST …/cast/:castId/brief (D395)", () => {
     expect(getScript).toHaveBeenCalledWith("c1", SCRIPT_ID);
     expect(briefFront).toHaveBeenCalledWith({
       name: member.name, description: member.description, setting: script.doc.header.region, instructions: "Greyer at the temples",
+      // D459 — the reel around them: its place, the shots they are in, and the brand's casting.
+      place: script.doc.context.settingAndCamera,
+      shots: script.doc.shots.filter((s) => s.onScreen.includes("meenakshi")).slice(0, 8).map((s) => s.visual),
+      brand: "Jackfruit365\nHuman casting: Working Indian adults, 25 to 45, real not model-like\nAudience lifestyle: Busy city homes",
     });
     expect(await res.json()).toEqual(FRONT);
   });

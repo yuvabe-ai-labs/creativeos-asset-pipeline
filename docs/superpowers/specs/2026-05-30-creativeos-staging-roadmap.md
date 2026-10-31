@@ -8238,3 +8238,43 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Products as File nodes (tried, reverted at the user word: a product has angles). Every location as a Composite (an uploaded photo has no generation to record).
 
 **Originated →** conversation in this session.
+
+### D457 — Graphics are added after generation; the action leads each beat; a location is the place, without the shots props *(recorded 2026-10-30; amends D448, spec 3 §6.3; refines D453)*
+
+**Decision.** (1) Review cards, claim cards, badges, subtitles and captions are put in by hand after generation. The multishot writers (generate@15, kling@12, seedance@11) write a shot that mentions one without it: no card, screen, sign or box standing in for it and no space held for it; a shot that is only a graphic is written as the scene under it. The logo rule no longer holds space for the mark. Storyboard panels no longer draw a blank rectangle for a review or claim card (only the pack stays blank until the product has a picture); a shot that mentions a card, badge or caption gets PANEL_NO_GRAPHICS_CLAUSE. (2) THE ACTION COMES FIRST: a beat opens with who does what, then where, and names the place and at most two props, the ones the action uses. The background role names the place and at most two of its elements; loose things lying in the plate are not the shot props unless its text calls for them; the storyboard role no longer carries the panel foreground and background inventory. (3) A location description is the place without the shots props (script-copilot 7), and the plate prompt (location-plate@3) bans loose things on the set (food, dishes, devices, bags) even when the description names them, and no longer copies the reel Setting & Camera line in.
+
+**Why.** Reel 07 on staging, 30 Oct 2026: S5 rendered an Amazon review card with garbled text, S8 a blank then garbled paper card held over the pack, both seeded by the panels own blank rectangles; S3 lost the phone buzz and S7 v2 the rinse and the tote under lists of counter props; the plate copied the setting line props (bowl, yogurt tub, apple, nuts, laptop) and every clip inherited them, breaking continuity. User: overlays are done manually after generation, so no layouts or boxes for them.
+
+**Rejected.** Leaving clear space for an overlay (the user places it by hand; a held space reads as an empty box). Drawing the overlay in the panel for approval (it rides into the video).
+
+**Originated →** conversation in this session (Reel 07 analysis, staging).
+
+### D458 — A shot picks a product it uses; props keep their names; the camera is set shot by shot and steady unless asked *(recorded 2026-10-30; refines D447, D457)*
+
+**Decision.** (1) The script copilot (version 8) picks a product for every shot it is in, in any form: the pack on screen, the product itself being used (poured, mixed in, applied, worn or held), or its voiceover naming it, in the draft and the import alike. (2) The multishot writers (generate@16, kling@13, seedance@12) keep props as the script and location name them, never turn the product name into an ingredient or a prop, and write a prop the script calls plain or unlabelled as "plain, no label". (3) THE CAMERA IS SET SHOT BY SHOT: the production notes give the reel place, light and look, but a camera note in them belongs only to the shot it describes; each beat camera comes from its own shot text, panel and the direction. The camera is steady by default (locked off or one slow smooth move); handheld only when the shot text or the direction asks. The writer user turn labels the notes as the reel as a whole, and the storyboard panels read the setting line for place and light, not its camera note.
+
+**Why.** Reel 07 on staging, 30 Oct 2026: S4 stirred the flour in with no product picked (only shots showing the pack got it); S9 turned the chopped apple into jackfruit and an unlabelled yogurt tub came back branded; the production notes ("Handheld, top-down on the bowl.") opened nearly every beat. User: handheld shots are not preferred unless the shot or the direction asks.
+
+**Rejected.** Splitting the setting line into reel and shot parts in the parser (the writer can tell a camera note from a place, and old scripts keep working).
+
+**Originated →** conversation in this session (Reel 07 analysis, staging).
+
+### D459 — A script character is cast from the whole reel and the brand, not the cast line alone *(recorded 2026-10-30; refines D395)*
+
+**Decision.** The cast brief route sends the brief writer, besides the name, cast line, region and the operator note: the visuals of the shots the person is on screen in (up to 8), the reel Setting & Camera line as its place, and the brand name with the KB casting and audience notes. The brief rules now: read the whole reel (the outfit and what they carry in their shots is part of them; the first shot wins a conflict); decide ethnicity from region, place, name and the brand audience, never from a skin-tone word alone; a real person, never a model or stock photo, personality shown only through styling and a natural expression; specific, believable clothes with real colours, never a placeholder (simple, muted, neutral); a worn product category gets a plain unbranded item so the brand own can replace it; a group cast line becomes one member; a child is a child (a new brief age band, Under 18, described as a girl or boy, with no adult age chip sent). The operator note still wins.
+
+**Why.** Staging, 30 Oct 2026, 16 script-made faces: two Chupps leads came out Black and White (no region, "medium brown skin"); a 9-year-old was briefed as an 18 to 24 woman; "Children" became one teen; outfits were muted placeholders (beige T-shirt, grey shirt) while the shots named a claw clip, earphones or a bronze heritage-weave saree; every face read as an HR stock photo. The brief saw only the cast line and an often empty region.
+
+**Rejected.** Adding a child band to the Studio age chips (a wider change; the description carries the age). Sending the full KB (its visual identity and image direction are about the brand look, not this person).
+
+**Originated →** conversation in this session (character quality review, staging).
+
+### D460 — Fan out shows its Composites at once, and lays the script assets out in a measured column left of the script *(recorded 2026-10-31; amends D454, D456, D450; refines D382)*
+
+**Decision.** (1) The storyboard and plate Composites join the canvas in the same step as the clips, showing the picture Fan out already knows (pendingStoryboardData, pendingPlateData), wired into their clips; the server answer then merges in the instruction, model and settings, and a picture it could not record is removed through the store (so the removal is saved), or all of them with a toast when the call fails. Because the browser may autosave such a node first, insertNodesWithFirstVersions now updates a node already on this canvas and of this type, leaves one that already has a version alone, and refuses an id that belongs to another canvas or another type (NodeIdConflictError, a plain 409). (2) The product, location and plate nodes go in one column whose right edge is 40px left of the Script card, starting under its presenter avatar (or at the script top), and the settle pass (settleFanOutRows, FanOutLayout.column) stacks them right-aligned from their measured sizes, with an estimate (340 by 420) and pitch to start. (3) A presenter avatar is placed 320px left of its script (its widest card plus a gap); it was 240, and a 280-wide card covered the script.
+
+**Why.** User, 31 Oct 2026: on Fan out the Composites appeared after an empty gap, and the products, backgrounds and avatars overlapped their neighbours. The assets were stacked at the script own x, 300px apart, from 420px below its top: on the Script card, and since D456 a plate is an output-tier Composite up to 480 wide and over 500 tall, so it reached the clips at script x + 360 and covered the next asset.
+
+**Rejected.** A placeholder card while the server works (the picture is already known, so the real card can show it). Waiting to place the rows until the server answers (the gap the user reported).
+
+**Originated →** conversation in this session.

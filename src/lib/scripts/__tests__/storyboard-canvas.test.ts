@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { AppNode } from "@/lib/canvas-nodes";
 import {
-  CHAIN_ROW_MIN, FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, ROW_GAP, STORYBOARD_ROW_PITCH, settleFanOutRows, storyboardPanelNodes,
+  ASSET_CARD, ASSET_GAP, CHAIN_ROW_MIN, FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, ROW_GAP, STORYBOARD_ROW_PITCH, fanOutLayoutIds, settleFanOutRows,
+  storyboardPanelNodes,
 } from "../storyboard-canvas";
 import type { StoryboardPanel } from "../storyboard";
 
@@ -59,6 +60,24 @@ describe("storyboardPanelNodes (D382, D454)", () => {
 
   it("does nothing without a storyboard", () => {
     expect(storyboardPanelNodes([node("a", "shot", [0])], rows, undefined)).toEqual({ requests: [], edges: [] });
+  });
+});
+
+// D460 — the asset column: products, places and plate Composites right-aligned to the column's
+// edge and stacked from what renders, so a wide plate never reaches the clips nor covers the next.
+describe("settleFanOutRows, the asset column (D460)", () => {
+  const at = (x: number, y: number, w?: number, h?: number) => ({ position: { x, y }, ...(w && h ? { measured: { width: w, height: h } } : {}) });
+
+  it("stacks each card under the last, right-aligned, from measured sizes or the estimate", () => {
+    const nodes = new Map([["a", at(0, 0, 280, 380)], ["b", at(0, 0, 480, 330)], ["c", at(0, 0)]]);
+    const moves = settleFanOutRows(nodes, { top: 0, rows: [], column: { right: -40, top: 600, ids: ["a", "b", "c"] } });
+    expect(moves.get("a")).toEqual({ x: -320, y: 600 });
+    expect(moves.get("b")).toEqual({ x: -520, y: 600 + 380 + ASSET_GAP });
+    expect(moves.get("c")).toEqual({ x: -40 - ASSET_CARD.width, y: 600 + 380 + ASSET_GAP + 330 + ASSET_GAP });
+  });
+
+  it("counts the column among the layout's nodes", () => {
+    expect([...fanOutLayoutIds({ top: 0, rows: [{ shotId: "s", panelIds: ["p"] }], column: { right: 0, top: 0, ids: ["a"] } })]).toEqual(["s", "p", "a"]);
   });
 });
 

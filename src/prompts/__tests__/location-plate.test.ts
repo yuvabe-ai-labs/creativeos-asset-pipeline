@@ -8,11 +8,18 @@ const location = { id: "podcast-set", name: "Podcast set", description: "A warm 
 const kit = { region: "Kerala", table: "banana leaf", kitchen: "steel vessels, a granite counter", wardrobe: "mundu" };
 
 describe("locationPlatePrompt (D448)", () => {
-  it("draws the place from its words and the reel's setting", () => {
+  // D457 — the reel's setting line listed the shots' props (Reel 07), so it is no longer copied in.
+  it("draws the place from its own words, never the reel's setting line", () => {
     const p = locationPlatePrompt({ location, doc, kit: null, aspect: "9:16" });
     expect(p).toContain("An empty location plate for a short video: Podcast set. A warm studio desk with a microphone arm.");
-    expect(p).toContain(`The reel's setting: ${doc.context.settingAndCamera.trim().replace(/\.?\s*$/, ".")}`);
+    expect(p).not.toMatch(/The reel's setting/);
     expect(p).toContain("Frame: 9:16.");
+  });
+
+  it("keeps loose things off the set, even when the description names them", () => {
+    const p = locationPlatePrompt({ location, doc, kit: null, aspect: "9:16" });
+    expect(p).toMatch(/no food, dishes, bowls, cups, utensils, devices or bags, even where the description mentions them/);
+    expect(locationPlateChangePrompt("warmer")).toMatch(/no food, dishes/);
   });
 
   it("keeps people, products and lettering out of the plate", () => {

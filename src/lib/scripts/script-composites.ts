@@ -15,6 +15,22 @@ import type { ScriptLocation } from "./schema";
 export const STORYBOARD_VERSION_SOURCE = "storyboard";
 export const STORYBOARD_PROMPT_ID = "storyboard-panel";
 
+/** D460 — a storyboard Composite as Fan out shows it at once, before the server has recorded it:
+ *  named as the panel and showing it. The server answer adds the instruction, model and settings. */
+export function pendingStoryboardData(panel: StoryboardPanel): CompositeNodeData & StoryboardCompositeData {
+  return { title: panelTitle(panel), storyboardPanel: panel.label, storyboardSketchUrl: panel.url, parsed: panel.url };
+}
+
+/** D460 — a generated plate's Composite as Fan out shows it at once. */
+export function pendingPlateData(scriptId: string, location: ScriptLocation): CompositeNodeData & LocationCompositeMark {
+  return {
+    title: location.name,
+    scriptId,
+    scriptAsset: { kind: "location", id: location.id, name: location.name, angle: 0 },
+    parsed: location.image?.url,
+  };
+}
+
 /** What the browser sends for each panel Fan out places; the server builds the rest. */
 export type StoryboardCompositeRequest = { nodeId: string; label: string; position: { x: number; y: number } };
 

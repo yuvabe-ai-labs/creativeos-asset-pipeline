@@ -24,7 +24,31 @@ describe("the character brief (D395)", () => {
   it("tells the model the instructions win and other people's pronouns are not this person", () => {
     expect(AVATAR_BRIEF_SYSTEM).toMatch(/instructions override the script/);
     expect(AVATAR_BRIEF_SYSTEM).toMatch(/"her husband"/);
-    expect(AVATAR_BRIEF_SYSTEM).toMatch(/Leave out voice, accent, personality/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/Leave out voice, accent, personality words/);
+  });
+
+  // D459 — staging: Chupps leads drawn Black and White, a 9-year-old briefed as a woman, a group
+  // made one teen, and "muted" placeholder outfits while the shots named the styling.
+  it("casts from the whole reel and the brand, with real people and specific clothes", () => {
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/Read the whole reel, not only the cast line/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/A skin-tone word alone never decides ethnicity/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/A real person, never a model or a stock photo/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/never a placeholder such as "simple", "muted"/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/When the entry is a group/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/A child is a child/);
+  });
+
+  it("sends the shots, the place and the brand under their own headings", () => {
+    const user = buildAvatarBriefUser({ ...rajan, shots: ["He pours the tea.", "He laughs at the table."], place: "A Kochi home, morning", brand: "Brandname\nHuman casting: real families" });
+    expect(user).toContain("## The shots they appear in\n1. He pours the tea.\n2. He laughs at the table.");
+    expect(user).toContain("## The reel's place\nA Kochi home, morning");
+    expect(user).toContain("## The brand and who it casts\nBrandname\nHuman casting: real families");
+  });
+
+  it("briefs a child as a child, with no adult age chip", () => {
+    const front = briefToFront({ ...brief, gender: "Female", age: "Under 18", ageYears: "9" });
+    expect(front.description.startsWith("A 9-year-old South Asian girl.")).toBe(true);
+    expect(front.attributes).toEqual({ gender: "Female", ethnicity: "South Asian" });
   });
 
   it("sends every part of the context under its own heading, the instructions marked as winning", () => {
