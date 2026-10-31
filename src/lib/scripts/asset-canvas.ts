@@ -2,6 +2,7 @@ import type { Edge, XYPosition } from "@xyflow/react";
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import type { Product, ScriptDoc, ScriptLocation } from "./schema";
 import { shotLabel } from "./storyboard";
+import { ASSET_CARD, ASSET_GAP } from "./storyboard-canvas";
 import type { ScriptPlateRequest } from "./script-composites";
 import {
   isScriptAssetNode,
@@ -47,8 +48,9 @@ type AssetNode =
   | { id: string; type: "product"; position: XYPosition; data: ProductNodeData }
   | { id: string; type: "location"; position: XYPosition; data: LocationNodeData };
 
-/** Pixel size the asset column steps by. */
-const ASSET_PITCH = 300;
+/** Pixel size the asset column steps by before anything is measured (D460: the estimate the column
+ *  settles from, so the first frame never overlaps either). */
+const ASSET_PITCH = ASSET_CARD.height + ASSET_GAP;
 
 /**
  * Fan out's asset nodes: one per product and location any new clip uses, reusing one already on

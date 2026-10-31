@@ -34,9 +34,26 @@ export const STORYBOARD_ROW_PITCH =
  *  image to load, short enough that a later change (a collapse, an edit) never moves the rows. */
 export const FAN_OUT_SETTLE_MS = 15_000;
 
-/** The rows one Fan out made, in order, for settleFanOutRows. */
-export type FanOutLayout = { top: number; rows: { shotId: string; panelIds: string[] }[] };
+/** D460 — a script asset's card before it is measured (a Product or Location node at the input
+ *  tier, or a generated plate's Composite at the output tier): the widest and a tall guess, so the
+ *  first placement never overlaps; settleFanOutRows stacks them again from what renders. */
+export const ASSET_CARD = { width: 340, height: 420 } as const;
+/** Between the asset column's right edge and the Script card, and between stacked assets. */
+export const ASSET_GAP = 40;
+
+/** The rows one Fan out made, in order, for settleFanOutRows. D460 — and its new asset nodes, in a
+ *  column whose right edge sits `right`, stacked down from `top`. */
+export type FanOutLayout = {
+  top: number;
+  rows: { shotId: string; panelIds: string[] }[];
+  column?: { right: number; top: number; ids: string[] };
+};
 type Placed = { position: { x: number; y: number }; measured?: { width?: number; height?: number }; type?: string };
+
+/** Every node a Fan out layout places: its shots, panels and asset column. */
+export function fanOutLayoutIds(layout: FanOutLayout): Set<string> {
+  return new Set([...layout.rows.flatMap((r) => [r.shotId, ...r.panelIds]), ...(layout.column?.ids ?? [])]);
+}
 
 /**
  * Fan out places its rows from estimates, before anything has rendered. Once the cards are
@@ -73,6 +90,19 @@ export function settleFanOutRows(nodes: ReadonlyMap<string, Placed>, layout: Fan
     const tallestPanel = Math.max(0, ...panels.map((p) => p.height));
     const rowHeight = Math.max(shotHeight + (panels.length ? PANEL_GAP + tallestPanel : 0), CHAIN_ROW_MIN);
     top += rowHeight + ROW_GAP;
+  }
+
+  // D460 — the asset column: each card right-aligned to the column's edge, stacked from its
+  // measured height, so a wide plate Composite never reaches the clips and none overlaps the next.
+  if (layout.column) {
+    let y = layout.column.top;
+    for (const id of layout.column.ids) {
+      const node = nodes.get(id);
+      if (!node) continue;
+      const width = node.measured?.width ?? ASSET_CARD.width;
+      move(id, node, layout.column.right - width, y);
+      y += (node.measured?.height ?? ASSET_CARD.height) + ASSET_GAP;
+    }
   }
   return moves;
 }

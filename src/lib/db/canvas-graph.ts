@@ -28,10 +28,17 @@ export async function deleteCanvasEdge(canvasId: string, edgeId: string): Promis
   if (error) throw error;
 }
 
+/** D460 — an id the browser sent that already belongs to another canvas, or to a different kind
+ *  of node: refused, never overwritten. */
+export class NodeIdConflictError extends Error {}
+
 /**
- * D454 — new nodes that arrive with a first version already made (Fan out's storyboard
- * Composites, whose v1 is the panel): the nodes, their versions in one insert, then each node's
- * active pointer. A failed version insert removes the nodes again, so none is left with nothing.
+ * D454 — nodes that arrive with a first version already made (Fan out's storyboard and plate
+ * Composites, whose v1 is the picture): the nodes, their versions in one insert, then each node's
+ * active pointer. D460 — the browser shows these nodes at once, so its autosave may have stored a
+ * node before this runs: a node already on this canvas, of this type, is updated rather than
+ * inserted, and one that already has a version is left as it is (a retry). An id on another
+ * canvas, or of another type, is refused. A failed version insert removes the nodes made here.
  */
 export async function insertNodesWithFirstVersions(
   canvasId: string,
@@ -40,14 +47,28 @@ export async function insertNodesWithFirstVersions(
 ): Promise<void> {
   if (entries.length === 0) return;
   const supabase = createServerSupabase();
-  const ids = entries.map((e) => e.node.id);
-  const { error: nodeErr } = await supabase.from("nodes").insert(
-    entries.map(({ node }) => ({ id: node.id, canvas_id: canvasId, type: node.type, position: node.position, data: node.data, active_version_id: null })),
+  const { data: existing, error: readErr } = await supabase
+    .from("nodes")
+    .select("id, canvas_id, type, active_version_id")
+    .in("id", entries.map((e) => e.node.id));
+  if (readErr) throw readErr;
+  type Row = { id: string; canvas_id: string; type: string; active_version_id: string | null };
+  const known = new Map(((existing ?? []) as Row[]).map((r) => [r.id, r]));
+  for (const { node } of entries) {
+    const row = known.get(node.id);
+    if (row && (row.canvas_id !== canvasId || row.type !== node.type)) throw new NodeIdConflictError(`Node ${node.id} is not this canvas's.`);
+  }
+  const todo = entries.filter(({ node }) => !known.get(node.id)?.active_version_id);
+  if (todo.length === 0) return;
+  const fresh = todo.filter(({ node }) => !known.has(node.id)).map(({ node }) => node.id);
+
+  const { error: nodeErr } = await supabase.from("nodes").upsert(
+    todo.map(({ node }) => ({ id: node.id, canvas_id: canvasId, type: node.type, position: node.position, data: node.data })),
   );
   if (nodeErr) throw nodeErr;
   const { data: versions, error: versionErr } = await supabase
     .from("node_versions")
-    .insert(entries.map(({ node, version }) => ({
+    .insert(todo.map(({ node, version }) => ({
       node_id: node.id,
       inputs_used: version.inputsUsed,
       params_used: version.paramsUsed,
@@ -58,7 +79,7 @@ export async function insertNodesWithFirstVersions(
     })))
     .select("id, node_id");
   if (versionErr || !versions) {
-    await supabase.from("nodes").delete().eq("canvas_id", canvasId).in("id", ids);
+    if (fresh.length > 0) await supabase.from("nodes").delete().eq("canvas_id", canvasId).in("id", fresh);
     throw versionErr ?? new Error("No versions written.");
   }
   const results = await Promise.all(

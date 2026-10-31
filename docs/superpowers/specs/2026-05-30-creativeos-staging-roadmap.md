@@ -8268,3 +8268,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Adding a child band to the Studio age chips (a wider change; the description carries the age). Sending the full KB (its visual identity and image direction are about the brand look, not this person).
 
 **Originated →** conversation in this session (character quality review, staging).
+
+### D460 — Fan out shows its Composites at once, and lays the script assets out in a measured column left of the script *(recorded 2026-10-31; amends D454, D456, D450; refines D382)*
+
+**Decision.** (1) The storyboard and plate Composites join the canvas in the same step as the clips, showing the picture Fan out already knows (pendingStoryboardData, pendingPlateData), wired into their clips; the server answer then merges in the instruction, model and settings, and a picture it could not record is removed through the store (so the removal is saved), or all of them with a toast when the call fails. Because the browser may autosave such a node first, insertNodesWithFirstVersions now updates a node already on this canvas and of this type, leaves one that already has a version alone, and refuses an id that belongs to another canvas or another type (NodeIdConflictError, a plain 409). (2) The product, location and plate nodes go in one column whose right edge is 40px left of the Script card, starting under its presenter avatar (or at the script top), and the settle pass (settleFanOutRows, FanOutLayout.column) stacks them right-aligned from their measured sizes, with an estimate (340 by 420) and pitch to start. (3) A presenter avatar is placed 320px left of its script (its widest card plus a gap); it was 240, and a 280-wide card covered the script.
+
+**Why.** User, 31 Oct 2026: on Fan out the Composites appeared after an empty gap, and the products, backgrounds and avatars overlapped their neighbours. The assets were stacked at the script own x, 300px apart, from 420px below its top: on the Script card, and since D456 a plate is an output-tier Composite up to 480 wide and over 500 tall, so it reached the clips at script x + 360 and covered the next asset.
+
+**Rejected.** A placeholder card while the server works (the picture is already known, so the real card can show it). Waiting to place the rows until the server answers (the gap the user reported).
+
+**Originated →** conversation in this session.

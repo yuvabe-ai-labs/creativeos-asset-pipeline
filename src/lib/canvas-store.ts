@@ -46,11 +46,14 @@ import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multi
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import {
-  FAN_OUT_SETTLE_MS, SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, settleFanOutRows, storyboardPanelNodes, type FanOutLayout,
+  ASSET_CARD, ASSET_GAP, FAN_OUT_SETTLE_MS, SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, fanOutLayoutIds, settleFanOutRows,
+  storyboardPanelNodes, type FanOutLayout,
 } from "@/lib/scripts/storyboard-canvas";
 import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import { scriptAssetCanvasNodes, type ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
 import { createScriptComposites } from "@/services/script-composites.service";
+import { pendingPlateData, pendingStoryboardData } from "@/lib/scripts/script-composites";
+import { PRESENTER_CARD_HEIGHT } from "@/lib/avatars/canvas";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -217,7 +220,7 @@ export function createCanvasStore(
     layout: FanOutLayout | null,
   ): { nodes: AppNode[]; layout: FanOutLayout | null } => {
     if (!layout) return { nodes, layout };
-    const ids = new Set(layout.rows.flatMap((r) => [r.shotId, ...r.panelIds]));
+    const ids = fanOutLayoutIds(layout);
     if (changes.some((c) => c.type === "position" && c.dragging && ids.has(c.id))) return { nodes, layout: null };
     if (!changes.some((c) => c.type === "dimensions" && ids.has(c.id))) return { nodes, layout };
     const mine = new Map(nodes.filter((n) => ids.has(n.id)).map((n) => [n.id, n]));
@@ -703,6 +706,16 @@ export function createCanvasStore(
         target: n.id,
       }));
       const panels = storyboardPanelNodes(created, shots, storyboardPanels);
+      // D460 — the script's assets go in one column left of the Script card, under its presenter
+      // avatar when it has one, so none lands on the script, the clips or each other.
+      const presenter = get().edges
+        .filter((e) => e.target === scriptNodeId)
+        .map((e) => get().nodes.find((n) => n.id === e.source))
+        .find((n) => n?.type === "avatar");
+      const column = {
+        right: script.position.x - ASSET_GAP,
+        top: presenter ? presenter.position.y + (presenter.measured?.height ?? PRESENTER_CARD_HEIGHT) + ASSET_GAP : script.position.y,
+      };
       // D450 — one Product / Location node per asset the new clips use, wired into each of them;
       // D456 — a generated plate is a Composite, made with the storyboard panels below.
       const assetNodes = scriptAssetCanvasNodes({
@@ -710,44 +723,66 @@ export function createCanvasStore(
         shots,
         assets: data.assets,
         existing: get().nodes,
-        origin: { x: script.position.x, y: script.position.y + 420 },
+        origin: { x: column.right - ASSET_CARD.width, y: column.top },
         newId: () => crypto.randomUUID(),
       });
+      const columnIds = [
+        ...assetNodes.nodes.map((n) => ({ id: n.id, y: n.position.y })),
+        ...assetNodes.plates.map((p) => ({ id: p.nodeId, y: p.position.y })),
+      ].sort((a, b) => a.y - b.y).map((a) => a.id);
+
+      // D460 — what the script generated (storyboard panels, location plates) joins the canvas at
+      // once, showing its picture, so the rows lay out in one go instead of filling a gap seconds
+      // later; the server then records each as a Composite with that picture as v1.
+      const pendingComposites: AppNode[] = [
+        ...panels.requests.flatMap((r) => {
+          const panel = storyboardPanels?.find((p) => p.label === r.label);
+          return panel ? [{ id: r.nodeId, type: "composite", position: r.position, data: pendingStoryboardData(panel) } as AppNode] : [];
+        }),
+        ...assetNodes.plates.flatMap((p) => {
+          const location = data.assets?.locations.find((l) => l.id === p.locationId);
+          return location && data.assets ? [{ id: p.nodeId, type: "composite", position: p.position, data: pendingPlateData(data.assets.scriptId, location) } as AppNode] : [];
+        }),
+      ];
+
       // D382 amended — the rows just made are laid out again from their measured sizes as they
-      // render (settleFanOut), for long enough that every panel image has loaded.
-      const fanOutLayout: FanOutLayout | null = panels.requests.length > 0
+      // render (settleFanOut), for long enough that every panel image has loaded; D460 — and the
+      // asset column with them.
+      const fanOutLayout: FanOutLayout | null = panels.requests.length > 0 || columnIds.length > 0
         ? {
             top: baseY,
-            rows: created.map((n) => ({
+            rows: panels.requests.length === 0 ? [] : created.map((n) => ({
               shotId: n.id,
               panelIds: panels.edges.filter((e) => e.target === n.id).map((e) => e.source),
             })),
+            ...(columnIds.length > 0 ? { column: { ...column, ids: columnIds } } : {}),
           }
         : null;
 
-      // A generated plate's edges wait for its Composite, like the storyboard panels'.
-      const plateIds = new Set(assetNodes.plates.map((p) => p.nodeId));
       set({
-        nodes: [...get().nodes, ...created, ...(assetNodes.nodes as AppNode[])],
-        edges: [...get().edges, ...createdEdges, ...assetNodes.edges.filter((e) => !plateIds.has(e.source))],
+        nodes: [...get().nodes, ...created, ...(assetNodes.nodes as AppNode[]), ...pendingComposites],
+        edges: [...get().edges, ...createdEdges, ...panels.edges, ...assetNodes.edges],
         fanOutLayout,
       });
-      // D454, D456 — what the script generated (storyboard panels, location plates) becomes
-      // Composites made on the server, each with its picture as v1; they join the canvas, wired
-      // into their clips, as soon as it answers.
-      if (panels.requests.length > 0 || assetNodes.plates.length > 0) {
+      if (pendingComposites.length > 0) {
+        const pendingIds = pendingComposites.map((n) => n.id);
+        // A picture the server could not record (its take or generation is gone) leaves the canvas.
+        const drop = (ids: string[]) => {
+          if (ids.length > 0) get().onNodesChange(ids.map((id) => ({ type: "remove", id })));
+        };
         createScriptComposites(canvasId, { scriptNodeId, panels: panels.requests, plates: assetNodes.plates })
           .then((made) => {
-            const ids = new Set(made.map((m) => m.id));
+            const byId = new Map(made.map((m) => [m.id, m]));
             set({
-              nodes: [
-                ...get().nodes,
-                ...made.map((m) => ({ id: m.id, type: "composite", position: m.position, data: { ...m.data, parsed: m.output } }) as AppNode),
-              ],
-              edges: [...get().edges, ...[...panels.edges, ...assetNodes.edges].filter((e) => ids.has(e.source))],
+              nodes: get().nodes.map((n) => {
+                const m = byId.get(n.id);
+                return m ? ({ ...n, data: { ...(n.data as Record<string, unknown>), ...m.data, parsed: m.output } } as AppNode) : n;
+              }),
             });
+            drop(pendingIds.filter((id) => !byId.has(id)));
           })
           .catch((e: unknown) => {
+            drop(pendingIds);
             toast.error(e instanceof Error ? e.message : "Couldn't add the script's pictures.");
           });
       }

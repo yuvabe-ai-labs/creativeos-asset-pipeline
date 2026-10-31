@@ -7,6 +7,13 @@ import type { AvatarVoice } from "./schema";
 
 /** The gallery's avatar drag payload type — separate from the image payload, so an image drop
  *  never reads as an avatar and the other way round. */
+/** D460 — how far left of its Script a presenter avatar sits: its widest card (280, the input
+ *  tier) plus a gap, so it never overlaps the Script card (it was 240, and a 280-wide card covered
+ *  the script by 40). Its right edge lines up with Fan out's asset column under it. */
+export const PRESENTER_OFFSET_X = 320;
+/** A presenter avatar card before it is measured: 280 wide with a 2:3 face and its footer. */
+export const PRESENTER_CARD_HEIGHT = 520;
+
 export const AVATAR_DRAG_MIME = "application/x-creativeos-gallery-avatar";
 
 export function parseAvatarDragPayload(raw: string): { avatarId: string } | null {
