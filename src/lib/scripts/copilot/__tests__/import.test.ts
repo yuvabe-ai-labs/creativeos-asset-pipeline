@@ -4,7 +4,6 @@ import { scriptDocSchema, type Script } from "@/lib/scripts/schema";
 import { REEL_07_PASTE } from "@/lib/scripts/fixtures/reel-07-paste";
 import { REEL_07_IMPORT } from "@/lib/scripts/fixtures/reel-07-import";
 import { buildImport, estimateLength, importSummary, mightBeScript, resolveReelNumber, type ImportResult } from "../import";
-import { REVIEW_PLACEHOLDER } from "../constants";
 import { fillToFinal } from "../fill-to-final";
 import type { ImportOutput } from "../output";
 
@@ -44,7 +43,7 @@ describe("buildImport — Reel 07 (success 1–4)", () => {
 
   it("cleans the markdown escapes, so the review is the placeholder and an open item (success 3, Review Focus 1)", () => {
     const r = built();
-    expect(r.doc.shots[4].vo).toBe(`One customer wrote on Amazon: "${REVIEW_PLACEHOLDER}".`);
+    expect(r.doc.shots[4].vo).toBe(`One customer wrote on Amazon: "[real review, verbatim]".`);
     expect(fillToFinal(r.doc, r.notes)[0].id).toBe(`placeholder.shots.${r.doc.shots[4].id}.vo`);
   });
 
@@ -59,7 +58,7 @@ describe("buildImport — Reel 07 (success 1–4)", () => {
     const paragraphs = r.reply.split("\n\n");
     expect(paragraphs[0]).toMatch(/^Imported Reel 07 · 9 shots · 50s\./);
     expect(paragraphs).toContain("Who plays Rhea? Pick an avatar below, or keep Rhea in words for now.");
-    expect(paragraphs.at(-1)).toMatch(/^1 thing to settle before it's final\. First: Paste a real, cleared customer review/);
+    expect(paragraphs.at(-1)).toMatch(/^1 thing to settle before it's final\. First: Replace \[real review, verbatim\] in REVIEW \(S5\)\./);
     expect(r.notes.confirmations).toEqual([]);
   });
 

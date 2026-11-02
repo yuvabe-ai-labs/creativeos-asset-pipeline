@@ -7,7 +7,7 @@ import type { Angle, MessageCard, ScriptMessage } from "../schema";
 const msg = (role: "user" | "assistant", content: string, card: MessageCard | null = null): ScriptMessage =>
   ({ id: content, role, content, card, suggestions: [], createdAt: "t" });
 const angle = (id: string, hook: string): Angle => ({
-  id, hook, situation: `situation ${id}`, productMoment: "", supportingCast: "", proof: "", reviewTheme: "",
+  id, hook, situation: `situation ${id}`, productMoment: "", supportingCast: "", proof: "",
   format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "",
 });
 

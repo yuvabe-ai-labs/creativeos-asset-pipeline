@@ -1,7 +1,7 @@
 import type { ScriptDoc } from "../schema";
 import { groupByBeat, timeShots, totalSeconds } from "../timeline";
 import { carryShot } from "./draft";
-import { fillToFinal, PLACEHOLDER_RE } from "./fill-to-final";
+import { fillToFinal } from "./fill-to-final";
 import { EMPTY_NOTES } from "./schema";
 import { clientTermsIn } from "./client-terms";
 
@@ -33,8 +33,6 @@ export function scoreDraft(doc: ScriptDoc, o: ProbeOptions): ProbeCheck[] {
   const beats = groupByBeat(timeShots(doc.shots)).map((g) => g.beat);
   const seconds = totalSeconds(doc.shots);
   const text = allText(doc);
-  const review = doc.shots.filter((s) => /review/i.test(s.beat));
-  const wantsReview = upper(o.beats).includes("REVIEW");
   const hits = o.neverList.filter((w) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text));
   const own = new Set(clientTermsIn(o.clientText));
   const leaks = clientTermsIn(text).filter((t) => !own.has(t));
@@ -51,11 +49,6 @@ export function scoreDraft(doc: ScriptDoc, o: ProbeOptions): ProbeCheck[] {
     check("beat lines", lineGaps.length === 0, lineGaps.map((i) => i.label).join("; ") || "every beat's first shot has a VO line and a card"),
     check("carry", carried, carried ? "no split shot repeats its beat's VO line" : "a split shot repeats its beat's VO line"),
     check("structure", structure, `${beats.join(" › ")} (card: ${o.beats.join(" › ")})`),
-    check(
-      "review placeholder",
-      wantsReview ? review.length > 0 && review.some((s) => PLACEHOLDER_RE.test(s.vo)) : review.length === 0,
-      wantsReview ? review.map((s) => s.vo).join(" | ") || "no review shot" : `${review.length} review shots`,
-    ),
     check("never-list", hits.length === 0, hits.length ? `found: ${hits.join(", ")}` : "none"),
     check("no other client", leaks.length === 0, leaks.length ? `found: ${leaks.join(", ")}` : "none"),
     check("no presenter", !/presenter/i.test(text), "the word must not appear"),
