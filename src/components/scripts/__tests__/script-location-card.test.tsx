@@ -23,9 +23,11 @@ describe("ScriptLocationCard (D465)", () => {
     expect(html).not.toContain("aria-haspopup");
   });
 
-  it("shows the plate large in its popup", () => {
+  it("shows the plate large, and lets the plate set the popup's width", () => {
     const html = render(true);
-    expect(html).toMatch(/<img[^>]*src="https:\/\/x\/plate.png"[^>]*class="[^"]*max-h-\[60vh\]/);
-    expect(render()).not.toContain("max-h-[60vh]");
+    expect(html).toMatch(/<img[^>]*src="https:\/\/x\/plate.png"[^>]*class="[^"]*h-\[60vh\][^"]*w-auto/);
+    // The words take the plate's width rather than widening the popup.
+    expect(html).toContain("w-0 min-w-full");
+    expect(render()).not.toContain("h-[60vh]");
   });
 });

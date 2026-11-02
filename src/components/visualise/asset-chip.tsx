@@ -45,8 +45,9 @@ export function AssetChip({ kind, name, thumbUrl, usedIn, needsPicture, working,
         </span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className={kind === "location" ? "max-h-[90vh] overflow-y-auto sm:max-w-2xl" : "sm:max-w-lg"}>
-          <DialogHeader>
+        {/* A location's popup takes its width from the plate (D465), so a tall plate is not boxed in grey. */}
+        <DialogContent className={kind === "location" ? "max-h-[90vh] w-fit max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[calc(100vw-2rem)]" : "sm:max-w-lg"}>
+          <DialogHeader className={kind === "location" ? "w-0 min-w-full pr-8" : undefined}>
             <DialogTitle>{name}</DialogTitle>
             <DialogDescription>{usedIn ? `In ${usedIn}` : "Not in any shot yet."}</DialogDescription>
           </DialogHeader>

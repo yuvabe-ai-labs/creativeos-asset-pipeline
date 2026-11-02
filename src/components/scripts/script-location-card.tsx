@@ -21,9 +21,9 @@ export function ScriptLocationCard({ location, large = false }: { location: Scri
     assets?.op({ op: "update_location", locationId: location.id, name: location.name, description: location.description, ...patch });
 
   return (
-    <li className={cn("flex gap-3 rounded-xl border border-border bg-card p-3", large && "flex-col gap-4 border-0 p-0")}>
+    <li className={cn("flex gap-3 rounded-xl border border-border bg-card p-3", large && "w-fit flex-col gap-4 border-0 p-0")}>
       <div
-        className={cn("relative shrink-0 overflow-hidden rounded-lg bg-muted", large ? "flex min-h-48 w-full justify-center" : "aspect-video w-32")}
+        className={cn("relative shrink-0 overflow-hidden rounded-lg bg-muted", large ? (location.image ? "w-fit" : "h-48 w-80 max-w-full") : "aspect-video w-32")}
         aria-busy={drawing || undefined}
       >
         {location.image ? (
@@ -31,14 +31,15 @@ export function ScriptLocationCard({ location, large = false }: { location: Scri
           <img
             src={location.image.url}
             alt={`${location.name}, the empty set`}
-            className={large ? "max-h-[60vh] w-auto max-w-full object-contain" : "size-full object-cover"}
+            className={large ? "block h-[60vh] max-h-[40rem] w-auto max-w-[calc(100vw-4rem)] object-contain" : "size-full object-cover"}
           />
         ) : (
           <MapPin className="absolute inset-0 m-auto size-6 text-muted-foreground/50" strokeWidth={1.5} aria-hidden />
         )}
         {drawing && <span aria-hidden className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-foreground/[0.08] to-transparent" />}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      {/* Large: the plate sets the width; the words wrap to it rather than widening the popup. */}
+      <div className={cn("flex min-w-0 flex-1 flex-col gap-1", large && "w-0 min-w-full")}>
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 font-medium">
             {assets ? <EditableField value={location.name} singleLine onCommit={(name) => update({ name })} /> : location.name}
