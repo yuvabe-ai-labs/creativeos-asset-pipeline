@@ -70,7 +70,7 @@ export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDra
       : null;
 
   return (
-    <figure id={shotAnchor(shot.id)} className="relative m-0 flex min-w-0 scroll-mt-6 flex-col gap-2">
+    <figure id={shotAnchor(shot.id)} className="relative m-0 flex min-w-0 scroll-mt-6 flex-col gap-3">
       <div className="group relative">
         <PanelFrame view={view} aspect={aspect} label={label} description={shot.visual} onOpen={onOpen} />
         {badge && (

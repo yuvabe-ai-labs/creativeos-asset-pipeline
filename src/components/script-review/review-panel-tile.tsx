@@ -21,7 +21,7 @@ export function ReviewPanelTile({ shot, label, time, url, aspect, showFrame, onO
 }) {
   const style = { aspectRatio: aspect.replace(":", " / ") };
   return (
-    <figure id={shotAnchor(shot.id)} className="relative m-0 flex min-w-0 scroll-mt-6 flex-col gap-2">
+    <figure id={shotAnchor(shot.id)} className="relative m-0 flex min-w-0 scroll-mt-6 flex-col gap-3">
       {showFrame &&
         (url ? (
           <div className="relative w-full overflow-hidden rounded-lg border border-border" style={style}>
