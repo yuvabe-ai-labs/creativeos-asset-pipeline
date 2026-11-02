@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AvatarSheetImage } from "@/components/avatars/avatar-sheet-image";
-import { useCastAvatarMaker } from "@/hooks/use-cast-avatar-maker";
+import type { useCastAvatarMaker } from "@/hooks/use-cast-avatar-maker";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { CastMember } from "@/lib/scripts/schema";
 import { castSlotLine, reusableFor } from "@/lib/scripts/visualise/maker";
@@ -18,8 +19,6 @@ import { Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
 import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
-import { VISUALISE_AVATAR_MODEL_ID } from "@/lib/scripts/visualise/constants";
-import { castAnchor } from "@/lib/scripts/anchors";
 
 type Mode = "ai" | "photo";
 
@@ -28,10 +27,10 @@ const STEP_COPY = {
   upload: "Uploading…", consent: "Confirming…", link: "Saving…",
 } as const;
 
-// Spec §5.2 — one person in the cast: a full avatar maker, inline, as on the Visualise board.
-export function CastSlot({ clientId, scriptId, member, avatar, takenIds, headerExtra }: {
+// Spec §5.2 — one person in the cast: a full avatar maker. D465: it opens from the person's chip,
+// which owns the maker, so closing the popup never loses work in progress.
+export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, maker, modelId, onModelId, bare }: {
   clientId: string;
-  scriptId: string;
   member: CastMember;
   /** The avatar this person links to, if any (archived ones included, to explain themselves). */
   avatar: Avatar | null;
@@ -39,9 +38,13 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, headerE
   takenIds: string[];
   /** Spec 4 merge point: the comment marker on the person. */
   headerExtra?: ReactNode;
+  maker: ReturnType<typeof useCastAvatarMaker>;
+  /** The image model chosen under Advanced, for the face and the views. */
+  modelId: string;
+  onModelId: (modelId: string) => void;
+  /** Inside a dialog: no card of its own. */
+  bare?: boolean;
 }) {
-  const [modelId, setModelId] = useState(VISUALISE_AVATAR_MODEL_ID);
-  const maker = useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId });
   // Stable, so the preview's poll is not restarted on every render.
   const { refresh } = maker;
   const onPreviewSettled = useCallback(() => void refresh(), [refresh]);
@@ -52,7 +55,7 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, headerE
   const sheet = avatar?.sheetViews ? avatar.sheet : null;
 
   return (
-    <Card id={castAnchor(member.id)} className="flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40">
+    <Card className={cn("flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40", bare && "border-0 bg-transparent p-0 shadow-none ring-0")}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -91,7 +94,7 @@ export function CastSlot({ clientId, scriptId, member, avatar, takenIds, headerE
           )}
           <AvatarAdvancedSettings className="pt-0">
             <Label htmlFor={`avatar-model-${member.id}`} className="text-xs text-muted-foreground">Image model for the face and views</Label>
-            <AvatarModelSelect id={`avatar-model-${member.id}`} value={modelId} onChange={setModelId} />
+            <AvatarModelSelect id={`avatar-model-${member.id}`} value={modelId} onChange={onModelId} />
           </AvatarAdvancedSettings>
 
           <div className="grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
