@@ -43,8 +43,9 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
   const shotOnly = panelViewMode(view) === "shot-only";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
+      {/* D465 — vertical, and as wide as the panel: the frame sets the width, the words wrap to it. */}
+      <DialogContent className="max-h-[90vh] w-fit max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[calc(100vw-2rem)]">
+        <DialogHeader className="w-0 min-w-full pr-8">
           <div className="flex items-center gap-3">
             <DialogTitle>{label}</DialogTitle>
             {picking && (
@@ -63,10 +64,10 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
               : "The picked take is the one the client sees."}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid items-start gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-5">
           <div
             className={cn(
-              "relative w-full overflow-hidden rounded-lg border border-border",
+              "relative h-[60vh] max-h-[40rem] max-w-[calc(100vw-4rem)] overflow-hidden rounded-lg border border-border",
               !view.pick?.url && !busy && "border-dashed",
             )}
             style={{ aspectRatio: aspect.replace(":", " / ") }}
@@ -84,7 +85,7 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
               </div>
             )}
           </div>
-          <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex w-0 min-w-full flex-col gap-4">
             <PanelShotDetails shot={shot} castNames={castNames} />
             {shotOnly ? (
               <div className="flex flex-col gap-1.5 border-t border-border pt-4">
