@@ -8288,3 +8288,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Dropping the setting line when the shot has a plate (it still carries the light and time of day). Generating the four views separately (D395's one render stays; the description fills what the front cannot show).
 
 **Originated →** conversation in this session (Reel 32 storyboard review, staging).
+
+### D463 — A shot with several moments is storyboarded as a 2 by 2 sheet of frames *(recorded 2026-11-02; refines D342, D452, D453, D454)*
+
+**Decision.** A script shot whose action has two or more moments (shotMoments: an action verb after its doer or an "and", as in "Hemant takes it from her and reads the label"; an article is never a doer) is drawn as one storyboard sheet: four frames of that shot in a 2 by 2 grid, read left to right and top to bottom, from the action's start to its end, each frame in the reel's aspect, full bleed in its cell with thin white gutters, and the same people, clothes, products, place and light in all four (panelGridClause). A shot with one moment or none stays a single frame. It is still one image and one take: the same credits, Redraw, review, share and canvas Composite. On the canvas, the storyboard reference text tells the video model that several frames are this one shot's moments in order and that the clip never shows a grid; the multishot writer already lays a storyboard's frames across the beats in order (D453).
+
+**Why.** User, 2 Nov 2026, Reel 32 on staging: "even there is multishots, there is not grid like storyboard". Every shot got one picture, even S3, where Anjali holds up the pack, asks, and Hemant takes it and reads; the single frame picked one moment and dropped the rest. The user chose a grid per shot over a grid per multishot clip. One render keeps the people and room from drifting between frames, as D395 does for the avatar views.
+
+**Rejected.** A grid per multishot clip assembled from the shots' panels (the user's choice; a shot's own moments were the gap). Four separate renders per shot (four times the credits, and drift between them). A frame count that follows the moment count (a 9:16 sheet only divides evenly into 2 by 2).
+
+**Originated →** conversation in this session (Reel 32 storyboard review, staging).

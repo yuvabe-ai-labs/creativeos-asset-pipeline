@@ -91,6 +91,29 @@ export function mentionsGraphic(shot: Pick<Shot, "visual">): boolean {
   return GRAPHIC_MENTION.test(shot.visual);
 }
 
+// D463 — a shot whose action has more than one moment ("Anjali holds up the pack and asks. Hemant
+// takes it from her and reads the label.") is drawn as a storyboard sheet: four frames of it in
+// order, in one image, so the people and room cannot drift between them. A moment is an action
+// verb after its doer or an "and" ("Hemant takes", "and reads"); "The plates" is not a doer.
+const MOMENT =
+  /(?:\b(?:he|she|they|(?!(?:The|A|An|This|That|These|Those|Its|His|Her|Their|One)\b)[A-Z][a-z]+)|\band)\s+(?!is\b|was\b|has\b|does\b)[a-z]+s\b/g;
+export const PANEL_GRID_FRAMES = 4;
+
+/** How many moments the shot's action has: two or more draws a grid. */
+export function shotMoments(shot: Pick<Shot, "visual">): number {
+  return shot.visual.match(MOMENT)?.length ?? 0;
+}
+
+export const drawsAsGrid = (shot: Pick<Shot, "visual">) => shotMoments(shot) >= 2;
+
+export function panelGridClause(aspect: string): string {
+  return `This panel is a storyboard sheet: ${PANEL_GRID_FRAMES} frames of this one shot in a 2 by 2 grid, read left to ` +
+    "right, top to bottom, showing its moments in order, the first frame its start and the last its end. Each frame " +
+    `is ${aspect}, full bleed inside its cell, with a thin white gutter between frames and no other border. The same ` +
+    "people, clothes, products, place and light in all four frames; only the action and, where it helps, the framing " +
+    "change. No numbers, arrows or notes.";
+}
+
 /** The script's aspect when the model accepts it; otherwise 9:16, the reels' own. */
 export function panelAspect(doc: ScriptDoc): string {
   const aspect = doc.header.aspect.trim();
@@ -190,10 +213,12 @@ export function buildPanelPrompt(input: {
     .filter((id) => !(id === "pack" && realProduct))
     .map((id) => BLANK_AREAS.find((a) => a.id === id)!.clause);
   const peopleRefs = references.some((r) => "castId" in r);
+  const aspect = panelAspect(doc);
   return [
     PANEL_STYLE_BLOCK,
     styleReferenceClause(references.length + 1),
-    `Frame: ${panelAspect(doc)}.`,
+    `Frame: ${aspect}.`,
+    drawsAsGrid(shot) ? panelGridClause(aspect) : "",
     `This shot: ${sentence(shot.visual)}`,
     PANEL_FRAMING_CLAUSE,
     // D458 — the place and light are the reel's; a camera note there is for the shot it describes.
