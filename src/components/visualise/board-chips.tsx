@@ -36,6 +36,8 @@ export function BoardChips({ clientId, scriptId, doc, avatars, faces, castMarker
   castMarker?: (castId: string) => ReactNode;
 }) {
   const assets = useScriptAssets();
+  const working = (id: string, kind: "product" | "location") =>
+    assets?.uploadingTo === id ? "Uploading…" : kind === "location" && assets?.drawing.has(id) ? "Drawing…" : null;
   return (
     <div className="flex flex-col gap-4">
       <Row label={`Cast · ${doc.cast.length}`}>
@@ -54,7 +56,14 @@ export function BoardChips({ clientId, scriptId, doc, avatars, faces, castMarker
       </Row>
       <Row label={`Locations · ${doc.locations.length}`}>
         {doc.locations.map((l) => (
-          <AssetChip key={l.id} kind="location" name={l.name} thumbUrl={l.image?.url ?? null} usedIn={shotsUsing(doc, { locationId: l.id })}>
+          <AssetChip
+            key={l.id}
+            kind="location"
+            name={l.name}
+            thumbUrl={l.image?.url ?? null}
+            usedIn={shotsUsing(doc, { locationId: l.id })}
+            working={working(l.id, "location")}
+          >
             <ScriptLocationCard location={l} />
           </AssetChip>
         ))}
@@ -74,6 +83,7 @@ export function BoardChips({ clientId, scriptId, doc, avatars, faces, castMarker
             thumbUrl={p.images[0]?.url ?? null}
             usedIn={shotsUsing(doc, { productId: p.id })}
             needsPicture={p.images.length === 0}
+            working={working(p.id, "product")}
           >
             <ScriptProductCard product={p} />
           </AssetChip>

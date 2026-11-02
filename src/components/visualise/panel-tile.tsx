@@ -39,9 +39,11 @@ type Props = {
 const STALE_COPY = { shot: "The shot changed", avatar: "An avatar changed" } as const;
 
 // On the frame, shown on hover or keyboard focus; always shown where there is no hover (touch).
+// The wrapper carries the visibility, so a disabled pill's own opacity never keeps it on screen.
 const REDRAW_ON_FRAME =
-  "absolute right-2 top-2 z-10 h-7 rounded-full bg-background/95 shadow-card opacity-100 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] " +
-  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100 data-[popup-open]:opacity-100";
+  "absolute right-2 top-2 z-10 opacity-100 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] " +
+  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100 has-[[data-popup-open]]:opacity-100";
+const REDRAW_PILL = "h-7 rounded-full bg-background/95 shadow-card";
 
 /** A hint on hover. A disabled button gets no pointer events, so the trigger is a span around it. */
 function Hint({ text, children, className }: { text: string | null; children: ReactNode; className?: string }) {
@@ -77,16 +79,21 @@ export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDra
           </Hint>
         )}
         {view.pick && !busy && (
-          <RedrawPopover
-            suggestions={PANEL_REDRAW_SUGGESTIONS}
-            credits={credits}
-            canChange={Boolean(view.pick.url)}
-            disabled={!view.canGenerate || credits === null}
-            className={REDRAW_ON_FRAME}
-            trigger={<><RefreshCw className="size-3.5" strokeWidth={1.5} />Redraw</>}
-            onChange={(note) => onRedraw({ kind: "change", note })}
-            onFresh={(note) => onRedraw({ kind: "fresh", note })}
-          />
+          <span className={REDRAW_ON_FRAME}>
+            {/* Why it can't redraw yet (an avatar it waits for), as the Generate button says. */}
+            <Hint text={view.canGenerate ? null : waitingMessage(view.waitingFor)}>
+              <RedrawPopover
+                suggestions={PANEL_REDRAW_SUGGESTIONS}
+                credits={credits}
+                canChange={Boolean(view.pick.url)}
+                disabled={!view.canGenerate || credits === null}
+                className={REDRAW_PILL}
+                trigger={<><RefreshCw className="size-3.5" strokeWidth={1.5} />Redraw</>}
+                onChange={(note) => onRedraw({ kind: "change", note })}
+                onFresh={(note) => onRedraw({ kind: "fresh", note })}
+              />
+            </Hint>
+          </span>
         )}
       </div>
       <PanelTileCaption label={label} beat={shot.beat} time={time} visual={shot.visual} vo={shot.vo} />

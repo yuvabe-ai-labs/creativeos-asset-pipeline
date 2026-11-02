@@ -41,3 +41,11 @@ describe("PanelTile (D465: the panel carries its shot)", () => {
     expect(render(view())).toContain(`id="shot-${shot.id}"`);
   });
 });
+
+describe("PanelTile Redraw when it can't redraw (review: Important 3)", () => {
+  it("keeps the hover visibility on a wrapper, so a disabled pill never stays half-shown on the frame", () => {
+    const html = render(view({ status: "out_of_date", canGenerate: false, waitingFor: ["Raghu"] }));
+    expect(html).toMatch(/<span[^>]*class="[^"]*\[@media\(hover:hover\)\]:opacity-0/);
+    expect(html).not.toMatch(/<button[^>]*class="[^"]*\[@media\(hover:hover\)\]:opacity-0/);
+  });
+});

@@ -1,19 +1,21 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { MapPin, Package } from "lucide-react";
+import { Loader2, MapPin, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // D465 — a location or a product as a chip on the summary card. Its popup holds the card the
 // board used to show inline, so every action on it stays one click away.
-export function AssetChip({ kind, name, thumbUrl, usedIn, needsPicture, children }: {
+export function AssetChip({ kind, name, thumbUrl, usedIn, needsPicture, working, children }: {
   kind: "product" | "location";
   name: string;
   thumbUrl: string | null;
   /** "S3, S4": the shots it is in; "" when none. */
   usedIn: string;
   needsPicture?: boolean;
+  /** Work in progress ("Drawing…", "Uploading…"), shown on the chip after its popup closes. */
+  working?: string | null;
   /** The existing product or location card (an `<li>`). */
   children: ReactNode;
 }) {
@@ -32,7 +34,14 @@ export function AssetChip({ kind, name, thumbUrl, usedIn, needsPicture, children
         </span>
         <span className="flex flex-col items-start leading-tight">
           <span className="font-medium">{name}</span>
-          {needsPicture && <span className="text-xs font-normal text-muted-foreground">Needs a picture</span>}
+          {working ? (
+            <span className="flex items-center gap-1 text-xs font-normal text-primary">
+              <Loader2 className="size-3 animate-spin" strokeWidth={1.5} />
+              {working}
+            </span>
+          ) : (
+            needsPicture && <span className="text-xs font-normal text-muted-foreground">Needs a picture</span>
+          )}
         </span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
