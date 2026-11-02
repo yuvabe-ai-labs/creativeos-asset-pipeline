@@ -41,7 +41,9 @@ describe("FrozenBoard (review board, 4.14; D465: the idea, the cast and the stor
   it("adds the panels on a full share, each tile under its shot anchor once", () => {
     const html = render("panels");
     expect(html).toContain("https://cdn/p.png");
-    expect(html).toContain('aria-label="Comment on S1 panel"');
+    // One comment action per tile, for the shot and its panel together (D465).
+    expect(html).toContain('aria-label="Comment on S1"');
+    expect(html).not.toContain('aria-label="Comment on S1 panel"');
     expect(html.match(/id="shot-s01"/g)).toHaveLength(1);
   });
 });

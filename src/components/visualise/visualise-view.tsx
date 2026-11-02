@@ -33,7 +33,6 @@ export type VisualiseReview = {
   contextMarker: ReactNode;
   shotMarker: (shotId: string) => ReactNode;
   castMarker: (castId: string) => ReactNode;
-  panelMarker: (shotId: string) => ReactNode;
   /** Absent until something has been shared, so the board keeps its two panes. */
   column?: ReactNode;
 };
@@ -123,7 +122,6 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
               onRedraw={(body) => void draws.draw(t.shot.id, body)}
               onVersions={() => setOpenShot(t.shot.id)}
               shotMarker={review?.shotMarker(t.shot.id)}
-              panelMarker={review?.panelMarker(t.shot.id)}
             />
           ))}
         </StoryboardGrid>

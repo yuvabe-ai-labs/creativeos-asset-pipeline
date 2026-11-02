@@ -33,8 +33,8 @@ export function ReviewPanelTile({ shot, label, time, url, aspect, showFrame }: {
         ))}
       <PanelTileCaption label={label} beat={shot.beat} time={time} visual={shot.visual} vo={shot.vo} />
       <span className="flex items-center gap-2">
-        <PartMarker part={{ kind: "shot", shotId: shot.id }} />
-        {url && <PartMarker part={{ kind: "panel", shotId: shot.id }} label={`${label} panel`} />}
+        {/* One comment for the tile: the shot's words and its panel together (D465). */}
+        <PartMarker part={{ kind: "shot", shotId: shot.id }} alsoCount={[{ kind: "panel", shotId: shot.id }]} />
       </span>
     </figure>
   );

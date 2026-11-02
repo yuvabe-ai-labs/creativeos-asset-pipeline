@@ -33,9 +33,8 @@ type Props = {
   onRedraw: (body: DrawBody) => void;
   /** D465 — the panel view (versions, the prompt, the whole shot), from the frame's Versions. */
   onVersions: () => void;
-  /** Spec 4 merge points: the comment markers on the shot and on its panel. */
+  /** Spec 4 merge point: the tile's one comment marker, for the shot and its panel (D465). */
   shotMarker?: ReactNode;
-  panelMarker?: ReactNode;
 };
 
 const STALE_COPY = { shot: "The shot changed", avatar: "An avatar changed" } as const;
@@ -63,7 +62,7 @@ function Hint({ text, children, className }: { text: string | null; children: Re
 // D465 — one shot on the storyboard sheet: the frame, then its shot written underneath as on a
 // classic storyboard, then the shot's product and location. Redraw sits on a drawn frame; only a
 // shot with no panel yet has a button below. Out of date and Failed sit on the frame as badges.
-export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDraw, onRedraw, onVersions, shotMarker, panelMarker }: Props) {
+export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDraw, onRedraw, onVersions, shotMarker }: Props) {
   const busy = view.status === "generating";
   const badge = view.status === "out_of_date"
     ? { text: "Out of date", hint: view.staleBecause.map((r) => STALE_COPY[r]).join(" · "), tone: "border-primary/30 bg-background text-primary" }
@@ -112,9 +111,7 @@ export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDra
           </Button>
         </Hint>
       )}
-      {(shotMarker || panelMarker) && (
-        <span className="flex items-center gap-2">{shotMarker}{panelMarker}</span>
-      )}
+      {shotMarker}
     </figure>
   );
 }
