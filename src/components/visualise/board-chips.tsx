@@ -64,7 +64,7 @@ export function BoardChips({ clientId, scriptId, doc, avatars, faces, castMarker
             usedIn={shotsUsing(doc, { locationId: l.id })}
             working={working(l.id, "location")}
           >
-            <ScriptLocationCard location={l} />
+            <ScriptLocationCard location={l} large />
           </AssetChip>
         ))}
         {assets && doc.locations.length < MAX_LOCATIONS && (

@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { ImagePlus, MapPin, Sparkles, Trash2, X } from "lucide-react";
+import { ImagePlus, MapPin, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EditableField } from "@/components/nodes/editable-field";
-import { RedrawPopover } from "@/components/shared/redraw-popover";
-import { PLATE_REDRAW_SUGGESTIONS } from "@/lib/scripts/constants";
 import type { ScriptLocation } from "@/lib/scripts/schema";
 import { useScriptAssets } from "./script-assets-context";
 import { ScriptImagePicker } from "./script-image-picker";
+import { cn } from "@/lib/utils";
 
-/** D446, D448 — one of the script's locations: its name, its description and its plate. */
-export function ScriptLocationCard({ location }: { location: ScriptLocation }) {
+/** D446, D448 — one of the script's locations: its name, its description and its plate. D465:
+ *  `large` shows the plate big (the Visualise board's popup), and Redraw draws again straight from
+ *  the description — the words are the brief, so there is nothing to ask first. */
+export function ScriptLocationCard({ location, large = false }: { location: ScriptLocation; large?: boolean }) {
   const assets = useScriptAssets();
   const [picking, setPicking] = useState(false);
   const drawing = assets?.drawing.has(location.id) ?? false;
@@ -20,11 +21,18 @@ export function ScriptLocationCard({ location }: { location: ScriptLocation }) {
     assets?.op({ op: "update_location", locationId: location.id, name: location.name, description: location.description, ...patch });
 
   return (
-    <li className="flex gap-3 rounded-xl border border-border bg-card p-3">
-      <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-lg bg-muted" aria-busy={drawing || undefined}>
+    <li className={cn("flex gap-3 rounded-xl border border-border bg-card p-3", large && "flex-col gap-4 border-0 p-0")}>
+      <div
+        className={cn("relative shrink-0 overflow-hidden rounded-lg bg-muted", large ? "flex min-h-48 w-full justify-center" : "aspect-video w-32")}
+        aria-busy={drawing || undefined}
+      >
         {location.image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={location.image.url} alt={`${location.name}, the empty set`} className="size-full object-cover" />
+          <img
+            src={location.image.url}
+            alt={`${location.name}, the empty set`}
+            className={large ? "max-h-[60vh] w-auto max-w-full object-contain" : "size-full object-cover"}
+          />
         ) : (
           <MapPin className="absolute inset-0 m-auto size-6 text-muted-foreground/50" strokeWidth={1.5} aria-hidden />
         )}
@@ -50,16 +58,11 @@ export function ScriptLocationCard({ location }: { location: ScriptLocation }) {
         {assets && (
           <div className="mt-1 flex flex-wrap gap-2">
             {location.image ? (
-              // D449 — a plate that exists is redrawn by asking first: change it, or draw anew.
-              <RedrawPopover
-                suggestions={PLATE_REDRAW_SUGGESTIONS}
-                credits={null}
-                canChange
-                disabled={drawing}
-                trigger={drawing ? "Drawing…" : undefined}
-                onChange={(note) => assets.generatePlate(location.id, { mode: "change", note })}
-                onFresh={(note) => assets.generatePlate(location.id, { mode: "fresh", note })}
-              />
+              // D465 (amends D449 for plates) — Redraw draws again from the description, no question.
+              <Button variant="outline" size="sm" disabled={drawing} onClick={() => assets.generatePlate(location.id)}>
+                <RefreshCw className="size-3.5" strokeWidth={1.5} />
+                {drawing ? "Drawing…" : "Redraw"}
+              </Button>
             ) : (
               <Button variant="ghost" size="sm" disabled={drawing} onClick={() => assets.generatePlate(location.id)}
                 className="border border-dashed border-primary/40 text-primary hover:bg-primary/5">
