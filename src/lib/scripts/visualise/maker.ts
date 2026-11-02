@@ -98,6 +98,25 @@ export function castSlotLine(avatar: Avatar | null): string {
   return hasFourViews(avatar) ? made : `${made} · needs its four views`;
 }
 
+export type CastChipStatus = { label: string; tone: "ready" | "working" | "attention" | "muted" };
+
+const CHIP_STEP: Record<string, string> = {
+  face: "Making the face…", views: "Making the views…", save: "Saving…", link: "Saving…",
+  upload: "Uploading…", consent: "Confirming…",
+};
+
+/** D465 — the cast chip's one-line status. "Ready" only when the panels can use the avatar;
+ *  every other state is named, so a not-yet avatar never reads as done. */
+export function castChipStatus(avatar: Avatar | null, step: string | null): CastChipStatus {
+  if (step && CHIP_STEP[step]) return { label: CHIP_STEP[step], tone: "working" };
+  if (!avatar) return { label: "No avatar yet", tone: "muted" };
+  if (avatar.archivedAt) return { label: "Archived", tone: "attention" };
+  if (needsLikenessConsent(avatar)) return { label: "Waiting for consent", tone: "attention" };
+  if (avatar.sheetStale) return { label: "Out of date", tone: "attention" };
+  if (avatar.status !== "ready" || !hasFourViews(avatar)) return { label: "Needs its four views", tone: "attention" };
+  return { label: "Ready", tone: "ready" };
+}
+
 /** What Make avatar costs: one face, then one sheet. */
 export function estimateMakeCredits(modelId: string = VISUALISE_AVATAR_MODEL_ID): number | null {
   const face = estimateAvatarImageCredits({ modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
