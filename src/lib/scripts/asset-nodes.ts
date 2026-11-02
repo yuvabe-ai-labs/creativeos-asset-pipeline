@@ -144,6 +144,9 @@ export function storyboardPanelRow(node: Pick<UpstreamOutput, "nodeId" | "type" 
   const tag: ScriptAssetTag = { kind: panel.sketch ? "storyboard" : "still", id: panel.label, name: storyboardPanelName(panel), angle: 0 };
   return row(node.nodeId, panel.url, tag, panel.sketch
     ? `The ${panel.label} storyboard panel: a rough sketch of this shot's composition, staging and camera framing. ` +
+      // D463 — a shot with several moments is drawn as a 2 by 2 sheet of frames.
+      "When it holds several frames, they are this one shot's moments in order, left to right, top to bottom; the " +
+      "clip moves through them and never shows a grid. " +
       "Follow its layout; its people and objects are placeholders for the other references. Never describe or copy the drawing style."
     : `The ${panel.label} still: the approved picture of this shot. Match its moment, people, products, place and framing.`);
 }

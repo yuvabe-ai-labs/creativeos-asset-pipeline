@@ -29,7 +29,7 @@ Rules, in order of priority:
 1. The operator's instructions override the script. If they state a gender, age, ethnicity, outfit or any feature, use theirs, even when the script says otherwise.
 2. Describe this one person on their own. The script may describe them relative to someone else ("her husband", "his daughter", "behind her", "next to the mother"). Never carry those words over: other people's pronouns and positions are not this person. Work out this person's own gender from their name, their role and their own pronouns, and state it plainly. When the entry is a group ("children", "friends"), describe one member of it: the one the shots show most, or the eldest.
 3. Read the whole reel, not only the cast line. What the person wears and carries in their shots (a claw clip, earphones round the neck, a bronze heritage-weave saree) is part of them: keep it. When shots disagree, take their first shot's outfit.
-4. Decide ethnicity and look from the reel's region and place, the person's name and the brand's audience and casting notes. A skin-tone word alone never decides ethnicity: "medium brown skin" is ordinary across South Asia.
+4. Decide ethnicity and look from the reel's region and place, the person's name and the brand's audience and casting notes. A skin-tone word alone never decides ethnicity: "medium brown skin" is ordinary across South Asia. A home town, a language or an accent the script gives places them too (a Marathi lilt in Pune is Maharashtrian): name that regional look, never another region's.
 5. A real person, never a model or a stock photo: everyday grooming, natural skin with its texture, real hair, a build that fits their age and life. Their personality shows only in what can be seen: their styling, grooming, how they wear their clothes, and a relaxed, natural expression with a hint of it.
 6. Visual facts only: body, face, hair, skin, clothing, accessories, identity markers (a bindi, a pottu, sacred ash, a turban, a nose ring, glasses, a moustache). Leave out voice, accent, personality words, mood words, actions, dialogue and other people.
 7. Keep every concrete detail the script or instructions give (a cream saree with a kasavu border, a mild olive-green shirt). Where something is not said, make a specific, believable choice for this person, place and audience, with real colours and fabrics, never a placeholder such as "simple", "muted", "neutral" or "everyday clothing".
@@ -121,7 +121,14 @@ export const SHEET_ORDER = ["front", "left", "right", "back"] as const;
 /** D395 — one image holding all four views, as an animation turnaround sheet is drawn: one
  *  render, so the face, outfit and scale cannot drift between views the way four separate edits
  *  did. The layout rules are what let the server cut it into four views cleanly. */
-export function buildAvatarSheetPrompt(): string {
+export function buildAvatarSheetPrompt(description?: string): string {
+  // D462 — the front is cut at the waist, so the sheet guessed the rest: a shirt worn untucked in
+  // the front came back tucked in the back view, and "slip-on sandals" came back as shoes. The
+  // front's own description, when it was generated, says how everything is worn.
+  const described = description?.trim()
+    ? `The person as described when the reference image was made: ${description.trim()} Every garment is worn ` +
+      "exactly as described in all four views, the back view too (tucked or untucked, sleeves, drape, footwear)."
+    : "";
   return [
     "A character turnaround sheet of the same person as the reference image: four full-body views " +
       "of this one person, standing side by side in a single row, in one wide image.",
@@ -133,6 +140,7 @@ export function buildAvatarSheetPrompt(): string {
       "and below the feet.",
     "The reference image may be cropped at the waist: continue the same outfit down to the feet " +
       "with matching clothes and shoes.",
+    described,
     "Same person in every view: same face, same hair, same skin tone, same build, same outfit, " +
       "and the same accessories and identity markers in the same colours and places.",
     "Arms relaxed at the sides, a little away from the body, neutral expression. Even, soft, " +
@@ -140,5 +148,5 @@ export function buildAvatarSheetPrompt(): string {
       "no cast shadows. Drawn in exactly the style of the reference image.",
     "Exactly four figures and nothing else: no text, no labels, no numbers, no borders, no " +
       "dividing lines, no props.",
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 }

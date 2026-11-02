@@ -8278,3 +8278,23 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A placeholder card while the server works (the picture is already known, so the real card can show it). Waiting to place the rows until the server answers (the gap the user reported).
 
 **Originated →** conversation in this session.
+
+### D462 — A storyboard panel draws only what its shot names, framed for its action; the turnaround sheet wears the front as described *(recorded 2026-11-02; refines D342, D449, D458, D395, D459)*
+
+**Decision.** (1) The panel prompt adds three rules: draw only the people, products and objects the shot names, plus the room's furniture (PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE); the reel's setting line gives place and light only, and an object it lists appears only when the shot uses it; the regional kit gives the look of the home and clothes, and its food appears only when the shot serves or eats a meal. (2) A framing rule (PANEL_FRAMING_CLAUSE): close on a detail the action is about, medium on one person, wider for two, unless the shot gives the camera. (3) A product appears once unless the shot says more, a hand-over shows it in one hand, and a named side (the back, the label) is the side shown (PANEL_ONE_PRODUCT_CLAUSE). (4) With a location plate, every panel keeps the same table, chairs, shelves and doors in the same shapes, materials and colours. (5) The turnaround sheet prompt carries the front's generated description, and every view wears each garment as described, the back view too. (6) The character brief places a person by a home town, language or accent the script gives (a Marathi lilt in Pune is Maharashtrian).
+
+**Why.** User, 2 Nov 2026, Reel 32 on staging (Jackfruit 365): the worst storyboards yet. The setting line listed the pack, a study page and a notebook, and the kit listed chapati, bhaji and varan, so a thali sat on the table in the intro and papers beside both pack shots; S3 drew a pack in each person's hand during a hand-over; S1 showed the pack front while the shot taps the back label; every panel was the same medium-wide view; the table was dark in some panels and light in others. On the avatar, the front is waist-up, so the sheet guessed the rest: an untucked shirt came back tucked in the back view, and slip-on sandals came back as shoes. Hemant, of Pune with a Marathi lilt, was briefed as a South Indian man.
+
+**Rejected.** Dropping the setting line when the shot has a plate (it still carries the light and time of day). Generating the four views separately (D395's one render stays; the description fills what the front cannot show).
+
+**Originated →** conversation in this session (Reel 32 storyboard review, staging).
+
+### D463 — A shot with several moments is storyboarded as a 2 by 2 sheet of frames *(recorded 2026-11-02; refines D342, D452, D453, D454)*
+
+**Decision.** A script shot whose action has two or more moments (shotMoments: an action verb after its doer or an "and", as in "Hemant takes it from her and reads the label"; an article is never a doer) is drawn as one storyboard sheet: four frames of that shot in a 2 by 2 grid, read left to right and top to bottom, from the action's start to its end, each frame in the reel's aspect, full bleed in its cell with thin white gutters, and the same people, clothes, products, place and light in all four (panelGridClause). A shot with one moment or none stays a single frame. It is still one image and one take: the same credits, Redraw, review, share and canvas Composite. On the canvas, the storyboard reference text tells the video model that several frames are this one shot's moments in order and that the clip never shows a grid; the multishot writer already lays a storyboard's frames across the beats in order (D453).
+
+**Why.** User, 2 Nov 2026, Reel 32 on staging: "even there is multishots, there is not grid like storyboard". Every shot got one picture, even S3, where Anjali holds up the pack, asks, and Hemant takes it and reads; the single frame picked one moment and dropped the rest. The user chose a grid per shot over a grid per multishot clip. One render keeps the people and room from drifting between frames, as D395 does for the avatar views.
+
+**Rejected.** A grid per multishot clip assembled from the shots' panels (the user's choice; a shot's own moments were the gap). Four separate renders per shot (four times the credits, and drift between them). A frame count that follows the moment count (a 9:16 sheet only divides evenly into 2 by 2).
+
+**Originated →** conversation in this session (Reel 32 storyboard review, staging).

@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
 import { parseRegionalKits } from "../kits";
-import { blankAreas, panelAspect, PANEL_NO_GRAPHICS_CLAUSE } from "../panel-prompt";
+import {
+  blankAreas, panelAspect, PANEL_FRAMING_CLAUSE, PANEL_NO_GRAPHICS_CLAUSE, PANEL_ONE_PRODUCT_CLAUSE, PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE,
+} from "../panel-prompt";
 import { castReadyForPanels, estimatePanelCredits, panelInputs, panelReferenceCap, type PanelInputs } from "../panel-inputs";
 import { shotKey } from "../keys";
 import type { ScriptDoc } from "@/lib/scripts/schema";
@@ -108,8 +110,17 @@ describe("panelInputs on Reel 01 (D342)", () => {
   // D458 — the reel's setting gives the place and light; its camera note is not every panel's.
   it("reads the reel's setting for its place and light, not its camera note", () => {
     const p = inputs("s03").prompt;
-    expect(p).toMatch(/The reel's setting \(take its place and light; a camera note in it is only for the shot it describes\)/);
+    expect(p).toMatch(/The reel's setting \(take its place and light only; an object it lists appears only when this shot's action uses it, and a camera note in it is only for the shot it describes\)/);
     expect(p).not.toMatch(/Setting and camera for the whole reel/);
+  });
+
+  // D462 — the setting's and the kit's props and food stayed out of panels that do not use them.
+  it("draws only what the shot names, framed for its action", () => {
+    const p = inputs("s03").prompt;
+    expect(p).toContain(PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE);
+    expect(p).toContain(PANEL_FRAMING_CLAUSE);
+    expect(p).toContain("food from it appears only when this shot serves or eats a meal");
+    expect(p).not.toContain("Use what fits this shot");
   });
 
   it("draws nobody on a B-roll shot, with no references", () => {
@@ -208,6 +219,7 @@ describe("panels with the script's products and locations", () => {
     const { prompt } = inputs("s06", panelReferenceCap(), avatars, withAssets());
     expect(prompt).toContain("The shot is set in Home kitchen: reference image 3 shows this exact place, empty.");
     expect(prompt).toContain("- Brandname flour pouch: reference images 4 and 11 show it. Draw exactly this product");
+    expect(prompt).toContain(PANEL_ONE_PRODUCT_CLAUSE);
     expect(prompt).toContain("- Brandname jar: draw it as a plain blank pack with no printing");
     expect(prompt).toContain("The products in the reference images keep their packaging exactly as pictured");
     expect(prompt).not.toContain("Every container, jar, packet and box is plain and unlabelled.\n");
