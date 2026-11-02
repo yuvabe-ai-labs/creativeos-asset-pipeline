@@ -76,7 +76,7 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
         </Tabs>
       </header>
 
-      {/* D465 — the avatar on top, then two even columns: how it is made, and how it sounds. */}
+      {/* D465 — compact: the avatar, then how to make it right under it, then its voice. */}
       <div className="flex flex-col gap-1.5">
         <AvatarSheetImage name={member.name} sheet={sheet} generating={generating} stale={avatar?.sheetStale ?? false} />
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
@@ -84,47 +84,43 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
           {maker.step ? STEP_COPY[maker.step] : castSlotLine(avatar)}
         </p>
       </div>
-      <div className="grid gap-6 border-t border-border pt-4 sm:grid-cols-2">
-        <div className="flex min-w-0 flex-col gap-3">
-          {mode === "ai" ? (
-            <CastSlotAiMaker avatar={reusableFor("ai", avatar)} modelId={modelId} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />
-          ) : (
-            <CastSlotPhotoMaker
-              name={member.name}
-              castId={member.id}
-              modelId={modelId}
-              avatar={reusableFor("photo", avatar)}
-              uploading={maker.step === "upload"}
-              confirming={maker.step === "consent"}
-              busy={maker.busy}
-              onUpload={(file) => void maker.uploadPhoto(file)}
-              onConfirm={() => void maker.confirmConsent()}
-              onFinish={() => void maker.finish()}
-            />
-          )}
-          {/* Picking replaces the link; no separate Change (removed in testing: it read as Regenerate). */}
-          <div className="flex flex-col gap-1.5">
-            <span aria-hidden className="text-xs text-muted-foreground">From the library</span>
-            <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />
-          </div>
-          <AvatarAdvancedSettings className="pt-0">
-            <Label htmlFor={`avatar-model-${member.id}`} className="text-xs text-muted-foreground">Image model for the face and views</Label>
-            <AvatarModelSelect id={`avatar-model-${member.id}`} value={modelId} onChange={onModelId} />
-          </AvatarAdvancedSettings>
-        </div>
-        <div className="flex min-w-0 flex-col gap-3">
-          <CastSlotVoice clientId={clientId} castId={member.id} avatar={avatar && !avatar.archivedAt ? avatar : null} onChanged={() => void maker.refresh()} />
-          {avatar && !avatar.archivedAt && avatar.voice && (
-            <CastSlotPreview
-              clientId={clientId}
-              avatar={avatar}
-              disabled={maker.busy}
-              lockedReason={previewLockedReason(avatar, maker.step)}
-              onSettled={onPreviewSettled}
-            />
-          )}
+      {mode === "ai" ? (
+        <CastSlotAiMaker avatar={reusableFor("ai", avatar)} modelId={modelId} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />
+      ) : (
+        <CastSlotPhotoMaker
+          name={member.name}
+          castId={member.id}
+          modelId={modelId}
+          avatar={reusableFor("photo", avatar)}
+          uploading={maker.step === "upload"}
+          confirming={maker.step === "consent"}
+          busy={maker.busy}
+          onUpload={(file) => void maker.uploadPhoto(file)}
+          onConfirm={() => void maker.confirmConsent()}
+          onFinish={() => void maker.finish()}
+        />
+      )}
+      <div className="grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
+        <CastSlotVoice clientId={clientId} castId={member.id} avatar={avatar && !avatar.archivedAt ? avatar : null} onChanged={() => void maker.refresh()} />
+        {/* Picking replaces the link; no separate Change (removed in testing: it read as Regenerate). */}
+        <div className="flex flex-col gap-1.5">
+          <span aria-hidden className="text-xs text-muted-foreground">From the library</span>
+          <CastLibraryPicker clientId={clientId} excludeIds={[...takenIds, ...(avatar ? [avatar.id] : [])]} disabled={maker.busy} onPick={(id) => void maker.pick(id)} />
         </div>
       </div>
+      {avatar && !avatar.archivedAt && avatar.voice && (
+        <CastSlotPreview
+          clientId={clientId}
+          avatar={avatar}
+          disabled={maker.busy}
+          lockedReason={previewLockedReason(avatar, maker.step)}
+          onSettled={onPreviewSettled}
+        />
+      )}
+      <AvatarAdvancedSettings className="pt-0">
+        <Label htmlFor={`avatar-model-${member.id}`} className="text-xs text-muted-foreground">Image model for the face and views</Label>
+        <AvatarModelSelect id={`avatar-model-${member.id}`} value={modelId} onChange={onModelId} />
+      </AvatarAdvancedSettings>
     </Card>
   );
 }

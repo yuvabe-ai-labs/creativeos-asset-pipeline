@@ -41,14 +41,15 @@ export function CastSlotPreview({ clientId, avatar, disabled, lockedReason = nul
       <span className="text-xs text-muted-foreground">Video preview</span>
       <div className="flex flex-wrap items-center gap-2">
         {clip && (
-          <Button size="sm" variant="outline" onClick={() => setWatching(true)}>
+          <Button size="sm" variant="secondary" onClick={() => setWatching(true)}>
             <Play className="size-3.5" strokeWidth={1.5} />
             Watch
           </Button>
         )}
         <Button
           size="sm"
-          variant="outline"
+          // D465 — the first preview is the popup's next step (primary); making it again is secondary.
+          variant={clip ? "secondary" : "default"}
           disabled={disabled || busy || p.loading || blocker !== null || p.estimateCredits === null}
           onClick={() => void p.generate(defaultVoicePreviewLine(avatar.name))}
         >
