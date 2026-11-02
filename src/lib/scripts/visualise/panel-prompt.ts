@@ -15,8 +15,10 @@ export type PanelPerson = {
   /** The four views, or none while the person's avatar is not ready. */
   views: { view: AvatarViewId; url: string }[];
 };
-/** A person's view, or (D449) the shot's location plate or one of its products' pictures. */
+/** A person's view, or (D449) the shot's location plate or one of its products' pictures, or (D464)
+ *  the panel a Redraw changes. */
 export type PanelReference =
+  | { url: string; panel: true }
   | { url: string; castId: string; view: AvatarViewId }
   | { url: string; asset: "location"; assetId: string }
   | { url: string; asset: "product"; assetId: string; angle: number };
@@ -46,13 +48,29 @@ export const PANEL_NOBODY_CLAUSE = "Nobody is on screen: draw no people. Hands m
 export const PANEL_REFERENCE_CLAUSE =
   "The people's reference images show their identity only: never copy their plain grey background, lighting or layout.";
 /** D449 — Redraw's "Change this picture": the picked take is reference image 1 and only the note
- *  changes. Everything the take already got right (who, where, framing, style) is held. */
-export function panelChangePrompt(note: string): string {
+ *  changes. Everything the take already got right (who, where, framing, style) is held.
+ *  D464 — and the shot's own references follow it, named as in a draw: with the take alone, a
+ *  change lost the people, the place and the product (Reel 33 S1: "he looks at the back of the
+ *  product" had no back view to draw from, and the no-text rule blanked the real pack). */
+export function panelChangePrompt(
+  note: string,
+  context: { shot: Shot; people: PanelPerson[]; references: PanelReference[]; assets?: PanelAssets },
+): string {
+  const { shot, people, references } = context;
+  const assets = context.assets ?? NO_PANEL_ASSETS;
+  const realProduct = references.some((r) => "asset" in r && r.asset === "product");
   return [
-    "Reference image 1 is the current storyboard panel. Redraw it with one change: " + note.trim().replace(/\.?\s*$/, "."),
-    "Keep everything else exactly as it is: the people and how they look, the setting, the framing and the drawing style.",
-    PANEL_NO_TEXT_CLAUSE,
-  ].join("\n");
+    "Reference image 1 is the current storyboard panel. Redraw it with one change: " + sentence(note),
+    "Keep everything else exactly as it is: the people and how they look, the setting, the framing and the drawing style. " +
+      "When it is a sheet of several frames, keep every frame and change only what the note names.",
+    `The shot it draws: ${sentence(shot.visual)} Where the change and the shot differ, the change wins.`,
+    styleReferenceClause(references.length + 1),
+    locationClause(assets.location, references),
+    people.length > 0 ? peopleClause(people, references) : "",
+    productsClause(assets.products, references),
+    people.length > 0 ? PANEL_REFERENCE_CLAUSE : "",
+    realProduct ? PANEL_NO_TEXT_WITH_PRODUCTS_CLAUSE : PANEL_NO_TEXT_CLAUSE,
+  ].filter(Boolean).join("\n\n");
 }
 
 /** D449 — with the real product in the frame, its own packaging is drawn as pictured; nothing else

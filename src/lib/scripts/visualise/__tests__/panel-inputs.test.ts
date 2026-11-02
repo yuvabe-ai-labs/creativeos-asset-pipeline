@@ -35,7 +35,8 @@ describe("castReadyForPanels (D341)", () => {
 });
 
 /** A reference as "cast:view", or (D449) as its asset and id. */
-const refLabel = (r: PanelInputs["references"][number]) => ("castId" in r ? `${r.castId}:${r.view}` : `${r.asset}:${r.assetId}`);
+const refLabel = (r: PanelInputs["references"][number]) =>
+  "castId" in r ? `${r.castId}:${r.view}` : "asset" in r ? `${r.asset}:${r.assetId}` : "panel";
 
 describe("panelInputs on Reel 01 (D342)", () => {
   it("sends both people's four views for a two-person shot, fronts first, and numbers them in the prompt", () => {
