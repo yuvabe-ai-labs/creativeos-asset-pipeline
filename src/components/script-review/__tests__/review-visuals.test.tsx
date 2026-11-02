@@ -66,7 +66,8 @@ describe("ReviewStoryboard", () => {
       <ReviewStoryboard doc={reelDoc()} panels={{ s01: { takeId: "t1", url: "https://cdn/s01.png" } }} />,
     );
     expect(html).toContain("Storyboard");
-    expect(html).toContain('aria-label="Open the S1 panel"');
+    expect(html).toContain("https://cdn/s01.png");
+    expect(html).not.toContain("cursor-zoom-in");
     expect(html).toContain('aria-label="Comment on S1 panel"');
     expect(html).toContain("No panel");
     expect(html).not.toContain("Generate");

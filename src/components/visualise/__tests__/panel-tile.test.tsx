@@ -11,7 +11,7 @@ const view = (over: Partial<PanelView> = {}): PanelView => ({
 });
 const render = (v: PanelView, label = "S1") => renderToStaticMarkup(
   <PanelTile shot={shot} doc={doc} label={label} time="0–3s" view={v} aspect="9:16" credits={40}
-    onDraw={() => {}} onRedraw={() => {}} onOpen={() => {}} />,
+    onDraw={() => {}} onRedraw={() => {}} onVersions={() => {}} />,
 );
 
 describe("PanelTile (D465: the panel carries its shot)", () => {
@@ -29,12 +29,19 @@ describe("PanelTile (D465: the panel carries its shot)", () => {
     expect(html).toMatch(/class="[^"]*opacity-100[^"]*\[@media\(hover:hover\)\]:opacity-0/);
   });
 
-  it("offers Generate on a shot with no panel, and the empty frame still opens", () => {
+  it("offers Generate on a shot with no panel", () => {
     const html = render(view({ status: "not_yet", pick: null, takes: [] }), "S8");
     expect(html).toContain("Generate");
-    expect(html).toContain('aria-label="Open S8"');
     expect(html).toContain("Not drawn yet");
     expect(html).not.toContain("Redraw");
+    expect(html).not.toContain("Versions");
+  });
+
+  it("does not zoom: the frame is a picture, and Versions sits beside Redraw", () => {
+    const html = render(view());
+    expect(html).not.toContain("cursor-zoom-in");
+    expect(html).not.toContain('aria-label="Open the S1 panel"');
+    expect(html).toContain("Versions");
   });
 
   it("anchors the tile to its shot", () => {

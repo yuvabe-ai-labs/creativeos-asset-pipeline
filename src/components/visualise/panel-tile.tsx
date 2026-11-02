@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { RefreshCw } from "lucide-react";
+import { History, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,6 +15,7 @@ import type { DrawBody } from "@/lib/scripts/visualise/schema";
 import { waitingMessage, type PanelView } from "@/lib/scripts/visualise/state";
 import { PanelFrame } from "./panel-frame";
 import { PanelTileCaption } from "./panel-tile-caption";
+import { cn } from "@/lib/utils";
 
 type Props = {
   shot: Shot;
@@ -30,7 +31,8 @@ type Props = {
   onDraw: () => void;
   /** D449 — Redraw on a panel that has a take: change it by a note, or draw anew. */
   onRedraw: (body: DrawBody) => void;
-  onOpen: () => void;
+  /** D465 — the panel view (versions, the prompt, the whole shot), from the frame's Versions. */
+  onVersions: () => void;
   /** Spec 4 merge points: the comment markers on the shot and on its panel. */
   shotMarker?: ReactNode;
   panelMarker?: ReactNode;
@@ -61,7 +63,7 @@ function Hint({ text, children, className }: { text: string | null; children: Re
 // D465 — one shot on the storyboard sheet: the frame, then its shot written underneath as on a
 // classic storyboard, then the shot's product and location. Redraw sits on a drawn frame; only a
 // shot with no panel yet has a button below. Out of date and Failed sit on the frame as badges.
-export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDraw, onRedraw, onOpen, shotMarker, panelMarker }: Props) {
+export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDraw, onRedraw, onVersions, shotMarker, panelMarker }: Props) {
   const busy = view.status === "generating";
   const badge = view.status === "out_of_date"
     ? { text: "Out of date", hint: view.staleBecause.map((r) => STALE_COPY[r]).join(" · "), tone: "border-primary/30 bg-background text-primary" }
@@ -72,14 +74,18 @@ export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDra
   return (
     <figure id={shotAnchor(shot.id)} className="relative m-0 flex min-w-0 scroll-mt-6 flex-col gap-3">
       <div className="group relative">
-        <PanelFrame view={view} aspect={aspect} label={label} description={shot.visual} onOpen={onOpen} />
+        <PanelFrame view={view} aspect={aspect} label={label} description={shot.visual} />
         {badge && (
           <Hint text={badge.hint} className="absolute left-2 top-2">
             <Badge variant="outline" className={badge.tone}>{badge.text}</Badge>
           </Hint>
         )}
         {view.pick && !busy && (
-          <span className={REDRAW_ON_FRAME}>
+          <span className={cn(REDRAW_ON_FRAME, "flex gap-1.5")}>
+            <Button variant="outline" size="sm" className={REDRAW_PILL} onClick={onVersions}>
+              <History className="size-3.5" strokeWidth={1.5} />
+              Versions
+            </Button>
             {/* Why it can't redraw yet (an avatar it waits for), as the Generate button says. */}
             <Hint text={view.canGenerate ? null : waitingMessage(view.waitingFor)}>
               <RedrawPopover

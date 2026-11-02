@@ -121,7 +121,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
               credits={model.credits.get(t.shot.id) ?? null}
               onDraw={() => void draws.draw(t.shot.id)}
               onRedraw={(body) => void draws.draw(t.shot.id, body)}
-              onOpen={() => setOpenShot(t.shot.id)}
+              onVersions={() => setOpenShot(t.shot.id)}
               shotMarker={review?.shotMarker(t.shot.id)}
               panelMarker={review?.panelMarker(t.shot.id)}
             />
