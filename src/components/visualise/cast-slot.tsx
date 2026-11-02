@@ -9,7 +9,7 @@ import { AvatarSheetImage } from "@/components/avatars/avatar-sheet-image";
 import type { useCastAvatarMaker } from "@/hooks/use-cast-avatar-maker";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { CastMember } from "@/lib/scripts/schema";
-import { castSlotLine, reusableFor } from "@/lib/scripts/visualise/maker";
+import { castSlotLine, reusableFor, sheetForMode } from "@/lib/scripts/visualise/maker";
 import { CastLibraryPicker } from "./cast-library-picker";
 import { CastSlotAiMaker } from "./cast-slot-ai-maker";
 import { CastSlotPhotoMaker } from "./cast-slot-photo-maker";
@@ -52,11 +52,13 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
   // One sheet, shown as the image it is made as (D395). Only once its views exist: a sheet that
   // could not be cut, or an older single-image sheet, must not look finished.
   const generating = maker.step === "views" || maker.step === "face";
-  const sheet = avatar?.sheetViews ? avatar.sheet : null;
+  // D465: and only the sheet of the mode in view — Specific person never shows a generated one.
+  const sheet = sheetForMode(mode, avatar);
 
   return (
     <Card className={cn("flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40", bare && "border-0 bg-transparent p-0 shadow-none ring-0")}>
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      {/* In a dialog the close button sits top-right: keep the mode tabs clear of it. */}
+      <header className={cn("flex flex-wrap items-start justify-between gap-3", bare && "pr-8")}>
         <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
           <div className="flex items-center gap-2">
             <h3 className="font-display text-lg font-medium">{member.name}</h3>
@@ -74,7 +76,10 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
       </header>
 
       <div className="flex flex-col gap-4">
-        <AvatarSheetImage name={member.name} sheet={sheet} generating={generating} stale={avatar?.sheetStale ?? false} />
+        {/* Specific person with no photo yet: the upload is the whole picture, no empty sheet above it. */}
+        {(mode === "ai" || sheet || generating) && (
+          <AvatarSheetImage name={member.name} sheet={sheet} generating={generating} stale={avatar?.sheetStale ?? false} />
+        )}
         <div className="flex min-w-0 flex-col gap-3">
           {mode === "ai" ? (
             <CastSlotAiMaker avatar={reusableFor("ai", avatar)} modelId={modelId} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />

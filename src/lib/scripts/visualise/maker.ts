@@ -44,6 +44,13 @@ export function reusableFor(mode: "ai" | "photo", avatar: Avatar | null): Avatar
   return (mode === "ai") === (kind === "generated") ? avatar : null;
 }
 
+/** D465 — the sheet a mode shows: only its own kind of avatar (Specific person never shows an
+ *  AI-generated sheet, nor the reverse), and only once its views were cut (D395). */
+export function sheetForMode(mode: "ai" | "photo", avatar: Avatar | null): Avatar["sheet"] | null {
+  const own = reusableFor(mode, avatar);
+  return own?.sheetViews ? own.sheet : null;
+}
+
 /** What the slot does next: the face, the four views, or saving. Null when done, or when a
  *  real person's photo still waits for permission. */
 export function nextMakerStep(avatar: Avatar | null): MakerStep | null {

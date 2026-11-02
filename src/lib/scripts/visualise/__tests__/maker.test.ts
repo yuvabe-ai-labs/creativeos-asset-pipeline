@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { GENERATED, makeAvatar, makeImage, makeViews } from "@/lib/avatars/__tests__/fixtures";
 import type { Avatar } from "@/lib/avatars/schema";
 import {
-  castChipStatus, castSlotLine, finishAvatar, makeGeneratedAvatar, nextMakerStep, reusableFor, type MakerDeps,
+  castChipStatus, castSlotLine, finishAvatar, sheetForMode, makeGeneratedAvatar, nextMakerStep, reusableFor, type MakerDeps,
 } from "../maker";
 import { MEENAKSHI_AVATAR, readyAvatar, reel01Doc } from "./fixtures";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
@@ -170,5 +170,26 @@ describe("castChipStatus (D465: the chip says ready only when panels can use the
 
   it("is ready only when panels can use it", () => {
     expect(castChipStatus(ready(), null)).toEqual({ label: "Ready", tone: "ready" });
+  });
+});
+
+describe("sheetForMode (D465: a mode shows only its own kind of avatar)", () => {
+  const generated = () => readyAvatar(MEENAKSHI_AVATAR, "m");
+  const uploaded = () => readyAvatar(MEENAKSHI_AVATAR, "m", {
+    front: { ...generated().front!, source: { kind: "upload", filename: "p.jpg", uploadedBy: "u", uploadedAt: "2026-10-01T00:00:00.000Z" } },
+  });
+
+  it("shows no AI-generated sheet under Specific person", () => {
+    expect(sheetForMode("photo", generated())).toBeNull();
+    expect(sheetForMode("ai", generated())).toEqual(generated().sheet);
+  });
+
+  it("shows a real person's sheet under Specific person, not under AI-generated", () => {
+    expect(sheetForMode("photo", uploaded())).toEqual(uploaded().sheet);
+    expect(sheetForMode("ai", uploaded())).toBeNull();
+  });
+
+  it("shows nothing for a sheet whose views were never cut", () => {
+    expect(sheetForMode("ai", readyAvatar(MEENAKSHI_AVATAR, "m", { sheetViews: null }))).toBeNull();
   });
 });
