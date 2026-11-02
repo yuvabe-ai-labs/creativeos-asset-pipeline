@@ -18,7 +18,8 @@ export function StoryboardGrid({ action, settings, children }: {
         {action}
       </div>
       {settings}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">{children}</div>
+      {/* D465 — the full width of the board, as a storyboard sheet: two across on a phone, five wide. */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{children}</div>
     </section>
   );
 }
