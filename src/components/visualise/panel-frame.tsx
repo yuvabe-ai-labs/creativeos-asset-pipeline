@@ -50,11 +50,20 @@ export function PanelFrame({ view, aspect, label, description, onOpen }: {
       </div>
     );
   }
+  // D465 — an empty frame opens too: the panel view shows the whole shot before the first draw.
   return (
     <div
       className={cn(box, "bg-card", view.canGenerate ? "border border-dashed border-primary/40" : "border border-border")}
       style={style}
-      aria-label={`${label}: no panel yet`}
-    />
+    >
+      <Button
+        variant="ghost"
+        aria-label={`Open ${label}`}
+        onClick={onOpen}
+        className="absolute inset-0 h-full w-full rounded-none p-0 text-xs font-normal text-muted-foreground"
+      >
+        Not drawn yet
+      </Button>
+    </div>
   );
 }
