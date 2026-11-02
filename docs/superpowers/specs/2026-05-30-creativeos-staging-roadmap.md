@@ -8308,3 +8308,12 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Redrawing fresh with the note (the Fresh option already does that; a change must hold what the take got right). Sending the product pictures only (the people and the place drift the same way over repeated changes).
 
 **Originated →** conversation in this session (Reel 33 storyboard iteration, staging).
+### D464 — The script copilot asks for no review by default; a review beat comes only when the person asks *(recorded 2026-11-02; amends the brand-neutral format menu, spec 2 §7–§8)*
+
+**Decision.** Reviews leave the copilot's defaults. The shared format menu has no REVIEW beat (UGC is HOOK, INTRO, STORY, STEP, BODY, PAYOFF, PROOF, OUTRO) and no "UGC review first" format. The prompt (version 9) drops the review-beat rule, an angle's reviewTheme, the card's "Review" line, the "do not list the review" note and the pasted-review instruction. Fill to final has no review wording of its own: a bracket in a review shot reads "Replace [...] in REVIEW (S2)." like any other, and the "Paste the cleared review" chip is gone, as is the probe's "review placeholder" check. KB extraction (version 3.2.0) no longer asks every brand's content rules "whether it uses customer reviews"; a brand whose documents speak of reviews still has them in its rules, as written. A person who wants a review beat asks for it in the brief or the chat; "Never make up a testimonial" still holds, so the copilot leaves a placeholder rather than invent one. Saved scripts, briefs and the seeded reels keep the review beats they have; an old angle's reviewTheme is dropped on read, and a saved "UGC, review first" reads as UGC.
+
+**Why.** User, 2 Nov 2026: the review requirement was one client's (Jackfruit's Amazon reviews), yet every UGC script carried a review beat, and its placeholder sat at the bottom of every draft as two "Still open" lines (two of the shot's fields each held the bracket).
+
+**Rejected.** Keeping the beat and only hiding the reminder (the beat itself was the client-specific part). Keeping the beat with no quote.
+
+**Originated →** conversation in this session.

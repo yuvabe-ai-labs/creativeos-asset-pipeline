@@ -1,13 +1,14 @@
 // The shared format menu, offered to every client (brand-neutral spec §3.1). A format's beats are a
 // starting point: the copilot leaves out or adapts a beat that doesn't fit the brand and lists the
 // beats on the confirmation card. What goes inside each beat comes from the brand, never from here.
+// D464 — no format holds a review beat: reviews were one client's requirement. A reel gets one
+// only when the person asks for it.
 
 export type FormatBeat = { label: string; does: string };
 export type ScriptFormat = { name: string; beats: FormatBeat[]; realPersonLead: boolean };
 
 const HOOK: FormatBeat = { label: "HOOK", does: "the lead's moment, a line to camera" };
 const INTRO: FormatBeat = { label: "INTRO", does: "the situation or the problem" };
-const REVIEW: FormatBeat = { label: "REVIEW", does: "a real customer review, only for brands that use them" };
 const PROOF: FormatBeat = { label: "PROOF", does: "the brand's proof, from its KB" };
 const OUTRO: FormatBeat = { label: "OUTRO", does: "where to find it, and any disclaimers" };
 const UGC_MIDDLE: FormatBeat[] = [
@@ -23,15 +24,14 @@ const UGC_END: FormatBeat[] = [
 const TOPIC = (n: number): FormatBeat => ({ label: `TOPIC ${n}`, does: "a point about this reel's topic, labelled for it" });
 
 export const SCRIPT_FORMATS: readonly ScriptFormat[] = [
-  { name: "UGC", beats: [HOOK, INTRO, ...UGC_MIDDLE, REVIEW, ...UGC_END], realPersonLead: false },
-  { name: "UGC review first", beats: [HOOK, REVIEW, INTRO, ...UGC_MIDDLE, ...UGC_END], realPersonLead: false },
+  { name: "UGC", beats: [HOOK, INTRO, ...UGC_MIDDLE, ...UGC_END], realPersonLead: false },
   { name: "Founder-led", beats: [HOOK, INTRO, TOPIC(1), TOPIC(2), TOPIC(3), TOPIC(4), TOPIC(5), PROOF, OUTRO], realPersonLead: true },
 ];
 
-/** The menu format named inside a free-typed answer ("like a UGC"); the longest name wins, so
- *  "UGC review first" is not read as "UGC". */
+/** The menu format named inside a free-typed answer ("like a UGC"); the longest name wins, so a
+ *  longer name that contains a shorter one is read as itself. */
 export function formatFor(text: string): ScriptFormat | undefined {
-  // Words only, so "UGC, review first" and "founder led" match their menu names.
+  // Words only, so "founder led" matches "Founder-led".
   const words = (s: string) => ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
   const t = words(text);
   return [...SCRIPT_FORMATS]
