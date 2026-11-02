@@ -44,11 +44,10 @@ export function reusableFor(mode: "ai" | "photo", avatar: Avatar | null): Avatar
   return (mode === "ai") === (kind === "generated") ? avatar : null;
 }
 
-/** D465 — the sheet a mode shows: only its own kind of avatar (Specific person never shows an
- *  AI-generated sheet, nor the reverse), and only once its views were cut (D395). */
-export function sheetForMode(mode: "ai" | "photo", avatar: Avatar | null): Avatar["sheet"] | null {
-  const own = reusableFor(mode, avatar);
-  return own?.sheetViews ? own.sheet : null;
+/** D465 — why the video preview is locked: the avatar must be made first (generated or uploaded,
+ *  then its four views), and not mid-make. Null when it can be made. */
+export function previewLockedReason(avatar: Avatar | null, step: string | null): string | null {
+  return castChipStatus(avatar, step).tone === "ready" ? null : "Make the avatar first.";
 }
 
 /** What the slot does next: the face, the four views, or saving. Null when done, or when a

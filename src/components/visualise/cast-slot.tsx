@@ -9,7 +9,7 @@ import { AvatarSheetImage } from "@/components/avatars/avatar-sheet-image";
 import type { useCastAvatarMaker } from "@/hooks/use-cast-avatar-maker";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { CastMember } from "@/lib/scripts/schema";
-import { castSlotLine, reusableFor, sheetForMode } from "@/lib/scripts/visualise/maker";
+import { castSlotLine, previewLockedReason, reusableFor } from "@/lib/scripts/visualise/maker";
 import { CastLibraryPicker } from "./cast-library-picker";
 import { CastSlotAiMaker } from "./cast-slot-ai-maker";
 import { CastSlotPhotoMaker } from "./cast-slot-photo-maker";
@@ -52,8 +52,9 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
   // One sheet, shown as the image it is made as (D395). Only once its views exist: a sheet that
   // could not be cut, or an older single-image sheet, must not look finished.
   const generating = maker.step === "views" || maker.step === "face";
-  // D465: and only the sheet of the mode in view — Specific person never shows a generated one.
-  const sheet = sheetForMode(mode, avatar);
+  // D465: one avatar per person — the same sheet whichever tab is open; the tabs only choose how
+  // to make (or remake) it.
+  const sheet = avatar?.sheetViews ? avatar.sheet : null;
 
   return (
     <Card className={cn("flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40", bare && "border-0 bg-transparent p-0 shadow-none ring-0")}>
@@ -75,11 +76,9 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
         </Tabs>
       </header>
 
-      <div className="flex flex-col gap-4">
-        {/* Specific person with no photo yet: the upload is the whole picture, no empty sheet above it. */}
-        {(mode === "ai" || sheet || generating) && (
-          <AvatarSheetImage name={member.name} sheet={sheet} generating={generating} stale={avatar?.sheetStale ?? false} />
-        )}
+      {/* In a dialog, compact: the sheet beside the controls rather than above them. */}
+      <div className={cn("flex flex-col gap-4", bare && "sm:grid sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] sm:items-start")}>
+        <AvatarSheetImage name={member.name} sheet={sheet} generating={generating} stale={avatar?.sheetStale ?? false} />
         <div className="flex min-w-0 flex-col gap-3">
           {mode === "ai" ? (
             <CastSlotAiMaker avatar={reusableFor("ai", avatar)} modelId={modelId} busy={maker.busy} onMake={(i, fresh) => void maker.make(i, fresh)} />
@@ -111,7 +110,13 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
             </div>
           </div>
           {avatar && !avatar.archivedAt && avatar.voice && (
-            <CastSlotPreview clientId={clientId} avatar={avatar} disabled={maker.busy} onSettled={onPreviewSettled} />
+            <CastSlotPreview
+              clientId={clientId}
+              avatar={avatar}
+              disabled={maker.busy}
+              lockedReason={previewLockedReason(avatar, maker.step)}
+              onSettled={onPreviewSettled}
+            />
           )}
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
             {maker.step && <Loader2 className="size-3.5 animate-spin text-primary" strokeWidth={1.5} />}
