@@ -89,6 +89,8 @@ export type VideoGenModelSpec = {
   label: string;
   /** Short label for the compact model-picker chip; falls back to `label` when unset. */
   pickerLabel?: string;
+  /** D461 — no new generations; stays on the roster so its past versions still read and restore. */
+  deprecated?: boolean;
   providerLabel: string;
   maxDurationSeconds: number;
   imageInputs: ImageInputCapabilities;

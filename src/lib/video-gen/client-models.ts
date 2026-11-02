@@ -252,6 +252,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1-lite",
     provider: "veo",
     label: "Veo 3.1 Lite",
+    deprecated: true,
     providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_LITE_IMAGE_INPUTS,
@@ -262,6 +263,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1-fast",
     provider: "veo",
     label: "Veo 3.1 Fast",
+    deprecated: true,
     providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_REFS_IMAGE_INPUTS,
@@ -272,6 +274,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1",
     provider: "veo",
     label: "Veo 3.1 Quality",
+    deprecated: true,
     providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_REFS_IMAGE_INPUTS,
@@ -369,7 +372,14 @@ export function modelPickerLabel(model: VideoGenClientModelSpec): string {
   return model.label.startsWith(prefix) ? model.label.slice(prefix.length) : model.label;
 }
 
-export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-lite";
+export const DEFAULT_VIDEO_CLIENT_MODEL_ID = GEMINI_OMNI_MODEL_ID;
+
+/** D461 — shown when a deprecated chip is clicked, and returned by the generate route. */
+export const VIDEO_MODEL_DEPRECATED_MESSAGE = "This model is deprecated";
+
+export function isVideoModelDeprecated(modelId: string): boolean {
+  return videoGenClientModelMap[modelId]?.deprecated === true;
+}
 
 // Back-compat: map a removed/unknown model id (e.g. a persisted node still referencing a pruned
 // model) to the default rather than crashing. Ported from the consolidation work during the

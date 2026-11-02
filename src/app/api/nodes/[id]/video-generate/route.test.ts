@@ -136,6 +136,21 @@ beforeEach(() => {
   mocks.graph = {};
 });
 
+describe("POST video-generate — deprecated models (D461)", () => {
+  it.each(["veo:veo-3.1-lite", "veo:veo-3.1-fast", "veo:veo-3.1"])(
+    "refuses %s before any generation is recorded",
+    async (modelId) => {
+      const res = await post({ modelId, params: {}, imageRoles: {} });
+
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("This model is deprecated");
+      expect(mocks.insertGeneration).not.toHaveBeenCalled();
+      expect(mocks.reserveCredits).not.toHaveBeenCalled();
+      expect(mocks.triggerTask).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe("POST video-generate — multishot server backstop (D236, D97)", () => {
   it("rejects a modelId that differs from the plan's targetModel, before any generation is recorded", async () => {
     mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, PLAN);

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Cpu } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -9,6 +10,8 @@ import {
   videoGenClientModelGroups,
   modelPickerLabel,
   videoGenClientModelMap,
+  isVideoModelDeprecated,
+  VIDEO_MODEL_DEPRECATED_MESSAGE,
 } from "@/lib/video-gen/client-models";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -113,7 +116,8 @@ export function VideoGenModelPicker({
               <div className="flex flex-wrap items-center gap-1.5">
                 {providerGroup.models.map((m) => {
                   const active = m.id === modelId;
-                  const reason = unavailable?.[m.id];
+                  const deprecated = m.deprecated === true;
+                  const reason = deprecated ? undefined : unavailable?.[m.id];
                   const chip = (
                     <Button
                       key={m.id}
@@ -121,13 +125,19 @@ export function VideoGenModelPicker({
                       variant="ghost"
                       size="xs"
                       aria-pressed={active}
+                      // D461 — aria-disabled, not disabled: a disabled button fires no click, and
+                      // a deprecated chip has to answer one with the toast.
+                      aria-disabled={deprecated || undefined}
                       disabled={!editable || Boolean(reason)} // D33, or the presenter rules it out (D299)
-                      onClick={() => onModelChange(m.id)}
+                      onClick={() =>
+                        deprecated ? toast.error(VIDEO_MODEL_DEPRECATED_MESSAGE) : onModelChange(m.id)
+                      }
                       className={cn(
                         "h-auto rounded-md border px-3 py-1.5 text-[0.8rem] font-semibold transition-colors",
                         active
                           ? "border-primary/35 bg-primary/8 text-primary hover:bg-primary/8"
                           : "border-border bg-transparent text-foreground/70 hover:bg-muted hover:text-foreground",
+                        deprecated && "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-foreground/70",
                       )}
                     >
                       {modelPickerLabel(m)}
@@ -148,7 +158,13 @@ export function VideoGenModelPicker({
         </div>
         )}
 
-        {!loading && unavailable?.[modelId] && (
+        {!loading && isVideoModelDeprecated(modelId) && (
+          <p className="mt-2 text-[0.7rem] text-destructive">
+            {modelPickerLabel(videoGenClientModelMap[modelId])} is deprecated. Pick another model to generate.
+          </p>
+        )}
+
+        {!loading && !isVideoModelDeprecated(modelId) && unavailable?.[modelId] && (
           <p className="mt-2 text-[0.7rem] text-destructive">
             {modelPickerLabel(videoGenClientModelMap[modelId])} can&apos;t use this shot&apos;s avatar: {unavailable[modelId]}. Pick
             another model, or turn the avatar off in the prompt.

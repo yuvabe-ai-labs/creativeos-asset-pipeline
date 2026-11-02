@@ -1,7 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { videoGenClientModelMap, videoGenClientModelGroups } from "../client-models";
+import {
+  videoGenClientModelMap,
+  videoGenClientModelGroups,
+  isVideoModelDeprecated,
+  DEFAULT_VIDEO_CLIENT_MODEL_ID,
+} from "../client-models";
 
 describe("video model roster", () => {
+  it("D461: deprecates exactly the three Veo models, and never defaults to a deprecated one", () => {
+    const deprecated = Object.keys(videoGenClientModelMap).filter(isVideoModelDeprecated).sort();
+    expect(deprecated).toEqual(["veo:veo-3.1", "veo:veo-3.1-fast", "veo:veo-3.1-lite"]);
+    expect(isVideoModelDeprecated(DEFAULT_VIDEO_CLIENT_MODEL_ID)).toBe(false);
+  });
+
   it("contains the consolidated roster: Veo x3 + Kling 3.0 + Kling O1 + Kling 3.0 Omni + Seedance 2.5 + Gemini Omni", () => {
     expect(Object.keys(videoGenClientModelMap).sort()).toEqual([
       "gemini:gemini-omni-1.1-flash",

@@ -44,6 +44,8 @@ import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
   defaultsForVideoModel,
   videoGenClientModelMap,
+  isVideoModelDeprecated,
+  VIDEO_MODEL_DEPRECATED_MESSAGE,
 } from "@/lib/video-gen/client-models";
 import { multishotCapabilityFor, multishotRestrictionReason, checkLadder } from "@/lib/nodes/multishot-models";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
@@ -1399,13 +1401,18 @@ export function VideoGenFocusView({
     onOpenChange(false);
     focusStoreApi.getState().setFocusedNodeId(promptNode.id);
   }
+  // D461 — a node saved on a deprecated model opens on it, but can't generate until it moves off.
+  const modelDeprecated = isVideoModelDeprecated(modelId);
   const disableGenerate =
     Boolean(lockReason) ||
+    modelDeprecated ||
     loadingConnected ||
     Boolean(promptGap) ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = lockReason
     ? lockReason
+    : modelDeprecated
+    ? VIDEO_MODEL_DEPRECATED_MESSAGE
     : loadingConnected
     ? "Loading connected inputs…"
     : promptGap

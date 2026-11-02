@@ -10,7 +10,11 @@ import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/regist
 // Constraint rules live in client-models.ts, which is the single source of truth for them —
 // the server registry carries only what generation needs. Importing it here is safe: that
 // module has no `server-only` dependency, it is plain param specs and rule data.
-import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import {
+  videoGenClientModelMap,
+  isVideoModelDeprecated,
+  VIDEO_MODEL_DEPRECATED_MESSAGE,
+} from "@/lib/video-gen/client-models";
 import { areFramesAndRefsExclusive, validateAgainstRules } from "@/lib/video-gen/constraints";
 import {
   assignImageRoles,
@@ -70,6 +74,8 @@ export async function POST(
     const modelId = body.modelId ?? DEFAULT_VIDEO_MODEL_ID;
     const config = videoGenRegistry[modelId];
     if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
+    // D461 — a saved node can still name a deprecated model, so the picker alone enforces nothing.
+    if (isVideoModelDeprecated(modelId)) return apiError(VIDEO_MODEL_DEPRECATED_MESSAGE, 400);
 
     // Build params using model's param specs (defaults where not provided)
     const bodyParams = body.params ?? {};

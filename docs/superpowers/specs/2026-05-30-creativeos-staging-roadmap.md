@@ -8278,3 +8278,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A placeholder card while the server works (the picture is already known, so the real card can show it). Waiting to place the rows until the server answers (the gap the user reported).
 
 **Originated →** conversation in this session.
+
+### D461 — The three Veo 3.1 models are deprecated: visible, not selectable, not generatable *(recorded 2026-11-02; amends the Veo default in client-models and registry)*
+
+**Decision.** Veo 3.1 Lite, Fast and Quality carry `deprecated: true` on the client roster. Their picker chips stay on show, dimmed, and a click gives the toast "This model is deprecated" instead of switching model. A node already saved on Veo opens on it, says so under the picker and cannot generate until it moves to another model. The generate route refuses a deprecated model with a 400 before any generation row or credit reservation. The default for new nodes and for a request naming no model (client and server, which had disagreed: Lite and Fast) is now Gemini Omni 1.1 Flash.
+
+**Why.** User, 2 Nov 2026: disable all three Veo models and toast that the model is deprecated when one is clicked. The chip uses `aria-disabled`, because a `disabled` button fires no click to answer. The default moved because new nodes would otherwise start on a model they cannot use; Omni is the choice because it is the only other Google model, needs no start frame (unlike Kling 3.0) and has no presenter restriction on a real face (unlike Seedance).
+
+**Rejected.** Removing Veo from the roster (past versions read their params and labels from it, and `resolveVideoModelId` would silently relabel them). Moving saved Veo nodes to another model automatically (it changes a node's cost and prompt dialect without being asked). Enforcing in the picker alone (D216/D232 shipped that mistake). Removing the Veo prompt dialect and the "Veo" Target model chip on the Video Prompt node (not a model choice, and it is also the provider-neutral fallback for mixed downstreams).
+
+**Originated →** conversation in this session.
