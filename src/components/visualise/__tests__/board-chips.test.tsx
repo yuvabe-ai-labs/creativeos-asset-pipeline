@@ -55,3 +55,11 @@ describe("BoardChips (D465: cast, locations and products as chips)", () => {
     expect(render()).not.toContain('role="dialog"');
   });
 });
+
+describe("BoardChips size (D465: chips big enough to recognise a face or a place)", () => {
+  it("draws 56px faces and thumbnails", () => {
+    const html = render();
+    expect(html.match(/size-14/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(html).not.toContain("size-9");
+  });
+});

@@ -47,14 +47,14 @@ export function CastChip({ clientId, scriptId, member, avatar, faceUrl, takenIds
         id={castAnchor(member.id)}
         variant="outline"
         onClick={() => setOpen(true)}
-        className="h-auto scroll-mt-6 gap-2.5 rounded-xl py-1 pl-1 pr-3"
+        className="h-auto scroll-mt-6 gap-3 rounded-2xl py-1.5 pl-1.5 pr-4"
       >
-        <span className={cn("block size-9 shrink-0 overflow-hidden rounded-full bg-muted", !faceUrl && "border border-dashed border-border bg-transparent")}>
+        <span className={cn("block size-14 shrink-0 overflow-hidden rounded-full bg-muted", !faceUrl && "border border-dashed border-border bg-transparent")}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {faceUrl && <img src={faceUrl} alt="" className="size-full object-cover object-top" />}
         </span>
-        <span className="flex flex-col items-start leading-tight">
-          <span className="flex items-center gap-1.5 font-medium">
+        <span className="flex flex-col items-start gap-0.5 leading-tight">
+          <span className="flex items-center gap-1.5 text-base font-medium">
             {member.name}
             {member.isLead && <Badge variant="outline" className="h-4 px-1.5 text-[0.65rem]">Lead</Badge>}
           </span>

@@ -12,13 +12,13 @@ import { shotsUsing } from "@/lib/scripts/utils";
 import { AssetChip } from "./asset-chip";
 import { CastChip } from "./cast-chip";
 
-const ADD = "h-auto rounded-xl border border-dashed border-primary/40 px-3 py-2 text-primary hover:bg-primary/5";
+const ADD = "h-auto self-stretch rounded-2xl border border-dashed border-primary/40 px-4 text-primary hover:bg-primary/5";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section aria-label={label.split(" ·")[0]} className="flex flex-col gap-2">
       <h2 className="text-eyebrow">{label}</h2>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
+      <div className="flex flex-wrap items-center gap-3">{children}</div>
     </section>
   );
 }

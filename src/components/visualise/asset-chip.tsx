@@ -23,17 +23,17 @@ export function AssetChip({ kind, name, thumbUrl, usedIn, needsPicture, working,
   const Icon = kind === "product" ? Package : MapPin;
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)} className="h-auto gap-2.5 rounded-xl py-1 pl-1 pr-3">
-        <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+      <Button variant="outline" onClick={() => setOpen(true)} className="h-auto gap-3 rounded-2xl py-1.5 pl-1.5 pr-4">
+        <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted">
           {thumbUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={thumbUrl} alt="" className="size-full object-cover" />
           ) : (
-            <Icon className="size-4 text-muted-foreground" strokeWidth={1.5} aria-hidden />
+            <Icon className="size-5 text-muted-foreground" strokeWidth={1.5} aria-hidden />
           )}
         </span>
-        <span className="flex flex-col items-start leading-tight">
-          <span className="font-medium">{name}</span>
+        <span className="flex flex-col items-start gap-0.5 leading-tight">
+          <span className="text-base font-medium">{name}</span>
           {working ? (
             <span className="flex items-center gap-1 text-xs font-normal text-primary">
               <Loader2 className="size-3 animate-spin" strokeWidth={1.5} />
