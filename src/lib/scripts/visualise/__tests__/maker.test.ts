@@ -174,7 +174,11 @@ describe("castChipStatus (D465: the chip says ready only when panels can use the
 });
 
 describe("sheetForMode (D465: a mode shows only its own kind of avatar)", () => {
-  const generated = () => readyAvatar(MEENAKSHI_AVATAR, "m");
+  // The shared fixture's face is an upload; a generated avatar says so.
+  const generated = () => {
+    const a = readyAvatar(MEENAKSHI_AVATAR, "m");
+    return { ...a, front: { ...a.front!, source: GENERATED } };
+  };
   const uploaded = () => readyAvatar(MEENAKSHI_AVATAR, "m", {
     front: { ...generated().front!, source: { kind: "upload", filename: "p.jpg", uploadedBy: "u", uploadedAt: "2026-10-01T00:00:00.000Z" } },
   });
