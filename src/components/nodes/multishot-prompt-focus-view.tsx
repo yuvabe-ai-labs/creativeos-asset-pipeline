@@ -476,6 +476,10 @@ export function MultishotPromptFocusView({
     note?: string;
     plan?: MultishotPlan;
   }) {
+    // The node may exist only in this browser until autosave catches up (one made a moment ago,
+    // or several generated in a row while saves queue): the route reads its row, so persist
+    // first or it answers "Node not found". A no-op when nothing is unsaved.
+    await flushAutosave();
     const res = await fetch(`/api/nodes/${nodeId}/multishot-prompt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
