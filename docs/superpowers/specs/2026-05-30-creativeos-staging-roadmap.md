@@ -8298,3 +8298,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A grid per multishot clip assembled from the shots' panels (the user's choice; a shot's own moments were the gap). Four separate renders per shot (four times the credits, and drift between them). A frame count that follows the moment count (a 9:16 sheet only divides evenly into 2 by 2).
 
 **Originated →** conversation in this session (Reel 32 storyboard review, staging).
+
+### D464 — Redraw's change sends the shot's people, place and products after the panel it changes *(recorded 2026-11-02; amends D449)*
+
+**Decision.** "Change this picture" sends the picked take as reference image 1, then the shot's own references as a draw selects them (the people's views, the location plate, the product pictures and angles, one slot fewer so the take fits), then the house style. Its prompt (panelChangePrompt) keeps the note and the hold-everything line, adds that a sheet of frames keeps every frame and changes only what the note names, restates the shot text (the change wins where they differ), and names each reference as a draw does: the place, the people, the products. With a real product picture it uses the packaging-as-pictured text rule, not the every-pack-is-blank one. PanelReference gains a { panel: true } variant for the take.
+
+**Why.** User, 2 Nov 2026, Reel 33 on staging (script 8f69d599): iterations on a storyboard lose the product, and maybe the place and the references. Confirmed from the generations: a change sent only the old panel and the house style, and its prompt said every packet is plain and unlabelled. S1 drew the real Jackfruit365 pack, "he looks at the back of the product" invented a back with no back picture to draw from, and "he looks at the front view" came back a blank yellow bag; S3's "in frame 4, flip the product" blanked the pack in every frame. The people and room held only through the old panel, with nothing anchoring them over repeated changes.
+
+**Rejected.** Redrawing fresh with the note (the Fresh option already does that; a change must hold what the take got right). Sending the product pictures only (the people and the place drift the same way over repeated changes).
+
+**Originated →** conversation in this session (Reel 33 storyboard iteration, staging).
