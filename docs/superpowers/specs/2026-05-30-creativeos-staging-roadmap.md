@@ -8308,3 +8308,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Redrawing fresh with the note (the Fresh option already does that; a change must hold what the take got right). Sending the product pictures only (the people and the place drift the same way over repeated changes).
 
 **Originated →** conversation in this session (Reel 33 storyboard iteration, staging).
+
+### D465 — A product is a physical thing, never a service; a graphic-only shot has no location *(recorded 2026-11-02; refines D447, D457, D458)*
+
+**Decision.** The copilot's asset rules (script-copilot version 9) say a product is a physical thing the camera can show and a photo can be taken of. A service (a loan, insurance, an account, a card's benefits, a subscription, an app's features, a booking) is never a product: the reel shows it through people, places and actions, and the brand arrives through the voiceover and the logo added in the edit. A brand that sells only services gets an empty product list, and what a person in the story owns and uses (their own gold jewellery taken to a gold loan) is a prop. A shot that is only a graphic (a logo end card, a brand-colour background, a title card) has location "" and adds no location.
+
+**Why.** User, 2 Nov 2026, Muthoot Finance on staging (script 78efc68d): "Muthoot Finance Gold Loans" became a product card asking for a picture, picked in S3 (her laptop) and S5 (the logo card), because the D458 rule picks a product its voiceover names and nothing said a product must be an object. Without a picture, the panel prompt draws a product as "a plain blank pack", so a loan would have been drawn as a blank pouch. The S5 logo card became a location, "Red Background", with a plate to generate, though graphics are added in the edit (D457).
+
+**Rejected.** A product kind field (physical or service) on each product (the copilot can leave a service out entirely; nothing downstream needs a service row). Hiding the picture prompt for a product without one (it would keep a service row the video and panel prompts still try to draw).
+
+**Originated →** conversation in this session (Muthoot Finance script review, staging).
