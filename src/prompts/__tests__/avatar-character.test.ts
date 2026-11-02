@@ -87,6 +87,14 @@ describe("the character brief (D395)", () => {
 describe("the turnaround sheet (D395)", () => {
   const prompt = buildAvatarSheetPrompt();
 
+  // D462 — the front is cut at the waist; its description says how the rest is worn.
+  it("carries the front's description so every view wears the outfit the same way", () => {
+    const described = buildAvatarSheetPrompt("A shirt worn untucked. Black slip-on sandals.");
+    expect(described).toContain("The person as described when the reference image was made: A shirt worn untucked. Black slip-on sandals.");
+    expect(described).toContain("the back view too (tucked or untucked, sleeves, drape, footwear)");
+    expect(prompt).not.toContain("as described when the reference image was made");
+  });
+
   it("asks for all four views in one image, in the order the route cuts them", () => {
     expect(SHEET_ORDER).toEqual(AVATAR_VIEWS);
     expect(prompt).toContain("turnaround sheet");

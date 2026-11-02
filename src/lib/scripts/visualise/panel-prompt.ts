@@ -115,11 +115,34 @@ function locationClause(location: ScriptLocation | null, references: PanelRefere
   if (!location) return "";
   const [n] = numbersOf(references, (r) => "asset" in r && r.asset === "location");
   if (n) {
+    // D462 — the room drifted between panels (a dark table in one, a light one in the next): every
+    // panel names the same pieces, in the same colours.
     return `The shot is set in ${location.name}: reference image ${n} shows this exact place, empty. Draw the shot there, ` +
-      "with the same walls, surfaces, furniture and light, seen from this shot's own camera. The people and the action go in it.";
+      "with the same walls, surfaces, furniture and light, seen from this shot's own camera: the same table, chairs, " +
+      "shelves and doors, in the same shapes, materials and colours, in every panel. The people and the action go in it.";
   }
   return `The shot is set in ${location.name}${location.description.trim() ? `: ${sentence(location.description)}` : "."}`;
 }
+
+/** D462 — Reel 32 S3 drew a pack in each person's hand while one is handed over, and S1 showed the
+ *  front while the shot taps the back label. */
+export const PANEL_ONE_PRODUCT_CLAUSE =
+  "There is one of it in the frame unless the shot says there are more; when it passes from one person to " +
+  "another, only one of them holds it. When the shot names a side of it (the back, the label), show that side.";
+
+/** D462 — what a panel draws beyond its shot. The reel's setting line and the regional kit listed
+ *  props and food (a study page, a notebook, chapatis, varan), and every panel drew them: a thali
+ *  on the table in the intro, notes beside the pack shot. They give the look of the place only. */
+export const PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE =
+  "Draw only what this shot needs: the people, products and objects its action names, and the room's own " +
+  "furniture. No food, dishes, papers or other objects the shot does not name, even when the setting or the " +
+  "regional kit lists them.";
+
+/** D462 — every panel came back the same medium-wide view from the same height. */
+export const PANEL_FRAMING_CLAUSE =
+  "Frame it as a storyboard artist would for this action, unless the shot gives the camera: close on the " +
+  "detail when the action is about one (a label, hands, a spoon), medium on one person, wider when two people " +
+  "share the moment.";
 
 /** D449 — the products the shot shows: copied from their pictures, or a blank pack until one exists. */
 function productsClause(products: Product[], references: PanelReference[]): string {
@@ -128,7 +151,7 @@ function productsClause(products: Product[], references: PanelReference[]): stri
     const ns = numbersOf(references, (r) => "asset" in r && r.asset === "product" && r.assetId === p.id);
     return ns.length > 0
       ? `- ${p.name}: reference image${ns.length > 1 ? "s" : ""} ${list(ns)} show${ns.length > 1 ? "" : "s"} it. Draw exactly this product, ` +
-        "in the same shape, colours and proportions, wherever the shot shows it."
+        "in the same shape, colours and proportions, wherever the shot shows it. " + PANEL_ONE_PRODUCT_CLAUSE
       : `- ${p.name}: draw it as a plain blank pack with no printing; the real one is added in the edit.`;
   });
   return ["Products in this shot (exactly these):", ...lines].join("\n");
@@ -172,17 +195,22 @@ export function buildPanelPrompt(input: {
     styleReferenceClause(references.length + 1),
     `Frame: ${panelAspect(doc)}.`,
     `This shot: ${sentence(shot.visual)}`,
+    PANEL_FRAMING_CLAUSE,
     // D458 — the place and light are the reel's; a camera note there is for the shot it describes.
+    // D462 — and the objects it lists only where the shot's action uses them.
     doc.context.settingAndCamera
-      ? `The reel's setting (take its place and light; a camera note in it is only for the shot it describes): ${sentence(doc.context.settingAndCamera)}`
+      ? "The reel's setting (take its place and light only; an object it lists appears only when this shot's action " +
+        `uses it, and a camera note in it is only for the shot it describes): ${sentence(doc.context.settingAndCamera)}`
       : "",
     kit
       ? `Regional kit (${kit.region}). Kitchen and home: ${kit.kitchen}. At the table: ${kit.table}. ` +
-        `Wardrobe: ${kit.wardrobe}. Use what fits this shot. The home is Indian, never European or Western.`
+        `Wardrobe: ${kit.wardrobe}. Use it for the look of the home and clothes; food from it appears only when ` +
+        "this shot serves or eats a meal. The home is Indian, never European or Western."
       : "",
     locationClause(assets.location, references),
     people.length === 0 ? PANEL_NOBODY_CLAUSE : peopleClause(people, references),
     productsClause(assets.products, references),
+    PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE,
     ...blanks,
     mentionsGraphic(shot) ? PANEL_NO_GRAPHICS_CLAUSE : "",
     peopleRefs ? PANEL_REFERENCE_CLAUSE : "",
