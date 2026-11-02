@@ -72,4 +72,15 @@ describe("ReviewStoryboard", () => {
     expect(html).not.toContain("Generate");
     expect(html).not.toContain("Comment on S2 panel");
   });
+
+  it("draws the shots as text tiles when panels were not shared (D465)", () => {
+    const html = renderInSurface(
+      testSurface({ commentable: [{ kind: "shot", shotId: "s01" }] }),
+      <ReviewStoryboard doc={reelDoc()} panels={null} />,
+    );
+    expect(html).toContain(reelDoc().shots[0].visual);
+    expect(html).toContain('aria-label="Comment on S1"');
+    expect(html).not.toContain("No panel");
+    expect(html).not.toContain("aspect-ratio");
+  });
 });
