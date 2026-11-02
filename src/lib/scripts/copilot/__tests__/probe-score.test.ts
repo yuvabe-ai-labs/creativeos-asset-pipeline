@@ -6,8 +6,10 @@ import { SCRIPT_FORMATS } from "../formats";
 
 const r01 = scriptDocSchema.parse(reel01);
 const UGC = SCRIPT_FORMATS.find((f) => f.name === "UGC")!.beats.map((b) => b.label);
-// Reel 01 is Jackfruit's own script, so its words are the client's own, not a leak.
-const jackfruit: ProbeOptions = { beats: UGC, clientText: JSON.stringify(reel01), neverList: ["cure", "diabetic-friendly"], shots: [12, 15], seconds: [45, 55] };
+// Reel 01 is Jackfruit's own script, so its words are the client's own, not a leak. Its beats are its
+// own too: it keeps the review beat the shared UGC format no longer has (D464).
+const R01_BEATS = [...new Set(r01.shots.map((s) => s.beat))];
+const jackfruit: ProbeOptions = { beats: R01_BEATS, clientText: JSON.stringify(reel01), neverList: ["cure", "diabetic-friendly"], shots: [12, 15], seconds: [45, 55] };
 const failed = (doc: ScriptDoc, o: ProbeOptions) => scoreDraft(doc, o).filter((c) => !c.pass).map((c) => c.name);
 const check = (doc: ScriptDoc, o: ProbeOptions, name: string) => scoreDraft(doc, o).find((c) => c.name === name)!;
 
@@ -19,19 +21,13 @@ const four: ScriptDoc = {
 const short: ProbeOptions = { ...jackfruit, beats: ["HOOK", "INTRO", "PROOF", "OUTRO"], shots: [4, 4], seconds: [0, 60] };
 
 describe("scoreDraft", () => {
-  it("passes the seeded Reel 01 against the UGC beats and its own client's words", () => {
+  it("passes the seeded Reel 01 against its own beats and its own client's words", () => {
     expect(failed(r01, jackfruit)).toEqual([]);
   });
 
   it("scores structure against the confirmed card's beats, not a fixed format", () => {
     expect(check(four, short, "structure").pass).toBe(true);
     expect(check(four, { ...short, beats: UGC }, "structure").pass).toBe(false);
-  });
-
-  it("asks for a review placeholder only when the beats include a review", () => {
-    expect(check(four, short, "review placeholder").pass).toBe(true);
-    const invented = { ...r01, shots: r01.shots.map((s) => (s.beat === "REVIEW" ? { ...s, vo: 'One customer wrote: "Loved it!"' } : s)) };
-    expect(check(invented, jackfruit, "review placeholder").pass).toBe(false);
   });
 
   it("catches another client's words, but not the client's own", () => {

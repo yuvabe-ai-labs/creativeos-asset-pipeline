@@ -12,11 +12,19 @@ import { useReviewSurface } from "./review-surface-context";
  *  comment action. Both open the part in the Comments column; threads are never drawn here.
  *  `data-part-commented` lets the part's own card pick up a faint amber edge. Nothing renders for
  *  a part no one may comment on now with nothing said (the team's view; after approval).
- *  `action={false}` keeps only the count, where the part has its own comment box (D359). */
-export function PartMarker({ part, label, className, action = true }: { part: Part; label?: string; className?: string; action?: boolean }) {
+ *  `action={false}` keeps only the count, where the part has its own comment box (D359).
+ *  `alsoCount` folds other parts' threads into this count (D465: a storyboard tile has one marker,
+ *  so its panel's earlier threads count on the shot's). */
+export function PartMarker({ part, label, className, action = true, alsoCount = [] }: {
+  part: Part;
+  label?: string;
+  className?: string;
+  action?: boolean;
+  alsoCount?: Part[];
+}) {
   const { doc, placed, commentable, onPost, openPart } = useReviewSurface();
   const key = partKey(part);
-  const count = placed.byPart.get(key)?.length ?? 0;
+  const count = [part, ...alsoCount].reduce((n, p) => n + (placed.byPart.get(partKey(p))?.length ?? 0), 0);
   const canComment = action && Boolean(onPost) && commentable.has(key);
   if (count === 0 && !canComment) return null;
   const name = label ?? partLabel(part, doc) ?? "this part";

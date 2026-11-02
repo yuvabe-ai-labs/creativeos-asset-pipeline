@@ -4,7 +4,7 @@ import { makeViews } from "@/lib/avatars/__tests__/fixtures";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import { panelInputs, panelReferenceCap, type PanelInputs } from "../panel-inputs";
 import {
-  generateAllLabel, generateAllPlan, hasLiveDraw, panelView, promptBoxStart, promptForDraw, visualiseReadiness,
+  generateAllLabel, generateAllPlan, hasLiveDraw, panelView, panelViewMode, promptBoxStart, promptForDraw, visualiseReadiness,
   waitingMessage, withDrawnTake,
   type PanelView,
 } from "../state";
@@ -226,5 +226,18 @@ describe("withDrawnTake", () => {
     const next = withDrawnTake({ avatars: [], kits: [], takes: [], picks: {} }, "s06", done, "t-new");
     expect(next.takes).toEqual([done]);
     expect(next.picks.s06).toBe("t-new");
+  });
+});
+
+describe("panelViewMode (D465: a shot with no panel opens to its shot only)", () => {
+  it("is shot-only with no pick, whether idle, waiting or failed", () => {
+    expect(panelViewMode({ pick: null, status: "not_yet" })).toBe("shot-only");
+    expect(panelViewMode({ pick: null, status: "waiting" })).toBe("shot-only");
+    expect(panelViewMode({ pick: null, status: "failed" })).toBe("shot-only");
+  });
+
+  it("is full with a pick, and while the first draw runs", () => {
+    expect(panelViewMode({ pick: makeTake(), status: "ready" })).toBe("full");
+    expect(panelViewMode({ pick: null, status: "generating" })).toBe("full");
   });
 });

@@ -44,6 +44,7 @@ export async function POST(
       if (!current || current.archivedAt) return apiError("Avatar not found.", 404);
       if (!current.front) return apiError("Add a front image before generating the profile sheet.", 400);
       const frontUrl = current.front.url;
+      const frontPrompt = current.front.source.kind === "generated" ? current.front.source.prompt : undefined;
 
       const caller = await resolveCallerContext();
       let made: Awaited<ReturnType<typeof runAvatarGeneration>>;
@@ -51,7 +52,7 @@ export async function POST(
         made = await runAvatarGeneration({
           clientId, avatarId, orgId: client.org_id, userId: caller.userId, userEmail: caller.email,
           slot: "sheet", modelId: parsed.data.modelId, aspect: AVATAR_SHEET_ASPECT,
-          prompt: buildAvatarSheetPrompt(), referenceUrls: [frontUrl], batchId: null,
+          prompt: buildAvatarSheetPrompt(frontPrompt), referenceUrls: [frontUrl], batchId: null,
         });
       } catch (e) {
         if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);

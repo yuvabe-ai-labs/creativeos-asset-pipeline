@@ -11,6 +11,14 @@ export function headerLine(header: ScriptHeader): string {
   return [header.format, header.region, header.postDate].filter((p) => p.trim()).join(" · ");
 }
 
+/** D465 — the shots a location or product is in, in reel order ("S3, S4"); "" when none. */
+export function shotsUsing(doc: ScriptDoc, ref: { productId: string } | { locationId: string }): string {
+  return doc.shots
+    .map((s, i) => ("productId" in ref ? s.products.includes(ref.productId) : s.location === ref.locationId) ? `S${i + 1}` : null)
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function shotSummary(doc: ScriptDoc): string {
   const n = doc.shots.length;
   return `${n} shot${n === 1 ? "" : "s"} · ${formatSeconds(totalSeconds(doc.shots))}s`;

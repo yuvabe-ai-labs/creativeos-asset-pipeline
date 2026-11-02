@@ -13,7 +13,7 @@ const ex = (over: Partial<Extraction> = {}): Extraction => ({
   skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
 });
 const angle = (id: string, over: Partial<Angle> = {}): Angle => ({
-  id, hook: `Hook ${id}`, situation: `Situation ${id}`, productMoment: "Lunch, curd", supportingCast: "Husband", reviewTheme: "Everyday ease",
+  id, hook: `Hook ${id}`, situation: `Situation ${id}`, productMoment: "Lunch, curd", supportingCast: "Husband",
   proof: "Origin line", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "", ...over,
 });
 const given = (value: string) => ({ value, status: "given" as const });

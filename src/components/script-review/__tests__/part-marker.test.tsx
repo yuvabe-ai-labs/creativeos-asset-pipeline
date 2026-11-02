@@ -35,6 +35,15 @@ describe("PartMarker (review board)", () => {
     expect(renderInSurface(testSurface({ mode: "team" }), <PartMarker part={S4} />)).toBe("");
   });
 
+  it("counts the panel's earlier threads on the shot's one marker (D465: one comment action per tile)", () => {
+    const P4: Part = { kind: "panel", shotId: "s04" };
+    const html = renderInSurface(
+      testSurface({ comments: [comment({ part: S4 }), comment({ id: "c2", part: P4 })], commentable: [S4] }),
+      <PartMarker part={S4} alsoCount={[P4]} />,
+    );
+    expect(html).toContain('aria-label="2 comments on S4"');
+  });
+
   it("never draws the threads themselves", () => {
     const html = renderInSurface(testSurface({ comments: [comment({ part: S4, body: "Make it seven steps" })] }), <PartMarker part={S4} />);
     expect(html).not.toContain("Make it seven steps");

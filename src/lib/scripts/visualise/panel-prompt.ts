@@ -15,8 +15,10 @@ export type PanelPerson = {
   /** The four views, or none while the person's avatar is not ready. */
   views: { view: AvatarViewId; url: string }[];
 };
-/** A person's view, or (D449) the shot's location plate or one of its products' pictures. */
+/** A person's view, or (D449) the shot's location plate or one of its products' pictures, or (D464)
+ *  the panel a Redraw changes. */
 export type PanelReference =
+  | { url: string; panel: true }
   | { url: string; castId: string; view: AvatarViewId }
   | { url: string; asset: "location"; assetId: string }
   | { url: string; asset: "product"; assetId: string; angle: number };
@@ -46,13 +48,29 @@ export const PANEL_NOBODY_CLAUSE = "Nobody is on screen: draw no people. Hands m
 export const PANEL_REFERENCE_CLAUSE =
   "The people's reference images show their identity only: never copy their plain grey background, lighting or layout.";
 /** D449 — Redraw's "Change this picture": the picked take is reference image 1 and only the note
- *  changes. Everything the take already got right (who, where, framing, style) is held. */
-export function panelChangePrompt(note: string): string {
+ *  changes. Everything the take already got right (who, where, framing, style) is held.
+ *  D464 — and the shot's own references follow it, named as in a draw: with the take alone, a
+ *  change lost the people, the place and the product (Reel 33 S1: "he looks at the back of the
+ *  product" had no back view to draw from, and the no-text rule blanked the real pack). */
+export function panelChangePrompt(
+  note: string,
+  context: { shot: Shot; people: PanelPerson[]; references: PanelReference[]; assets?: PanelAssets },
+): string {
+  const { shot, people, references } = context;
+  const assets = context.assets ?? NO_PANEL_ASSETS;
+  const realProduct = references.some((r) => "asset" in r && r.asset === "product");
   return [
-    "Reference image 1 is the current storyboard panel. Redraw it with one change: " + note.trim().replace(/\.?\s*$/, "."),
-    "Keep everything else exactly as it is: the people and how they look, the setting, the framing and the drawing style.",
-    PANEL_NO_TEXT_CLAUSE,
-  ].join("\n");
+    "Reference image 1 is the current storyboard panel. Redraw it with one change: " + sentence(note),
+    "Keep everything else exactly as it is: the people and how they look, the setting, the framing and the drawing style. " +
+      "When it is a sheet of several frames, keep every frame and change only what the note names.",
+    `The shot it draws: ${sentence(shot.visual)} Where the change and the shot differ, the change wins.`,
+    styleReferenceClause(references.length + 1),
+    locationClause(assets.location, references),
+    people.length > 0 ? peopleClause(people, references) : "",
+    productsClause(assets.products, references),
+    people.length > 0 ? PANEL_REFERENCE_CLAUSE : "",
+    realProduct ? PANEL_NO_TEXT_WITH_PRODUCTS_CLAUSE : PANEL_NO_TEXT_CLAUSE,
+  ].filter(Boolean).join("\n\n");
 }
 
 /** D449 — with the real product in the frame, its own packaging is drawn as pictured; nothing else
@@ -91,6 +109,29 @@ export function mentionsGraphic(shot: Pick<Shot, "visual">): boolean {
   return GRAPHIC_MENTION.test(shot.visual);
 }
 
+// D463 — a shot whose action has more than one moment ("Anjali holds up the pack and asks. Hemant
+// takes it from her and reads the label.") is drawn as a storyboard sheet: four frames of it in
+// order, in one image, so the people and room cannot drift between them. A moment is an action
+// verb after its doer or an "and" ("Hemant takes", "and reads"); "The plates" is not a doer.
+const MOMENT =
+  /(?:\b(?:he|she|they|(?!(?:The|A|An|This|That|These|Those|Its|His|Her|Their|One)\b)[A-Z][a-z]+)|\band)\s+(?!is\b|was\b|has\b|does\b)[a-z]+s\b/g;
+export const PANEL_GRID_FRAMES = 4;
+
+/** How many moments the shot's action has: two or more draws a grid. */
+export function shotMoments(shot: Pick<Shot, "visual">): number {
+  return shot.visual.match(MOMENT)?.length ?? 0;
+}
+
+export const drawsAsGrid = (shot: Pick<Shot, "visual">) => shotMoments(shot) >= 2;
+
+export function panelGridClause(aspect: string): string {
+  return `This panel is a storyboard sheet: ${PANEL_GRID_FRAMES} frames of this one shot in a 2 by 2 grid, read left to ` +
+    "right, top to bottom, showing its moments in order, the first frame its start and the last its end. Each frame " +
+    `is ${aspect}, full bleed inside its cell, with a thin white gutter between frames and no other border. The same ` +
+    "people, clothes, products, place and light in all four frames; only the action and, where it helps, the framing " +
+    "change. No numbers, arrows or notes.";
+}
+
 /** The script's aspect when the model accepts it; otherwise 9:16, the reels' own. */
 export function panelAspect(doc: ScriptDoc): string {
   const aspect = doc.header.aspect.trim();
@@ -115,11 +156,34 @@ function locationClause(location: ScriptLocation | null, references: PanelRefere
   if (!location) return "";
   const [n] = numbersOf(references, (r) => "asset" in r && r.asset === "location");
   if (n) {
+    // D462 — the room drifted between panels (a dark table in one, a light one in the next): every
+    // panel names the same pieces, in the same colours.
     return `The shot is set in ${location.name}: reference image ${n} shows this exact place, empty. Draw the shot there, ` +
-      "with the same walls, surfaces, furniture and light, seen from this shot's own camera. The people and the action go in it.";
+      "with the same walls, surfaces, furniture and light, seen from this shot's own camera: the same table, chairs, " +
+      "shelves and doors, in the same shapes, materials and colours, in every panel. The people and the action go in it.";
   }
   return `The shot is set in ${location.name}${location.description.trim() ? `: ${sentence(location.description)}` : "."}`;
 }
+
+/** D462 — Reel 32 S3 drew a pack in each person's hand while one is handed over, and S1 showed the
+ *  front while the shot taps the back label. */
+export const PANEL_ONE_PRODUCT_CLAUSE =
+  "There is one of it in the frame unless the shot says there are more; when it passes from one person to " +
+  "another, only one of them holds it. When the shot names a side of it (the back, the label), show that side.";
+
+/** D462 — what a panel draws beyond its shot. The reel's setting line and the regional kit listed
+ *  props and food (a study page, a notebook, chapatis, varan), and every panel drew them: a thali
+ *  on the table in the intro, notes beside the pack shot. They give the look of the place only. */
+export const PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE =
+  "Draw only what this shot needs: the people, products and objects its action names, and the room's own " +
+  "furniture. No food, dishes, papers or other objects the shot does not name, even when the setting or the " +
+  "regional kit lists them.";
+
+/** D462 — every panel came back the same medium-wide view from the same height. */
+export const PANEL_FRAMING_CLAUSE =
+  "Frame it as a storyboard artist would for this action, unless the shot gives the camera: close on the " +
+  "detail when the action is about one (a label, hands, a spoon), medium on one person, wider when two people " +
+  "share the moment.";
 
 /** D449 — the products the shot shows: copied from their pictures, or a blank pack until one exists. */
 function productsClause(products: Product[], references: PanelReference[]): string {
@@ -128,7 +192,7 @@ function productsClause(products: Product[], references: PanelReference[]): stri
     const ns = numbersOf(references, (r) => "asset" in r && r.asset === "product" && r.assetId === p.id);
     return ns.length > 0
       ? `- ${p.name}: reference image${ns.length > 1 ? "s" : ""} ${list(ns)} show${ns.length > 1 ? "" : "s"} it. Draw exactly this product, ` +
-        "in the same shape, colours and proportions, wherever the shot shows it."
+        "in the same shape, colours and proportions, wherever the shot shows it. " + PANEL_ONE_PRODUCT_CLAUSE
       : `- ${p.name}: draw it as a plain blank pack with no printing; the real one is added in the edit.`;
   });
   return ["Products in this shot (exactly these):", ...lines].join("\n");
@@ -167,22 +231,29 @@ export function buildPanelPrompt(input: {
     .filter((id) => !(id === "pack" && realProduct))
     .map((id) => BLANK_AREAS.find((a) => a.id === id)!.clause);
   const peopleRefs = references.some((r) => "castId" in r);
+  const aspect = panelAspect(doc);
   return [
     PANEL_STYLE_BLOCK,
     styleReferenceClause(references.length + 1),
-    `Frame: ${panelAspect(doc)}.`,
+    `Frame: ${aspect}.`,
+    drawsAsGrid(shot) ? panelGridClause(aspect) : "",
     `This shot: ${sentence(shot.visual)}`,
+    PANEL_FRAMING_CLAUSE,
     // D458 — the place and light are the reel's; a camera note there is for the shot it describes.
+    // D462 — and the objects it lists only where the shot's action uses them.
     doc.context.settingAndCamera
-      ? `The reel's setting (take its place and light; a camera note in it is only for the shot it describes): ${sentence(doc.context.settingAndCamera)}`
+      ? "The reel's setting (take its place and light only; an object it lists appears only when this shot's action " +
+        `uses it, and a camera note in it is only for the shot it describes): ${sentence(doc.context.settingAndCamera)}`
       : "",
     kit
       ? `Regional kit (${kit.region}). Kitchen and home: ${kit.kitchen}. At the table: ${kit.table}. ` +
-        `Wardrobe: ${kit.wardrobe}. Use what fits this shot. The home is Indian, never European or Western.`
+        `Wardrobe: ${kit.wardrobe}. Use it for the look of the home and clothes; food from it appears only when ` +
+        "this shot serves or eats a meal. The home is Indian, never European or Western."
       : "",
     locationClause(assets.location, references),
     people.length === 0 ? PANEL_NOBODY_CLAUSE : peopleClause(people, references),
     productsClause(assets.products, references),
+    PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE,
     ...blanks,
     mentionsGraphic(shot) ? PANEL_NO_GRAPHICS_CLAUSE : "",
     peopleRefs ? PANEL_REFERENCE_CLAUSE : "",

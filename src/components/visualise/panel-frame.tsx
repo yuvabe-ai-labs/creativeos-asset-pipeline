@@ -1,20 +1,19 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { PanelView } from "@/lib/scripts/visualise/state";
 import { PanelImage } from "./panel-image";
 
 // Spec §6.4 — one frame, the same size in every state, so nothing moves when a panel lands.
-export function PanelFrame({ view, aspect, label, description, onOpen }: {
+// D465 — a picture, not a button: the sheet does not zoom; the panel's actions sit on its frame.
+export function PanelFrame({ view, aspect, label, description }: {
   view: PanelView;
   aspect: string;
   label: string;
   /** The shot's visual line: while drawing, the placeholder says what is being drawn. */
   description: string;
-  onOpen: () => void;
 }) {
   const style = { aspectRatio: aspect.replace(":", " / ") };
   const box = "relative w-full overflow-hidden rounded-lg";
@@ -39,22 +38,17 @@ export function PanelFrame({ view, aspect, label, description, onOpen }: {
     // is about 2:3), which made drawn tiles taller than empty ones (testing).
     return (
       <div className={cn(box, "border border-border")} style={style}>
-        <Button
-          variant="ghost"
-          aria-label={`Open the ${label} panel`}
-          onClick={onOpen}
-          className="absolute inset-0 h-full w-full cursor-zoom-in rounded-none p-0"
-        >
-          <PanelImage src={view.pick.url} className={view.status === "out_of_date" ? "opacity-60" : undefined} />
-        </Button>
+        <PanelImage src={view.pick.url} alt={`${label} panel`} className={view.status === "out_of_date" ? "opacity-60" : undefined} />
       </div>
     );
   }
   return (
     <div
-      className={cn(box, "bg-card", view.canGenerate ? "border border-dashed border-primary/40" : "border border-border")}
+      className={cn(box, "flex items-center justify-center bg-card text-xs text-muted-foreground", view.canGenerate ? "border border-dashed border-primary/40" : "border border-border")}
       style={style}
       aria-label={`${label}: no panel yet`}
-    />
+    >
+      Not drawn yet
+    </div>
   );
 }
