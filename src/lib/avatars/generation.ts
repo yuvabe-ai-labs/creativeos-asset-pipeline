@@ -18,13 +18,25 @@ export function buildAvatarFrontPrompt(input: {
   description: string;
   attributes: AvatarAttributes;
   styleId: AvatarStyleId;
+  /** D471 — what each reference image's person is to this one ("mother"), in reference order. */
+  relatives?: string[];
 }): string {
   const { gender, age, ethnicity } = input.attributes;
   const who = [ethnicity, gender, age ? `aged ${age}` : undefined].filter(Boolean).join(", ");
   const style = AVATAR_STYLES.find((s) => s.id === input.styleId) ?? AVATAR_STYLES[0];
-  return [who ? `Subject: ${who}.` : "", input.description.trim(), style.phrase, AVATAR_FRAMING_CLAUSE]
+  return [who ? `Subject: ${who}.` : "", input.description.trim(), familyClause(input.relatives ?? []), style.phrase, AVATAR_FRAMING_CLAUSE]
     .filter(Boolean)
     .join(" ");
+}
+
+/** D471 — a blood relative's face beside the brief: a family likeness, never the same face. */
+export function familyClause(relatives: string[]): string {
+  if (relatives.length === 0) return "";
+  const who = relatives.map((r, i) => `reference image ${i + 1} is this person's ${r}`).join("; ");
+  return `Family: ${who}. Give this person a clear family resemblance to ${relatives.length > 1 ? "them" : "that person"}: ` +
+    "the same skin tone and the features a family shares (face shape, eyes, nose, hair colour and texture), at this " +
+    "person's own age and gender. A different person with their own face, never a copy. Take nothing else from the " +
+    "reference: not its clothes, pose, background, framing or style.";
 }
 
 /** D395 — the sheet is one 16:9 image with the front as its reference; its four views are cut

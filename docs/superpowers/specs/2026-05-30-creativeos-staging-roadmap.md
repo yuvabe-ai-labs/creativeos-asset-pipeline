@@ -8299,15 +8299,6 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session (Reel 32 storyboard review, staging).
 
-### D464 — Redraw's change sends the shot's people, place and products after the panel it changes *(recorded 2026-11-02; amends D449)*
-
-**Decision.** "Change this picture" sends the picked take as reference image 1, then the shot's own references as a draw selects them (the people's views, the location plate, the product pictures and angles, one slot fewer so the take fits), then the house style. Its prompt (panelChangePrompt) keeps the note and the hold-everything line, adds that a sheet of frames keeps every frame and changes only what the note names, restates the shot text (the change wins where they differ), and names each reference as a draw does: the place, the people, the products. With a real product picture it uses the packaging-as-pictured text rule, not the every-pack-is-blank one. PanelReference gains a { panel: true } variant for the take.
-
-**Why.** User, 2 Nov 2026, Reel 33 on staging (script 8f69d599): iterations on a storyboard lose the product, and maybe the place and the references. Confirmed from the generations: a change sent only the old panel and the house style, and its prompt said every packet is plain and unlabelled. S1 drew the real Jackfruit365 pack, "he looks at the back of the product" invented a back with no back picture to draw from, and "he looks at the front view" came back a blank yellow bag; S3's "in frame 4, flip the product" blanked the pack in every frame. The people and room held only through the old panel, with nothing anchoring them over repeated changes.
-
-**Rejected.** Redrawing fresh with the note (the Fresh option already does that; a change must hold what the take got right). Sending the product pictures only (the people and the place drift the same way over repeated changes).
-
-**Originated →** conversation in this session (Reel 33 storyboard iteration, staging).
 ### D464 — The script copilot asks for no review by default; a review beat comes only when the person asks *(recorded 2026-11-02; amends the brand-neutral format menu, spec 2 §7–§8)*
 
 **Decision.** Reviews leave the copilot's defaults. The shared format menu has no REVIEW beat (UGC is HOOK, INTRO, STORY, STEP, BODY, PAYOFF, PROOF, OUTRO) and no "UGC review first" format. The prompt (version 9) drops the review-beat rule, an angle's reviewTheme, the card's "Review" line, the "do not list the review" note and the pasted-review instruction. Fill to final has no review wording of its own: a bracket in a review shot reads "Replace [...] in REVIEW (S2)." like any other, and the "Paste the cleared review" chip is gone, as is the probe's "review placeholder" check. KB extraction (version 3.2.0) no longer asks every brand's content rules "whether it uses customer reviews"; a brand whose documents speak of reviews still has them in its rules, as written. A person who wants a review beat asks for it in the brief or the chat; "Never make up a testimonial" still holds, so the copilot leaves a placeholder rather than invent one. Saved scripts, briefs and the seeded reels keep the review beats they have; an old angle's reviewTheme is dropped on read, and a saved "UGC, review first" reads as UGC.
@@ -8335,5 +8326,63 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** User, 3 Nov 2026: the preview is how a client hears and sees the avatar speak; it should be reviewable where the avatar is reviewed.
 
 **Rejected.** A per-avatar lookup at share time (one query per cast member). Freezing a stale or running preview. Showing the clip behind a "Watch" button.
+
+**Originated →** conversation in this session.
+
+### D467 — A product is a physical thing, never a service; a graphic-only shot has no location *(recorded 2026-11-02 as D465 in commit 18d39b2b, renumbered when staging's D465 merged in; refines D447, D457, D458)*
+
+**Decision.** The copilot's asset rules (script-copilot version 10; version 9 is D464) say a product is a physical thing the camera can show and a photo can be taken of. A service (a loan, insurance, an account, a card's benefits, a subscription, an app's features, a booking) is never a product: the reel shows it through people, places and actions, and the brand arrives through the voiceover and the logo added in the edit. A brand that sells only services gets an empty product list, and what a person in the story owns and uses (their own gold jewellery taken to a gold loan) is a prop. A shot that is only a graphic (a logo end card, a brand-colour background, a title card) has location "" and adds no location.
+
+**Why.** User, 2 Nov 2026, Muthoot Finance on staging (script 78efc68d): "Muthoot Finance Gold Loans" became a product card asking for a picture, picked in S3 (her laptop) and S5 (the logo card), because the D458 rule picks a product its voiceover names and nothing said a product must be an object. Without a picture, the panel prompt draws a product as "a plain blank pack", so a loan would have been drawn as a blank pouch. The S5 logo card became a location, "Red Background", with a plate to generate, though graphics are added in the edit (D457).
+
+**Rejected.** A product kind field (physical or service) on each product (the copilot can leave a service out entirely; nothing downstream needs a service row). Hiding the picture prompt for a product without one (it would keep a service row the video and panel prompts still try to draw).
+
+**Originated →** conversation in this session (Muthoot Finance script review, staging).
+
+### D468 — An app or a website is never a product; a screen-only shot has no location *(recorded 2026-11-03 as D466 in commit 8df743e1, renumbered when staging's D466 merged in; refines D467)*
+
+**Decision.** The copilot's asset rules (script-copilot version 11) name an app or a website, and what it does, among the services that are never a product. A shot that is only a screen (a screen recording of an app or a website, a phone's display filling the frame) has location "", adds no location and picks no product: a screen is never a location, and a real screen recording is added in the edit.
+
+**Why.** User, 3 Nov 2026, PharmEasy on staging (script 1894b4f8, "Repeat order set", imported under version 8): "PharmEasy app" became a product with no picture, picked in S4 (the screen recording) and S7 (the end card), and "Mobile Screen" became a location with a plate to generate. D467's "an app's features" read as the features, not the app itself, and nothing covered a screen as a place.
+
+**Rejected.** For now, a "Recorded for real" mark on a shot that the storyboard and canvas skip (the user deferred it on 3 Nov 2026; S4's real recording still has no path but the edit). A plain green screen in a generated shot (the same deferral).
+
+**Originated →** conversation in this session (PharmEasy script review, staging).
+### D469 — Redraw's change sends the shot's people, place and products after the panel it changes *(recorded 2026-11-02 as D464 in commit dbd966dc, renumbered when staging's D464 to D466 merged in; amends D449)*
+
+**Decision.** "Change this picture" sends the picked take as reference image 1, then the shot's own references as a draw selects them (the people's views, the location plate, the product pictures and angles, one slot fewer so the take fits), then the house style. Its prompt (panelChangePrompt) keeps the note and the hold-everything line, adds that a sheet of frames keeps every frame and changes only what the note names, restates the shot text (the change wins where they differ), and names each reference as a draw does: the place, the people, the products. With a real product picture it uses the packaging-as-pictured text rule, not the every-pack-is-blank one. PanelReference gains a { panel: true } variant for the take.
+
+**Why.** User, 2 Nov 2026, Reel 33 on staging (script 8f69d599): iterations on a storyboard lose the product, and maybe the place and the references. Confirmed from the generations: a change sent only the old panel and the house style, and its prompt said every packet is plain and unlabelled. S1 drew the real Jackfruit365 pack, "he looks at the back of the product" invented a back with no back picture to draw from, and "he looks at the front view" came back a blank yellow bag; S3's "in frame 4, flip the product" blanked the pack in every frame. The people and room held only through the old panel, with nothing anchoring them over repeated changes.
+
+**Rejected.** Redrawing fresh with the note (the Fresh option already does that; a change must hold what the take got right). Sending the product pictures only (the people and the place drift the same way over repeated changes).
+
+**Originated →** conversation in this session (Reel 33 storyboard iteration, staging).
+
+### D470 — The storyboard and script rules are checked against every brand's scripts, not the reel that showed the problem *(recorded 2026-11-03; refines D457, D462, D463, D467, D468)*
+
+**Decision.** The rules from D462 to D468 were each written from one reel. They were rerun over all 64 scripts and 489 shots on staging (food, fashion, jewellery, beauty, skincare, finance, pharmacy, beverages), and rewritten as general rules:
+
+- **Storyboard sheet (D463).** The 2 by 2 sheet is decided from the script's own cast names (or he, she, they, someone), never from any capitalised word, so "Camera tilts", "Pan across", "Sliced onions" and "Walking shots" are not doers. A sheet is drawn when the action passes between two people or runs three or more steps; one person's two actions ("lifts the lid and smiles") stay one frame, since a sheet asks the clip to move through frames and invites cuts. 118 shots drew as sheets before, 48 of 388 distinct shots now.
+- **What the edit lays over a shot (D457).** The panel draws the live scene under a logo, tagline, on-screen text, name or price, a card, badge, caption, overlay or split screen. A logo printed on the product, the claim line on the pack, a real card (a debit card) and "no logo on screen" are left alone. Before, only card, claim line, badge, caption and subtitle were caught, so 16 logo mentions and every split screen were drawn, and a pack's printed claim line was removed.
+- **Screens.** A phone, laptop or TV screen facing the camera is drawn plain and lit, with no app, page or text; what it shows is added in the edit. "On screen", "off-screen" and a split screen are places in the frame, not devices.
+- **A product with no picture** is drawn as a plain version of what it is, with no logo, label or printing, not as "a blank pack" or "a blank pouch" (a sandal, a pendant or a lipstick is not a pouch).
+- **The regional kit** gives the look of the place and clothes for its own region (never another region's), and its food and objects appear only when the shot's action uses them. Before, it said "the home is Indian" and spoke of meals only.
+- **One of the product** means one pair or one set where the product comes that way.
+- **Script copilot (version 12).** A location is a real place people could be in: a graphic, a plain backdrop (a colour, a studio sweep, a product shown on a background, a packshot or e-commerce set) or a screen-only shot has location "" and its visual says the backdrop. Something carrying the brand's own fixed look (its packaging, a gift or delivery box, a branded card, bag or uniform) is a product, so a picture of it can be added; the service behind it is not. Variants the reel shows apart (shades, flavours, colours, sizes) are one product each, named in full. The rule's examples no longer name one client's case (a gold loan).
+- **Avatars.** A home town, language, dialect or accent places a person in that region's look, without naming one region as the example.
+
+**Why.** User, 3 Nov 2026: fixes made from the issues one reel hit were becoming brand-specific ("we are not solving for brand specific"). On staging, the copilot had made locations of "Neutral Void", "Warm ivory background", "Red Background", "Product Studio", "Ecommerce Set", "End Frame" and "Mobile Screen"; ICICI's iMobile Pay, Muthoot's gold loan and PharmEasy's app were products; Maybelline's shades came out as "more buff", "more berry". ICICI ("Phone screen is a real capture"), Giva (a phone showing the website) and PharmEasy (a screen recording) all have shots whose screen must be real, so the deferred "recorded for real" mark (D468) is a general need, not one brand's.
+
+**Rejected.** Fixing each rule by adding the words the failing reel used (the way D457's "claim line" and D463's capitalised-name rule were first written). An LLM call to classify every shot (a per-shot call on every panel; the rules are cheap, testable, and were checked against the corpus).
+
+**Originated →** conversation in this session (generic review of D462–D468 against all staging scripts).
+
+### D471 — Blood relatives in a script are cast as one family: the brief sees the whole cast, and a face is drawn beside a relative's *(recorded 2026-11-03; refines D395, D459)*
+
+**Decision.** The character brief now receives everyone else in the reel (their id, name and cast description, and, when their avatar's face was generated, the description it was drawn from). A new rule 11 has it decide, from the script's own words (a name such as "Mother" or "Son", a description, the shots, the voiceover), who is this person's blood relative (a parent, child, sibling, grandparent or grandchild), list them as family with what they are to this person, and give this person the family's look: the same ethnicity, a matching skin tone and the shared features (face shape, eyes, nose, hair colour and texture), aged for this person, matching an already-made relative's look. A spouse, an in-law, a friend or a colleague shares only the region. The brief route returns the relatives whose face is already made (avatar id and relation); the maker passes them to the front route, which reads each as the client's own avatar (another client's id is a 404, before anything is spent), sends at most two of their front images as references, and adds a family line: each reference named by what that person is to this one, a clear family resemblance at this person's own age and gender, never a copy, and nothing else taken from the reference. Whoever is made first sets the family's look; the next is drawn beside them. The sheet follows the front as before.
+
+**Why.** User, 3 Nov 2026: a parent and their child generated for the same script did not look related ("very funny"). Each person was briefed alone (rule 2 deliberately drops other people's words) and drawn from text only, so two independent draws of "South Asian" faces shared nothing but the label.
+
+**Rejected.** A relation field on each cast member set by the copilot (a cast change would need the field kept in step; the brief already reads the script and decides per person). Sending every cast member's face as a reference (a spouse or friend is not a likeness to copy, and more faces blur it). Copying the relative's face (two people, not one).
 
 **Originated →** conversation in this session.

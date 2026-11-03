@@ -120,7 +120,7 @@ describe("panelInputs on Reel 01 (D342)", () => {
     const p = inputs("s03").prompt;
     expect(p).toContain(PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE);
     expect(p).toContain(PANEL_FRAMING_CLAUSE);
-    expect(p).toContain("food from it appears only when this shot serves or eats a meal");
+    expect(p).toContain("its food and objects appear only when this shot's action uses them");
     expect(p).not.toContain("Use what fits this shot");
   });
 
@@ -140,7 +140,7 @@ describe("panelInputs on Reel 01 (D342)", () => {
     expect(inputs("s08").prompt).not.toMatch(/blank rectangle/);
     expect(inputs("s08").prompt).toContain(PANEL_NO_GRAPHICS_CLAUSE);
     expect(inputs("s03").prompt).not.toContain(PANEL_NO_GRAPHICS_CLAUSE);
-    expect(inputs("s14").prompt).toContain("plain blank pouch with no printing");
+    expect(inputs("s14").prompt).toContain("Draw the product's pack plain, in its own shape, with no printing at all");
   });
 
   it("waits for each on-screen person who has no avatar ready, but not on B-roll", () => {
@@ -221,7 +221,7 @@ describe("panels with the script's products and locations", () => {
     expect(prompt).toContain("The shot is set in Home kitchen: reference image 3 shows this exact place, empty.");
     expect(prompt).toContain("- Brandname flour pouch: reference images 4 and 11 show it. Draw exactly this product");
     expect(prompt).toContain(PANEL_ONE_PRODUCT_CLAUSE);
-    expect(prompt).toContain("- Brandname jar: draw it as a plain blank pack with no printing");
+    expect(prompt).toContain("- Brandname jar: no picture of it yet. Draw a plain version of what it is, with no logo, label or printing");
     expect(prompt).toContain("The products in the reference images keep their packaging exactly as pictured");
     expect(prompt).not.toContain("Every container, jar, packet and box is plain and unlabelled.\n");
   });

@@ -18,6 +18,7 @@ const brief: AvatarBrief = {
   appearance: "Medium build, warm brown skin, short greying hair, a neat moustache.",
   wardrobe: "A white cotton shirt over a white mundu with a thin gold border, brown leather sandals.",
   markers: "",
+  family: [],
 };
 
 describe("the character brief (D395)", () => {
@@ -121,5 +122,29 @@ describe("the turnaround sheet (D395)", () => {
     expect(prompt).toContain("head to toe");
     expect(prompt).toContain("identity markers");
     expect(prompt).toContain("no text");
+  });
+});
+
+// D471 — staging: a parent and their child came out looking unrelated, each briefed alone.
+describe("a blood relative in the reel (D471)", () => {
+  it("names the family, gives the family's look, and keeps a spouse or friend to the region", () => {
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/11. Family./);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/a parent, child, sibling, grandparent or grandchild/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/the same ethnicity, a matching skin tone and the features a family shares/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/A spouse, an in-law, a friend or a colleague is not a blood relative: they share only the region/);
+    expect(avatarBriefSchema.safeParse({ ...brief, family: [{ castId: "son", relation: "son" }] }).success).toBe(true);
+  });
+
+  it("lists the other people with their ids, and an already-made relative's look", () => {
+    const user = buildAvatarBriefUser({
+      ...rajan,
+      others: [
+        { id: "son", name: "Son", description: "son at a desk in another city" },
+        { id: "mother", name: "Mother", description: "mother in the kitchen", look: "A 55-year-old South Asian woman, round face." },
+      ],
+    });
+    expect(user).toContain("## The other people in the reel");
+    expect(user).toContain('- id "son": Son. son at a desk in another city');
+    expect(user).toContain('- id "mother": Mother. mother in the kitchen Already made, and looks like this: A 55-year-old South Asian woman, round face.');
   });
 });

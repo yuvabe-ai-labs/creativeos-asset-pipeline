@@ -14,8 +14,13 @@ import { VISUALISE_AVATAR_MODEL_ID } from "./constants";
 
 export type MakerStep = "face" | "views" | "save";
 
-/** What the front route draws a face from. */
-export type FrontInput = { description: string; attributes: AvatarAttributes };
+/** What the front route draws a face from. D471 — and the made faces of this person's blood
+ *  relatives in the reel, with what each is to them, so the family looks like one. */
+export type FrontInput = {
+  description: string;
+  attributes: AvatarAttributes;
+  relatives?: { avatarId: string; relation: string }[];
+};
 
 export type MakerDeps = {
   /** Creates a draft avatar and links it to the cast member. */

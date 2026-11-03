@@ -5,6 +5,8 @@ import { getActiveKBVersion } from "@/lib/db/kb";
 import { buildParseContext } from "@/lib/kb/parse-context";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { briefFront } from "@/lib/avatars/brief";
+import { getAvatar } from "@/lib/db/avatars";
+import type { Avatar } from "@/lib/avatars/schema";
 
 type Ctx = { params: Promise<{ id: string; scriptId: string; castId: string }> };
 
@@ -17,7 +19,9 @@ const MAX_SHOTS = 8;
 // POST /api/clients/:id/scripts/:scriptId/cast/:castId/brief { instructions } — D395: the cast
 // member as the stored script describes them (never as the browser sends them), plus the
 // operator's instructions, restated as what the front route draws a face from. D459 — with the
-// reel around them: the shots they are in, the reel's place, and the brand and who it casts.
+// reel around them: the shots they are in, the reel's place, and the brand and who it casts. D471 —
+// and everyone else in the reel, with their avatar's look where its face is made, so a blood
+// relative gets the family's look; a relative whose face exists comes back for the face to use.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, castId } = await params;
   return withClient(req, params, async (clientId, client) =>
@@ -29,7 +33,14 @@ export async function POST(req: Request, { params }: Ctx) {
       const member = script.doc.cast.find((c) => c.id === castId);
       if (!member) return apiError("That person is not in this script.", 404);
       const casting = kb ? buildParseContext(kb.output as TraceableBrandKB, ["casting"]) : "";
-      const front = await briefFront({
+      const others = script.doc.cast.filter((c) => c.id !== castId);
+      // One read per linked avatar, in parallel: a cast is a handful of people.
+      const avatars = new Map<string, Avatar>();
+      await Promise.all(others.map(async (c) => {
+        const a = c.avatarId ? await getAvatar(clientId, c.avatarId) : null;
+        if (a && !a.archivedAt) avatars.set(c.id, a);
+      }));
+      const { family, ...front } = await briefFront({
         name: member.name,
         description: member.description,
         setting: script.doc.header.region,
@@ -37,8 +48,16 @@ export async function POST(req: Request, { params }: Ctx) {
         place: script.doc.context.settingAndCamera,
         shots: script.doc.shots.filter((s) => s.onScreen.includes(castId)).slice(0, MAX_SHOTS).map((s) => s.visual),
         brand: [client.name, casting].filter(Boolean).join("\n"),
+        others: others.map((c) => {
+          const src = avatars.get(c.id)?.front?.source;
+          return { id: c.id, name: c.name, description: c.description, ...(src?.kind === "generated" && { look: src.prompt }) };
+        }),
       });
-      return apiOk(front);
+      const relatives = family.flatMap((f) => {
+        const a = avatars.get(f.castId);
+        return a?.front ? [{ avatarId: a.id, relation: f.relation.trim().slice(0, 40) || "relative" }] : [];
+      });
+      return apiOk({ ...front, relatives });
     }),
   );
 }

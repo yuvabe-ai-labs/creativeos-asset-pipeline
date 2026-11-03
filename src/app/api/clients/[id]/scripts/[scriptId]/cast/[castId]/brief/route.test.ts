@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { makeScript, SCRIPT_ID } from "@/lib/scripts/visualise/__tests__/fixtures";
+import { HUSBAND_AVATAR, makeScript, SCRIPT_ID } from "@/lib/scripts/visualise/__tests__/fixtures";
+import { GENERATED, makeAvatar, makeImage } from "@/lib/avatars/__tests__/fixtures";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
@@ -10,6 +11,7 @@ vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/scripts", () => ({ getScript: vi.fn() }));
 vi.mock("@/lib/avatars/brief", () => ({ briefFront: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn() }));
+vi.mock("@/lib/db/avatars", () => ({ getAvatar: vi.fn() }));
 
 import { resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
@@ -17,6 +19,7 @@ import { getClientById } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
 import { briefFront } from "@/lib/avatars/brief";
 import { getActiveKBVersion } from "@/lib/db/kb";
+import { getAvatar } from "@/lib/db/avatars";
 
 const paramsFor = (castId: string) => Promise.resolve({ id: "c1", scriptId: SCRIPT_ID, castId });
 const post = (body: unknown) =>
@@ -24,6 +27,7 @@ const post = (body: unknown) =>
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
 const FRONT = { description: "A 40-year-old South Asian woman.", attributes: { gender: "Female" } };
+const HUSBAND = makeAvatar({ id: HUSBAND_AVATAR, front: { ...makeImage(GENERATED), url: "https://x/husband.png" } });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -31,7 +35,8 @@ beforeEach(() => {
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1" } as never);
   vi.mocked(getScript).mockResolvedValue(makeScript());
-  vi.mocked(briefFront).mockResolvedValue(FRONT);
+  vi.mocked(briefFront).mockResolvedValue({ ...FRONT, family: [] });
+  vi.mocked(getAvatar).mockResolvedValue(HUSBAND);
   vi.mocked(getActiveKBVersion).mockResolvedValue({
     output: { target_audience: { human_casting: { value: "Working Indian adults, 25 to 45, real not model-like" }, lifestyle: { value: "Busy city homes" } } },
   } as never);
@@ -51,8 +56,27 @@ describe("POST …/cast/:castId/brief (D395)", () => {
       place: script.doc.context.settingAndCamera,
       shots: script.doc.shots.filter((s) => s.onScreen.includes("meenakshi")).slice(0, 8).map((s) => s.visual),
       brand: "Jackfruit365\nHuman casting: Working Indian adults, 25 to 45, real not model-like\nAudience lifestyle: Busy city homes",
+      // D471 — everyone else in the reel, with a made avatar's look.
+      others: script.doc.cast.filter((c) => c.id !== "meenakshi").map((c) => ({ id: c.id, name: c.name, description: c.description, look: "p" })),
     });
-    expect(await res.json()).toEqual(FRONT);
+    expect(getAvatar).toHaveBeenCalledWith("c1", HUSBAND_AVATAR);
+    expect(await res.json()).toEqual({ ...FRONT, relatives: [] });
+  });
+
+  // D471 — a parent and child came out looking unrelated: a relative's made face comes back.
+  it("returns each relative the brief found whose face is made, with what they are", async () => {
+    vi.mocked(briefFront).mockResolvedValue({ ...FRONT, family: [{ castId: "husband", relation: "brother" }] });
+    const { POST } = await import("./route");
+    const res = await POST(post({ instructions: "" }), { params: paramsFor("meenakshi") });
+    expect(await res.json()).toEqual({ ...FRONT, relatives: [{ avatarId: HUSBAND_AVATAR, relation: "brother" }] });
+  });
+
+  it("leaves out a relative with no face yet, and one the brief made up", async () => {
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ id: HUSBAND_AVATAR, front: null }));
+    vi.mocked(briefFront).mockResolvedValue({ ...FRONT, family: [{ castId: "husband", relation: "brother" }, { castId: "nobody", relation: "son" }] });
+    const { POST } = await import("./route");
+    const res = await POST(post({ instructions: "" }), { params: paramsFor("meenakshi") });
+    expect((await res.json()).relatives).toEqual([]);
   });
 
   it("is a 404 for a person not in this script", async () => {

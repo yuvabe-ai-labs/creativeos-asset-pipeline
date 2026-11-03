@@ -50,7 +50,7 @@ export async function POST(req: Request, { params }: Ctx) {
 
       const board = await loadVisualiseBoard(clientId, script);
       const changing = body.data.kind === "change" ? body.data.note : null;
-      // D464 — a change sends the picked take first, so the shot's own references get one less slot.
+      // D469 — a change sends the picked take first, so the shot's own references get one less slot.
       const cap = panelReferenceCap(body.data.modelId) - (changing !== null ? 1 : 0);
       const inputs = panelInputs({
         doc: script.doc, shot, avatars: new Map(board.avatars.map((a) => [a.id, a])),
@@ -61,7 +61,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const pickId = board.picks[shot.id];
       const current = board.takes.find((t) => t.id === pickId) ?? null;
       // D449 — a change edits the picked take: its picture comes first, and only the note is new.
-      // D464 — the shot's people, place and products follow it, as in a draw. Without a drawn take
+      // D469 — the shot's people, place and products follow it, as in a draw. Without a drawn take
       // there is nothing to change.
       if (changing !== null && !current?.url) return apiError("There is no panel to change yet. Draw one first.", 409);
       const references: PanelReference[] = changing !== null
