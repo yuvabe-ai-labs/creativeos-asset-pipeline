@@ -8,7 +8,7 @@ import { SINGLE_TAKE_LINE } from "@/prompts/video-prompt-generate";
 import { selectImageUpstreams } from "@/lib/nodes/shot-compose";
 import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { describeVoLineForWriter, multishotVoiceover } from "@/lib/nodes/voiceover";
+import { describeVoLineForWriter, multishotVoiceover, shotVoiceoverOf } from "@/lib/nodes/voiceover";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -135,7 +135,13 @@ export function mapUpstreamForVideo(u: RawUpstream): UpstreamPreview {
     // path — Phase 2's renderPlan). Omni still needs telling explicitly, because it cuts by default.
     const script = (u.data.script ?? null) as ReelScript | null;
     const action = renderShotForVideo(script);
-    return { ...base, text: action ? `${action}\n${SINGLE_TAKE_LINE}` : "" };
+    // D478 — the writer is told a line is coming and who says it (never the words to write: they
+    // are added when the clip is sent), so it frames a speaking face or keeps everyone's lips still.
+    const lines = shotVoiceoverOf([u]);
+    const spoken = lines.length > 0
+      ? `\nSpoken in this shot (added when sent; never write these words):\n${lines.map((l) => `  ${describeVoLineForWriter(l)}`).join("\n")}`
+      : "";
+    return { ...base, text: action ? `${action}\n${SINGLE_TAKE_LINE}${spoken}` : "" };
   }
   if (u.type === "file" || u.type === "draw") {
     return {

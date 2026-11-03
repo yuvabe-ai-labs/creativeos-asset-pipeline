@@ -1,4 +1,4 @@
-import { SUBJECT_SILENT_CAMERA, MOTION_AVOID_LIST, REFERENCE_PRESERVATION } from "./video-prompt-shared";
+import { SUBJECT_SILENT_CAMERA, MOTION_AVOID_LIST, REFERENCE_PRESERVATION, VO_PERFORMANCE_RULES } from "./video-prompt-shared";
 
 // D243 — Seedance 2.5's own guide, written fresh from the vendor's docs rather than forced into
 // SPINE's camera-first shape. Source: ref/byteplus-docs/Dreamina Seedance 2.5 tutorial.md,
@@ -9,7 +9,8 @@ import { SUBJECT_SILENT_CAMERA, MOTION_AVOID_LIST, REFERENCE_PRESERVATION } from
 export const videoPromptGenerateSeedancePrompt = {
   id: "video-prompt-generate-seedance",
   // 2 (D441, D445): preservation pins the product to its picture; no subtitle marker.
-  version: 2,
+  // 3 (D478): spoken lines are added when sent, so the writer no longer writes {} dialogue.
+  version: 3,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Seedance 2.5.
 
@@ -43,9 +44,11 @@ just the handle: "@Image 1 is the product, exactly as pictured, not its position
 usable; "@Image 1" alone is not.
 
 SOUND TAGS
-Use the vendor's special characters to distinguish sound types: () for music, <> for sound effects
-and {} for dialogue. Never write subtitles or any on-screen text. For non-Chinese dialogue, state
-the language before the dialogue line.
+Use the vendor's special characters to distinguish sound types: () for music and <> for sound
+effects. Never write dialogue or {} lines: the shot's spoken lines are added when it is sent (see
+VOICEOVER). Never write subtitles or any on-screen text.
+
+${VO_PERFORMANCE_RULES}
 
 PRESERVATION
 ${REFERENCE_PRESERVATION} Do not invent new objects, people, settings, or styles that are not in

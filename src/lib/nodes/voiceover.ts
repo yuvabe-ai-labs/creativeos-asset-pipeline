@@ -286,6 +286,33 @@ export function secondsToSay(lines: VoLine[] | undefined): number {
 export const SPEECH_ROOM_SECONDS = 1;
 
 /**
+ * D478 — a single shot's spoken lines: the script narrowed to this shot (D21) carries them on its
+ * one shot. Read off the Shot rows a Motion Prompt node is wired to, after the presenter rename.
+ */
+export function shotVoiceoverOf(rows: readonly { type?: string; data: Record<string, unknown> }[]): VoLine[] {
+  return rows
+    .filter((r) => r.type === "shot")
+    .flatMap((r) => ((r.data.script as ReelScript | undefined)?.visual_script?.shots ?? []).flatMap((s) => s.voiceover ?? []))
+    .filter((l) => l.text.trim());
+}
+
+/**
+ * D478 — a single shot's lines on the request, above the shot, timed to the clip in the shape a
+ * Multishot's lines use (D475). Until this, a single shot's words were never sent: the writer was
+ * told they would be added after it wrote, and nothing added them (0 of 18 staging clips with a
+ * line). A line already in the prompt (written in by hand) is not added again.
+ */
+export function withShotVoiceover(prompt: string, lines: VoLine[] | undefined, seconds: number): string {
+  const missing = (lines ?? []).filter((l) => !prompt.includes(l.text.trim()));
+  const rendered = renderVoiceover(missing);
+  if (!rendered) return prompt;
+  const when = seconds > 0
+    ? ` (0-${seconds}s), starting in the first second and finished before ${seconds}s`
+    : ", starting in the first second and finished before the clip ends";
+  return `Spoken in this shot${when}: ${rendered}\n\n${prompt}`;
+}
+
+/**
  * D267 (Task 5) — how the WRITER is told a line exists, without handing it the words to place: a
  * speaker and on/off-screen, so it can frame a talking face or keep everyone silent for narration.
  * The quoted text travels too, only so the writer can tell WHICH shot a line belongs to — it may

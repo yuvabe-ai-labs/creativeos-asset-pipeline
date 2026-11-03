@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { EditableField } from "./editable-field";
 import { GenerationBracket } from "./generation-bracket";
 import { VoLinesEditor } from "./vo-lines-editor";
+import { VoFitWarning } from "./vo-fit-warning";
+import { speakersOf, useCanvasPeople } from "@/hooks/use-canvas-people";
 
 type Path = (string | number)[];
 
@@ -88,6 +90,8 @@ export function ScriptDocument({
   onAddItem,
   onRemoveItem,
 }: ScriptDocumentProps) {
+  // D478 — who can speak a shot's line: the avatars on the canvas and the script's own speakers.
+  const canvasPeople = useCanvasPeople();
   if (!looksLikeReelScript(script as Record<string, unknown>)) {
     return (
       <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 text-xs">
@@ -98,6 +102,7 @@ export function ScriptDocument({
 
   const set = (path: Path) => (v: string) => onChange?.(path, v);
   const shots = script.visual_script?.shots ?? [];
+  const people = [...new Set([...canvasPeople, ...speakersOf(script)])];
   // Task 6 — one edit, two paths: the shot's own lines, and the reel-level `voiceover` string
   // rewritten from every shot's lines so the two never drift (D267 §3.5 refinement). `onChange`
   // commits through a single-path setter (see setScriptValue, script-edit.ts) that the parent
@@ -214,8 +219,14 @@ export function ScriptDocument({
                       <VoLinesEditor
                         lines={shots[i]?.voiceover}
                         readOnly={readOnly}
+                        people={people}
                         onChange={setVoiceover(i)}
                       />
+                      {/* D478 — a single shot's line is now spoken in its clip; warn when it cannot fit.
+                          Only where the script states the shot's length (a guessed one would mislead). */}
+                      {!generation.multishot && Number(shots[i]?.duration_seconds) > 0 && (
+                        <VoFitWarning lines={shots[i]?.voiceover} seconds={Number(shots[i]?.duration_seconds)} fix="the shot" />
+                      )}
                     </div>
                     {!readOnly && (
                       <Button

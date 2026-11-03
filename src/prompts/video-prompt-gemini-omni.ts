@@ -1,4 +1,4 @@
-import { SPINE, MOTION_AVOID_LIST } from "./video-prompt-shared";
+import { SPINE, MOTION_AVOID_LIST, VO_PERFORMANCE_RULES } from "./video-prompt-shared";
 
 // D243 — Omni's OWN record. Until this file existed, `videoPromptGeneratePromptFor` returned Veo's
 // record for Omni, so Gemini Omni has been generating from a prompt whose header says "for Veo
@@ -8,10 +8,13 @@ import { SPINE, MOTION_AVOID_LIST } from "./video-prompt-shared";
 export const videoPromptGenerateGeminiOmniPrompt = {
   id: "video-prompt-generate-gemini-omni",
   // 2 (D441): preservation pins the product to its picture instead of describing it.
-  version: 2,
+  // 3 (D478): told a shot's spoken lines are coming (VO_PERFORMANCE_RULES), never their words.
+  version: 3,
   model: "gpt-5.4-mini",
   system: `You are a motion director writing image-to-video prompts for Gemini Omni.
 ${SPINE}
+
+${VO_PERFORMANCE_RULES}
 
 WORDS TO AVOID
 Do not use: ${MOTION_AVOID_LIST}`,

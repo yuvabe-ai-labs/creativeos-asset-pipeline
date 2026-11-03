@@ -31,6 +31,7 @@ import {
 } from "@/lib/video-gen/resolve-prompt";
 import { referenceRolesLine } from "@/lib/nodes/ref-roles";
 import { withRequestLines } from "@/lib/video-gen/request-prompt";
+import { shotVoiceoverOf, withShotVoiceover } from "@/lib/nodes/voiceover";
 import { NO_ON_SCREEN_TEXT_LINE, soundDesignClause } from "@/lib/video-gen/compose-omni-prompt";
 import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
@@ -296,6 +297,15 @@ export async function POST(
     // With nothing left out the prompt is numbered exactly as it was resolved; otherwise its tokens
     // count only what is sent, and a cited image left out is written as its name.
     if (selection.leftOut.length > 0) prompt = renderResolvedPrompt(resolved, selection.sent, singleTake);
+    // D478 — a single shot's spoken lines, above the shot and timed to the clip. A Multishot's are
+    // already in its rendered plan (D475). The Shot rows carry the presenter rename (D299).
+    if (!resolved.cuts) {
+      prompt = withShotVoiceover(
+        prompt,
+        shotVoiceoverOf(resolved.promptUpstream),
+        Number(resolvedParams.seconds ?? resolvedParams.duration ?? 0),
+      );
+    }
     // D443 — say what each sent image is (product, location, person…), numbered over exactly what
     // is sent so it agrees with the prompt's own tokens; D445 — and no on-screen text on every model.
     const rolesLine = referenceRolesLine(

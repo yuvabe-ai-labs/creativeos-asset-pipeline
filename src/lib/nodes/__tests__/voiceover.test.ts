@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { voiceoverMappingIssue, renderVoiceover, joinVoLines, multishotVoiceover, foldMultishotVoiceover, secondsToSay } from "../voiceover";
+import { voiceoverMappingIssue, renderVoiceover, joinVoLines, multishotVoiceover, foldMultishotVoiceover, secondsToSay, shotVoiceoverOf, withShotVoiceover } from "../voiceover";
 import type { ReelScript } from "../reel-script";
 
 const script = (voiceover: string, lines: string[][] | null): ReelScript => ({
@@ -311,5 +311,36 @@ describe("secondsToSay", () => {
   it("is zero with no words", () => {
     expect(secondsToSay(undefined)).toBe(0);
     expect(secondsToSay([{ text: "  ", speaker: "narrator" }])).toBe(0);
+  });
+});
+
+// D478 — a single shot's lines reach the request, above the shot and timed to the clip.
+describe("withShotVoiceover", () => {
+  const line = { text: "Explore CaratLane.", speaker: "narrator" };
+
+  it("puts the line above the shot with the clip's window", () => {
+    expect(withShotVoiceover("A ring on stone.", [line], 5)).toBe(
+      'Spoken in this shot (0-5s), starting in the first second and finished before 5s: Voiceover, off-screen: "Explore CaratLane."' +
+        "\n\nA ring on stone.",
+    );
+  });
+
+  it("says the clip's end when the length is not known", () => {
+    expect(withShotVoiceover("A ring.", [line], 0)).toContain("finished before the clip ends:");
+  });
+
+  it("adds nothing with no lines, or a line already written into the prompt", () => {
+    expect(withShotVoiceover("A ring.", [], 5)).toBe("A ring.");
+    expect(withShotVoiceover('She says "Explore CaratLane." A ring.', [line], 5)).toBe('She says "Explore CaratLane." A ring.');
+  });
+});
+
+describe("shotVoiceoverOf", () => {
+  it("reads the lines off Shot rows only, dropping empty ones", () => {
+    const rows = [
+      { type: "shot", data: { script: { visual_script: { shots: [{ voiceover: [{ text: "Hi.", speaker: "Rhea" }, { text: " ", speaker: "narrator" }] }] } } } },
+      { type: "file", data: {} },
+    ];
+    expect(shotVoiceoverOf(rows)).toEqual([{ text: "Hi.", speaker: "Rhea" }]);
   });
 });

@@ -8476,3 +8476,17 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Dropping D299's rename: a parsed script still says "creator:" beside a face called Razel, and the model needs them to be one person. Renaming only when the speaker matches no avatar: a typed name ("Someone else…") matches none, which is exactly the case that broke.
 
 **Originated →** conversation in this session.
+
+### D478 — A single shot's spoken lines reach its video request, and its writer is told they are coming *(recorded 2026-11-03; refines D267, D472, D474, D475)*
+
+**Decision.**
+- **The words are sent.** For a single shot (the Motion Prompt lane), the video request now carries the shot's lines above the shot, timed to the clip: `Spoken in this shot (0-6s), starting in the first second and finished before 6s: Voiceover, off-screen: "…"` (`withShotVoiceover`, `shotVoiceoverOf` in `src/lib/nodes/voiceover.ts`, applied in the video-generate route after the prompt is resolved). The lines come from the Shot rows the Motion Prompt reads, after the presenter rename (D299, D477). The window is the clip's own length; a line already written into the prompt is not added twice. The sound clause then follows what is spoken, as it does for a Multishot (D472).
+- **The writer is told.** The Shot's text the Motion Prompt writer reads lists the shot's lines as speaker and on- or off-screen ("Rhea (on-screen): …"), marked "added when sent; never write these words". The Omni, Kling and Seedance single-shot writers now carry `VO_PERFORMANCE_RULES` (Omni v3, Kling v6, Seedance v3), so a speaking face stays toward the camera and a narrator's line keeps lips still. Seedance's writer no longer writes `{}` dialogue.
+- **Speaker and length in the Script.** A shot's lines in the Script view get the speaker dropdown (the canvas's avatars and the script's own speakers, D476), and a single shot whose script states its length shows the "too long for the clip" warning (`VoFitWarning`, shared with the Multishot card).
+- Veo is not covered: it is deprecated (D461).
+
+**Why.** User, 3 Nov 2026, asking for gaps in the single-shot workflow. Of the 18 recent staging single shots with a voiceover line, the words reached the request in none: the writer was told the words "are added to the prompt after you write it", and nothing added them. Since D472 such a clip was also told "Nobody speaks". Lines were often too long too: Maybelline's 40-word line in an 8s clip, Bean Song's in a 2s clip.
+
+**Rejected.** Letting the writer write the words into the shot: D267 removed that, because it paraphrased client copy and moved lines between shots. Leaving single shots silent for the voice to be laid in the edit: the writer and the parse already treat the lines as spoken in the clip, and an on-camera line cannot be added in the edit.
+
+**Originated →** conversation in this session (mockup: single-shot-voiceover-mockup.html, local).

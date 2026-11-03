@@ -371,6 +371,34 @@ function simpleGraph(): Record<string, Row[]> {
   };
 }
 
+// D478 — a single shot's spoken lines reach the request, timed to the clip, with the sound clause
+// that follows them. Before this, 0 of 18 staging single shots with a line sent its words.
+describe("POST video-generate — a single shot's spoken lines (D478)", () => {
+  const shotRow = (voiceover: object[]): Row => ({
+    nodeId: "sh", type: "shot", activeOutput: null, versionId: null,
+    data: { script: { visual_script: { shots: [{ description: "keys on oak", voiceover }] } } },
+  });
+  const sent = () => (mocks.triggerTask.mock.calls[0][1] as unknown as { prompt: string }).prompt;
+  // Omni's sound clause is added by its provider; the generation records it as addedOnSend.
+  const added = () =>
+    ((mocks.insertGeneration.mock.calls[0] as unknown as [{ inputsSnapshot: { addedOnSend?: string[] } }])[0].inputsSnapshot.addedOnSend ?? []).join(" ");
+
+  it("sends the line above the shot, timed to the clip", async () => {
+    mocks.graph = { ...simpleGraph(), vp: [shotRow([{ text: "Explore CaratLane.", speaker: "narrator" }])] };
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: { duration: "6" } });
+    expect(res.status).toBe(202);
+    expect(sent()).toContain('Spoken in this shot (0-6s), starting in the first second and finished before 6s: Voiceover, off-screen: "Explore CaratLane."\n\nA hand lifts keys.');
+    expect(added()).toContain("the voiceover, spoken off-screen");
+  });
+
+  it("adds nothing to a shot with no line", async () => {
+    mocks.graph = { ...simpleGraph(), vp: [shotRow([])] };
+    await post({ modelId: GEMINI_OMNI_MODEL_ID, params: {} });
+    expect(sent()).not.toContain("Spoken in this shot");
+    expect(added()).toContain("Nobody speaks");
+  });
+});
+
 describe("POST video-generate — no voice at generate time (D284)", () => {
   it("ignores a voiceId in the body and never sends a voice to the task", async () => {
     mocks.graph = simpleGraph();
