@@ -779,7 +779,7 @@ describe("renderPlan — sequence voiceover", () => {
   it("sits between the look and Omni's ladder", () => {
     expect(renderPlan(perModelPlan, planCuts, OMNI, [], seq)).toBe(
       `${look}\n\n` +
-        'Spoken over the whole sequence, in order: Voiceover, off-screen: "Made slowly; by hand."\n\n' +
+        'Spoken over the whole sequence (0-5s), starting in the first second and finished before 5s, in order: Voiceover, off-screen: "Made slowly; by hand."\n\n' +
         "[0-2s] A hand sweeps keys off oak.\n" +
         "[2-5s] A cab door swings open onto sunlit paving.",
     );
@@ -787,19 +787,19 @@ describe("renderPlan — sequence voiceover", () => {
 
   it("replaces semicolons on Kling so the line cannot end a shot", () => {
     const rendered = renderPlan(perModelPlan, planCuts, KLING, [], seq);
-    expect(rendered).toContain('Spoken over the whole sequence, in order: Voiceover, off-screen: "Made slowly, by hand."\n\nshot 1, 2,');
+    expect(rendered).toContain('Spoken over the whole sequence (0-5s), starting in the first second and finished before 5s, in order: Voiceover, off-screen: "Made slowly, by hand."\n\nshot 1, 2,');
     expect(rendered.match(/;/g)).toHaveLength(2);
   });
 
   it("sits before Seedance's ladder", () => {
     expect(renderPlan(perModelPlan, planCuts, SEEDANCE, [], seq)).toContain(
-      'Spoken over the whole sequence, in order: Voiceover, off-screen: "Made slowly; by hand."\n\n0-2s:',
+      'Spoken over the whole sequence (0-5s), starting in the first second and finished before 5s, in order: Voiceover, off-screen: "Made slowly; by hand."\n\n0-2s:',
     );
   });
 
   it("leads the prompt when there is no look", () => {
     expect(
-      renderPlan({ ...perModelPlan, look: "" }, planCuts, OMNI, [], seq).startsWith("Spoken over the whole sequence, in order: "),
+      renderPlan({ ...perModelPlan, look: "" }, planCuts, OMNI, [], seq).startsWith("Spoken over the whole sequence (0-5s), starting in the first second and finished before 5s, in order: "),
     ).toBe(true);
   });
 

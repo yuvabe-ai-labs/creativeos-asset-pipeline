@@ -8427,3 +8427,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Timecodes on each line (`[0.5-3.5s]`): a line's length in speech is a guess, and a wrong window is worse than "start early, finish before the end". Blocking generation when the lines are too long: the estimate is rough and a fast read can fit, so it warns rather than stops.
 
 **Originated →** conversation in this session.
+
+### D475 — A Multishot's voiceover carries the clip's timeline on the line itself *(recorded 2026-11-03; refines D286, D472, D474)*
+
+**Decision.** In the request, a Multishot's sequence lines are introduced with the ladder's own window: `Spoken over the whole sequence (0-4s), starting in the first second and finished before 4s, in order: Voiceover, off-screen: "…"`, built by `sequenceVoPrefix(totalSeconds)` in `src/lib/nodes/multishot-plan.ts`, for Omni, Kling and Seedance alike. The node's own preview text keeps the short `SEQUENCE_VO_PREFIX`. D474's timing sentence in the sound clause stays as well.
+
+**Why.** User, 3 Nov 2026, looking at the prompt sent for CaratLane Reel 02 Multishot 2: the line sat above a `[0-4s]` ladder with no time of its own, so the ladder was the only timeline and the speech had no place in it. The model spoke it from 2.7s, and the clip ended mid-line. D474's timing went at the end of the request, far from the line; this puts it on the line, in the same seconds the ladder uses.
+
+**Rejected.** Moving the line inside the first cut's beat: in a sequence of several cuts it would read as belonging to that cut only, which is what D307 removed.
+
+**Originated →** conversation in this session.

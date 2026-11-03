@@ -85,7 +85,7 @@ describe("resolveVideoGenPrompt", () => {
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.prompt).toContain('Spoken over the whole sequence, in order: Voiceover, off-screen: "Made by hand."');
+      expect(result.prompt).toContain('Spoken over the whole sequence (0-8s), starting in the first second and finished before 8s, in order: Voiceover, off-screen: "Made by hand."');
       expect(result.sequenceVoiceover).toEqual(sequenceVoiceover);
     }
   });
