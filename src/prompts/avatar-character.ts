@@ -23,11 +23,11 @@ const BRIEF_AGES = [CHILD_AGE, ...AVATAR_ATTRIBUTES.age] as const;
  *  a "muted" placeholder while the shots named a claw clip, earphones or a heritage-weave saree. */
 export const AVATAR_BRIEF_SYSTEM = `You turn a person from a video script into a character brief that an image model will draw a reference portrait from. That portrait becomes this person in every shot of the brand's video, so they must look like a real member of the brand's audience, living in this reel's world.
 
-You receive the person's name, how the script describes them, the shots they appear in, the reel's place, where the script is set, the brand and who it casts, and the operator's instructions.
+You receive the person's name, how the script describes them, the shots they appear in, the other people in the reel, the reel's place, where the script is set, the brand and who it casts, and the operator's instructions.
 
 Rules, in order of priority:
 1. The operator's instructions override the script. If they state a gender, age, ethnicity, outfit or any feature, use theirs, even when the script says otherwise.
-2. Describe this one person on their own. The script may describe them relative to someone else ("her husband", "his daughter", "behind her", "next to the mother"). Never carry those words over: other people's pronouns and positions are not this person. Work out this person's own gender from their name, their role and their own pronouns, and state it plainly. When the entry is a group ("children", "friends"), describe one member of it: the one the shots show most, or the eldest.
+2. Describe this one person on their own. The script may describe them relative to someone else ("her husband", "his daughter", "behind her", "next to the mother"). Never carry those words over: other people's pronouns and positions are not this person. Work out this person's own gender from their name, their role and their own pronouns, and state it plainly. A blood relative's looks carry over only as rule 11 says. When the entry is a group ("children", "friends"), describe one member of it: the one the shots show most, or the eldest.
 3. Read the whole reel, not only the cast line. What the person wears and carries in their shots (a claw clip, earphones round the neck, a bronze heritage-weave saree) is part of them: keep it. When shots disagree, take their first shot's outfit.
 4. Decide ethnicity and look from the reel's region and place, the person's name and the brand's audience and casting notes. A skin-tone word alone never decides ethnicity: "medium brown skin" is ordinary across South Asia. A home town, a language, a dialect or an accent the script gives places them too: name the look of that region, never a neighbouring one's.
 5. A real person, never a model or a stock photo: everyday grooming, natural skin with its texture, real hair, a build that fits their age and life. Their personality shows only in what can be seen: their styling, grooming, how they wear their clothes, and a relaxed, natural expression with a hint of it.
@@ -36,6 +36,7 @@ Rules, in order of priority:
 8. When the brand sells something a person wears (footwear, clothing, eyewear, a watch), give the person a plain, unbranded item of that kind, so the brand's own can replace it in the video.
 9. A child is a child: give their age in years and describe a child, never an adult.
 10. Write in plain present-tense phrases. No names, no story, no camera or lighting words.
+11. Family. When the script makes another person in the reel this person's blood relative (a parent, child, sibling, grandparent or grandchild, said by a name such as "Mother" or "Son", a description, the shots or the voiceover), list them in family with what they are to this person ("mother", "son", "sister"). Give this person that family's look: the same ethnicity, a matching skin tone and the features a family shares (face shape, eyes, nose, hair colour and texture), aged for this person. When a relative is already made, match their look as described there. A spouse, an in-law, a friend or a colleague is not a blood relative: they share only the region. Never list someone the script does not make family.
 
 Fields:
 - gender: one of ${AVATAR_ATTRIBUTES.gender.join(", ")}.
@@ -44,7 +45,8 @@ Fields:
 - ethnicity: one of ${AVATAR_ATTRIBUTES.ethnicity.join(", ")}.
 - appearance: build, face, skin tone, hair, facial hair. One or two sentences.
 - wardrobe: what they wear, top to shoes, with colours and fabrics. One or two sentences.
-- markers: identity markers and accessories, or an empty string.`;
+- markers: identity markers and accessories, or an empty string.
+- family: this person's blood relatives in the reel, each by their id with what they are to this person, or an empty list.`;
 
 export const avatarBriefSchema = z.object({
   gender: z.enum(AVATAR_ATTRIBUTES.gender),
@@ -54,6 +56,8 @@ export const avatarBriefSchema = z.object({
   appearance: z.string(),
   wardrobe: z.string(),
   markers: z.string(),
+  /** D471 — the cast ids of this person's blood relatives, with what each is to them. */
+  family: z.array(z.object({ castId: z.string(), relation: z.string() })),
 });
 export type AvatarBrief = z.infer<typeof avatarBriefSchema>;
 
@@ -69,6 +73,9 @@ export type AvatarBriefInput = {
   shots?: string[];
   /** D459 — the brand's name and who it casts (the KB's casting and audience notes). */
   brand?: string;
+  /** D471 — everyone else in the reel, so a blood relative gets the family's look. `look` is how
+   *  their avatar was described when its face was made, when it has been. */
+  others?: { id: string; name: string; description: string; look?: string }[];
 };
 
 export function buildAvatarBriefUser(input: AvatarBriefInput): string {
@@ -77,6 +84,8 @@ export function buildAvatarBriefUser(input: AvatarBriefInput): string {
     block("Name", input.name),
     block("How the script describes them", input.description),
     block("The shots they appear in", (input.shots ?? []).map((s, i) => `${i + 1}. ${s.trim()}`).join("\n")),
+    block("The other people in the reel", (input.others ?? []).map((o) =>
+      `- id "${o.id}": ${o.name}. ${o.description.trim()}${o.look ? ` Already made, and looks like this: ${o.look.trim()}` : ""}`).join("\n")),
     block("The reel's place", input.place ?? ""),
     block("Where the script is set", input.setting),
     block("The brand and who it casts", input.brand ?? ""),

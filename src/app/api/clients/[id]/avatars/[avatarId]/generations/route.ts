@@ -21,6 +21,9 @@ type Ctx = { params: Promise<{ id: string; avatarId: string }> };
 
 const STYLE_IDS = AVATAR_STYLES.map((s) => s.id) as [string, ...string[]];
 
+/** A parent each side, or a parent and a sibling: more faces blur the likeness. */
+const MAX_RELATIVES = 2;
+
 const GenerateSchema = z.object({
   description: z.string().trim().min(1).max(AVATAR_DESCRIPTION_MAX),
   attributes: z
@@ -32,6 +35,11 @@ const GenerateSchema = z.object({
   // Groups the images of one Generate click. Minted in the browser, so a batch is known
   // before its first image returns.
   batchId: z.string().min(1).max(64),
+  // D471 — blood relatives in the script whose faces this one is drawn beside (from the brief).
+  relatives: z
+    .array(z.object({ avatarId: z.string().min(1).max(64), relation: z.string().trim().min(1).max(40) }))
+    .max(MAX_RELATIVES)
+    .optional(),
 });
 
 // GET …/generations — the front candidates generated so far, newest first, and what this
@@ -59,11 +67,20 @@ export async function POST(req: Request, { params }: Ctx) {
     withTryCatch("Could not generate the image.", async () => {
       const parsed = GenerateSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Describe the character and choose a style and model.", 400);
-      const { description, attributes, styleId, modelId, batchId } = parsed.data;
+      const { description, attributes, styleId, modelId, batchId, relatives = [] } = parsed.data;
       if (!imageGenClientModelMap[modelId]) return apiError("Unknown model.", 400);
 
-      const avatar = await getAvatar(clientId, avatarId);
+      // Every relative is read as this client's own avatar (an id from another client is a 404),
+      // in parallel with this one; a relative with no face yet is left out.
+      const [avatar, ...kin] = await Promise.all([
+        getAvatar(clientId, avatarId),
+        ...relatives.map((r) => getAvatar(clientId, r.avatarId)),
+      ]);
       if (!avatar || avatar.archivedAt) return apiError("Avatar not found.", 404);
+      if (kin.some((k) => !k)) return apiError("Avatar not found.", 404);
+      const family = relatives
+        .map((r, i) => ({ relation: r.relation, url: kin[i]?.archivedAt ? null : kin[i]?.front?.url ?? null }))
+        .filter((r): r is { relation: string; url: string } => r.url !== null && r.relation.length > 0);
 
       const caller = await resolveCallerContext();
       try {
@@ -80,8 +97,9 @@ export async function POST(req: Request, { params }: Ctx) {
             description,
             attributes: attributes ?? {},
             styleId: styleId as (typeof AVATAR_STYLES)[number]["id"],
+            relatives: family.map((f) => f.relation),
           }),
-          referenceUrls: [],
+          referenceUrls: family.map((f) => f.url),
           batchId,
         });
         const candidate = generationToCandidate(generation);

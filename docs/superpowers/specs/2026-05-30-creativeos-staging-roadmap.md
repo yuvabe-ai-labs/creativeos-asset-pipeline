@@ -8376,3 +8376,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Fixing each rule by adding the words the failing reel used (the way D457's "claim line" and D463's capitalised-name rule were first written). An LLM call to classify every shot (a per-shot call on every panel; the rules are cheap, testable, and were checked against the corpus).
 
 **Originated →** conversation in this session (generic review of D462–D468 against all staging scripts).
+
+### D471 — Blood relatives in a script are cast as one family: the brief sees the whole cast, and a face is drawn beside a relative's *(recorded 2026-11-03; refines D395, D459)*
+
+**Decision.** The character brief now receives everyone else in the reel (their id, name and cast description, and, when their avatar's face was generated, the description it was drawn from). A new rule 11 has it decide, from the script's own words (a name such as "Mother" or "Son", a description, the shots, the voiceover), who is this person's blood relative (a parent, child, sibling, grandparent or grandchild), list them as family with what they are to this person, and give this person the family's look: the same ethnicity, a matching skin tone and the shared features (face shape, eyes, nose, hair colour and texture), aged for this person, matching an already-made relative's look. A spouse, an in-law, a friend or a colleague shares only the region. The brief route returns the relatives whose face is already made (avatar id and relation); the maker passes them to the front route, which reads each as the client's own avatar (another client's id is a 404, before anything is spent), sends at most two of their front images as references, and adds a family line: each reference named by what that person is to this one, a clear family resemblance at this person's own age and gender, never a copy, and nothing else taken from the reference. Whoever is made first sets the family's look; the next is drawn beside them. The sheet follows the front as before.
+
+**Why.** User, 3 Nov 2026: a parent and their child generated for the same script did not look related ("very funny"). Each person was briefed alone (rule 2 deliberately drops other people's words) and drawn from text only, so two independent draws of "South Asian" faces shared nothing but the label.
+
+**Rejected.** A relation field on each cast member set by the copilot (a cast change would need the field kept in step; the brief already reads the script and decides per person). Sending every cast member's face as a reference (a spouse or friend is not a likeness to copy, and more faces blur it). Copying the relative's face (two people, not one).
+
+**Originated →** conversation in this session.
