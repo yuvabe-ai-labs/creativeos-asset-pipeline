@@ -19,10 +19,10 @@ import { editorConnectRefusal } from "@/lib/editor/rules";
 import { computeGenerationLocks, sameLocks } from "@/lib/editor/generation-lock";
 import type { GenerationLock } from "@/lib/editor/types";
 import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
-import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { DEFAULT_CLIENT_MODEL_ID, withoutDeprecatedImageModel } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
-import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
+import { DEFAULT_VIDEO_CLIENT_MODEL_ID, withoutDeprecatedVideoModel } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
 import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
@@ -229,10 +229,22 @@ export function createCanvasStore(
     return { nodes: nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)), layout };
   };
 
+  // D461, D467 — a node saved on a deprecated model opens on the fallback, here so that its card,
+  // its prompt node and its focus view all agree. Saved with the canvas's next change, not on load.
+  const startingNodes = initialNodes.map((n) => {
+    const withFallback =
+      n.type === "video-gen"
+        ? withoutDeprecatedVideoModel(n.data)
+        : n.type === "image-gen" || n.type === "composite"
+          ? withoutDeprecatedImageModel(n.data)
+          : n.data;
+    return withFallback === n.data ? n : ({ ...n, data: withFallback } as AppNode);
+  });
+
   const store = createStore<CanvasState>((set, get) => ({
     canvasName: initialCanvasName,
-    generationLocks: computeGenerationLocks(initialNodes, initialEdges),
-    nodes: initialNodes,
+    generationLocks: computeGenerationLocks(startingNodes, initialEdges),
+    nodes: startingNodes,
     edges: initialEdges,
     removedNodeIds: [],
     removedEdgeIds: [],

@@ -9,7 +9,7 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { runAvatarGeneration } from "@/lib/avatars/generate";
 import { buildAvatarFrontPrompt } from "@/lib/avatars/generation";
 import { generationToCandidate } from "@/lib/avatars/rows";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { imageGenClientModelMap, isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
 import {
   AVATAR_DESCRIPTION_MAX, AVATAR_FRONT_ASPECT, AVATAR_STYLES,
 } from "@/lib/avatars/constants";
@@ -69,6 +69,8 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!parsed.success) return apiError("Describe the character and choose a style and model.", 400);
       const { description, attributes, styleId, modelId, batchId, relatives = [] } = parsed.data;
       if (!imageGenClientModelMap[modelId]) return apiError("Unknown model.", 400);
+      // D467 — a tab open from before the model went can still send it.
+      if (isImageModelDeprecated(modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
 
       // Every relative is read as this client's own avatar (an id from another client is a 404),
       // in parallel with this one; a relative with no face yet is left out.
