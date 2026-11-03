@@ -8318,3 +8318,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A product kind field (physical or service) on each product (the copilot can leave a service out entirely; nothing downstream needs a service row). Hiding the picture prompt for a product without one (it would keep a service row the video and panel prompts still try to draw).
 
 **Originated →** conversation in this session (Muthoot Finance script review, staging).
+
+### D466 — An app or a website is never a product; a screen-only shot has no location *(recorded 2026-11-03; refines D465)*
+
+**Decision.** The copilot's asset rules (script-copilot version 10) name an app or a website, and what it does, among the services that are never a product. A shot that is only a screen (a screen recording of an app or a website, a phone's display filling the frame) has location "", adds no location and picks no product: a screen is never a location, and a real screen recording is added in the edit.
+
+**Why.** User, 3 Nov 2026, PharmEasy on staging (script 1894b4f8, "Repeat order set", imported under version 8): "PharmEasy app" became a product with no picture, picked in S4 (the screen recording) and S7 (the end card), and "Mobile Screen" became a location with a plate to generate. D465's "an app's features" read as the features, not the app itself, and nothing covered a screen as a place.
+
+**Rejected.** For now, a "Recorded for real" mark on a shot that the storyboard and canvas skip (the user deferred it on 3 Nov 2026; S4's real recording still has no path but the edit). A plain green screen in a generated shot (the same deferral).
+
+**Originated →** conversation in this session (PharmEasy script review, staging).

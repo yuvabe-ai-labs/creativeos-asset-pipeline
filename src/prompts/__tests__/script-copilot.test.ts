@@ -43,11 +43,14 @@ describe("the script copilot's shared instructions", () => {
       // D465 — Muthoot Finance: a gold loan became a product needing a picture, and the logo card a location.
       expect(t).toMatch(/A service is never a product \(a loan, insurance/);
       expect(t).toMatch(/A shot that is only a graphic \(a logo end card/);
+      // D466 — PharmEasy: the app became a product, and "Mobile Screen" a location.
+      expect(t).toMatch(/an app or a website and what it does/);
+      expect(t).toMatch(/A shot that is only a screen \(a screen recording[^"]*its location is "", it adds no location, and it picks no product\. A screen is never a location\./);
     }
   });
 
-  it("is version 9", () => {
-    expect(scriptCopilotPrompt.version).toBe(9);
+  it("is version 10", () => {
+    expect(scriptCopilotPrompt.version).toBe(10);
   });
 
   it("commit each angle to a product moment and proof, with a review theme only where reviews fit", () => {
