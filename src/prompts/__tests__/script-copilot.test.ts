@@ -40,10 +40,10 @@ describe("the script copilot's shared instructions", () => {
       expect(t).toMatch(/Name a product the way the client sells it/);
       expect(t).toMatch(/Name a location as the place/);
       expect(t).toMatch(/Shots in the same place share one location/);
-      // D465 — Muthoot Finance: a gold loan became a product needing a picture, and the logo card a location.
+      // D467 — Muthoot Finance: a gold loan became a product needing a picture, and the logo card a location.
       expect(t).toMatch(/A service is never a product \(a loan, insurance/);
       expect(t).toMatch(/A shot that is only a graphic \(a logo end card/);
-      // D466 — PharmEasy: the app became a product, and "Mobile Screen" a location.
+      // D468 — PharmEasy: the app became a product, and "Mobile Screen" a location.
       expect(t).toMatch(/an app or a website and what it does/);
       expect(t).toMatch(/A shot that is only a screen \(a screen recording[^"]*its location is "", it adds no location, and it picks no product\. A screen is never a location\./);
     }

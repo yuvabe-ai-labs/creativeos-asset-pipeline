@@ -6,12 +6,14 @@ import { AVATAR_ID, reelDoc } from "./fixtures";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/avatars", () => ({ listAvatars: vi.fn() }));
+vi.mock("@/lib/db/generations", () => ({ getLatestAvatarVoicePreviews: vi.fn() }));
 vi.mock("@/lib/script-review/bridge", async (orig) => ({
   ...(await orig<typeof import("../bridge")>()),
   getPickedPanels: vi.fn(),
 }));
 
 import { listAvatars } from "@/lib/db/avatars";
+import { getLatestAvatarVoicePreviews } from "@/lib/db/generations";
 import { getPickedPanels } from "@/lib/script-review/bridge";
 import { collectVisuals, toAvatarSnapshot } from "../visuals";
 
@@ -24,7 +26,10 @@ function script(): Script {
   return { id: SCRIPT_ID, clientId: "c1", stage: "in_review", doc, approvedAt: null, createdAt: "x", updatedAt: "x" };
 }
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(getLatestAvatarVoicePreviews).mockResolvedValue(new Map());
+});
 
 describe("collectVisuals", () => {
   it("freezes nothing besides the text on a script-only share", async () => {
@@ -45,6 +50,19 @@ describe("collectVisuals", () => {
     // A draft is left out too.
     vi.mocked(listAvatars).mockResolvedValue([makeAvatar({ id: AVATAR_ID, status: "draft" })]);
     expect((await collectVisuals("c1", script(), "avatars")).avatars).toEqual({});
+  });
+
+  it("freezes each avatar's finished, current video preview in one lookup", async () => {
+    const avatar = makeAvatar({ id: AVATAR_ID, name: "Meenakshi", voice: { mode: "named", voiceId: "v1", name: "Kavya", labels: {}, previewUrl: null } });
+    vi.mocked(listAvatars).mockResolvedValue([avatar]);
+    vi.mocked(getLatestAvatarVoicePreviews).mockResolvedValue(new Map([[AVATAR_ID, {
+      id: "g1", avatar_id: AVATAR_ID, status: "succeeded", output_snapshot: "https://cdn/preview.mp4",
+      inputs_snapshot: { slot: "voice-preview", mode: "named", voiceId: "v1", voiceName: "Kavya", line: "Hi", frontUrl: avatar.front!.url },
+    } as never]]));
+    const visuals = await collectVisuals("c1", script(), "avatars");
+    expect(visuals.avatars.meenakshi.preview).toBe("https://cdn/preview.mp4");
+    expect(getLatestAvatarVoicePreviews).toHaveBeenCalledTimes(1);
+    expect(getLatestAvatarVoicePreviews).toHaveBeenCalledWith([AVATAR_ID, OTHER]);
   });
 
   it("freezes the picked panels of this script's shots only", async () => {

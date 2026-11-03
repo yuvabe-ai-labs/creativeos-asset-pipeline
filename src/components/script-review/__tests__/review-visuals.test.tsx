@@ -26,6 +26,23 @@ describe("ReviewCastCard", () => {
     expect(html).toContain("has-[[data-part-commented]]:ring-client/40");
   });
 
+  it("plays the avatar's shared video preview beside the four views (D466)", () => {
+    const html = renderInSurface(
+      testSurface({ commentable: [CAST] }),
+      <ReviewCastCard member={meenakshi} avatar={{ ...avatarSnapshot(), sheet: "https://cdn/sheet.png", preview: "https://cdn/preview.mp4" }} showAvatar />,
+    );
+    expect(html).toMatch(/<video[^>]*src="https:\/\/cdn\/preview.mp4"/);
+    expect(html.indexOf("https://cdn/preview.mp4")).toBeGreaterThan(html.indexOf("https://cdn/sheet.png"));
+  });
+
+  it("shows no player when the share has no preview", () => {
+    const html = renderInSurface(
+      testSurface({ commentable: [CAST] }),
+      <ReviewCastCard member={meenakshi} avatar={avatarSnapshot()} showAvatar />,
+    );
+    expect(html).not.toContain("<video");
+  });
+
   it("keeps the person's comment count in the header beside the box", () => {
     const html = renderInSurface(
       testSurface({ comments: [comment({ part: CAST })], commentable: [CAST] }),
@@ -62,14 +79,27 @@ describe("ReviewCastCard", () => {
 describe("ReviewStoryboard", () => {
   it("draws each shot's frozen panel with no Generate button, and an empty frame where there is none (Review Focus 3)", () => {
     const html = renderInSurface(
-      testSurface({ commentable: [{ kind: "panel", shotId: "s01" }] }),
+      testSurface({ commentable: [{ kind: "shot", shotId: "s01" }, { kind: "panel", shotId: "s01" }] }),
       <ReviewStoryboard doc={reelDoc()} panels={{ s01: { takeId: "t1", url: "https://cdn/s01.png" } }} />,
     );
     expect(html).toContain("Storyboard");
-    expect(html).toContain('aria-label="Open the S1 panel"');
-    expect(html).toContain('aria-label="Comment on S1 panel"');
+    expect(html).toContain("https://cdn/s01.png");
+    expect(html).not.toContain("cursor-zoom-in");
+    expect(html.match(/aria-label="Comment on S1[ "]/g)).toHaveLength(1);
+    expect(html).not.toContain('aria-label="Comment on S1 panel"');
     expect(html).toContain("No panel");
     expect(html).not.toContain("Generate");
     expect(html).not.toContain("Comment on S2 panel");
+  });
+
+  it("draws the shots as text tiles when panels were not shared (D465)", () => {
+    const html = renderInSurface(
+      testSurface({ commentable: [{ kind: "shot", shotId: "s01" }] }),
+      <ReviewStoryboard doc={reelDoc()} panels={null} />,
+    );
+    expect(html).toContain(reelDoc().shots[0].visual);
+    expect(html).toContain('aria-label="Comment on S1"');
+    expect(html).not.toContain("No panel");
+    expect(html).not.toContain("aspect-ratio");
   });
 });

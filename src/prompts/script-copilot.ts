@@ -141,8 +141,8 @@ export const scriptCopilotPrompt = {
   // 7 (D457): a location's description is the place without the shots' props.
   // 8 (D458): a shot picks a product it uses or its voiceover names, not only one whose pack shows.
   // 9 (D464): no review beat, review theme or review placeholder by default; one client's need.
-  // 10 (D465): a product is a physical thing, never a service; a graphic-only shot has no location.
-  // 11 (D466): an app or a website is never a product; a screen-only shot has no location and no product.
+  // 10 (D467): a product is a physical thing, never a service; a graphic-only shot has no location.
+  // 11 (D468): an app or a website is never a product; a screen-only shot has no location and no product.
   version: 11,
   rules,
   tasks: { extract, angles, card, draft, edit, inline, detect, import: importScript },

@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { GENERATED, makeAvatar, makeImage, makeViews } from "@/lib/avatars/__tests__/fixtures";
 import type { Avatar } from "@/lib/avatars/schema";
 import {
-  castSlotLine, finishAvatar, makeGeneratedAvatar, nextMakerStep, reusableFor, type MakerDeps,
+  castChipStatus, castSlotLine, finishAvatar, previewLockedReason, makeGeneratedAvatar, nextMakerStep, reusableFor, type MakerDeps,
 } from "../maker";
-import { reel01Doc } from "./fixtures";
+import { MEENAKSHI_AVATAR, readyAvatar, reel01Doc } from "./fixtures";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
 import { estimateMakeCredits } from "../maker";
 import { VISUALISE_AVATAR_MODEL_ID } from "../constants";
@@ -145,5 +145,42 @@ describe("estimateMakeCredits for the chosen model", () => {
 
   it("makes Visualise avatars with GPT Image 2 by default", () => {
     expect(VISUALISE_AVATAR_MODEL_ID).toBe("openai:gpt-image-2");
+  });
+});
+
+describe("castChipStatus (D465: the chip says ready only when panels can use the avatar)", () => {
+  const ready = () => readyAvatar(MEENAKSHI_AVATAR, "m");
+  const uploadedNoConsent = () => readyAvatar(MEENAKSHI_AVATAR, "m", {
+    front: { ...ready().front!, source: { kind: "upload", filename: "p.jpg", uploadedBy: "u", uploadedAt: "2026-10-01T00:00:00.000Z" } },
+    likenessConsentAt: null,
+  });
+
+  it("is working while the maker runs, whatever the avatar", () => {
+    expect(castChipStatus(null, "face")).toEqual({ label: "Making the face…", tone: "working" });
+    expect(castChipStatus(ready(), "views")).toEqual({ label: "Making the views…", tone: "working" });
+  });
+
+  it("names every not-yet state", () => {
+    expect(castChipStatus(null, null)).toEqual({ label: "No avatar yet", tone: "muted" });
+    expect(castChipStatus(readyAvatar(MEENAKSHI_AVATAR, "m", { archivedAt: "2026-10-01T00:00:00.000Z" }), null).label).toBe("Archived");
+    expect(castChipStatus(readyAvatar(MEENAKSHI_AVATAR, "m", { status: "draft" }), null).label).toBe("Needs its four views");
+    expect(castChipStatus(readyAvatar(MEENAKSHI_AVATAR, "m", { sheetStale: true }), null).label).toBe("Out of date");
+    expect(castChipStatus(uploadedNoConsent(), null).label).toBe("Waiting for consent");
+  });
+
+  it("is ready only when panels can use it", () => {
+    expect(castChipStatus(ready(), null)).toEqual({ label: "Ready", tone: "ready" });
+  });
+});
+
+describe("previewLockedReason (D465: the video preview opens once the avatar is done)", () => {
+  it("locks it until the avatar is made, whichever way", () => {
+    expect(previewLockedReason(null, null)).toBe("Make the avatar first.");
+    expect(previewLockedReason(readyAvatar(MEENAKSHI_AVATAR, "m", { status: "draft" }), null)).toBe("Make the avatar first.");
+    expect(previewLockedReason(readyAvatar(MEENAKSHI_AVATAR, "m"), "views")).toBe("Make the avatar first.");
+  });
+
+  it("opens it for a finished avatar, generated or uploaded", () => {
+    expect(previewLockedReason(readyAvatar(MEENAKSHI_AVATAR, "m"), null)).toBeNull();
   });
 });

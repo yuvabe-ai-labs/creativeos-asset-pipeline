@@ -12,7 +12,7 @@ import { AvatarTile } from "./avatar-tile";
 
 type Filter = "all" | PersonType;
 
-// D287 — the client's avatar library: an 8-across grid led by a dashed "New" tile.
+// D287 — the client's avatar library: a grid of 9:16 tiles (six across at most) led by a dashed "New" tile.
 export function AvatarsLibrary({
   clientName, clientSlug, avatars,
 }: { clientName: string; clientSlug: string; avatars: Avatar[] }) {
@@ -53,12 +53,12 @@ export function AvatarsLibrary({
             </TabsList>
           </Tabs>
 
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             <Button
               variant="outline"
               nativeButton={false}
               render={<Link href={newHref} />}
-              className="aspect-square h-auto flex-col gap-1 rounded-xl border-dashed border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
+              className="aspect-[9/16] h-auto flex-col gap-1 rounded-xl border-dashed border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
             >
               <Plus className="size-5" strokeWidth={1.5} />
               <span className="text-xs font-semibold">New</span>

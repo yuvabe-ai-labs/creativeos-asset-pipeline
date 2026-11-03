@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   avatarImageContentType, avatarReadinessGaps, errorMessage, isAvatarReady, frontChangePatch,
   withStatus, planAvatarUpdate, validateAvatarImageFile, isUuid,
-  hasFourViews, sheetKind,
+  hasFourViews, sheetKind, tileImageUrl,
 } from "../utils";
 import { AVATAR_IMAGE_MAX_BYTES, AVATAR_NAME_MAX } from "../constants";
 import { GENERATED, makeAvatar, makeImage, makeViews } from "./fixtures";
@@ -242,5 +242,18 @@ describe("sheetKind (D340)", () => {
     expect(sheetKind(makeAvatar({ sheet: makeImage(GENERATED), sheetViews: null }))).toBe("three-view");
     expect(sheetKind(makeAvatar({ sheet: makeImage(), sheetViews: null }))).toBe("uploaded");
     expect(sheetKind(makeAvatar({ sheet: null, sheetViews: null }))).toBe("none");
+  });
+});
+
+describe("tileImageUrl (the library tile shows the whole character)", () => {
+  it("prefers the full-length front view over the face", () => {
+    const a = makeAvatar({ sheetViews: makeViews("m") });
+    expect(tileImageUrl(a)).toBe(a.sheetViews!.front!.url);
+  });
+
+  it("falls back to the face before the views exist, and to nothing", () => {
+    const a = makeAvatar({ sheetViews: null });
+    expect(tileImageUrl(a)).toBe(a.front!.url);
+    expect(tileImageUrl(makeAvatar({ sheetViews: null, front: null }))).toBeNull();
   });
 });

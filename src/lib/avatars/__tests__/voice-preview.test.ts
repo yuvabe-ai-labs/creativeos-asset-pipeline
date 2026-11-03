@@ -4,6 +4,7 @@ import {
   generationToVoicePreview, isVoicePreviewAbandoned, isVoicePreviewGeneration, isVoicePreviewStale,
   voicePreviewBlocker, voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewMode,
   voicePreviewEngine, voicePreviewParams, voicePreviewRowEngine, voicePreviewRowMode, VOICE_PREVIEW_ENGINE,
+  sharablePreviewUrl,
 } from "../voice-preview";
 import { AVATAR_VOICE_PREVIEW_SLOT, AVATAR_VOICE_SAMPLE_SECONDS } from "../constants";
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
@@ -235,5 +236,18 @@ describe("isVoicePreviewAbandoned", () => {
   });
   it("never applies to a finished preview", () => {
     expect(isVoicePreviewAbandoned(row(), started + 60 * 60 * 1000)).toBe(false);
+  });
+});
+
+describe("sharablePreviewUrl (a client sees a preview only when it is finished and current)", () => {
+  it("is the clip of a finished preview that still matches the avatar", () => {
+    expect(sharablePreviewUrl(row(), makeAvatar({ voice: NAMED }))).toBe("https://storage.googleapis.com/b/preview.mp4");
+  });
+
+  it("is nothing for a preview still running, failed, out of date, or never made", () => {
+    expect(sharablePreviewUrl(row({ status: "running", output_snapshot: null }), makeAvatar({ voice: NAMED }))).toBeNull();
+    expect(sharablePreviewUrl(row({ status: "failed" }), makeAvatar({ voice: NAMED }))).toBeNull();
+    expect(sharablePreviewUrl(row(), makeAvatar({ voice: { ...NAMED, voiceId: "v2" } }))).toBeNull();
+    expect(sharablePreviewUrl(null, makeAvatar({ voice: NAMED }))).toBeNull();
   });
 });

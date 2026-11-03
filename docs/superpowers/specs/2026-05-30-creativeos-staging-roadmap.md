@@ -8309,7 +8309,27 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session.
 
-### D465 — A product is a physical thing, never a service; a graphic-only shot has no location *(recorded 2026-11-02; refines D447, D457, D458)*
+### D465 — Visualise is a storyboard sheet; the client sees only the idea, the cast and the storyboard *(recorded 2026-11-02; refines D358, D359, D446; amends D449 for location plates)*
+
+**Decision.** The Visualise board is one column. The summary card keeps the brief and gains a side area with the cast, locations and products as chips; each chip opens its full editor in a popup (the avatar maker, the location card, the product card), and a cast chip says "Ready" only when panels can use the avatar. Below it, the storyboard runs at full width as a classic sheet (two to four across): each tile is the frame, then its shot written underneath (number, beat, time, action, spoken line), then the shot's product and location pickers. Redraw sits on a drawn frame (on hover and focus, always shown where there is no hover); only a shot with no panel has Generate below it. The sheet does not zoom: a frame is a picture, not a button. A drawn panel's Versions action (beside Redraw, on hover) opens the panel view, which now also shows the whole shot (on-screen text, who's on screen). The client's storyboard does not zoom either. The separate shot list, the cast cards and the Products & Locations section leave this board, and "Group by beat" goes (the beat is a label on each tile). The client's page and the approved board take the same layout, read-only, cut to what the client signs off on: the title, facts line, purpose and disclaimers, the cast as bigger cards, and the storyboard. No setting and camera, watch-outs, locations or products; a script-only share shows the shots as tiles without frames. Comment markers move onto the summary card, the cast chips/cards and the tiles; a tile has one comment action, for the shot's words and its panel together (new comments are on the shot; a panel's earlier comments count on the same marker), and comments scroll to the tile. A location's popup shows its plate large, and a plate's Redraw draws again straight from the location's description, with no "what should change?" step (amends D449 for plates; panels keep it).
+
+**Why.** User, 2 Nov 2026: with several avatars the cast cards filled the screen, and the shot list and the storyboard repeated each other. A storyboard should read like one. The client should not be shown the team's working references and notes ("we don't want to share too much and confuse the client").
+
+**Rejected.** A right-hand column with Cast / Locations / Products jump links (the "compact" mockup). Two-up tiles (each ~830px tall at 9:16). Landscape cards and a rows layout. Pickers inside the panel view only (the user sets products and locations on the sheet). Location comments and client review of locations or products. Thumbnails and "used in" toggles for assigning locations and products (parked).
+
+**Originated →** [2026-11-02-visualise-storyboard-sheet-design.md](2026-11-02-visualise-storyboard-sheet-design.md); mockups on the Design canvas ("2 · Visualise, storyboard sheet (Nov brainstorm)").
+
+### D466 — An avatar's video preview is shown beside its four views, to the team and to the client *(recorded 2026-11-03; extends D294, D465)*
+
+**Decision.** Wherever an avatar's four views are shown for review, its video preview plays in place beside them (9:16, as tall as the sheet): in the Visualise avatar popup (which drops its separate "Watch" dialog; an out-of-date clip shows dimmed with an "Out of date" badge), and on the client's cast card. A share freezes each cast avatar's latest preview only when it finished and still matches the avatar's face and voice (no running, failed or out-of-date clip ever reaches a client); the previews for the whole cast are read in one query, beside the avatars. A version shared before this has no preview; sharing again adds it.
+
+**Why.** User, 3 Nov 2026: the preview is how a client hears and sees the avatar speak; it should be reviewable where the avatar is reviewed.
+
+**Rejected.** A per-avatar lookup at share time (one query per cast member). Freezing a stale or running preview. Showing the clip behind a "Watch" button.
+
+**Originated →** conversation in this session.
+
+### D467 — A product is a physical thing, never a service; a graphic-only shot has no location *(recorded 2026-11-02 as D465 in commit 18d39b2b, renumbered when staging's D465 merged in; refines D447, D457, D458)*
 
 **Decision.** The copilot's asset rules (script-copilot version 10; version 9 is D464) say a product is a physical thing the camera can show and a photo can be taken of. A service (a loan, insurance, an account, a card's benefits, a subscription, an app's features, a booking) is never a product: the reel shows it through people, places and actions, and the brand arrives through the voiceover and the logo added in the edit. A brand that sells only services gets an empty product list, and what a person in the story owns and uses (their own gold jewellery taken to a gold loan) is a prop. A shot that is only a graphic (a logo end card, a brand-colour background, a title card) has location "" and adds no location.
 
@@ -8319,16 +8339,16 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session (Muthoot Finance script review, staging).
 
-### D466 — An app or a website is never a product; a screen-only shot has no location *(recorded 2026-11-03; refines D465)*
+### D468 — An app or a website is never a product; a screen-only shot has no location *(recorded 2026-11-03 as D466 in commit 8df743e1, renumbered when staging's D466 merged in; refines D467)*
 
 **Decision.** The copilot's asset rules (script-copilot version 11) name an app or a website, and what it does, among the services that are never a product. A shot that is only a screen (a screen recording of an app or a website, a phone's display filling the frame) has location "", adds no location and picks no product: a screen is never a location, and a real screen recording is added in the edit.
 
-**Why.** User, 3 Nov 2026, PharmEasy on staging (script 1894b4f8, "Repeat order set", imported under version 8): "PharmEasy app" became a product with no picture, picked in S4 (the screen recording) and S7 (the end card), and "Mobile Screen" became a location with a plate to generate. D465's "an app's features" read as the features, not the app itself, and nothing covered a screen as a place.
+**Why.** User, 3 Nov 2026, PharmEasy on staging (script 1894b4f8, "Repeat order set", imported under version 8): "PharmEasy app" became a product with no picture, picked in S4 (the screen recording) and S7 (the end card), and "Mobile Screen" became a location with a plate to generate. D467's "an app's features" read as the features, not the app itself, and nothing covered a screen as a place.
 
 **Rejected.** For now, a "Recorded for real" mark on a shot that the storyboard and canvas skip (the user deferred it on 3 Nov 2026; S4's real recording still has no path but the edit). A plain green screen in a generated shot (the same deferral).
 
 **Originated →** conversation in this session (PharmEasy script review, staging).
-### D467 — Redraw's change sends the shot's people, place and products after the panel it changes *(recorded 2026-11-02 as D464 in commit dbd966dc, renumbered when staging's D464 merged in; amends D449)*
+### D469 — Redraw's change sends the shot's people, place and products after the panel it changes *(recorded 2026-11-02 as D464 in commit dbd966dc, renumbered when staging's D464 to D466 merged in; amends D449)*
 
 **Decision.** "Change this picture" sends the picked take as reference image 1, then the shot's own references as a draw selects them (the people's views, the location plate, the product pictures and angles, one slot fewer so the take fits), then the house style. Its prompt (panelChangePrompt) keeps the note and the hold-everything line, adds that a sheet of frames keeps every frame and changes only what the note names, restates the shot text (the change wins where they differ), and names each reference as a draw does: the place, the people, the products. With a real product picture it uses the packaging-as-pictured text rule, not the every-pack-is-blank one. PanelReference gains a { panel: true } variant for the take.
 

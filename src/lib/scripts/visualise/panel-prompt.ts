@@ -15,7 +15,7 @@ export type PanelPerson = {
   /** The four views, or none while the person's avatar is not ready. */
   views: { view: AvatarViewId; url: string }[];
 };
-/** A person's view, or (D449) the shot's location plate or one of its products' pictures, or (D467)
+/** A person's view, or (D449) the shot's location plate or one of its products' pictures, or (D469)
  *  the panel a Redraw changes. */
 export type PanelReference =
   | { url: string; panel: true }
@@ -49,7 +49,7 @@ export const PANEL_REFERENCE_CLAUSE =
   "The people's reference images show their identity only: never copy their plain grey background, lighting or layout.";
 /** D449 — Redraw's "Change this picture": the picked take is reference image 1 and only the note
  *  changes. Everything the take already got right (who, where, framing, style) is held.
- *  D467 — and the shot's own references follow it, named as in a draw: with the take alone, a
+ *  D469 — and the shot's own references follow it, named as in a draw: with the take alone, a
  *  change lost the people, the place and the product (Reel 33 S1: "he looks at the back of the
  *  product" had no back view to draw from, and the no-text rule blanked the real pack). */
 export function panelChangePrompt(

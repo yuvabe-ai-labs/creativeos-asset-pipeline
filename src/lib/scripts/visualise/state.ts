@@ -187,3 +187,9 @@ export function generateAllLabel(plan: GenerateAllPlan): string {
   const cost = plan.credits === null ? "" : ` · about ${plan.credits.toLocaleString()} credits`;
   return `${verb} ${n} panel${n === 1 ? "" : "s"}${cost}`;
 }
+
+/** D465 — what the panel view shows: the whole shot only ("shot-only") until a take exists or the
+ *  first one is being drawn; then takes, Redraw and the prompt box as well ("full"). */
+export function panelViewMode(view: Pick<PanelView, "pick" | "status">): "shot-only" | "full" {
+  return !view.pick && view.status !== "generating" ? "shot-only" : "full";
+}
