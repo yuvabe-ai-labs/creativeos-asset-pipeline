@@ -66,7 +66,7 @@ export function VoLinesEditor({ lines, onChange, readOnly = false, people }: VoL
               column, and the speaker still leads — who is speaking, then what is said. */}
           <div className="min-w-0 flex-1">
             {people && !readOnly ? (
-              <VoSpeakerSelect value={line.speaker} people={people} onChange={(speaker) => updateLine(i, { speaker })} />
+              <VoSpeakerSelect value={line.speaker} people={people} onChange={(speaker) => updateLine(i, { speaker, picked: true })} />
             ) : people ? (
               <span className="text-eyebrow text-muted-foreground">{speakerLabel(line.speaker)}</span>
             ) : (

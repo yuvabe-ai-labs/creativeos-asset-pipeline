@@ -9,14 +9,16 @@ import type { VoLine } from "@/lib/nodes/reel-script";
 // picked from the people on the canvas, and an empty card says plainly that the clip is silent:
 // the video request now tells the model exactly that, so nobody speaks a line nobody wrote.
 // Its own component so the canvas scan in useCanvasPeople runs only while the focus view is open.
-export function SequenceVoiceoverCard({ lines, clipSeconds, readOnly, onChange }: {
+export function SequenceVoiceoverCard({ nodeId, lines, clipSeconds, readOnly, onChange }: {
+  /** The Multishot node: its script's speakers join the list (D476). */
+  nodeId: string;
   lines: VoLine[] | undefined;
   /** The clip's length, the cuts added up. */
   clipSeconds: number;
   readOnly: boolean;
   onChange: (next: VoLine[]) => void;
 }) {
-  const people = useCanvasPeople();
+  const people = useCanvasPeople(nodeId);
   const empty = (lines ?? []).every((l) => !l.text.trim());
   // D474 — lines longer than the clip are cut off at its end, so say so before it is generated.
   const needed = secondsToSay(lines);

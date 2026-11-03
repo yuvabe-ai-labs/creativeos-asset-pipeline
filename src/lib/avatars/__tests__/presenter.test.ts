@@ -181,6 +181,14 @@ describe("withAvatarAsSpeaker", () => {
     expect(cuts.flatMap((c) => c.voiceover.map((l) => l.speaker))).toEqual(["Razel", "Razel", "narrator"]);
   });
 
+  // D477 — a speaker picked in the Multishot's list is the operator's word: "hi" stayed "hi".
+  it("never renames a speaker picked by hand, and does not count it", () => {
+    const [row] = withAvatarAsSpeaker([multishot([], [{ ...creator("Welcome to this grand hall"), speaker: "hi", picked: true }])], "Razel");
+    expect((row.data.sequenceVoiceover as { speaker: string }[])[0].speaker).toBe("hi");
+    const [mixed] = withAvatarAsSpeaker([multishot([], [{ ...creator("One."), speaker: "friend", picked: true }, creator("Two.")])], "Razel");
+    expect((mixed.data.sequenceVoiceover as { speaker: string }[]).map((l) => l.speaker)).toEqual(["friend", "Razel"]);
+  });
+
   it("renames a Shot's lines too", () => {
     const [row] = withAvatarAsSpeaker([shot([{ ...riya, speaker: "host" }])], "Razel");
     const script = row.data.script as { visual_script: { shots: { voiceover: { speaker: string }[] }[] } };
