@@ -189,3 +189,9 @@ export function avatarImageContentType(file: { name: string; type: string }): st
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   return AVATAR_IMAGE_EXTENSION_CONTENT_TYPES[ext] ?? "application/octet-stream";
 }
+
+/** The library tile's picture: the full-length front view once the views exist, so the whole
+ *  character shows in the 9:16 tile; the face before then; null with neither. */
+export function tileImageUrl(avatar: Pick<Avatar, "front" | "sheetViews">): string | null {
+  return avatar.sheetViews?.front?.url ?? avatar.front?.url ?? null;
+}

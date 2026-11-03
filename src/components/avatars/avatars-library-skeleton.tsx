@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Route-level placeholder for /clients/[id]/avatars — same shell as the live page
- *  (breadcrumb, header, filter tabs, 8-across grid) so nothing jumps when it resolves. */
+ *  (breadcrumb, header, filter tabs, grid of 9:16 tiles) so nothing jumps when it resolves. */
 export function AvatarsLibrarySkeleton() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
@@ -19,9 +19,9 @@ export function AvatarsLibrarySkeleton() {
        *  this row the grid used to sit higher than it does once the real tabs mount. */}
       <Skeleton className="mb-4 h-9 w-64 rounded-lg" />
 
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="aspect-square rounded-xl" />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-[9/16] rounded-xl" />
         ))}
       </div>
     </main>
