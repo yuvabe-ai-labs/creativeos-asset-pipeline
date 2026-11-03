@@ -6,7 +6,7 @@ import { imageGenClientModels } from "@/lib/image-gen/client-models";
 // (Seedream hands URLs to the vendor).
 export const PANEL_MODEL_ID = "gemini:gemini-nano-banana-2.1";
 export const PANEL_MODEL_IDS: readonly string[] = imageGenClientModels
-  .filter((m) => m.provider === "openai" || m.provider === "gemini")
+  .filter((m) => !m.deprecated && (m.provider === "openai" || m.provider === "gemini"))
   .map((m) => m.id);
 export function isPanelModel(modelId: string): boolean {
   return PANEL_MODEL_IDS.includes(modelId);

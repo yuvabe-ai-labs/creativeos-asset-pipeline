@@ -12,7 +12,7 @@ import { cutSheetIntoViews } from "@/lib/avatars/sheet-cut";
 import { withStatus } from "@/lib/avatars/utils";
 import { AVATAR_SHEET_ASPECT, AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarImage, AvatarViewId } from "@/lib/avatars/schema";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { imageGenClientModelMap, isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
 import { preconditionFailed } from "@/lib/avatars/route-responses";
 import { buildAvatarSheetPrompt } from "@/prompts/avatar-character";
 
@@ -39,6 +39,8 @@ export async function POST(
       const parsed = SheetSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Choose a model.", 400);
       if (!imageGenClientModelMap[parsed.data.modelId]) return apiError("Unknown model.", 400);
+      // D467 — a tab open from before the model went can still send it.
+      if (isImageModelDeprecated(parsed.data.modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
 
       const current = await getAvatar(clientId, avatarId);
       if (!current || current.archivedAt) return apiError("Avatar not found.", 404);

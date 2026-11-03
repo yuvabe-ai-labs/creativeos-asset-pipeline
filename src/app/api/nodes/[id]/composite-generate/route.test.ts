@@ -73,6 +73,13 @@ beforeEach(() => {
 });
 
 describe("POST composite-generate (D312)", () => {
+  it("refuses a deprecated model before anything starts (D467)", async () => {
+    const res = await post({ instruction: "x", modelId: "openai:gpt-image-1" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model is deprecated");
+    expect(start).not.toHaveBeenCalled();
+  });
+
   it("refuses with no instruction, before reserving", async () => {
     const res = await post({ instruction: "   " });
     expect(res.status).toBe(400);

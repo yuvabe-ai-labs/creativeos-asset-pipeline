@@ -3,7 +3,11 @@ import {
   videoGenClientModelMap,
   videoGenClientModelGroups,
   isVideoModelDeprecated,
+  usableVideoModelId,
+  withoutDeprecatedVideoModel,
+  defaultsForVideoModel,
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
+  GEMINI_OMNI_MODEL_ID,
 } from "../client-models";
 
 describe("video model roster", () => {
@@ -49,19 +53,45 @@ describe("picker groups", () => {
   // rather than imposing one of their own.
   it("groups under Veo, Kling, Seedance, and Google — no OpenAI headers", () => {
     expect(videoGenClientModelGroups.map((g) => g.label)).toEqual([
-      "Veo",
       "Kling",
       "Seedance",
       "Google",
     ]);
   });
 
-  it("puts Lite/Fast/Quality under the Veo group", () => {
-    const veo = videoGenClientModelGroups.find((g) => g.label === "Veo")!;
-    expect(veo.models.map((m) => m.label)).toEqual([
-      "Veo 3.1 Lite",
-      "Veo 3.1 Fast",
-      "Veo 3.1 Quality",
-    ]);
+  it("D461: offers no deprecated model, and drops the provider left with none", () => {
+    const offered = videoGenClientModelGroups.flatMap((g) => g.models);
+    expect(offered.some((m) => m.deprecated)).toBe(false);
+    expect(videoGenClientModelGroups.find((g) => g.label === "Veo")).toBeUndefined();
+  });
+});
+
+describe("deprecated model fallback (D461)", () => {
+  it("defaults to Gemini Omni", () => {
+    expect(DEFAULT_VIDEO_CLIENT_MODEL_ID).toBe(GEMINI_OMNI_MODEL_ID);
+  });
+
+  it("moves a deprecated model to Omni with Omni's default params, dropping the old ones", () => {
+    const next = withoutDeprecatedVideoModel({
+      title: "Shot 1",
+      modelId: "veo:veo-3.1-lite",
+      params: { duration: "4", resolution: "1080p", aspect_ratio: "16:9" },
+    });
+    expect(next.title).toBe("Shot 1");
+    expect(next.modelId).toBe(GEMINI_OMNI_MODEL_ID);
+    expect(next.params).toEqual(defaultsForVideoModel(GEMINI_OMNI_MODEL_ID));
+  });
+
+  it("returns any other node's data as the same object", () => {
+    const data = { modelId: "kling:kling-3-0", params: { duration: 5 } };
+    expect(withoutDeprecatedVideoModel(data)).toBe(data);
+    const noModel = { modelId: undefined, title: "Shot" };
+    expect(withoutDeprecatedVideoModel(noModel)).toBe(noModel);
+  });
+
+  it("gives the model a node can generate on", () => {
+    expect(usableVideoModelId("veo:veo-3.1")).toBe(GEMINI_OMNI_MODEL_ID);
+    expect(usableVideoModelId("kling:kling-3-0")).toBe("kling:kling-3-0");
+    expect(usableVideoModelId("openai:sora-2")).toBe(GEMINI_OMNI_MODEL_ID);
   });
 });

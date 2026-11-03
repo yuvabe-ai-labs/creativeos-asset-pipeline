@@ -56,6 +56,7 @@ export type MediaGenModelSpec = {
   provider:                    string;
   mediaType:                   MediaType;
   label:                       string;
+  deprecated?:                 boolean;   // D467 — not offered, can't generate; past versions still read it
   providerLabel:               string;
   maxReferenceImages:          number;
   maxReferenceSizeBytes:       number;

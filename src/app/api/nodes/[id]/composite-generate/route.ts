@@ -1,4 +1,5 @@
 import { imageGenRegistry } from "@/lib/image-gen/registry";
+import { isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
 import { getStoryboardVersionInputs, getVersionById } from "@/lib/db/versions";
 import { STORYBOARD_PROMPT_ID, drawsAsSketch } from "@/lib/scripts/script-composites";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
@@ -67,6 +68,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const modelId = resolveCompositeModelId(typeof body?.modelId === "string" ? body.modelId : undefined);
     const config = imageGenRegistry[modelId];
     if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
+    // D467 — a tab open from before the fallback can still send a deprecated model.
+    if (isImageModelDeprecated(modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
 
     const parsed = config.schema.safeParse(body?.params ?? {});
     if (!parsed.success) return apiError(`Invalid params: ${parsed.error.message}`, 400);

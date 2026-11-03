@@ -14,7 +14,7 @@ import {
   singleTakeRefDialect,
   singleTakeTargetForProvider,
 } from "@/lib/nodes/ref-binding";
-import { videoGenClientModelMap, resolveVideoModelId } from "@/lib/video-gen/client-models";
+import { videoGenClientModelMap, usableVideoModelId } from "@/lib/video-gen/client-models";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
@@ -109,7 +109,8 @@ export async function GET(
       if (connectedPromptNode?.type === "video-prompt") {
         const stored =
           typeof connectedPromptNode.activeOutput === "string" ? connectedPromptNode.activeOutput : null;
-        const modelId = resolveVideoModelId(
+        // D461 — the stored row can still name a deprecated model the canvas has moved off.
+        const modelId = usableVideoModelId(
           typeof node.data?.modelId === "string" ? node.data.modelId : "",
         );
         const dialect = singleTakeRefDialect(

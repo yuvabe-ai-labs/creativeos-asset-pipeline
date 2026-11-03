@@ -45,7 +45,6 @@ import {
   defaultsForVideoModel,
   videoGenClientModelMap,
   isVideoModelDeprecated,
-  VIDEO_MODEL_DEPRECATED_MESSAGE,
 } from "@/lib/video-gen/client-models";
 import { multishotCapabilityFor, multishotRestrictionReason, checkLadder } from "@/lib/nodes/multishot-models";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
@@ -1171,7 +1170,8 @@ export function VideoGenFocusView({
     const toastId = toast.loading("Restoring version…");
     try {
       const { output, modelUsed, paramsUsed } = await videoGenApi.restoreVersion(nodeId, versionId);
-      const restoredParams = modelUsed
+      // D461 — a version made on a deprecated model brings back its video, not its model.
+      const restoredParams = modelUsed && !isVideoModelDeprecated(modelUsed)
         ? paramsForRestore(videoGenClientModelMap[modelUsed]?.params, paramsUsed)
         : null;
       if (modelUsed && restoredParams) {
@@ -1401,18 +1401,13 @@ export function VideoGenFocusView({
     onOpenChange(false);
     focusStoreApi.getState().setFocusedNodeId(promptNode.id);
   }
-  // D461 — a node saved on a deprecated model opens on it, but can't generate until it moves off.
-  const modelDeprecated = isVideoModelDeprecated(modelId);
   const disableGenerate =
     Boolean(lockReason) ||
-    modelDeprecated ||
     loadingConnected ||
     Boolean(promptGap) ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = lockReason
     ? lockReason
-    : modelDeprecated
-    ? VIDEO_MODEL_DEPRECATED_MESSAGE
     : loadingConnected
     ? "Loading connected inputs…"
     : promptGap

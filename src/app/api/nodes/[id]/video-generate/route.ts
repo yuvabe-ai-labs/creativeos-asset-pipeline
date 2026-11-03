@@ -74,7 +74,7 @@ export async function POST(
     const modelId = body.modelId ?? DEFAULT_VIDEO_MODEL_ID;
     const config = videoGenRegistry[modelId];
     if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
-    // D461 — a saved node can still name a deprecated model, so the picker alone enforces nothing.
+    // D461 — a tab open from before the fallback can still send a deprecated model.
     if (isVideoModelDeprecated(modelId)) return apiError(VIDEO_MODEL_DEPRECATED_MESSAGE, 400);
 
     // Build params using model's param specs (defaults where not provided)
