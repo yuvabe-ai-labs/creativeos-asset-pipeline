@@ -32,20 +32,25 @@ const ON_CAMERA_LINE = /\bsays(?: on camera)?(?: \([^)]*\))?(?: in [^:"“]+)?: 
  * to have one and the model made one up; and nothing told it who speaks, so a narrator's line
  * came out of the on-screen person's mouth. Omni, Kling and Seedance all make sound by default.
  */
+// D474 — when the words are spoken. Without it the model let the room sound run first: a 4s clip's
+// seven-word voiceover began at 2.7s and was still being spoken when the clip ended (staging,
+// CaratLane Reel 02).
+export const SPEECH_TIMING = "Speaking starts within the first second and every line is finished before the clip ends; no line is cut off.";
+
 export function soundDesignClause(prompt: string): string {
   const narrator = NARRATOR_LINE.test(prompt);
   const onCamera = ON_CAMERA_LINE.test(prompt);
   if (narrator && onCamera) {
     return "Sound design: ambience, foley and only the lines given, in exactly their words: the voiceover spoken " +
-      `off-screen, and each on-camera line said by the person named. Nobody else speaks. ${NO_MUSIC}`;
+      `off-screen, and each on-camera line said by the person named. Nobody else speaks. ${SPEECH_TIMING} ${NO_MUSIC}`;
   }
   if (onCamera) {
     return "Sound design: ambience, foley and the lines given, each said on camera by the person named, in exactly " +
-      `the words given. Nobody else speaks, and there is no voiceover. ${NO_MUSIC}`;
+      `the words given. Nobody else speaks, and there is no voiceover. ${SPEECH_TIMING} ${NO_MUSIC}`;
   }
   if (narrator) {
     return "Sound design: ambience, foley and the voiceover, spoken off-screen in exactly the words given and " +
-      `nothing more. Nobody on screen speaks or moves their lips as if talking. ${NO_MUSIC}`;
+      `nothing more. Nobody on screen speaks or moves their lips as if talking. ${SPEECH_TIMING} ${NO_MUSIC}`;
   }
   return "Sound design: ambience and foley only. Nobody speaks: no dialogue, no voiceover, no narration, no " +
     `singing. ${NO_MUSIC}`;

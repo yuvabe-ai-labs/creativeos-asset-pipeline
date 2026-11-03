@@ -336,6 +336,7 @@ export function MultishotFocusView({
             {(!isReadOnly || (draft.sequenceVoiceover?.length ?? 0) > 0) && (
               <SequenceVoiceoverCard
                 lines={draft.sequenceVoiceover}
+                clipSeconds={total}
                 readOnly={isReadOnly}
                 onChange={(next) => setDraft((d) => ({ ...d, sequenceVoiceover: next }))}
               />

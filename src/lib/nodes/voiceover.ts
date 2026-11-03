@@ -274,6 +274,18 @@ export function renderVoiceover(lines: VoLine[] | undefined): string {
 }
 
 /**
+ * D474 — about how many seconds the lines take to say, at an unhurried read (2.5 words a second),
+ * rounded up. Words are counted by spaces, so it holds for any language written with them.
+ */
+export function secondsToSay(lines: VoLine[] | undefined): number {
+  const words = (lines ?? []).reduce((n, l) => n + (l.text.trim() ? l.text.trim().split(/\s+/).length : 0), 0);
+  return Math.ceil(words / 2.5);
+}
+
+/** D474 — a clip needs about a second beyond the words: a moment before the first and after the last. */
+export const SPEECH_ROOM_SECONDS = 1;
+
+/**
  * D267 (Task 5) — how the WRITER is told a line exists, without handing it the words to place: a
  * speaker and on/off-screen, so it can frame a talking face or keep everyone silent for narration.
  * The quoted text travels too, only so the writer can tell WHICH shot a line belongs to — it may

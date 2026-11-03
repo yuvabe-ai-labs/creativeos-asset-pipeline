@@ -8415,3 +8415,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A separate param for shared links (`?focus=`): two params naming the same thing, and the inbox's `?node=` already did the arrival half. Pushing a history entry per view: Back would step through every view opened.
 
 **Originated →** conversation in this session.
+
+### D474 — The request says when the lines are spoken, and a voiceover too long for its clip is flagged *(recorded 2026-11-03; refines D472)*
+
+**Decision.**
+- **Timing in the sound clause.** Whenever a line is spoken (voiceover, on camera, or both), the sound clause adds: "Speaking starts within the first second and every line is finished before the clip ends; no line is cut off." A clip with no line is unchanged. Omni, Kling and Seedance all get it, as they share the clause.
+- **A length check in the Multishot voiceover card.** `secondsToSay(lines)` (`src/lib/nodes/voiceover.ts`) estimates the lines at 2.5 words a second, rounded up. When that plus a second of room (`SPEECH_ROOM_SECONDS`) is more than the clip's length, the card says: "These lines take about Ns to say, and this clip is Ms. Shorten them or lengthen the cuts, or the end will be cut off."
+
+**Why.** User, 3 Nov 2026, CaratLane Reel 02 Multishot 2 on staging: an off-screen voiceover was cut off. The 4s clip's audio was room sound until 2.7s, then the seven-word line began and was still being spoken at 4.0s, the clip's end. The request had said who speaks but not when, so the model spent most of the clip on ambience.
+
+**Rejected.** Timecodes on each line (`[0.5-3.5s]`): a line's length in speech is a guess, and a wrong window is worse than "start early, finish before the end". Blocking generation when the lines are too long: the estimate is rough and a fast read can fit, so it warns rather than stops.
+
+**Originated →** conversation in this session.

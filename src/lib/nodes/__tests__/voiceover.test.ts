@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { voiceoverMappingIssue, renderVoiceover, joinVoLines, multishotVoiceover, foldMultishotVoiceover } from "../voiceover";
+import { voiceoverMappingIssue, renderVoiceover, joinVoLines, multishotVoiceover, foldMultishotVoiceover, secondsToSay } from "../voiceover";
 import type { ReelScript } from "../reel-script";
 
 const script = (voiceover: string, lines: string[][] | null): ReelScript => ({
@@ -298,5 +298,18 @@ describe("multishotVoiceover / foldMultishotVoiceover, off-screen (D307)", () =>
   it("leaves data with nothing on its cuts as it is", () => {
     const data = { cuts: [{ id: "a", text: "x", seconds: 2 }], sequenceVoiceover: [line("Hi.")] };
     expect(foldMultishotVoiceover(data)).toBe(data);
+  });
+});
+
+// D474 — a line longer than the clip is cut off at its end; the card warns from this estimate.
+describe("secondsToSay", () => {
+  it("counts words at 2.5 a second, rounded up", () => {
+    expect(secondsToSay([{ text: "A touch of glow for my everyday", speaker: "narrator" }])).toBe(3);
+    expect(secondsToSay([{ text: "One two", speaker: "narrator" }, { text: "three four five", speaker: "Riya" }])).toBe(2);
+  });
+
+  it("is zero with no words", () => {
+    expect(secondsToSay(undefined)).toBe(0);
+    expect(secondsToSay([{ text: "  ", speaker: "narrator" }])).toBe(0);
   });
 });

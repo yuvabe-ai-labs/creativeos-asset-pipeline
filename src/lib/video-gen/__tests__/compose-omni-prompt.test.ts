@@ -33,6 +33,14 @@ describe("composeOmniPrompt", () => {
     expect(out).toContain("each said on camera by the person named, in exactly the words given. Nobody else speaks, and there is no voiceover.");
   });
 
+  // D474 — a 4s clip's voiceover began at 2.7s and was cut off at the end (CaratLane Reel 02).
+  it("says when speech starts and that it ends before the clip does, only when someone speaks", () => {
+    const timing = "Speaking starts within the first second and every line is finished before the clip ends; no line is cut off.";
+    expect(composeOmniPrompt({ prompt: 'Voiceover, off-screen: "Try it."', params: {}, plan: EMPTY })).toContain(timing);
+    expect(composeOmniPrompt({ prompt: 'Riya says on camera: "Try it."', params: {}, plan: EMPTY })).toContain(timing);
+    expect(composeOmniPrompt({ prompt: "A cup.", params: {}, plan: EMPTY })).not.toContain("Speaking starts");
+  });
+
   it("handles both, and reads a prompt written before the wording changed", () => {
     expect(composeOmniPrompt({ prompt: 'Voiceover, off-screen: "One." Riya says on camera: "Two."', params: {}, plan: EMPTY }))
       .toContain("the voiceover spoken off-screen, and each on-camera line said by the person named. Nobody else speaks.");
