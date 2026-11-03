@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -26,19 +26,30 @@ export function VoSpeakerSelect({ value, people, onChange }: {
 }) {
   const [typing, setTyping] = useState(false);
   const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const current = value.trim() || NARRATOR;
   const options = [NARRATOR, ...new Set([...people, current].filter((p) => p && p !== NARRATOR)), SOMEONE_ELSE];
 
+  // The select hands focus back to its trigger as it closes, which lands AFTER this field mounts:
+  // an autoFocus here was blurred at once and an empty blur closed the field, so "Someone else…"
+  // looked like it did nothing. Focus once the close has settled, and never close on an empty blur.
+  useEffect(() => {
+    if (!typing) return;
+    const t = window.setTimeout(() => inputRef.current?.focus(), 120);
+    return () => window.clearTimeout(t);
+  }, [typing]);
+
   if (typing) {
     const commit = () => {
+      if (!name.trim()) return;
       setTyping(false);
-      if (name.trim()) onChange(name.trim());
+      onChange(name.trim());
     };
     return (
       <Input
-        autoFocus
+        ref={inputRef}
         value={name}
-        placeholder="Their name, then Enter"
+        placeholder="Their name, then Enter (Esc to cancel)"
         aria-label="Who says this line"
         onChange={(e) => setName(e.target.value)}
         onBlur={commit}
@@ -46,7 +57,7 @@ export function VoSpeakerSelect({ value, people, onChange }: {
           if (e.key === "Enter") commit();
           if (e.key === "Escape") { e.stopPropagation(); setTyping(false); }
         }}
-        className="nodrag h-7 w-48 px-2 text-xs"
+        className="nodrag h-7 w-64 px-2 text-xs"
       />
     );
   }
