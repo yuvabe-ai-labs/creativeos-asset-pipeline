@@ -8401,3 +8401,17 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Turning audio off (Omni cannot; Kling's off loses ambience and foley too). A free-text speaker kept beside the dropdown (the free text is how "narrator" ended up on a line the script gave a person). Inferring every first-person line as the on-screen person's (a line over a person only looking at the camera is usually narration; lip-sync on a long line looks wrong).
 
 **Originated →** conversation in this session.
+
+### D473 — An open node's URL can be shared: `?node=` names the open focus view and opens it on arrival *(recorded 2026-11-03; amends D165 / R9.3)*
+
+**Decision.**
+- **The URL follows the open view.** Opening any node's focus view writes `?node=<id>` to the URL; opening another replaces it; closing removes it. When views are stacked, the top one is named. Writes use `history.replaceState`, so opening views adds nothing to Back.
+- **A link opens the node.** Loading or following a canvas URL with `?node=` flies to that node and opens its focus view, through the same `focusedNodeId` signal the tray and the review drawer use. A node that does not exist (deleted) opens nothing.
+- **The inbox keeps its meaning.** A link with `?review=1` as well (the navbar inbox) also lands on Details and opens the review drawer, as before. A plain shared link opens only the view.
+- One hook, `useNodeLink` (`src/components/canvas/use-node-link.ts`), owns both directions; the review drawer calls it instead of holding its own `?node=` effects.
+
+**Why.** User, 3 Nov 2026: a node should be shareable by its URL, so a teammate (or a bug report) lands straight in it.
+
+**Rejected.** A separate param for shared links (`?focus=`): two params naming the same thing, and the inbox's `?node=` already did the arrival half. Pushing a history entry per view: Back would step through every view opened.
+
+**Originated →** conversation in this session.
