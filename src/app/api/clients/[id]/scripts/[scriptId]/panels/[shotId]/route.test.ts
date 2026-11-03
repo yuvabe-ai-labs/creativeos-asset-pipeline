@@ -131,6 +131,21 @@ describe("POST …/panels/:shotId", () => {
     expect(vi.mocked(insertPanelTake).mock.calls[1][0]).toMatchObject({ prompt: "Closer on her hands.", promptEdited: true });
   });
 
+  // D464 — a change kept only the old panel, so the real pack went blank and the people and place drifted.
+  it("changes the picked panel with the shot's people after it, numbered from 2", async () => {
+    const old = makeTake({ id: "t-old", shotId: "s06", url: "https://x/old.png" });
+    vi.mocked(loadVisualiseBoard).mockResolvedValue({ avatars: [meenakshi, husband], takes: [old], picks: { s06: "t-old" }, kits: [] });
+    const { POST } = await import("./route");
+    expect((await POST(post({ kind: "change", note: "She looks at the pack" }), ctx("s06"))).status).toBe(200);
+    const run = vi.mocked(runPanelGeneration).mock.calls[0][0];
+    expect(run.referenceUrls[0]).toBe("https://x/old.png");
+    expect(run.referenceUrls).toHaveLength(9);
+    expect(run.prompt).toContain("Reference image 1 is the current storyboard panel. Redraw it with one change: She looks at the pack.");
+    expect(run.prompt).toMatch(/Meenakshi: .*Reference images 2 \(front\)/);
+    expect(run.prompt).toContain("Reference image 10 shows the drawing style only");
+    expect(run.prompt).toContain("Where the change and the shot differ, the change wins.");
+  });
+
   it("draws with the model the operator chose, and refuses one not offered for panels", async () => {
     const { POST } = await import("./route");
     expect((await POST(post({ kind: "draw", modelId: "gemini:gemini-3.1-flash-image" }), ctx("s06"))).status).toBe(200);

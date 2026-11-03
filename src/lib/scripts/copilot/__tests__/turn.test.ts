@@ -29,7 +29,7 @@ const extraction = (over: Partial<Extraction> = {}): Extraction => ({
   skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
 });
 const angle = (id: string, signalIds: string[] = []) => ({
-  id, hook: `Hook ${id}`, situation: "s", productMoment: "m", supportingCast: "c", reviewTheme: "r", proof: "p",
+  id, hook: `Hook ${id}`, situation: "s", productMoment: "m", supportingCast: "c", proof: "p",
   format: "UGC", occasion: "Kerala Piravi", postDate: "Sun 1 Nov", lead: "Saraswathi", leadAvatarId: null, signalIds, fromSignals: "lunch at home",
 });
 const CARD = {
@@ -150,7 +150,7 @@ describe("before the draft", () => {
     expect(out.patch?.notes?.confirmations).toEqual([{ id: "c1", text: "Sun 1 Nov is Kerala Piravi", confirmed: false }]);
     expect(out.patch?.brief?.phase).toBe("written");
     expect(out.result[0].content).toMatch(/^The first draft is in: 2 shots · 13s\./);
-    expect(out.result[0].content).toMatch(/2 things to settle before it's final\. First: Paste a real, cleared customer review/);
+    expect(out.result[0].content).toMatch(/2 things to settle before it's final\. First: Replace \[real review, verbatim\] in REVIEW \(S2\)\./);
   });
 
   it("streams the draft: reports each new shot as it arrives, then saves the whole draft", async () => {

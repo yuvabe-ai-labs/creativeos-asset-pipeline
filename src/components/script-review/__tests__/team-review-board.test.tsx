@@ -32,9 +32,16 @@ describe("TeamReviewBoard (final review: no reflow on load)", () => {
     expect(html).toContain("Share again");
   });
 
-  it("keeps spec 3's two panes before anything is shared (Review Focus 4)", () => {
+  it("keeps one column before anything is shared (D465)", () => {
     const html = render(review({ stage: "visualise", latest: null, shareToken: null }));
     expect(html).not.toContain('aria-label="Comments and activity"');
     expect(html).toContain("Move to In review");
+  });
+
+  it("puts each shot's tile under its shot anchor exactly once, with no separate shot list (D465)", () => {
+    const html = render(review({}));
+    expect(html.match(/id="shot-s01"/g)).toHaveLength(1);
+    expect(html).not.toContain('aria-label="Shots"');
+    expect(html).toContain('aria-label="Storyboard"');
   });
 });

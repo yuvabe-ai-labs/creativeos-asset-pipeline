@@ -6,7 +6,7 @@ import type { Angle } from "@/lib/scripts/copilot/schema";
 const angle: Angle = {
   id: "A", hook: "We almost didn't come to see this one", situation: "A couple's Sunday site visit",
   productMoment: "Walking onto the 3BHK's balcony at sunset", supportingCast: "Their kid runs ahead", proof: "RERA number, possession date",
-  reviewTheme: "", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "",
+  format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "",
 };
 
 describe("the angles card", () => {
@@ -16,10 +16,6 @@ describe("the angles card", () => {
     expect(html).toContain("Walking onto the 3BHK&#x27;s balcony at sunset");
     expect(html).toContain("Proof");
     expect(html).not.toContain("Meal and use");
-  });
-
-  it("hides the review theme when the brand doesn't use reviews", () => {
-    expect(renderToStaticMarkup(<CopilotAnglesCard angles={[angle]} disabled={false} onPick={() => {}} />)).not.toContain("Review theme");
-    expect(renderToStaticMarkup(<CopilotAnglesCard angles={[{ ...angle, reviewTheme: "Easy handover" }]} disabled={false} onPick={() => {}} />)).toContain("Review theme");
+    expect(html).not.toContain("Review theme"); // D464
   });
 });

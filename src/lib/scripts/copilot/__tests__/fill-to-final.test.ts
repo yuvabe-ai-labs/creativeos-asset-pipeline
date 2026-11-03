@@ -28,13 +28,12 @@ describe("fillToFinal", () => {
     expect(ids(r08)).toEqual(["placeholder.shots.s02.vo"]);
   });
 
-  it("lists Reel 01's review placeholder, and asks for the real review on its theme", () => {
+  it("asks to replace a review placeholder like any other: no review wording of its own (D464)", () => {
     const items = fillToFinal(r01, EMPTY_NOTES);
     expect(items).toHaveLength(1);
     expect(items[0].id).toMatch(/^placeholder\./);
     expect(items[0].path).toMatch(/^shots\.s\d+\.vo$/);
-    expect(items[0].question).toMatch(/real, cleared customer review/);
-    expect(items[0].question).toMatch(/swap the theme/);
+    expect(items[0].question).toMatch(/^Replace \[real review, verbatim\] in REVIEW \(S\d+\)\.$/);
   });
 
   it("lists a placeholder in a cast name, a beat label or the theme, so none reaches the client (final review)", () => {
@@ -79,14 +78,5 @@ describe("fillToFinal", () => {
     expect(ids(carried)).toEqual([]);
     const missing = { ...r06, shots: r06.shots.map((s) => (s.id === "s02" ? { ...s, vo: "", onScreenText: "" } : s)) };
     expect(ids(missing)).toEqual(["shots.s02.vo", "shots.s02.onScreenText"]);
-  });
-});
-
-describe("the review placeholder's question", () => {
-  it("asks for a customer review without naming a marketplace", () => {
-    const doc = scriptDocSchema.parse(reel01);
-    const item = fillToFinal(doc, EMPTY_NOTES).find((i) => i.id.startsWith("placeholder.") && /review/i.test(i.question));
-    expect(item?.question).toContain("customer review");
-    expect(item?.question).not.toContain("Amazon");
   });
 });

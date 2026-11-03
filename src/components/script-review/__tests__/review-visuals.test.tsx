@@ -62,14 +62,27 @@ describe("ReviewCastCard", () => {
 describe("ReviewStoryboard", () => {
   it("draws each shot's frozen panel with no Generate button, and an empty frame where there is none (Review Focus 3)", () => {
     const html = renderInSurface(
-      testSurface({ commentable: [{ kind: "panel", shotId: "s01" }] }),
+      testSurface({ commentable: [{ kind: "shot", shotId: "s01" }, { kind: "panel", shotId: "s01" }] }),
       <ReviewStoryboard doc={reelDoc()} panels={{ s01: { takeId: "t1", url: "https://cdn/s01.png" } }} />,
     );
     expect(html).toContain("Storyboard");
-    expect(html).toContain('aria-label="Open the S1 panel"');
-    expect(html).toContain('aria-label="Comment on S1 panel"');
+    expect(html).toContain("https://cdn/s01.png");
+    expect(html).not.toContain("cursor-zoom-in");
+    expect(html.match(/aria-label="Comment on S1[ "]/g)).toHaveLength(1);
+    expect(html).not.toContain('aria-label="Comment on S1 panel"');
     expect(html).toContain("No panel");
     expect(html).not.toContain("Generate");
     expect(html).not.toContain("Comment on S2 panel");
+  });
+
+  it("draws the shots as text tiles when panels were not shared (D465)", () => {
+    const html = renderInSurface(
+      testSurface({ commentable: [{ kind: "shot", shotId: "s01" }] }),
+      <ReviewStoryboard doc={reelDoc()} panels={null} />,
+    );
+    expect(html).toContain(reelDoc().shots[0].visual);
+    expect(html).toContain('aria-label="Comment on S1"');
+    expect(html).not.toContain("No panel");
+    expect(html).not.toContain("aspect-ratio");
   });
 });

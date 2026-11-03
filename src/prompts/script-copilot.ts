@@ -13,7 +13,6 @@ Sources, in order of authority:
 Rules for every draft and every edit:
 - Follow the client's compliance rules in its KB. Never make up a testimonial, a number or a claim the KB doesn't give.
 - When the conversation so far and the script or brief disagree, the script and brief win.
-- A review beat, where the brand uses reviews, never holds a made-up review: it holds a square-bracket placeholder for the real one, and its visual names the review's theme.
 - Nothing the KB says to avoid, ever.
 - The shot is the unit. Where an outline row would hold a cut ("cut to", "quick cuts", "dissolve to"), write one shot per cut.
 - Setting changes and transitions go into the shot's visual, as prose.
@@ -38,7 +37,7 @@ ack is one short line acknowledging what you took from the message. Ask no quest
 suggestions: two or three short replies (under 60 characters each) the person might send next, written for this brand and this reel. Never a claim, a price or an offer the KB doesn't give. Here: replies to the first piece still open after this message, else []. For the occasion, draw on the brand, its audience's location, today's date and the market signals. With no brand KB and no market signals, suggest occasions coming up in the calendar.`;
 
 const angles = `Propose exactly three angles for this reel, with ids "A", "B" and "C", built from the brief, the KB and the market signals.
-Each angle commits to: situation (one or two sentences: a human moment at the occasion, or the topic when the format is about one), productMoment (where the client's product or service shows up in it, only as the KB describes it), supportingCast (who else is there and what they do; "" when no one), proof (the proof it leans on, only from the KB), reviewTheme (the kind of real review to find; "" unless the chosen format has a review beat and the brand uses reviews), and hook (the opening line, which becomes the title).
+Each angle commits to: situation (one or two sentences: a human moment at the occasion, or the topic when the format is about one), productMoment (where the client's product or service shows up in it, only as the KB describes it), supportingCast (who else is there and what they do; "" when no one), proof (the proof it leans on, only from the KB), and hook (the opening line, which becomes the title).
 The three differ in situation and in product moment.
 For each piece the brief leaves empty or skipped, every angle proposes it: format, occasion, postDate, lead (and leadAvatarId when the lead is one of the client's saved avatars, else null). Leave a piece "" when the brief already has it.
 signalIds lists the handles (S1, S2…) of the market signals the angle actually drew on (an empty list is fine); fromSignals says in a few words what it took from them, where and when only.
@@ -60,16 +59,15 @@ const assetNaming = `Products and locations:
 const disclaimerNames = `Name each disclaimer by what it says, in a few words (for example "terms apply"), never by a code such as "D1", even when the KB uses one.`;
 
 const card = `Write the confirmation card: the brief you will write from, as short lines. Nothing on it is a new question.
-lines: Use exactly these labels, in this order where they apply: "Format", "Post date", "Occasion", "Region", "Setting", "Product moment", "Review", "Proof", "Disclaimers". A label is only the label; what goes in each value:
+lines: Use exactly these labels, in this order where they apply: "Format", "Post date", "Occasion", "Region", "Setting", "Product moment", "Proof", "Disclaimers". A label is only the label; what goes in each value:
 - Setting: where it happens and what is around.
 - Product moment: where the product or service shows up and how, as the KB describes it.
-- Review: the review theme and where it sits, only when the beats include a review.
 - Proof: which of the KB's claims and proof lines you will use.
 - Disclaimers: which apply, and why. ${disclaimerNames}
 Mark each "given" when the person said it and "proposed" when you filled it.
 cast: every person, their role in the reel, exactly one lead, and avatarId when they are one of the client's saved avatars (else null).
 beats: the chosen format's beats, in order, after leaving out or adapting any that don't fit this brand (from the format menu above).
-toConfirm: each thing only the person can confirm before the script is final: a post date or festival day you proposed, and each occasion custom you proposed (for example "the logo stays off the first shot"). Do not list the review; the draft holds a placeholder for it. When there is nothing to confirm, return an empty list, never "None".
+toConfirm: each thing only the person can confirm before the script is final: a post date or festival day you proposed, and each occasion custom you proposed (for example "the logo stays off the first shot"). When there is nothing to confirm, return an empty list, never "None".
 title: from the angle's hook. reelNumber: the brief's, else the next free number given below.
 If the person asked for a change, apply it and keep every other line as it was.
 suggestions: two or three short replies (under 60 characters each) the person might send next, written for this brand and this reel. Never a claim, a price or an offer the KB doesn't give. Here: changes to the brief they might ask for.`;
@@ -107,7 +105,6 @@ Operations (fields an operation does not use are null):
 In a shot, onScreen lists cast ids, products lists product ids, and location is a location id or "" for none. Give every shot you write its products and location, unchanged unless the change is about them.
 Never set or describe pictures: the person adds every product's and location's images.
 ${assetNaming}
-When the person pastes a review, put it verbatim in the review shot's VO in place of the placeholder, inside the existing quote marks, and never change its words.
 When the message is a question rather than a change, return no operations and answer it.
 reply: one line saying what you changed, or the answer.
 suggestions: two or three short replies (under 60 characters each) the person might send next, written for this brand and this reel. Never a claim, a price or an offer the KB doesn't give. Here: edits they might ask for next.`;
@@ -116,7 +113,7 @@ const inline = `The person selected part of one field and asked for a change to 
 summary: one short line saying what you changed.`;
 
 const detect = `Decide whether the person's message is a whole reel script to import. A whole script has a series of shots or scenes (a shot table, numbered scenes, a scene-by-scene outline), usually with a title, a header line or character detail.
-Not a whole script: a few shots to add to or change in the existing draft ("add these two shots after the hook"), a brief, notes, a pasted review, a question.
+Not a whole script: a few shots to add to or change in the existing draft ("add these two shots after the hook"), a brief, notes, a question.
 wholeScript: true only for a whole script.`;
 
 const importScript = `The person pasted a whole reel script. Turn it into this app's script, word for word. For this task the pasted script outranks the rules above, the brand KB and the example scripts wherever they differ: never rewrite it to the house rules, and never add, drop, split or merge anything.
@@ -140,7 +137,8 @@ export const scriptCopilotPrompt = {
   //    and described as places.
   // 7 (D457): a location's description is the place without the shots' props.
   // 8 (D458): a shot picks a product it uses or its voiceover names, not only one whose pack shows.
-  version: 8,
+  // 9 (D464): no review beat, review theme or review placeholder by default; one client's need.
+  version: 9,
   rules,
   tasks: { extract, angles, card, draft, edit, inline, detect, import: importScript },
 } as const;

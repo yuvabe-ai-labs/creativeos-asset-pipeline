@@ -44,15 +44,20 @@ describe("the script copilot's shared instructions", () => {
   });
 
   it("is version 6", () => {
-    expect(scriptCopilotPrompt.version).toBe(8);
+    expect(scriptCopilotPrompt.version).toBe(9);
   });
 
-  it("commit each angle to a product moment and proof, with a review theme only where reviews fit", () => {
+  it("commit each angle to a product moment and proof", () => {
     const angles = scriptCopilotPrompt.tasks.angles;
     expect(angles).toContain("productMoment");
     expect(angles).toContain("proof");
     expect(angles).not.toContain("mealMoment");
-    expect(angles).toMatch(/reviewTheme[^.]*"" unless/);
+  });
+
+  it("asks for no review by default: reviews were one client's need (D464)", () => {
+    const all = [scriptCopilotPrompt.rules, ...Object.values(scriptCopilotPrompt.tasks)].join("\n");
+    expect(all).not.toMatch(/review/i);
+    expect(scriptCopilotPrompt.rules).toContain("Never make up a testimonial");
   });
 
   // Final review (spec §6): a client with no KB and no signals is still offered occasions.
@@ -80,7 +85,7 @@ describe("the script copilot's product picks (D458)", () => {
 describe("the script copilot's card and draft prompts", () => {
   it("gives the card its exact short labels, so no instruction leaks into a label", () => {
     expect(scriptCopilotPrompt.tasks.card).toContain(
-      'Use exactly these labels, in this order where they apply: "Format", "Post date", "Occasion", "Region", "Setting", "Product moment", "Review", "Proof", "Disclaimers".',
+      'Use exactly these labels, in this order where they apply: "Format", "Post date", "Occasion", "Region", "Setting", "Product moment", "Proof", "Disclaimers".',
     );
     expect(scriptCopilotPrompt.tasks.card).not.toMatch(/Disclaimers \(which apply/);
   });

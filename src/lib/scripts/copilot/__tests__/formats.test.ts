@@ -7,12 +7,12 @@ describe("formatFor", () => {
     expect(formatFor("founder-led")?.name).toBe("Founder-led");
   });
 
-  it("prefers the longest menu name the answer contains", () => {
-    expect(formatFor("UGC review first please")?.name).toBe("UGC review first");
+  it("ignores punctuation, so \"founder led\" reads as Founder-led", () => {
+    expect(formatFor("founder led, please")?.name).toBe("Founder-led");
   });
 
-  it("ignores punctuation, so a saved \"UGC, review first\" still reads as that format", () => {
-    expect(formatFor("UGC, review first")?.name).toBe("UGC review first");
+  it("reads a saved \"UGC, review first\" as UGC, now that the menu has no review format (D464)", () => {
+    expect(formatFor("UGC, review first")?.name).toBe("UGC");
   });
 
   it("finds nothing for a format that is not on the menu", () => {
@@ -24,7 +24,7 @@ describe("renderFormatMenu", () => {
   it("marks the chosen format and describes each beat in neutral words", () => {
     const menu = renderFormatMenu("UGC");
     expect(menu).toContain("UGC (chosen)");
-    expect(menu).toContain("REVIEW: a real customer review, only for brands that use them");
+    expect(menu).toContain("PROOF: the brand's proof, from its KB");
     expect(menu).toContain("A beat that doesn't fit this brand is left out or adapted, and the confirmation card lists the beats.");
   });
 
@@ -40,7 +40,8 @@ describe("SCRIPT_FORMATS", () => {
     expect(founder.realPersonLead).toBe(true);
   });
 
-  it("puts the review second in UGC review first", () => {
-    expect(SCRIPT_FORMATS.find((f) => f.name === "UGC review first")!.beats[1].label).toBe("REVIEW");
+  it("offers no review beat in any format: reviews were one client's need, added only when asked (D464)", () => {
+    expect(SCRIPT_FORMATS.flatMap((f) => f.beats.map((b) => b.label))).not.toContain("REVIEW");
+    expect(renderFormatMenu("UGC")).not.toMatch(/review/i);
   });
 });

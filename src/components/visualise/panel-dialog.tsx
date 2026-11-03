@@ -2,13 +2,17 @@
 
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
 import { cn } from "@/lib/utils";
 import type { PanelInputs } from "@/lib/scripts/visualise/panel-inputs";
+import type { Shot } from "@/lib/scripts/schema";
 import type { DrawBody } from "@/lib/scripts/visualise/schema";
-import { promptBoxStart, type PanelView } from "@/lib/scripts/visualise/state";
+import { panelViewMode, promptBoxStart, waitingMessage, type PanelView } from "@/lib/scripts/visualise/state";
 import { PanelImage } from "./panel-image";
 import { PanelPromptBox } from "./panel-prompt-box";
+import { PanelShotDetails } from "./panel-shot-details";
 import { PanelTakes } from "./panel-takes";
 import { RedrawPopover } from "@/components/shared/redraw-popover";
 import { PANEL_REDRAW_SUGGESTIONS } from "@/lib/scripts/visualise/constants";
@@ -24,15 +28,24 @@ type Props = {
   picking: boolean;
   onPick: (takeId: string) => void;
   onDraw: (body: DrawBody) => void;
+  /** D465 — the shot, whole: the sheet shows only its action and spoken line. */
+  shot: Shot;
+  /** The names of the people on screen in this shot. */
+  castNames: string[];
+  /** The first draw, from a shot with no panel yet. */
+  onGenerate: () => void;
 };
 
-// Spec §6.4 "opens larger on click", §6.6 takes, §6.7 the prompt box.
-export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, credits, picking, onPick, onDraw }: Props) {
+// Spec §6.4 "opens larger on click", §6.6 takes, §6.7 the prompt box. D465: the whole shot too, and
+// a shot with no panel yet opens to its shot and Generate only (no takes, no prompt box).
+export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, credits, picking, onPick, onDraw, shot, castNames, onGenerate }: Props) {
   const busy = view.status === "generating";
+  const shotOnly = panelViewMode(view) === "shot-only";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
+      {/* D465 — vertical, and as wide as the panel: the frame sets the width, the words wrap to it. */}
+      <DialogContent className="max-h-[90vh] w-fit max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[calc(100vw-2rem)]">
+        <DialogHeader className="w-0 min-w-full pr-8">
           <div className="flex items-center gap-3">
             <DialogTitle>{label}</DialogTitle>
             {picking && (
@@ -44,15 +57,17 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
             )}
           </div>
           <DialogDescription>
-            {view.status === "out_of_date"
+            {shotOnly
+              ? "No panel yet."
+              : view.status === "out_of_date"
               ? "Out of date: drawn before the shot or an avatar changed. It stays until you redraw it."
               : "The picked take is the one the client sees."}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid items-start gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-5">
           <div
             className={cn(
-              "relative w-full overflow-hidden rounded-lg border border-border",
+              "relative h-[60vh] max-h-[40rem] max-w-[calc(100vw-4rem)] overflow-hidden rounded-lg border border-border",
               !view.pick?.url && !busy && "border-dashed",
             )}
             style={{ aspectRatio: aspect.replace(":", " / ") }}
@@ -70,27 +85,40 @@ export function PanelDialog({ open, onOpenChange, label, view, inputs, aspect, c
               </div>
             )}
           </div>
-          <div className="flex min-w-0 flex-col gap-4">
-            <PanelTakes takes={view.takes} pickId={view.pick?.id ?? null} disabled={picking || busy} onPick={onPick} />
-            {view.pick && (
-              <RedrawPopover
-                suggestions={PANEL_REDRAW_SUGGESTIONS}
-                credits={credits}
-                canChange={Boolean(view.pick.url)}
-                disabled={busy || !view.canGenerate || credits === null}
-                className="self-start"
-                onChange={(note) => onDraw({ kind: "change", note })}
-                onFresh={(note) => onDraw({ kind: "fresh", note })}
-              />
+          <div className="flex w-0 min-w-full flex-col gap-4">
+            <PanelShotDetails shot={shot} castNames={castNames} />
+            {shotOnly ? (
+              <div className="flex flex-col gap-1.5 border-t border-border pt-4">
+                <Button size="sm" className="self-start" disabled={!view.canGenerate || credits === null} onClick={onGenerate}>
+                  {view.failure ? "Generate again" : "Generate"}
+                  <AvatarCreditCost credits={credits} />
+                </Button>
+                {!view.canGenerate && <span className="text-xs text-muted-foreground">{waitingMessage(view.waitingFor)}</span>}
+              </div>
+            ) : (
+              <>
+                <PanelTakes takes={view.takes} pickId={view.pick?.id ?? null} disabled={picking || busy} onPick={onPick} />
+                {view.pick && (
+                  <RedrawPopover
+                    suggestions={PANEL_REDRAW_SUGGESTIONS}
+                    credits={credits}
+                    canChange={Boolean(view.pick.url)}
+                    disabled={busy || !view.canGenerate || credits === null}
+                    className="self-start"
+                    onChange={(note) => onDraw({ kind: "change", note })}
+                    onFresh={(note) => onDraw({ kind: "fresh", note })}
+                  />
+                )}
+                <PanelPromptBox
+                  prompt={promptBoxStart(view.pick, inputs)}
+                  builtPrompt={inputs.prompt}
+                  credits={credits}
+                  busy={busy || !view.canGenerate}
+                  onRegenerate={(prompt) => onDraw({ kind: "edited", prompt })}
+                  onReset={() => onDraw({ kind: "reset" })}
+                />
+              </>
             )}
-            <PanelPromptBox
-              prompt={promptBoxStart(view.pick, inputs)}
-              builtPrompt={inputs.prompt}
-              credits={credits}
-              busy={busy || !view.canGenerate}
-              onRegenerate={(prompt) => onDraw({ kind: "edited", prompt })}
-              onReset={() => onDraw({ kind: "reset" })}
-            />
           </div>
         </div>
         {picking && (
