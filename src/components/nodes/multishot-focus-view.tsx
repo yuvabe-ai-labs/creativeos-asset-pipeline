@@ -335,6 +335,7 @@ export function MultishotFocusView({
                 same reason that one is. */}
             {(!isReadOnly || (draft.sequenceVoiceover?.length ?? 0) > 0) && (
               <SequenceVoiceoverCard
+                nodeId={nodeId}
                 lines={draft.sequenceVoiceover}
                 clipSeconds={total}
                 readOnly={isReadOnly}

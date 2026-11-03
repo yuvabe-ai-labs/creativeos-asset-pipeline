@@ -8437,3 +8437,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Moving the line inside the first cut's beat: in a sequence of several cuts it would read as belonging to that cut only, which is what D307 removed.
 
 **Originated →** conversation in this session.
+
+### D476 — The speaker list adds the script's speakers and "Someone else…" *(recorded 2026-11-03; refines D472)*
+
+**Decision.** The Multishot voiceover card's speaker dropdown lists, after "Voiceover · off-screen": the avatars on the canvas (as before), then everyone the Multishot's own script gives an on-camera line to (`speakersOf`, read from the script node the Multishot was seeded from), then "Someone else…", which turns the dropdown into a name field (Enter or leaving the field keeps the name; Escape drops it). A name kept this way stays in the list for that line, as any current speaker does.
+
+**Why.** User, 3 Nov 2026: the dropdown's people were fixed. They came only from Avatar nodes, so a character introduced later, or one the script names but nobody has made an avatar for, could not be picked.
+
+**Rejected.** Going back to a free-text speaker field: D472 replaced it because "narrator" ended up on lines a person speaks. Typing is now the last option, not the first.
+
+**Originated →** conversation in this session.
