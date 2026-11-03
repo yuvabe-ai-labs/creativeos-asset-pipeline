@@ -140,7 +140,18 @@ function withLook(look: string, ladder: string): string {
 }
 
 /** D286 — how lines spanning the whole sequence are introduced in the rendered prompt. */
-export const SEQUENCE_VO_PREFIX = "Across every shot — ";
+// D472 — "Across every shot —" read as scene direction; this says plainly that the lines run over
+// the whole clip, in order, rather than belonging to one cut.
+export const SEQUENCE_VO_PREFIX = "Spoken over the whole sequence, in order: ";
+
+/**
+ * D475 — the same introduction with the clip's own timeline on it, for the request. Above an
+ * untimed ladder the line had no place in time, and the model spoke it late: a 4s clip's line began
+ * at 2.7s and was cut off at the end (CaratLane Reel 02). The window is the ladder's, in seconds.
+ */
+export function sequenceVoPrefix(totalSeconds: number): string {
+  return `Spoken over the whole sequence (0-${totalSeconds}s), starting in the first second and finished before ${totalSeconds}s, in order: `;
+}
 
 /**
  * D286 — the sequence voiceover, a blank line, then the ladder. Sits between the look and the
@@ -150,12 +161,13 @@ export const SEQUENCE_VO_PREFIX = "Across every shot — ";
 function withSequenceVoiceover(
   lines: VoLine[] | undefined,
   ladder: string,
+  totalSeconds: number,
   semicolonSafe = false,
 ): string {
   const rendered = renderVoiceover(lines);
   if (!rendered) return ladder;
   const text = semicolonSafe ? rendered.replace(/;/g, ",") : rendered;
-  return `${SEQUENCE_VO_PREFIX}${text}\n\n${ladder}`;
+  return `${sequenceVoPrefix(totalSeconds)}${text}\n\n${ladder}`;
 }
 
 /**
@@ -189,6 +201,7 @@ export function renderPlan(
 ): string {
   plan = renderPlanRefs(plan, cap, refIds);
   const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
+  const total = cuts.reduce((n, c) => n + c.seconds, 0);
 
   if (cap.shotFormat === "triple") {
     // D238 — Kling's API format: lowercase `shot`, a comma-separated triple of number, seconds
@@ -220,7 +233,7 @@ export function renderPlan(
         return `shot ${i + 1}, ${cut.seconds}, ${text};`;
       })
       .join("\n");
-    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, shots, true));
+    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, shots, total, true));
   }
 
   if (cap.shotFormat === "bare-timecode") {
@@ -247,7 +260,7 @@ export function renderPlan(
         return `${from}-${at}s: ${(byId.get(cut.id) ?? "").trim()}`;
       })
       .join("\n");
-    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
+    return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder, total));
   }
 
   let at = 0;
@@ -259,7 +272,7 @@ export function renderPlan(
     })
     .join("\n");
 
-  return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder));
+  return withLook(plan.look, withSequenceVoiceover(sequenceVoiceover, ladder, total));
 }
 
 /**

@@ -264,13 +264,26 @@ export function renderVoiceover(lines: VoLine[] | undefined): string {
       const speaker = l.speaker?.trim();
       const delivery = l.delivery?.trim();
       const language = l.language?.trim();
-      const who = !speaker || speaker === "narrator" ? "Voiceover" : `${speaker} says`;
+      // D472 — where the voice comes from is said on every line, so the model never has to guess.
+      const who = !speaker || speaker === "narrator" ? "Voiceover, off-screen" : `${speaker} says on camera`;
       const deliveryPart = delivery ? ` (${delivery})` : "";
       const languagePart = language && language.toLowerCase() !== "english" ? ` in ${language}` : "";
       return `${who}${deliveryPart}${languagePart}: "${l.text}"`;
     })
     .join(" ");
 }
+
+/**
+ * D474 — about how many seconds the lines take to say, at an unhurried read (2.5 words a second),
+ * rounded up. Words are counted by spaces, so it holds for any language written with them.
+ */
+export function secondsToSay(lines: VoLine[] | undefined): number {
+  const words = (lines ?? []).reduce((n, l) => n + (l.text.trim() ? l.text.trim().split(/\s+/).length : 0), 0);
+  return Math.ceil(words / 2.5);
+}
+
+/** D474 — a clip needs about a second beyond the words: a moment before the first and after the last. */
+export const SPEECH_ROOM_SECONDS = 1;
 
 /**
  * D267 (Task 5) — how the WRITER is told a line exists, without handing it the words to place: a

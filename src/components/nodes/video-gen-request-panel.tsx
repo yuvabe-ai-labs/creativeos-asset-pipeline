@@ -87,6 +87,8 @@ export function VideoGenRequestPanel({
   const images = requestImages(version.inputsUsed);
   const params = describeAllVersionParams(model?.params, version.paramsUsed);
   const prompt = version.inputsUsed?.prompt?.trim() ?? "";
+  // D472 — recorded only from now on; an older version shows none rather than a guess.
+  const added = (version.inputsUsed?.addedOnSend ?? []).filter((l) => typeof l === "string" && l.trim());
   // D284 — a voice-changed version's voice, source and settings, as rows like the Settings list.
   const voiceRows = voiceChangeRows(version.inputsUsed, labelById);
 
@@ -101,6 +103,12 @@ export function VideoGenRequestPanel({
           <p className="text-sm text-muted-foreground">
             No prompt recorded for this version.
           </p>
+        )}
+        {added.length > 0 && (
+          <div className="mt-3 flex flex-col gap-1">
+            <span className="text-eyebrow text-muted-foreground">Added when sent</span>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{added.join("\n")}</p>
+          </div>
         )}
       </LeftSection>
 

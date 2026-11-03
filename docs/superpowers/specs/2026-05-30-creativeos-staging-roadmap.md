@@ -8405,3 +8405,54 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A relation field on each cast member set by the copilot (a cast change would need the field kept in step; the brief already reads the script and decides per person). Sending every cast member's face as a reference (a spouse or friend is not a likeness to copy, and more faces blur it). Copying the relative's face (two people, not one).
 
 **Originated →** conversation in this session.
+
+### D472 — The video request says who speaks, or that nobody does; a line's speaker is picked, and the parse finds a character's dialogue *(recorded 2026-11-03; amends D208, D267, D286; refines D443)*
+
+**Decision.**
+- **Sound clause by what is spoken.** Omni's request ended with one fixed line, "Sound design: ambience, foley and the spoken line. No background music.", on every request. It now follows the prompt: no line gives "ambience and foley only. Nobody speaks: no dialogue, no voiceover, no narration, no singing"; a voiceover only gives the voiceover "spoken off-screen in exactly the words given and nothing more. Nobody on screen speaks or moves their lips as if talking"; an on-camera line gives "each said on camera by the person named … Nobody else speaks, and there is no voiceover"; both are said together. Kling and Seedance make sound by default too and now get the same clause (Kling ahead of its triples, Seedance at the end).
+- **Each line says where its voice comes from.** A rendered line reads "Voiceover, off-screen: …" or "Asha says on camera: …", and a Multishot's lines are introduced as "Spoken over the whole sequence, in order:" instead of "Across every shot —", which read as scene direction.
+- **The speaker is picked.** In the Multishot view the speaker of a line is a dropdown: "Voiceover · off-screen", or a person on the canvas (their avatar's name) "· on camera". A speaker already on a line stays in the list. An empty card says "No lines, so nobody speaks in this clip." The people are read from the canvas's Avatar nodes only while the view is open.
+- **What was sent is shown.** An Omni generation records the lines its request adds around the prompt (the sound clause and "No on-screen text.") as addedOnSend, shown under the prompt in "Sent to model" as "Added when sent". Older versions show none rather than a guess.
+- **The parse finds a character's dialogue (script-parse version 13).** In order: a person's label on the line ("Hemant:", "Amma (to camera):", "Dialogue — Children:") is said on camera by them; a voiceover label naming a person ("Voiceover, son:") is that voice off-screen, speaker narrator with delivery starting "son's voice", unless the shot shows that person talking; an unlabelled line is the narrator's unless the shot's visual has a person speaking ("speaks to the camera", "on the phone", a piece-to-camera); only looking at or holding something up to the camera is not speaking; a phrase that is part of the line ("One customer wrote on Amazon:") is not a label.
+
+**Why.** User, 3 Nov 2026, Chupps Reel 11 and CaratLane on staging: clips got speech nobody wrote, and the model spoke a narrator's line from the on-screen person. The prompts sent showed why: all six CaratLane "A Touch of Gold" clips and two of "Little Detail" had no line, yet each request asked for "the spoken line"; Reel 11's narrator line sat beside beats where the man looks into the lens and "speaks naturally to the camera", with nothing saying the voice was off-screen; and S5's script line was the man's, parsed as the narrator's because "speaking to camera" did not count as his mouth.
+
+**Rejected.** Turning audio off (Omni cannot; Kling's off loses ambience and foley too). A free-text speaker kept beside the dropdown (the free text is how "narrator" ended up on a line the script gave a person). Inferring every first-person line as the on-screen person's (a line over a person only looking at the camera is usually narration; lip-sync on a long line looks wrong).
+
+**Originated →** conversation in this session.
+
+### D473 — An open node's URL can be shared: `?node=` names the open focus view and opens it on arrival *(recorded 2026-11-03; amends D165 / R9.3)*
+
+**Decision.**
+- **The URL follows the open view.** Opening any node's focus view writes `?node=<id>` to the URL; opening another replaces it; closing removes it. When views are stacked, the top one is named. Writes use `history.replaceState`, so opening views adds nothing to Back.
+- **A link opens the node.** Loading or following a canvas URL with `?node=` flies to that node and opens its focus view, through the same `focusedNodeId` signal the tray and the review drawer use. A node that does not exist (deleted) opens nothing.
+- **The inbox keeps its meaning.** A link with `?review=1` as well (the navbar inbox) also lands on Details and opens the review drawer, as before. A plain shared link opens only the view.
+- One hook, `useNodeLink` (`src/components/canvas/use-node-link.ts`), owns both directions; the review drawer calls it instead of holding its own `?node=` effects.
+
+**Why.** User, 3 Nov 2026: a node should be shareable by its URL, so a teammate (or a bug report) lands straight in it.
+
+**Rejected.** A separate param for shared links (`?focus=`): two params naming the same thing, and the inbox's `?node=` already did the arrival half. Pushing a history entry per view: Back would step through every view opened.
+
+**Originated →** conversation in this session.
+
+### D474 — The request says when the lines are spoken, and a voiceover too long for its clip is flagged *(recorded 2026-11-03; refines D472)*
+
+**Decision.**
+- **Timing in the sound clause.** Whenever a line is spoken (voiceover, on camera, or both), the sound clause adds: "Speaking starts within the first second and every line is finished before the clip ends; no line is cut off." A clip with no line is unchanged. Omni, Kling and Seedance all get it, as they share the clause.
+- **A length check in the Multishot voiceover card.** `secondsToSay(lines)` (`src/lib/nodes/voiceover.ts`) estimates the lines at 2.5 words a second, rounded up. When that plus a second of room (`SPEECH_ROOM_SECONDS`) is more than the clip's length, the card says: "These lines take about Ns to say, and this clip is Ms. Shorten them or lengthen the cuts, or the end will be cut off."
+
+**Why.** User, 3 Nov 2026, CaratLane Reel 02 Multishot 2 on staging: an off-screen voiceover was cut off. The 4s clip's audio was room sound until 2.7s, then the seven-word line began and was still being spoken at 4.0s, the clip's end. The request had said who speaks but not when, so the model spent most of the clip on ambience.
+
+**Rejected.** Timecodes on each line (`[0.5-3.5s]`): a line's length in speech is a guess, and a wrong window is worse than "start early, finish before the end". Blocking generation when the lines are too long: the estimate is rough and a fast read can fit, so it warns rather than stops.
+
+**Originated →** conversation in this session.
+
+### D475 — A Multishot's voiceover carries the clip's timeline on the line itself *(recorded 2026-11-03; refines D286, D472, D474)*
+
+**Decision.** In the request, a Multishot's sequence lines are introduced with the ladder's own window: `Spoken over the whole sequence (0-4s), starting in the first second and finished before 4s, in order: Voiceover, off-screen: "…"`, built by `sequenceVoPrefix(totalSeconds)` in `src/lib/nodes/multishot-plan.ts`, for Omni, Kling and Seedance alike. The node's own preview text keeps the short `SEQUENCE_VO_PREFIX`. D474's timing sentence in the sound clause stays as well.
+
+**Why.** User, 3 Nov 2026, looking at the prompt sent for CaratLane Reel 02 Multishot 2: the line sat above a `[0-4s]` ladder with no time of its own, so the ladder was the only timeline and the speech had no place in it. The model spoke it from 2.7s, and the clip ended mid-line. D474's timing went at the end of the request, far from the line; this puts it on the line, in the same seconds the ladder uses.
+
+**Rejected.** Moving the line inside the first cut's beat: in a sequence of several cuts it would read as belonging to that cut only, which is what D307 removed.
+
+**Originated →** conversation in this session.

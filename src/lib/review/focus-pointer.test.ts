@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isUnhandledPointer, urlWithoutParams } from "./focus-pointer";
+import { isUnhandledPointer, urlWithParam, urlWithoutParams } from "./focus-pointer";
 
 describe("isUnhandledPointer", () => {
   it("honours the first pointer of a session", () => {
@@ -63,5 +63,25 @@ describe("urlWithoutParams", () => {
     expect(urlWithoutParams("https://app.test/c/x?node=n1&review=1&tab=a#top", ["node"])).toBe(
       "/c/x?review=1&tab=a#top",
     );
+  });
+});
+
+// D473 — an open focus view keeps `?node=` in the URL so the link can be shared.
+describe("urlWithParam", () => {
+  it("sets the node, keeping the other params and the hash", () => {
+    expect(urlWithParam("https://app.test/c/x?tab=a#top", "node", "n1")).toBe("/c/x?tab=a&node=n1#top");
+  });
+
+  it("replaces a different node", () => {
+    expect(urlWithParam("https://app.test/c/x?node=n1", "node", "n2")).toBe("/c/x?node=n2");
+  });
+
+  it("removes the node when the view closes", () => {
+    expect(urlWithParam("https://app.test/c/x?node=n1&review=1", "node", null)).toBe("/c/x?review=1");
+  });
+
+  it("writes nothing when the URL already says it", () => {
+    expect(urlWithParam("https://app.test/c/x?node=n1", "node", "n1")).toBeNull();
+    expect(urlWithParam("https://app.test/c/x", "node", null)).toBeNull();
   });
 });

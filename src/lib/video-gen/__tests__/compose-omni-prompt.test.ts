@@ -14,31 +14,38 @@ describe("composeOmniPrompt", () => {
     expect(out.endsWith("Use Image1 as the starting frame.")).toBe(true);
   });
 
-  // Most reels here carry a voiceover, so speech is the default and MUSIC is what gets
-  // suppressed — a per-generation score changes character at every cut.
-  it("defaults to the dialogue clause when audio is absent", () => {
+  // D472 — the sound clause follows what the prompt asks to be spoken. It was one fixed line
+  // ("ambience, foley and the spoken line") on every request, so a clip with no line was told to
+  // have one and the model made one up (staging: CaratLane Reel 02, every clip).
+  it("says nobody speaks when the prompt has no line", () => {
     const out = composeOmniPrompt({ prompt: "A cup.", params: {}, plan: EMPTY });
-    expect(out).toContain("Sound design: ambience, foley and the spoken line. No background music.");
-    expect(out).not.toContain("No dialogue.");
+    expect(out).toContain("Sound design: ambience and foley only. Nobody speaks: no dialogue, no voiceover, no narration, no singing. No background music.");
+    expect(out).not.toContain("the spoken line");
   });
 
-  // The rule is "absent OR unrecognised" — a node saved against a different model can carry an
-  // audio value this model has no clause for, and it must not fall through to no clause at all.
-  it("falls back to the dialogue clause for an unrecognised audio value", () => {
-    const out = composeOmniPrompt({
-      prompt: "A cup.", params: { audio: "explosions" }, plan: EMPTY,
-    });
-    expect(out).toContain("Sound design: ambience, foley and the spoken line. No background music.");
+  it("keeps a voiceover off-screen, with no lips moving on screen", () => {
+    const out = composeOmniPrompt({ prompt: 'Spoken over the whole sequence, in order: Voiceover, off-screen: "Try it."\n\n[0-3s] A cup.', params: {}, plan: EMPTY });
+    expect(out).toContain("the voiceover, spoken off-screen in exactly the words given and nothing more. Nobody on screen speaks or moves their lips as if talking.");
   });
 
-  // The Audio select and the On-screen Text box were removed from the node (operator request
-  // 2026-09-03), so both clauses are now FIXED. These four cases replace the ones that exercised
-  // the choices — the point of each is that removing a CONTROL did not remove the BEHAVIOUR it
-  // governed, and that a param saved before the removal can no longer resurrect it.
+  it("gives an on-camera line to the person named, and nobody else", () => {
+    const out = composeOmniPrompt({ prompt: 'Riya says on camera: "Try it."\n\n[0-3s] Riya at the counter.', params: {}, plan: EMPTY });
+    expect(out).toContain("each said on camera by the person named, in exactly the words given. Nobody else speaks, and there is no voiceover.");
+  });
 
-  it("always requests the dialogue mix, whatever params carry", () => {
-    const out = composeOmniPrompt({ prompt: "A cup.", params: {}, plan: EMPTY });
-    expect(out).toContain("Sound design: ambience, foley and the spoken line. No background music.");
+  // D474 — a 4s clip's voiceover began at 2.7s and was cut off at the end (CaratLane Reel 02).
+  it("says when speech starts and that it ends before the clip does, only when someone speaks", () => {
+    const timing = "Speaking starts within the first second and every line is finished before the clip ends; no line is cut off.";
+    expect(composeOmniPrompt({ prompt: 'Voiceover, off-screen: "Try it."', params: {}, plan: EMPTY })).toContain(timing);
+    expect(composeOmniPrompt({ prompt: 'Riya says on camera: "Try it."', params: {}, plan: EMPTY })).toContain(timing);
+    expect(composeOmniPrompt({ prompt: "A cup.", params: {}, plan: EMPTY })).not.toContain("Speaking starts");
+  });
+
+  it("handles both, and reads a prompt written before the wording changed", () => {
+    expect(composeOmniPrompt({ prompt: 'Voiceover, off-screen: "One." Riya says on camera: "Two."', params: {}, plan: EMPTY }))
+      .toContain("the voiceover spoken off-screen, and each on-camera line said by the person named. Nobody else speaks.");
+    expect(composeOmniPrompt({ prompt: 'Across every shot — Voiceover (warm): "Old shape."', params: {}, plan: EMPTY }))
+      .toContain("Nobody on screen speaks or moves their lips");
   });
 
   // The one that would actually cost money: Omni cannot be silenced, so dropping the clause would
@@ -80,13 +87,13 @@ describe("composeOmniPrompt", () => {
     expect(out).not.toContain("Avoid:");
   });
 
-  // The whole default output, pinned exactly — the prompt, the audio clause, and the two
-  // standing suppressions. Nothing else is added on a bare shot.
-  it("emits the prompt, the audio clause and the on-screen-text suppression by default", () => {
+  // The whole default output, pinned exactly — the prompt, the sound clause, and the standing
+  // suppression. Nothing else is added on a bare shot.
+  it("emits the prompt, the sound clause and the on-screen-text suppression by default", () => {
     const out = composeOmniPrompt({ prompt: "A cup.", params: {}, plan: EMPTY });
     expect(out).toBe(
       "A cup.\n\n" +
-        "Sound design: ambience, foley and the spoken line. No background music.\n\n" +
+        "Sound design: ambience and foley only. Nobody speaks: no dialogue, no voiceover, no narration, no singing. No background music.\n\n" +
         "No on-screen text.",
     );
   });

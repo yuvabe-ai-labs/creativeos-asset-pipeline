@@ -1,4 +1,4 @@
-import { NO_ON_SCREEN_TEXT_LINE } from "./compose-omni-prompt";
+import { NO_ON_SCREEN_TEXT_LINE, soundDesignClause } from "./compose-omni-prompt";
 
 /**
  * D443/D445 — the lines every video request carries around its prompt, in one place.
@@ -15,11 +15,14 @@ export function withRequestLines(
   prompt: string,
   args: { provider: string | undefined; rolesLine: string },
 ): string {
+  // D472 — Kling and Seedance make sound by default too, so they get the same sound clause Omni
+  // does (composeOmniPrompt adds Omni's): who speaks, or that nobody does.
+  const sound = soundDesignClause(prompt);
   const parts =
     args.provider === "kling"
-      ? [args.rolesLine, NO_ON_SCREEN_TEXT_LINE, prompt]
+      ? [args.rolesLine, NO_ON_SCREEN_TEXT_LINE, sound, prompt]
       : args.provider === "seedance"
-        ? [args.rolesLine, prompt, NO_ON_SCREEN_TEXT_LINE]
+        ? [args.rolesLine, prompt, NO_ON_SCREEN_TEXT_LINE, sound]
         : [args.rolesLine, prompt];
   return parts.filter((p) => p.trim()).join("\n\n");
 }

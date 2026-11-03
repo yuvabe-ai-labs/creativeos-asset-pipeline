@@ -18,7 +18,7 @@ import {
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { EditableField } from "./editable-field";
-import { VoLinesEditor } from "./vo-lines-editor";
+import { SequenceVoiceoverCard } from "./sequence-voiceover-card";
 import type { VoLine } from "@/lib/nodes/reel-script";
 import {
   addCut,
@@ -334,14 +334,12 @@ export function MultishotFocusView({
                 idiom as a shot's own Voiceover lane, and hidden under the lock when empty for the
                 same reason that one is. */}
             {(!isReadOnly || (draft.sequenceVoiceover?.length ?? 0) > 0) && (
-              <div className="flex flex-col gap-1 rounded-xl border border-border bg-card p-3.5 shadow-card">
-                <span className="text-eyebrow text-muted-foreground">Voiceover · whole sequence</span>
-                <VoLinesEditor
-                  lines={draft.sequenceVoiceover}
-                  readOnly={isReadOnly}
-                  onChange={(next) => setDraft((d) => ({ ...d, sequenceVoiceover: next }))}
-                />
-              </div>
+              <SequenceVoiceoverCard
+                lines={draft.sequenceVoiceover}
+                clipSeconds={total}
+                readOnly={isReadOnly}
+                onChange={(next) => setDraft((d) => ({ ...d, sequenceVoiceover: next }))}
+              />
             )}
 
             <ol className="grid grid-cols-[repeat(auto-fit,minmax(272px,1fr))] gap-x-4 gap-y-5">
