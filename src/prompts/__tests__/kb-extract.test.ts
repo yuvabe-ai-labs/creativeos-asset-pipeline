@@ -58,7 +58,7 @@ describe("kb-extract prompt and schema", () => {
     expect(low).not.toMatch(/category norms/i);
   });
 
-  it("is version 3.1.0", () => {
-    expect(kbExtractPrompt.version).toBe("3.1.0");
+  it("is version 3.2.0", () => {
+    expect(kbExtractPrompt.version).toBe("3.2.0");
   });
 });

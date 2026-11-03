@@ -89,8 +89,7 @@ COMPLIANCE  (these fields block and shape every generated asset — extract only
   preferred_verbs  → verbs only, base form, that the sources use or prescribe.
   content_rules    → plain prose, a few short paragraphs: what the brand sells (products or
                      services by name), the exact claims and proof lines it uses (verbatim),
-                     disclaimers' wording, whether it uses customer reviews, regional or cultural
-                     customs to respect, things never to show. Only what the documents state;
+                     disclaimers' wording, regional or cultural customs to respect, things never to show. Only what the documents state;
                      never invent a claim. null when the documents say none of it.
 
 ─── TRACEABLE FIELD FORMAT ─────────────────────────────────────────────────────
@@ -124,7 +123,7 @@ export const KB_EXTRACT_SYSTEM_PROMPT = SYSTEM_PROMPT;
 
 export const kbExtractPrompt = {
   id: "kb-extract",
-  version: "3.1.0",
+  version: "3.2.0",
   model: "gpt-5.4-mini",
   system: SYSTEM_PROMPT,
   notes: "Extracts TraceableBrandKB from brand documents. Each field is a KBField with value, confidence, evidence_type, status.",

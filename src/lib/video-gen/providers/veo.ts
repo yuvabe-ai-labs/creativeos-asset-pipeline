@@ -10,9 +10,9 @@ import { fetchAsBase64 } from "./fetch-as-base64";
 import { avoidClause } from "./avoid-clause";
 
 const VEO_MODEL_IDS = {
-  lite: "veo-3.1-lite-generate-preview",
-  fast: "veo-3.1-fast-generate-preview",
-  quality: "veo-3.1-generate-preview",
+  lite: "veo-3.1-lite-generate-001",
+  fast: "veo-3.1-fast-generate-001",
+  quality: "veo-3.1-generate-001",
 } as const;
 
 function createVeoClient() {

@@ -88,8 +88,6 @@ export const angleOutputSchema = z.object({
   supportingCast: z.string(),
   /** The proof the angle leans on, from the client's KB. */
   proof: z.string(),
-  /** "" unless the format's review beat fits the brand. */
-  reviewTheme: z.string(),
   format: z.string(),
   occasion: z.string(),
   postDate: z.string(),

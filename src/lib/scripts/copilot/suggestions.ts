@@ -5,8 +5,7 @@ import { IMPORT_REPLY_PREFIX, NARRATOR } from "./constants";
 import type { CopilotAvatar, GenerateState } from "./schema";
 
 // One-tap suggestions above the copilot's message box, for quick demos. Worked out from where the
-// conversation is; no model call. A suggestion either sends at once or only fills the box. The
-// review is always fill-only: the copilot must never put review text the person did not paste.
+// conversation is; no model call. A suggestion either sends at once or only fills the box.
 
 /** `leadAvatarId` goes with the message when the chip picks the lead, so the turn links that exact
  *  avatar instead of the model matching a name (two avatars can share one; D362). `link` makes a chip
@@ -91,9 +90,6 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
   if (member && state.avatars.length > 0) {
     const ranked = [...state.avatars].sort((a, b) => Number(avatarFits(member, b)) - Number(avatarFits(member, a)));
     out.push(...ranked.map((a) => ({ label: `${avatarLabel(a, state.avatars)} as ${member.name}`, text: "", send: false, link: { castId: member.id, avatarId: a.id } })));
-  }
-  if (state.openItems.some((i) => i.id.startsWith("placeholder.") && /review/i.test(i.question))) {
-    out.push({ label: "Paste the cleared review", text: "Here's the cleared review: \"", send: false });
   }
   const confirm = script.notes.confirmations.find((c) => !c.confirmed);
   if (confirm) out.push(send(`Yes, confirmed: ${confirm.text}`, `Confirm: ${confirm.text}`));

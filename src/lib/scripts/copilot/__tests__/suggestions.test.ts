@@ -22,18 +22,18 @@ const state = (over: { brief?: Brief; doc?: unknown; notes?: GenerateState["scri
       { id: "a2", name: "James", story: "", front: null, specific: false },
       { id: "a3", name: "James", story: "", front: null, specific: true },
     ],
-    formats: ["UGC", "UGC review first", "Founder-led"],
+    formats: ["UGC", "Founder-led"],
   };
 };
 const labels = (s: GenerateState) => suggestionsFor(s).map((x) => x.label);
-const angle = { id: "A", hook: "h", situation: "s", productMoment: "", supportingCast: "", reviewTheme: "", proof: "", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "" } as Angle;
+const angle = { id: "A", hook: "h", situation: "s", productMoment: "", supportingCast: "", proof: "", format: "", occasion: "", postDate: "", lead: "", leadAvatarId: null, signalIds: [], fromSignals: "" } as Angle;
 
 describe("suggestionsFor", () => {
   const withAngles = { ...EMPTY_BRIEF, format: given("UGC"), occasion: given("x"), lead: given("y"), angles: [angle] };
   const card = { title: "t", reelNumber: 4, lines: [], cast: [], beats: [], toConfirm: [] };
 
   it("offers the shared format menu and 'take it from here' when the copilot asks the format", () => {
-    expect(labels(state())).toEqual(["UGC", "UGC review first", "Founder-led", "Take it from here"]);
+    expect(labels(state())).toEqual(["UGC", "Founder-led", "Take it from here"]);
     expect(suggestionsFor(state()).every((s) => s.send)).toBe(true);
   });
 
@@ -61,10 +61,9 @@ describe("suggestionsFor", () => {
     expect(labels(state({ brief: confirm, messages: [msg("assistant", "Here's the brief.", ["Set it at the site office"])] }))).toEqual(["Write it", "Set it at the site office"]);
   });
 
-  it("after the draft: fills the box for the real review, never sends review text, then the copilot's edits", () => {
+  it("after the draft: the copilot's edits, and no review chip even when a review placeholder is open (D464)", () => {
     const s = suggestionsFor(state({ doc: reel01, messages: [msg("assistant", "The first draft is in.", ["Shorten the hook"])] }));
-    expect(s[0]).toEqual({ label: "Paste the cleared review", text: "Here's the cleared review: \"", send: false });
-    expect(s.slice(1).map((x) => x.label)).toEqual(["Shorten the hook"]);
+    expect(s.map((x) => x.label)).toEqual(["Shorten the hook"]);
   });
 
   it("offers to confirm an open item, and no fixed edits when the copilot suggested none", () => {

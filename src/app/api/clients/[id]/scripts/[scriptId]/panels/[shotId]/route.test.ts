@@ -131,7 +131,7 @@ describe("POST …/panels/:shotId", () => {
     expect(vi.mocked(insertPanelTake).mock.calls[1][0]).toMatchObject({ prompt: "Closer on her hands.", promptEdited: true });
   });
 
-  // D464 — a change kept only the old panel, so the real pack went blank and the people and place drifted.
+  // D467 — a change kept only the old panel, so the real pack went blank and the people and place drifted.
   it("changes the picked panel with the shot's people after it, numbered from 2", async () => {
     const old = makeTake({ id: "t-old", shotId: "s06", url: "https://x/old.png" });
     vi.mocked(loadVisualiseBoard).mockResolvedValue({ avatars: [meenakshi, husband], takes: [old], picks: { s06: "t-old" }, kits: [] });
