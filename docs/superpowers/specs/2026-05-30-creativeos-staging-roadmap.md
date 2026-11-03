@@ -8447,3 +8447,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Going back to a free-text speaker field: D472 replaced it because "narrator" ended up on lines a person speaks. Typing is now the last option, not the first.
 
 **Originated →** conversation in this session.
+
+### D477 — A speaker picked by hand is never renamed as the avatar in the shot *(recorded 2026-11-03; amends D299; refines D472, D476)*
+
+**Decision.** A line whose speaker is chosen in the Multishot's speaker list is stored with `picked: true` (`VoLine.picked`). `withAvatarAsSpeaker` (`src/lib/avatars/presenter.ts`) leaves such a line's speaker as it is and does not count it when deciding whether the shot has exactly one on-camera speaker. Lines from the parse are unmarked and are renamed as before.
+
+**Why.** User, 3 Nov 2026, CaratLane Reel 02 Multishot 1: they changed the speaker to "hi", and the Multishot Prompt still showed "Elegant young woman". D299 renames the shot's single on-camera speaker to the avatar marked "In this shot", which is right for a parse label such as "creator" or "host" but overrode a name the operator had just picked.
+
+**Rejected.** Dropping D299's rename: a parsed script still says "creator:" beside a face called Razel, and the model needs them to be one person. Renaming only when the speaker matches no avatar: a typed name ("Someone else…") matches none, which is exactly the case that broke.
+
+**Originated →** conversation in this session.
