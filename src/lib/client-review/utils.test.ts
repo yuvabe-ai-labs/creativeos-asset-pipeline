@@ -45,7 +45,7 @@ describe("withEditedComment", () => {
   });
 });
 
-describe("cutDownloadName (D472)", () => {
+describe("cutDownloadName (D478)", () => {
   it("names the file after the title, with the cut's own extension", () => {
     expect(cutDownloadName("Dosa film: the \"final\" cut", "a/b/cut__x.MOV")).toBe("dosa-film-the-final-cut.mov");
   });

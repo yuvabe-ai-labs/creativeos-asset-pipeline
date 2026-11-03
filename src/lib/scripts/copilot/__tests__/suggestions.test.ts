@@ -44,7 +44,7 @@ describe("suggestionsFor", () => {
     expect(labels(state({ brief: asked }))).toEqual(["You pick"]);
   });
 
-  it("offers the lead's avatars behind one chip, not a chip each (D474)", () => {
+  it("offers the lead's avatars behind one chip, not a chip each (D480)", () => {
     const s = suggestionsFor(state({ brief: { ...EMPTY_BRIEF, format: given("UGC"), occasion: given("Onam") } }));
     expect(s.map((x) => x.label)).toEqual(["Choose an avatar", "Cast it for me"]);
     expect(s[0].pick?.castId).toBeNull();
@@ -110,7 +110,7 @@ describe("after an import (paste-a-script §4.3)", () => {
   const importReply = msg("assistant", `${IMPORT_REPLY_PREFIX}Reel 01 · 9 shots · 50s.`);
   const imported = () => ({ ...state({ brief: { ...EMPTY_BRIEF, phase: "written", imported: true }, doc: unlinked }), messages: [importReply] });
 
-  it("offers one chip for the lead, its dialog holding every avatar with a fitting one first (D474)", () => {
+  it("offers one chip for the lead, its dialog holding every avatar with a fitting one first (D480)", () => {
     const base = imported();
     const [a1, a2, a3] = base.avatars;
     const s = { ...base, avatars: [a2, a3, a1] };
@@ -150,7 +150,7 @@ describe("avatarFits", () => {
   });
 });
 
-describe("matchingAvatarOptions (D474)", () => {
+describe("matchingAvatarOptions (D480)", () => {
   const option = (id: string, label: string) => ({ id, name: label, label, front: null, suggested: false });
   const options = [option("a", "James · AI"), option("b", "James · Specific"), option("c", "Meenakshi")];
 

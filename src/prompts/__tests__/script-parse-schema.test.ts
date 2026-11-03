@@ -27,8 +27,19 @@ describe("script-parse schema", () => {
     expect(scriptParsePrompt.system).toMatch(/length/i);
   });
 
-  it("is version 12", () => {
-    expect(scriptParsePrompt.version).toBe(12);
+  it("is version 13", () => {
+    expect(scriptParsePrompt.version).toBe(13);
+  });
+
+  // D472 — staging: "selfie-style… speaking to camera" came back as the narrator, so the model
+  // spoke it from the person anyway; "Voiceover, son:" lost whose voice it was.
+  it("decides who speaks: a person's label on camera, a named voiceover off-screen in their voice, a talking shot its person", () => {
+    const sys = scriptParsePrompt.system;
+    expect(sys).toMatch(/A person's label on the line \("Hemant:", "Amma \(to camera\):", "Dialogue — Children:"/);
+    expect(sys).toMatch(/"Voiceover, son:"[^\n]*is that person's voice heard off-screen: speaker "narrator", and delivery starts with "<name>'s voice"/);
+    expect(sys).toMatch(/unless the shot's visual has a person speaking \("speaks to the camera"/);
+    expect(sys).toMatch(/A person only looking at, turning to or holding something up to the camera is not speaking\./);
+    expect(sys).toMatch(/"One customer wrote on Amazon:", "Mummy's rule:"\) is not a label: keep it in the text\./);
   });
 
   // D380 — each row carries the shot's own name, and named shots are never merged or split.

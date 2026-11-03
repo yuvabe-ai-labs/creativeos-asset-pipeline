@@ -15,7 +15,7 @@ import { CURRENT_GROUPING_VERSION } from "@/lib/nodes/group-shots";
 // Spec 1 §5.2 — an approved script onto the canvas: a Script node holding the script printed in
 // the team's layout, parsed straight away exactly like an upload (no fan-out, as the upload path),
 // with the lead's avatar attached when it has a usable one, and the rest of the cast's stacked below it,
-// connected to nothing (D473). The node holds a COPY: re-approving
+// connected to nothing (D479). The node holds a COPY: re-approving
 // the script later never changes a node already on a canvas (spec 1 §5.4). The steps, and every
 // failure path, live in `addScriptToCanvas`; this hook only wires them to the canvas. With
 // `opts.into` it fills an existing empty Script node instead (the Create-canvas hand-off, D373).

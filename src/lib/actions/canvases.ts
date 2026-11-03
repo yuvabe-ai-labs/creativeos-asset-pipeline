@@ -73,7 +73,7 @@ export async function createCanvasAction(input: {
  *  One canvas per script; a racing second request gets the first one's canvas (unique index). The
  *  canvas is seeded as any new canvas is; the script itself is added on the canvas, which fills
  *  the seeded empty Script node (AddScriptFromUrl), so it parses with the lead's avatar attached
- *  and the rest of the cast's on the canvas (D473). */
+ *  and the rest of the cast's on the canvas (D479). */
 export async function createCanvasFromScriptAction(input: {
   clientId: string;
   clientSlug: string;

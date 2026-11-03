@@ -7,11 +7,11 @@ import type { CopilotAvatar, GenerateState } from "./schema";
 // One-tap suggestions above the copilot's message box, for quick demos. Worked out from where the
 // conversation is; no model call. A suggestion either sends at once or only fills the box.
 
-/** D474 — one avatar in the dialog. Choosing one for the lead sends its name with its id, so the
+/** D480 — one avatar in the dialog. Choosing one for the lead sends its name with its id, so the
  *  turn links that exact avatar instead of the model matching a name (two can share one; D362). */
 export type AvatarOption = { id: string; name: string; label: string; front: string | null; suggested: boolean };
 
-/** D474 — the chip's dialog. With `castId` a choice links that character (an import asks who plays
+/** D480 — the chip's dialog. With `castId` a choice links that character (an import asks who plays
  *  whom; paste-a-script §4.3) and posts no message; without it, a choice answers "who leads?". Only
  *  a choice links: nothing is linked unasked. */
 export type AvatarPick = { title: string; castId: string | null; options: AvatarOption[] };

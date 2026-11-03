@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { matchingAvatarOptions, type AvatarOption, type AvatarPick } from "@/lib/scripts/copilot/suggestions";
 
-/** D474 — the client's avatars, as faces to search and choose from, instead of one chip each. */
+/** D480 — the client's avatars, as faces to search and choose from, instead of one chip each. */
 export function CopilotAvatarPickDialog({ pick, open, onOpenChange, onChoose }: {
   pick: AvatarPick;
   open: boolean;

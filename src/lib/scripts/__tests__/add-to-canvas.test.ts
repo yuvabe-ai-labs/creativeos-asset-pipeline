@@ -40,7 +40,7 @@ describe("addScriptToCanvas", () => {
     expect(d.attachAvatar).toHaveBeenCalledWith("a1", "n1", POS);
   });
 
-  it("hands the rest of the cast over by their place in the stack, connected to nothing (D473)", async () => {
+  it("hands the rest of the cast over by their place in the stack, connected to nothing (D479)", async () => {
     const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: "lead", castAvatarIds: ["b", "c"], storyboard: [] }) });
     await addScriptToCanvas("s1", POS, d);
     expect(d.attachAvatar).toHaveBeenCalledTimes(1);

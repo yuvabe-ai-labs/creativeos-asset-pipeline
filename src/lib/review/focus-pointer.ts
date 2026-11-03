@@ -38,3 +38,15 @@ export function urlWithoutParams(url: string, params: string[]): string | null {
   const search = parsed.searchParams.toString();
   return `${parsed.pathname}${search ? `?${search}` : ""}${parsed.hash}`;
 }
+
+/**
+ * D473 — the same URL with one param set to `value`, or removed when `value` is null, as a
+ * path+query+hash string for `history.replaceState`. Null when the URL already says that.
+ */
+export function urlWithParam(url: string, param: string, value: string | null): string | null {
+  const parsed = new URL(url);
+  if (parsed.searchParams.get(param) === value) return null;
+  if (value === null) return urlWithoutParams(url, [param]);
+  parsed.searchParams.set(param, value);
+  return `${parsed.pathname}?${parsed.searchParams.toString()}${parsed.hash}`;
+}

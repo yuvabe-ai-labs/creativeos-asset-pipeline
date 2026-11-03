@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
 // GET /api/clients/:id/scripts/:scriptId — one script, plus the lead's avatar id when that
 // avatar can go on a canvas: this client's, ready, not archived (spec 1 §5.4). Otherwise null,
-// and the script still arrives without an avatar. D473 — the same for the rest of the cast, each
+// and the script still arrives without an avatar. D479 — the same for the rest of the cast, each
 // once. Also its current storyboard (D381, D385): the panels picked now, named by shot, or [] when
 // there are none.
 export async function GET(req: Request, { params }: Ctx) {

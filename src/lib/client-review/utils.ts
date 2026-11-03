@@ -2,7 +2,7 @@ import { slugify } from "@/lib/slug";
 import { cutExtension } from "./validate";
 import type { PublicReview, ReviewComment } from "./wire";
 
-/** D472 — the saved file's name: the review's title, plain ASCII so it is safe in a download header. */
+/** D478 — the saved file's name: the review's title, plain ASCII so it is safe in a download header. */
 export function cutDownloadName(title: string, videoPath: string): string {
   return `${slugify(title) || "video"}.${cutExtension(videoPath) ?? "mp4"}`;
 }

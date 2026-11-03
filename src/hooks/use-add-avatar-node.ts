@@ -6,7 +6,7 @@ import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-st
 import { leadAvatarPosition, presenterAvatarId, scriptKbNode } from "@/lib/avatars/canvas";
 
 // D298 — the one way an Avatar node is added: from the gallery's tile, a drop on the canvas, or a
-// drop on a Script. With `presenterOf`, it is placed under that script's Brand KB (D473; beside the script when it has none) and connected to it; the
+// drop on a Script. With `presenterOf`, it is placed under that script's Brand KB (D479; beside the script when it has none) and connected to it; the
 // store replaces any presenter the script had, and announces it once. Connecting the avatar the
 // script already has is a no-op rather than a second copy of the same node.
 export function useAddAvatarNode() {

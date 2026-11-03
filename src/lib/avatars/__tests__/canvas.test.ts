@@ -67,7 +67,7 @@ describe("avatarVoiceLine", () => {
   });
 });
 
-describe("the avatar stack under the Brand KB (D473)", () => {
+describe("the avatar stack under the Brand KB (D479)", () => {
   const script = { x: 360, y: 120 };
   // A new canvas's seeded Brand KB.
   const kb = { position: { x: 80, y: 120 } };

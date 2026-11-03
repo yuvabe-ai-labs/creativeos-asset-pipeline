@@ -20,7 +20,7 @@ const review = {
 const get = (token: string) =>
   GET(new NextRequest(`http://localhost/api/r/${token}/download`), { params: Promise.resolve({ token }) });
 
-describe("GET /api/r/[token]/download (D472)", () => {
+describe("GET /api/r/[token]/download (D478)", () => {
   beforeEach(() => vi.resetAllMocks());
 
   it("redirects to a signed URL named after the review, and is never cached", async () => {

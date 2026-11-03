@@ -9,7 +9,7 @@ import { CopilotAvatarPickDialog } from "./copilot-avatar-pick-dialog";
 const CHIP = "h-auto max-w-full whitespace-normal rounded-full border-dashed border-primary/40 py-1 text-left text-primary hover:bg-primary/5";
 
 /** One-tap suggestions under the copilot's newest message: send at once, fill the box to finish by
- *  hand, or open the avatars to choose from (D474). */
+ *  hand, or open the avatars to choose from (D480). */
 export function CopilotSuggestions({ suggestions, onSend, onFill, onLink }: {
   suggestions: Suggestion[];
   onSend: (text: string, leadAvatarId?: string) => void;

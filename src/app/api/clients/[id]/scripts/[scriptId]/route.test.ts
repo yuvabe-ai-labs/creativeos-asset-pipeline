@@ -88,7 +88,7 @@ describe("GET /api/clients/[id]/scripts/[scriptId]", () => {
     expect((await (await GET(req(), { params })).json()).leadAvatarId).toBeNull();
   });
 
-  it("lists the rest of the cast's usable avatars once each, leaving out the lead's and any unusable (D473)", async () => {
+  it("lists the rest of the cast's usable avatars once each, leaving out the lead's and any unusable (D479)", async () => {
     const OTHER = "22222222-2222-4222-8222-222222222222";
     const DRAFT = "33333333-3333-4333-8333-333333333333";
     const base = scriptWithLead(AVATAR_ID);

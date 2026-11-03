@@ -16,7 +16,7 @@ export type AddScriptDeps = {
   getDetail: (scriptId: string) => Promise<{ script: Script; leadAvatarId: string | null; castAvatarIds: string[]; storyboard: StoryboardPanel[] }>;
   addScriptNode: (nodeId: string, position: XYPosition, data: ScriptNodeFill) => void;
   attachAvatar: (avatarId: string, nodeId: string, position: XYPosition) => void;
-  /** D473 — one of the script's other cast, by its place in the stack: connected to nothing. */
+  /** D479 — one of the script's other cast, by its place in the stack: connected to nothing. */
   addCastAvatar: (avatarId: string, nodeId: string, index: number) => void;
   parse: (nodeId: string, source: string) => Promise<ParseResult>;
   writeParsed: (nodeId: string, output: ReelScript) => void;

@@ -533,7 +533,7 @@ export async function signClientReviewUpload(args: {
   return _sign(path, args.contentType);
 }
 
-/** D472 — a link that saves a client review's cut. `fileName` is plain ASCII (cutDownloadName). */
+/** D478 — a link that saves a client review's cut. `fileName` is plain ASCII (cutDownloadName). */
 export function signCutDownloadUrl(path: string, fileName: string): Promise<string> {
   return _signDownloadUrl(path, fileName);
 }
