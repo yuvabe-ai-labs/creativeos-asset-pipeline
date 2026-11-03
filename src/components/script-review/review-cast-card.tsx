@@ -7,6 +7,7 @@ import { AvatarSheetImage } from "@/components/avatars/avatar-sheet-image";
 import { AvatarSheetViews } from "@/components/avatars/avatar-sheet-views";
 import { AvatarSheetWithClip } from "@/components/avatars/avatar-sheet-with-clip";
 import { castAnchor } from "@/lib/scripts/anchors";
+import { cn } from "@/lib/utils";
 import type { CastMember } from "@/lib/scripts/schema";
 import type { AvatarSnapshot } from "@/lib/script-review/types";
 import { snapshotViewImages } from "@/lib/script-review/utils";
@@ -21,9 +22,15 @@ import { VoiceSampleButton } from "./voice-sample-button";
 export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMember; avatar?: AvatarSnapshot; showAvatar: boolean }) {
   // Where the avatar shows, its box is the card's one way to comment; the header keeps the count.
   const boxed = showAvatar && Boolean(avatar);
+  // D466 — with the avatar shown, the card runs the page's width: the views and the clip large on
+  // the left, so the clip is big enough to watch; the person, voice and comment box on the right.
+  const wide = "lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-8";
   return (
-    <Card id={castAnchor(member.id)} className="flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40">
-      <header className="flex items-start justify-between gap-3">
+    <Card
+      id={castAnchor(member.id)}
+      className={cn("flex flex-col gap-4 p-5 shadow-card has-[[data-part-commented]]:ring-client/40", boxed && wide)}
+    >
+      <header className="flex items-start justify-between gap-3 lg:col-start-2 lg:row-start-1">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             <h3 className="font-display text-lg font-medium">{member.name}</h3>
@@ -35,20 +42,22 @@ export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMem
       </header>
       {showAvatar &&
         (avatar ? (
-          <div className="flex flex-col gap-4">
+          <>
             {/* D395: the one sheet image; a version shared before it was frozen shows its views.
                 D466: the shared video preview plays beside it. */}
-            <AvatarSheetWithClip
-              clipUrl={avatar.preview ?? null}
-              sheet={avatar.sheet ? (
-                <AvatarSheetImage name={member.name} sheet={{ url: avatar.sheet }} generating={false} />
-              ) : (
-                <div className="max-w-44">
-                  <AvatarSheetViews columns={2} name={member.name} views={snapshotViewImages(avatar.views)} generating={[]} />
-                </div>
-              )}
-            />
-            <div className="flex min-w-0 flex-col gap-4">
+            <div className="lg:col-start-1 lg:row-span-2 lg:row-start-1">
+              <AvatarSheetWithClip
+                clipUrl={avatar.preview ?? null}
+                sheet={avatar.sheet ? (
+                  <AvatarSheetImage name={member.name} sheet={{ url: avatar.sheet }} generating={false} />
+                ) : (
+                  <div className="max-w-44">
+                    <AvatarSheetViews columns={2} name={member.name} views={snapshotViewImages(avatar.views)} generating={[]} />
+                  </div>
+                )}
+              />
+            </div>
+            <div className="flex min-w-0 flex-col gap-4 lg:col-start-2 lg:row-start-2">
               {avatar.voice && (
                 <div className="flex flex-col gap-1.5 text-sm">
                   <span className="text-xs text-muted-foreground">Voice</span>
@@ -58,7 +67,7 @@ export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMem
               )}
               <AvatarCommentBox castId={member.id} name={member.name} />
             </div>
-          </div>
+          </>
         ) : (
           <p className="text-xs text-muted-foreground">No avatar in this version.</p>
         ))}
