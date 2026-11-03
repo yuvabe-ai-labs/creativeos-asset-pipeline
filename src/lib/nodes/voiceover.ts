@@ -264,7 +264,8 @@ export function renderVoiceover(lines: VoLine[] | undefined): string {
       const speaker = l.speaker?.trim();
       const delivery = l.delivery?.trim();
       const language = l.language?.trim();
-      const who = !speaker || speaker === "narrator" ? "Voiceover" : `${speaker} says`;
+      // D472 — where the voice comes from is said on every line, so the model never has to guess.
+      const who = !speaker || speaker === "narrator" ? "Voiceover, off-screen" : `${speaker} says on camera`;
       const deliveryPart = delivery ? ` (${delivery})` : "";
       const languagePart = language && language.toLowerCase() !== "english" ? ` in ${language}` : "";
       return `${who}${deliveryPart}${languagePart}: "${l.text}"`;

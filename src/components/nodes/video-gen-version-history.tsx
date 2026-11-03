@@ -19,6 +19,8 @@ export type VideoGenVersionInputs = {
   startFrameUrl?: string | null;
   endFrameUrl?: string | null;
   referenceUrls?: string[];
+  /** D472 — lines the provider's request adds around the prompt (Omni: sound, no on-screen text). */
+  addedOnSend?: string[];
   // D284 — present on a voice-changed version; read via `describeVoiceChange` (Task 6), never
   // dereferenced directly here.
   voiceChange?: unknown;

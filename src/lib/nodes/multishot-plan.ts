@@ -140,7 +140,9 @@ function withLook(look: string, ladder: string): string {
 }
 
 /** D286 — how lines spanning the whole sequence are introduced in the rendered prompt. */
-export const SEQUENCE_VO_PREFIX = "Across every shot — ";
+// D472 — "Across every shot —" read as scene direction; this says plainly that the lines run over
+// the whole clip, in order, rather than belonging to one cut.
+export const SEQUENCE_VO_PREFIX = "Spoken over the whole sequence, in order: ";
 
 /**
  * D286 — the sequence voiceover, a blank line, then the ladder. Sits between the look and the

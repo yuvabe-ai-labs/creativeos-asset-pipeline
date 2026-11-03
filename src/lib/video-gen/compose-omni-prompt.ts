@@ -19,8 +19,37 @@ import type { OmniInputPlan } from "./plan-omni-input";
  * cut, so a multi-generation deliverable needs it gone. The other two arms are recoverable from
  * git if the control ever returns; an unreachable map keyed by a param nothing sets is not.
  */
-export const OMNI_AUDIO_CLAUSE =
-  "Sound design: ambience, foley and the spoken line. No background music.";
+export const NO_MUSIC = "No background music.";
+
+// How renderVoiceover (src/lib/nodes/voiceover.ts) writes a line, in its current shape and the
+// one before D472, so a prompt edited by hand or written before still reads right.
+const NARRATOR_LINE = /\bVoiceover(?:, off-screen)?(?: \([^)]*\))?(?: in [^:"“]+)?: ["“]/;
+const ON_CAMERA_LINE = /\bsays(?: on camera)?(?: \([^)]*\))?(?: in [^:"“]+)?: ["“]/;
+
+/**
+ * D472 — the sound clause, decided by what the prompt actually asks to be spoken. It was one fixed
+ * line ("ambience, foley and the spoken line") on every request, so a clip with no line was told
+ * to have one and the model made one up; and nothing told it who speaks, so a narrator's line
+ * came out of the on-screen person's mouth. Omni, Kling and Seedance all make sound by default.
+ */
+export function soundDesignClause(prompt: string): string {
+  const narrator = NARRATOR_LINE.test(prompt);
+  const onCamera = ON_CAMERA_LINE.test(prompt);
+  if (narrator && onCamera) {
+    return "Sound design: ambience, foley and only the lines given, in exactly their words: the voiceover spoken " +
+      `off-screen, and each on-camera line said by the person named. Nobody else speaks. ${NO_MUSIC}`;
+  }
+  if (onCamera) {
+    return "Sound design: ambience, foley and the lines given, each said on camera by the person named, in exactly " +
+      `the words given. Nobody else speaks, and there is no voiceover. ${NO_MUSIC}`;
+  }
+  if (narrator) {
+    return "Sound design: ambience, foley and the voiceover, spoken off-screen in exactly the words given and " +
+      `nothing more. Nobody on screen speaks or moves their lips as if talking. ${NO_MUSIC}`;
+  }
+  return "Sound design: ambience and foley only. Nobody speaks: no dialogue, no voiceover, no narration, no " +
+    `singing. ${NO_MUSIC}`;
+}
 
 /**
  * Emitted on EVERY shot.
@@ -64,7 +93,7 @@ export function composeOmniPrompt(args: {
   //    to suppress, which changes character at every cut.
   //  - Omni renders screen-space type well, which is the problem: unprompted it invents signage,
   //    captions and packaging copy. With no opt-in left, the suppression is unconditional.
-  blocks.push(OMNI_AUDIO_CLAUSE);
+  blocks.push(soundDesignClause(prompt));
   blocks.push(NO_ON_SCREEN_TEXT_LINE);
 
   const avoid = avoidClause(String(params.negative_prompt ?? ""));

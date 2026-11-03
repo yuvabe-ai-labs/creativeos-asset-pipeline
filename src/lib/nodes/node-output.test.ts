@@ -119,7 +119,7 @@ describe("getNodeOutput", () => {
       },
       activeOutput: null,
     });
-    expect(out).toBe('Across every shot — Voiceover: "Made by hand."\nShot 1 (2s): keys');
+    expect(out).toBe('Spoken over the whole sequence, in order: Voiceover, off-screen: "Made by hand."\nShot 1 (2s): keys');
   });
 
   it("returns a post node's rendered fileUrl", () => {
@@ -201,7 +201,7 @@ describe("a Multishot node's output states what it says, once, for the sequence"
       },
       activeOutput: null,
     });
-    expect(out).toContain('Across every shot — creator says: "For lunch, I add it to the atta."');
+    expect(out).toContain('Spoken over the whole sequence, in order: creator says on camera: "For lunch, I add it to the atta."');
     expect(out).toContain("Shot 1 (8s): She adds Jackfruit365 to a bowl of atta.\n");
     expect(out).not.toMatch(/Shot \d .*says/);
   });

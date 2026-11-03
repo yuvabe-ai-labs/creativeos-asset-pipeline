@@ -3,12 +3,16 @@
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EditableField } from "./editable-field";
+import { speakerLabel, VoSpeakerSelect } from "./vo-speaker-select";
 import type { VoLine } from "@/lib/nodes/voiceover";
 
 type VoLinesEditorProps = {
   lines: VoLine[] | undefined;
   onChange?: (next: VoLine[]) => void;
   readOnly?: boolean;
+  /** D472 — who can speak a line, picked from a list (the narrator, or these people on camera).
+   *  Without it, the speaker is typed as before. */
+  people?: readonly string[];
 };
 
 // Task 6 — the shot row is the one place a spoken line is read and edited (operator: "we planned
@@ -27,7 +31,7 @@ type VoLinesEditorProps = {
 // them and the line wrapped every three or four words. Stacked, the spoken words get the full
 // width and the speaker reads as the caption it is. The remove control appears on hover so a
 // column of lines is a column of words, not a column of buttons.
-export function VoLinesEditor({ lines, onChange, readOnly = false }: VoLinesEditorProps) {
+export function VoLinesEditor({ lines, onChange, readOnly = false, people }: VoLinesEditorProps) {
   const rows = lines ?? [];
   if (readOnly && rows.length === 0) return null;
 
@@ -61,6 +65,11 @@ export function VoLinesEditor({ lines, onChange, readOnly = false }: VoLinesEdit
               wrapped every four words in the remainder. Stacked, the words always get the full
               column, and the speaker still leads — who is speaking, then what is said. */}
           <div className="min-w-0 flex-1">
+            {people && !readOnly ? (
+              <VoSpeakerSelect value={line.speaker} people={people} onChange={(speaker) => updateLine(i, { speaker })} />
+            ) : people ? (
+              <span className="text-eyebrow text-muted-foreground">{speakerLabel(line.speaker)}</span>
+            ) : (
             <EditableField
               // "narrator" is the unspoken default (D267 — the same convention renderVoiceover
               // uses), so it displays as empty with a placeholder rather than as literal text.
@@ -73,6 +82,7 @@ export function VoLinesEditor({ lines, onChange, readOnly = false }: VoLinesEdit
               className="text-eyebrow text-muted-foreground"
               editClassName="h-auto rounded-md border-0 bg-primary/5 px-1.5 py-0.5 shadow-none focus-visible:border-0 focus-visible:ring-0"
             />
+            )}
             <div className="min-w-0">
               <EditableField
                 value={line.text}
