@@ -88,7 +88,7 @@ export const PANEL_NO_TEXT_CLAUSE =
 // into the video (Reel 07: a blank card held over the pack), so the panel draws the scene without
 // it (PANEL_NO_GRAPHICS_CLAUSE) and holds no space for it.
 const BLANK_AREAS = [
-  { id: "pack", test: /\bpack\b/i, clause: "Draw the product pack as a plain blank pouch with no printing at all; the real pack is added in the edit." },
+  { id: "pack", test: /\bpack\b/i, clause: "Draw the product's pack plain, in its own shape, with no printing at all; the real pack is added in the edit." },
 ] as const;
 export type BlankArea = (typeof BLANK_AREAS)[number]["id"];
 
@@ -97,32 +97,100 @@ export function blankAreas(shot: Pick<Shot, "visual" | "onScreenText">): BlankAr
   return BLANK_AREAS.filter((a) => a.test.test(text)).map((a) => a.id);
 }
 
-/** D457 — a graphic the shot mentions (a review card, a claim card, a badge, a caption) is added by
- *  hand after generation: the panel draws the scene under it, never a card or a box for it. */
+/** D457 — what the edit lays over a shot (a logo, a tagline, on-screen text, a card, a badge, a
+ *  caption, a split screen) is added by hand after generation: the panel draws the live scene under
+ *  it, never a card or a box for it. D470 — across every brand's scripts, not one reel's words. */
 export const PANEL_NO_GRAPHICS_CLAUSE =
-  "The card, badge or caption this shot mentions is added by hand after the video is made. Draw the scene " +
-  "without it: no card, sign, screen, sticker, box or empty space standing in for it.";
+  "The logo, text, card, badge, caption or split screen this shot mentions is added by hand after the video is " +
+  "made. Draw the live scene without it, as one full frame: no card, sign, sticker, box, panel or empty space " +
+  "standing in for it.";
 
-const GRAPHIC_MENTION = /\b(card|claim line|badge|captions?|subtitles?)\b/i;
+const EDIT_LAYER =
+  /\b(logo|tagline|captions?|subtitles?|lower third|overlay|graphic|badge|disclaimer|(?:end|title|review|claim|text|study|disclaimer) card|card-style|split[- ]screen|grid layout|on[- ]screen text|(?:text|name|price)s? (?:appear(?:s|ing)?|on screen|over)|appear(?:s|ing)? on screen)\b/i;
+/** A logo printed on the product, or a note that there is none, is not laid over the shot. */
+const NOT_EDIT_LAYER =
+  /\bno (?:brand )?logo\b|\blogo stays off\b|\b(?:front|printed|pack's|box's) logo\b|\blogo on the (?:pack|box|bottle|jar|pouch|product|label)\b/gi;
 
 export function mentionsGraphic(shot: Pick<Shot, "visual">): boolean {
-  return GRAPHIC_MENTION.test(shot.visual);
+  return EDIT_LAYER.test(shot.visual.replace(NOT_EDIT_LAYER, ""));
 }
 
-// D463 — a shot whose action has more than one moment ("Anjali holds up the pack and asks. Hemant
-// takes it from her and reads the label.") is drawn as a storyboard sheet: four frames of it in
-// order, in one image, so the people and room cannot drift between them. A moment is an action
-// verb after its doer or an "and" ("Hemant takes", "and reads"); "The plates" is not a doer.
-const MOMENT =
-  /(?:\b(?:he|she|they|(?!(?:The|A|An|This|That|These|Those|Its|His|Her|Their|One)\b)[A-Z][a-z]+)|\band)\s+(?!is\b|was\b|has\b|does\b)[a-z]+s\b/g;
+/** D470 — a screen's content (an app, a page, a payment, a message) cannot be drawn true to the
+ *  real one, so the panel shows a plain lit screen; the real capture goes in during the edit. */
+export const PANEL_SCREEN_CLAUSE =
+  "A phone, laptop or TV screen that faces the camera shows a plain lit screen with no app, page, text or picture " +
+  "on it; what it shows is added in the edit.";
+
+const SCREEN_MENTION = /\b(screens?|phones?|smartphones?|laptops?|tablets?|monitors?|tv|website|app)\b/i;
+
+/** "On screen", "off-screen" and a split screen say where something is in the frame, not a device. */
+const SCREEN_AS_FRAME = /\b(?:on|off)[- ]screen\b|\bsplit[- ]screen\b/gi;
+
+export const mentionsScreen = (shot: Pick<Shot, "visual">) => SCREEN_MENTION.test(shot.visual.replace(SCREEN_AS_FRAME, ""));
+
+// D463 — a shot whose action has several moments ("Anjali holds up the pack and asks. Hemant takes
+// it from her and reads the label.") is drawn as a storyboard sheet: four frames of it in order, in
+// one image, so the people and room cannot drift between them. D470 — a moment is an action verb
+// after a doer (the script's own cast, he/she/they, "someone"), or one that continues the doer's
+// sentence ("and reads", ", then stirs"). Camera moves and things ("Camera tilts", "Sliced onions")
+// are not doers. One person's two actions ("lifts the lid and smiles") stay one frame: a sheet
+// asks the clip to move through frames, so it is only for an action that passes between people or
+// runs three or more steps.
+const NOT_A_DOER = new Set([
+  "the", "a", "an", "this", "that", "these", "those", "its", "his", "her", "their", "one", "each", "every",
+  "camera", "pan", "close", "shot", "shots", "cut", "cuts", "quick", "walking", "different", "sliced", "top",
+  "split", "transition", "slow", "hold", "hero", "final", "match", "logo", "text", "frame", "view", "scene",
+  "light", "sunlight", "steam", "music", "visual", "action", "next", "then", "evening", "morning",
+]);
+const PRONOUN = new Set(["he", "she", "they", "someone"]);
+const DOER_VERB = /\b([A-Za-z][\w'-]*)\s+(?:then\s+|also\s+|slowly\s+|quickly\s+|gently\s+)?(?!is\b|was\b|has\b|does\b|its\b|this\b|his\b|always\b|as\b)([a-z]+s)\b/g;
+const CONTINUES = /(?:,\s*|\band\s+|\bthen\s+)(?:then\s+)?(?:\w+ly\s+)?(?!is\b|was\b|has\b|its\b|this\b|his\b|as\b)([a-z]{3,}s)\b/g;
+
+const castTokens = (cast: readonly string[]) =>
+  new Set(cast.flatMap((n) => n.toLowerCase().split(/[^a-z]+/)).filter((t) => t.length >= 3 && !NOT_A_DOER.has(t)));
+
+function shotActions(visual: string, cast: readonly string[]): { moments: number; doers: number } {
+  const named = castTokens(cast);
+  const isDoer = (word: string) => {
+    const w = word.toLowerCase();
+    if (PRONOUN.has(w)) return true;
+    if (named.size > 0) return named.has(w);
+    // No cast to go by: a capitalised word that is not a camera or scene word.
+    return /^[A-Z]/.test(word) && !NOT_A_DOER.has(w);
+  };
+  let moments = 0;
+  const doers = new Set<string>();
+  const pronouns = new Set<string>();
+  for (const sentence of visual.split(/(?<=[.!?])\s+|\s*;\s*/)) {
+    let firstEnd = -1;
+    for (const m of sentence.matchAll(DOER_VERB)) {
+      if (!isDoer(m[1])) continue;
+      moments += 1;
+      const w = m[1].toLowerCase();
+      (PRONOUN.has(w) ? pronouns : doers).add(w);
+      if (firstEnd < 0) firstEnd = (m.index ?? 0) + m[0].length;
+    }
+    if (firstEnd < 0) continue;
+    for (const c of sentence.slice(firstEnd).matchAll(CONTINUES)) {
+      if (!NOT_A_DOER.has(c[1])) moments += 1;
+    }
+  }
+  // A pronoun is one of the named people when any are named; on its own, "she" and "he" are two.
+  return { moments, doers: doers.size > 0 ? doers.size : pronouns.size };
+}
+
 export const PANEL_GRID_FRAMES = 4;
 
-/** How many moments the shot's action has: two or more draws a grid. */
-export function shotMoments(shot: Pick<Shot, "visual">): number {
-  return shot.visual.match(MOMENT)?.length ?? 0;
+/** How many moments the shot's action has. `cast` is the script's cast names. */
+export function shotMoments(shot: Pick<Shot, "visual">, cast: readonly string[] = []): number {
+  return shotActions(shot.visual, cast).moments;
 }
 
-export const drawsAsGrid = (shot: Pick<Shot, "visual">) => shotMoments(shot) >= 2;
+/** A sheet when the action passes between two people, or runs three or more steps. */
+export function drawsAsGrid(shot: Pick<Shot, "visual">, cast: readonly string[] = []): boolean {
+  const { moments, doers } = shotActions(shot.visual, cast);
+  return moments >= 3 || (doers >= 2 && moments >= 2);
+}
 
 export function panelGridClause(aspect: string): string {
   return `This panel is a storyboard sheet: ${PANEL_GRID_FRAMES} frames of this one shot in a 2 by 2 grid, read left to ` +
@@ -168,7 +236,7 @@ function locationClause(location: ScriptLocation | null, references: PanelRefere
 /** D462 — Reel 32 S3 drew a pack in each person's hand while one is handed over, and S1 showed the
  *  front while the shot taps the back label. */
 export const PANEL_ONE_PRODUCT_CLAUSE =
-  "There is one of it in the frame unless the shot says there are more; when it passes from one person to " +
+  "There is one of it in the frame (one pair, one set) unless the shot says there are more; when it passes from one person to " +
   "another, only one of them holds it. When the shot names a side of it (the back, the label), show that side.";
 
 /** D462 — what a panel draws beyond its shot. The reel's setting line and the regional kit listed
@@ -193,7 +261,8 @@ function productsClause(products: Product[], references: PanelReference[]): stri
     return ns.length > 0
       ? `- ${p.name}: reference image${ns.length > 1 ? "s" : ""} ${list(ns)} show${ns.length > 1 ? "" : "s"} it. Draw exactly this product, ` +
         "in the same shape, colours and proportions, wherever the shot shows it. " + PANEL_ONE_PRODUCT_CLAUSE
-      : `- ${p.name}: draw it as a plain blank pack with no printing; the real one is added in the edit.`;
+      : `- ${p.name}: no picture of it yet. Draw a plain version of what it is, with no logo, label or printing; ` +
+        "the real one is added in the edit.";
   });
   return ["Products in this shot (exactly these):", ...lines].join("\n");
 }
@@ -236,7 +305,7 @@ export function buildPanelPrompt(input: {
     PANEL_STYLE_BLOCK,
     styleReferenceClause(references.length + 1),
     `Frame: ${aspect}.`,
-    drawsAsGrid(shot) ? panelGridClause(aspect) : "",
+    drawsAsGrid(shot, doc.cast.map((c) => c.name)) ? panelGridClause(aspect) : "",
     `This shot: ${sentence(shot.visual)}`,
     PANEL_FRAMING_CLAUSE,
     // D458 — the place and light are the reel's; a camera note there is for the shot it describes.
@@ -247,8 +316,8 @@ export function buildPanelPrompt(input: {
       : "",
     kit
       ? `Regional kit (${kit.region}). Kitchen and home: ${kit.kitchen}. At the table: ${kit.table}. ` +
-        `Wardrobe: ${kit.wardrobe}. Use it for the look of the home and clothes; food from it appears only when ` +
-        "this shot serves or eats a meal. The home is Indian, never European or Western."
+        `Wardrobe: ${kit.wardrobe}. Use it for the look of the place and clothes; its food and objects appear only ` +
+        `when this shot's action uses them. The look is of ${kit.region}, never another region's.`
       : "",
     locationClause(assets.location, references),
     people.length === 0 ? PANEL_NOBODY_CLAUSE : peopleClause(people, references),
@@ -256,6 +325,7 @@ export function buildPanelPrompt(input: {
     PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE,
     ...blanks,
     mentionsGraphic(shot) ? PANEL_NO_GRAPHICS_CLAUSE : "",
+    mentionsScreen(shot) ? PANEL_SCREEN_CLAUSE : "",
     peopleRefs ? PANEL_REFERENCE_CLAUSE : "",
     realProduct ? PANEL_NO_TEXT_WITH_PRODUCTS_CLAUSE : PANEL_NO_TEXT_CLAUSE,
   ].filter(Boolean).join("\n\n");

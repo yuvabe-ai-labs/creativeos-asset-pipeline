@@ -49,12 +49,12 @@ suggestions: two or three short replies (under 60 characters each) the person mi
  *  drawn from, so it is written as a place someone could build. */
 const assetNaming = `Products and locations:
 - A product is one of the client's own products that the reel shows on screen. Never the brand on its own, never a competitor's product, and never an ordinary prop (a cup, a phone, or a plain item the script compares the product with).
-- A product is a physical thing the camera can show and a photo can be taken of: a pack, a garment, a piece of jewellery, a device. A service is never a product (a loan, insurance, an account, a card's benefits, a subscription, an app or a website and what it does, a booking): the reel shows it through people, places and what they do, and the brand comes in through the voiceover and the logo added in the edit. A brand that sells only services gets an empty product list. What a person in the story owns and uses (their own gold jewellery taken to a gold loan, their own phone) is a prop of that shot, not a product.
+- A product is a physical thing the camera can show and a photo can be taken of: a pack, a garment, a piece of jewellery, a device. A service is never a product (a loan, insurance, an account, a card's benefits, a subscription, an app or a website and what it does, a booking): the reel shows it through people, places and what they do, and the brand comes in through the voiceover and the logo added in the edit. A brand that sells only services gets an empty product list. What a person in the story owns and uses (their own phone, or the car or jewellery a service is about) is a prop of that shot, not a product.
+- Something the reel shows that carries the brand's own fixed look is a product too, so a picture of it can be added: its packaging, a gift or delivery box, a branded card, bag or uniform. The service behind it is not.
 - A shot picks a product whenever the product is in it in any form: the pack on screen, the product itself being used (poured, mixed in, applied, worn or held), or its voiceover naming it. A shot that uses the product without showing the pack still picks it.
-- Name a product the way the client sells it: the brand, then what it is, then the variant when the script or the brand KB gives one (for example "Brandname V-Strap slippers", "Brandname green tea pouch"). Use the KB's own product names where they fit.
+- Name a product the way the client sells it: the brand, then what it is, then the variant when the script or the brand KB gives one (for example "Brandname V-Strap slippers", "Brandname green tea pouch"). Use the KB's own product names where they fit. Variants the reel shows apart (shades, flavours, colours, sizes) are one product each, each named in full, never by the variant alone.
 - Name a location as the place, in two to four words with a capital first letter (for example "Tree-lined street", "Corner café", "Podcast studio desk"). Its description is the place in physical words: the kind of space, its surfaces, fixed furniture and fittings, light and time of day, from the script and its setting. Where the script says little, describe a likely place that fits the reel's setting and region, in one or two sentences. Never put a person, a product or an action in it, and never the shots' props (food, dishes, devices, bags): the shots bring those.
-- A shot that is only a graphic (a logo end card, a brand-colour background, a title card) happens in no place: its location is "", and it adds no location. Graphics are added in the edit.
-- A shot that is only a screen (a screen recording of an app or a website, a phone's display filling the frame) happens in no place either: its location is "", it adds no location, and it picks no product. A screen is never a location. A real screen recording is added in the edit.
+- A location is a real place people could be in. A shot with no such place happens nowhere: a shot that is only a graphic (a logo end card, a title card), a plain backdrop (a colour, a studio sweep, a product shown on a background, a packshot or e-commerce set), or a shot that is only a screen (a screen recording of an app or a website, a phone's display filling the frame). Its location is "", it adds no location, and its visual says the backdrop. A screen-only shot picks no product. A backdrop or a screen is never a location; graphics and real screen recordings are added in the edit.
 - Shots in the same place share one location; a different place is a new one.`;
 
 /** Shared by the card and the draft: the house spec's shorthand (D1, D2…) means nothing to the
@@ -143,7 +143,8 @@ export const scriptCopilotPrompt = {
   // 9 (D464): no review beat, review theme or review placeholder by default; one client's need.
   // 10 (D467): a product is a physical thing, never a service; a graphic-only shot has no location.
   // 11 (D468): an app or a website is never a product; a screen-only shot has no location and no product.
-  version: 11,
+  // 12 (D470): a backdrop is not a location; a branded object is a product; variants named in full.
+  version: 12,
   rules,
   tasks: { extract, angles, card, draft, edit, inline, detect, import: importScript },
 } as const;

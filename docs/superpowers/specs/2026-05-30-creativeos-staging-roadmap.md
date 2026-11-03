@@ -8357,3 +8357,22 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Redrawing fresh with the note (the Fresh option already does that; a change must hold what the take got right). Sending the product pictures only (the people and the place drift the same way over repeated changes).
 
 **Originated →** conversation in this session (Reel 33 storyboard iteration, staging).
+
+### D470 — The storyboard and script rules are checked against every brand's scripts, not the reel that showed the problem *(recorded 2026-11-03; refines D457, D462, D463, D467, D468)*
+
+**Decision.** The rules from D462 to D468 were each written from one reel. They were rerun over all 64 scripts and 489 shots on staging (food, fashion, jewellery, beauty, skincare, finance, pharmacy, beverages), and rewritten as general rules:
+
+- **Storyboard sheet (D463).** The 2 by 2 sheet is decided from the script's own cast names (or he, she, they, someone), never from any capitalised word, so "Camera tilts", "Pan across", "Sliced onions" and "Walking shots" are not doers. A sheet is drawn when the action passes between two people or runs three or more steps; one person's two actions ("lifts the lid and smiles") stay one frame, since a sheet asks the clip to move through frames and invites cuts. 118 shots drew as sheets before, 48 of 388 distinct shots now.
+- **What the edit lays over a shot (D457).** The panel draws the live scene under a logo, tagline, on-screen text, name or price, a card, badge, caption, overlay or split screen. A logo printed on the product, the claim line on the pack, a real card (a debit card) and "no logo on screen" are left alone. Before, only card, claim line, badge, caption and subtitle were caught, so 16 logo mentions and every split screen were drawn, and a pack's printed claim line was removed.
+- **Screens.** A phone, laptop or TV screen facing the camera is drawn plain and lit, with no app, page or text; what it shows is added in the edit. "On screen", "off-screen" and a split screen are places in the frame, not devices.
+- **A product with no picture** is drawn as a plain version of what it is, with no logo, label or printing, not as "a blank pack" or "a blank pouch" (a sandal, a pendant or a lipstick is not a pouch).
+- **The regional kit** gives the look of the place and clothes for its own region (never another region's), and its food and objects appear only when the shot's action uses them. Before, it said "the home is Indian" and spoke of meals only.
+- **One of the product** means one pair or one set where the product comes that way.
+- **Script copilot (version 12).** A location is a real place people could be in: a graphic, a plain backdrop (a colour, a studio sweep, a product shown on a background, a packshot or e-commerce set) or a screen-only shot has location "" and its visual says the backdrop. Something carrying the brand's own fixed look (its packaging, a gift or delivery box, a branded card, bag or uniform) is a product, so a picture of it can be added; the service behind it is not. Variants the reel shows apart (shades, flavours, colours, sizes) are one product each, named in full. The rule's examples no longer name one client's case (a gold loan).
+- **Avatars.** A home town, language, dialect or accent places a person in that region's look, without naming one region as the example.
+
+**Why.** User, 3 Nov 2026: fixes made from the issues one reel hit were becoming brand-specific ("we are not solving for brand specific"). On staging, the copilot had made locations of "Neutral Void", "Warm ivory background", "Red Background", "Product Studio", "Ecommerce Set", "End Frame" and "Mobile Screen"; ICICI's iMobile Pay, Muthoot's gold loan and PharmEasy's app were products; Maybelline's shades came out as "more buff", "more berry". ICICI ("Phone screen is a real capture"), Giva (a phone showing the website) and PharmEasy (a screen recording) all have shots whose screen must be real, so the deferred "recorded for real" mark (D468) is a general need, not one brand's.
+
+**Rejected.** Fixing each rule by adding the words the failing reel used (the way D457's "claim line" and D463's capitalised-name rule were first written). An LLM call to classify every shot (a per-shot call on every panel; the rules are cheap, testable, and were checked against the corpus).
+
+**Originated →** conversation in this session (generic review of D462–D468 against all staging scripts).
