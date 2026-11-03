@@ -20,6 +20,9 @@ import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_MOTION_INSTRUCTION } from "@/lib/nodes/video-prompt";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { GenerateFooter } from "./generate-footer";
+import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
+import { promptGenerateBlocker } from "@/lib/nodes/prompt-generate-blocker";
+import { imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { isVisionAttachment, visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
@@ -195,6 +198,14 @@ export function VideoPromptFocusView({
   // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — same
   // estimatePromptCredits heuristic, folded into the button label below.
   const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
+  // Held until the inputs are saved and resolved, and while one of them is still empty.
+  const generateBlocker = promptGenerateBlocker({
+    editable,
+    loadingInputs: loadingPreview,
+    wired: upstream,
+    resolved: preview.connected,
+    instruction: instructionDraft,
+  });
 
   // D77: connected downstream Video Gen nodes are the single source of truth for the target
   // provider. None connected → the node's own selector value governs; multiple with differing
@@ -332,6 +343,12 @@ export function VideoPromptFocusView({
    * Its own effect, not an await inside the fetch below: that one re-runs on every `slices`
    * change, and a flush per slice toggle would mean a full canvas save per checkbox.
    */
+  // Wiring an input while open (the rail's Add, the gallery, a ✕) re-runs the flush and the read
+  // below, so its preview shows without a close-and-reopen.
+  const inputsKey = useConnectedInputsKey(upstream, open, () => {
+    setInputsPersisted(false);
+    setLoadingPreview(true);
+  });
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -348,7 +365,7 @@ export function VideoPromptFocusView({
     return () => {
       cancelled = true;
     };
-  }, [open, nodeId, flushAutosave]);
+  }, [open, nodeId, flushAutosave, inputsKey]);
 
   useEffect(() => {
     if (!open || !inputsPersisted) return;
@@ -651,8 +668,8 @@ export function VideoPromptFocusView({
                     label={output ? "Re-generate" : "Generate motion prompt"}
                     busy={generating}
                     onClick={runGenerate}
-                    disabled={generating || !editable || isViewingOther}
-                    disabledReason={!editable ? "This canvas is read-only." : null}
+                    disabled={imageGenerateDisabled(generateBlocker, generating || isViewingOther, loadingPreview)}
+                    disabledReason={generateBlocker}
                     credits={estimatedCredits}
                     notice={isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
                   />

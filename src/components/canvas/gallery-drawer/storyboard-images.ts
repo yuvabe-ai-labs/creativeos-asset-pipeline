@@ -28,3 +28,16 @@ export function storyboardGroups(nodes: readonly AppNode[]): StoryboardGroup[] {
     }];
   });
 }
+
+/** The References search applied to the Storyboard section too: a group whose script title
+ *  matches keeps every panel; otherwise only the panels whose names match stay, and a group left
+ *  with none goes. Case-insensitive, anywhere in the name. An empty query changes nothing. */
+export function filterStoryboardGroups(groups: StoryboardGroup[], query: string): StoryboardGroup[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return groups;
+  return groups.flatMap((g) => {
+    if (g.title.toLowerCase().includes(q)) return [g];
+    const images = g.images.filter((i) => i.filename.toLowerCase().includes(q));
+    return images.length > 0 ? [{ ...g, images }] : [];
+  });
+}

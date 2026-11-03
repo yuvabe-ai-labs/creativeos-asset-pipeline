@@ -40,6 +40,9 @@ import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { isVisionAttachment } from "@/lib/nodes/compose-message";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { GenerateFooter } from "./generate-footer";
+import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
+import { promptGenerateBlocker } from "@/lib/nodes/prompt-generate-blocker";
+import { imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ShotControlsRow } from "./shot-controls-row";
 import {
@@ -255,6 +258,14 @@ export function PromptFocusView({
   // column is ALWAYS the generated output.
   const showComposeLayout = selected === "prompt" || isNodeSelected;
   const detailNode = selectedNode;
+  // Held until the inputs are saved and resolved, and while one of them is still empty.
+  const generateBlocker = promptGenerateBlocker({
+    editable,
+    loadingInputs: loadingPreview,
+    wired: upstream,
+    resolved: preview.connected,
+    instruction: instructionDraft,
+  });
 
   const dirty = (output ?? "") !== draft && draft.trim() !== "";
   const mode: "skeleton" | "result" | "empty" = generating
@@ -343,6 +354,12 @@ export function PromptFocusView({
    * Its own effect, not an await inside the fetch below: that one re-runs on every `slices`
    * change, and a flush per slice toggle would mean a full canvas save per checkbox.
    */
+  // Wiring an input while open (the rail's Add, the gallery, a ✕) re-runs the flush and the read
+  // below, so its preview shows without a close-and-reopen.
+  const inputsKey = useConnectedInputsKey(upstream, open, () => {
+    setInputsPersisted(false);
+    setLoadingPreview(true);
+  });
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -359,7 +376,7 @@ export function PromptFocusView({
     return () => {
       cancelled = true;
     };
-  }, [open, nodeId, flushAutosave]);
+  }, [open, nodeId, flushAutosave, inputsKey]);
 
   useEffect(() => {
     if (!open || !inputsPersisted) return;
@@ -749,8 +766,8 @@ export function PromptFocusView({
                     label={output ? "Re-generate" : "Generate prompt"}
                     busy={generating}
                     onClick={runGenerate}
-                    disabled={generating || !editable || viewing.isViewingOther}
-                    disabledReason={!editable ? "This canvas is read-only." : null}
+                    disabled={imageGenerateDisabled(generateBlocker, generating || viewing.isViewingOther, loadingPreview)}
+                    disabledReason={generateBlocker}
                     credits={estimatedCredits}
                     notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
                   />

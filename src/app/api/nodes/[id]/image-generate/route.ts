@@ -1,6 +1,4 @@
-import { getUpstreamOutputs } from "@/lib/db/nodes";
-import { withAvatarImages, withPromptInputs } from "@/lib/avatars/presenter-server";
-import { withScriptAssetImages } from "@/lib/scripts/asset-nodes";
+import { getImageGenUpstream } from "@/lib/avatars/presenter-server";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { getVersionById } from "@/lib/db/versions";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
@@ -59,10 +57,7 @@ export async function POST(
 
     // Resolve upstream nodes. D436 — an Avatar wired straight in is its images. D440 — and what is
     // wired into the Prompt reaches this still too (its images, avatars and the presenter's face).
-    const upstream = await withPromptInputs(
-      withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId))),
-      ["prompt"],
-    );
+    const upstream = await getImageGenUpstream(nodeId);
 
     // All connected image URLs (File images, Draw sketches, Image Gen and Composite outputs).
     const connectedImageUrls = upstream

@@ -17,10 +17,8 @@ const m = vi.hoisted(() => ({
   getVersionById: vi.fn(async () => null as unknown),
 }));
 
-vi.mock("@/lib/db/nodes", () => ({ getUpstreamOutputs: vi.fn(async () => m.upstream) }));
 vi.mock("@/lib/avatars/presenter-server", () => ({
-  withPromptInputs: async (u: unknown) => u,
-  withAvatarImages: async (_id: string, u: unknown) => u,
+  getImageGenUpstream: async () => m.upstream,
 }));
 vi.mock("@/lib/db/versions", () => ({ getVersionById: m.getVersionById }));
 vi.mock("@/lib/image-gen/start-generation", () => ({ startImageGeneration: m.start }));

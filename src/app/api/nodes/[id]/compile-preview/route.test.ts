@@ -54,6 +54,17 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/nodes/resolve-inputs", () => ({
+  resolveImageGenInputs: vi.fn(async () => [
+    {
+      nodeId: "av-1",
+      versionId: null,
+      label: "Avatar",
+      type: "file",
+      text: "",
+      fileUrl: "https://example.com/front.png",
+      fileKind: "image",
+    },
+  ]),
   resolvePromptInputs: vi.fn(async () => ({
     clientContext: "",
     kbVersionId: null,
@@ -78,7 +89,7 @@ vi.mock("@/lib/nodes/resolve-inputs", () => ({
   })),
 }));
 
-import { resolvePromptInputs, resolveVideoPromptInputs } from "@/lib/nodes/resolve-inputs";
+import { resolveImageGenInputs, resolvePromptInputs, resolveVideoPromptInputs } from "@/lib/nodes/resolve-inputs";
 
 describe("POST /api/nodes/[id]/compile-preview", () => {
   beforeEach(() => {
@@ -114,5 +125,22 @@ describe("POST /api/nodes/[id]/compile-preview", () => {
     expect(resolvePromptInputs).not.toHaveBeenCalled();
     expect(json.connected[0].fileUrl).toBe("https://example.com/still.jpg");
     expect(json.connected[0].fileKind).toBe("image");
+  });
+
+  it("uses resolveImageGenInputs for an image-gen node, with the avatar's front", async () => {
+    nodeType = "image-gen";
+    const { POST } = await import("./route");
+    const res = await POST(makeRequest(), { params: Promise.resolve({ id: "node-1" }) });
+    const json = await res.json();
+
+    expect(resolveImageGenInputs).toHaveBeenCalledWith("node-1");
+    expect(resolvePromptInputs).not.toHaveBeenCalled();
+    expect(json.ambient).toBe("");
+    expect(json.connected[0]).toMatchObject({
+      nodeId: "av-1",
+      label: "Avatar",
+      fileUrl: "https://example.com/front.png",
+      fileKind: "image",
+    });
   });
 });

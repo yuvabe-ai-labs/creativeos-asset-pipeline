@@ -45,13 +45,58 @@ describe("GET /api/drive/browse", () => {
     expect(url).toContain("in+parents");
   });
 
-  it("applies q search within folder", async () => {
-    fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
+  // A Drive query (decoded) from the nth fetch call.
+  const queryOf = (n: number) => new URL(fetchMock.mock.calls[n][0] as string).searchParams.get("q") ?? "";
+
+  it("applies q search by name, within the folder", async () => {
+    fetchMock
+      .mockResolvedValueOnce(mockOk({ files: [] })) // no subfolders
+      .mockResolvedValueOnce(mockOk({ files: [] }));
     await GET(makeReq("folderId=abc&q=logo"));
-    const url = fetchMock.mock.calls[0][0] as string;
     // main switched search from fullText to name matching (059ccf3)
-    expect(url).toContain("name+contains");
-    expect(url).toContain("logo");
+    expect(queryOf(1)).toContain("name contains 'logo'");
+    expect(queryOf(1)).toContain("'abc' in parents");
+  });
+
+  it("searches every subfolder, not only the folder's own files", async () => {
+    const folder = (id: string) => ({ id, name: id, mimeType: "application/vnd.google-apps.folder", modifiedTime: "2026-07-01T00:00:00Z" });
+    fetchMock
+      .mockResolvedValueOnce(mockOk({ files: [folder("sub1"), folder("sub2")] })) // level 1
+      .mockResolvedValueOnce(mockOk({ files: [folder("deep")] })) // level 2
+      .mockResolvedValueOnce(mockOk({ files: [] })) // level 3: none
+      .mockResolvedValueOnce(
+        mockOk({ files: [{ id: "img9", name: "logo-gold.png", mimeType: "image/png", modifiedTime: "2026-07-02T00:00:00Z" }] }),
+      );
+    const res = await GET(makeReq("folderId=root&q=logo"));
+    const body = await res.json();
+
+    expect(queryOf(0)).toContain("mimeType='application/vnd.google-apps.folder'");
+    expect(queryOf(1)).toContain("'sub1' in parents or 'sub2' in parents");
+    expect(queryOf(2)).toContain("'deep' in parents");
+    const search = queryOf(3);
+    for (const id of ["root", "sub1", "sub2", "deep"]) expect(search).toContain(`'${id}' in parents`);
+    expect(search).toContain("name contains 'logo'");
+    expect(body.items.map((i: { id: string }) => i.id)).toEqual(["img9"]);
+  });
+
+  it("does not walk subfolders when browsing without a search", async () => {
+    fetchMock.mockResolvedValueOnce(mockOk({ files: [] }));
+    await GET(makeReq("folderId=abc"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(queryOf(0)).not.toContain("mimeType=");
+  });
+
+  it("reports a search on a folder Drive no longer has as folder_not_found", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, text: async () => "not found" });
+    const res = await GET(makeReq("folderId=gone&q=logo"));
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("folder_not_found");
+  });
+
+  it("reports another Drive failure during a search as a 502", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 403, text: async () => "rate limited" });
+    const res = await GET(makeReq("folderId=abc&q=logo"));
+    expect(res.status).toBe(502);
   });
 
   it("returns 400 when folderId missing", async () => {
