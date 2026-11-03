@@ -8,8 +8,9 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 
 // GET /api/clients/:id/scripts/:scriptId — one script, plus the lead's avatar id when that
 // avatar can go on a canvas: this client's, ready, not archived (spec 1 §5.4). Otherwise null,
-// and the script still arrives without an avatar. Also its current storyboard (D381, D385): the
-// panels picked now, named by shot, or [] when there are none.
+// and the script still arrives without an avatar. D473 — the same for the rest of the cast, each
+// once. Also its current storyboard (D381, D385): the panels picked now, named by shot, or [] when
+// there are none.
 export async function GET(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
   return withClient(req, params, async (clientId) =>
@@ -18,10 +19,18 @@ export async function GET(req: Request, { params }: Ctx) {
       // Missing or another client's: a 404 either way, never confirming a foreign id exists.
       if (!script) return apiError("Script not found.", 404);
       const lead = script.doc.cast.find((c) => c.isLead);
-      const avatar = lead?.avatarId ? await getAvatar(clientId, lead.avatarId) : null;
-      const leadAvatarId = avatar && avatar.status === "ready" && !avatar.archivedAt ? avatar.id : null;
-      const storyboard = await loadCurrentStoryboard(script);
-      return apiOk({ script, leadAvatarId, storyboard });
+      const otherIds = [...new Set(script.doc.cast.flatMap((c) => (!c.isLead && c.avatarId && c.avatarId !== lead?.avatarId ? [c.avatarId] : [])))];
+      const usableAvatarId = async (avatarId: string | null | undefined) => {
+        const avatar = avatarId ? await getAvatar(clientId, avatarId) : null;
+        return avatar && avatar.status === "ready" && !avatar.archivedAt ? avatar.id : null;
+      };
+      const [leadAvatarId, others, storyboard] = await Promise.all([
+        usableAvatarId(lead?.avatarId),
+        Promise.all(otherIds.map(usableAvatarId)),
+        loadCurrentStoryboard(script),
+      ]);
+      const castAvatarIds = others.filter((id) => id !== null);
+      return apiOk({ script, leadAvatarId, castAvatarIds, storyboard });
     }),
   );
 }

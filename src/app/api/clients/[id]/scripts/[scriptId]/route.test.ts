@@ -88,6 +88,34 @@ describe("GET /api/clients/[id]/scripts/[scriptId]", () => {
     expect((await (await GET(req(), { params })).json()).leadAvatarId).toBeNull();
   });
 
+  it("lists the rest of the cast's usable avatars once each, leaving out the lead's and any unusable (D473)", async () => {
+    const OTHER = "22222222-2222-4222-8222-222222222222";
+    const DRAFT = "33333333-3333-4333-8333-333333333333";
+    const base = scriptWithLead(AVATAR_ID);
+    const member = (id: string, avatarId: string | null) => ({ id, name: id, description: "", avatarId, isLead: false });
+    vi.mocked(getScript).mockResolvedValue({
+      ...base,
+      doc: {
+        ...base.doc,
+        cast: [
+          ...base.doc.cast.filter((c) => c.isLead),
+          member("b", OTHER),
+          member("c", OTHER),
+          member("d", AVATAR_ID),
+          member("e", DRAFT),
+          member("f", null),
+        ],
+      },
+    });
+    vi.mocked(getAvatar).mockImplementation(async (_clientId, id) =>
+      makeAvatar({ id, status: id === DRAFT ? "draft" : "ready", archivedAt: null }),
+    );
+    const { GET } = await import("./route");
+    const body = await (await GET(req(), { params })).json();
+    expect(body.leadAvatarId).toBe(AVATAR_ID);
+    expect(body.castAvatarIds).toEqual([OTHER]);
+  });
+
   it("is a 404 when the script is not this client's", async () => {
     vi.mocked(getScript).mockResolvedValue(null);
     const { GET } = await import("./route");

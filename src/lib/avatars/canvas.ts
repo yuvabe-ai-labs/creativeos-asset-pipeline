@@ -1,4 +1,4 @@
-import type { Edge } from "@xyflow/react";
+import type { Edge, XYPosition } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { AvatarVoice } from "./schema";
 
@@ -14,6 +14,48 @@ export const PRESENTER_OFFSET_X = 320;
 /** A presenter avatar card before it is measured: 280 wide with a 2:3 face and its footer. */
 export const PRESENTER_CARD_HEIGHT = 520;
 
+/** The gap between stacked avatar cards, and between the Brand KB and the card under it. */
+const AVATAR_STACK_GAP = 40;
+/** A presenter avatar card's width, and the Brand KB card before it is measured. */
+const AVATAR_CARD_WIDTH = 280;
+const KB_CARD = { width: 176, height: 140 };
+
+type Placed = { position: XYPosition; measured?: { width?: number; height?: number } };
+
+/** D473 — the Brand KB wired into this script, if any. */
+export function scriptKbNode<N extends { id: string; type?: string }>(
+  scriptId: string, nodes: readonly N[], edges: readonly Edge[],
+): N | null {
+  const sources = new Set(edges.filter((e) => e.target === scriptId).map((e) => e.source));
+  return nodes.find((n) => n.type === "kb" && sources.has(n.id)) ?? null;
+}
+
+/** D473 — the lead's slot: centred under the script's Brand KB (a 280 card lined up with the 176 KB
+ *  on the left would touch the Script), else beside the script. */
+export function leadAvatarPosition(script: XYPosition, kb: Placed | null): XYPosition {
+  if (!kb) return { x: script.x - PRESENTER_OFFSET_X, y: script.y };
+  const width = kb.measured?.width ?? KB_CARD.width;
+  const height = kb.measured?.height ?? KB_CARD.height;
+  return { x: kb.position.x + (width - AVATAR_CARD_WIDTH) / 2, y: kb.position.y + height + AVATAR_STACK_GAP };
+}
+
+/** D473 — where the script's other cast go: stacked down from under the lead's slot. */
+export function castAvatarPosition(script: XYPosition, kb: Placed | null, index: number): XYPosition {
+  const lead = leadAvatarPosition(script, kb);
+  return { x: lead.x, y: lead.y + (index + 1) * (PRESENTER_CARD_HEIGHT + AVATAR_STACK_GAP) };
+}
+
+/** D473, amending D460 — where Fan out's asset column goes: left of the avatar stack, from level
+ *  with the script, so a long cast never pushes it down or sits under it. With no KB and no avatar
+ *  in the lead's slot there is no stack, and it sits beside the script. */
+export function assetColumnAnchor(
+  script: XYPosition, kb: Placed | null, nodes: readonly Pick<AppNode, "type" | "position">[], gap: number,
+): { right: number; top: number } {
+  const slot = leadAvatarPosition(script, kb);
+  const stacked = kb !== null || nodes.some((n) => n.type === "avatar" && n.position.x === slot.x);
+  return { right: (stacked ? slot.x : script.x) - gap, top: script.y };
+}
+
 export const AVATAR_DRAG_MIME = "application/x-creativeos-gallery-avatar";
 
 export function parseAvatarDragPayload(raw: string): { avatarId: string } | null {
@@ -23,6 +65,11 @@ export function parseAvatarDragPayload(raw: string): { avatarId: string } | null
   } catch {
     return null;
   }
+}
+
+/** Whether this avatar already has a node on the canvas. */
+export function avatarOnCanvas(avatarId: string, nodes: readonly AppNode[]): boolean {
+  return nodes.some((n) => n.type === "avatar" && (n.data as { avatarId?: unknown }).avatarId === avatarId);
 }
 
 function avatarNodeIds(nodes: readonly AppNode[]): Set<string> {

@@ -18,7 +18,7 @@ import { isCollapsibleType, isShotCollapsed, withoutCollapsed } from "@/lib/canv
 import { editorConnectRefusal } from "@/lib/editor/rules";
 import { computeGenerationLocks, sameLocks } from "@/lib/editor/generation-lock";
 import type { GenerationLock } from "@/lib/editor/types";
-import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
+import { PRESENTER_REPLACED_MESSAGE, assetColumnAnchor, replacedPresenterEdges, scriptKbNode } from "@/lib/avatars/canvas";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
@@ -53,7 +53,6 @@ import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import { scriptAssetCanvasNodes, type ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
 import { createScriptComposites } from "@/services/script-composites.service";
 import { pendingPlateData, pendingStoryboardData } from "@/lib/scripts/script-composites";
-import { PRESENTER_CARD_HEIGHT } from "@/lib/avatars/canvas";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -706,16 +705,9 @@ export function createCanvasStore(
         target: n.id,
       }));
       const panels = storyboardPanelNodes(created, shots, storyboardPanels);
-      // D460 — the script's assets go in one column left of the Script card, under its presenter
-      // avatar when it has one, so none lands on the script, the clips or each other.
-      const presenter = get().edges
-        .filter((e) => e.target === scriptNodeId)
-        .map((e) => get().nodes.find((n) => n.id === e.source))
-        .find((n) => n?.type === "avatar");
-      const column = {
-        right: script.position.x - ASSET_GAP,
-        top: presenter ? presenter.position.y + (presenter.measured?.height ?? PRESENTER_CARD_HEIGHT) + ASSET_GAP : script.position.y,
-      };
+      // D460, D473 — the script's assets go in one column left of the Script's avatar stack, so
+      // none lands on the avatars, the script, the clips or each other.
+      const column = assetColumnAnchor(script.position, scriptKbNode(scriptNodeId, get().nodes, get().edges), get().nodes, ASSET_GAP);
       // D450 — one Product / Location node per asset the new clips use, wired into each of them;
       // D456 — a generated plate is a Composite, made with the storyboard panels below.
       const assetNodes = scriptAssetCanvasNodes({

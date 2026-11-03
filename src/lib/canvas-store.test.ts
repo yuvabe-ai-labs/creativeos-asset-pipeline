@@ -1364,15 +1364,21 @@ describe("fanOutShots with script products and locations (D450)", () => {
   });
 
   // D460 — the products and places sat on the Script card and spilled into the clips.
-  it("places the assets in a column left of the script, under its presenter avatar", () => {
+  it("with a Brand KB wired in, places the assets left of the stack under it (D473)", () => {
+    const kb = { id: "kb", type: "kb", position: { x: -280, y: 0 }, data: {} } as unknown as AppNode;
+    const store = createCanvasStore([scriptNode(), kb], [{ id: "e-kb", source: "kb", target: "sa" }]);
+    store.getState().fanOutShots("sa", "canvas-1");
+    expect(store.getState().fanOutLayout?.column).toMatchObject({ right: -332 - 40, top: 0 });
+  });
+
+  it("places the assets in a column left of the avatar beside the script, level with the script (D473)", () => {
     const avatar = { id: "av", type: "avatar", position: { x: -320, y: 0 }, measured: { width: 280, height: 500 }, data: { avatarId: "a1" } } as AppNode;
     const store = createCanvasStore([scriptNode(), avatar], [{ id: "e-av", source: "av", target: "sa" }]);
     store.getState().fanOutShots("sa", "canvas-1");
     const { nodes, fanOutLayout } = store.getState();
     const product = nodes.find((n) => n.type === "product")!;
-    expect(product.position.x + 340).toBeLessThanOrEqual(-40);
-    expect(product.position.y).toBeGreaterThanOrEqual(500);
-    expect(fanOutLayout?.column).toMatchObject({ right: -40, top: 540 });
+    expect(product.position.x + 340).toBeLessThanOrEqual(-360);
+    expect(fanOutLayout?.column).toMatchObject({ right: -360, top: 0 });
     expect(fanOutLayout?.column?.ids).toEqual(expect.arrayContaining([product.id]));
   });
 
