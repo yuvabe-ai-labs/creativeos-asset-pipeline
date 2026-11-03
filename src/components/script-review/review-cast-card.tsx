@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { AvatarSheetImage } from "@/components/avatars/avatar-sheet-image";
 import { AvatarSheetViews } from "@/components/avatars/avatar-sheet-views";
+import { AvatarSheetWithClip } from "@/components/avatars/avatar-sheet-with-clip";
 import { castAnchor } from "@/lib/scripts/anchors";
 import type { CastMember } from "@/lib/scripts/schema";
 import type { AvatarSnapshot } from "@/lib/script-review/types";
@@ -35,14 +36,18 @@ export function ReviewCastCard({ member, avatar, showAvatar }: { member: CastMem
       {showAvatar &&
         (avatar ? (
           <div className="flex flex-col gap-4">
-            {/* D395: the one sheet image; a version shared before it was frozen shows its views. */}
-            {avatar.sheet ? (
-              <AvatarSheetImage name={member.name} sheet={{ url: avatar.sheet }} generating={false} />
-            ) : (
-              <div className="max-w-44">
-                <AvatarSheetViews columns={2} name={member.name} views={snapshotViewImages(avatar.views)} generating={[]} />
-              </div>
-            )}
+            {/* D395: the one sheet image; a version shared before it was frozen shows its views.
+                D466: the shared video preview plays beside it. */}
+            <AvatarSheetWithClip
+              clipUrl={avatar.preview ?? null}
+              sheet={avatar.sheet ? (
+                <AvatarSheetImage name={member.name} sheet={{ url: avatar.sheet }} generating={false} />
+              ) : (
+                <div className="max-w-44">
+                  <AvatarSheetViews columns={2} name={member.name} views={snapshotViewImages(avatar.views)} generating={[]} />
+                </div>
+              )}
+            />
             <div className="flex min-w-0 flex-col gap-4">
               {avatar.voice && (
                 <div className="flex flex-col gap-1.5 text-sm">

@@ -8327,3 +8327,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A right-hand column with Cast / Locations / Products jump links (the "compact" mockup). Two-up tiles (each ~830px tall at 9:16). Landscape cards and a rows layout. Pickers inside the panel view only (the user sets products and locations on the sheet). Location comments and client review of locations or products. Thumbnails and "used in" toggles for assigning locations and products (parked).
 
 **Originated →** [2026-11-02-visualise-storyboard-sheet-design.md](2026-11-02-visualise-storyboard-sheet-design.md); mockups on the Design canvas ("2 · Visualise, storyboard sheet (Nov brainstorm)").
+
+### D466 — An avatar's video preview is shown beside its four views, to the team and to the client *(recorded 2026-11-03; extends D294, D465)*
+
+**Decision.** Wherever an avatar's four views are shown for review, its video preview plays in place beside them (9:16, as tall as the sheet): in the Visualise avatar popup (which drops its separate "Watch" dialog; an out-of-date clip shows dimmed with an "Out of date" badge), and on the client's cast card. A share freezes each cast avatar's latest preview only when it finished and still matches the avatar's face and voice (no running, failed or out-of-date clip ever reaches a client); the previews for the whole cast are read in one query, beside the avatars. A version shared before this has no preview; sharing again adds it.
+
+**Why.** User, 3 Nov 2026: the preview is how a client hears and sees the avatar speak; it should be reviewable where the avatar is reviewed.
+
+**Rejected.** A per-avatar lookup at share time (one query per cast member). Freezing a stale or running preview. Showing the clip behind a "Watch" button.
+
+**Originated →** conversation in this session.

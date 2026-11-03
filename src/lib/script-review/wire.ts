@@ -81,6 +81,7 @@ const versionVisualsSchema = z.object({
       views: z.object({ front: viewUrl, left: viewUrl, right: viewUrl, back: viewUrl }),
       sheet: viewUrl.optional(),
       voice: z.object({ name: z.string().nullable(), sampleUrl: z.string().nullable() }).nullable(),
+      preview: viewUrl.optional(),
     }),
   ),
   panels: z.record(z.string(), z.object({ takeId: z.string(), url: z.string() })),

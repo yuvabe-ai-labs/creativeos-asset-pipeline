@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AvatarSheetImage } from "@/components/avatars/avatar-sheet-image";
 import type { useCastAvatarMaker } from "@/hooks/use-cast-avatar-maker";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { CastMember } from "@/lib/scripts/schema";
@@ -15,6 +14,7 @@ import { CastSlotAiMaker } from "./cast-slot-ai-maker";
 import { CastSlotPhotoMaker } from "./cast-slot-photo-maker";
 import { CastSlotVoice } from "./cast-slot-voice";
 import { CastSlotPreview } from "./cast-slot-preview";
+import { CastSlotSheet } from "./cast-slot-sheet";
 import { Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
@@ -52,9 +52,6 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
   // One sheet, shown as the image it is made as (D395). Only once its views exist: a sheet that
   // could not be cut, or an older single-image sheet, must not look finished.
   const generating = maker.step === "views" || maker.step === "face";
-  // D465: one avatar per person — the same sheet whichever tab is open; the tabs only choose how
-  // to make (or remake) it.
-  const sheet = avatar?.sheetViews ? avatar.sheet : null;
 
   return (
     <Card className={cn("flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40", bare && "border-0 bg-transparent p-0 shadow-none ring-0")}>
@@ -78,7 +75,9 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
 
       {/* D465 — compact: the avatar, then how to make it right under it, then its voice. */}
       <div className="flex flex-col gap-1.5">
-        <AvatarSheetImage name={member.name} sheet={sheet} generating={generating} stale={avatar?.sheetStale ?? false} />
+        {/* D465: one avatar per person — the same sheet whichever tab is open. D466: its video
+            preview plays beside it. */}
+        <CastSlotSheet clientId={clientId} name={member.name} avatar={avatar} generating={generating} />
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
           {maker.step && <Loader2 className="size-3.5 animate-spin text-primary" strokeWidth={1.5} />}
           {maker.step ? STEP_COPY[maker.step] : castSlotLine(avatar)}

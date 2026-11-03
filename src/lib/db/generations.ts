@@ -339,6 +339,26 @@ export async function getLatestAvatarVoicePreview(avatarId: string): Promise<Gen
   return (data as GenerationRow | null) ?? null;
 }
 
+/** D466 — the most recent voice preview of each of these avatars, in one query (a share freezes
+ *  every cast member's at once). Avatars with none are absent from the map. */
+export async function getLatestAvatarVoicePreviews(avatarIds: string[]): Promise<Map<string, GenerationRow>> {
+  const ids = [...new Set(avatarIds.filter(isUuid))];
+  const latest = new Map<string, GenerationRow>();
+  if (ids.length === 0) return latest;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("*")
+    .in("avatar_id", ids)
+    .eq("inputs_snapshot->>slot", AVATAR_VOICE_PREVIEW_SLOT)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  for (const row of (data ?? []) as GenerationRow[]) {
+    if (row.avatar_id && !latest.has(row.avatar_id)) latest.set(row.avatar_id, row);
+  }
+  return latest;
+}
+
 /** Credits actually charged for this avatar — its images and voice previews — the ledger's
  *  settled amounts. */
 export async function sumAvatarCredits(avatarId: string): Promise<number> {

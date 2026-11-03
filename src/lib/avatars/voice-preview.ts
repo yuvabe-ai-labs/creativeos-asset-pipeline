@@ -208,3 +208,11 @@ export function isVoicePreviewStale(
   const voiceId = avatar.voice?.mode === "named" ? avatar.voice.voiceId : null;
   return preview.voiceId !== voiceId || preview.frontUrl !== (avatar.front?.url ?? null);
 }
+
+/** D466 — the clip a share may freeze for the client: a finished preview that still matches the
+ *  avatar's face and voice. A running, failed or out-of-date preview is never shown to a client. */
+export function sharablePreviewUrl(row: GenerationRow | null, avatar: Pick<Avatar, "front" | "voice">): string | null {
+  const preview = row ? generationToVoicePreview(row) : null;
+  if (!preview || preview.status !== "succeeded" || !preview.url) return null;
+  return isVoicePreviewStale(preview, avatar) ? null : preview.url;
+}

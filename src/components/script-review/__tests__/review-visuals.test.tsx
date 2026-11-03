@@ -26,6 +26,23 @@ describe("ReviewCastCard", () => {
     expect(html).toContain("has-[[data-part-commented]]:ring-client/40");
   });
 
+  it("plays the avatar's shared video preview beside the four views (D466)", () => {
+    const html = renderInSurface(
+      testSurface({ commentable: [CAST] }),
+      <ReviewCastCard member={meenakshi} avatar={{ ...avatarSnapshot(), sheet: "https://cdn/sheet.png", preview: "https://cdn/preview.mp4" }} showAvatar />,
+    );
+    expect(html).toMatch(/<video[^>]*src="https:\/\/cdn\/preview.mp4"/);
+    expect(html.indexOf("https://cdn/preview.mp4")).toBeGreaterThan(html.indexOf("https://cdn/sheet.png"));
+  });
+
+  it("shows no player when the share has no preview", () => {
+    const html = renderInSurface(
+      testSurface({ commentable: [CAST] }),
+      <ReviewCastCard member={meenakshi} avatar={avatarSnapshot()} showAvatar />,
+    );
+    expect(html).not.toContain("<video");
+  });
+
   it("keeps the person's comment count in the header beside the box", () => {
     const html = renderInSurface(
       testSurface({ comments: [comment({ part: CAST })], commentable: [CAST] }),
