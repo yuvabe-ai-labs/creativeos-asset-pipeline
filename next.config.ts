@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const nextConfig: NextConfig = {
+  // Production runs on Cloud Run from a Docker image (Dockerfile). Standalone output copies
+  // only the traced server files into .next/standalone, so the image needs no node_modules.
+  output: "standalone",
   // Pin the workspace root to this project. Without this, a stray lockfile in a
   // parent directory makes Next.js infer the wrong root (see build warning).
   turbopack: {

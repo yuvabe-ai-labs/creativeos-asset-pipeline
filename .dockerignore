@@ -1,0 +1,29 @@
+# Secrets never enter the image or the Cloud Build upload.
+.env*
+!.env.example
+*.pem
+certificates
+
+# Rebuilt inside the image.
+node_modules
+.next
+*.tsbuildinfo
+
+# Not part of the app.
+.git
+.github
+.claude
+.vscode
+docs
+ref
+reports
+research-output
+brag-output
+agent-lab
+clipper-extension
+moodboard-extension
+moodboard-extension-local
+seed
+supabase
+coverage
+*.log
