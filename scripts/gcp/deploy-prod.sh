@@ -36,7 +36,7 @@ gcloud run deploy "$SERVICE" \
   --service-account="$RUN_SA" \
   --allow-unauthenticated \
   --port=8080 \
-  --cpu=1 --memory=1Gi \
+  --cpu=1 --memory=2Gi \
   --min-instances=1 --max-instances=10 \
   --timeout=300 \
   --cpu-boost \
