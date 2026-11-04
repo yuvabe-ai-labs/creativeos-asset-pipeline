@@ -8504,3 +8504,23 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Showing the first few as chips with a "More" (still several chips for each person, and the user asked for a button and a dialog). A Select as on the cast card (no faces, and no search).
 
 **Originated →** conversation in this session.
+
+### D481 — A Button's press nudge never moves it off its own position *(recorded 2026-11-04)*
+
+**Decision.** `Button`'s press nudge is `[transform:translateY(1px)]`, not `translate-y-px`. `transform` adds to the `translate` property that Tailwind's position utilities write, so a Button centred with `-translate-y-1/2` moves 1px on press and stays under the pointer. A call site that cancels the nudge uses `[transform:none]`.
+
+**Why.** User, 4 Nov 2026: the ✕ on a focus view's Connected list took two or more clicks. `translate-y-px` and `-translate-y-1/2` write the same variable, so on mouse-down the 24px ✕ lost its centring and jumped 13px down. A press on its upper half was released over the row behind it, and the browser fires no click when press and release land on different elements. Checked in Chrome with real mouse events: before, presses above centre gave no click and presses below centre did; after, all did.
+
+**Rejected.** Fixing only the ✕ by positioning it through a wrapper (every other centred Button, such as the Generation tray's toggle and the image zoom's arrows, would keep the same fault).
+
+**Originated →** conversation in this session.
+
+### D482 — A Video Gen input shows the moment it is picked, and stays display-only until confirmed *(recorded 2026-11-04; refines D439)*
+
+**Decision.** Video Gen's + Add puts the new input on the cached list at once, as D439 does for removal. A File, Draw or generated image gets its real row, built by `upstreamImageOf`, which the upstream-images route also uses. An Avatar, Product, Location or prompt node gets a loading row (`RailPendingItem`), since only the server can expand it. `loadingConnected` holds the role writes and Generate until the re-read confirms. Each add or removal cancels older reads, and only the latest rewire reads.
+
+**Why.** User, 4 Nov 2026: adding a node to Video Gen felt slow. Its list reads persisted edges, so nothing changed until a whole-canvas save and a server read had finished, with no sign that the add had worked. Image Gen does not wait, because it derives its rows from the store.
+
+**Rejected.** Deriving Video Gen's whole list from the store (its rows depend on server work: avatar and product expansion and the rendered prompt). Letting role writes run on the instant row (CLAUDE.md performance rule 10: cached data is for showing). Saving only what changed, which is worth doing for every save but is a larger, separate change to autosave.
+
+**Originated →** conversation in this session.
