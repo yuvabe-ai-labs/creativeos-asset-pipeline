@@ -26,6 +26,11 @@ gcloud projects add-iam-policy-binding "$PROJECT" --condition=None --quiet \
 # Storage access for the app itself — replaces the JSON key on Cloud Run.
 gcloud storage buckets add-iam-policy-binding "gs://$PROD_BUCKET" --quiet \
   --member="serviceAccount:$RUN_SA" --role=roles/storage.objectAdmin >/dev/null
+# Signed URLs: with no key file there is no private key to sign with, so the storage library
+# asks IAM to sign (signBlob) as this account — which needs Token Creator on itself.
+gcloud services enable iamcredentials.googleapis.com
+gcloud iam service-accounts add-iam-policy-binding "$RUN_SA" --quiet \
+  --member="serviceAccount:$RUN_SA" --role=roles/iam.serviceAccountTokenCreator >/dev/null
 
 echo "== Build service account $BUILD_SA (pushes images, writes build logs)"
 for role in roles/artifactregistry.writer roles/logging.logWriter roles/storage.objectViewer; do
