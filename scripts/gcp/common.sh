@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT="yuvabe-500205"
 REGION="australia-southeast1" # Sydney — next to the production Supabase database (perf rule 7)
 REPO="creativeos"
-SERVICE="creativeos-prod"
+SERVICE="creativeos-yuvabe"
 RUN_SA_NAME="creativeos-prod-run"
 RUN_SA="${RUN_SA_NAME}@${PROJECT}.iam.gserviceaccount.com"
 PROD_BUCKET="creativeos-assets"
