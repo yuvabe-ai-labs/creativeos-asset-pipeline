@@ -75,6 +75,25 @@ export async function _signPutUrl(
   return url;
 }
 
+// V4 signed URL that saves a stored file under `fileName` instead of playing it in the tab. A
+// `download` attribute alone can't do this: browsers ignore it for another domain's file.
+export async function _signDownloadUrl(
+  path: string,
+  fileName: string,
+  expiresMs = 15 * 60 * 1000,
+): Promise<string> {
+  const [url] = await getStorage()
+    .bucket(getBucketName())
+    .file(path)
+    .getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: Date.now() + expiresMs,
+      responseDisposition: `attachment; filename="${fileName}"`,
+    });
+  return url;
+}
+
 export async function _remove(path: string): Promise<void> {
   await getStorage()
     .bucket(getBucketName())

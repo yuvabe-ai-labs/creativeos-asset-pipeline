@@ -11,6 +11,7 @@ import {
 import { CommentComposer } from "./comment-composer";
 import { CommentList } from "./comment-list";
 import { NameGate } from "./name-gate";
+import { ReviewDownloadButton } from "./review-download-button";
 import { ReviewVideo } from "./review-video";
 
 export function ClientReviewPage({ token, initial }: { token: string; initial: PublicReview }) {
@@ -64,23 +65,32 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
       </div>
 
       <div className="hidden flex-1 flex-col group-data-[reviewer=known]/review:flex lg:mx-auto lg:w-full lg:max-w-6xl lg:px-6 lg:py-6">
-        <header className="flex items-baseline justify-between gap-3 px-4 pt-4 pb-3 lg:px-0">
+        <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 pt-4 pb-3 lg:flex-nowrap lg:items-center lg:px-0">
           <h1 className="font-display text-xl font-semibold tracking-tight lg:text-2xl">{review.title || "Your cut"}</h1>
-          <p className="shrink-0 text-sm text-muted-foreground">
-            {name && <>{name}{" · "}</>}
-            <Button
-              variant="link"
-              onClick={() => { videoRef.current?.pause(); clearReviewerName(browserStore()); setName(null); }}
-              className="h-auto p-0 text-sm"
-            >
-              change
-            </Button>
-          </p>
+          <div className="flex shrink-0 items-center gap-4">
+            <p className="text-sm text-muted-foreground">
+              {name && <>{name}{" · "}</>}
+              <Button
+                variant="link"
+                onClick={() => { videoRef.current?.pause(); clearReviewerName(browserStore()); setName(null); }}
+                className="h-auto p-0 text-sm"
+              >
+                change
+              </Button>
+            </p>
+            {/* Beside the title on a wide screen: under a tall reel it would fall below the fold. */}
+            <ReviewDownloadButton token={token} className="hidden lg:inline-flex" />
+          </div>
         </header>
 
         <div className="flex flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6">
           <div className="sticky top-0 z-10 bg-background px-4 pb-3 lg:static lg:px-0">
             <ReviewVideo ref={videoRef} src={review.videoUrl} />
+          </div>
+          {/* On a phone: full width under the video, outside its sticky block so it scrolls away
+              and leaves the video and comments the room. */}
+          <div className="px-4 pb-3 lg:hidden">
+            <ReviewDownloadButton token={token} className="w-full" />
           </div>
           <section className="flex flex-1 flex-col lg:max-h-[80dvh] lg:rounded-xl lg:border lg:border-border lg:shadow-card">
             <p className="text-eyebrow px-4 pt-3 text-muted-foreground">

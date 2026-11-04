@@ -8475,4 +8475,52 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Dropping D299's rename: a parsed script still says "creator:" beside a face called Razel, and the model needs them to be one person. Renaming only when the speaker matches no avatar: a typed name ("Someone else…") matches none, which is exactly the case that broke.
 
+### D478 — A client can download the cut from the review page *(recorded 2026-11-03; extends D309)*
+
+**Decision.** The public review page has a "Download video" button: beside the title on a wide screen, and full width under the video on a phone, outside the video's sticky block. It links to `GET /api/r/:token/download`, which answers with a redirect to a V4 signed URL (15 minutes) whose `response-content-disposition` saves the file as the review's title in plain ASCII, with the cut's own extension. The share token is the only access check, as on the rest of the page.
+
+**Why.** User, 3 Nov 2026: a download button on the Open as client page, placed well, and right on mobile. The cut sits on the storage domain, where browsers ignore an `<a download>` and play the file in the tab. The redirect keeps the bytes out of the server (performance rule 8), and a link leaves a large file to the browser's own download.
+
+**Rejected.** A `download` attribute on the public URL (ignored across domains). Fetching a blob in the page (holds a whole video in a phone's memory). Streaming through a route (the bytes would pass through the function). Setting the download name on the stored file (the player reads that same file). One placement for both widths: under a tall reel on a wide screen it falls below the fold, and in a phone's header it squeezes the title.
+
+**Originated →** conversation in this session.
+
+### D479 — The lead's avatar sits under the Brand KB, the other cast stack below it connected to nothing, and Fan out's assets go left of them *(recorded 2026-11-03; amends D323, D460; refines D372)*
+
+**Decision.** When an approved script lands on a canvas (Create canvas, or the gallery), the lead's avatar is connected to the Script node as before, and every other cast member with a usable avatar (this client's, ready, not archived) gets an Avatar node with no edges. A presenter avatar goes under the Brand KB wired into its script, centred on the KB and 40px below it (`leadAvatarPosition`); with no KB wired in it goes 320px left of the script as before. The other cast stack straight down from that slot, 560px apart (a 520 card estimate and a 40 gap), and the slot stays free if the lead has no avatar. An avatar shared by two cast members, or the lead's own, is not added twice, and one already on the canvas is not added again. A cast member with no avatar stays as words in the shots. Fan out's asset column (D460) now sits left of that stack, from level with the script (`assetColumnAnchor`); with no KB and no avatar in the slot it stays beside the script. Nodes already on a canvas are not moved.
+
+**Why.** User, 3 Nov 2026: the canvas should hold all the script's cast with only the lead connected; the lead straight below the Brand KB, not overlapping it (at 320 left of a seeded script it covered the KB); the other cast stacked below the lead. Centred, because the avatar is 280 wide and the KB 176, with the script 280 from the KB's left edge: lined up on the left, the avatar would touch the Script card. The asset column moved because it ran through this space, and under a long cast it would otherwise start far down the canvas. A Script node still has one presenter (D298), and generation is unchanged: an unconnected avatar feeds nothing until someone wires it.
+
+**Rejected.** A row left of the lead, and a separate column 840px left of the script (earlier versions of this entry, replaced at the user's request). Lining the stack up with the KB's left edge (touches the Script). Starting Fan out's column below the whole stack (assets far from the script they belong to). Moving avatars on existing canvases (it would rearrange someone's layout unasked). Connecting the other cast to the Script (D298's connection replaces the presenter), or into the clips they appear in (the user asked for independent nodes). Adding them only on Create canvas (the gallery goes through the same step).
+
+**Originated →** conversation in this session.
+
+### D480 — The copilot offers avatars through one chip and a dialog, not a chip each *(recorded 2026-11-03; refines D362, paste-a-script §4.3)*
+
+**Decision.** Where the copilot asks who leads or who plays a character, it shows one chip ("Choose an avatar", or "Choose an avatar for Neeraj"), which opens a dialog of the client's avatars: each a face and name, searchable by name, with those that fit the character first and marked Suggested. Choosing one does what its chip did: for a character it links with no message, and the chip moves on to the next person in words; for the lead it sends the name with the avatar's id (D362). "Cast it for me" and the other chips stay as they are.
+
+**Why.** User, 3 Nov 2026: a client with dozens of avatars filled the chat with a chip for each, burying the question and the chips that matter. Faces also tell two avatars with one name apart better than "James · AI".
+
+**Rejected.** Showing the first few as chips with a "More" (still several chips for each person, and the user asked for a button and a dialog). A Select as on the cast card (no faces, and no search).
+
+**Originated →** conversation in this session.
+
+### D481 — A Button's press nudge never moves it off its own position *(recorded 2026-11-04)*
+
+**Decision.** `Button`'s press nudge is `[transform:translateY(1px)]`, not `translate-y-px`. `transform` adds to the `translate` property that Tailwind's position utilities write, so a Button centred with `-translate-y-1/2` moves 1px on press and stays under the pointer. A call site that cancels the nudge uses `[transform:none]`.
+
+**Why.** User, 4 Nov 2026: the ✕ on a focus view's Connected list took two or more clicks. `translate-y-px` and `-translate-y-1/2` write the same variable, so on mouse-down the 24px ✕ lost its centring and jumped 13px down. A press on its upper half was released over the row behind it, and the browser fires no click when press and release land on different elements. Checked in Chrome with real mouse events: before, presses above centre gave no click and presses below centre did; after, all did.
+
+**Rejected.** Fixing only the ✕ by positioning it through a wrapper (every other centred Button, such as the Generation tray's toggle and the image zoom's arrows, would keep the same fault).
+
+**Originated →** conversation in this session.
+
+### D482 — A Video Gen input shows the moment it is picked, and stays display-only until confirmed *(recorded 2026-11-04; refines D439)*
+
+**Decision.** Video Gen's + Add puts the new input on the cached list at once, as D439 does for removal. A File, Draw or generated image gets its real row, built by `upstreamImageOf`, which the upstream-images route also uses. An Avatar, Product, Location or prompt node gets a loading row (`RailPendingItem`), since only the server can expand it. `loadingConnected` holds the role writes and Generate until the re-read confirms. Each add or removal cancels older reads, and only the latest rewire reads.
+
+**Why.** User, 4 Nov 2026: adding a node to Video Gen felt slow. Its list reads persisted edges, so nothing changed until a whole-canvas save and a server read had finished, with no sign that the add had worked. Image Gen does not wait, because it derives its rows from the store.
+
+**Rejected.** Deriving Video Gen's whole list from the store (its rows depend on server work: avatar and product expansion and the rendered prompt). Letting role writes run on the instant row (CLAUDE.md performance rule 10: cached data is for showing). Saving only what changed, which is worth doing for every save but is a larger, separate change to autosave.
+
 **Originated →** conversation in this session.

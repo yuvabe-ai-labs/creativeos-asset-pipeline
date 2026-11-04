@@ -1,6 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getPromptUpstream, withAvatarImages } from "@/lib/avatars/presenter-server";
-import { scriptAssetIds, scriptAssetTagOf, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
+import { scriptAssetIds, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
 import { planCitedRefIds, renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { multishotVoiceover } from "@/lib/nodes/voiceover";
@@ -16,7 +16,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { videoGenClientModelMap, usableVideoModelId } from "@/lib/video-gen/client-models";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
-import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { upstreamImageOf } from "@/lib/video-gen/upstream-image";
 
 export async function GET(
   req: Request,
@@ -50,42 +50,10 @@ export async function GET(
       // or into its prompt node, on every lane. It used to count through a Multishot Prompt only:
       // one on a Motion Prompt was the writer's vision context and never reached the video model.
       // Mirrors video-generate/route.ts.
-      const directIds = new Set(direct.map((u) => u.nodeId));
-      const promptUpstreamIds = new Set(promptUpstreamBatches.flat().map((u) => u.nodeId));
-
-      const images = allUpstream
-        .filter((u) => {
-          if (u.type === "file" || u.type === "draw") {
-            const d = u.data as Record<string, unknown>;
-            return d.fileKind === "image" && typeof d.fileUrl === "string";
-          }
-          if (
-            isGeneratedImageType(u.type) &&
-            (directIds.has(u.nodeId) || promptUpstreamIds.has(u.nodeId))
-          ) {
-            return typeof u.activeOutput === "string";
-          }
-          return false;
-        })
-        .map((u) => {
-          const d = u.data as Record<string, unknown>;
-          // D450 — a script's product or location picture goes by its name ("Chupps, angle 2").
-          const tag = scriptAssetTagOf(d);
-          return {
-            id: u.nodeId,
-            type: u.type,
-            imageUrl: isGeneratedImageType(u.type)
-              ? (u.activeOutput as string)
-              : (d.fileUrl as string),
-            filename: tag
-              ? tag.angle > 0 ? `${tag.name}, angle ${tag.angle + 1}` : tag.name
-              : typeof d.filename === "string" ? d.filename : undefined,
-            ...(tag && (tag.kind === "product" || tag.kind === "location") ? { asset: { kind: tag.kind, nodeId: u.nodeId.replace(/:\d+$/, ""), angle: tag.angle } } : {}),
-            fileSizeBytes: d.fileSizeBytes as number | undefined,
-            imageWidth: d.imageWidth as number | undefined,
-            imageHeight: d.imageHeight as number | undefined,
-          };
-        });
+      const images = allUpstream.flatMap((u) => {
+        const image = upstreamImageOf(u);
+        return image ? [image] : [];
+      });
 
       // Surface the connected prompt node so the focus view can display its motion prompt text —
       // a video-prompt node's string output directly, or a multishot-prompt node's MultishotPlan

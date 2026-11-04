@@ -1,6 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { _put, _remove, _signPutUrl, getBucketName, publicUrlFor } from "./gcs";
+import { _put, _remove, _signDownloadUrl, _signPutUrl, getBucketName, publicUrlFor } from "./gcs";
 import { resolveOwnership, type Ownership } from "./ownership";
 import { DUBBING_UPLOAD_EXPIRY_MS } from "@/lib/dubbing/constants";
 import { mimeToExt } from "@/lib/image-gen/utils";
@@ -531,6 +531,11 @@ export async function signClientReviewUpload(args: {
 }): Promise<SignedUploadResult> {
   const path = pathForClientReviewCut(args);
   return _sign(path, args.contentType);
+}
+
+/** D478 — a link that saves a client review's cut. `fileName` is plain ASCII (cutDownloadName). */
+export function signCutDownloadUrl(path: string, fileName: string): Promise<string> {
+  return _signDownloadUrl(path, fileName);
 }
 
 // D338 — one storyboard panel's bytes, stored as the provider returned them.
