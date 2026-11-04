@@ -129,6 +129,9 @@ import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 import { ShotAssetsRail } from "./shot-assets-rail";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCompilePreview } from "@/hooks/queries/compile-preview";
+import { resolveConnectedInputs } from "@/lib/image-gen/connected-inputs";
+import { connectedInputsKey } from "@/hooks/use-connected-inputs-key";
 
 export type ImageGenFocusViewProps = {
   open: boolean;
@@ -152,11 +155,43 @@ export type ImageGenFocusViewProps = {
     fileSizeBytes?: number;
     imageWidth?: number;
     imageHeight?: number;
+    /** D436 — an Avatar node's avatar, whose pictures the focus view reads from the cache. */
+    avatarId?: string;
   }>;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
 type ParamFormValues = Record<string, unknown>;
+
+// A connected input as the rail and the @-mention box show it. An avatar is named by the avatar
+// (its sheet "<name> sheet"); every other input keeps its type label.
+function toUpstreamCard(u: {
+  id: string;
+  type: string;
+  label?: string;
+  fileUrl?: string;
+  fileKind?: string;
+}): UpstreamNode {
+  const typeLabel =
+    u.type === "prompt"
+      ? "Image prompt"
+      : u.type === "image-gen"
+      ? "Image reference"
+      : u.type === "draw"
+      ? "Sketch"
+      : u.type === "file"
+      ? "Image file"
+      : u.type === "avatar"
+      ? u.label ?? "Avatar"
+      : u.type;
+  return {
+    id: u.id,
+    label: typeLabel,
+    type: u.type,
+    fileUrl: u.fileUrl,
+    fileKind: u.fileKind,
+  };
+}
 
 // ── Main focus view ───────────────────────────────────────────────────────────
 
@@ -174,9 +209,27 @@ export function ImageGenFocusView({
   editIntent,
   editReferenceNodeIds,
   baseReferenceNodeId,
-  upstream,
+  upstream: wiredUpstream,
   onPatch,
 }: ImageGenFocusViewProps) {
+  // Connected inputs, as the Prompt node's are: the rail LIST is the canvas's (what is wired in,
+  // and into its Prompt); every preview's CONTENT is the server's (compile-preview →
+  // resolveImageGenInputs, the rows image-generate sends), matched by node id. One read per open,
+  // and again when the wiring changes while open. Until it lands, the canvas's own content stands
+  // in; a wired Avatar (D436), whose picture only the server has, waits for it. `wired` is the
+  // rail; `upstream` is the inputs the references, the count and the @-mention box read (an
+  // avatar's front, then its fresh sheet).
+  const wiredKey = useMemo(() => connectedInputsKey(wiredUpstream), [wiredUpstream]);
+  const compiled = useCompilePreview(nodeId, wiredKey, open);
+  const { rail: wired, images: upstream } = useMemo(
+    () =>
+      resolveConnectedInputs(wiredUpstream, {
+        status: compiled.status,
+        rows: compiled.data?.connected,
+        refreshing: compiled.isPlaceholderData,
+      }),
+    [wiredUpstream, compiled.status, compiled.data, compiled.isPlaceholderData],
+  );
   const selectedModelId = modelId ?? DEFAULT_CLIENT_MODEL_ID;
   const model =
     imageGenClientModelMap[selectedModelId] ??
@@ -279,7 +332,7 @@ export function ImageGenFocusView({
   // through the same versions cache as the Prompt node's own focus view, so a prompt just
   // written there is already here. estimatedCredits/editEstimatedCredits are computed directly
   // below (D93) — no state, no fetch.
-  const promptNodeId = upstream.find((u) => u.type === "prompt")?.id ?? "";
+  const promptNodeId = wiredUpstream.find((u) => u.type === "prompt")?.id ?? "";
   const promptVersionsQuery = useNodeVersions<{ id: string; output: string | null }>(
     promptNodeId,
     open && Boolean(promptNodeId),
@@ -438,7 +491,7 @@ export function ImageGenFocusView({
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
     .filter(isImageInput)
-    .map((u) => ({ id: u.id, url: u.fileUrl as string, type: u.type }));
+    .map((u) => ({ id: u.id, url: u.fileUrl as string, type: u.type, label: u.label }));
 
   // Base = the node's current image: the active attempt if present, else a connected image.
   const baseIsAttempt = Boolean(activeVersionId);
@@ -484,6 +537,8 @@ export function ImageGenFocusView({
         ? "Sketch"
         : n.type === "image-gen"
         ? "Image reference"
+        : n.type === "avatar"
+        ? n.label ?? "Avatar"
         : "Image file",
     isBase: n.id === baseNodeId,
     violation: refViolationsByUrl.get(n.url),
@@ -563,59 +618,48 @@ export function ImageGenFocusView({
   // state for.
   const editEstimating = false;
 
-  const upstreamForCard: UpstreamNode[] = useMemo(
-    () =>
-      upstream.map((u) => {
-        const typeLabel =
-          u.type === "prompt"
-            ? "Image prompt"
-            : u.type === "image-gen"
-            ? "Image reference"
-            : u.type === "draw"
-            ? "Sketch"
-            : u.type === "file"
-            ? "Image file"
-            : u.type;
-        return {
-          id: u.id,
-          label: typeLabel,
-          type: u.type,
-          fileUrl: u.fileUrl,
-          fileKind: u.fileKind,
-        };
-      }),
-    [upstream]
-  );
+  // The rail lists one row per wired node; the @-mention box lists the images, numbered as the
+  // server numbers them (an avatar's sheet is its own entry).
+  const railUpstream: UpstreamNode[] = useMemo(() => wired.map(toUpstreamCard), [wired]);
+  const upstreamForCard: UpstreamNode[] = useMemo(() => upstream.map(toUpstreamCard), [upstream]);
 
-  // One preview per upstream node so every rail item has a detail view: the
-  // connected prompt gets its fetched active output, image inputs their fileUrl.
+  // One preview per rail row so every rail item has a detail view: the server's content once it
+  // has answered; until then the canvas's, and the connected prompt's cached active output.
   const connectedPreviews = useMemo<ConnectedPreview[]>(
     () =>
-      upstreamForCard.map((u) => ({
+      wired.map((u, i) => ({
         nodeId: u.id,
         type: u.type,
-        label: u.label,
+        label: railUpstream[i].label,
         text:
-          u.type === "prompt" && fetchedPrompt?.nodeId === u.id
+          u.previewState === "server"
+            ? u.text ?? ""
+            : u.type === "prompt" && fetchedPrompt?.nodeId === u.id
             ? fetchedPrompt.text
             : "",
         fileUrl: u.fileUrl,
         fileKind: u.fileKind,
       })),
-    [upstreamForCard, fetchedPrompt]
+    [wired, railUpstream, fetchedPrompt]
   );
 
   const selectedNode = isNodeSelected
     ? connectedPreviews.find((c) => c.nodeId === selected) ?? null
     : null;
-  // The prompt's text arrives async — show the loading fallback until it lands.
+  const selectedState = isNodeSelected
+    ? wired.find((u) => u.id === selected)?.previewState
+    : undefined;
+  // A stand-in with nothing to show yet waits for the server rather than reading "No content".
+  const selectedWaiting =
+    !!selectedNode &&
+    !selectedNode.fileUrl &&
+    !selectedNode.text.trim() &&
+    (compiled.isPending ||
+      compiled.isPlaceholderData ||
+      (selectedNode.type === "prompt" && loadingPreview));
   const selectedNodeReady =
     !!selectedNode &&
-    !(
-      selectedNode.type === "prompt" &&
-      !selectedNode.text.trim() &&
-      loadingPreview
-    );
+    (selectedState === "server" || (selectedState === "placeholder" && !selectedWaiting));
 
   const mode: "skeleton" | "result" | "empty" = generating
     ? "skeleton"
@@ -1054,7 +1098,7 @@ export function ImageGenFocusView({
                   <ImageGenUsagePopover
                     versions={versions}
                     nodeId={nodeId}
-                    upstreamNodeIds={upstream.map((u) => u.id)}
+                    upstreamNodeIds={wired.map((u) => u.id)}
                   />
                 )}
                 <GuidedNextButton
@@ -1085,20 +1129,20 @@ export function ImageGenFocusView({
 
             <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
               <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-foreground/70">
-                Connected · {upstream.length}
+                Connected · {wired.length}
               </span>
               <AddConnection
                 targetId={nodeId}
                 targetType="image-gen"
-                connectedIds={upstream.map((u) => u.id)}
+                connectedIds={wired.map((u) => u.id)}
               />
             </div>
-            {upstream.length === 0 ? (
+            {wired.length === 0 ? (
               <p className="px-2.5 text-xs text-muted-foreground">
                 No inputs connected.
               </p>
             ) : (
-              upstreamForCard.map((u) => {
+              railUpstream.map((u) => {
                 const remove = editable ? removeFor(u.id, u.label) : null;
                 return (
                   <RailItem
@@ -1236,7 +1280,13 @@ export function ImageGenFocusView({
               {isNodeSelected &&
                 (selectedNodeReady && selectedNode ? (
                   <ConnectedDetailView node={selectedNode} />
-                ) : loadingPreview ? (
+                ) : selectedState === "error" ? (
+                  <div className="flex h-full items-center justify-center px-6 py-6">
+                    <p className="text-sm text-muted-foreground">
+                      Couldn&apos;t load this avatar&apos;s picture. Close and reopen to try again.
+                    </p>
+                  </div>
+                ) : selectedState === "loading" || selectedWaiting ? (
                   <div className="flex h-full flex-col gap-4 px-6 py-6">
                     <Skeleton className="h-3 w-28" />
                     <Skeleton className="min-h-0 flex-1 rounded-xl" />
@@ -1244,7 +1294,9 @@ export function ImageGenFocusView({
                 ) : (
                   <div className="flex h-full items-center justify-center px-6 py-6">
                     <p className="text-sm text-muted-foreground">
-                      This input has no preview yet.
+                      {selectedState === "missing"
+                        ? "This avatar has no picture yet, or is no longer in the library."
+                        : "This input has no preview yet."}
                     </p>
                   </div>
                 ))}

@@ -87,6 +87,8 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
           fileSizeBytes: d.fileSizeBytes as number | undefined,
           imageWidth: d.imageWidth as number | undefined,
           imageHeight: d.imageHeight as number | undefined,
+          // D436 — an Avatar node holds only its avatar's id; the focus view reads the pictures.
+          avatarId: n.type === "avatar" && typeof d.avatarId === "string" ? d.avatarId : undefined,
         };
       }),
     };

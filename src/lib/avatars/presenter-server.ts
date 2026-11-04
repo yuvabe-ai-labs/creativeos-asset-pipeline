@@ -123,6 +123,16 @@ export async function withPromptInputs(
   return [...seen.values()];
 }
 
+/** What an Image Gen node is fed: its own inputs (a wired Avatar as its images, a script's assets as
+ *  theirs), then what is wired into its Prompt (D436, D440). The one read both image-generate and
+ *  the focus view's compile-preview make, so the rail shows the pictures the request sends. */
+export async function getImageGenUpstream(nodeId: string): Promise<UpstreamOutput[]> {
+  return withPromptInputs(
+    withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId))),
+    ["prompt"],
+  );
+}
+
 export type SeedanceVoice = {
   avatarId: string;
   /** The audio Seedance is given, or null when there is none to give. */

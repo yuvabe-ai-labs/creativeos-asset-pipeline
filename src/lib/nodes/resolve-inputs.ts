@@ -1,6 +1,6 @@
 import "server-only";
 import { getNodeActiveKB, getNodeData, getUpstreamOutputs } from "@/lib/db/nodes";
-import { getPromptUpstream } from "@/lib/avatars/presenter-server";
+import { getImageGenUpstream, getPromptUpstream } from "@/lib/avatars/presenter-server";
 import { buildParseContext, normalizeSlices, type KBSliceKey } from "@/lib/kb/parse-context";
 import { getNodeOutput, renderShotForImage } from "@/lib/nodes/node-output";
 import { renderShotForVideo } from "@/lib/nodes/render-shot-for-video";
@@ -99,6 +99,32 @@ export async function resolvePromptInputs(
   // distinguish "connected but no output yet" from "not connected at all".
 
   return { clientContext, kbVersionId: kbCtx.kbVersionId, slices, upstream };
+}
+
+// resolveInputs for the Image Gen focus view's Connected rail: the rows image-generate sends
+// (getImageGenUpstream) — a wired Avatar as its front then its fresh sheet ("Avatar", "Avatar
+// sheet") — each image with its URL. No KB: an Image Gen node has no ambient context. A generated image's
+// output is its URL, so it travels as fileUrl, never as text.
+export async function resolveImageGenInputs(nodeId: string): Promise<UpstreamPreview[]> {
+  const ups = await getImageGenUpstream(nodeId);
+  return ups.map((u) => {
+    const generated = isGeneratedImageType(u.type);
+    const isFile = u.type === "file" || u.type === "draw";
+    return {
+      nodeId: u.nodeId,
+      versionId: u.versionId,
+      label: labelOf(u),
+      type: u.type,
+      text: generated ? "" : getNodeOutput({ type: u.type, data: u.data, activeOutput: u.activeOutput }),
+      fileUrl: isFile
+        ? (u.data.fileUrl as string | undefined)
+        : generated && typeof u.activeOutput === "string"
+          ? u.activeOutput
+          : undefined,
+      fileKind: isFile ? (u.data.fileKind as string | undefined) : generated ? "image" : undefined,
+      useLlm: u.type === "file" ? (u.data.useLlm as boolean | undefined) : undefined,
+    };
+  });
 }
 
 export type RawUpstream = {

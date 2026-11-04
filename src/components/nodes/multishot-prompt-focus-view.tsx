@@ -25,6 +25,7 @@ import { FieldLabel } from "./field-label";
 import { SliceToggles } from "./slice-toggles";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { GenerateFooter } from "./generate-footer";
+import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { visionAttachmentsOf, isVisionAttachment } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
@@ -378,6 +379,12 @@ export function MultishotPromptFocusView({
   // Same flush-then-fetch sequencing as video-prompt-focus-view: a node reached straight from
   // the guided flow exists only in the client store until autosave's debounce catches up, so
   // this flushes it before resolving inputs server-side. See that file's longer comment.
+  // Wiring an input while open (the rail's Add, the gallery, a ✕) re-runs the flush and the read
+  // below, so its preview shows without a close-and-reopen.
+  const inputsKey = useConnectedInputsKey(upstream, open, () => {
+    setInputsPersisted(false);
+    setLoadingPreview(true);
+  });
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -392,7 +399,7 @@ export function MultishotPromptFocusView({
     return () => {
       cancelled = true;
     };
-  }, [open, nodeId, flushAutosave]);
+  }, [open, nodeId, flushAutosave, inputsKey]);
 
   useEffect(() => {
     if (!open || !inputsPersisted) return;
