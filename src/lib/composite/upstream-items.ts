@@ -4,6 +4,7 @@ import type { Avatar } from "@/lib/avatars/schema";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { avatarSheetId } from "@/lib/video-gen/select-references";
 import { compositeContextOf, contextMentionables, type CompositeContext } from "./context";
+import { scriptAssetRowId, type LocationNodeData, type ProductNodeData } from "@/lib/scripts/asset-nodes";
 
 // D312 — the browser's view of what is wired into a composite: the focus view's rail (one row per
 // wired node) and what `@` offers. Nothing is mandatory, but everything wired must be mentionable
@@ -19,6 +20,8 @@ export type CompositeUpstreamItem = {
   fileKind?: string;
   /** An avatar's profile sheet, when it has one that is not out of date. */
   sheetUrl?: string;
+  /** D454 — a wired Product's other angles, after its main packshot (the server sends each). */
+  angleUrls?: string[];
   /** D320 — a wired Script, Shot or Multishot: its shots, read as context. */
   context?: CompositeContext;
 };
@@ -32,6 +35,8 @@ const TYPE_LABEL: Record<string, string> = {
   script: "Script",
   shot: "Shot",
   multishot: "Multishot",
+  product: "Product",
+  location: "Location",
 };
 
 function str(v: unknown): string | undefined {
@@ -46,6 +51,16 @@ function itemOf(n: AppNode, avatars: Avatar[]): CompositeUpstreamItem {
     const avatar = avatars.find((a) => a.id === d.avatarId);
     const sheetUrl = avatar?.sheet && !avatar.sheetStale ? avatar.sheet.url : undefined;
     return { id: n.id, type, label: avatar?.name ?? fallback, fileUrl: avatar?.front?.url, fileKind: "image", sheetUrl };
+  }
+  // D454 — a script's product (its packshot, then its angles) or location (its plate).
+  if (type === "product") {
+    const p = d as Partial<ProductNodeData>;
+    const urls = (p.images ?? []).map((i) => i.url);
+    return { id: n.id, type, label: p.name ?? fallback, fileUrl: urls[0], fileKind: "image", angleUrls: urls.slice(1) };
+  }
+  if (type === "location") {
+    const l = d as Partial<LocationNodeData>;
+    return { id: n.id, type, label: l.name ?? fallback, fileUrl: l.image?.url, fileKind: "image" };
   }
   if (isGeneratedImageType(type)) {
     return { id: n.id, type, label: str(d.title) ?? fallback, fileUrl: str(d.parsed), fileKind: "image" };
@@ -82,11 +97,16 @@ export function compositeUpstreamItems(
 export function compositeMentionUpstream(items: CompositeUpstreamItem[]): CompositeUpstreamItem[] {
   return items
     .filter((i) => Boolean(i.fileUrl) && i.fileKind === "image")
-    .flatMap((i) =>
-      i.type === "avatar" && i.sheetUrl
-        ? [i, { id: avatarSheetId(i.id), type: "avatar", label: `${i.label} sheet`, fileUrl: i.sheetUrl, fileKind: "image" }]
-        : [i],
-    );
+    .flatMap((i) => {
+      if (i.type === "avatar" && i.sheetUrl) {
+        return [i, { id: avatarSheetId(i.id), type: "avatar", label: `${i.label} sheet`, fileUrl: i.sheetUrl, fileKind: "image" }];
+      }
+      // Each angle under the id the server's row has (scriptAssetRowId), so a chip resolves.
+      const angles = (i.angleUrls ?? []).map((url, n) => ({
+        id: scriptAssetRowId(i.id, n + 1), type: i.type, label: `${i.label}, angle ${n + 2}`, fileUrl: url, fileKind: "image",
+      }));
+      return [i, ...angles];
+    });
 }
 
 /** A wired input as the shared read-only preview panel shows it (ConnectedDetailView): its image,

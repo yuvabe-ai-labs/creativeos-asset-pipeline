@@ -25,6 +25,8 @@ import { saveCanvasNodesAction } from "@/lib/actions/nodes";
 import { readClipboardImage, clipboardHasImage } from "@/lib/nodes/clipboard-image";
 import { fileNodeService } from "@/services/file-node.service";
 import { AvatarNode } from "@/components/nodes/avatar-node";
+import { ProductNode } from "@/components/nodes/product-node";
+import { LocationNode } from "@/components/nodes/location-node";
 import { ScriptNode } from "@/components/nodes/script-node";
 import { KBNode } from "@/components/nodes/kb-node";
 import { FileNode } from "@/components/nodes/file-node";
@@ -80,6 +82,8 @@ const nodeTypes: NodeTypes = {
   script: ScriptNode,
   kb: KBNode,
   avatar: AvatarNode,
+  product: ProductNode,
+  location: LocationNode,
   file: FileNode,
   text: TextNode,
   prompt: PromptNode,

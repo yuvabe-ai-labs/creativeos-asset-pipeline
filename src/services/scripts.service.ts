@@ -3,7 +3,7 @@ import type { ScriptStage } from "@/lib/scripts/constants";
 import type { StoryboardPanel } from "@/lib/scripts/storyboard";
 import { readJson } from "./read-json";
 
-type ScriptDetail = { script: Script; leadAvatarId: string | null; storyboard: StoryboardPanel[] };
+type ScriptDetail = { script: Script; leadAvatarId: string | null; castAvatarIds: string[]; storyboard: StoryboardPanel[] };
 
 class ScriptsService {
   async list(clientId: string, stage?: ScriptStage): Promise<Script[]> {

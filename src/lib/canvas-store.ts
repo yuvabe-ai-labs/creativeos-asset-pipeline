@@ -18,11 +18,11 @@ import { isCollapsibleType, isShotCollapsed, withoutCollapsed } from "@/lib/canv
 import { editorConnectRefusal } from "@/lib/editor/rules";
 import { computeGenerationLocks, sameLocks } from "@/lib/editor/generation-lock";
 import type { GenerationLock } from "@/lib/editor/types";
-import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
-import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { PRESENTER_REPLACED_MESSAGE, assetColumnAnchor, replacedPresenterEdges, scriptKbNode } from "@/lib/avatars/canvas";
+import { DEFAULT_CLIENT_MODEL_ID, withoutDeprecatedImageModel } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
-import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
+import { DEFAULT_VIDEO_CLIENT_MODEL_ID, withoutDeprecatedVideoModel } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
 import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
@@ -46,9 +46,13 @@ import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multi
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import {
-  FAN_OUT_SETTLE_MS, SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, settleFanOutRows, storyboardPanelNodes, type FanOutLayout,
+  ASSET_CARD, ASSET_GAP, FAN_OUT_SETTLE_MS, SHOT_ROW_PITCH, STORYBOARD_ROW_PITCH, fanOutLayoutIds, settleFanOutRows,
+  storyboardPanelNodes, type FanOutLayout,
 } from "@/lib/scripts/storyboard-canvas";
 import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
+import { scriptAssetCanvasNodes, type ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
+import { createScriptComposites } from "@/services/script-composites.service";
+import { pendingPlateData, pendingStoryboardData } from "@/lib/scripts/script-composites";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -98,7 +102,7 @@ export type CanvasState = {
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => Promise<void>;
   duplicateNodes: (ids: string[], canvasId: string) => Promise<void>;
-  fanOutShots: (scriptNodeId: string) => void;
+  fanOutShots: (scriptNodeId: string, canvasId: string) => void;
   /** D227 — set one generation's mode from the Script's Visual script list. */
   setGenerationMode: (scriptNodeId: string, key: string, multishot: boolean) => void;
   /** D286 — cache one scene's fresh split on the Script node (never in `parsed`). */
@@ -166,6 +170,11 @@ function defaultData(type: string): AppNode["data"] {
     case "avatar":
       // Filled by whoever adds the node (the gallery) — an Avatar node is never added bare.
       return { avatarId: "" };
+    // D450 — made by Fan out with the script's data; never added bare.
+    case "product":
+      return { scriptId: "", productId: "", name: "", images: [] };
+    case "location":
+      return { scriptId: "", locationId: "", name: "", description: "", image: null };
     case "text":
       return {};
     case "shot":
@@ -210,7 +219,7 @@ export function createCanvasStore(
     layout: FanOutLayout | null,
   ): { nodes: AppNode[]; layout: FanOutLayout | null } => {
     if (!layout) return { nodes, layout };
-    const ids = new Set(layout.rows.flatMap((r) => [r.shotId, ...r.panelIds]));
+    const ids = fanOutLayoutIds(layout);
     if (changes.some((c) => c.type === "position" && c.dragging && ids.has(c.id))) return { nodes, layout: null };
     if (!changes.some((c) => c.type === "dimensions" && ids.has(c.id))) return { nodes, layout };
     const mine = new Map(nodes.filter((n) => ids.has(n.id)).map((n) => [n.id, n]));
@@ -219,10 +228,22 @@ export function createCanvasStore(
     return { nodes: nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)), layout };
   };
 
+  // D461, D467 — a node saved on a deprecated model opens on the fallback, here so that its card,
+  // its prompt node and its focus view all agree. Saved with the canvas's next change, not on load.
+  const startingNodes = initialNodes.map((n) => {
+    const withFallback =
+      n.type === "video-gen"
+        ? withoutDeprecatedVideoModel(n.data)
+        : n.type === "image-gen" || n.type === "composite"
+          ? withoutDeprecatedImageModel(n.data)
+          : n.data;
+    return withFallback === n.data ? n : ({ ...n, data: withFallback } as AppNode);
+  });
+
   const store = createStore<CanvasState>((set, get) => ({
     canvasName: initialCanvasName,
-    generationLocks: computeGenerationLocks(initialNodes, initialEdges),
-    nodes: initialNodes,
+    generationLocks: computeGenerationLocks(startingNodes, initialEdges),
+    nodes: startingNodes,
     edges: initialEdges,
     removedNodeIds: [],
     removedEdgeIds: [],
@@ -559,7 +580,7 @@ export function createCanvasStore(
     // With an approved storyboard (D382) each NEW node also gets its panel, wired into its image
     // handle. Only new nodes: a re-run never adds a second panel, and one the person deleted
     // stays deleted (spec A5).
-    fanOutShots: (scriptNodeId) => {
+    fanOutShots: (scriptNodeId, canvasId) => {
       const script = get().nodes.find((n) => n.id === scriptNodeId);
       if (!script) return;
       const data = script.data as {
@@ -569,6 +590,7 @@ export function createCanvasStore(
         groupingVersion?: GroupingVersion;
         sceneBeats?: SceneBeatCache;
         storyboard?: ScriptStoryboard;
+        assets?: ScriptCanvasAssets;
       };
       const parsed = data.parsed;
       const shots = parsed?.visual_script?.shots ?? [];
@@ -695,23 +717,79 @@ export function createCanvasStore(
         target: n.id,
       }));
       const panels = storyboardPanelNodes(created, shots, storyboardPanels);
+      // D460, D479 — the script's assets go in one column left of the Script's avatar stack, so
+      // none lands on the avatars, the script, the clips or each other.
+      const column = assetColumnAnchor(script.position, scriptKbNode(scriptNodeId, get().nodes, get().edges), get().nodes, ASSET_GAP);
+      // D450 — one Product / Location node per asset the new clips use, wired into each of them;
+      // D456 — a generated plate is a Composite, made with the storyboard panels below.
+      const assetNodes = scriptAssetCanvasNodes({
+        created,
+        shots,
+        assets: data.assets,
+        existing: get().nodes,
+        origin: { x: column.right - ASSET_CARD.width, y: column.top },
+        newId: () => crypto.randomUUID(),
+      });
+      const columnIds = [
+        ...assetNodes.nodes.map((n) => ({ id: n.id, y: n.position.y })),
+        ...assetNodes.plates.map((p) => ({ id: p.nodeId, y: p.position.y })),
+      ].sort((a, b) => a.y - b.y).map((a) => a.id);
+
+      // D460 — what the script generated (storyboard panels, location plates) joins the canvas at
+      // once, showing its picture, so the rows lay out in one go instead of filling a gap seconds
+      // later; the server then records each as a Composite with that picture as v1.
+      const pendingComposites: AppNode[] = [
+        ...panels.requests.flatMap((r) => {
+          const panel = storyboardPanels?.find((p) => p.label === r.label);
+          return panel ? [{ id: r.nodeId, type: "composite", position: r.position, data: pendingStoryboardData(panel) } as AppNode] : [];
+        }),
+        ...assetNodes.plates.flatMap((p) => {
+          const location = data.assets?.locations.find((l) => l.id === p.locationId);
+          return location && data.assets ? [{ id: p.nodeId, type: "composite", position: p.position, data: pendingPlateData(data.assets.scriptId, location) } as AppNode] : [];
+        }),
+      ];
+
       // D382 amended — the rows just made are laid out again from their measured sizes as they
-      // render (settleFanOut), for long enough that every panel image has loaded.
-      const fanOutLayout: FanOutLayout | null = panels.nodes.length > 0
+      // render (settleFanOut), for long enough that every panel image has loaded; D460 — and the
+      // asset column with them.
+      const fanOutLayout: FanOutLayout | null = panels.requests.length > 0 || columnIds.length > 0
         ? {
             top: baseY,
-            rows: created.map((n) => ({
+            rows: panels.requests.length === 0 ? [] : created.map((n) => ({
               shotId: n.id,
               panelIds: panels.edges.filter((e) => e.target === n.id).map((e) => e.source),
             })),
+            ...(columnIds.length > 0 ? { column: { ...column, ids: columnIds } } : {}),
           }
         : null;
 
       set({
-        nodes: [...get().nodes, ...created, ...panels.nodes],
-        edges: [...get().edges, ...createdEdges, ...panels.edges],
+        nodes: [...get().nodes, ...created, ...(assetNodes.nodes as AppNode[]), ...pendingComposites],
+        edges: [...get().edges, ...createdEdges, ...panels.edges, ...assetNodes.edges],
         fanOutLayout,
       });
+      if (pendingComposites.length > 0) {
+        const pendingIds = pendingComposites.map((n) => n.id);
+        // A picture the server could not record (its take or generation is gone) leaves the canvas.
+        const drop = (ids: string[]) => {
+          if (ids.length > 0) get().onNodesChange(ids.map((id) => ({ type: "remove", id })));
+        };
+        createScriptComposites(canvasId, { scriptNodeId, panels: panels.requests, plates: assetNodes.plates })
+          .then((made) => {
+            const byId = new Map(made.map((m) => [m.id, m]));
+            set({
+              nodes: get().nodes.map((n) => {
+                const m = byId.get(n.id);
+                return m ? ({ ...n, data: { ...(n.data as Record<string, unknown>), ...m.data, parsed: m.output } } as AppNode) : n;
+              }),
+            });
+            drop(pendingIds.filter((id) => !byId.has(id)));
+          })
+          .catch((e: unknown) => {
+            drop(pendingIds);
+            toast.error(e instanceof Error ? e.message : "Couldn't add the script's pictures.");
+          });
+      }
       if (fanOutLayout) {
         setTimeout(() => {
           if (get().fanOutLayout === fanOutLayout) set({ fanOutLayout: null });

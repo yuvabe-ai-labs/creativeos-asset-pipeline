@@ -71,7 +71,7 @@ export function presenterUpstreamRow(
       // A file node's processedOutput is its text block for the writer (node-output.ts). Identity
       // only: "as they appear in this image" once had the writer copy the portrait's plain
       // backdrop into the look as a "white studio" shot.
-      processedOutput: `${avatar.name}, ${lead ? "the" : "a"} person on camera in this shot. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.`,
+      processedOutput: `${avatar.name}, ${lead ? "the" : "a"} person on camera when a shot shows someone. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.`,
     },
     activeOutput: null,
     versionId: null,
@@ -142,16 +142,18 @@ function languageName(label: string | undefined): string | undefined {
  * exactly one on-camera speaker across the shot's lines, that speaker is the avatar; with two or
  * more, which one is unknown and nothing changes. Narration stays narration. Same rows back
  * (identity) when there is nothing to rename.
+ *
+ * D477 — a speaker picked by hand is never renamed and does not count: the operator said who it is.
  */
 export function withAvatarAsSpeaker<T extends PresenterRowInput>(rows: T[], avatarName: string): T[] {
   const name = avatarName.trim();
   if (!name) return rows;
   const speakers = new Set(
-    rows.flatMap(linesOf).filter(isOnScreenLine).map((l) => l.speaker!.trim().toLowerCase()),
+    rows.flatMap(linesOf).filter((l) => isOnScreenLine(l) && !l.picked).map((l) => l.speaker!.trim().toLowerCase()),
   );
   if (speakers.size !== 1) return rows;
   const rename = (lines: VoLine[] | undefined) =>
-    lines?.map((l) => (isOnScreenLine(l) ? { ...l, speaker: name } : l));
+    lines?.map((l) => (isOnScreenLine(l) && !l.picked ? { ...l, speaker: name } : l));
 
   return rows.map((row) => {
     if (row.type === "multishot") {

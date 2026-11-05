@@ -43,10 +43,10 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId
       return created;
     },
     describe: (instructions) => visualiseService.briefCast(clientId, scriptId, member.id, instructions),
-    generateFront: async (avatarId, { description, attributes }) => {
+    generateFront: async (avatarId, { description, attributes, relatives }) => {
       const { candidate } = await avatarsService.generateFront(clientId, avatarId, {
         description, attributes, styleId: AVATAR_STYLES[0].id,
-        modelId, batchId: crypto.randomUUID(),
+        modelId, batchId: crypto.randomUUID(), relatives,
       });
       return { generationId: candidate.generationId };
     },

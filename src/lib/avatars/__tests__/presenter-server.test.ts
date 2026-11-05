@@ -11,7 +11,7 @@ import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getNodeClientAndData, getScriptPresenterSource } from "@/lib/db/presenter";
 import { getAvatar } from "@/lib/db/avatars";
 import { prepareNamedVoiceReference } from "../voice-reference";
-import { getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withAvatarImages, withPromptInputs } from "../presenter-server";
+import { getImageGenUpstream, getPromptUpstream, loadPresenterForPromptNode, presenterVoiceForSeedance, withAvatarImages, withPromptInputs } from "../presenter-server";
 import { GENERATED, makeImage } from "./fixtures";
 
 const riyaLine = { text: "Hi", speaker: "Riya", delivery: "", language: "en" };
@@ -27,6 +27,46 @@ beforeEach(() => {
   vi.mocked(getNodeClientAndData).mockResolvedValue({ clientId: "c1", data: {} });
   vi.mocked(getScriptPresenterSource).mockResolvedValue({ avatarNodeId: "avatar-node-1", avatarId: "a1" });
   vi.mocked(getAvatar).mockResolvedValue(avatar);
+});
+
+describe("getPromptUpstream with script products and locations (D450)", () => {
+  it("reads the Product and Location nodes wired into the prompt node's shot, after its own inputs", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [
+          { nodeId: "loc", type: "location", activeOutput: null, versionId: null, data: { name: "Home kitchen", locationId: "kitchen", image: { url: "https://x/k.png" } } },
+          { nodeId: "panel", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/panel.png" } },
+        ]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    // D452 — the panel is not marked and not named as one, so it stays unread.
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "loc"]);
+    expect(ups[1].data).toMatchObject({ fileUrl: "https://x/k.png", scriptAsset: { kind: "location", name: "Home kitchen" } });
+  });
+});
+
+describe("getPromptUpstream with the clip's storyboard panel (D452)", () => {
+  it("reads the shot's panel after its product and location pictures", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [
+          { nodeId: "panel", type: "composite", activeOutput: "https://x/panel.png", versionId: "v1", data: { storyboardPanel: "S1", storyboardSketchUrl: "https://x/panel.png" } },
+          { nodeId: "loc", type: "location", activeOutput: null, versionId: null, data: { name: "Home kitchen", locationId: "kitchen", image: { url: "https://x/k.png" } } },
+        ]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "loc", "panel"]);
+    expect(ups[2].data.scriptAsset).toMatchObject({ kind: "storyboard", name: "S1 storyboard" });
+  });
+
+  // D453 — on Reel 03 the panel led as IMAGE_REF_0; it now comes after the avatar too.
+  it("puts the panel after the presenter's pictures", async () => {
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "prompt-1"
+      ? [shotRow([narratorLine])]
+      : [{ nodeId: "panel", type: "composite", activeOutput: "https://x/panel.png", versionId: "v1", data: { storyboardPanel: "S1", storyboardSketchUrl: "https://x/panel.png" } }]) as never);
+    const ups = await getPromptUpstream("prompt-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet", "panel"]);
+  });
 });
 
 describe("getPromptUpstream", () => {
@@ -177,5 +217,36 @@ describe("withAvatarImages", () => {
     vi.mocked(getUpstreamOutputs).mockResolvedValue([shotRow([riyaLine]), wired("avatar-node-1", "a1")] as never);
     const ups = await getPromptUpstream("prompt-1");
     expect(ups.map((u) => u.nodeId)).toEqual(["shot-1", "avatar-node-1", "avatar-node-1:sheet"]);
+  });
+});
+
+describe("getImageGenUpstream (D436, D440)", () => {
+  const avatarNode = (nodeId: string) => ({ nodeId, type: "avatar", activeOutput: null, versionId: null, data: { avatarId: "a1" } });
+  const fileNode = { nodeId: "f1", type: "file", activeOutput: null, versionId: null, data: { fileKind: "image", fileUrl: "https://x/f.png" } };
+
+  it("reads a wired Avatar as its front, then its fresh sheet, in its place", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([avatarNode("av-1"), fileNode] as never);
+    const ups = await getImageGenUpstream("ig-1");
+    expect(ups.map((u) => u.nodeId)).toEqual(["av-1", "av-1:sheet", "f1"]);
+    expect(ups[0]).toMatchObject({ type: "file", data: { presenter: true, title: "Riya", fileKind: "image", fileUrl: avatar.front!.url } });
+    expect(ups[1]).toMatchObject({ type: "file", data: { presenter: "sheet", title: "Riya", fileUrl: avatar.sheet!.url } });
+  });
+
+  it("drops an avatar that is gone or has no front", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockResolvedValue([avatarNode("av-1"), fileNode] as never);
+    vi.mocked(getAvatar).mockResolvedValue(null);
+    expect((await getImageGenUpstream("ig-1")).map((u) => u.nodeId)).toEqual(["f1"]);
+    vi.mocked(getAvatar).mockResolvedValue(makeAvatar({ front: null }));
+    expect((await getImageGenUpstream("ig-1")).map((u) => u.nodeId)).toEqual(["f1"]);
+  });
+
+  it("adds an avatar wired into its Prompt after its own inputs", async () => {
+    vi.mocked(getScriptPresenterSource).mockResolvedValue(null);
+    vi.mocked(getUpstreamOutputs).mockImplementation(async (id: string) => (id === "p1"
+      ? [avatarNode("av-2")]
+      : [{ nodeId: "p1", type: "prompt", activeOutput: "A mug", versionId: "pv1", data: {} }, fileNode]) as never);
+    expect((await getImageGenUpstream("ig-1")).map((u) => u.nodeId)).toEqual(["p1", "f1", "av-2", "av-2:sheet"]);
   });
 });

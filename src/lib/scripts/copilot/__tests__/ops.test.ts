@@ -13,10 +13,10 @@ const gen: OpsGen = { newShotId: () => `new${++n}`, avatarIds: new Set([AVATAR])
 const realGen: OpsGen = { newShotId, avatarIds: new Set() };
 
 const op = (o: Partial<EditOp> & Pick<EditOp, "op">): EditOp => ({
-  path: null, value: null, shotId: null, afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null, ...o,
+  path: null, value: null, shotId: null, afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null, product: null, location: null, ...o,
 });
 const fields = (beat: string, vo = "A line.", card = "A card."): ShotFields =>
-  ({ beat, lengthSeconds: 3, visual: `${beat} visual`, vo, onScreenText: card, onScreen: ["meenakshi"] });
+  ({ beat, lengthSeconds: 3, visual: `${beat} visual`, vo, onScreenText: card, onScreen: ["meenakshi"], products: [], location: "" });
 const ok = (r: ReturnType<typeof applyOps>) => { if (!r.ok) throw new Error(r.error); return r; };
 const others = (d: typeof doc, except: string[]) => d.shots.filter((s) => !except.includes(s.id));
 
@@ -90,7 +90,7 @@ describe("applyOps: the carry rule and the cast", () => {
   });
 
   it("drops unknown people from a shot", () => {
-    const r = ok(applyOps(doc, notes, [op({ op: "update_shot", shotId: "s01", shot: { ...fields("HOOK"), onScreen: ["meenakshi", "ghost"] } })], gen));
+    const r = ok(applyOps(doc, notes, [op({ op: "update_shot", shotId: "s01", shot: { ...fields("HOOK"), onScreen: ["meenakshi", "ghost"], products: [], location: "" } })], gen));
     expect(r.doc.shots[0].onScreen).toEqual(["meenakshi"]);
   });
 

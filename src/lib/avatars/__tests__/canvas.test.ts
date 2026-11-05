@@ -3,6 +3,7 @@ import type { Edge } from "@xyflow/react";
 import type { AppNode } from "@/lib/canvas-nodes";
 import {
   avatarVoiceLine, parseAvatarDragPayload, presenterAvatarId, presenterEdge, replacedPresenterEdges,
+  PRESENTER_CARD_HEIGHT, assetColumnAnchor, castAvatarPosition, leadAvatarPosition, scriptKbNode,
 } from "../canvas";
 
 const nodes = [
@@ -63,5 +64,50 @@ describe("avatarVoiceLine", () => {
     expect(avatarVoiceLine(null)).toBe("No voice");
     expect(avatarVoiceLine({ mode: "native" })).toBe("Chosen for me");
     expect(avatarVoiceLine({ mode: "named", voiceId: "x", name: "Surabhi", labels: {}, previewUrl: null })).toBe("Surabhi");
+  });
+});
+
+describe("the avatar stack under the Brand KB (D479)", () => {
+  const script = { x: 360, y: 120 };
+  // A new canvas's seeded Brand KB.
+  const kb = { position: { x: 80, y: 120 } };
+
+  it("centres the lead under the KB, clear of the KB and the Script", () => {
+    const lead = leadAvatarPosition(script, kb);
+    expect(lead).toEqual({ x: 28, y: 120 + 140 + 40 });
+    expect(lead.x + 280).toBeLessThan(script.x);
+  });
+
+  it("uses the KB's measured size once it has one", () => {
+    expect(leadAvatarPosition(script, { ...kb, measured: { width: 200, height: 100 } })).toEqual({ x: 40, y: 260 });
+  });
+
+  it("stacks the other cast straight down from the lead, without overlapping", () => {
+    const lead = leadAvatarPosition(script, kb);
+    const first = castAvatarPosition(script, kb, 0);
+    const second = castAvatarPosition(script, kb, 1);
+    expect(first.x).toBe(lead.x);
+    expect(second.x).toBe(lead.x);
+    expect(first.y).toBeGreaterThanOrEqual(lead.y + PRESENTER_CARD_HEIGHT);
+    expect(second.y).toBeGreaterThanOrEqual(first.y + PRESENTER_CARD_HEIGHT);
+  });
+
+  it("falls back to beside the script when no KB is wired in", () => {
+    expect(leadAvatarPosition(script, null)).toEqual({ x: 40, y: 120 });
+    expect(castAvatarPosition(script, null, 0).x).toBe(40);
+  });
+
+  it("finds only a KB wired into this script", () => {
+    const nodes = [{ id: "kb", type: "kb" }, { id: "s", type: "script" }, { id: "s2", type: "script" }];
+    const edges = [{ id: "e", source: "kb", target: "s" }];
+    expect(scriptKbNode("s", nodes, edges)?.id).toBe("kb");
+    expect(scriptKbNode("s2", nodes, edges)).toBeNull();
+  });
+
+  it("puts Fan out's column left of the stack, and beside the script when there is none", () => {
+    expect(assetColumnAnchor(script, kb, [], 40)).toEqual({ right: -12, top: 120 });
+    expect(assetColumnAnchor(script, null, [], 40)).toEqual({ right: 320, top: 120 });
+    const avatar = { type: "avatar" as const, position: { x: 40, y: 120 } };
+    expect(assetColumnAnchor(script, null, [avatar], 40)).toEqual({ right: 0, top: 120 });
   });
 });

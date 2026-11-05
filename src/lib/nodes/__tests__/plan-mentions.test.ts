@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planMentionables, resolvePlanMentions, LOOK_MENTION_ID } from "../plan-mentions";
+import { planMentionables, resolvePlanMentions } from "../plan-mentions";
 import type { MultishotCut } from "../multishot-cuts";
 
 const cuts: MultishotCut[] = [
@@ -9,9 +9,9 @@ const cuts: MultishotCut[] = [
 ];
 
 describe("planMentionables", () => {
-  it("offers the look first, then every shot in ladder order", () => {
+  // D442 — the look is the operator's "Rules for every shot" now; a refine note points at shots.
+  it("offers every shot in ladder order, and nothing else", () => {
     expect(planMentionables(cuts)).toEqual([
-      { id: LOOK_MENTION_ID, label: "Look & atmosphere", type: "look" },
       { id: "c1", label: "Shot 1", type: "shot" },
       { id: "c2", label: "Shot 2", type: "shot" },
       { id: "c3", label: "Shot 3", type: "shot" },
@@ -21,20 +21,13 @@ describe("planMentionables", () => {
   // The label is what the operator sees on the card; the cutId is a uuid they never see. Binding
   // on the id means renumbering the ladder cannot move an existing mention onto a different shot.
   it("labels by position but binds by cutId", () => {
-    const [, first] = planMentionables(cuts);
+    const [first] = planMentionables(cuts);
     expect(first.label).toBe("Shot 1");
     expect(first.id).toBe("c1");
   });
 
-  it("still offers the look when there are no shots yet", () => {
-    expect(planMentionables([])).toEqual([
-      { id: LOOK_MENTION_ID, label: "Look & atmosphere", type: "look" },
-    ]);
-  });
-
-  // A cut can never collide with the look's id, or a mention would resolve to the wrong thing.
-  it("uses a look id no cut can take", () => {
-    expect(LOOK_MENTION_ID).toContain(":");
+  it("offers nothing when there are no shots yet", () => {
+    expect(planMentionables([])).toEqual([]);
   });
 });
 
@@ -47,9 +40,10 @@ describe("resolvePlanMentions", () => {
     );
   });
 
-  it("resolves the look mention to a phrase the writer already knows", () => {
-    expect(resolvePlanMentions(`@[Look & atmosphere](${LOOK_MENTION_ID}) colder`, cuts)).toBe(
-      "the LOOK block colder",
+  // A note typed before D442 may still hold the old look token; it reads as its bare label.
+  it("reads an old look mention as its label", () => {
+    expect(resolvePlanMentions("@[Look & atmosphere](plan:look) colder", cuts)).toBe(
+      "Look & atmosphere colder",
     );
   });
 

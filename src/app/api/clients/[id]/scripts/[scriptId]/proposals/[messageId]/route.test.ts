@@ -21,7 +21,7 @@ const params = Promise.resolve({ id: "c1", scriptId: SCRIPT_ID, messageId: MSG }
 const decide = (decision: string) => jsonRequest(`http://localhost/api/clients/c1/scripts/${SCRIPT_ID}/proposals/${MSG}`, "POST", { decision });
 const card: ProposalCard = {
   kind: "proposal", status: "pending", summary: "Removed S2.", before: [], after: [],
-  ops: [{ op: "remove_shot", path: null, value: null, shotId: "s02", afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null }],
+  ops: [{ op: "remove_shot", path: null, value: null, shotId: "s02", afterShotId: null, shot: null, second: null, list: null, cast: null, itemId: null, product: null, location: null }],
 };
 
 describe("POST .../proposals/:messageId", () => {

@@ -3,16 +3,18 @@
 import { useId, useState, type ReactNode } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import type { CastMember, Shot } from "@/lib/scripts/schema";
+import type { CastMember, ScriptDoc, Shot } from "@/lib/scripts/schema";
 import { formatRange, groupByBeat, timeShots, type TimedShot } from "@/lib/scripts/timeline";
 import { SHOT_GRID, ScriptShotRow, type ShotState } from "./script-shot-row";
 import { ScriptShotRowsSkeleton } from "./script-shot-rows-skeleton";
 
 const COLUMNS = ["Time", "Visual", "VO", "On-screen text", "On screen"];
 
-export function ScriptShotList({ shots, cast, compact = false, aside, shotState, renderAfter, pendingRows = 0 }: {
+export function ScriptShotList({ shots, cast, assets, compact = false, aside, shotState, renderAfter, pendingRows = 0 }: {
   shots: Shot[];
   cast: CastMember[];
+  /** D446 — the script's products and locations, for each shot's picks. */
+  assets?: Pick<ScriptDoc, "products" | "locations">;
   /** Stacked rows for a narrow pane (Visualise), with no column header. */
   compact?: boolean;
   /** Drawn beside each compact row (Visualise: the panel status). */
@@ -32,6 +34,7 @@ export function ScriptShotList({ shots, cast, compact = false, aside, shotState,
       key={t.shot.id}
       timed={t}
       cast={cast}
+      assets={assets}
       compact={compact}
       aside={aside ? aside(t) : undefined}
       state={shotState?.(t)}

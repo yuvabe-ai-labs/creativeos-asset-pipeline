@@ -62,7 +62,10 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   // D372 — an approved script's canvas: Create canvas, or Open canvas once it has one.
   const scriptCanvas = script.stage === "approved" ? await getScriptCanvas(client.id, script.id) : null;
   const canvasAction = script.stage === "approved" ? (
+    // Keyed: a server-made element rendered among a client component's children otherwise trips
+    // React's list-key check in development.
     <ScriptCanvasButton
+      key="script-canvas"
       clientId={client.id}
       clientSlug={client.slug}
       script={{ id: script.id, title: `${label ? `${label} · ` : ""}${script.doc.header.title}` }}

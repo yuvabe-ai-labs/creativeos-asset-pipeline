@@ -62,9 +62,9 @@ export function TeamReviewBoard({ clientId, initial, initialReview }: {
         review={{
           actions: <ReviewActions clientId={clientId} script={script} review={review} commentCount={threadCount(placed)} />,
           contextMarker: <PartMarker part={{ kind: "context" }} className="self-end" />,
-          shotMarker: (shotId) => <PartMarker part={{ kind: "shot", shotId }} />,
+          // One marker per storyboard tile, its panel's threads counted in (D465).
+          shotMarker: (shotId) => <PartMarker part={{ kind: "shot", shotId }} alsoCount={[{ kind: "panel", shotId }]} />,
           castMarker: (castId) => <PartMarker part={{ kind: "cast", castId }} />,
-          panelMarker: (shotId) => <PartMarker part={{ kind: "panel", shotId }} className="self-start" />,
           column: shared ? <ReviewColumn activity={review?.activity ?? []} /> : undefined,
         }}
       />

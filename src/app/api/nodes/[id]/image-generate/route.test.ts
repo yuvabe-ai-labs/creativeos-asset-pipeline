@@ -17,10 +17,8 @@ const m = vi.hoisted(() => ({
   getVersionById: vi.fn(async () => null as unknown),
 }));
 
-vi.mock("@/lib/db/nodes", () => ({ getUpstreamOutputs: vi.fn(async () => m.upstream) }));
 vi.mock("@/lib/avatars/presenter-server", () => ({
-  withPromptInputs: async (u: unknown) => u,
-  withAvatarImages: async (_id: string, u: unknown) => u,
+  getImageGenUpstream: async () => m.upstream,
 }));
 vi.mock("@/lib/db/versions", () => ({ getVersionById: m.getVersionById }));
 vi.mock("@/lib/image-gen/start-generation", () => ({ startImageGeneration: m.start }));
@@ -51,6 +49,13 @@ beforeEach(() => {
 });
 
 describe("POST image-generate (D366)", () => {
+  it("refuses a deprecated model before anything starts (D467)", async () => {
+    const res = await post({ modelId: "openai:gpt-image-1", params: {} });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model is deprecated");
+    expect(start).not.toHaveBeenCalled();
+  });
+
   it("hands a generation to startImageGeneration and passes its 202 through", async () => {
     const res = await post({ modelId: "openai:gpt-image-2", params: { quality: "high" } });
     expect(res.status).toBe(202);

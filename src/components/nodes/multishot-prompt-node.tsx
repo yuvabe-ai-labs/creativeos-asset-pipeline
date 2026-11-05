@@ -15,7 +15,7 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { useNodeCost } from "@/hooks/use-node-cost";
 import { MultishotPromptFocusView } from "./multishot-prompt-focus-view";
-import { DEFAULT_IMAGE_PROMPT_SLICES } from "@/lib/kb/parse-context";
+import { DEFAULT_MULTISHOT_PROMPT_SLICES } from "@/lib/kb/parse-context";
 import type { MultishotNodeData, MultishotPromptNodeData } from "@/lib/canvas-nodes";
 import { foldMultishotVoiceover, multishotVoiceover } from "@/lib/nodes/voiceover";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
@@ -118,7 +118,7 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
   const lookFirstLine = plan?.look.split("\n")[0]?.trim();
   const voText = (sequenceVoiceover ?? []).map((l) => l.text.trim()).filter(Boolean).join(" ");
   const totalCredits = useNodeCost(id);
-  const slices = d.kbSlices ?? DEFAULT_IMAGE_PROMPT_SLICES;
+  const slices = d.kbSlices ?? DEFAULT_MULTISHOT_PROMPT_SLICES;
   const [focusOpen, setFocusOpen] = useState(false);
   // Open locally (double-click / "Open ↗") OR when the guided flow points here (D35/D36).
   const focusViewOpen = focusOpen || focusedNodeId === id;
@@ -178,6 +178,7 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
           </p>
           {lookFirstLine && (
             <p className="mt-1.5 truncate text-xs text-foreground" title={lookFirstLine}>
+              <span className="text-muted-foreground">Rules: </span>
               {lookFirstLine}
             </p>
           )}

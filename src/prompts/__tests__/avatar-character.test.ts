@@ -18,13 +18,38 @@ const brief: AvatarBrief = {
   appearance: "Medium build, warm brown skin, short greying hair, a neat moustache.",
   wardrobe: "A white cotton shirt over a white mundu with a thin gold border, brown leather sandals.",
   markers: "",
+  family: [],
 };
 
 describe("the character brief (D395)", () => {
   it("tells the model the instructions win and other people's pronouns are not this person", () => {
     expect(AVATAR_BRIEF_SYSTEM).toMatch(/instructions override the script/);
     expect(AVATAR_BRIEF_SYSTEM).toMatch(/"her husband"/);
-    expect(AVATAR_BRIEF_SYSTEM).toMatch(/Leave out voice, accent, personality/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/Leave out voice, accent, personality words/);
+  });
+
+  // D459 — staging: Chupps leads drawn Black and White, a 9-year-old briefed as a woman, a group
+  // made one teen, and "muted" placeholder outfits while the shots named the styling.
+  it("casts from the whole reel and the brand, with real people and specific clothes", () => {
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/Read the whole reel, not only the cast line/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/A skin-tone word alone never decides ethnicity/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/A real person, never a model or a stock photo/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/never a placeholder such as "simple", "muted"/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/When the entry is a group/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/A child is a child/);
+  });
+
+  it("sends the shots, the place and the brand under their own headings", () => {
+    const user = buildAvatarBriefUser({ ...rajan, shots: ["He pours the tea.", "He laughs at the table."], place: "A Kochi home, morning", brand: "Brandname\nHuman casting: real families" });
+    expect(user).toContain("## The shots they appear in\n1. He pours the tea.\n2. He laughs at the table.");
+    expect(user).toContain("## The reel's place\nA Kochi home, morning");
+    expect(user).toContain("## The brand and who it casts\nBrandname\nHuman casting: real families");
+  });
+
+  it("briefs a child as a child, with no adult age chip", () => {
+    const front = briefToFront({ ...brief, gender: "Female", age: "Under 18", ageYears: "9" });
+    expect(front.description.startsWith("A 9-year-old South Asian girl.")).toBe(true);
+    expect(front.attributes).toEqual({ gender: "Female", ethnicity: "South Asian" });
   });
 
   it("sends every part of the context under its own heading, the instructions marked as winning", () => {
@@ -63,6 +88,14 @@ describe("the character brief (D395)", () => {
 describe("the turnaround sheet (D395)", () => {
   const prompt = buildAvatarSheetPrompt();
 
+  // D462 — the front is cut at the waist; its description says how the rest is worn.
+  it("carries the front's description so every view wears the outfit the same way", () => {
+    const described = buildAvatarSheetPrompt("A shirt worn untucked. Black slip-on sandals.");
+    expect(described).toContain("The person as described when the reference image was made: A shirt worn untucked. Black slip-on sandals.");
+    expect(described).toContain("the back view too (tucked or untucked, sleeves, drape, footwear)");
+    expect(prompt).not.toContain("as described when the reference image was made");
+  });
+
   it("asks for all four views in one image, in the order the route cuts them", () => {
     expect(SHEET_ORDER).toEqual(AVATAR_VIEWS);
     expect(prompt).toContain("turnaround sheet");
@@ -89,5 +122,29 @@ describe("the turnaround sheet (D395)", () => {
     expect(prompt).toContain("head to toe");
     expect(prompt).toContain("identity markers");
     expect(prompt).toContain("no text");
+  });
+});
+
+// D471 — staging: a parent and their child came out looking unrelated, each briefed alone.
+describe("a blood relative in the reel (D471)", () => {
+  it("names the family, gives the family's look, and keeps a spouse or friend to the region", () => {
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/11. Family./);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/a parent, child, sibling, grandparent or grandchild/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/the same ethnicity, a matching skin tone and the features a family shares/);
+    expect(AVATAR_BRIEF_SYSTEM).toMatch(/A spouse, an in-law, a friend or a colleague is not a blood relative: they share only the region/);
+    expect(avatarBriefSchema.safeParse({ ...brief, family: [{ castId: "son", relation: "son" }] }).success).toBe(true);
+  });
+
+  it("lists the other people with their ids, and an already-made relative's look", () => {
+    const user = buildAvatarBriefUser({
+      ...rajan,
+      others: [
+        { id: "son", name: "Son", description: "son at a desk in another city" },
+        { id: "mother", name: "Mother", description: "mother in the kitchen", look: "A 55-year-old South Asian woman, round face." },
+      ],
+    });
+    expect(user).toContain("## The other people in the reel");
+    expect(user).toContain('- id "son": Son. son at a desk in another city');
+    expect(user).toContain('- id "mother": Mother. mother in the kitchen Already made, and looks like this: A 55-year-old South Asian woman, round face.');
   });
 });

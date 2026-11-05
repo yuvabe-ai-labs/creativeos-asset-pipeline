@@ -1,5 +1,6 @@
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { getPromptUpstream, withAvatarImages } from "@/lib/avatars/presenter-server";
+import { scriptAssetIds, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
 import { planCitedRefIds, renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { multishotVoiceover } from "@/lib/nodes/voiceover";
@@ -13,9 +14,9 @@ import {
   singleTakeRefDialect,
   singleTakeTargetForProvider,
 } from "@/lib/nodes/ref-binding";
-import { videoGenClientModelMap, resolveVideoModelId } from "@/lib/video-gen/client-models";
+import { videoGenClientModelMap, usableVideoModelId } from "@/lib/video-gen/client-models";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
-import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { upstreamImageOf } from "@/lib/video-gen/upstream-image";
 
 export async function GET(
   req: Request,
@@ -24,7 +25,7 @@ export async function GET(
   return withNode(req, params, async (nodeId, node) => {
     try {
       // D436 — an Avatar wired straight in is its images, as on the generate routes.
-      const direct = await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId));
+      const direct = withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)));
 
       // Also collect upstream of any prompt nodes (2-level traversal): a Video Gen's Motion or
       // Multishot Prompt, an Image Gen's Prompt (D440; its presenter's face included). Surfaces
@@ -49,37 +50,10 @@ export async function GET(
       // or into its prompt node, on every lane. It used to count through a Multishot Prompt only:
       // one on a Motion Prompt was the writer's vision context and never reached the video model.
       // Mirrors video-generate/route.ts.
-      const directIds = new Set(direct.map((u) => u.nodeId));
-      const promptUpstreamIds = new Set(promptUpstreamBatches.flat().map((u) => u.nodeId));
-
-      const images = allUpstream
-        .filter((u) => {
-          if (u.type === "file" || u.type === "draw") {
-            const d = u.data as Record<string, unknown>;
-            return d.fileKind === "image" && typeof d.fileUrl === "string";
-          }
-          if (
-            isGeneratedImageType(u.type) &&
-            (directIds.has(u.nodeId) || promptUpstreamIds.has(u.nodeId))
-          ) {
-            return typeof u.activeOutput === "string";
-          }
-          return false;
-        })
-        .map((u) => {
-          const d = u.data as Record<string, unknown>;
-          return {
-            id: u.nodeId,
-            type: u.type,
-            imageUrl: isGeneratedImageType(u.type)
-              ? (u.activeOutput as string)
-              : (d.fileUrl as string),
-            filename: typeof d.filename === "string" ? d.filename : undefined,
-            fileSizeBytes: d.fileSizeBytes as number | undefined,
-            imageWidth: d.imageWidth as number | undefined,
-            imageHeight: d.imageHeight as number | undefined,
-          };
-        });
+      const images = allUpstream.flatMap((u) => {
+        const image = upstreamImageOf(u);
+        return image ? [image] : [];
+      });
 
       // Surface the connected prompt node so the focus view can display its motion prompt text —
       // a video-prompt node's string output directly, or a multishot-prompt node's MultishotPlan
@@ -103,7 +77,8 @@ export async function GET(
       if (connectedPromptNode?.type === "video-prompt") {
         const stored =
           typeof connectedPromptNode.activeOutput === "string" ? connectedPromptNode.activeOutput : null;
-        const modelId = resolveVideoModelId(
+        // D461 — the stored row can still name a deprecated model the canvas has moved off.
+        const modelId = usableVideoModelId(
           typeof node.data?.modelId === "string" ? node.data.modelId : "",
         );
         const dialect = singleTakeRefDialect(
@@ -145,6 +120,11 @@ export async function GET(
             citedIds,
             avatarFrontId: ownUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null,
             avatarSheetId: ownUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null,
+            // D450 — the same asset ranking the request applies.
+            ...(() => {
+              const ids = scriptAssetIds([...direct, ...ownUpstream]);
+              return { assetMainIds: ids.main, assetAngleIds: ids.angles, storyboardIds: ids.storyboard };
+            })(),
           }
         : null;
 

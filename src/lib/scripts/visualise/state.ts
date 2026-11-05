@@ -84,6 +84,14 @@ export function promptForDraw(
   inputs: Pick<PanelInputs, "prompt" | "shotKey">,
 ): { ok: true; prompt: string; edited: boolean } | { ok: false; error: string } {
   if (body.kind === "reset") return { ok: true, prompt: inputs.prompt, edited: false };
+  // D449 — a fresh draw from the script; a note rides along as one more line, and the take is
+  // marked edited so a plain redraw keeps it.
+  if (body.kind === "fresh") {
+    const note = body.note.trim();
+    return note ? { ok: true, prompt: `${inputs.prompt}\nAlso: ${note}`, edited: true } : { ok: true, prompt: inputs.prompt, edited: false };
+  }
+  // A change edits the picked take; the route builds that prompt, since it needs the take's picture.
+  if (body.kind === "change") return { ok: false, error: "A change needs the panel's picture." };
   if (body.kind === "edited") {
     const prompt = body.prompt.trim();
     if (!prompt) return { ok: false, error: "The prompt is empty." };
@@ -178,4 +186,10 @@ export function generateAllLabel(plan: GenerateAllPlan): string {
   const verb = plan.redraw ? "Redraw" : "Generate";
   const cost = plan.credits === null ? "" : ` · about ${plan.credits.toLocaleString()} credits`;
   return `${verb} ${n} panel${n === 1 ? "" : "s"}${cost}`;
+}
+
+/** D465 — what the panel view shows: the whole shot only ("shot-only") until a take exists or the
+ *  first one is being drawn; then takes, Redraw and the prompt box as well ("full"). */
+export function panelViewMode(view: Pick<PanelView, "pick" | "status">): "shot-only" | "full" {
+  return !view.pick && view.status !== "generating" ? "shot-only" : "full";
 }

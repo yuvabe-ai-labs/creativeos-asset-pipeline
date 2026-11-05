@@ -35,6 +35,13 @@ export const DEFAULT_PARSE_SLICES: KBSliceKey[] = [
 // Prompt-node default: all image-generation relevant slices.
 export const DEFAULT_IMAGE_PROMPT_SLICES: KBSliceKey[] = KB_PARSE_SLICES.map(s => s.key);
 
+// D444 — Multishot Prompt default: who is cast, how the brand speaks, what it may not claim. No
+// Visual Style or Image Direction: their lighting, environment and surfaces reached the writer as
+// "brand context" and leaked into the product and the set of every shot. Still toggleable per node.
+export const DEFAULT_MULTISHOT_PROMPT_SLICES: KBSliceKey[] = [
+  "casting", "personality", "tone_of_voice", "compliance",
+];
+
 const VALID_KEYS = new Set<string>(KB_PARSE_SLICES.map((s) => s.key));
 
 // Validate an arbitrary slice list (e.g. from a request body). Unknown keys are

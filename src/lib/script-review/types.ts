@@ -22,6 +22,9 @@ export type AvatarSnapshot = {
    *  on a version shared before it was frozen; such a version shows the views instead. */
   sheet?: string | null;
   voice: { name: string | null; sampleUrl: string | null } | null;
+  /** D466 — the avatar's video preview, when a finished, current one existed at share time.
+   *  Absent on a version shared before it was frozen. */
+  preview?: string | null;
 };
 
 /** One shot's picked panel take as it was shared (spec 3 §6.6: the client only sees the picked take). */

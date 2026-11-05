@@ -6,7 +6,8 @@
   "permissions": ["contextMenus", "storage", "sidePanel"],
   "host_permissions": [
     "http://localhost:3000/*",
-    "http://localhost:3001/*"
+    "http://localhost:3001/*",
+    "https://creativeos-yuvabe-staging.vercel.app/*"
   ],
   "background": { "service_worker": "background.js" },
   "content_scripts": [

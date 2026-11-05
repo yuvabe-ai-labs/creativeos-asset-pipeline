@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ImageIcon } from "lucide-react";
 import { createClientAction } from "@/lib/actions/clients";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
+import { LOGO_EXTENSIONS, LOGO_TYPES_LABEL } from "@/lib/clients/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,8 @@ import {
 
 type LogoState = { file: File; preview: string } | null;
 
+const LOGO_ACCEPT = [...LOGO_EXTENSIONS].map((e) => `.${e}`).join(",");
+
 // `trigger` lets the empty state reuse this dialog instead of standing up a second
 // creation path — one dialog, two entry points.
 export function NewClientDialog({ trigger }: { trigger?: ReactElement } = {}) {
@@ -33,6 +36,13 @@ export function NewClientDialog({ trigger }: { trigger?: ReactElement } = {}) {
   function handleLogoChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // YUV-392 — the server takes only these; any other image used to be dropped without a word.
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!LOGO_EXTENSIONS.has(ext)) {
+      toast.error(`That file can't be a logo. Use ${LOGO_TYPES_LABEL}.`);
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") {
@@ -55,19 +65,19 @@ export function NewClientDialog({ trigger }: { trigger?: ReactElement } = {}) {
     startTransition(async () => {
       try {
         const client = await createClientAction({ name: name.trim() });
-        // Upload logo in background — do not block closing the dialog. Refresh
-        // again once it finalizes so the row picks up the logo without a
-        // manual reload (the refresh below fires before the upload's DB
-        // write lands).
+        // YUV-392 — the logo lands BEFORE we leave for KB setup. It used to upload in the
+        // background while the KB page rendered without it, showing "Add a logo", so it was
+        // uploaded a second time; and a failed upload said nothing. A logo is small: the wait is
+        // a moment, under the button's "Creating…".
         if (logo) {
-          void uploadViaSignedUrl(logo.file, {
-            signEndpoint: `/api/clients/${client.id}/logo/sign`,
-            finalizeEndpoint: `/api/clients/${client.id}/logo/finalize`,
-          })
-            .then(() => router.refresh())
-            .catch(() => {
-              // Non-critical: logo upload failure shows a separate toast if desired
+          try {
+            await uploadViaSignedUrl(logo.file, {
+              signEndpoint: `/api/clients/${client.id}/logo/sign`,
+              finalizeEndpoint: `/api/clients/${client.id}/logo/finalize`,
             });
+          } catch {
+            toast.error("The client was created, but the logo didn't upload. Add it from the client page.");
+          }
         }
         toast.success(`Created "${client.name}"`);
         reset();
@@ -125,11 +135,11 @@ export function NewClientDialog({ trigger }: { trigger?: ReactElement } = {}) {
                 </span>
               )}
               <span className="text-sm text-muted-foreground">
-                {logo ? "Change logo" : "Upload a logo (PNG, SVG, JPG)"}
+                {logo ? "Change logo" : `Upload a logo (${LOGO_TYPES_LABEL})`}
               </span>
               <input
                 type="file"
-                accept="image/*"
+                accept={LOGO_ACCEPT}
                 className="hidden"
                 onChange={handleLogoChange}
               />

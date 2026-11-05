@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { shotAnchor } from "@/lib/scripts/anchors";
-import type { CastMember } from "@/lib/scripts/schema";
+import type { CastMember, ScriptDoc } from "@/lib/scripts/schema";
 import { formatRange, type TimedShot } from "@/lib/scripts/timeline";
 import { useScriptEdit } from "./script-edit-context";
 import { ScriptText } from "./script-text";
+import { ScriptShotAssets } from "./script-shot-assets";
 
 /** What a stage says about one shot in the compact row (Visualise: open its panel; drawing). */
 export type ShotState = { onOpen?: () => void; drawing?: boolean };
@@ -16,9 +17,11 @@ export const SHOT_GRID = "md:grid-cols-[4.5rem_minmax(0,2.2fr)_minmax(0,1.8fr)_m
 /** A commented part (spec 4) gets a faint client-feedback tint, read off its PartComments. */
 const COMMENTED = "has-[[data-part-commented]]:bg-client/5";
 
-export function ScriptShotRow({ timed, cast, compact = false, aside, state, after }: {
+export function ScriptShotRow({ timed, cast, assets, compact = false, aside, state, after }: {
   timed: TimedShot;
   cast: CastMember[];
+  /** D446 — the script's products and locations; the shot's picks show when there are any. */
+  assets?: Pick<ScriptDoc, "products" | "locations">;
   /** Stacked, for a narrow pane (Visualise). */
   compact?: boolean;
   /** Beside a compact row (Visualise: the panel status). */
@@ -47,6 +50,7 @@ export function ScriptShotRow({ timed, cast, compact = false, aside, state, afte
         </span>
       </>
     );
+    const picks = assets ? <ScriptShotAssets shot={shot} doc={assets} /> : null;
     const box = "relative flex min-w-0 flex-1 items-start gap-3";
     return (
       <li
@@ -75,6 +79,7 @@ export function ScriptShotRow({ timed, cast, compact = false, aside, state, afte
           )}
           {aside !== undefined && <div className="shrink-0">{aside}</div>}
         </div>
+        {picks}
         {after ? <div>{after}</div> : null}
       </li>
     );
@@ -94,7 +99,10 @@ export function ScriptShotRow({ timed, cast, compact = false, aside, state, afte
       <span className="text-sm"><ScriptText path={`shots.${shot.id}.visual`} value={shot.visual} /></span>
       <span className="text-sm text-muted-foreground"><ScriptText path={`shots.${shot.id}.vo`} value={shot.vo} /></span>
       <span className="text-sm font-medium"><ScriptText path={`shots.${shot.id}.onScreenText`} value={shot.onScreenText} /></span>
-      <span className="text-xs text-muted-foreground">{who}</span>
+      <span className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+        {who}
+        {assets && <ScriptShotAssets shot={shot} doc={assets} />}
+      </span>
       {after ? <div className="md:col-span-5">{after}</div> : null}
     </li>
   );

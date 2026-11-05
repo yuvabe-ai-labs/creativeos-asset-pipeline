@@ -118,8 +118,9 @@ export function ScriptFocusView({
   const shotCount = parsed?.visual_script?.shots?.length ?? 0;
   // What Fan out creates: one node per generation. Counting script rows promised "4 shots" for a
   // 4-row single take that fans out to one node (BUG-004). Same derivation fan-out itself uses.
+  // Counted from the draft: with edits pending, Fan out saves them first and fans out those.
   const clipCount = describeGenerations(
-    parsed?.visual_script?.shots ?? [],
+    draft?.visual_script?.shots ?? [],
     groupModes,
     groupingVersion ?? 1,
     sceneBeats,
@@ -169,14 +170,36 @@ export function ScriptFocusView({
     }
   }
 
-  async function handleSave() {
+  async function handleSave(): Promise<boolean> {
     try {
       await onSaveOutput(draft);   // truth: update the active version's output
       onPatch({ parsed: draft });  // mirror into the store for display + clear dirty
       toast.success("Saved");
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
+      return false;
     }
+  }
+
+  // Fan out reads the SAVED script from the store (fanOutShots), so pending edits are saved
+  // first — fanning out the version from before the edits would build the wrong clips.
+  function handleFanOut() {
+    if (!dirty) {
+      onFanOut();
+      return;
+    }
+    setConfirm({
+      title: "Save your edits and fan out?",
+      description:
+        "This script has unsaved changes. They'll be saved first, and the clips will be built from the edited script.",
+      actionLabel: "Save and fan out",
+      onConfirm: () => {
+        void handleSave().then((saved) => {
+          if (saved) onFanOut();
+        });
+      },
+    });
   }
 
   function toggleSlice(key: KBSliceKey) {
@@ -311,7 +334,7 @@ export function ScriptFocusView({
                     <Button
                       variant={dirty ? "outline" : "default"}
                       size="lg"
-                      onClick={onFanOut}
+                      onClick={handleFanOut}
                     >
                       <Clapperboard
                         className={cn("size-4", dirty && "text-muted-foreground")}

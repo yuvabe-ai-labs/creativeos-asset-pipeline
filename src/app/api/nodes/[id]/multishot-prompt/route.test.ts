@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
-import {
-  MULTISHOT_LOOK_SCHEMA,
-  MULTISHOT_BEAT_SCHEMA,
-  planSchemaForCuts,
-} from "@/prompts/multishot-prompt-generate";
+import { MULTISHOT_BEAT_SCHEMA, planSchemaForCuts } from "@/prompts/multishot-prompt-generate";
 import {
   KLING_OMNI_MODEL_ID,
   GEMINI_OMNI_MODEL_ID,
@@ -119,12 +115,12 @@ describe("POST multishot-prompt — refine scopes", () => {
   });
 
   it("400s a scoped refine with no plan to refine", async () => {
-    const res = await post({ scope: "look" });
+    const res = await post({ scope: "cut", cutId: "c1" });
     expect(res.status).toBe(400);
   });
 
   it("400s a note over the cap", async () => {
-    const res = await post({ scope: "look", plan: PLAN, note: "x".repeat(2001) });
+    const res = await post({ scope: "cut", cutId: "c1", plan: PLAN, note: "x".repeat(2001) });
     expect(res.status).toBe(400);
   });
 
@@ -140,12 +136,21 @@ describe("POST multishot-prompt — refine scopes", () => {
     expect(json.plan.look).toBe(PLAN.look);
   });
 
-  it("merges a look refine and leaves every beat identical", async () => {
-    returns({ look: "Overcast, flat and soft." });
-    const res = await post({ scope: "look", plan: PLAN });
+  // D442 — the rules are the operator's: a regenerate keeps them and hands them to the writer.
+  it("carries the operator's rules through a whole regenerate", async () => {
+    returns({ references: [], beats: PLAN.beats });
+    const res = await post({ plan: PLAN });
     const json = (await res.json()) as { plan: MultishotPlan };
-    expect(json.plan.look).toBe("Overcast, flat and soft.");
-    expect(json.plan.beats).toEqual(PLAN.beats);
+    expect(json.plan.look).toBe(PLAN.look);
+    expect(vi.mocked(buildMultishotUserTurn).mock.calls[0][0]).toMatchObject({ rules: PLAN.look });
+  });
+
+  // The look-rewrite scope is gone; an old client sending it gets a plain whole write.
+  it("treats a stale look scope as a whole-sequence write", async () => {
+    returns({ references: [], beats: PLAN.beats });
+    const res = await post({ scope: "look", plan: PLAN });
+    expect(res.status).toBe(200);
+    expect(runPromptGeneration.mock.calls[0][0].paramsUsed).toMatchObject({ scope: "all" });
   });
 
   // A version that cannot say what was asked of it is useless to the eval flywheel (D22).
@@ -166,7 +171,7 @@ describe("POST multishot-prompt — refine scopes", () => {
   });
 
   it("defaults to a full generate when no scope is given", async () => {
-    returns(PLAN);
+    returns({ references: [], beats: PLAN.beats });
     const res = await post({ instruction: "punchy" });
     expect(res.status).toBe(200);
     expect(runPromptGeneration.mock.calls[0][0].paramsUsed).toMatchObject({ scope: "all" });
@@ -175,7 +180,8 @@ describe("POST multishot-prompt — refine scopes", () => {
     // response is the model's plan plus that one field. Everything downstream (renderPlan's
     // format, refsCitedIn's dialect, video-generate's model guard) reads the stamp instead of the
     // Multishot node's current `targetModel`, which the operator can flip at any time.
-    expect(json.plan).toEqual({ ...PLAN, targetModel: GEMINI_OMNI_MODEL_ID });
+    // D442 — and no plan was sent, so there are no rules to carry: the look is empty.
+    expect(json.plan).toEqual({ ...PLAN, look: "", targetModel: GEMINI_OMNI_MODEL_ID });
   });
 
   // Nothing previously inspected what the route actually sent the model — which is why the
@@ -185,12 +191,6 @@ describe("POST multishot-prompt — refine scopes", () => {
       returns({ text: "Rewritten." });
       await post({ scope: "cut", cutId: "c1", plan: PLAN, note: "tighter" });
       expect(create.mock.calls[0][0].response_format.json_schema.schema).toBe(MULTISHOT_BEAT_SCHEMA);
-    });
-
-    it("sends the look schema for a look refine", async () => {
-      returns({ look: "Overcast." });
-      await post({ scope: "look", plan: PLAN, note: "colder" });
-      expect(create.mock.calls[0][0].response_format.json_schema.schema).toBe(MULTISHOT_LOOK_SCHEMA);
     });
 
     // The plan schema, narrowed to THIS node's cut ids. The intermittent "The writer referenced a
@@ -215,12 +215,6 @@ describe("POST multishot-prompt — refine scopes", () => {
       returns({ text: "Rewritten." });
       await post({ scope: "cut", cutId: "c1", plan: PLAN, note: "make it tighter" });
       expect(userText(create.mock.calls[0][0])).toContain("make it tighter");
-    });
-
-    it("puts the note in the user content on a look refine", async () => {
-      returns({ look: "Overcast." });
-      await post({ scope: "look", plan: PLAN, note: "colder light" });
-      expect(userText(create.mock.calls[0][0])).toContain("colder light");
     });
 
     it("puts the note in the user content on a full generate", async () => {
@@ -334,13 +328,13 @@ describe("POST multishot-prompt — per-model writer routing", () => {
       // The node has since been switched to Kling…
       targetModel: KLING_OMNI_MODEL_ID,
     });
-    returns({ look: "Overcast, flat and soft." });
+    returns({ text: "A palm sweeps the keys off oak." });
     // …but this plan was written by Omni's writer.
     const omniPlan: MultishotPlan = { ...PLAN, targetModel: GEMINI_OMNI_MODEL_ID };
-    const res = await post({ scope: "look", plan: omniPlan });
+    const res = await post({ scope: "cut", cutId: "c1", plan: omniPlan });
     expect(res.status).toBe(200);
     const json = (await res.json()) as { plan: MultishotPlan; prompt: string };
-    expect(json.plan.look).toBe("Overcast, flat and soft.");
+    expect(json.plan.look).toBe(PLAN.look);
     expect(json.plan.targetModel).toBe(GEMINI_OMNI_MODEL_ID);
     expect(json.prompt).toContain("[0-");
     expect(json.prompt).not.toContain("shot 1, ");
@@ -447,13 +441,13 @@ describe("POST multishot-prompt — reference binding", () => {
       targetModel: undefined,
       scriptNotes: "",
     });
-    returns({ look: "Overcast." });
+    returns({ text: "Rewritten." });
     const stored: MultishotPlan = {
       ...PLAN,
       targetModel: GEMINI_OMNI_MODEL_ID,
       beats: [{ cutId: "c1", text: "the jar @[File: A.png](img-a)" }, PLAN.beats[1]],
     };
-    const res = await post({ scope: "look", plan: stored, note: "flatter" });
+    const res = await post({ scope: "cut", cutId: "c2", plan: stored, note: "flatter" });
     expect(res.status).toBe(200);
     const sent = userText(create.mock.calls[0][0]);
     expect(sent).toContain("<IMAGE_REF_0>");
@@ -461,6 +455,51 @@ describe("POST multishot-prompt — reference binding", () => {
     // …and the merged plan comes back stored by id again.
     const json = await res.json();
     expect(json.plan.beats[0].text).toBe("the jar @[File: A.png](img-a)");
+  });
+
+  // D443 — the writer's reading becomes the plan's reference roles, keyed by image id.
+  it("keeps the writer's reading of each image as the plan's reference roles", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [imageUpstream],
+      cuts: CUTS,
+      targetModel: undefined,
+      scriptNotes: "",
+    });
+    returns({
+      references: [
+        { image: 1, role: "product", name: "jar", contents: "a jar" },
+        { image: 2, role: "location", name: "kitchen", contents: "no such image" },
+      ],
+      beats: PLAN.beats,
+    });
+    const res = await post({});
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { plan: MultishotPlan };
+    expect(json.plan.refRoles).toEqual([{ id: "img-a", role: "product", name: "jar" }]);
+  });
+
+  it("keeps the existing reference roles through a one-shot rewrite", async () => {
+    vi.mocked(resolveMultishotPromptInputs).mockResolvedValueOnce({
+      clientContext: "",
+      kbVersionId: null,
+      slices: [],
+      upstream: [imageUpstream],
+      cuts: CUTS,
+      targetModel: undefined,
+      scriptNotes: "",
+    });
+    returns({ references: [], text: "Rewritten." });
+    const withRoles: MultishotPlan = {
+      ...PLAN,
+      targetModel: GEMINI_OMNI_MODEL_ID,
+      refRoles: [{ id: "img-a", role: "product", name: "jar" }],
+    };
+    const res = await post({ scope: "cut", cutId: "c1", plan: withRoles });
+    const json = (await res.json()) as { plan: MultishotPlan };
+    expect(json.plan.refRoles).toEqual(withRoles.refRoles);
   });
 });
 

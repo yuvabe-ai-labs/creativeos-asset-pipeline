@@ -24,7 +24,7 @@ export async function POST(
     }
 
     const ext = body.filename.split(".").pop()?.toLowerCase() ?? "";
-    // LOGO_EXTENSIONS already allows svg and gif beyond the standard image set, which is
+    // LOGO_EXTENSIONS already allows svg beyond the standard image set, which is
     // right for brand marks. Reused rather than redeclared.
     if (!LOGO_EXTENSIONS.has(ext)) {
       return apiError(

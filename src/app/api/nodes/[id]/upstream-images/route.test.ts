@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
@@ -72,6 +72,13 @@ const GRAPH: Record<string, Row[]> = {
   // D440 — the same image on a Motion Prompt reaches Video Gen too.
   vg2: [{ nodeId: "vp", type: "video-prompt", data: {}, activeOutput: "She lifts the jar.", versionId: "v3" }],
   vp: [{ nodeId: "cmp", type: "composite", data: {}, activeOutput: "https://img.example/comp.png", versionId: "v4" }],
+  // D450 — a single-shot clip: Shot -> Motion Prompt -> Video Gen, the script's product wired to the Shot.
+  vg3: [{ nodeId: "vp3", type: "video-prompt", data: {}, activeOutput: "Hold on the pouch.", versionId: "v5" }],
+  vp3: [{ nodeId: "sh", type: "shot", data: {}, activeOutput: null, versionId: null }],
+  sh: [{
+    nodeId: "pouch", type: "product", activeOutput: null, versionId: null,
+    data: { scriptId: "s", productId: "pouch", name: "Chupps", images: [{ url: "https://img.example/p0.png" }, { url: "https://img.example/p1.png" }] },
+  }],
   mp: [
     { nodeId: "ig", type: "image-gen", data: {}, activeOutput: "https://img.example/ref.png", versionId: "v2" },
     {
@@ -89,6 +96,11 @@ vi.mock("@/lib/db/nodes", () => ({
 }));
 
 describe("GET /api/nodes/[id]/upstream-images", () => {
+  // The route's first import is heavy (every video model's registry). Paid once here with room to
+  // spare: inside the first test it ran past the 5s test timeout whenever the full suite was busy.
+  beforeAll(async () => {
+    await import("./route");
+  }, 60_000);
   beforeEach(() => vi.clearAllMocks());
 
   function makeRequest() {
@@ -119,6 +131,17 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
 
   // D440 — a generated image on a Motion Prompt used to be the writer's vision context only and
   // never reached the video model; it is now sent like one on a Multishot Prompt.
+  it("lists a script product wired into a single-shot clip's Shot, by name, with its node and rank", async () => {
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest("http://localhost/api/nodes/vg3/upstream-images"), { params: Promise.resolve({ id: "vg3" }) });
+    const json = await res.json();
+    expect(json.images).toEqual([
+      expect.objectContaining({ id: "pouch", filename: "Chupps", asset: { kind: "product", nodeId: "pouch", angle: 0 } }),
+      expect.objectContaining({ id: "pouch:1", filename: "Chupps, angle 2", asset: { kind: "product", nodeId: "pouch", angle: 1 } }),
+    ]);
+    expect(json.promptNode).toMatchObject({ assetMainIds: ["pouch"], assetAngleIds: ["pouch:1"] });
+  });
+
   it("surfaces a generated image wired into a Motion Prompt node", async () => {
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/nodes/vg2/upstream-images"), { params: Promise.resolve({ id: "vg2" }) });

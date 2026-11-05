@@ -8090,3 +8090,437 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping images on a Motion Prompt as vision context only (the original split): it made the same wire mean different things on the two video lanes.
 
 **Originated →** conversation in this session.
+
+### D441 — A referenced product is named and pinned to its picture, never described *(recorded 2026-10-30; refines D319, D263)*
+
+**Decision.** Every video-prompt writer (multishot Omni, Kling, Seedance; single-take Veo, Kling, Omni, Seedance) names a referenced product in a few words ("the tea pouch") and pins it to its picture ("exactly as in its reference"). It never writes the product's colour, material, shape, components, label text, lettering or logo. The PRODUCT role's "name every distinct element… each one's colour and material", the schema's "for a product, every component and colour", the multishot PRESERVATION rule ("shape, proportions, colour, lettering or logo held exactly") and the single-take spine's "restate… label text, logo, lettering, colours" are gone; the single-take wording is shared as `REFERENCE_PRESERVATION`.
+
+**Why.** User, 30 Oct 2026: when the prompt describes the product, the product looks wrong; the text takes precedence over the references. J365's last 200 production clips: 75 carried a product-appearance line, and that wording came from our own writer. Google Flow ("your text prompt should complement, not contradict, your visual inputs"), Google's and fal's Omni examples, and Kling's and Runway's guides all point at a referenced subject by its token and leave its appearance to the image.
+
+**Rejected.** Keeping a "short" appearance line ("the yellow pouch"): colour words were exactly what came back wrong.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §3.
+
+### D442 — The look block becomes the operator's "Rules for every shot" *(recorded 2026-10-30; refines D231, D262; closes YUV-371)*
+
+**Decision.** The multishot writer no longer writes a look & atmosphere block: `look` leaves the plan schema, and the look refine scope, schema, rules and suggestion chips are deleted. The stored `MultishotPlan.look` keeps its name, so nothing migrates, and the focus view shows it as **Rules for every shot**, a plain text box the operator fills in, sent above the ladder as written. A whole regenerate carries it forward, and the writer receives it in the user turn to obey, never to restate. Saved look text stays visible and keeps being sent until the operator clears it.
+
+**Why.** YUV-371, and the user's report that the look and atmosphere section changes the product's look. Its light, palette and grade words acted on the product as much as the set ("the palette is yellow packaging against warm wood"). Operators deleted it, or used the field for rules ("strictly do not use the same hand for eating and picking the phone"): 28 of 89 J365 plan versions held one, and most clips were sent without.
+
+**Rejected.** Deleting the field outright: it would remove the only place operators put rules that apply to every shot.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §4.
+
+### D443 — Every image sent to a video model is labelled with its role *(recorded 2026-10-30; refines D233, D319)*
+
+**Decision.** The writer's reference reading now gives each image a role from a fixed list (product, person, location, storyboard, style, brand mark, other) and a short name. The multishot-prompt route keeps this as the plan's `refRoles`, keyed by image id. The video-generate route adds one line, after reference selection and numbered in the lane's own tokens: "Reference roles: <IMAGE_REF_0> is the product (tea pouch): keep it exactly as pictured. <IMAGE_REF_1> is the location (podcast set): the place, not a subject…". The presenter's rows are labelled a person when the plan has no reading for them (including the single-take lane). Every wired image is still sent and @ mentions stay optional. The writer still writes no tokens (D233); code writes the line. On Kling the line gives way rather than push the prompt over the 3072-character ceiling.
+
+**Why.** About 90% of clips on every client sent images the prompt never named (J365 167/200, Madras 52/55, Penguin 35/35), and Omni's header listed them with no role, so the model guessed which picture was the product. Runway's Seedance guide: "an unassigned reference leaves the model free to borrow anything from it."
+
+**Rejected.** (1) Sending only images a shot @-mentions: the user prefers sending all and letting the model infer. (2) A role picker per image: more clicking, and D281 already rejected it. (3) Labelling by source only: products and locations all arrive as plain files. (4) The writer binding images to shots: the user wants that decided at script level (next project: script-level Products and Locations).
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §5.
+
+### D444 — The multishot writer gets cleaner input, and a character only goes where a person does *(recorded 2026-10-30; refines D262, D438)*
+
+**Decision.** The Multishot Prompt node's default KB slices are Casting, Personality, Tone and Compliance (`DEFAULT_MULTISHOT_PROMPT_SLICES`); Visual Style and Image Direction are off unless switched on. The shot-text contract no longer claims the brand context names the product (the KB has no product field). A character reference applies only to shots whose text involves a person, and "a product-only shot shows nobody"; the presenter's text block says "the person on camera when a shot shows someone".
+
+**Why.** The default slices sent KB lighting, environment and surfaces as "brand context", the same material the prompt told the writer never to use for setting. D438 put the presenter in every shot by default, and the writer was told to repeat the character in every beat, so B-roll product shots pulled the presenter in.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §6.
+
+### D445 — "No on-screen text" on every video model *(recorded 2026-10-30; refines D428)*
+
+**Decision.** Kling requests carry "No on-screen text." ahead of the shot triples, and Seedance requests close with it (`withRequestLines`); Omni already had it from composeOmniPrompt. The Seedance writers no longer offer 【】 for subtitles.
+
+**Why.** The writers were told "the request carries a standing instruction against screen-space type", which was true only on Omni.
+
+**Originated →** [2026-10-30-reference-led-video-prompts-design.md](2026-10-30-reference-led-video-prompts-design.md) §7.
+
+### D446 — A script has its own products and locations, and each shot picks them *(recorded 2026-10-30; refines D338)*
+
+**Decision.** The script doc gains `products` (a name and up to 6 images, the main packshot first, then angles) and `locations` (a name, a description and one plate image), at most 8 and 6, both defaulted to empty so every stored script still parses. Each shot gains `products` (none, one or several ids) and `location` (one id or none), checked against the script's own lists like `onScreen` against the cast. They belong to the script only, not to a client library. Every change goes through one pure function (`applyAssetOp`, src/lib/scripts/assets.ts) and one stage-aware write (`changeScriptAssets`): at Generate through `changeGenerateScript` (D337), at Visualise and In review on `updated_at` like a cast avatar link, which widens D338's single Visualise write to these pictures and picks. Images come by upload (a signed URL straight to the script's own folder, rule 8) or by picking a brand-kit or KB image, which the route checks belongs to the client (rule 14). The script page shows Products and Locations beside the cast and two pickers on every shot, editable in Generate and Visualise and read-only on the review page.
+
+**Why.** User, 30 Oct 2026: everything has to be figured out at script level, where characters and storyboards are planned. Products had no record anywhere, and a set existed only as `settingAndCamera` text, so each clip re-imagined it. Products can have angles.
+
+**Rejected.** (1) A client-level library of products and locations, like Avatars: the user chose per script. (2) Pickers only through the copilot, as `onScreen` is today: a wrong pick should be one click to fix. (3) Uploading bytes through our route: Vercel's body limit and rule 8.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §3, §4.2.
+
+### D447 — The copilot names products and locations and sets each shot's picks, never their pictures *(recorded 2026-10-30; refines D331, D332, D370)*
+
+**Decision.** The draft and the import return `products` and `locations` (keys, names, a place's description) and each shot's product keys and location key; code makes ids from names and drops a key it does not know, as for cast. Edit ops `add_product`, `update_product`, `remove_product`, `add_location`, `update_location`, `remove_location` call the same pure operations as the script page, and a rewritten shot carries its picks. An import adds one open item to check what it read and to add pictures. The copilot never sets an image. Prompt `script-copilot` version 5.
+
+**Why.** The script already knows which products and places its shots show; asking the person to re-enter them would be the gap this closes.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §4.1.
+
+### D448 — A location's plate is drawn once, as an empty set, and billed to the script *(recorded 2026-10-30)*
+
+**Decision.** "Generate" on a location draws its plate with Nano Banana 2.1 through `runBilledImageGeneration` owned by the script, exactly as a storyboard panel is billed, and stores it beside the script's other pictures. The prompt (`location-plate@1`) is the location's description, the reel's setting, the matching regional kit's home (never its wardrobe) and the frame, with no people, hands, products, packaging or lettering. A plate can also be uploaded or picked, and drawn again.
+
+**Why.** The same set drawn once is what keeps a background the same across every panel and clip set there; a person or a product in the plate would ride into every shot that uses it.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §4.3.
+
+### D449 — Panels and plates are drawn with the script's real location and product; Redraw asks first *(recorded 2026-10-30; reverses D342 for products that have pictures; refines D344, D345)*
+
+**Decision.** (1) A storyboard panel's references are, within the model's 14: the people's fronts, the shot's location plate, each product's main picture, the people's other views, the products' other angles, then the house style. The prompt sets the shot in the plate's place and draws each product "exactly as pictured"; a product with no picture is still a plain blank pack, and cards and captions stay blank. The shot fingerprint includes the shot's location and products with their picture URLs, so a panel goes out of date when they change (a shot with neither keeps its old fingerprint). (2) Redraw on a panel and on a location plate opens one popover: "What should change?" with suggestion chips, then **Change this picture** (the current picture is the only reference and only the note changes; needs a note) or **Draw a new one** (from the script, the note added as one line). Panels gain draw kinds `change` and `fresh`; the plate route takes `{ mode, note }`. (3) Plate drawing state comes from every in-flight call (`useMutationState`), and a location already drawing cannot start a second draw.
+
+**Why.** User, 30 Oct 2026: the storyboard should show the real product (the client approves what the clip will show); redrawing was a dice roll that threw away what worked ("ask any changes, or regenerate completely… the regeneration part is hard"); and clicking Generate on a second location stopped the first one's spinner, leading to a duplicate billed draw.
+
+**Rejected.** Keeping the blank pouch for every pack (D342 as written): the approved board would not match the clip. Redraw as one button with an optional prompt field: the common case is "nearly right, fix one thing", which needs the current picture as the reference.
+
+**Originated →** conversation in this session; [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §5.
+
+### D450 — A script's products and locations are nodes on the canvas, wired into the clips that use them *(recorded 2026-10-30; refines D382, D383, D436, D308, D443)*
+
+**Decision.** When a script is added to a canvas its products, locations and per-shot picks (keyed by row name, "S3") are frozen onto the Script node with its storyboard. Fan out makes ONE Product or Location node per asset the new clips use (reusing this script's node already on the canvas) and wires it into each Shot/Multishot's image handle. A Product node shows its main picture and picture count; a Location node its plate. Like an Avatar node (D436), each becomes image rows wherever it is read: main picture first, then angles (`{nodeId}:{n}`), tagged `data.scriptAsset`. `getPromptUpstream` reads those wired into the prompt node's Shot/Multishot (the one exception to D383, which still holds for every other image there), and a node wired straight into a prompt, gen node or composite expands in place; the browser (`useMentionUpstream`) adds the same rows in the same order. Reference priority: avatar front, cited, main packshots and plates, avatar sheet, other angles, the rest. The roles line labels them from the script ("the product (Brandname pouch)", "…, another angle"), ahead of the writer's reading.
+
+**Why.** User, 30 Oct 2026: products and backgrounds belong to the script, shared across shots; asked for them connected "like shot node, just like storyboard" so a shared set is visible as one node with a line into each clip, and a pick is edited by wiring.
+
+**Rejected.** Resolving them invisibly from the script like the presenter (D299): no way to see or change which clip gets which. One node per clip: a shared set would not read as shared.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §6.
+
+### D451 — A share shows products and locations, and its version line counts their changes *(recorded 2026-10-30; refines D348)*
+
+**Decision.** The review page shows the frozen script's products and locations read-only, with their pictures, and each shot's picks. A change to a shot's picks counts as that shot revised; a change to the script's products or locations (names, words, pictures) counts with the context. A share frozen before these existed reads as having none, so it is never a change.
+
+**Originated →** [2026-10-30-script-products-and-locations-design.md](2026-10-30-script-products-and-locations-design.md) §7.
+
+### D452 — A clip's storyboard panel is sent as a composition reference, never a first frame *(recorded 2026-10-30; refines D382, D383, D443)*
+
+**Decision.** A storyboard panel wired into a clip's Shot or Multishot (Fan out's panel File node, now marked `storyboardPanel`; older ones recognised by their "S3-storyboard" name) is read with the clip's products and locations and sent as a reference, ranked after every real picture (faces, packshots, plates, the sheet, angles, other wired images). The writer sees it as the shot's storyboard; the roles line calls it "a rough storyboard sketch: follow only its composition, staging and camera framing, with its people and objects as placeholders for the other references, and never show the drawing, its lines or colours". It is never a first frame, and it can be switched off per image in Video Gen. Other images wired to a Shot or Multishot are still not read (D383).
+
+**Why.** User, 30 Oct 2026: send the storyboard so the clip follows the story, not the cartoon look. Google documents a drawing used "only as a guide for movement, do not show the drawing"; Kling says a first frame sets the clip's visual style, so a sketch there yields a sketch-looking video; Flow warns that references of mixed looks blend, hence the lowest rank and the placeholder wording.
+
+**Rejected.** The panel as a first frame (the clip would open as a drawing). Photoreal storyboard panels in place of the sketch: the sketch stays the approval artefact, and a photoreal keyframe step is the proposed next step instead.
+
+**Originated →** conversation in this session (research: Gemini Omni docs and prompt guide, Kling 3.0 Omni guide and sketch-to-video page, Google Flow help).
+
+### D453 — The multishot writer makes the clip follow its storyboard, whatever the shot count *(recorded 2026-10-30; refines D263, D452, D444)*
+
+**Decision.** (1) The storyboard is the approved picture of the clip: the writer lays its frames across the beats by time. As many frames as beats, each beat is its frame; more frames than beats, a beat carries the frames in its share of the time as one continuous take on one simple camera, every frame's moment kept (the one exception to one action per beat); fewer frames, each frame sets the beats around it. Where the shot text and the storyboard disagree, the storyboard wins. (2) A worn or carried product replaces the person's own item of that kind and is named in every beat its wearer is in. (3) The avatar's own pictures are labelled a person (the sheet "…, profile sheet") before the writer's reading is consulted. (4) Storyboard panels go last in the image order, after the presenter's pictures, on the server and in the browser. Prompt ids: multishot-prompt-generate@13, -kling@10, -seedance@9.
+
+**Why.** Analysis of the Reel 03 canvas, 30 Oct 2026: S1's panel drew four moments for one 5s cut and the writer kept one (the watch), so three never happened; S4's panel showed him reaching friends and the writer chose "walking", so no friends; S3's beat put him in "white sneakers… wearing the sliders"; S4's beat never named the sliders; the writer read the avatar's profile sheet as a "storyboard" and the request said so; the panel led the references as IMAGE_REF_0.
+
+**Rejected.** Re-cutting the clip to one shot per storyboard frame (built, then removed at the user's word): a storyboard will not match the number of shots, and the writer must honour it within the shots the clip has.
+
+**Originated →** conversation in this session (canvas analysis of reel-03-not-just-another-chappal on staging).
+
+### D454 — Fan out puts each storyboard panel on the canvas as a Composite whose v1 is the panel *(recorded 2026-10-30; amends D382, D452; refines D312)*
+
+**Decision.** (1) Fan out no longer makes a File node per approved panel. It asks a new route (`POST /api/canvas/[id]/storyboard-composites`) to make a Composite per panel, wired into the Shot or Multishot image handle as before. The route reads the panel take and its generation, and writes the Composite with the panel as v1: the take prompt as `instruction` and in `inputs_used`, the model and its params, and every reference picture in order (`inputs_used.source = "storyboard"`). The inline house style picture is stored once per script under the script assets prefix and recorded by URL, so no bytes travel in a task payload. The Script node frozen storyboard now carries each panel `takeId`. (2) The storyboard stays a sketch. On the Composite, Generate redraws it as the script page does (the recorded pictures first, so the prompt "Reference image N" still points at them, then anything wired; the prompt as written, without the composite photo rules) while the instruction still opens with the panel drawing-style paragraph. Remove that paragraph, or use Edit, and it is an ordinary Composite: the operator connects an avatar or a product to make it real, or adds more Composites for extra scenes. (3) Readers tell the two apart: while the Composite active picture is still `storyboardSketchUrl` it is the shot storyboard (D452 sketch clause, ranked last); once it is anything else it is the shot approved still (tag and role `still`: "match its moment, people, products, place and framing", ranked with the script main pictures). (4) A Product or Location wired into a Composite now sends its pictures (server `loadCompositeInputs`, browser `compositeUpstreamItems`); before, it sent nothing. (5) File-node panels on older canvases are no longer read as storyboards (user: the old data is theirs alone).
+
+**Why.** User, 30 Oct 2026: a panel as a File node could not be redrawn or edited on the canvas; as a Composite with its first generation as v1 (prompt, settings and pictures saved), regenerations and edits happen in place, and connecting an avatar or product makes it real when wanted. The still/sketch split keeps the request honest: telling the video model to ignore the colours of a realistic picture would undo the point of making it.
+
+**Rejected.** Photoreal storyboard panels on the script page (the storyboard stays a sketch, user). Pre-wiring the shot avatar, product and location into the Composite (the operator wires them when wanted, user). Seeding v1 lazily from the canvas autosave (every save would have to check for nodes to seed). Keeping the File-node panels readable (no old data to keep, user).
+
+**Originated →** conversation in this session.
+
+### D455 — The multishot writer treats the operator direction as orders it must write into the beats *(recorded 2026-10-30; refines D453, D319, D281)*
+
+**Decision.** (1) A shared rule, THE OPERATOR DIRECTION COMES FIRST, opens the shot contract for every multishot writer: the direction and any per-shot instruction are orders that outrank the shot text, the storyboard, the brand context and what any reference shows; the video model never reads the direction, only the beats and the pictures, so an order is followed only when the beats say it, in plain positive words, in every beat it touches. Leaving something out is not following it. (2) The storyboard rule says the direction still outranks it; the character rule writes wardrobe as the direction leaves it, never as pictured. (3) The user turn labels the direction "The operator direction. These are orders: write each one into every beat it touches." and a per-shot instruction "Operator order for THIS shot (write it into this beat)". Prompt ids: multishot-prompt-generate@14, -kling@11, -seedance@10. The single-take Motion prompt is unchanged: its instruction is the task itself, stated last.
+
+**Why.** Reel 04 on staging, 30 Oct 2026: S2 with no direction read "Ram ... in white low-top sneakers" (from his profile sheet). With the direction "Ram should not wear a shoe, should be barefooted" the writer dropped the sneakers and never wrote barefoot, so his pictures put the sneakers back. The direction reached the writer only as "For the sequence as a whole", and the only rules about direction were about assigning reference roles; the character rule asked for every pictured wardrobe item, footwear included.
+
+**Rejected.** Sending the direction to the video model as well (the Rules for every shot field already does that, as written; the direction is for the writer). Keeping a weak label and relying on the model to infer priority (it obeyed by omission).
+
+**Originated →** conversation in this session (Reel 04 multishot prompt, staging).
+
+### D456 — What the script generated reaches the canvas as a Composite; products stay Product nodes *(recorded 2026-10-30; amends D450; extends D454)*
+
+**Decision.** (1) A location whose picture the script page generated (`image.source = "plate"`) is no longer a Location node: Fan out asks the same route as the storyboard panels (renamed `POST /api/canvas/[id]/script-composites`, body `panels` and `plates`) to make a Composite whose v1 is that generation, found by the picture it made among the script generations (prompt as `instruction` and in `inputs_used`, `source: "script-plate"`, model and params). The Composite carries `scriptId` and a `scriptAsset` location tag, so every reader (server `withScriptAssetImages` and the shot expansion, the browser `canvasAssetRows` and `shotAssetEntries`, a composite wired into another) reads its current picture as the location, and a second Fan out reuses it. (2) A location picture that was uploaded or picked stays a Location node; a product stays a Product node, because it carries its angles. (3) Double-clicking a Product or Location node opens the picture full screen (FullScreenImageZoom, which gains optional previous and next for a product angles).
+
+**Why.** User, 30 Oct 2026: anything generated should be editable and regenerable on the canvas the way the storyboard Composites are; a product is a set of angles, so it keeps its own node. And a quick way to look closely at a product or a background.
+
+**Rejected.** Products as File nodes (tried, reverted at the user word: a product has angles). Every location as a Composite (an uploaded photo has no generation to record).
+
+**Originated →** conversation in this session.
+
+### D457 — Graphics are added after generation; the action leads each beat; a location is the place, without the shots props *(recorded 2026-10-30; amends D448, spec 3 §6.3; refines D453)*
+
+**Decision.** (1) Review cards, claim cards, badges, subtitles and captions are put in by hand after generation. The multishot writers (generate@15, kling@12, seedance@11) write a shot that mentions one without it: no card, screen, sign or box standing in for it and no space held for it; a shot that is only a graphic is written as the scene under it. The logo rule no longer holds space for the mark. Storyboard panels no longer draw a blank rectangle for a review or claim card (only the pack stays blank until the product has a picture); a shot that mentions a card, badge or caption gets PANEL_NO_GRAPHICS_CLAUSE. (2) THE ACTION COMES FIRST: a beat opens with who does what, then where, and names the place and at most two props, the ones the action uses. The background role names the place and at most two of its elements; loose things lying in the plate are not the shot props unless its text calls for them; the storyboard role no longer carries the panel foreground and background inventory. (3) A location description is the place without the shots props (script-copilot 7), and the plate prompt (location-plate@3) bans loose things on the set (food, dishes, devices, bags) even when the description names them, and no longer copies the reel Setting & Camera line in.
+
+**Why.** Reel 07 on staging, 30 Oct 2026: S5 rendered an Amazon review card with garbled text, S8 a blank then garbled paper card held over the pack, both seeded by the panels own blank rectangles; S3 lost the phone buzz and S7 v2 the rinse and the tote under lists of counter props; the plate copied the setting line props (bowl, yogurt tub, apple, nuts, laptop) and every clip inherited them, breaking continuity. User: overlays are done manually after generation, so no layouts or boxes for them.
+
+**Rejected.** Leaving clear space for an overlay (the user places it by hand; a held space reads as an empty box). Drawing the overlay in the panel for approval (it rides into the video).
+
+**Originated →** conversation in this session (Reel 07 analysis, staging).
+
+### D458 — A shot picks a product it uses; props keep their names; the camera is set shot by shot and steady unless asked *(recorded 2026-10-30; refines D447, D457)*
+
+**Decision.** (1) The script copilot (version 8) picks a product for every shot it is in, in any form: the pack on screen, the product itself being used (poured, mixed in, applied, worn or held), or its voiceover naming it, in the draft and the import alike. (2) The multishot writers (generate@16, kling@13, seedance@12) keep props as the script and location name them, never turn the product name into an ingredient or a prop, and write a prop the script calls plain or unlabelled as "plain, no label". (3) THE CAMERA IS SET SHOT BY SHOT: the production notes give the reel place, light and look, but a camera note in them belongs only to the shot it describes; each beat camera comes from its own shot text, panel and the direction. The camera is steady by default (locked off or one slow smooth move); handheld only when the shot text or the direction asks. The writer user turn labels the notes as the reel as a whole, and the storyboard panels read the setting line for place and light, not its camera note.
+
+**Why.** Reel 07 on staging, 30 Oct 2026: S4 stirred the flour in with no product picked (only shots showing the pack got it); S9 turned the chopped apple into jackfruit and an unlabelled yogurt tub came back branded; the production notes ("Handheld, top-down on the bowl.") opened nearly every beat. User: handheld shots are not preferred unless the shot or the direction asks.
+
+**Rejected.** Splitting the setting line into reel and shot parts in the parser (the writer can tell a camera note from a place, and old scripts keep working).
+
+**Originated →** conversation in this session (Reel 07 analysis, staging).
+
+### D459 — A script character is cast from the whole reel and the brand, not the cast line alone *(recorded 2026-10-30; refines D395)*
+
+**Decision.** The cast brief route sends the brief writer, besides the name, cast line, region and the operator note: the visuals of the shots the person is on screen in (up to 8), the reel Setting & Camera line as its place, and the brand name with the KB casting and audience notes. The brief rules now: read the whole reel (the outfit and what they carry in their shots is part of them; the first shot wins a conflict); decide ethnicity from region, place, name and the brand audience, never from a skin-tone word alone; a real person, never a model or stock photo, personality shown only through styling and a natural expression; specific, believable clothes with real colours, never a placeholder (simple, muted, neutral); a worn product category gets a plain unbranded item so the brand own can replace it; a group cast line becomes one member; a child is a child (a new brief age band, Under 18, described as a girl or boy, with no adult age chip sent). The operator note still wins.
+
+**Why.** Staging, 30 Oct 2026, 16 script-made faces: two Chupps leads came out Black and White (no region, "medium brown skin"); a 9-year-old was briefed as an 18 to 24 woman; "Children" became one teen; outfits were muted placeholders (beige T-shirt, grey shirt) while the shots named a claw clip, earphones or a bronze heritage-weave saree; every face read as an HR stock photo. The brief saw only the cast line and an often empty region.
+
+**Rejected.** Adding a child band to the Studio age chips (a wider change; the description carries the age). Sending the full KB (its visual identity and image direction are about the brand look, not this person).
+
+**Originated →** conversation in this session (character quality review, staging).
+
+### D460 — Fan out shows its Composites at once, and lays the script assets out in a measured column left of the script *(recorded 2026-10-31; amends D454, D456, D450; refines D382)*
+
+**Decision.** (1) The storyboard and plate Composites join the canvas in the same step as the clips, showing the picture Fan out already knows (pendingStoryboardData, pendingPlateData), wired into their clips; the server answer then merges in the instruction, model and settings, and a picture it could not record is removed through the store (so the removal is saved), or all of them with a toast when the call fails. Because the browser may autosave such a node first, insertNodesWithFirstVersions now updates a node already on this canvas and of this type, leaves one that already has a version alone, and refuses an id that belongs to another canvas or another type (NodeIdConflictError, a plain 409). (2) The product, location and plate nodes go in one column whose right edge is 40px left of the Script card, starting under its presenter avatar (or at the script top), and the settle pass (settleFanOutRows, FanOutLayout.column) stacks them right-aligned from their measured sizes, with an estimate (340 by 420) and pitch to start. (3) A presenter avatar is placed 320px left of its script (its widest card plus a gap); it was 240, and a 280-wide card covered the script.
+
+**Why.** User, 31 Oct 2026: on Fan out the Composites appeared after an empty gap, and the products, backgrounds and avatars overlapped their neighbours. The assets were stacked at the script own x, 300px apart, from 420px below its top: on the Script card, and since D456 a plate is an output-tier Composite up to 480 wide and over 500 tall, so it reached the clips at script x + 360 and covered the next asset.
+
+**Rejected.** A placeholder card while the server works (the picture is already known, so the real card can show it). Waiting to place the rows until the server answers (the gap the user reported).
+
+**Originated →** conversation in this session.
+
+### D461 — The three Veo 3.1 models are deprecated: not offered, and saved nodes fall back to Gemini Omni *(recorded 2026-11-02, revised 2026-11-03; amends the Veo default in client-models and registry)*
+
+**Decision.** Veo 3.1 Lite, Fast and Quality carry `deprecated: true` on the client roster, and the picker offers no deprecated model (the Veo group goes with them). A Video Gen node saved on one, with or without a video, opens on Gemini Omni 1.1 Flash with Omni's default params when the canvas store is created; its image roles and videos stay, and the change is saved with the canvas's next change rather than on load. The upstream-images route reads the stored model the same way (`usableVideoModelId`). Restoring a version made on Veo brings back the video, not the model or params. The generate route refuses a deprecated model with a 400 before any generation row or credit reservation, for a tab open from before the fallback. The default for new nodes and for a request naming no model (client and server, which had disagreed: Lite and Fast) is now Gemini Omni 1.1 Flash.
+
+**Why.** User, 2 and 3 Nov 2026: Google shut the Veo 3.1 preview models down on the Gemini API on 22 Oct 2026, and the key sees no other Veo model. First asked for disabled chips with a toast; then asked to remove the buttons and move nodes that already generated on Veo to Omni with its default params. Omni is Google's named replacement, needs no start frame (unlike Kling 3.0) and has no presenter restriction on a real face (unlike Seedance).
+
+**Rejected.** Dimmed chips with a toast, and a saved Veo node blocked until moved by hand (this entry's first version, replaced at the user's request). Removing Veo from the roster (past versions read their params and labels from it, and `resolveVideoModelId` would silently relabel them). Carrying the Veo node's params over (the user asked for Omni's defaults). Rewriting the saved rows in a migration (a read-time fallback needs no backfill and leaves the rows' history alone). Removing the Veo prompt dialect and the "Veo" Target model chip on the Video Prompt node (not a model choice, and it is also the provider-neutral fallback for mixed downstreams).
+
+**Originated →** conversation in this session.
+
+### D467 — GPT Image 1 is deprecated: not offered, and saved nodes fall back to GPT Image 2.5 Sunburst *(recorded 2026-11-03; refines D461)*
+
+**Decision.** `openai:gpt-image-1` carries `deprecated: true` on the client list, so it leaves every picker built from the groups (Image Gen, Composite, the avatar model select) and Visualise's panel models. An Image Gen or Composite node saved on it, with or without an image, opens on GPT Image 2.5 Sunburst with Sunburst's default params when the canvas store is created; its pictures stay, and the change is saved with the canvas's next change rather than on load. Restoring a version made on it brings back the picture, not the model or params. The image, composite, avatar generation and avatar sheet routes refuse it with a 400, for a tab open from before the fallback. New nodes keep their existing defaults. GPT Image 1 Mini stays on offer.
+
+**Why.** User, 3 Nov 2026: remove GPT Image 1 as deprecated, the same way as Veo (D461), with Sunburst as the fallback at its default params. OpenAI's deprecations page gives 23 Oct 2026 as its shutdown and names Sunburst or Flare as the replacement. Composite is included because it shares the picker, and a node on a model the picker no longer lists would show nothing selected.
+
+**Rejected.** Removing GPT Image 1 from the list (past versions read their params and labels from it). Removing GPT Image 1 Mini too (OpenAI shuts it down on 1 Dec 2026, so it still works; the user named GPT Image 1). Composite falling back to its own Seedream default (the user named one fallback, and `compositePickerModelId` still handles a model that leaves the list entirely).
+
+**Originated →** conversation in this session.
+### D462 — A storyboard panel draws only what its shot names, framed for its action; the turnaround sheet wears the front as described *(recorded 2026-11-02; refines D342, D449, D458, D395, D459)*
+
+**Decision.** (1) The panel prompt adds three rules: draw only the people, products and objects the shot names, plus the room's furniture (PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE); the reel's setting line gives place and light only, and an object it lists appears only when the shot uses it; the regional kit gives the look of the home and clothes, and its food appears only when the shot serves or eats a meal. (2) A framing rule (PANEL_FRAMING_CLAUSE): close on a detail the action is about, medium on one person, wider for two, unless the shot gives the camera. (3) A product appears once unless the shot says more, a hand-over shows it in one hand, and a named side (the back, the label) is the side shown (PANEL_ONE_PRODUCT_CLAUSE). (4) With a location plate, every panel keeps the same table, chairs, shelves and doors in the same shapes, materials and colours. (5) The turnaround sheet prompt carries the front's generated description, and every view wears each garment as described, the back view too. (6) The character brief places a person by a home town, language or accent the script gives (a Marathi lilt in Pune is Maharashtrian).
+
+**Why.** User, 2 Nov 2026, Reel 32 on staging (Jackfruit 365): the worst storyboards yet. The setting line listed the pack, a study page and a notebook, and the kit listed chapati, bhaji and varan, so a thali sat on the table in the intro and papers beside both pack shots; S3 drew a pack in each person's hand during a hand-over; S1 showed the pack front while the shot taps the back label; every panel was the same medium-wide view; the table was dark in some panels and light in others. On the avatar, the front is waist-up, so the sheet guessed the rest: an untucked shirt came back tucked in the back view, and slip-on sandals came back as shoes. Hemant, of Pune with a Marathi lilt, was briefed as a South Indian man.
+
+**Rejected.** Dropping the setting line when the shot has a plate (it still carries the light and time of day). Generating the four views separately (D395's one render stays; the description fills what the front cannot show).
+
+**Originated →** conversation in this session (Reel 32 storyboard review, staging).
+
+### D463 — A shot with several moments is storyboarded as a 2 by 2 sheet of frames *(recorded 2026-11-02; refines D342, D452, D453, D454)*
+
+**Decision.** A script shot whose action has two or more moments (shotMoments: an action verb after its doer or an "and", as in "Hemant takes it from her and reads the label"; an article is never a doer) is drawn as one storyboard sheet: four frames of that shot in a 2 by 2 grid, read left to right and top to bottom, from the action's start to its end, each frame in the reel's aspect, full bleed in its cell with thin white gutters, and the same people, clothes, products, place and light in all four (panelGridClause). A shot with one moment or none stays a single frame. It is still one image and one take: the same credits, Redraw, review, share and canvas Composite. On the canvas, the storyboard reference text tells the video model that several frames are this one shot's moments in order and that the clip never shows a grid; the multishot writer already lays a storyboard's frames across the beats in order (D453).
+
+**Why.** User, 2 Nov 2026, Reel 32 on staging: "even there is multishots, there is not grid like storyboard". Every shot got one picture, even S3, where Anjali holds up the pack, asks, and Hemant takes it and reads; the single frame picked one moment and dropped the rest. The user chose a grid per shot over a grid per multishot clip. One render keeps the people and room from drifting between frames, as D395 does for the avatar views.
+
+**Rejected.** A grid per multishot clip assembled from the shots' panels (the user's choice; a shot's own moments were the gap). Four separate renders per shot (four times the credits, and drift between them). A frame count that follows the moment count (a 9:16 sheet only divides evenly into 2 by 2).
+
+**Originated →** conversation in this session (Reel 32 storyboard review, staging).
+
+### D464 — The script copilot asks for no review by default; a review beat comes only when the person asks *(recorded 2026-11-02; amends the brand-neutral format menu, spec 2 §7–§8)*
+
+**Decision.** Reviews leave the copilot's defaults. The shared format menu has no REVIEW beat (UGC is HOOK, INTRO, STORY, STEP, BODY, PAYOFF, PROOF, OUTRO) and no "UGC review first" format. The prompt (version 9) drops the review-beat rule, an angle's reviewTheme, the card's "Review" line, the "do not list the review" note and the pasted-review instruction. Fill to final has no review wording of its own: a bracket in a review shot reads "Replace [...] in REVIEW (S2)." like any other, and the "Paste the cleared review" chip is gone, as is the probe's "review placeholder" check. KB extraction (version 3.2.0) no longer asks every brand's content rules "whether it uses customer reviews"; a brand whose documents speak of reviews still has them in its rules, as written. A person who wants a review beat asks for it in the brief or the chat; "Never make up a testimonial" still holds, so the copilot leaves a placeholder rather than invent one. Saved scripts, briefs and the seeded reels keep the review beats they have; an old angle's reviewTheme is dropped on read, and a saved "UGC, review first" reads as UGC.
+
+**Why.** User, 2 Nov 2026: the review requirement was one client's (Jackfruit's Amazon reviews), yet every UGC script carried a review beat, and its placeholder sat at the bottom of every draft as two "Still open" lines (two of the shot's fields each held the bracket).
+
+**Rejected.** Keeping the beat and only hiding the reminder (the beat itself was the client-specific part). Keeping the beat with no quote.
+
+**Originated →** conversation in this session.
+
+### D465 — Visualise is a storyboard sheet; the client sees only the idea, the cast and the storyboard *(recorded 2026-11-02; refines D358, D359, D446; amends D449 for location plates)*
+
+**Decision.** The Visualise board is one column. The summary card keeps the brief and gains a side area with the cast, locations and products as chips; each chip opens its full editor in a popup (the avatar maker, the location card, the product card), and a cast chip says "Ready" only when panels can use the avatar. Below it, the storyboard runs at full width as a classic sheet (two to four across): each tile is the frame, then its shot written underneath (number, beat, time, action, spoken line), then the shot's product and location pickers. Redraw sits on a drawn frame (on hover and focus, always shown where there is no hover); only a shot with no panel has Generate below it. The sheet does not zoom: a frame is a picture, not a button. A drawn panel's Versions action (beside Redraw, on hover) opens the panel view, which now also shows the whole shot (on-screen text, who's on screen). The client's storyboard does not zoom either. The separate shot list, the cast cards and the Products & Locations section leave this board, and "Group by beat" goes (the beat is a label on each tile). The client's page and the approved board take the same layout, read-only, cut to what the client signs off on: the title, facts line, purpose and disclaimers, the cast as bigger cards, and the storyboard. No setting and camera, watch-outs, locations or products; a script-only share shows the shots as tiles without frames. Comment markers move onto the summary card, the cast chips/cards and the tiles; a tile has one comment action, for the shot's words and its panel together (new comments are on the shot; a panel's earlier comments count on the same marker), and comments scroll to the tile. A location's popup shows its plate large, and a plate's Redraw draws again straight from the location's description, with no "what should change?" step (amends D449 for plates; panels keep it).
+
+**Why.** User, 2 Nov 2026: with several avatars the cast cards filled the screen, and the shot list and the storyboard repeated each other. A storyboard should read like one. The client should not be shown the team's working references and notes ("we don't want to share too much and confuse the client").
+
+**Rejected.** A right-hand column with Cast / Locations / Products jump links (the "compact" mockup). Two-up tiles (each ~830px tall at 9:16). Landscape cards and a rows layout. Pickers inside the panel view only (the user sets products and locations on the sheet). Location comments and client review of locations or products. Thumbnails and "used in" toggles for assigning locations and products (parked).
+
+**Originated →** [2026-11-02-visualise-storyboard-sheet-design.md](2026-11-02-visualise-storyboard-sheet-design.md); mockups on the Design canvas ("2 · Visualise, storyboard sheet (Nov brainstorm)").
+
+### D466 — An avatar's video preview is shown beside its four views, to the team and to the client *(recorded 2026-11-03; extends D294, D465)*
+
+**Decision.** Wherever an avatar's four views are shown for review, its video preview plays in place beside them (9:16, as tall as the sheet): in the Visualise avatar popup (which drops its separate "Watch" dialog; an out-of-date clip shows dimmed with an "Out of date" badge), and on the client's cast card. A share freezes each cast avatar's latest preview only when it finished and still matches the avatar's face and voice (no running, failed or out-of-date clip ever reaches a client); the previews for the whole cast are read in one query, beside the avatars. A version shared before this has no preview; sharing again adds it.
+
+**Why.** User, 3 Nov 2026: the preview is how a client hears and sees the avatar speak; it should be reviewable where the avatar is reviewed.
+
+**Rejected.** A per-avatar lookup at share time (one query per cast member). Freezing a stale or running preview. Showing the clip behind a "Watch" button.
+
+**Originated →** conversation in this session.
+
+### D467 — A product is a physical thing, never a service; a graphic-only shot has no location *(recorded 2026-11-02 as D465 in commit 18d39b2b, renumbered when staging's D465 merged in; refines D447, D457, D458)*
+
+**Decision.** The copilot's asset rules (script-copilot version 10; version 9 is D464) say a product is a physical thing the camera can show and a photo can be taken of. A service (a loan, insurance, an account, a card's benefits, a subscription, an app's features, a booking) is never a product: the reel shows it through people, places and actions, and the brand arrives through the voiceover and the logo added in the edit. A brand that sells only services gets an empty product list, and what a person in the story owns and uses (their own gold jewellery taken to a gold loan) is a prop. A shot that is only a graphic (a logo end card, a brand-colour background, a title card) has location "" and adds no location.
+
+**Why.** User, 2 Nov 2026, Muthoot Finance on staging (script 78efc68d): "Muthoot Finance Gold Loans" became a product card asking for a picture, picked in S3 (her laptop) and S5 (the logo card), because the D458 rule picks a product its voiceover names and nothing said a product must be an object. Without a picture, the panel prompt draws a product as "a plain blank pack", so a loan would have been drawn as a blank pouch. The S5 logo card became a location, "Red Background", with a plate to generate, though graphics are added in the edit (D457).
+
+**Rejected.** A product kind field (physical or service) on each product (the copilot can leave a service out entirely; nothing downstream needs a service row). Hiding the picture prompt for a product without one (it would keep a service row the video and panel prompts still try to draw).
+
+**Originated →** conversation in this session (Muthoot Finance script review, staging).
+
+### D468 — An app or a website is never a product; a screen-only shot has no location *(recorded 2026-11-03 as D466 in commit 8df743e1, renumbered when staging's D466 merged in; refines D467)*
+
+**Decision.** The copilot's asset rules (script-copilot version 11) name an app or a website, and what it does, among the services that are never a product. A shot that is only a screen (a screen recording of an app or a website, a phone's display filling the frame) has location "", adds no location and picks no product: a screen is never a location, and a real screen recording is added in the edit.
+
+**Why.** User, 3 Nov 2026, PharmEasy on staging (script 1894b4f8, "Repeat order set", imported under version 8): "PharmEasy app" became a product with no picture, picked in S4 (the screen recording) and S7 (the end card), and "Mobile Screen" became a location with a plate to generate. D467's "an app's features" read as the features, not the app itself, and nothing covered a screen as a place.
+
+**Rejected.** For now, a "Recorded for real" mark on a shot that the storyboard and canvas skip (the user deferred it on 3 Nov 2026; S4's real recording still has no path but the edit). A plain green screen in a generated shot (the same deferral).
+
+**Originated →** conversation in this session (PharmEasy script review, staging).
+### D469 — Redraw's change sends the shot's people, place and products after the panel it changes *(recorded 2026-11-02 as D464 in commit dbd966dc, renumbered when staging's D464 to D466 merged in; amends D449)*
+
+**Decision.** "Change this picture" sends the picked take as reference image 1, then the shot's own references as a draw selects them (the people's views, the location plate, the product pictures and angles, one slot fewer so the take fits), then the house style. Its prompt (panelChangePrompt) keeps the note and the hold-everything line, adds that a sheet of frames keeps every frame and changes only what the note names, restates the shot text (the change wins where they differ), and names each reference as a draw does: the place, the people, the products. With a real product picture it uses the packaging-as-pictured text rule, not the every-pack-is-blank one. PanelReference gains a { panel: true } variant for the take.
+
+**Why.** User, 2 Nov 2026, Reel 33 on staging (script 8f69d599): iterations on a storyboard lose the product, and maybe the place and the references. Confirmed from the generations: a change sent only the old panel and the house style, and its prompt said every packet is plain and unlabelled. S1 drew the real Jackfruit365 pack, "he looks at the back of the product" invented a back with no back picture to draw from, and "he looks at the front view" came back a blank yellow bag; S3's "in frame 4, flip the product" blanked the pack in every frame. The people and room held only through the old panel, with nothing anchoring them over repeated changes.
+
+**Rejected.** Redrawing fresh with the note (the Fresh option already does that; a change must hold what the take got right). Sending the product pictures only (the people and the place drift the same way over repeated changes).
+
+**Originated →** conversation in this session (Reel 33 storyboard iteration, staging).
+
+### D470 — The storyboard and script rules are checked against every brand's scripts, not the reel that showed the problem *(recorded 2026-11-03; refines D457, D462, D463, D467, D468)*
+
+**Decision.** The rules from D462 to D468 were each written from one reel. They were rerun over all 64 scripts and 489 shots on staging (food, fashion, jewellery, beauty, skincare, finance, pharmacy, beverages), and rewritten as general rules:
+
+- **Storyboard sheet (D463).** The 2 by 2 sheet is decided from the script's own cast names (or he, she, they, someone), never from any capitalised word, so "Camera tilts", "Pan across", "Sliced onions" and "Walking shots" are not doers. A sheet is drawn when the action passes between two people or runs three or more steps; one person's two actions ("lifts the lid and smiles") stay one frame, since a sheet asks the clip to move through frames and invites cuts. 118 shots drew as sheets before, 48 of 388 distinct shots now.
+- **What the edit lays over a shot (D457).** The panel draws the live scene under a logo, tagline, on-screen text, name or price, a card, badge, caption, overlay or split screen. A logo printed on the product, the claim line on the pack, a real card (a debit card) and "no logo on screen" are left alone. Before, only card, claim line, badge, caption and subtitle were caught, so 16 logo mentions and every split screen were drawn, and a pack's printed claim line was removed.
+- **Screens.** A phone, laptop or TV screen facing the camera is drawn plain and lit, with no app, page or text; what it shows is added in the edit. "On screen", "off-screen" and a split screen are places in the frame, not devices.
+- **A product with no picture** is drawn as a plain version of what it is, with no logo, label or printing, not as "a blank pack" or "a blank pouch" (a sandal, a pendant or a lipstick is not a pouch).
+- **The regional kit** gives the look of the place and clothes for its own region (never another region's), and its food and objects appear only when the shot's action uses them. Before, it said "the home is Indian" and spoke of meals only.
+- **One of the product** means one pair or one set where the product comes that way.
+- **Script copilot (version 12).** A location is a real place people could be in: a graphic, a plain backdrop (a colour, a studio sweep, a product shown on a background, a packshot or e-commerce set) or a screen-only shot has location "" and its visual says the backdrop. Something carrying the brand's own fixed look (its packaging, a gift or delivery box, a branded card, bag or uniform) is a product, so a picture of it can be added; the service behind it is not. Variants the reel shows apart (shades, flavours, colours, sizes) are one product each, named in full. The rule's examples no longer name one client's case (a gold loan).
+- **Avatars.** A home town, language, dialect or accent places a person in that region's look, without naming one region as the example.
+
+**Why.** User, 3 Nov 2026: fixes made from the issues one reel hit were becoming brand-specific ("we are not solving for brand specific"). On staging, the copilot had made locations of "Neutral Void", "Warm ivory background", "Red Background", "Product Studio", "Ecommerce Set", "End Frame" and "Mobile Screen"; ICICI's iMobile Pay, Muthoot's gold loan and PharmEasy's app were products; Maybelline's shades came out as "more buff", "more berry". ICICI ("Phone screen is a real capture"), Giva (a phone showing the website) and PharmEasy (a screen recording) all have shots whose screen must be real, so the deferred "recorded for real" mark (D468) is a general need, not one brand's.
+
+**Rejected.** Fixing each rule by adding the words the failing reel used (the way D457's "claim line" and D463's capitalised-name rule were first written). An LLM call to classify every shot (a per-shot call on every panel; the rules are cheap, testable, and were checked against the corpus).
+
+**Originated →** conversation in this session (generic review of D462–D468 against all staging scripts).
+
+### D471 — Blood relatives in a script are cast as one family: the brief sees the whole cast, and a face is drawn beside a relative's *(recorded 2026-11-03; refines D395, D459)*
+
+**Decision.** The character brief now receives everyone else in the reel (their id, name and cast description, and, when their avatar's face was generated, the description it was drawn from). A new rule 11 has it decide, from the script's own words (a name such as "Mother" or "Son", a description, the shots, the voiceover), who is this person's blood relative (a parent, child, sibling, grandparent or grandchild), list them as family with what they are to this person, and give this person the family's look: the same ethnicity, a matching skin tone and the shared features (face shape, eyes, nose, hair colour and texture), aged for this person, matching an already-made relative's look. A spouse, an in-law, a friend or a colleague shares only the region. The brief route returns the relatives whose face is already made (avatar id and relation); the maker passes them to the front route, which reads each as the client's own avatar (another client's id is a 404, before anything is spent), sends at most two of their front images as references, and adds a family line: each reference named by what that person is to this one, a clear family resemblance at this person's own age and gender, never a copy, and nothing else taken from the reference. Whoever is made first sets the family's look; the next is drawn beside them. The sheet follows the front as before.
+
+**Why.** User, 3 Nov 2026: a parent and their child generated for the same script did not look related ("very funny"). Each person was briefed alone (rule 2 deliberately drops other people's words) and drawn from text only, so two independent draws of "South Asian" faces shared nothing but the label.
+
+**Rejected.** A relation field on each cast member set by the copilot (a cast change would need the field kept in step; the brief already reads the script and decides per person). Sending every cast member's face as a reference (a spouse or friend is not a likeness to copy, and more faces blur it). Copying the relative's face (two people, not one).
+
+**Originated →** conversation in this session.
+
+### D472 — The video request says who speaks, or that nobody does; a line's speaker is picked, and the parse finds a character's dialogue *(recorded 2026-11-03; amends D208, D267, D286; refines D443)*
+
+**Decision.**
+- **Sound clause by what is spoken.** Omni's request ended with one fixed line, "Sound design: ambience, foley and the spoken line. No background music.", on every request. It now follows the prompt: no line gives "ambience and foley only. Nobody speaks: no dialogue, no voiceover, no narration, no singing"; a voiceover only gives the voiceover "spoken off-screen in exactly the words given and nothing more. Nobody on screen speaks or moves their lips as if talking"; an on-camera line gives "each said on camera by the person named … Nobody else speaks, and there is no voiceover"; both are said together. Kling and Seedance make sound by default too and now get the same clause (Kling ahead of its triples, Seedance at the end).
+- **Each line says where its voice comes from.** A rendered line reads "Voiceover, off-screen: …" or "Asha says on camera: …", and a Multishot's lines are introduced as "Spoken over the whole sequence, in order:" instead of "Across every shot —", which read as scene direction.
+- **The speaker is picked.** In the Multishot view the speaker of a line is a dropdown: "Voiceover · off-screen", or a person on the canvas (their avatar's name) "· on camera". A speaker already on a line stays in the list. An empty card says "No lines, so nobody speaks in this clip." The people are read from the canvas's Avatar nodes only while the view is open.
+- **What was sent is shown.** An Omni generation records the lines its request adds around the prompt (the sound clause and "No on-screen text.") as addedOnSend, shown under the prompt in "Sent to model" as "Added when sent". Older versions show none rather than a guess.
+- **The parse finds a character's dialogue (script-parse version 13).** In order: a person's label on the line ("Hemant:", "Amma (to camera):", "Dialogue — Children:") is said on camera by them; a voiceover label naming a person ("Voiceover, son:") is that voice off-screen, speaker narrator with delivery starting "son's voice", unless the shot shows that person talking; an unlabelled line is the narrator's unless the shot's visual has a person speaking ("speaks to the camera", "on the phone", a piece-to-camera); only looking at or holding something up to the camera is not speaking; a phrase that is part of the line ("One customer wrote on Amazon:") is not a label.
+
+**Why.** User, 3 Nov 2026, Chupps Reel 11 and CaratLane on staging: clips got speech nobody wrote, and the model spoke a narrator's line from the on-screen person. The prompts sent showed why: all six CaratLane "A Touch of Gold" clips and two of "Little Detail" had no line, yet each request asked for "the spoken line"; Reel 11's narrator line sat beside beats where the man looks into the lens and "speaks naturally to the camera", with nothing saying the voice was off-screen; and S5's script line was the man's, parsed as the narrator's because "speaking to camera" did not count as his mouth.
+
+**Rejected.** Turning audio off (Omni cannot; Kling's off loses ambience and foley too). A free-text speaker kept beside the dropdown (the free text is how "narrator" ended up on a line the script gave a person). Inferring every first-person line as the on-screen person's (a line over a person only looking at the camera is usually narration; lip-sync on a long line looks wrong).
+
+**Originated →** conversation in this session.
+
+### D473 — An open node's URL can be shared: `?node=` names the open focus view and opens it on arrival *(recorded 2026-11-03; amends D165 / R9.3)*
+
+**Decision.**
+- **The URL follows the open view.** Opening any node's focus view writes `?node=<id>` to the URL; opening another replaces it; closing removes it. When views are stacked, the top one is named. Writes use `history.replaceState`, so opening views adds nothing to Back.
+- **A link opens the node.** Loading or following a canvas URL with `?node=` flies to that node and opens its focus view, through the same `focusedNodeId` signal the tray and the review drawer use. A node that does not exist (deleted) opens nothing.
+- **The inbox keeps its meaning.** A link with `?review=1` as well (the navbar inbox) also lands on Details and opens the review drawer, as before. A plain shared link opens only the view.
+- One hook, `useNodeLink` (`src/components/canvas/use-node-link.ts`), owns both directions; the review drawer calls it instead of holding its own `?node=` effects.
+
+**Why.** User, 3 Nov 2026: a node should be shareable by its URL, so a teammate (or a bug report) lands straight in it.
+
+**Rejected.** A separate param for shared links (`?focus=`): two params naming the same thing, and the inbox's `?node=` already did the arrival half. Pushing a history entry per view: Back would step through every view opened.
+
+**Originated →** conversation in this session.
+
+### D474 — The request says when the lines are spoken, and a voiceover too long for its clip is flagged *(recorded 2026-11-03; refines D472)*
+
+**Decision.**
+- **Timing in the sound clause.** Whenever a line is spoken (voiceover, on camera, or both), the sound clause adds: "Speaking starts within the first second and every line is finished before the clip ends; no line is cut off." A clip with no line is unchanged. Omni, Kling and Seedance all get it, as they share the clause.
+- **A length check in the Multishot voiceover card.** `secondsToSay(lines)` (`src/lib/nodes/voiceover.ts`) estimates the lines at 2.5 words a second, rounded up. When that plus a second of room (`SPEECH_ROOM_SECONDS`) is more than the clip's length, the card says: "These lines take about Ns to say, and this clip is Ms. Shorten them or lengthen the cuts, or the end will be cut off."
+
+**Why.** User, 3 Nov 2026, CaratLane Reel 02 Multishot 2 on staging: an off-screen voiceover was cut off. The 4s clip's audio was room sound until 2.7s, then the seven-word line began and was still being spoken at 4.0s, the clip's end. The request had said who speaks but not when, so the model spent most of the clip on ambience.
+
+**Rejected.** Timecodes on each line (`[0.5-3.5s]`): a line's length in speech is a guess, and a wrong window is worse than "start early, finish before the end". Blocking generation when the lines are too long: the estimate is rough and a fast read can fit, so it warns rather than stops.
+
+**Originated →** conversation in this session.
+
+### D475 — A Multishot's voiceover carries the clip's timeline on the line itself *(recorded 2026-11-03; refines D286, D472, D474)*
+
+**Decision.** In the request, a Multishot's sequence lines are introduced with the ladder's own window: `Spoken over the whole sequence (0-4s), starting in the first second and finished before 4s, in order: Voiceover, off-screen: "…"`, built by `sequenceVoPrefix(totalSeconds)` in `src/lib/nodes/multishot-plan.ts`, for Omni, Kling and Seedance alike. The node's own preview text keeps the short `SEQUENCE_VO_PREFIX`. D474's timing sentence in the sound clause stays as well.
+
+**Why.** User, 3 Nov 2026, looking at the prompt sent for CaratLane Reel 02 Multishot 2: the line sat above a `[0-4s]` ladder with no time of its own, so the ladder was the only timeline and the speech had no place in it. The model spoke it from 2.7s, and the clip ended mid-line. D474's timing went at the end of the request, far from the line; this puts it on the line, in the same seconds the ladder uses.
+
+**Rejected.** Moving the line inside the first cut's beat: in a sequence of several cuts it would read as belonging to that cut only, which is what D307 removed.
+
+**Originated →** conversation in this session.
+
+### D476 — The speaker list adds the script's speakers and "Someone else…" *(recorded 2026-11-03; refines D472)*
+
+**Decision.** The Multishot voiceover card's speaker dropdown lists, after "Voiceover · off-screen": the avatars on the canvas (as before), then everyone the Multishot's own script gives an on-camera line to (`speakersOf`, read from the script node the Multishot was seeded from), then "Someone else…", which turns the dropdown into a name field (Enter or leaving the field keeps the name; Escape drops it). A name kept this way stays in the list for that line, as any current speaker does.
+
+**Why.** User, 3 Nov 2026: the dropdown's people were fixed. They came only from Avatar nodes, so a character introduced later, or one the script names but nobody has made an avatar for, could not be picked.
+
+**Rejected.** Going back to a free-text speaker field: D472 replaced it because "narrator" ended up on lines a person speaks. Typing is now the last option, not the first.
+
+**Originated →** conversation in this session.
+
+### D477 — A speaker picked by hand is never renamed as the avatar in the shot *(recorded 2026-11-03; amends D299; refines D472, D476)*
+
+**Decision.** A line whose speaker is chosen in the Multishot's speaker list is stored with `picked: true` (`VoLine.picked`). `withAvatarAsSpeaker` (`src/lib/avatars/presenter.ts`) leaves such a line's speaker as it is and does not count it when deciding whether the shot has exactly one on-camera speaker. Lines from the parse are unmarked and are renamed as before.
+
+**Why.** User, 3 Nov 2026, CaratLane Reel 02 Multishot 1: they changed the speaker to "hi", and the Multishot Prompt still showed "Elegant young woman". D299 renames the shot's single on-camera speaker to the avatar marked "In this shot", which is right for a parse label such as "creator" or "host" but overrode a name the operator had just picked.
+
+**Rejected.** Dropping D299's rename: a parsed script still says "creator:" beside a face called Razel, and the model needs them to be one person. Renaming only when the speaker matches no avatar: a typed name ("Someone else…") matches none, which is exactly the case that broke.
+
+### D478 — A client can download the cut from the review page *(recorded 2026-11-03; extends D309)*
+
+**Decision.** The public review page has a "Download video" button: beside the title on a wide screen, and full width under the video on a phone, outside the video's sticky block. It links to `GET /api/r/:token/download`, which answers with a redirect to a V4 signed URL (15 minutes) whose `response-content-disposition` saves the file as the review's title in plain ASCII, with the cut's own extension. The share token is the only access check, as on the rest of the page.
+
+**Why.** User, 3 Nov 2026: a download button on the Open as client page, placed well, and right on mobile. The cut sits on the storage domain, where browsers ignore an `<a download>` and play the file in the tab. The redirect keeps the bytes out of the server (performance rule 8), and a link leaves a large file to the browser's own download.
+
+**Rejected.** A `download` attribute on the public URL (ignored across domains). Fetching a blob in the page (holds a whole video in a phone's memory). Streaming through a route (the bytes would pass through the function). Setting the download name on the stored file (the player reads that same file). One placement for both widths: under a tall reel on a wide screen it falls below the fold, and in a phone's header it squeezes the title.
+
+**Originated →** conversation in this session.
+
+### D479 — The lead's avatar sits under the Brand KB, the other cast stack below it connected to nothing, and Fan out's assets go left of them *(recorded 2026-11-03; amends D323, D460; refines D372)*
+
+**Decision.** When an approved script lands on a canvas (Create canvas, or the gallery), the lead's avatar is connected to the Script node as before, and every other cast member with a usable avatar (this client's, ready, not archived) gets an Avatar node with no edges. A presenter avatar goes under the Brand KB wired into its script, centred on the KB and 40px below it (`leadAvatarPosition`); with no KB wired in it goes 320px left of the script as before. The other cast stack straight down from that slot, 560px apart (a 520 card estimate and a 40 gap), and the slot stays free if the lead has no avatar. An avatar shared by two cast members, or the lead's own, is not added twice, and one already on the canvas is not added again. A cast member with no avatar stays as words in the shots. Fan out's asset column (D460) now sits left of that stack, from level with the script (`assetColumnAnchor`); with no KB and no avatar in the slot it stays beside the script. Nodes already on a canvas are not moved.
+
+**Why.** User, 3 Nov 2026: the canvas should hold all the script's cast with only the lead connected; the lead straight below the Brand KB, not overlapping it (at 320 left of a seeded script it covered the KB); the other cast stacked below the lead. Centred, because the avatar is 280 wide and the KB 176, with the script 280 from the KB's left edge: lined up on the left, the avatar would touch the Script card. The asset column moved because it ran through this space, and under a long cast it would otherwise start far down the canvas. A Script node still has one presenter (D298), and generation is unchanged: an unconnected avatar feeds nothing until someone wires it.
+
+**Rejected.** A row left of the lead, and a separate column 840px left of the script (earlier versions of this entry, replaced at the user's request). Lining the stack up with the KB's left edge (touches the Script). Starting Fan out's column below the whole stack (assets far from the script they belong to). Moving avatars on existing canvases (it would rearrange someone's layout unasked). Connecting the other cast to the Script (D298's connection replaces the presenter), or into the clips they appear in (the user asked for independent nodes). Adding them only on Create canvas (the gallery goes through the same step).
+
+**Originated →** conversation in this session.
+
+### D480 — The copilot offers avatars through one chip and a dialog, not a chip each *(recorded 2026-11-03; refines D362, paste-a-script §4.3)*
+
+**Decision.** Where the copilot asks who leads or who plays a character, it shows one chip ("Choose an avatar", or "Choose an avatar for Neeraj"), which opens a dialog of the client's avatars: each a face and name, searchable by name, with those that fit the character first and marked Suggested. Choosing one does what its chip did: for a character it links with no message, and the chip moves on to the next person in words; for the lead it sends the name with the avatar's id (D362). "Cast it for me" and the other chips stay as they are.
+
+**Why.** User, 3 Nov 2026: a client with dozens of avatars filled the chat with a chip for each, burying the question and the chips that matter. Faces also tell two avatars with one name apart better than "James · AI".
+
+**Rejected.** Showing the first few as chips with a "More" (still several chips for each person, and the user asked for a button and a dialog). A Select as on the cast card (no faces, and no search).
+
+**Originated →** conversation in this session.
+
+### D481 — A Button's press nudge never moves it off its own position *(recorded 2026-11-04)*
+
+**Decision.** `Button`'s press nudge is `[transform:translateY(1px)]`, not `translate-y-px`. `transform` adds to the `translate` property that Tailwind's position utilities write, so a Button centred with `-translate-y-1/2` moves 1px on press and stays under the pointer. A call site that cancels the nudge uses `[transform:none]`.
+
+**Why.** User, 4 Nov 2026: the ✕ on a focus view's Connected list took two or more clicks. `translate-y-px` and `-translate-y-1/2` write the same variable, so on mouse-down the 24px ✕ lost its centring and jumped 13px down. A press on its upper half was released over the row behind it, and the browser fires no click when press and release land on different elements. Checked in Chrome with real mouse events: before, presses above centre gave no click and presses below centre did; after, all did.
+
+**Rejected.** Fixing only the ✕ by positioning it through a wrapper (every other centred Button, such as the Generation tray's toggle and the image zoom's arrows, would keep the same fault).
+
+**Originated →** conversation in this session.
+
+### D482 — A Video Gen input shows the moment it is picked, and stays display-only until confirmed *(recorded 2026-11-04; refines D439)*
+
+**Decision.** Video Gen's + Add puts the new input on the cached list at once, as D439 does for removal. A File, Draw or generated image gets its real row, built by `upstreamImageOf`, which the upstream-images route also uses. An Avatar, Product, Location or prompt node gets a loading row (`RailPendingItem`), since only the server can expand it. `loadingConnected` holds the role writes and Generate until the re-read confirms. Each add or removal cancels older reads, and only the latest rewire reads.
+
+**Why.** User, 4 Nov 2026: adding a node to Video Gen felt slow. Its list reads persisted edges, so nothing changed until a whole-canvas save and a server read had finished, with no sign that the add had worked. Image Gen does not wait, because it derives its rows from the store.
+
+**Rejected.** Deriving Video Gen's whole list from the store (its rows depend on server work: avatar and product expansion and the rendered prompt). Letting role writes run on the instant row (CLAUDE.md performance rule 10: cached data is for showing). Saving only what changed, which is worth doing for every save but is a larger, separate change to autosave.
+
+**Originated →** conversation in this session.

@@ -12,7 +12,7 @@ import { cutSheetIntoViews } from "@/lib/avatars/sheet-cut";
 import { withStatus } from "@/lib/avatars/utils";
 import { AVATAR_SHEET_ASPECT, AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarImage, AvatarViewId } from "@/lib/avatars/schema";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { imageGenClientModelMap, isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
 import { preconditionFailed } from "@/lib/avatars/route-responses";
 import { buildAvatarSheetPrompt } from "@/prompts/avatar-character";
 
@@ -39,11 +39,14 @@ export async function POST(
       const parsed = SheetSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Choose a model.", 400);
       if (!imageGenClientModelMap[parsed.data.modelId]) return apiError("Unknown model.", 400);
+      // D467 — a tab open from before the model went can still send it.
+      if (isImageModelDeprecated(parsed.data.modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
 
       const current = await getAvatar(clientId, avatarId);
       if (!current || current.archivedAt) return apiError("Avatar not found.", 404);
       if (!current.front) return apiError("Add a front image before generating the profile sheet.", 400);
       const frontUrl = current.front.url;
+      const frontPrompt = current.front.source.kind === "generated" ? current.front.source.prompt : undefined;
 
       const caller = await resolveCallerContext();
       let made: Awaited<ReturnType<typeof runAvatarGeneration>>;
@@ -51,7 +54,7 @@ export async function POST(
         made = await runAvatarGeneration({
           clientId, avatarId, orgId: client.org_id, userId: caller.userId, userEmail: caller.email,
           slot: "sheet", modelId: parsed.data.modelId, aspect: AVATAR_SHEET_ASPECT,
-          prompt: buildAvatarSheetPrompt(), referenceUrls: [frontUrl], batchId: null,
+          prompt: buildAvatarSheetPrompt(frontPrompt), referenceUrls: [frontUrl], batchId: null,
         });
       } catch (e) {
         if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);

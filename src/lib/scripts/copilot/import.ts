@@ -128,7 +128,10 @@ export function buildImport(
   let doc: ScriptDoc;
   try {
     // No avatar ids are passed: an import never links an avatar (§4.3, §6).
-    doc = toScriptDoc({ header: out.header, context: out.context, cast, shots, summary: out.summary }, { reelNumber: opts.reelNumber, avatarIds: new Set() });
+    doc = toScriptDoc(
+      { header: out.header, context: out.context, cast, shots, products: out.products, locations: out.locations, summary: out.summary },
+      { reelNumber: opts.reelNumber, avatarIds: new Set() },
+    );
   } catch (e) {
     return { error: e instanceof Error ? e.message : "The script didn't hold together." };
   }
@@ -163,6 +166,12 @@ export function buildImport(
     questions.push(names.length === 1
       ? `Who plays ${names[0]}? Pick an avatar below, or keep ${names[0]} in words for now.`
       : `Who plays ${listOf(names)}? Pick an avatar below for ${names[0]} first, or keep them in words for now.`);
+  }
+  // D447 — products and places read from the paste are guesses until the person checks them, and
+  // they need pictures the paste cannot give.
+  const assetNames = [...doc.products.map((p) => p.name), ...doc.locations.map((l) => l.name)];
+  if (assetNames.length > 0) {
+    guesses.push({ text: `The products and locations were read from the paste: ${assetNames.join(", ")}. Check them, and add their pictures.`, paths: [] });
   }
   // Long fields: the script holds a limit, so the full text goes to the notes and the reply says so.
   const cuts = cutFields(out, cast, shots, doc);

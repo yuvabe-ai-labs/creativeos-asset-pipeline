@@ -165,8 +165,12 @@ Fields:
     - "VO + Text Overlay: <words>" means those words are SPOKEN. Put them here and do NOT duplicate them into on_screen_text; the same sentence must not appear twice.
     - Assign every line of the script's voiceover to exactly one shot: by the script's timecodes when it gives them, otherwise in script order across the shots. Never repeat a line on two shots, never drop one, never invent one.
     - text: the line VERBATIM — the spoken words only, without timecodes, "VO:" labels or quotation marks.
-    - speaker: "narrator" for off-screen narration (the default for a voiceover). Use the on-screen person's name or description ONLY when the script puts the line in that person's mouth on camera.
-    - delivery: how it is said ("warm, unhurried") only when the script states it; otherwise "".
+    - speaker: who says it ON CAMERA, or "narrator" for a voice heard off-screen. Decide it in this order:
+      1. A person's label on the line ("Hemant:", "Amma (to camera):", "Dialogue — Children:", "Creator:", "Host:") puts it in that person's mouth on camera: use the name as the script gives it ("Children" for a group).
+      2. A voiceover label that names a person ("Voiceover, son:", "VO (mother):", "V.O. — Asha:") is that person's voice heard off-screen: speaker "narrator", and delivery starts with "<name>'s voice" (for example "son's voice", or "mother's voice, warm"). When the shot's visual has that same person talking on screen (on the phone, to camera, to someone), it is on camera instead: use their name.
+      3. An unlabelled line, or "VO:", "Voiceover:", "Narrator:": "narrator", unless the shot's visual has a person speaking ("speaks to the camera", "talking to camera", "says", "tells her", "asks", "on the phone", a selfie-style or piece-to-camera shot where they talk). Then it is theirs: use their name. A person only looking at, turning to or holding something up to the camera is not speaking.
+      A phrase before a colon that is part of what is said ("One customer wrote on Amazon:", "Mummy's rule:") is not a label: keep it in the text.
+    - delivery: how it is said ("warm, unhurried") only when the script states it, after any "<name>'s voice" from rule 2; otherwise "".
     - language: the line's language ("English", "Tamil") only when the script states it or the line is plainly not English; otherwise "".
     - A shot with no line gets []. When the script's voiceover is "None" / "No voiceover", every shot gets [].
   - beats: that scene's suggested cuts, per the splitting rules below. The row's own voiceover still lists EVERY line of the scene; beats carry none.
@@ -264,7 +268,10 @@ export const scriptParsePrompt = {
   // v12: every row carries the shot's own name as written (`label`, D380), and a script that names
   // its shots — the copilot's Shot column, or "Shot 3" / "Scene 3" headings — gets exactly one row
   // per named shot, in order. A bare timecode is not a name.
-  version: 12,
+  // v13 (D472): who speaks, in order: a person's label is on camera; "Voiceover, <name>" is that
+  // voice off-screen (delivery "<name>'s voice"); an unlabelled line is the narrator's unless the
+  // shot has the person talking. A phrase that is part of the line is not a label.
+  version: 13,
   model: "gpt-5.4-mini",
   system,
   clientContextHeading,

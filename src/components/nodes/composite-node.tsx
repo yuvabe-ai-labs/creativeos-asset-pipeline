@@ -115,6 +115,7 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
         instruction={d.instruction ?? ""}
         modelId={d.modelId}
         params={d.params}
+        storyboardPanel={d.storyboardPanel}
         onPatch={(patch) => updateNodeData(id, patch)}
       />
     </>

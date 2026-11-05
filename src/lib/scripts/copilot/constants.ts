@@ -14,9 +14,6 @@ export const SCRIPT_QUICK_MODEL = "gpt-5.4-mini";
  *  elsewhere in this repo, so its id and key are known to work. */
 export const SCRIPT_WRITER_CANDIDATES = ["gpt-5.4-mini", "gemini-3.1-pro-preview", "gemini-3.8-flash"] as const;
 
-/** What the first draft's review beat holds in place of a review (spec 2 §7; the outlines' own text). */
-export const REVIEW_PLACEHOLDER = "[real review, verbatim]";
-
 export const MAX_MESSAGE_CHARS = 4000;
 /** A whole pasted script must fit in one message (paste-a-script spec §5.1): Reel 07 with the
  *  disclaimer block is about 4,000 characters, and a client's Word script with notes runs longer.

@@ -21,6 +21,8 @@ import {
   FileInput,
   History,
   ImageIcon,
+  MapPin,
+  Package,
   PencilLine,
   SlidersHorizontal,
   type LucideIcon,
@@ -42,6 +44,7 @@ import {
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
   defaultsForVideoModel,
   videoGenClientModelMap,
+  isVideoModelDeprecated,
 } from "@/lib/video-gen/client-models";
 import { multishotCapabilityFor, multishotRestrictionReason, checkLadder } from "@/lib/nodes/multishot-models";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
@@ -73,7 +76,9 @@ import {
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
 import type { NodeVersionsResponse } from "@/services/node-versions.service";
-import { useNodeUpstream, useRefreshNodeUpstream, useDropFromNodeUpstream } from "@/hooks/queries/node-upstream";
+import { useNodeUpstream, useRefreshNodeUpstream, useDropFromNodeUpstream, useAddToNodeUpstream } from "@/hooks/queries/node-upstream";
+import { upstreamImageOf } from "@/lib/video-gen/upstream-image";
+import { nodeLabel } from "@/lib/nodes/describe-node";
 import { InlineApprovalBar } from "./inline-approval-bar";
 import { ReviewAnnotationCanvas } from "@/components/review-annotations/review-annotation-canvas";
 import { AnnotationPin } from "@/components/review-annotations/annotation-pin";
@@ -131,8 +136,10 @@ import {
 } from "@/components/ui/accordion";
 import { VideoGenConnectedSection } from "./video-gen-connected-section";
 import { RailItem } from "./focus-rail-item";
+import { RailPendingItem } from "./focus-rail-pending-item";
 import { AddConnection } from "./add-connection";
 import type { UpstreamImage, UpstreamPromptNode } from "@/lib/video-gen/api";
+import { NO_PROMPT_NODE_MESSAGE, UNWRITTEN_PROMPT_MESSAGE } from "@/lib/video-gen/prompt-messages";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -537,6 +544,7 @@ export function VideoGenFocusView({
   const upstreamQuery = useNodeUpstream(nodeId);
   const refreshUpstreamQuery = useRefreshNodeUpstream(nodeId);
   const dropFromUpstream = useDropFromNodeUpstream(nodeId);
+  const addToUpstream = useAddToNodeUpstream(nodeId);
   const upstreamImages = useMemo<UpstreamImage[]>(
     () => upstreamQuery.data?.images ?? [],
     [upstreamQuery.data],
@@ -622,6 +630,7 @@ export function VideoGenFocusView({
   // them (role auto-assign and pruning, the multishot model) and Generate wait for it. The rail
   // only shows a skeleton while there is also nothing cached to show (`showConnectedSkeleton`).
   const [loadingConnected, setLoadingConnected] = useState(open);
+  const [pendingInputs, setPendingInputs] = useState<{ id: string; label: string }[]>([]);
   const showConnectedSkeleton = loadingConnected && !upstreamQuery.data;
 
   const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
@@ -878,14 +887,41 @@ export function VideoGenFocusView({
   // Wiring only writes the edge into the client store. Autosave persists it on a 600ms debounce,
   // so refetching straight away would race the save and read pre-change state — flush first,
   // exactly as the gallery drawer and reference picker do after connectNodes.
+  //
+  // D482 — only the latest rewire reads. An earlier one finishing its flush cannot yet see the wire
+  // added after it, and its answer would take that row off the list until the later read landed.
+  // The same goes for `loadingConnected`: it clears once, when the latest read has confirmed.
+  const rewireRef = useRef(0);
   const persistThenRefresh = useCallback(async () => {
+    const rewire = ++rewireRef.current;
     try {
       await flushAutosave();
     } catch (err) {
       console.error("[video-gen] autosave flush failed:", err);
     }
+    if (rewire !== rewireRef.current) return;
     await refreshUpstream();
+    if (rewire !== rewireRef.current) return;
+    setLoadingConnected(false);
+    setPendingInputs([]);
   }, [flushAutosave, refreshUpstream]);
+
+  // D482 — an input shows the moment it is picked: as its row when the canvas already knows its
+  // image, as a loading row when only the server can expand it. Either way `loadingConnected` holds
+  // the role writes and Generate until the read confirms, so this row is only ever shown.
+  const onConnected = useCallback(
+    (sourceId: string) => {
+      const source = focusStoreApi.getState().nodes.find((n) => n.id === sourceId);
+      if (!source) return;
+      const data = source.data as Record<string, unknown>;
+      const image = upstreamImageOf({ nodeId: source.id, type: source.type ?? "", data, activeOutput: data.parsed });
+      setLoadingConnected(true);
+      if (image) addToUpstream(image);
+      else setPendingInputs((prev) => [...prev, { id: source.id, label: nodeLabel({ id: source.id, type: source.type, data }).name }]);
+      void persistThenRefresh();
+    },
+    [focusStoreApi, addToUpstream, persistThenRefresh],
+  );
 
   // Unwire an input added by mistake. The role goes with the edge: read-time pruning already
   // keeps the tally honest, but leaving the entry behind grows a tail of ids in the stored
@@ -919,7 +955,7 @@ export function VideoGenFocusView({
     // debounce and the Connected rail came up empty until a close-and-reopen. The flush is
     // covered by the same `loadingConnected` skeleton as the fetch behind it, so the sheet
     // still opens instantly and the wait reads as loading rather than as "nothing connected".
-    void persistThenRefresh().finally(() => setLoadingConnected(false));
+    void persistThenRefresh();
   }, [open, persistThenRefresh]);
 
   // Refresh versions when a generation finishes (isGenerating transitions true → false)
@@ -1166,7 +1202,8 @@ export function VideoGenFocusView({
     const toastId = toast.loading("Restoring version…");
     try {
       const { output, modelUsed, paramsUsed } = await videoGenApi.restoreVersion(nodeId, versionId);
-      const restoredParams = modelUsed
+      // D461 — a version made on a deprecated model brings back its video, not its model.
+      const restoredParams = modelUsed && !isVideoModelDeprecated(modelUsed)
         ? paramsForRestore(videoGenClientModelMap[modelUsed]?.params, paramsUsed)
         : null;
       if (modelUsed && restoredParams) {
@@ -1280,6 +1317,9 @@ export function VideoGenFocusView({
     citedIds: new Set(promptNode?.citedIds ?? []),
     avatarFrontId: promptNode?.avatarFrontId ?? null,
     avatarSheetId: promptNode?.avatarSheetId ?? null,
+    assetMainIds: new Set(promptNode?.assetMainIds ?? []),
+    assetAngleIds: new Set(promptNode?.assetAngleIds ?? []),
+    storyboardIds: new Set(promptNode?.storyboardIds ?? []),
     framesExcludeReferences: areFramesAndRefsExclusive(currentModel?.rules),
     unusable: currentModel?.provider === "seedance"
       ? sheetsUnusable(upstreamImages.map((img) => img.id), "Seedance can't use the profile sheet")
@@ -1379,14 +1419,31 @@ export function VideoGenFocusView({
   // `loadingConnected`: the inputs on screen may be the cached copy, not yet confirmed by this
   // open's re-read — never generate (and post roles) from those.
   // D390 — a clip in the Editor's reel can't generate; the reason replaces the action.
+  // Generate needs a written prompt. Said here, with a way to it, rather than as an error after the
+  // click: an unwritten prompt used to fail with "no connected node" while the wire was right there.
+  const promptGap = loadingConnected
+    ? null
+    : !promptNode
+      ? NO_PROMPT_NODE_MESSAGE
+      : promptNode.text === null
+        ? UNWRITTEN_PROMPT_MESSAGE[promptNode.type === "video-prompt" ? "video-prompt" : "multishot-prompt"]
+        : null;
+  function openPromptNode() {
+    if (!promptNode) return;
+    onOpenChange(false);
+    focusStoreApi.getState().setFocusedNodeId(promptNode.id);
+  }
   const disableGenerate =
     Boolean(lockReason) ||
     loadingConnected ||
+    Boolean(promptGap) ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = lockReason
     ? lockReason
     : loadingConnected
     ? "Loading connected inputs…"
+    : promptGap
+    ? promptGap
     : constraints.disableGenerate
     ? constraints.disableGenerateReason
     : ladderCheck && !ladderCheck.ok
@@ -1488,15 +1545,16 @@ export function VideoGenFocusView({
   }
 
   // ── Rail: connected items + selection (mirrors image-gen-focus-view) ─────────
-  const connectedItems: { id: string; type: "prompt" | "image"; label: string }[] = [
+  const connectedItems: { id: string; type: "prompt" | "image"; label: string; asset?: UpstreamImage["asset"] }[] = [
     ...(promptNode ? [{ id: promptNode.id, type: "prompt" as const, label: "Motion prompt" }] : []),
     ...upstreamImages.map((img) => ({
       id: img.id,
       type: "image" as const,
       label: img.filename || "Image",
+      asset: img.asset,
     })),
   ];
-  const connectedCount = connectedItems.length;
+  const connectedCount = connectedItems.length + pendingInputs.length;
   // Anything not a fixed section is a connected node's id. Kept as a named set because it is a
   // deny-list: a section missing from it falls through to the connected-node branch and renders
   // "This input has no preview yet." underneath itself — which is what "request" did on arrival.
@@ -1604,8 +1662,8 @@ export function VideoGenFocusView({
               <AddConnection
                 targetId={nodeId}
                 targetType="video-gen"
-                connectedIds={connectedItems.map((c) => c.id)}
-                onConnected={() => void persistThenRefresh()}
+                connectedIds={[...connectedItems.map((c) => c.id), ...pendingInputs.map((p) => p.id)]}
+                onConnected={onConnected}
               />
             </div>
             {showConnectedSkeleton ? (
@@ -1617,16 +1675,22 @@ export function VideoGenFocusView({
             ) : connectedCount === 0 ? (
               <p className="px-2.5 text-xs text-muted-foreground">No inputs connected.</p>
             ) : (
-              connectedItems.map((c) => {
+              <>
+              {connectedItems.map((c) => {
                 const role = c.type === "image" ? effectiveImageRoles[c.id] : undefined;
                 const outReason = c.type === "image" ? leftOutReason.get(c.id) : undefined;
-                const remove = editable ? removeFor(c.id, c.label) : null;
+                // D450 — a script's picture is unwired at its node (an angle is no node of its own).
+                const remove = editable ? removeFor(c.asset?.nodeId ?? c.id, c.label) : null;
                 return (
                   <RailItem
                     key={c.id}
                     icon={
                       c.type === "prompt" ? (
                         <PencilLine className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : c.asset?.kind === "product" ? (
+                        <Package className="size-4 text-primary" strokeWidth={1.5} />
+                      ) : c.asset?.kind === "location" ? (
+                        <MapPin className="size-4 text-primary" strokeWidth={1.5} />
                       ) : (
                         <ImageIcon className="size-4 text-primary" strokeWidth={1.5} />
                       )
@@ -1657,7 +1721,11 @@ export function VideoGenFocusView({
                     removeKind={remove?.kind}
                   />
                 );
-              })
+              })}
+              {pendingInputs.map((p) => (
+                <RailPendingItem key={p.id} label={p.label} />
+              ))}
+              </>
             )}
 
             <div className="mx-2.5 my-2 h-px bg-border" />
@@ -1866,7 +1934,18 @@ export function VideoGenFocusView({
                     disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
                     disabledReason={disableGenerate ? disableGenerateReason : null}
                     credits={estimatedCredits}
-                    notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
+                    notice={
+                      viewing.isViewingOther ? (
+                        <ActiveOnlyNotice label={viewedLabel} />
+                      ) : promptGap && promptNode ? (
+                        <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          {promptGap}
+                          <Button variant="link" size="xs" className="h-auto shrink-0 px-0" onClick={openPromptNode}>
+                            Open the prompt
+                          </Button>
+                        </span>
+                      ) : undefined
+                    }
                   />
                 </div>
               )}

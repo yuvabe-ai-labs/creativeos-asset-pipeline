@@ -54,13 +54,15 @@ type Props = {
   instruction: string;
   modelId?: string;
   params?: Record<string, unknown>;
+  /** D454 — set on a storyboard Composite: the shot it draws. */
+  storyboardPanel?: string;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
 // D312 — the Composite node's focus view: Image Gen's shell and headings, minus the prompt lane.
 // Rail: Composite (compose here), the wired inputs, History. Middle: the instruction and output
 // settings. Right: the image, always visible.
-export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl, instruction, modelId, params, onPatch }: Props) {
+export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl, instruction, modelId, params, storyboardPanel, onPatch }: Props) {
   const editable = useCanvasEditable();
   const upstream = useCompositeUpstream(nodeId);
   const mentionUpstream = useMemo(() => compositeMentionUpstream(upstream), [upstream]);
@@ -189,6 +191,11 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                       className="min-h-24"
                     />
                     <p className="text-[0.65rem] text-muted-foreground">Type @ to use a connected input. Nothing has to be connected — a background can be words alone.</p>
+                    {storyboardPanel && (
+                      <p className="text-[0.65rem] text-muted-foreground">
+                        This is the {storyboardPanel} storyboard. While the instruction starts with the drawing style, Generate redraws it as a sketch from the same pictures. To make it real, connect an avatar or a product and use Edit, or delete that first paragraph.
+                      </p>
+                    )}
                   </div>
                   )}
                   <LeftSection icon={Settings2} label="Output settings">

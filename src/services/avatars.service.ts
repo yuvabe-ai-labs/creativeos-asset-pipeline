@@ -105,6 +105,8 @@ class AvatarsService {
       styleId: AvatarStyleId;
       modelId: string;
       batchId: string;
+      /** D471 — blood relatives whose faces this one is drawn beside. */
+      relatives?: { avatarId: string; relation: string }[];
     },
   ): Promise<{ candidate: AvatarCandidate; creditsCharged: number; spentCredits: number | null }> {
     const res = await fetch(`/api/clients/${clientId}/avatars/${avatarId}/generations`, {

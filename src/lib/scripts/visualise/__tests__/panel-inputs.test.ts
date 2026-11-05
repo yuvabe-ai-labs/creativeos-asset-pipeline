@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
 import { parseRegionalKits } from "../kits";
-import { blankAreas, panelAspect } from "../panel-prompt";
-import { castReadyForPanels, estimatePanelCredits, panelInputs, panelReferenceCap } from "../panel-inputs";
+import {
+  blankAreas, panelAspect, PANEL_FRAMING_CLAUSE, PANEL_NO_GRAPHICS_CLAUSE, PANEL_ONE_PRODUCT_CLAUSE, PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE,
+} from "../panel-prompt";
+import { castReadyForPanels, estimatePanelCredits, panelInputs, panelReferenceCap, type PanelInputs } from "../panel-inputs";
+import { shotKey } from "../keys";
+import type { ScriptDoc } from "@/lib/scripts/schema";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 import { isPanelModel, PANEL_MODEL_ID, PANEL_MODEL_IDS } from "../constants";
@@ -30,10 +34,14 @@ describe("castReadyForPanels (D341)", () => {
   });
 });
 
+/** A reference as "cast:view", or (D449) as its asset and id. */
+const refLabel = (r: PanelInputs["references"][number]) =>
+  "castId" in r ? `${r.castId}:${r.view}` : "asset" in r ? `${r.asset}:${r.assetId}` : "panel";
+
 describe("panelInputs on Reel 01 (D342)", () => {
   it("sends both people's four views for a two-person shot, fronts first, and numbers them in the prompt", () => {
     const s06 = inputs("s06");
-    expect(s06.references.map((r) => `${r.castId}:${r.view}`)).toEqual([
+    expect(s06.references.map(refLabel)).toEqual([
       "meenakshi:front", "husband:front",
       "meenakshi:left", "meenakshi:right", "meenakshi:back",
       "husband:left", "husband:right", "husband:back",
@@ -47,7 +55,7 @@ describe("panelInputs on Reel 01 (D342)", () => {
 
   it("keeps every front when the model's reference cap is short, dropping other views first", () => {
     const s06 = inputs("s06", 5);
-    expect(s06.references.map((r) => `${r.castId}:${r.view}`)).toEqual([
+    expect(s06.references.map(refLabel)).toEqual([
       "meenakshi:front", "husband:front", "meenakshi:left", "meenakshi:right", "meenakshi:back",
     ]);
     expect(s06.prompt).toContain("Reference images 2 (front) show this person.");
@@ -100,6 +108,22 @@ describe("panelInputs on Reel 01 (D342)", () => {
     expect(p).not.toContain("Golu starts today.");
   });
 
+  // D458 — the reel's setting gives the place and light; its camera note is not every panel's.
+  it("reads the reel's setting for its place and light, not its camera note", () => {
+    const p = inputs("s03").prompt;
+    expect(p).toMatch(/The reel's setting \(take its place and light only; an object it lists appears only when this shot's action uses it, and a camera note in it is only for the shot it describes\)/);
+    expect(p).not.toMatch(/Setting and camera for the whole reel/);
+  });
+
+  // D462 — the setting's and the kit's props and food stayed out of panels that do not use them.
+  it("draws only what the shot names, framed for its action", () => {
+    const p = inputs("s03").prompt;
+    expect(p).toContain(PANEL_ONLY_WHAT_THE_SHOT_NAMES_CLAUSE);
+    expect(p).toContain(PANEL_FRAMING_CLAUSE);
+    expect(p).toContain("its food and objects appear only when this shot's action uses them");
+    expect(p).not.toContain("Use what fits this shot");
+  });
+
   it("draws nobody on a B-roll shot, with no references", () => {
     const s09 = inputs("s09");
     expect(s09.references).toEqual([]);
@@ -107,13 +131,16 @@ describe("panelInputs on Reel 01 (D342)", () => {
     expect(s09.prompt).not.toContain("reference images show");
   });
 
-  it("leaves the review card, the claim card and the pack blank (spec §6.3)", () => {
-    expect(blankAreas(shot("s08"))).toEqual(["review card"]);
-    expect(blankAreas(shot("s13"))).toEqual(["claim card", "pack"]);
+  // D457 — a review card or claim card is added by hand after generation: no blank box for it.
+  it("leaves only the pack blank, and draws a card's scene without the card (spec §6.3, D457)", () => {
+    expect(blankAreas(shot("s08"))).toEqual([]);
+    expect(blankAreas(shot("s13"))).toEqual(["pack"]);
     expect(blankAreas(shot("s14"))).toEqual(["pack"]);
     expect(blankAreas(shot("s03"))).toEqual([]);
-    expect(inputs("s08").prompt).toContain("plain blank rectangle where the review card");
-    expect(inputs("s14").prompt).toContain("plain blank pouch with no printing");
+    expect(inputs("s08").prompt).not.toMatch(/blank rectangle/);
+    expect(inputs("s08").prompt).toContain(PANEL_NO_GRAPHICS_CLAUSE);
+    expect(inputs("s03").prompt).not.toContain(PANEL_NO_GRAPHICS_CLAUSE);
+    expect(inputs("s14").prompt).toContain("Draw the product's pack plain, in its own shape, with no printing at all");
   });
 
   it("waits for each on-screen person who has no avatar ready, but not on B-roll", () => {
@@ -154,5 +181,65 @@ describe("the panel model (D424: Nano Banana 2.1 by default, changeable under Ad
     const nb2 = "gemini:gemini-3.1-flash-image";
     expect(panelReferenceCap(nb2)).toBe(imageGenClientModelMap[nb2]!.maxReferenceImages! - 1);
     expect(estimatePanelCredits(8, "9:16", nb2)).toBe(estimateAvatarImageCredits({ modelId: nb2, aspect: "9:16", referenceCount: 9 }));
+  });
+});
+
+// D449 — phase 2 of D446: a panel is drawn in the shot's own location, with its real products.
+describe("panels with the script's products and locations", () => {
+  const withAssets = (over: (d: ScriptDoc) => void = () => {}): ScriptDoc => {
+    const d: ScriptDoc = {
+      ...structuredClone(doc),
+      products: [
+        { id: "pouch", name: "Brandname flour pouch", images: [
+          { url: "https://x/pouch-front.png", source: "upload" }, { url: "https://x/pouch-back.png", source: "upload" },
+        ] },
+        { id: "jar", name: "Brandname jar", images: [] },
+      ],
+      locations: [{ id: "kitchen", name: "Home kitchen", description: "Teal walls, a wooden counter.", image: { url: "https://x/kitchen.png", source: "plate" } }],
+    };
+    d.shots = d.shots.map((s) => (s.id === "s06" ? { ...s, products: ["pouch", "jar"], location: "kitchen" } : s));
+    over(d);
+    return d;
+  };
+
+  it("sends faces first, then the place and the product, then other views and angles", () => {
+    const s06 = inputs("s06", panelReferenceCap(), avatars, withAssets());
+    expect(s06.references.map(refLabel)).toEqual([
+      "meenakshi:front", "husband:front", "location:kitchen", "product:pouch",
+      "meenakshi:left", "meenakshi:right", "meenakshi:back", "husband:left", "husband:right", "husband:back",
+      "product:pouch",
+    ]);
+  });
+
+  it("keeps the place and the product's main picture before other views when the cap is short", () => {
+    const s06 = inputs("s06", 5, avatars, withAssets());
+    expect(s06.references.map(refLabel)).toEqual(["meenakshi:front", "husband:front", "location:kitchen", "product:pouch", "meenakshi:left"]);
+  });
+
+  it("tells the model the place and the products by reference number, and blanks only a product with no picture", () => {
+    const { prompt } = inputs("s06", panelReferenceCap(), avatars, withAssets());
+    expect(prompt).toContain("The shot is set in Home kitchen: reference image 3 shows this exact place, empty.");
+    expect(prompt).toContain("- Brandname flour pouch: reference images 4 and 11 show it. Draw exactly this product");
+    expect(prompt).toContain(PANEL_ONE_PRODUCT_CLAUSE);
+    expect(prompt).toContain("- Brandname jar: no picture of it yet. Draw a plain version of what it is, with no logo, label or printing");
+    expect(prompt).toContain("The products in the reference images keep their packaging exactly as pictured");
+    expect(prompt).not.toContain("Every container, jar, packet and box is plain and unlabelled.\n");
+  });
+
+  it("names a location with no plate in words", () => {
+    const d = withAssets((x) => { x.locations[0].image = null; });
+    const { prompt, references } = inputs("s06", panelReferenceCap(), avatars, d);
+    expect(references.some((r) => "asset" in r && r.asset === "location")).toBe(false);
+    expect(prompt).toContain("The shot is set in Home kitchen: Teal walls, a wooden counter.");
+  });
+
+  it("goes out of date when the shot's place or product pictures change, and not before they exist", () => {
+    const before = shotKey(doc, shot("s06"));
+    expect(shotKey(reel01Doc(), reel01Doc().shots.find((s) => s.id === "s06")!)).toBe(before);
+    const a = withAssets();
+    const b = withAssets((x) => { x.products[0].images = [{ url: "https://x/new.png", source: "upload" }]; });
+    const c = withAssets((x) => { x.locations[0].image = null; });
+    const key = (d: ScriptDoc) => shotKey(d, d.shots.find((s) => s.id === "s06")!);
+    expect(new Set([before, key(a), key(b), key(c)]).size).toBe(4);
   });
 });

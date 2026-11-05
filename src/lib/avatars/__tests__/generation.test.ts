@@ -169,3 +169,19 @@ describe("listSentence", () => {
     expect(listSentence(["A", "B", "C", "D"])).toBe("A, B, C and D");
   });
 });
+
+describe("a face drawn beside a relative's (D471)", () => {
+  const base = { description: "A 26-year-old South Asian man.", attributes: { gender: "Male" }, styleId: "photoreal" as const };
+
+  it("names each reference by what the person is to this one, and asks for a likeness, never a copy", () => {
+    const prompt = buildAvatarFrontPrompt({ ...base, relatives: ["mother"] });
+    expect(prompt).toContain("Family: reference image 1 is this person's mother.");
+    expect(prompt).toContain("A different person with their own face, never a copy.");
+    expect(prompt).toContain("not its clothes, pose, background, framing or style");
+    expect(prompt.indexOf("Family:")).toBeGreaterThan(prompt.indexOf("A 26-year-old"));
+  });
+
+  it("says nothing of family without a relative", () => {
+    expect(buildAvatarFrontPrompt(base)).not.toContain("Family:");
+  });
+});

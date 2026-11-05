@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Loader2 } from "lucide-react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
 import type { ScriptSelection } from "@/hooks/use-script-selection";
@@ -15,8 +15,21 @@ export function InlineEditPrompt({ selection, pending, onSubmit, onClose }: {
 }) {
   const [instruction, setInstruction] = useState("");
   const submit = () => { if (instruction.trim() && !pending) onSubmit(instruction.trim()); };
+  const box = useRef<HTMLDivElement>(null);
+
+  // A click outside closes it, but not while an edit is running: that edit still needs its target.
+  useEffect(() => {
+    if (pending) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [pending, onClose]);
+
   return (
     <div
+      ref={box}
       role="dialog"
       aria-label="Change the selected text"
       className="animate-rise absolute z-20 w-80 rounded-xl border border-border bg-card p-2 shadow-lg"

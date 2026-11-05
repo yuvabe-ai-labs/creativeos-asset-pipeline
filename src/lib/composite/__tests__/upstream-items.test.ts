@@ -96,3 +96,28 @@ describe("compositeMentionUpstream / compositeMentionables", () => {
     expect(mention.map((m) => m.id)).toEqual(["av"]);
   });
 });
+
+// D454 — a script's product or location wired into a composite is its pictures, as on the server.
+describe("compositeUpstreamItems with a product and a location (D454)", () => {
+  const nodes = [
+    node("c", "composite", {}),
+    node("pr", "product", { name: "Brandname sliders", images: [{ url: "https://cdn/p0.png" }, { url: "https://cdn/p1.png" }] }),
+    node("lo", "location", { name: "Home kitchen", image: { url: "https://cdn/k.png" } }),
+  ];
+  const items = compositeUpstreamItems("c", nodes, [edge("pr"), edge("lo")], []);
+
+  it("lists each once, by name, with its main picture", () => {
+    expect(items.map((i) => [i.type, i.label, i.fileUrl])).toEqual([
+      ["product", "Brandname sliders", "https://cdn/p0.png"],
+      ["location", "Home kitchen", "https://cdn/k.png"],
+    ]);
+  });
+
+  it("offers a product's other angles under the ids the server's rows have", () => {
+    expect(compositeMentionUpstream(items).map((m) => [m.id, m.label])).toEqual([
+      ["pr", "Brandname sliders"],
+      ["pr:1", "Brandname sliders, angle 2"],
+      ["lo", "Home kitchen"],
+    ]);
+  });
+});

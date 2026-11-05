@@ -14,15 +14,17 @@ describe("videoPromptGeneratePrompt (Veo)", () => {
     expect(videoPromptGeneratePrompt.system.length).toBeGreaterThan(100);
   });
 
-  it("is preservation-first (restates fixed identity, no word cap)", () => {
-    const sys = videoPromptGeneratePrompt.system.toLowerCase();
-    expect(sys).toContain("restate the fixed");
-    expect(sys).toContain("held exactly");
-    expect(videoPromptGeneratePrompt.system).not.toMatch(/40[–-]90 words/);
+  // D441 — the frame carries the product's look; words about it compete with the picture.
+  it("pins the product to its picture rather than describing it (no word cap)", () => {
+    const sys = videoPromptGeneratePrompt.system;
+    expect(sys).toContain("exactly as in its reference");
+    expect(sys).not.toMatch(/label text, logo, lettering, colours/);
+    expect(sys).not.toMatch(/restate the preservation-critical identity/i);
+    expect(sys).not.toMatch(/40[–-]90 words/);
   });
 
-  it("is version 5 and keeps hype-word hygiene", () => {
-    expect(videoPromptGeneratePrompt.version).toBe(5);
+  it("is version 6 and keeps hype-word hygiene", () => {
+    expect(videoPromptGeneratePrompt.version).toBe(6);
     expect(videoPromptGeneratePrompt.system).toContain("cinematic masterpiece");
   });
 });
@@ -83,7 +85,10 @@ it("gives every target its own record — no two share an object", () => {
 it("Seedance's guide follows the vendor's own order, not the shared spine's", () => {
   const sys = videoPromptFor("seedance").system;
   expect(sys).toContain("@Image 1");
-  expect(sys).toMatch(/【】|subtitle/i);
+  // D445 — no on-screen text on any model, so no subtitle marker; D441 — no label inventory.
+  expect(sys).not.toContain("【】");
+  expect(sys).not.toMatch(/label text, logo, lettering, colours/);
+  expect(sys).toContain("exactly as in its reference");
   // The single-shot record must not teach shot structure — that is the multishot writer's job.
   expect(sys).not.toMatch(/\d+-\d+s:/);
 });

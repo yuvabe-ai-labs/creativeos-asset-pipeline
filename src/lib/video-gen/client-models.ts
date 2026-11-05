@@ -252,6 +252,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1-lite",
     provider: "veo",
     label: "Veo 3.1 Lite",
+    deprecated: true,
     providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_LITE_IMAGE_INPUTS,
@@ -262,6 +263,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1-fast",
     provider: "veo",
     label: "Veo 3.1 Fast",
+    deprecated: true,
     providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_REFS_IMAGE_INPUTS,
@@ -272,6 +274,7 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     id: "veo:veo-3.1",
     provider: "veo",
     label: "Veo 3.1 Quality",
+    deprecated: true,
     providerLabel: "Veo",
     maxDurationSeconds: 8,
     imageInputs: VEO_REFS_IMAGE_INPUTS,
@@ -341,12 +344,13 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
   },
 };
 
-// Models grouped by provider, preserving the map's declaration order.
+// Models grouped by provider, preserving the map's declaration order. These are the models on
+// offer, so a deprecated one is left out (D461), and a provider left with none goes with it.
 export const videoGenClientModelGroups: Array<{
   label: string;
   models: VideoGenClientModelSpec[];
 }> = (() => {
-  const models = Object.values(videoGenClientModelMap);
+  const models = Object.values(videoGenClientModelMap).filter((m) => !m.deprecated);
   const order: string[] = [];
   for (const m of models) if (!order.includes(m.providerLabel)) order.push(m.providerLabel);
   return order.map((label) => ({
@@ -369,13 +373,26 @@ export function modelPickerLabel(model: VideoGenClientModelSpec): string {
   return model.label.startsWith(prefix) ? model.label.slice(prefix.length) : model.label;
 }
 
-export const DEFAULT_VIDEO_CLIENT_MODEL_ID = "veo:veo-3.1-lite";
+export const DEFAULT_VIDEO_CLIENT_MODEL_ID = GEMINI_OMNI_MODEL_ID;
+
+/** D461 — the generate route's refusal, for a tab still open from before the fallback. */
+export const VIDEO_MODEL_DEPRECATED_MESSAGE = "This model is deprecated";
+
+export function isVideoModelDeprecated(modelId: string): boolean {
+  return videoGenClientModelMap[modelId]?.deprecated === true;
+}
 
 // Back-compat: map a removed/unknown model id (e.g. a persisted node still referencing a pruned
 // model) to the default rather than crashing. Ported from the consolidation work during the
 // 2026-07-26 integration; resolves against the union roster (Veo x3 + Sora 2 + Kling's 5 models).
 export function resolveVideoModelId(modelId: string): string {
   return modelId in videoGenClientModelMap ? modelId : DEFAULT_VIDEO_CLIENT_MODEL_ID;
+}
+
+/** D461 — the model a node can generate on now: a deprecated one falls back to the default. */
+export function usableVideoModelId(modelId: string): string {
+  const resolved = resolveVideoModelId(modelId);
+  return isVideoModelDeprecated(resolved) ? DEFAULT_VIDEO_CLIENT_MODEL_ID : resolved;
 }
 
 export function defaultsForVideoModel(modelId: string): Record<string, unknown> {
@@ -386,4 +403,20 @@ export function defaultsForVideoModel(modelId: string): Record<string, unknown> 
       .filter((p) => p.defaultValue !== null && p.defaultValue !== undefined)
       .map((p) => [p.name, p.defaultValue]),
   );
+}
+
+/**
+ * D461 — a Video Gen node's data with a deprecated model replaced by the default model and that
+ * model's default settings. The old model's settings don't carry over. Data on any other model
+ * comes back untouched, the same object, so nothing re-renders or saves because of this.
+ */
+export function withoutDeprecatedVideoModel<T extends { modelId?: string; params?: Record<string, unknown> }>(
+  data: T,
+): T {
+  if (!data.modelId || !isVideoModelDeprecated(data.modelId)) return data;
+  return {
+    ...data,
+    modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID,
+    params: defaultsForVideoModel(DEFAULT_VIDEO_CLIENT_MODEL_ID),
+  };
 }

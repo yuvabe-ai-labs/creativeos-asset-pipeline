@@ -36,7 +36,7 @@ import { DriveFolderPicker } from "./drive-folder-picker";
 import { GalleryAddUrl } from "./gallery-add-url";
 import { moodboardItemToGalleryImage } from "./moodboard-image";
 import { GalleryStoryboard } from "./gallery-storyboard";
-import { storyboardGroups } from "./storyboard-images";
+import { filterStoryboardGroups, storyboardGroups } from "./storyboard-images";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { cn } from "@/lib/utils";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
@@ -242,6 +242,13 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   const nodes = useCanvasStore((s) => s.nodes);
   const storyboard = useMemo(() => storyboardGroups(nodes), [nodes]);
   const storyboardImages = useMemo(() => storyboard.flatMap((g) => g.images), [storyboard]);
+  // The search filters the Storyboard section as well as the Drive folder: it sits above the
+  // folder's results, so leaving it unfiltered read as "search does nothing" on any canvas with
+  // an approved storyboard.
+  const shownStoryboard = useMemo(
+    () => filterStoryboardGroups(storyboard, browser.search),
+    [storyboard, browser.search],
+  );
 
   const activeImages =
     tab === "references"
@@ -370,7 +377,9 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
           />
           <GalleryTabs value={tab} onChange={setTab} />
 
-          {!noFolderLinked && tab !== "moodboard" && tab !== "signals" && tab !== "avatars" && tab !== "scripts" && (
+          {/* With no Drive folder linked the References tab can still hold a storyboard, which the
+              search filters, so the toolbar stays for it. */}
+          {(!noFolderLinked || storyboard.length > 0) && tab !== "moodboard" && tab !== "signals" && tab !== "avatars" && tab !== "scripts" && (
             <GalleryToolbar
               searchQuery={browser.search}
               onSearchChange={browser.setSearch}
@@ -516,14 +525,19 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
             )}
 
             {tab === "references" && (
+              <>
+              {noFolderLinked && storyboard.length > 0 && shownStoryboard.length === 0 && (
+                <p className="mb-4 text-sm text-muted-foreground">No storyboard panels match.</p>
+              )}
               <GalleryStoryboard
-                groups={storyboard}
+                groups={shownStoryboard}
                 viewMode={viewMode}
                 selectedIds={selectedIds}
                 onToggle={toggleSelect}
                 onPreview={setPreviewId}
                 onDragStartImage={handleDragStartImage}
               />
+              </>
             )}
 
             {tab !== "moodboard" &&

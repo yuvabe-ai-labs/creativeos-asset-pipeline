@@ -1,6 +1,6 @@
 import type { AvatarViewId, PersonType } from "./schema";
 
-// Deliberately narrower than LOGO_EXTENSIONS: a face reference is a photo, never svg or gif.
+// Deliberately narrower than LOGO_EXTENSIONS: a face reference is a photo, never svg.
 export const AVATAR_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
 // The sign route rejects any other content type; AVATAR_IMAGE_ACCEPT is derived from the same
 // set so the two cannot drift.

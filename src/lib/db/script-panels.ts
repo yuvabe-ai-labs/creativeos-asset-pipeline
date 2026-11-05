@@ -34,6 +34,69 @@ export async function getPanelTake(scriptId: string, takeId: string): Promise<Pa
   return data ? rowToPanelTake(data as PanelTakeRow) : null;
 }
 
+/** D454 — a drawn panel and the generation that drew it: what its storyboard Composite's v1 records. */
+export type PanelRecipe = {
+  takeId: string;
+  url: string;
+  prompt: string;
+  width: number | null;
+  height: number | null;
+  generationId: string | null;
+  modelUsed: string | null;
+  params: Record<string, unknown>;
+  inputs: Record<string, unknown>;
+};
+
+/** The finished takes among `takeIds` that belong to `scriptId`, each with its generation. One query. */
+export async function listPanelRecipes(scriptId: string, takeIds: string[]): Promise<PanelRecipe[]> {
+  const ids = takeIds.filter(isUuid);
+  if (!isUuid(scriptId) || ids.length === 0) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("script_panel_takes")
+    .select("id, url, prompt, width, height, status, generation_id, generations(model_used, params_snapshot, inputs_snapshot)")
+    .eq("script_id", scriptId)
+    .in("id", ids);
+  if (error) throw error;
+  type Gen = { model_used: string | null; params_snapshot: Record<string, unknown> | null; inputs_snapshot: Record<string, unknown> | null };
+  type Row = { id: string; url: string | null; prompt: string; width: number | null; height: number | null; status: string; generation_id: string | null; generations: Gen | Gen[] | null };
+  return ((data ?? []) as unknown as Row[]).flatMap((r) => {
+    if (r.status !== "succeeded" || !r.url) return [];
+    const gen = Array.isArray(r.generations) ? r.generations[0] ?? null : r.generations;
+    return [{
+      takeId: r.id, url: r.url, prompt: r.prompt, width: r.width, height: r.height, generationId: r.generation_id,
+      modelUsed: gen?.model_used ?? null, params: gen?.params_snapshot ?? {}, inputs: gen?.inputs_snapshot ?? {},
+    }];
+  });
+}
+
+/** D456 — a generated location plate and the generation that drew it, found by the picture it made
+ *  (a location keeps only its picture's URL). */
+export type PlateRecipe = {
+  url: string;
+  generationId: string;
+  modelUsed: string | null;
+  params: Record<string, unknown>;
+  inputs: Record<string, unknown>;
+};
+
+/** The script's finished generations that made any of `urls`. One query. */
+export async function listPlateRecipes(scriptId: string, urls: string[]): Promise<PlateRecipe[]> {
+  if (!isUuid(scriptId) || urls.length === 0) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("id, output_snapshot, model_used, params_snapshot, inputs_snapshot")
+    .eq("script_id", scriptId)
+    .eq("status", "succeeded")
+    .in("output_snapshot", urls);
+  if (error) throw error;
+  type Row = { id: string; output_snapshot: string; model_used: string | null; params_snapshot: Record<string, unknown> | null; inputs_snapshot: Record<string, unknown> | null };
+  return ((data ?? []) as Row[]).map((r) => ({
+    url: r.output_snapshot, generationId: r.id, modelUsed: r.model_used, params: r.params_snapshot ?? {}, inputs: r.inputs_snapshot ?? {},
+  }));
+}
+
 /** A take starts "running" before the model is called, holding what it is drawn from. */
 export async function insertPanelTake(input: {
   clientId: string;

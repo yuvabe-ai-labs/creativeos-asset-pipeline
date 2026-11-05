@@ -52,6 +52,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
         if (!current.doc) return { error: "There's no draft yet.", status: 409 };
         const r = applyOps(current.doc, current.notes, [{
           op: "link_avatar", path: null, value: null, shotId: null, afterShotId: null, shot: null, second: null, list: null, itemId: null,
+          product: null, location: null,
           cast: { castId, name: "", description: "", avatarId },
         }], { newShotId, avatarIds: new Set(avatarId ? [avatarId] : []) });
         if (!r.ok) return { error: r.error, status: 404 };

@@ -13,6 +13,8 @@ export type VoLine = {
   speaker: "narrator" | (string & {});
   delivery?: string;
   language?: string;
+  /** D477 — the speaker was chosen by hand (the Multishot's speaker list), so nothing renames it. */
+  picked?: true;
 };
 
 /**

@@ -18,16 +18,60 @@ describe("the script copilot's shared instructions", () => {
     expect(scriptCopilotPrompt.rules).toContain("When the conversation so far and the script or brief disagree, the script and brief win.");
   });
 
-  it("is version 4", () => {
-    expect(scriptCopilotPrompt.version).toBe(4);
+  // D447 — the copilot names products and places and sets each shot's picks, never their pictures.
+  it("asks for products and locations in the draft, the import and the edits, never their pictures", () => {
+    const { draft, edit, import: imp } = scriptCopilotPrompt.tasks;
+    for (const t of [draft, imp]) {
+      expect(t).toMatch(/products/);
+      expect(t).toMatch(/locations/);
+    }
+    for (const o of ["add_product", "update_product", "remove_product", "add_location", "update_location", "remove_location"]) {
+      expect(edit).toContain(o);
+    }
+    expect(draft).toMatch(/You never add pictures/);
+    expect(edit).toMatch(/Never set or describe pictures/);
   });
 
-  it("commit each angle to a product moment and proof, with a review theme only where reviews fit", () => {
+  // D447 — the user saw "ordinary pair of slippers", the brand alone and "coffee" as a place.
+  it("names products as sold and places as places, the same way in the draft, the import and the edits", () => {
+    const { draft, edit, import: imp } = scriptCopilotPrompt.tasks;
+    for (const t of [draft, edit, imp]) {
+      expect(t).toMatch(/Never the brand on its own, never a competitor's product, and never an ordinary prop/);
+      expect(t).toMatch(/Name a product the way the client sells it/);
+      expect(t).toMatch(/Name a location as the place/);
+      expect(t).toMatch(/Shots in the same place share one location/);
+      // D467 — Muthoot Finance: a gold loan became a product needing a picture, and the logo card a location.
+      expect(t).toMatch(/A service is never a product \(a loan, insurance/);
+      expect(t).toMatch(/a shot that is only a graphic \(a logo end card/);
+      // D468 — PharmEasy: the app became a product, and "Mobile Screen" a location.
+      expect(t).toMatch(/an app or a website and what it does/);
+      expect(t).toMatch(/a shot that is only a screen \(a screen recording/);
+      // D470 — across every brand on staging: "Neutral Void", "Warm ivory background" and
+      // "Ecommerce Set" became places; a gift box and a delivery box are what a picture is for;
+      // shades came out as "more buff", without the brand.
+      expect(t).toMatch(/A location is a real place people could be in\./);
+      expect(t).toMatch(/a plain backdrop \(a colour, a studio sweep, a product shown on a background, a packshot or e-commerce set\)/);
+      expect(t).toMatch(/Its location is "", it adds no location, and its visual says the backdrop\. A screen-only shot picks no product\./);
+      expect(t).toMatch(/carries the brand's own fixed look is a product too[^.]*: its packaging, a gift or delivery box, a branded card, bag or uniform\. The service behind it is not\./);
+      expect(t).toMatch(/Variants the reel shows apart \(shades, flavours, colours, sizes\) are one product each, each named in full/);
+    }
+  });
+
+  it("is version 12", () => {
+    expect(scriptCopilotPrompt.version).toBe(12);
+  });
+
+  it("commit each angle to a product moment and proof", () => {
     const angles = scriptCopilotPrompt.tasks.angles;
     expect(angles).toContain("productMoment");
     expect(angles).toContain("proof");
     expect(angles).not.toContain("mealMoment");
-    expect(angles).toMatch(/reviewTheme[^.]*"" unless/);
+  });
+
+  it("asks for no review by default: reviews were one client's need (D464)", () => {
+    const all = [scriptCopilotPrompt.rules, ...Object.values(scriptCopilotPrompt.tasks)].join("\n");
+    expect(all).not.toMatch(/review/i);
+    expect(scriptCopilotPrompt.rules).toContain("Never make up a testimonial");
   });
 
   // Final review (spec §6): a client with no KB and no signals is still offered occasions.
@@ -42,10 +86,20 @@ describe("the script copilot's shared instructions", () => {
   });
 });
 
+// D458 — Reel 07's S4 stirred the flour in with no product picked: only shots showing the pack got it.
+describe("the script copilot's product picks (D458)", () => {
+  it("picks a product a shot uses or names, not only one whose pack shows", () => {
+    for (const task of [scriptCopilotPrompt.tasks.draft, scriptCopilotPrompt.tasks.import]) {
+      expect(task).toMatch(/products it shows, uses or names in its visual or its vo/);
+    }
+    expect(scriptCopilotPrompt.rules + scriptCopilotPrompt.tasks.draft).toMatch(/A shot that uses the product without showing the pack still picks it/);
+  });
+});
+
 describe("the script copilot's card and draft prompts", () => {
   it("gives the card its exact short labels, so no instruction leaks into a label", () => {
     expect(scriptCopilotPrompt.tasks.card).toContain(
-      'Use exactly these labels, in this order where they apply: "Format", "Post date", "Occasion", "Region", "Setting", "Product moment", "Review", "Proof", "Disclaimers".',
+      'Use exactly these labels, in this order where they apply: "Format", "Post date", "Occasion", "Region", "Setting", "Product moment", "Proof", "Disclaimers".',
     );
     expect(scriptCopilotPrompt.tasks.card).not.toMatch(/Disclaimers \(which apply/);
   });

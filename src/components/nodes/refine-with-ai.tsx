@@ -10,18 +10,16 @@ import { REFINE_SUGGESTIONS, type RefineScope } from "@/lib/nodes/refine-suggest
 
 const HELP: Record<RefineScope, string> = {
   all: "Describe the change — the writer rewrites every shot with it in mind.",
-  look: "Describe the change — the writer rewrites the look. Your beats are left as they are.",
   cut: "Describe the change — the writer rewrites this shot only.",
 };
 
 const PLACEHOLDER: Record<RefineScope, string> = {
   all: 'e.g. "fewer product close-ups, more street"',
-  look: 'e.g. "colder light, overcast rather than low sun"',
   cut: 'e.g. "tighter, and let the sole read"',
 };
 
 /**
- * Refine with AI — the KB's pattern (`kb-field-row.tsx`), at three scopes.
+ * Refine with AI — the KB's pattern (`kb-field-row.tsx`), for the whole sequence or one shot.
  *
  * The note is EPHEMERAL: it steers this one rewrite and is cleared when the popover closes. The
  * standing brief stays the standing brief, so a throwaway "try it darker" never silently becomes
@@ -44,7 +42,7 @@ export function RefineWithAI({
   disabled?: boolean;
   onSubmit: (note: string) => void;
   label: string;
-  /** What `@` offers in the note — the look block and each shot. Empty disables mentions. */
+  /** What `@` offers in the note — each shot. Empty disables mentions. */
   mentionables?: { id: string; label: string; type: string }[];
 }) {
   const [open, setOpen] = useState(false);
@@ -131,8 +129,7 @@ export function RefineWithAI({
         </div>
         {mentionables.length > 0 && (
           <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
-            Type <span className="font-medium text-foreground">@</span> to point at the look or a
-            shot.
+            Type <span className="font-medium text-foreground">@</span> to point at a shot.
           </p>
         )}
 

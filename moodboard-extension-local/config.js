@@ -7,4 +7,4 @@
 // checkout's server): if your dev server printed 3001, change the port below and
 // reload the extension at chrome://extensions.
 // No trailing slash: callers build `${APP_BASE_URL}/api/…`.
-const APP_BASE_URL = "http://localhost:3000";
+const APP_BASE_URL = "https://creativeos-yuvabe-staging.vercel.app";

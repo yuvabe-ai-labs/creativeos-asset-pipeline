@@ -44,6 +44,22 @@ export async function insertVersion(input: {
   return data as NodeVersionRow;
 }
 
+/** D454 — a storyboard Composite's v1 record (`inputs_used` with `source: "storyboard"`): the
+ *  panel's prompt and pictures, which Generate reads back to redraw it as the panel was drawn. */
+export async function getStoryboardVersionInputs(nodeId: string): Promise<Record<string, unknown> | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("node_versions")
+    .select("inputs_used")
+    .eq("node_id", nodeId)
+    .eq("inputs_used->>source", "storyboard")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.inputs_used as Record<string, unknown> | undefined) ?? null;
+}
+
 // Move the node's "current output" pointer (never mutates the log).
 //
 // The `updated_at` bump is NOT bookkeeping — it is how a restore becomes visible to

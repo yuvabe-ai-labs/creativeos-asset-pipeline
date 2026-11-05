@@ -1,4 +1,7 @@
-import { scriptDocSchema, type CastMember, type ScriptDoc, type Shot } from "../schema";
+import {
+  scriptDocSchema, MAX_LOCATIONS, MAX_PRODUCTS,
+  type CastMember, type Product, type ScriptDoc, type ScriptLocation, type Shot,
+} from "../schema";
 import type { DraftOutput, ShotFields } from "./output";
 
 // Spec 2 §7 — the model's first draft becomes a valid spec 1 script. The model never writes ids
@@ -46,8 +49,24 @@ export function carryShot(shots: Shot[], index: number): Shot {
   };
 }
 
-export function toShot(id: string, f: ShotFields, resolve: (ref: string) => string | null): Shot {
+/** D447 — how a shot's product and location references (keys, ids or names) become ids. */
+export type AssetResolver = { product: (ref: string) => string | null; location: (ref: string) => string | null };
+const NO_ASSETS: AssetResolver = { product: () => null, location: () => null };
+
+/** Keys and names of the doc's own products and locations, for edits that name them. */
+export function assetResolverFor(doc: Pick<ScriptDoc, "products" | "locations">): AssetResolver {
+  const find = (list: Array<{ id: string; name: string }>) => (ref: string) => {
+    const r = ref.trim().toLowerCase();
+    return list.find((x) => x.id === r || x.name.toLowerCase() === r)?.id ?? null;
+  };
+  return { product: find(doc.products), location: find(doc.locations) };
+}
+
+export function toShot(id: string, f: ShotFields, resolve: (ref: string) => string | null, assets: AssetResolver = NO_ASSETS): Shot {
   const onScreen = [...new Set(f.onScreen.map(resolve).filter((x): x is string => x !== null))];
+  // An unknown product or place is dropped, not rejected: a slightly-off draft is repaired (as cast).
+  const products = [...new Set(f.products.map(assets.product).filter((x): x is string => x !== null))];
+  const location = f.location.trim() ? assets.location(f.location) : null;
   return {
     id,
     beat: cut(f.beat, 40),
@@ -56,6 +75,8 @@ export function toShot(id: string, f: ShotFields, resolve: (ref: string) => stri
     vo: cut(f.vo, 1000),
     onScreenText: cut(f.onScreenText, 500),
     onScreen,
+    products,
+    location,
   };
 }
 
@@ -82,7 +103,31 @@ export function toScriptDoc(draft: Omit<DraftOutput, "suggestions">, opts: { ree
     };
   });
   const resolve = (ref: string) => byRef.get(ref.trim().toLowerCase()) ?? null;
-  const raw = draft.shots.map((s, i) => toShot(`s${String(i + 1).padStart(2, "0")}`, s, resolve));
+
+  // D447 — the script's own products and places, by name; the copilot never gives them images.
+  const productRefs = new Map<string, string>();
+  const productIds = new Set<string>();
+  const products: Product[] = (draft.products ?? []).flatMap((p) => {
+    const name = cut(p.name, 80);
+    if (!name || productIds.size >= MAX_PRODUCTS) return [];
+    const id = castIdFor(name, productIds);
+    productRefs.set(p.key.trim().toLowerCase(), id).set(name.toLowerCase(), id);
+    return [{ id, name, images: [] }];
+  });
+  const locationRefs = new Map<string, string>();
+  const locationIds = new Set<string>();
+  const locations: ScriptLocation[] = (draft.locations ?? []).flatMap((l) => {
+    const name = cut(l.name, 80);
+    if (!name || locationIds.size >= MAX_LOCATIONS) return [];
+    const id = castIdFor(name, locationIds);
+    locationRefs.set(l.key.trim().toLowerCase(), id).set(name.toLowerCase(), id);
+    return [{ id, name, description: cut(l.description, 2000), image: null }];
+  });
+  const assets: AssetResolver = {
+    product: (ref) => productRefs.get(ref.trim().toLowerCase()) ?? null,
+    location: (ref) => locationRefs.get(ref.trim().toLowerCase()) ?? null,
+  };
+  const raw = draft.shots.map((s, i) => toShot(`s${String(i + 1).padStart(2, "0")}`, s, resolve, assets));
 
   const h = draft.header;
   return scriptDocSchema.parse({
@@ -105,5 +150,7 @@ export function toScriptDoc(draft: Omit<DraftOutput, "suggestions">, opts: { ree
     },
     cast,
     shots: raw.map((_, i) => carryShot(raw, i)),
+    products,
+    locations,
   });
 }

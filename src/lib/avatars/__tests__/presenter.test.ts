@@ -52,7 +52,7 @@ describe("presenterUpstreamRow", () => {
         title: "Riya",
         fileKind: "image",
         fileUrl: avatar.front!.url,
-        processedOutput: "Riya, the person on camera in this shot. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.",
+        processedOutput: "Riya, the person on camera when a shot shows someone. Take only their face, hair, build and clothing from this image, never its plain background, lighting or framing.",
       },
       activeOutput: null,
       versionId: null,
@@ -179,6 +179,14 @@ describe("withAvatarAsSpeaker", () => {
     ])], "Razel");
     const cuts = row.data.cuts as { voiceover: { speaker: string }[] }[];
     expect(cuts.flatMap((c) => c.voiceover.map((l) => l.speaker))).toEqual(["Razel", "Razel", "narrator"]);
+  });
+
+  // D477 — a speaker picked in the Multishot's list is the operator's word: "hi" stayed "hi".
+  it("never renames a speaker picked by hand, and does not count it", () => {
+    const [row] = withAvatarAsSpeaker([multishot([], [{ ...creator("Welcome to this grand hall"), speaker: "hi", picked: true }])], "Razel");
+    expect((row.data.sequenceVoiceover as { speaker: string }[])[0].speaker).toBe("hi");
+    const [mixed] = withAvatarAsSpeaker([multishot([], [{ ...creator("One."), speaker: "friend", picked: true }, creator("Two.")])], "Razel");
+    expect((mixed.data.sequenceVoiceover as { speaker: string }[]).map((l) => l.speaker)).toEqual(["friend", "Razel"]);
   });
 
   it("renames a Shot's lines too", () => {

@@ -9,9 +9,10 @@ const script = (stage: Script["stage"] = "approved"): Script => ({
 
 function deps(overrides: Partial<AddScriptDeps> = {}): AddScriptDeps & { toast: { loading: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> } } {
   return {
-    getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: null, storyboard: [] }),
+    getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: null, castAvatarIds: [], storyboard: [] }),
     addScriptNode: vi.fn(),
     attachAvatar: vi.fn(),
+    addCastAvatar: vi.fn(),
     parse: vi.fn().mockResolvedValue({ ok: true, output: { visual_script: { shots: new Array(14).fill({}) } } }),
     writeParsed: vi.fn(),
     fillScriptNode: vi.fn(),
@@ -34,13 +35,32 @@ describe("addScriptToCanvas", () => {
   });
 
   it("attaches the lead's avatar when it has a usable one", async () => {
-    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: "a1", storyboard: [] }) });
+    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: "a1", castAvatarIds: [], storyboard: [] }) });
     await addScriptToCanvas("s1", POS, d);
     expect(d.attachAvatar).toHaveBeenCalledWith("a1", "n1", POS);
   });
 
+  it("hands the rest of the cast over by their place in the stack, connected to nothing (D479)", async () => {
+    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: "lead", castAvatarIds: ["b", "c"], storyboard: [] }) });
+    await addScriptToCanvas("s1", POS, d);
+    expect(d.attachAvatar).toHaveBeenCalledTimes(1);
+    expect(d.attachAvatar).toHaveBeenCalledWith("lead", "n1", POS);
+    expect(d.addCastAvatar).toHaveBeenNthCalledWith(1, "b", "n1", 0);
+    expect(d.addCastAvatar).toHaveBeenNthCalledWith(2, "c", "n1", 1);
+  });
+
+  it("adds no other avatars when the rest of the cast has none, and still adds them with no lead", async () => {
+    const none = deps();
+    await addScriptToCanvas("s1", POS, none);
+    expect(none.addCastAvatar).not.toHaveBeenCalled();
+    const noLead = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: null, castAvatarIds: ["b"], storyboard: [] }) });
+    await addScriptToCanvas("s1", POS, noLead);
+    expect(noLead.attachAvatar).not.toHaveBeenCalled();
+    expect(noLead.addCastAvatar).toHaveBeenCalledWith("b", "n1", 0);
+  });
+
   it("refuses a script that is not approved, without creating a node", async () => {
-    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script("in_review"), leadAvatarId: null, storyboard: [] }) });
+    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script("in_review"), leadAvatarId: null, castAvatarIds: [], storyboard: [] }) });
     await addScriptToCanvas("s1", POS, d);
     expect(d.addScriptNode).not.toHaveBeenCalled();
     expect(d.toast.error).toHaveBeenCalledWith("Only approved scripts can go on a canvas.");
@@ -102,8 +122,22 @@ describe("addScriptToCanvas", () => {
 
   const PANELS = [{ label: "S1", beat: "HOOK", shotId: "s01", url: "https://x/p.png" }];
 
+  // D450 — the script's products, locations and picks ride on the node, frozen.
+  it("freezes the script's products and locations onto the node, and nothing when it has none", async () => {
+    const s = script();
+    s.doc = { ...s.doc, products: [{ id: "pouch", name: "Pouch", images: [] }], shots: s.doc.shots.map((x, i) => (i === 0 ? { ...x, products: ["pouch"] } : x)) };
+    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: s, leadAvatarId: null, castAvatarIds: [], storyboard: [] }) });
+    await addScriptToCanvas("s1", POS, d);
+    expect(d.addScriptNode).toHaveBeenCalledWith("n1", POS, expect.objectContaining({
+      assets: { scriptId: "s1", products: s.doc.products, locations: [], picks: { S1: { products: ["pouch"], location: null } } },
+    }));
+    const plain = deps();
+    await addScriptToCanvas("s1", POS, plain);
+    expect(vi.mocked(plain.addScriptNode).mock.calls[0][2]).not.toHaveProperty("assets");
+  });
+
   it("puts the approved storyboard on the new Script node (D381)", async () => {
-    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: null, storyboard: PANELS }) });
+    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: null, castAvatarIds: [], storyboard: PANELS }) });
     await addScriptToCanvas("s1", POS, d);
     expect(d.addScriptNode).toHaveBeenCalledWith("n1", POS, expect.objectContaining({
       storyboard: { scriptId: "s1", panels: PANELS },
@@ -111,7 +145,7 @@ describe("addScriptToCanvas", () => {
   });
 
   it("fills the seeded node with the storyboard too (Create canvas)", async () => {
-    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: null, storyboard: PANELS }) });
+    const d = deps({ getDetail: vi.fn().mockResolvedValue({ script: script(), leadAvatarId: null, castAvatarIds: [], storyboard: PANELS }) });
     await addScriptToCanvas("s1", POS, d, { into: "seeded" });
     expect(d.fillScriptNode).toHaveBeenCalledWith("seeded", expect.objectContaining({
       storyboard: { scriptId: "s1", panels: PANELS },

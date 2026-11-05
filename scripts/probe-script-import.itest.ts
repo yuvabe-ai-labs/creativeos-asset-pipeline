@@ -32,7 +32,7 @@ Props: steel tumbler, banana leaf.`;
 describe("pasting a script into the copilot (live)", () => {
   it("reads Reel 07 word for word, with its beats and lengths (success 1–3, 10)", async () => {
     const { structuredCaller } = await import("@/lib/scripts/copilot/model");
-    const { SCRIPT_WRITER_MODEL, REVIEW_PLACEHOLDER } = await import("@/lib/scripts/copilot/constants");
+    const { SCRIPT_WRITER_MODEL } = await import("@/lib/scripts/copilot/constants");
     const { importPrompt } = await import("@/lib/scripts/copilot/messages");
     const { importOutputSchema } = await import("@/lib/scripts/copilot/output");
     const { buildImport } = await import("@/lib/scripts/copilot/import");
@@ -52,7 +52,7 @@ describe("pasting a script into the copilot (live)", () => {
     expect(r.doc.cast.find((c) => c.isLead)?.name).toBe("Rhea");
     expect(r.doc.context.watchOuts).toEqual(REEL_07_IMPORT.context.watchOuts);
     for (const d of ["D1, on every reel.", "D2, on every reel.", "D4, on the pack end card of every reel. This is not a medicine. FSSAI Lic. No. ____ (licence number to be supplied by the brand)."]) expect(r.doc.context.disclaimers).toContain(d);
-    expect(r.doc.shots[4].vo).toContain(REVIEW_PLACEHOLDER);
+    expect(r.doc.shots[4].vo).toContain("[real review, verbatim]"); // the paste's own placeholder, kept as written
   });
 
   it("guesses lengths and beats for a scene-by-scene script, and keeps the music and props (success 5, 6)", async () => {

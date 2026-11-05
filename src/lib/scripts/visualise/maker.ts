@@ -14,8 +14,13 @@ import { VISUALISE_AVATAR_MODEL_ID } from "./constants";
 
 export type MakerStep = "face" | "views" | "save";
 
-/** What the front route draws a face from. */
-export type FrontInput = { description: string; attributes: AvatarAttributes };
+/** What the front route draws a face from. D471 — and the made faces of this person's blood
+ *  relatives in the reel, with what each is to them, so the family looks like one. */
+export type FrontInput = {
+  description: string;
+  attributes: AvatarAttributes;
+  relatives?: { avatarId: string; relation: string }[];
+};
 
 export type MakerDeps = {
   /** Creates a draft avatar and links it to the cast member. */
@@ -42,6 +47,12 @@ export function reusableFor(mode: "ai" | "photo", avatar: Avatar | null): Avatar
   const kind = avatar.front?.source.kind;
   if (!kind) return avatar;
   return (mode === "ai") === (kind === "generated") ? avatar : null;
+}
+
+/** D465 — why the video preview is locked: the avatar must be made first (generated or uploaded,
+ *  then its four views), and not mid-make. Null when it can be made. */
+export function previewLockedReason(avatar: Avatar | null, step: string | null): string | null {
+  return castChipStatus(avatar, step).tone === "ready" ? null : "Make the avatar first.";
 }
 
 /** What the slot does next: the face, the four views, or saving. Null when done, or when a
@@ -96,6 +107,25 @@ export function castSlotLine(avatar: Avatar | null): string {
   if (avatar.status !== "ready") return "Draft · saved to Avatars once its four views are made";
   const made = `Made ${formatDate(avatar.createdAt)} · saved to Avatars`;
   return hasFourViews(avatar) ? made : `${made} · needs its four views`;
+}
+
+export type CastChipStatus = { label: string; tone: "ready" | "working" | "attention" | "muted" };
+
+const CHIP_STEP: Record<string, string> = {
+  face: "Making the face…", views: "Making the views…", save: "Saving…", link: "Saving…",
+  upload: "Uploading…", consent: "Confirming…",
+};
+
+/** D465 — the cast chip's one-line status. "Ready" only when the panels can use the avatar;
+ *  every other state is named, so a not-yet avatar never reads as done. */
+export function castChipStatus(avatar: Avatar | null, step: string | null): CastChipStatus {
+  if (step && CHIP_STEP[step]) return { label: CHIP_STEP[step], tone: "working" };
+  if (!avatar) return { label: "No avatar yet", tone: "muted" };
+  if (avatar.archivedAt) return { label: "Archived", tone: "attention" };
+  if (needsLikenessConsent(avatar)) return { label: "Waiting for consent", tone: "attention" };
+  if (avatar.sheetStale) return { label: "Out of date", tone: "attention" };
+  if (avatar.status !== "ready" || !hasFourViews(avatar)) return { label: "Needs its four views", tone: "attention" };
+  return { label: "Ready", tone: "ready" };
 }
 
 /** What Make avatar costs: one face, then one sheet. */

@@ -4,17 +4,20 @@ import type { ParseResult } from "@/lib/nodes/parse-script-node";
 import type { ReelScript } from "@/lib/nodes/reel-script";
 import { printScript } from "./print";
 import type { ScriptStoryboard, StoryboardPanel } from "./storyboard";
+import { scriptCanvasAssets, type ScriptCanvasAssets } from "./asset-canvas";
 
-type ScriptNodeFill = { title: string; source: string; storyboard?: ScriptStoryboard };
+type ScriptNodeFill = { title: string; source: string; storyboard?: ScriptStoryboard; assets?: ScriptCanvasAssets };
 
 // Spec 1 §5.2 — what happens when an approved script lands on a canvas, as a plain function so
 // every path (including failures) is testable without React. `useAddScriptNode` supplies the
 // store, the avatar attach, the parse call and the toasts.
 
 export type AddScriptDeps = {
-  getDetail: (scriptId: string) => Promise<{ script: Script; leadAvatarId: string | null; storyboard: StoryboardPanel[] }>;
+  getDetail: (scriptId: string) => Promise<{ script: Script; leadAvatarId: string | null; castAvatarIds: string[]; storyboard: StoryboardPanel[] }>;
   addScriptNode: (nodeId: string, position: XYPosition, data: ScriptNodeFill) => void;
   attachAvatar: (avatarId: string, nodeId: string, position: XYPosition) => void;
+  /** D479 — one of the script's other cast, by its place in the stack: connected to nothing. */
+  addCastAvatar: (avatarId: string, nodeId: string, index: number) => void;
   parse: (nodeId: string, source: string) => Promise<ParseResult>;
   writeParsed: (nodeId: string, output: ReelScript) => void;
   /** Puts the script into an existing empty Script node (a new canvas's seeded one). */
@@ -49,16 +52,19 @@ export async function addScriptToCanvas(scriptId: string, position: XYPosition, 
   const { header } = detail.script.doc;
   const source = printScript(detail.script.doc);
   // D381, D385 — the storyboard panels (current picks when added) ride on the node, frozen; a
-  // script without any gets no key.
+  // script without any gets no key. D450 — so do its products, locations and per-shot picks.
+  const assets = scriptCanvasAssets(scriptId, detail.script.doc);
   const fill: ScriptNodeFill = {
     title: header.title,
     source,
     ...(detail.storyboard.length > 0 && { storyboard: { scriptId, panels: detail.storyboard } }),
+    ...(assets && { assets }),
   };
   const nodeId = opts.into ?? d.newId();
   if (opts.into) d.fillScriptNode(nodeId, fill);
   else d.addScriptNode(nodeId, position, fill);
   if (detail.leadAvatarId) d.attachAvatar(detail.leadAvatarId, nodeId, position);
+  detail.castAvatarIds.forEach((avatarId, i) => d.addCastAvatar(avatarId, nodeId, i));
 
   // The node reads "Parsing script…" for exactly as long as the parse runs, however it ends.
   d.setParsing(nodeId, true);

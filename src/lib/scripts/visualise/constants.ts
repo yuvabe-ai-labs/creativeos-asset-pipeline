@@ -6,7 +6,7 @@ import { imageGenClientModels } from "@/lib/image-gen/client-models";
 // (Seedream hands URLs to the vendor).
 export const PANEL_MODEL_ID = "gemini:gemini-nano-banana-2.1";
 export const PANEL_MODEL_IDS: readonly string[] = imageGenClientModels
-  .filter((m) => m.provider === "openai" || m.provider === "gemini")
+  .filter((m) => !m.deprecated && (m.provider === "openai" || m.provider === "gemini"))
   .map((m) => m.id);
 export function isPanelModel(modelId: string): boolean {
   return PANEL_MODEL_IDS.includes(modelId);
@@ -30,3 +30,6 @@ export const PANEL_TIMED_OUT = "The panel did not finish. Generate it again.";
 
 /** D346 — Generate all draws this many panels at once from the browser. */
 export const GENERATE_ALL_CONCURRENCY = 3;
+
+/** D449 — starting points for a panel's Redraw note: framing and staging, never a mood. */
+export const PANEL_REDRAW_SUGGESTIONS = ["Closer on the product", "Wider shot", "Face the camera", "Simpler background"];
