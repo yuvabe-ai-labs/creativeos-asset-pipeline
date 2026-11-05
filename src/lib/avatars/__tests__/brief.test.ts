@@ -14,6 +14,7 @@ describe("briefFront (D395)", () => {
     const call = vi.fn(async () => ({
       gender: "Male", age: "55+", ageYears: "58", ethnicity: "South Asian",
       appearance: "Clean-shaven.", wardrobe: "A white mundu.", markers: "",
+      family: [{ castId: "meenakshi", relation: "husband" }],
     })) as unknown as StructuredCall;
     const front = await briefFront(input, call);
     expect(vi.mocked(call).mock.calls[0][0]).toMatchObject({ name: "avatar_brief", system: AVATAR_BRIEF_SYSTEM });
@@ -21,6 +22,7 @@ describe("briefFront (D395)", () => {
     expect(front).toEqual({
       description: "A 58-year-old South Asian man. Clean-shaven. A white mundu.",
       attributes: { gender: "Male", age: "55+", ethnicity: "South Asian" },
+      family: [{ castId: "meenakshi", relation: "husband" }],
     });
   });
 
@@ -28,7 +30,7 @@ describe("briefFront (D395)", () => {
     const call = vi.fn(async () => { throw new Error("timeout"); }) as unknown as StructuredCall;
     vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(await briefFront(input, call)).toEqual({
-      description: "Clean-shaven Her husband Rajan, 58, behind her.", attributes: {},
+      description: "Clean-shaven Her husband Rajan, 58, behind her.", attributes: {}, family: [],
     });
   });
 });

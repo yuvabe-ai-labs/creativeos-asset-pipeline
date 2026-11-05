@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "name": "CreativeOS Moodboard Clipper",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Hover any image — or an Instagram post, YouTube Short, or Pinterest pin — and click + CreativeOS, or right-click, to add it to a client moodboard.",
   "permissions": ["contextMenus", "storage", "sidePanel"],
   "host_permissions": [
-    "https://creativeos-yuvabe.vercel.app/*"
+    "https://creativeos-yuvabe.cloud.run/*"
   ],
   "background": { "service_worker": "background.js" },
   "content_scripts": [

@@ -473,6 +473,8 @@ export function PromptFocusView({
     setEvalDecision(null);
     setEvalNote("");
     try {
+      // Persist the node first: the route reads its row (see multishot-prompt-focus-view).
+      await flushAutosave();
       const res = await fetch(`/api/nodes/${nodeId}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

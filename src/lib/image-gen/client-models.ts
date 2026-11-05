@@ -54,6 +54,7 @@ export const imageGenClientModels: ClientModelSpec[] = [
     id: "openai:gpt-image-1",
     provider: "openai", mediaType: "image",
     label: "GPT Image 1", providerLabel: "OpenAI",
+    deprecated: true, // D467 — OpenAI shut it down on 23 Oct 2026
     maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
     maxImageEdgePx: 3840,
     maxAspectRatio: 3.0,
@@ -135,14 +136,17 @@ export const imageGenClientModels: ClientModelSpec[] = [
 export const imageGenClientModelMap: Record<string, ClientModelSpec> =
   Object.fromEntries(imageGenClientModels.map((m) => [m.id, m]));
 
+// The models on offer, so a deprecated one is left out (D467).
+const offeredImageModels = imageGenClientModels.filter((m) => !m.deprecated);
+
 export const imageGenClientModelGroups: Array<{
   provider: string;
   label: string;
   models: ClientModelSpec[];
 }> = [
-  { provider: "openai", label: "OpenAI", models: imageGenClientModels.filter((m) => m.provider === "openai") },
-  { provider: "gemini", label: "Gemini", models: imageGenClientModels.filter((m) => m.provider === "gemini") },
-  { provider: "seedream", label: "Seedream", models: imageGenClientModels.filter((m) => m.provider === "seedream") },
+  { provider: "openai", label: "OpenAI", models: offeredImageModels.filter((m) => m.provider === "openai") },
+  { provider: "gemini", label: "Gemini", models: offeredImageModels.filter((m) => m.provider === "gemini") },
+  { provider: "seedream", label: "Seedream", models: offeredImageModels.filter((m) => m.provider === "seedream") },
 ];
 
 export const DEFAULT_CLIENT_MODEL_ID = "gemini:gemini-3-pro-image";
@@ -154,6 +158,32 @@ export function defaultsForModel(model: ClientModelSpec): Record<string, unknown
       .filter((p: ParamSpec) => p.defaultValue !== null && p.defaultValue !== undefined)
       .map((p: ParamSpec) => [p.name, p.defaultValue]),
   );
+}
+
+/** D467 — where a node saved on a deprecated image model goes. */
+export const DEPRECATED_IMAGE_MODEL_FALLBACK_ID = "openai:gpt-image-2.5-sunburst";
+
+/** D467 — the routes' refusal, for a tab still open from before the fallback. */
+export const IMAGE_MODEL_DEPRECATED_MESSAGE = "This model is deprecated";
+
+export function isImageModelDeprecated(modelId: string): boolean {
+  return imageGenClientModelMap[modelId]?.deprecated === true;
+}
+
+/**
+ * D467 — an Image Gen or Composite node's data with a deprecated model replaced by the fallback
+ * and that model's default settings. The old model's settings don't carry over. Data on any other
+ * model comes back untouched, the same object, so nothing re-renders or saves because of this.
+ */
+export function withoutDeprecatedImageModel<T extends { modelId?: string; params?: Record<string, unknown> }>(
+  data: T,
+): T {
+  if (!data.modelId || !isImageModelDeprecated(data.modelId)) return data;
+  return {
+    ...data,
+    modelId: DEPRECATED_IMAGE_MODEL_FALLBACK_ID,
+    params: defaultsForModel(imageGenClientModelMap[DEPRECATED_IMAGE_MODEL_FALLBACK_ID]),
+  };
 }
 
 // Legacy alias kept until image-gen-focus-view.tsx is updated

@@ -40,11 +40,25 @@ describe("the script copilot's shared instructions", () => {
       expect(t).toMatch(/Name a product the way the client sells it/);
       expect(t).toMatch(/Name a location as the place/);
       expect(t).toMatch(/Shots in the same place share one location/);
+      // D467 — Muthoot Finance: a gold loan became a product needing a picture, and the logo card a location.
+      expect(t).toMatch(/A service is never a product \(a loan, insurance/);
+      expect(t).toMatch(/a shot that is only a graphic \(a logo end card/);
+      // D468 — PharmEasy: the app became a product, and "Mobile Screen" a location.
+      expect(t).toMatch(/an app or a website and what it does/);
+      expect(t).toMatch(/a shot that is only a screen \(a screen recording/);
+      // D470 — across every brand on staging: "Neutral Void", "Warm ivory background" and
+      // "Ecommerce Set" became places; a gift box and a delivery box are what a picture is for;
+      // shades came out as "more buff", without the brand.
+      expect(t).toMatch(/A location is a real place people could be in\./);
+      expect(t).toMatch(/a plain backdrop \(a colour, a studio sweep, a product shown on a background, a packshot or e-commerce set\)/);
+      expect(t).toMatch(/Its location is "", it adds no location, and its visual says the backdrop\. A screen-only shot picks no product\./);
+      expect(t).toMatch(/carries the brand's own fixed look is a product too[^.]*: its packaging, a gift or delivery box, a branded card, bag or uniform\. The service behind it is not\./);
+      expect(t).toMatch(/Variants the reel shows apart \(shades, flavours, colours, sizes\) are one product each, each named in full/);
     }
   });
 
-  it("is version 6", () => {
-    expect(scriptCopilotPrompt.version).toBe(9);
+  it("is version 12", () => {
+    expect(scriptCopilotPrompt.version).toBe(12);
   });
 
   it("commit each angle to a product moment and proof", () => {

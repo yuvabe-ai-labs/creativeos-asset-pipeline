@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCutTimecode, withAddedComment, withEditedComment } from "./utils";
+import { cutDownloadName, formatCutTimecode, withAddedComment, withEditedComment } from "./utils";
 import type { PublicReview, ReviewComment } from "./wire";
 
 describe("formatCutTimecode", () => {
@@ -42,5 +42,15 @@ describe("withEditedComment", () => {
   });
   it("leaves an empty cache empty", () => {
     expect(withEditedComment(undefined, c("a"))).toBeUndefined();
+  });
+});
+
+describe("cutDownloadName (D478)", () => {
+  it("names the file after the title, with the cut's own extension", () => {
+    expect(cutDownloadName("Dosa film: the \"final\" cut", "a/b/cut__x.MOV")).toBe("dosa-film-the-final-cut.mov");
+  });
+  it("falls back when the title has no usable characters or the path no known extension", () => {
+    expect(cutDownloadName("", "a/cut__x.mp4")).toBe("video.mp4");
+    expect(cutDownloadName("Reel", "a/cut__x")).toBe("reel.mp4");
   });
 });

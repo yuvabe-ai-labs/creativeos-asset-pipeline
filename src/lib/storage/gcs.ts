@@ -19,7 +19,9 @@ function getStorage(): Storage {
       Buffer.from(keyBase64, "base64").toString("utf8"),
     );
     _storage = new Storage({ projectId, credentials });
-  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.K_SERVICE) {
+    // No key: the library finds credentials itself — the key file locally, or on Cloud Run
+    // (which sets K_SERVICE) the service account the service runs as.
     _storage = new Storage({ projectId });
   } else {
     throw new Error(
@@ -71,6 +73,25 @@ export async function _signPutUrl(
       action: "write",
       expires: Date.now() + expiresMs,
       contentType,
+    });
+  return url;
+}
+
+// V4 signed URL that saves a stored file under `fileName` instead of playing it in the tab. A
+// `download` attribute alone can't do this: browsers ignore it for another domain's file.
+export async function _signDownloadUrl(
+  path: string,
+  fileName: string,
+  expiresMs = 15 * 60 * 1000,
+): Promise<string> {
+  const [url] = await getStorage()
+    .bucket(getBucketName())
+    .file(path)
+    .getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: Date.now() + expiresMs,
+      responseDisposition: `attachment; filename="${fileName}"`,
     });
   return url;
 }

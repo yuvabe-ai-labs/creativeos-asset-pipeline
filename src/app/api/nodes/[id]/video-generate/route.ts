@@ -10,7 +10,11 @@ import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/regist
 // Constraint rules live in client-models.ts, which is the single source of truth for them —
 // the server registry carries only what generation needs. Importing it here is safe: that
 // module has no `server-only` dependency, it is plain param specs and rule data.
-import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import {
+  videoGenClientModelMap,
+  isVideoModelDeprecated,
+  VIDEO_MODEL_DEPRECATED_MESSAGE,
+} from "@/lib/video-gen/client-models";
 import { areFramesAndRefsExclusive, validateAgainstRules } from "@/lib/video-gen/constraints";
 import {
   assignImageRoles,
@@ -27,6 +31,7 @@ import {
 } from "@/lib/video-gen/resolve-prompt";
 import { referenceRolesLine } from "@/lib/nodes/ref-roles";
 import { withRequestLines } from "@/lib/video-gen/request-prompt";
+import { NO_ON_SCREEN_TEXT_LINE, soundDesignClause } from "@/lib/video-gen/compose-omni-prompt";
 import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
@@ -70,6 +75,8 @@ export async function POST(
     const modelId = body.modelId ?? DEFAULT_VIDEO_MODEL_ID;
     const config = videoGenRegistry[modelId];
     if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
+    // D461 — a tab open from before the fallback can still send a deprecated model.
+    if (isVideoModelDeprecated(modelId)) return apiError(VIDEO_MODEL_DEPRECATED_MESSAGE, 400);
 
     // Build params using model's param specs (defaults where not provided)
     const bodyParams = body.params ?? {};
@@ -346,6 +353,9 @@ export async function POST(
         promptNodeType: promptNode.type,
         promptVersionId: promptNode.versionId,
         prompt: requestPrompt,
+        // D472 — what Omni's request adds around the prompt (composeOmniPrompt), recorded so the
+        // "Sent to model" pane shows the sound and text lines the model actually got.
+        ...(config.provider === "gemini" ? { addedOnSend: [soundDesignClause(requestPrompt), NO_ON_SCREEN_TEXT_LINE] } : {}),
         startFrameUrl,
         endFrameUrl,
         referenceUrls,

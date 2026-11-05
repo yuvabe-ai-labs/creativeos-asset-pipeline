@@ -3,7 +3,7 @@ import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import reel06 from "@/lib/scripts/fixtures/reel-06.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
 import { IMPORT_REPLY_PREFIX } from "../constants";
-import { avatarFits, cleanSuggestions, suggestionsFor } from "../suggestions";
+import { avatarFits, cleanSuggestions, matchingAvatarOptions, suggestionsFor } from "../suggestions";
 import { clientTermsIn } from "../client-terms";
 import { fillToFinal } from "../fill-to-final";
 import { EMPTY_BRIEF, EMPTY_NOTES, type Angle, type Brief, type GenerateState } from "../schema";
@@ -44,15 +44,23 @@ describe("suggestionsFor", () => {
     expect(labels(state({ brief: asked }))).toEqual(["You pick"]);
   });
 
-  it("offers the client's avatars as leads", () => {
-    expect(labels(state({ brief: { ...EMPTY_BRIEF, format: given("UGC"), occasion: given("Onam") } }))).toEqual(["Meenakshi", "James · AI", "James · Specific", "Cast it for me"]);
+  it("offers the lead's avatars behind one chip, not a chip each (D480)", () => {
+    const s = suggestionsFor(state({ brief: { ...EMPTY_BRIEF, format: given("UGC"), occasion: given("Onam") } }));
+    expect(s.map((x) => x.label)).toEqual(["Choose an avatar", "Cast it for me"]);
+    expect(s[0].pick?.castId).toBeNull();
+    expect(s[0].pick?.options.map((o) => o.label)).toEqual(["Meenakshi", "James · AI", "James · Specific"]);
+    expect(s[1].pick).toBeUndefined();
   });
 
-  it("puts Specific avatars first for a Founder-led reel, and each lead chip carries its avatar", () => {
+  it("puts Specific avatars first for a Founder-led reel, and each option carries its avatar", () => {
     const s = suggestionsFor(state({ brief: { ...EMPTY_BRIEF, format: given("Founder-led"), occasion: given("Navratri") } }));
-    expect(s.map((x) => x.label)).toEqual(["James · Specific", "Meenakshi", "James · AI", "Cast it for me"]);
-    expect(s[0]).toEqual({ label: "James · Specific", text: "James", send: true, leadAvatarId: "a3" });
-    expect(s[3].leadAvatarId).toBeUndefined();
+    expect(s[0].pick?.options.map((o) => o.label)).toEqual(["James · Specific", "Meenakshi", "James · AI"]);
+    expect(s[0].pick?.options[0]).toEqual({ id: "a3", name: "James", label: "James · Specific", front: null, suggested: false });
+  });
+
+  it("offers only Cast it for me when the client has no avatars", () => {
+    const base = state({ brief: { ...EMPTY_BRIEF, format: given("UGC"), occasion: given("Onam") } });
+    expect(suggestionsFor({ ...base, avatars: [] }).map((x) => x.label)).toEqual(["Cast it for me"]);
   });
 
   it("offers the copilot's own replies while angles are showing, and Write it first on the card", () => {
@@ -102,28 +110,34 @@ describe("after an import (paste-a-script §4.3)", () => {
   const importReply = msg("assistant", `${IMPORT_REPLY_PREFIX}Reel 01 · 9 shots · 50s.`);
   const imported = () => ({ ...state({ brief: { ...EMPTY_BRIEF, phase: "written", imported: true }, doc: unlinked }), messages: [importReply] });
 
-  it("offers the client's avatars for the lead, a fitting one first; a tap links, it never sends", () => {
+  it("offers one chip for the lead, its dialog holding every avatar with a fitting one first (D480)", () => {
     const base = imported();
     const [a1, a2, a3] = base.avatars;
     const s = { ...base, avatars: [a2, a3, a1] };
     const lead = s.script.doc!.cast.find((c) => c.isLead)!;
-    const chips = suggestionsFor(s).filter((x) => x.link);
-    expect(chips[0]).toEqual({ label: `${lead.name} as ${lead.name}`, text: "", send: false, link: { castId: lead.id, avatarId: "a1" } });
-    expect(chips).toHaveLength(3);
+    const chips = suggestionsFor(s).filter((x) => x.pick);
+    expect(chips).toHaveLength(1);
+    expect(chips[0].label).toBe(`Choose an avatar for ${lead.name}`);
+    expect(chips[0].send).toBe(false);
+    expect(chips[0].pick?.castId).toBe(lead.id);
+    expect(chips[0].pick?.title).toBe(`Who plays ${lead.name}?`);
+    expect(chips[0].pick?.options).toHaveLength(3);
+    expect(chips[0].pick?.options[0]).toMatchObject({ id: "a1", suggested: true });
+    expect(chips[0].pick?.options[1].suggested).toBe(false);
   });
 
   it("asks nothing once everyone is linked, and nothing for a script the copilot wrote", () => {
     const linked = { ...reel01, cast: reel01.cast.map((c) => ({ ...c, avatarId: "6f1c2b1e-0000-4000-8000-0000000000aa" })) };
-    expect(suggestionsFor({ ...state({ brief: { ...EMPTY_BRIEF, imported: true }, doc: linked }), messages: [importReply] }).some((x) => x.link)).toBe(false);
-    expect(suggestionsFor({ ...state({ doc: unlinked }), messages: [importReply] }).some((x) => x.link)).toBe(false);
+    expect(suggestionsFor({ ...state({ brief: { ...EMPTY_BRIEF, imported: true }, doc: linked }), messages: [importReply] }).some((x) => x.pick)).toBe(false);
+    expect(suggestionsFor({ ...state({ doc: unlinked }), messages: [importReply] }).some((x) => x.pick)).toBe(false);
   });
 
   it("shows the link chips only while the import reply is the newest message (I3)", () => {
     const base = imported();
-    expect(suggestionsFor(base).some((x) => x.link)).toBe(true);
-    expect(suggestionsFor({ ...base, messages: [importReply, msg("user", "Make the hook punchier")] }).some((x) => x.link)).toBe(false);
-    expect(suggestionsFor({ ...base, messages: [importReply, msg("assistant", "Done, the hook is punchier.")] }).some((x) => x.link)).toBe(false);
-    expect(suggestionsFor({ ...base, messages: [] }).some((x) => x.link)).toBe(false);
+    expect(suggestionsFor(base).some((x) => x.pick)).toBe(true);
+    expect(suggestionsFor({ ...base, messages: [importReply, msg("user", "Make the hook punchier")] }).some((x) => x.pick)).toBe(false);
+    expect(suggestionsFor({ ...base, messages: [importReply, msg("assistant", "Done, the hook is punchier.")] }).some((x) => x.pick)).toBe(false);
+    expect(suggestionsFor({ ...base, messages: [] }).some((x) => x.pick)).toBe(false);
   });
 });
 
@@ -133,5 +147,19 @@ describe("avatarFits", () => {
     expect(avatarFits(rhea, { id: "a", name: "rhea", story: "", front: null, specific: false })).toBe(true);
     expect(avatarFits(rhea, { id: "a", name: "Priya", story: "Plays Rhea in the UGC reels", front: null, specific: false })).toBe(true);
     expect(avatarFits(rhea, { id: "a", name: "Rheana", story: "", front: null, specific: false })).toBe(false);
+  });
+});
+
+describe("matchingAvatarOptions (D480)", () => {
+  const option = (id: string, label: string) => ({ id, name: label, label, front: null, suggested: false });
+  const options = [option("a", "James · AI"), option("b", "James · Specific"), option("c", "Meenakshi")];
+
+  it("keeps every option for an empty search", () => {
+    expect(matchingAvatarOptions(options, "  ")).toHaveLength(3);
+  });
+  it("matches any part of the label, case aside", () => {
+    expect(matchingAvatarOptions(options, "james").map((o) => o.id)).toEqual(["a", "b"]);
+    expect(matchingAvatarOptions(options, "NAK").map((o) => o.id)).toEqual(["c"]);
+    expect(matchingAvatarOptions(options, "nobody")).toEqual([]);
   });
 });

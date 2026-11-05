@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { voiceoverMappingIssue, renderVoiceover, joinVoLines, multishotVoiceover, foldMultishotVoiceover } from "../voiceover";
+import { voiceoverMappingIssue, renderVoiceover, joinVoLines, multishotVoiceover, foldMultishotVoiceover, secondsToSay } from "../voiceover";
 import type { ReelScript } from "../reel-script";
 
 const script = (voiceover: string, lines: string[][] | null): ReelScript => ({
@@ -206,12 +206,12 @@ describe("voiceoverMappingIssue", () => {
 describe("renderVoiceover", () => {
   it("renders a narrator line", () => {
     expect(renderVoiceover([{ text: "Part of my cooking now.", speaker: "narrator" }])).toBe(
-      'Voiceover: "Part of my cooking now."',
+      'Voiceover, off-screen: "Part of my cooking now."',
     );
   });
 
   it("names an on-screen speaker", () => {
-    expect(renderVoiceover([{ text: "Try it.", speaker: "Riya" }])).toBe('Riya says: "Try it."');
+    expect(renderVoiceover([{ text: "Try it.", speaker: "Riya" }])).toBe('Riya says on camera: "Try it."');
   });
 
   it("puts a stated delivery in parentheses and a non-English language after it", () => {
@@ -219,13 +219,13 @@ describe("renderVoiceover", () => {
       renderVoiceover([
         { text: "Sollunga.", speaker: "narrator", delivery: "warm, unhurried", language: "Tamil" },
       ]),
-    ).toBe('Voiceover (warm, unhurried) in Tamil: "Sollunga."');
+    ).toBe('Voiceover, off-screen (warm, unhurried) in Tamil: "Sollunga."');
   });
 
   it("treats empty strings from strict-mode output as absent, and English as unremarkable", () => {
     expect(
       renderVoiceover([{ text: "Hello.", speaker: "narrator", delivery: "", language: "English" }]),
-    ).toBe('Voiceover: "Hello."');
+    ).toBe('Voiceover, off-screen: "Hello."');
   });
 
   it("joins several lines in order with one space", () => {
@@ -234,7 +234,7 @@ describe("renderVoiceover", () => {
         { text: "First.", speaker: "narrator" },
         { text: "Second.", speaker: "Riya" },
       ]),
-    ).toBe('Voiceover: "First." Riya says: "Second."');
+    ).toBe('Voiceover, off-screen: "First." Riya says on camera: "Second."');
   });
 
   it("is empty for no lines, an empty list, or blank text", () => {
@@ -267,7 +267,7 @@ describe("joinVoLines", () => {
   });
 });
 
-describe("multishotVoiceover / foldMultishotVoiceover (D307)", () => {
+describe("multishotVoiceover / foldMultishotVoiceover, off-screen (D307)", () => {
   const line = (text: string, speaker = "narrator") => ({ text, speaker });
 
   it("is the sequence's lines, then any left on cuts by an older node, cut by cut", () => {
@@ -298,5 +298,18 @@ describe("multishotVoiceover / foldMultishotVoiceover (D307)", () => {
   it("leaves data with nothing on its cuts as it is", () => {
     const data = { cuts: [{ id: "a", text: "x", seconds: 2 }], sequenceVoiceover: [line("Hi.")] };
     expect(foldMultishotVoiceover(data)).toBe(data);
+  });
+});
+
+// D474 — a line longer than the clip is cut off at its end; the card warns from this estimate.
+describe("secondsToSay", () => {
+  it("counts words at 2.5 a second, rounded up", () => {
+    expect(secondsToSay([{ text: "A touch of glow for my everyday", speaker: "narrator" }])).toBe(3);
+    expect(secondsToSay([{ text: "One two", speaker: "narrator" }, { text: "three four five", speaker: "Riya" }])).toBe(2);
+  });
+
+  it("is zero with no words", () => {
+    expect(secondsToSay(undefined)).toBe(0);
+    expect(secondsToSay([{ text: "  ", speaker: "narrator" }])).toBe(0);
   });
 });

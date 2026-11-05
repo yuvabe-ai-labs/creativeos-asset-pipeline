@@ -3,7 +3,7 @@ import { structuredCaller, type StructuredCall } from "@/lib/scripts/copilot/mod
 import { SCRIPT_QUICK_MODEL } from "@/lib/scripts/copilot/constants";
 import {
   AVATAR_BRIEF_SYSTEM, avatarBriefSchema, briefToFront, buildAvatarBriefUser, fallbackFront,
-  type AvatarBriefInput,
+  type AvatarBrief, type AvatarBriefInput,
 } from "@/prompts/avatar-character";
 import type { AvatarAttributes } from "./constants";
 
@@ -16,14 +16,15 @@ import type { AvatarAttributes } from "./constants";
 export async function briefFront(
   input: AvatarBriefInput,
   call: StructuredCall = structuredCaller(SCRIPT_QUICK_MODEL),
-): Promise<{ description: string; attributes: AvatarAttributes }> {
+): Promise<{ description: string; attributes: AvatarAttributes; family: AvatarBrief["family"] }> {
   try {
     const brief = await call({
       name: "avatar_brief", system: AVATAR_BRIEF_SYSTEM, user: buildAvatarBriefUser(input), schema: avatarBriefSchema,
     });
-    return briefToFront(brief);
+    // D471 — the blood relatives it found, so the face can be drawn with theirs beside it.
+    return { ...briefToFront(brief), family: brief.family };
   } catch (e) {
     console.warn("[avatars] the character brief failed; drawing from the words as given:", e);
-    return fallbackFront(input);
+    return { ...fallbackFront(input), family: [] };
   }
 }

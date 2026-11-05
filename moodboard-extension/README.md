@@ -4,7 +4,7 @@ Clips references into a CreativeOS **client moodboard** — hover an Instagram p
 or YouTube Short and click **+ CreativeOS**, or right-click any image/page.
 
 ## Two builds, two folders
-- **This folder is the PRODUCTION build** — it talks to `https://creativeos-yuvabe.vercel.app`
+- **This folder is the PRODUCTION build** — it talks to `https://creativeos-yuvabe.cloud.run`
   (shown read-only at the bottom of the side panel) and is what ships to clients. Nothing here
   is runtime-configurable on purpose.
 - **`../moodboard-extension-local/`** is the identical extension pointed at a localhost dev

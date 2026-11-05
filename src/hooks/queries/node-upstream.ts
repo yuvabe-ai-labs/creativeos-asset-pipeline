@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { nodeUpstreamService, type NodeUpstream } from "@/services/node-upstream.service";
+import type { UpstreamImage } from "@/lib/video-gen/api";
 
 // What a Video Gen node is fed — its connected images and its prompt node — through TanStack
 // Query (CLAUDE.md, "Data fetching"). The keys are built here and nowhere else.
@@ -49,6 +50,8 @@ export function useDropFromNodeUpstream(nodeId: string) {
   return useCallback(
     (sourceId: string) => {
       const gone = (id: string) => id === sourceId || id === `${sourceId}:sheet`;
+      // An older read still in flight would put the row back when it lands.
+      void queryClient.cancelQueries({ queryKey: nodeUpstreamKeys.detail(nodeId), exact: true });
       queryClient.setQueryData<NodeUpstream>(nodeUpstreamKeys.detail(nodeId), (prev: NodeUpstream | undefined) =>
         prev && {
           images: prev.images.filter((img: NodeUpstream["images"][number]) => !gone(img.id)),
@@ -56,6 +59,28 @@ export function useDropFromNodeUpstream(nodeId: string) {
         },
       );
     },
+    [queryClient, nodeId],
+  );
+}
+
+/** D482 — put a just-connected image on the cached list at once. For showing only: the flush and
+ *  re-read that follow replace it, and the view holds writes and Generate until they do. Cancels a
+ *  read already in flight, which started before this wire existed and would take the row off again
+ *  when it landed. With no list cached there is nothing to add to, and the view keeps its skeleton. */
+export function addToCachedUpstream(queryClient: QueryClient, nodeId: string, image: UpstreamImage) {
+  const key = nodeUpstreamKeys.detail(nodeId);
+  void queryClient.cancelQueries({ queryKey: key, exact: true });
+  queryClient.setQueryData<NodeUpstream>(key, (prev: NodeUpstream | undefined) =>
+    prev && !prev.images.some((img: UpstreamImage) => img.id === image.id)
+      ? { ...prev, images: [...prev.images, image] }
+      : prev,
+  );
+}
+
+export function useAddToNodeUpstream(nodeId: string) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (image: UpstreamImage) => addToCachedUpstream(queryClient, nodeId, image),
     [queryClient, nodeId],
   );
 }

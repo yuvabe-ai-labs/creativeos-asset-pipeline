@@ -1,0 +1,4 @@
+# What `gcloud builds submit` uploads. Without this file gcloud falls back to .gitignore only.
+#!include:.gitignore
+#!include:.dockerignore
+.gcloudignore

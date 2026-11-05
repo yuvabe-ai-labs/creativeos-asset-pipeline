@@ -2,6 +2,7 @@ import { getImageGenUpstream } from "@/lib/avatars/presenter-server";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { getVersionById } from "@/lib/db/versions";
 import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
+import { isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
 import {
   buildEditPrompt,
   assembleEditReferences,
@@ -47,6 +48,8 @@ export async function POST(
     const modelId = typeof body?.modelId === "string" ? body.modelId : DEFAULT_MODEL_ID;
     const config = imageGenRegistry[modelId];
     if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
+    // D467 — a tab open from before the fallback can still send a deprecated model.
+    if (isImageModelDeprecated(modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
 
     // Validate params with the model's Zod schema
     const parseResult = config.schema.safeParse(body?.params ?? {});

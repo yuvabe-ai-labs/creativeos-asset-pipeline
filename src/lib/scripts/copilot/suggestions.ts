@@ -7,11 +7,22 @@ import type { CopilotAvatar, GenerateState } from "./schema";
 // One-tap suggestions above the copilot's message box, for quick demos. Worked out from where the
 // conversation is; no model call. A suggestion either sends at once or only fills the box.
 
-/** `leadAvatarId` goes with the message when the chip picks the lead, so the turn links that exact
- *  avatar instead of the model matching a name (two avatars can share one; D362). `link` makes a chip
- *  that links an avatar to a character instead of sending a message (an import asks who plays whom;
- *  paste-a-script §4.3). Only a tap links: nothing is linked unasked. */
-export type Suggestion = { label: string; text: string; send: boolean; leadAvatarId?: string; link?: { castId: string; avatarId: string } };
+/** D480 — one avatar in the dialog. Choosing one for the lead sends its name with its id, so the
+ *  turn links that exact avatar instead of the model matching a name (two can share one; D362). */
+export type AvatarOption = { id: string; name: string; label: string; front: string | null; suggested: boolean };
+
+/** D480 — the chip's dialog. With `castId` a choice links that character (an import asks who plays
+ *  whom; paste-a-script §4.3) and posts no message; without it, a choice answers "who leads?". Only
+ *  a choice links: nothing is linked unasked. */
+export type AvatarPick = { title: string; castId: string | null; options: AvatarOption[] };
+
+export type Suggestion = { label: string; text: string; send: boolean; pick?: AvatarPick };
+
+/** The options whose label holds the search, case aside; all of them for an empty search. */
+export function matchingAvatarOptions(options: readonly AvatarOption[], query: string): AvatarOption[] {
+  const q = query.trim().toLowerCase();
+  return options.filter((o) => o.label.toLowerCase().includes(q));
+}
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const hasWord = (word: string, text: string) => word.length > 1 && new RegExp(`\\b${escapeRe(word)}\\b`, "i").test(text);
@@ -22,6 +33,10 @@ export function avatarFits(member: { name: string; description: string }, avatar
 }
 
 const send = (text: string, label = text): Suggestion => ({ label, text, send: true });
+
+const avatarOption = (avatar: CopilotAvatar, all: readonly CopilotAvatar[], suggested: boolean): AvatarOption => ({
+  id: avatar.id, name: avatar.name, label: avatarLabel(avatar, all), front: avatar.front, suggested,
+});
 
 /** The most chips one message offers, and the longest one (brand-neutral spec §3.1). */
 const MAX_CHIPS = 4;
@@ -67,8 +82,10 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
       // A format whose lead is a real person (Founder-led): the client's real-person (Specific) avatars first.
       const founder = formatFor(script.brief.format.value)?.realPersonLead ?? false;
       const order = founder ? [...state.avatars].sort((a, b) => Number(b.specific) - Number(a.specific)) : state.avatars;
+      if (order.length === 0) return [send("Cast it for me")];
+      const options = order.map((a) => avatarOption(a, state.avatars, false));
       return [
-        ...order.map((a) => ({ label: avatarLabel(a, state.avatars), text: a.name, send: true, leadAvatarId: a.id })),
+        { label: "Choose an avatar", text: "", send: false, pick: { title: "Who leads this reel?", castId: null, options } },
         send("Cast it for me"),
       ];
     }
@@ -78,8 +95,8 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
   }
 
   const out: Suggestion[] = [];
-  // After an import the copilot asked who plays whom: the avatars for the first character still in
-  // words (the lead first), a fitting one first. A guessed Narrator is asked about in words instead.
+  // After an import the copilot asked who plays whom: a chip opening the avatars for the first
+  // character still in words (the lead first), a fitting one first. A guessed Narrator is asked about in words instead.
   // The chips stay only while the import's reply is the newest message; a link posts no message, so
   // they move on to the next character, and any later message ends the question.
   const last = state.messages.at(-1);
@@ -89,7 +106,8 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
     : undefined;
   if (member && state.avatars.length > 0) {
     const ranked = [...state.avatars].sort((a, b) => Number(avatarFits(member, b)) - Number(avatarFits(member, a)));
-    out.push(...ranked.map((a) => ({ label: `${avatarLabel(a, state.avatars)} as ${member.name}`, text: "", send: false, link: { castId: member.id, avatarId: a.id } })));
+    const options = ranked.map((a) => avatarOption(a, state.avatars, avatarFits(member, a)));
+    out.push({ label: `Choose an avatar for ${member.name}`, text: "", send: false, pick: { title: `Who plays ${member.name}?`, castId: member.id, options } });
   }
   const confirm = script.notes.confirmations.find((c) => !c.confirmed);
   if (confirm) out.push(send(`Yes, confirmed: ${confirm.text}`, `Confirm: ${confirm.text}`));

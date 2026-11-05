@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { makeAvatar } from "@/lib/avatars/__tests__/fixtures";
+import { makeAvatar, makeImage } from "@/lib/avatars/__tests__/fixtures";
 import { AVATAR_FRAMING_CLAUSE } from "@/lib/avatars/constants";
 
 vi.mock("server-only", () => ({}));
@@ -151,5 +151,40 @@ describe("POST generations — the spend total is best-effort", () => {
     const json = await res.json();
     expect(json.candidate.generationId).toBe("g1");
     expect(json.spentCredits).toBeNull();
+  });
+});
+
+// D471 — a face drawn beside a blood relative's, so a parent and child look related.
+describe("POST generations with a relative (D471)", () => {
+  const withMum = (front: ReturnType<typeof makeImage> | null) =>
+    vi.mocked(getAvatar).mockImplementation(async (_c, id) =>
+      id === "mum" ? makeAvatar({ id: "mum", front }) : makeAvatar({ status: "draft" }));
+
+  it("draws from the relative's face as a reference, named by what they are", async () => {
+    withMum({ ...makeImage(), url: "https://x/mum.png" });
+    const { POST } = await import("./route");
+    const res = await POST(post({ ...body, relatives: [{ avatarId: "mum", relation: "mother" }] }), { params });
+    expect(res.status).toBe(201);
+    expect(getAvatar).toHaveBeenCalledWith("c1", "mum");
+    const call = vi.mocked(runAvatarGeneration).mock.calls[0][0];
+    expect(call.referenceUrls).toEqual(["https://x/mum.png"]);
+    expect(call.prompt).toContain("Family: reference image 1 is this person's mother.");
+  });
+
+  it("is a 404 for a relative another client owns, before spending anything", async () => {
+    vi.mocked(getAvatar).mockImplementation(async (_c, id) => (id === "theirs" ? null : makeAvatar({ status: "draft" })));
+    const { POST } = await import("./route");
+    const res = await POST(post({ ...body, relatives: [{ avatarId: "theirs", relation: "mother" }] }), { params });
+    expect(res.status).toBe(404);
+    expect(runAvatarGeneration).not.toHaveBeenCalled();
+  });
+
+  it("leaves out a relative with no face yet", async () => {
+    withMum(null);
+    const { POST } = await import("./route");
+    await POST(post({ ...body, relatives: [{ avatarId: "mum", relation: "mother" }] }), { params });
+    const call = vi.mocked(runAvatarGeneration).mock.calls[0][0];
+    expect(call.referenceUrls).toEqual([]);
+    expect(call.prompt).not.toContain("Family:");
   });
 });

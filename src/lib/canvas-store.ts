@@ -18,11 +18,11 @@ import { isCollapsibleType, isShotCollapsed, withoutCollapsed } from "@/lib/canv
 import { editorConnectRefusal } from "@/lib/editor/rules";
 import { computeGenerationLocks, sameLocks } from "@/lib/editor/generation-lock";
 import type { GenerationLock } from "@/lib/editor/types";
-import { PRESENTER_REPLACED_MESSAGE, replacedPresenterEdges } from "@/lib/avatars/canvas";
-import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { PRESENTER_REPLACED_MESSAGE, assetColumnAnchor, replacedPresenterEdges, scriptKbNode } from "@/lib/avatars/canvas";
+import { DEFAULT_CLIENT_MODEL_ID, withoutDeprecatedImageModel } from "@/lib/image-gen/client-models";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
-import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
+import { DEFAULT_VIDEO_CLIENT_MODEL_ID, withoutDeprecatedVideoModel } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
 import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
@@ -53,7 +53,6 @@ import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import { scriptAssetCanvasNodes, type ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
 import { createScriptComposites } from "@/services/script-composites.service";
 import { pendingPlateData, pendingStoryboardData } from "@/lib/scripts/script-composites";
-import { PRESENTER_CARD_HEIGHT } from "@/lib/avatars/canvas";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
   clearsStartMark,
@@ -229,10 +228,22 @@ export function createCanvasStore(
     return { nodes: nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)), layout };
   };
 
+  // D461, D467 — a node saved on a deprecated model opens on the fallback, here so that its card,
+  // its prompt node and its focus view all agree. Saved with the canvas's next change, not on load.
+  const startingNodes = initialNodes.map((n) => {
+    const withFallback =
+      n.type === "video-gen"
+        ? withoutDeprecatedVideoModel(n.data)
+        : n.type === "image-gen" || n.type === "composite"
+          ? withoutDeprecatedImageModel(n.data)
+          : n.data;
+    return withFallback === n.data ? n : ({ ...n, data: withFallback } as AppNode);
+  });
+
   const store = createStore<CanvasState>((set, get) => ({
     canvasName: initialCanvasName,
-    generationLocks: computeGenerationLocks(initialNodes, initialEdges),
-    nodes: initialNodes,
+    generationLocks: computeGenerationLocks(startingNodes, initialEdges),
+    nodes: startingNodes,
     edges: initialEdges,
     removedNodeIds: [],
     removedEdgeIds: [],
@@ -706,16 +717,9 @@ export function createCanvasStore(
         target: n.id,
       }));
       const panels = storyboardPanelNodes(created, shots, storyboardPanels);
-      // D460 — the script's assets go in one column left of the Script card, under its presenter
-      // avatar when it has one, so none lands on the script, the clips or each other.
-      const presenter = get().edges
-        .filter((e) => e.target === scriptNodeId)
-        .map((e) => get().nodes.find((n) => n.id === e.source))
-        .find((n) => n?.type === "avatar");
-      const column = {
-        right: script.position.x - ASSET_GAP,
-        top: presenter ? presenter.position.y + (presenter.measured?.height ?? PRESENTER_CARD_HEIGHT) + ASSET_GAP : script.position.y,
-      };
+      // D460, D479 — the script's assets go in one column left of the Script's avatar stack, so
+      // none lands on the avatars, the script, the clips or each other.
+      const column = assetColumnAnchor(script.position, scriptKbNode(scriptNodeId, get().nodes, get().edges), get().nodes, ASSET_GAP);
       // D450 — one Product / Location node per asset the new clips use, wired into each of them;
       // D456 — a generated plate is a Composite, made with the storyboard panels below.
       const assetNodes = scriptAssetCanvasNodes({

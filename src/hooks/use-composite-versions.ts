@@ -10,7 +10,7 @@ import {
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
 import { useGenerationStatus } from "@/hooks/use-generation-status";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { imageGenClientModelMap, isImageModelDeprecated } from "@/lib/image-gen/client-models";
 import { paramsForRestore } from "@/lib/generations/version-params";
 import {
   useStartCompositeGeneration,
@@ -95,7 +95,8 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
         (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
         json.modelUsed ??
         null;
-      const restoredParams = restoredModelId
+      // D467 — a version made on a deprecated model brings back its picture, not its model.
+      const restoredParams = restoredModelId && !isImageModelDeprecated(restoredModelId)
         ? paramsForRestore(imageGenClientModelMap[restoredModelId]?.params, json.paramsUsed ?? {})
         : null;
       onPatch({

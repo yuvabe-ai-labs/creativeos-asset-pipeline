@@ -95,6 +95,7 @@ import { useRailDisconnect } from "./use-rail-disconnect";
 import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
 import {
   imageGenClientModelMap,
+  isImageModelDeprecated,
   DEFAULT_CLIENT_MODEL_ID,
   defaultsForModel,
 } from "@/lib/image-gen/client-models";
@@ -880,7 +881,8 @@ export function ImageGenFocusView({
         (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
         json.modelUsed ??
         null;
-      const restoredParams = restoredModelId
+      // D467 — a version made on a deprecated model brings back its picture, not its model.
+      const restoredParams = restoredModelId && !isImageModelDeprecated(restoredModelId)
         ? paramsForRestore(imageGenClientModelMap[restoredModelId]?.params, json.paramsUsed ?? {})
         : null;
       if (restoredModelId && restoredParams) {
