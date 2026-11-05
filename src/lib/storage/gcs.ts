@@ -19,7 +19,9 @@ function getStorage(): Storage {
       Buffer.from(keyBase64, "base64").toString("utf8"),
     );
     _storage = new Storage({ projectId, credentials });
-  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.K_SERVICE) {
+    // No key: the library finds credentials itself — the key file locally, or on Cloud Run
+    // (which sets K_SERVICE) the service account the service runs as.
     _storage = new Storage({ projectId });
   } else {
     throw new Error(
