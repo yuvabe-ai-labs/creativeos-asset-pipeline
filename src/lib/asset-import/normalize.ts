@@ -42,13 +42,19 @@ type InstagramMedia = {
 type InstagramPost = InstagramMedia &
   ErrorRow & { url?: string; timestamp?: string; childPosts?: InstagramMedia[] };
 
-export function normalizeInstagram(rows: InstagramPost[], now: Date = new Date()): NormalizeResult {
+/** `windowed: false` keeps posts of any age — the fallback fetch of a page's latest posts. */
+export function normalizeInstagram(
+  rows: InstagramPost[],
+  now: Date = new Date(),
+  opts: { windowed?: boolean } = {},
+): NormalizeResult {
   const failure = errorOf(rows);
   if (failure) return { assets: [], ...failure };
 
+  const windowed = opts.windowed ?? true;
   const assets: ScrapedAsset[] = [];
   for (const post of rows) {
-    if (post.error || !isWithinWindow(post.timestamp, now)) continue;
+    if (post.error || (windowed && !isWithinWindow(post.timestamp, now))) continue;
     // A carousel's own displayUrl repeats its first slide — the slides are the assets.
     const media = post.childPosts?.length ? post.childPosts : [post];
     for (const m of media) {
@@ -82,13 +88,19 @@ type FacebookMedia = {
 };
 type FacebookPost = ErrorRow & { url?: string; time?: string; media?: FacebookMedia[] };
 
-export function normalizeFacebook(rows: FacebookPost[], now: Date = new Date()): NormalizeResult {
+/** `windowed: false` keeps posts of any age — the fallback fetch of a page's latest posts. */
+export function normalizeFacebook(
+  rows: FacebookPost[],
+  now: Date = new Date(),
+  opts: { windowed?: boolean } = {},
+): NormalizeResult {
   const failure = errorOf(rows);
   if (failure) return { assets: [], ...failure };
 
+  const windowed = opts.windowed ?? true;
   const assets: ScrapedAsset[] = [];
   for (const post of rows) {
-    if (post.error || !isWithinWindow(post.time, now)) continue;
+    if (post.error || (windowed && !isWithinWindow(post.time, now))) continue;
     for (const m of post.media ?? []) {
       const base = { source: "facebook" as const, sourceUrl: post.url, postedAt: post.time };
       const still = m.image?.uri ?? m.thumbnailImage?.uri ?? m.thumbnail;

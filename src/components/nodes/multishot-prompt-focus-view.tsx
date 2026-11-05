@@ -711,6 +711,27 @@ export function MultishotPromptFocusView({
       // edits they have not saved yet (D242).
       restoring={restoring || !!refining || dirty}
       onRestoreVersion={handleRestoreVersion}
+      // Both buttons stay MOUNTED and disable together rather than appearing with the first
+      // keystroke — a row that grows a button under the pointer moves Save out from under it at
+      // the exact moment it is wanted. Only a plan on screen can be dirty, so `!dirty` also
+      // covers the compose state and viewing an older version.
+      headerActions={
+        !isReadOnly && (
+          <>
+            {dirty && (
+              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                Unsaved changes
+              </span>
+            )}
+            <Button variant="outline" size="lg" onClick={handleDiscardEdits} disabled={!dirty}>
+              Cancel
+            </Button>
+            <Button size="lg" onClick={handleSavePlan} disabled={!dirty}>
+              Save Changes
+            </Button>
+          </>
+        )
+      }
       upstream={upstream}
       targetType="multishot-prompt"
       primaryRailIcon={<ListVideo className="size-4 text-primary" />}
@@ -1133,35 +1154,15 @@ export function MultishotPromptFocusView({
                     )}
                     </div>
 
-                    {/* Save, at the foot of the column it acts on — the same placement rule the
-                        Generate button follows at the foot of the Input column. Rendered only
-                        with a plan on screen, which is also the only state that can be dirty. */}
-                    {mode === "result" && !isViewingOther && (
+                    {/* Cancel / Save Changes live in the sheet header (headerActions below). This
+                        line stays at the foot of the column: it says why every rewrite button in
+                        it just dimmed. Only rendered while dirty, which is the only state in
+                        which they are. */}
+                    {mode === "result" && !isViewingOther && dirty && (
                       <div className="shrink-0 border-t border-border px-6 py-3">
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" onClick={handleSavePlan} disabled={!dirty}>
-                            Save
-                          </Button>
-                          {/* Both buttons stay MOUNTED and disable together rather than appearing
-                              with the first keystroke — a footer that grows a button under the
-                              pointer moves Save out from under it at the exact moment it is
-                              wanted. */}
-                          <Button variant="ghost" onClick={handleDiscardEdits} disabled={!dirty}>
-                            Cancel
-                          </Button>
-                          {dirty && (
-                            <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                              Unsaved changes
-                            </span>
-                          )}
-                        </div>
-                        {/* Says why every rewrite button just dimmed. Only rendered while dirty,
-                            which is the only state in which they are. */}
-                        {dirty && (
-                          <p className="mt-1.5 text-[0.65rem] text-muted-foreground">
-                            Save or discard your edits to rewrite with AI.
-                          </p>
-                        )}
+                        <p className="text-[0.65rem] text-muted-foreground">
+                          Save or discard your edits to rewrite with AI.
+                        </p>
                       </div>
                     )}
                   </div>

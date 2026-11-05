@@ -19,7 +19,7 @@ export function ClientSettingsMenu({ slug }: { slug: string }) {
         render={
           <Button variant="outline">
             <Settings className="size-4" strokeWidth={1.5} />
-            Settings
+            Brand Workspace
           </Button>
         }
       />

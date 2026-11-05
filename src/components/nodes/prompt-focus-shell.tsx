@@ -96,6 +96,9 @@ export type PromptFocusShellProps = {
   // Noun for a viewed version with no output ("No prompt…"); defaults to "prompt".
   emptyNoun?: string;
   renderVersionOutput: (version: VersionSummary) => ReactNode;
+  // Controls for the header's right slot, after the credits readout and a divider — e.g. a
+  // view's own Cancel / Save Changes for a buffered draft. Omitted = credits readout alone.
+  headerActions?: ReactNode;
   // The fixed tabs ("prompt" / "details" / "request") switch on `selected` internally —
   // everything about their content is per-prompt-type. The two panes generic enough to live
   // here are rendered by the shell itself: the connected-node detail (when a connected input is
@@ -174,6 +177,7 @@ export function PromptFocusShell({
   outputIcon,
   emptyNoun,
   renderVersionOutput,
+  headerActions,
   children,
 }: PromptFocusShellProps) {
   const { identity } = useIdentity();
@@ -220,6 +224,17 @@ export function PromptFocusShell({
     onOpenChange(false);
   }
 
+  // The guided next step leaves this view too, so unsaved edits get the same confirm as closing.
+  // `proceed` closes the sheet itself (GuidedNextButton's onNavigate), so this must not close it.
+  function confirmLeaveDirty(proceed: () => void) {
+    setConfirm({
+      title: "Discard unsaved changes?",
+      description: "You have edits that haven't been saved. Continuing now will discard them.",
+      actionLabel: "Continue",
+      onConfirm: proceed,
+    });
+  }
+
   const approvalControls = (
     <>
       {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
@@ -253,17 +268,28 @@ export function PromptFocusShell({
         {/* Header */}
         <div className="shrink-0 border-b">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={requestClose}
-              className="-ml-2.5 gap-1.5 font-medium text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" /> Back to canvas
-            </Button>
+            {/* Navigation row: Back on the left, the guided next step opposite it as a text link —
+                both are ways OUT of this view, so they share a row and leave the header's right
+                slot to the view's own controls (same layout as multishot-focus-view.tsx). */}
+            <div className="flex items-center justify-between gap-4">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={requestClose}
+                className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+              >
+                <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
+              </Button>
+              <GuidedNextButton
+                sourceId={nodeId}
+                variant="link"
+                onNavigate={() => onOpenChange(false)}
+                onBeforeNavigate={dirty ? confirmLeaveDirty : undefined}
+              />
+            </div>
 
-            <header className="mt-4 flex items-start justify-between gap-4">
-              <div>
+            <header className="mt-4 flex items-center justify-between gap-4">
+              <div className="min-w-0">
                 <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
                   <EditableField
                     value={title || ""}
@@ -274,14 +300,15 @@ export function PromptFocusShell({
                 </SheetTitle>
               </div>
 
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-3">
                 {/* Always rendered — pre-generation it reads "0 credits used". */}
                 <UsagePopover versions={versions} />
-                <GuidedNextButton
-                  sourceId={nodeId}
-                  variant="button"
-                  onNavigate={() => onOpenChange(false)}
-                />
+                {headerActions && (
+                  <>
+                    <div className="h-6 w-px bg-border" aria-hidden />
+                    <div className="flex items-center gap-2">{headerActions}</div>
+                  </>
+                )}
               </div>
             </header>
             {lastError && !generating && (

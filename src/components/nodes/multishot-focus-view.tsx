@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Plus, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, Clock, Plus, TriangleAlert, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -170,30 +171,68 @@ export function MultishotFocusView({
       >
         <div className="shrink-0 border-b border-border">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={requestClose}
-              className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
-            </Button>
+            {/* Navigation row: Back on the left, the guided next step opposite it as a text link —
+                both are ways OUT of this view, so they share a row and leave the header's right
+                slot to the edit controls. */}
+            <div className="flex items-center justify-between gap-4">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={requestClose}
+                className="h-auto gap-1.5 border-0 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+              >
+                <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
+              </Button>
+              <GuidedNextButton
+                sourceId={nodeId}
+                variant="link"
+                onNavigate={() => onOpenChange(false)}
+                onBeforeNavigate={
+                  dirty
+                    ? (proceed) =>
+                        setConfirm({
+                          title: "Discard unsaved shot edits?",
+                          description:
+                            "The Multishot Prompt will be written against the shots as they were last saved.",
+                          actionLabel: "Continue",
+                          // Honours the copy: the draft is dropped and the guided step then runs
+                          // against the committed ladder. `proceed` closes this sheet itself via
+                          // GuidedNextButton's own onNavigate, so this must not close it first.
+                          onConfirm: proceed,
+                        })
+                    : undefined
+                }
+              />
+            </div>
 
             <header className="mt-4 flex items-start justify-between gap-4">
-              <div>
-                <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
-                  {`Multishot${order ? ` ${order}` : ""}`}
-                </SheetTitle>
+              <div className="min-w-0">
+                {/* The clip's length and cut count read as chips beside the title: they describe
+                    THIS ladder, so they sit with its name rather than among the controls. */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
+                    {`Multishot${order ? ` ${order}` : ""}`}
+                  </SheetTitle>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium tabular-nums",
+                      ladder.ok ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive",
+                    )}
+                  >
+                    <Clock className="size-3.5" strokeWidth={1.5} />
+                    {total} s / {cap.maxTotalSeconds}s max
+                  </span>
+                  <span className="text-eyebrow inline-flex items-center rounded-md bg-muted px-2 py-1 text-muted-foreground">
+                    {draft.cuts.length} {draft.cuts.length === 1 ? "cut" : "cuts"}
+                  </span>
+                </div>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   {scriptTitle ? `from "${scriptTitle}" · ` : ""}full script context
                 </p>
               </div>
-              {/* The header's right slot, laid out exactly as every prompt focus view lays it
-                  out (prompt-focus-shell.tsx, prompt-focus-view.tsx): a status readout, then the
-                  guided next step, in one `flex shrink-0 items-center gap-2`. The model Select
-                  leads the row because it GOVERNS the readout beside it — changing it re-derives
-                  the ceiling that readout is measured against, so reading right-to-left the row
-                  says "this model, this much of its budget, then what's next". */}
+              {/* The header's right slot holds the edit controls. The model Select leads the row
+                  because it GOVERNS the duration chip beside the title — changing it re-derives
+                  the ceiling that chip is measured against — then the draft's Cancel / Save. */}
               <div className="flex shrink-0 items-center gap-2">
                 <Select
                   items={modelItems}
@@ -211,9 +250,9 @@ export function MultishotFocusView({
                   }
                   disabled={isReadOnly}
                 >
-                  {/* Default height, matching GuidedNextButton's h-8 beside it. min-w holds the
+                  {/* h-10 matches the lg Cancel / Save beside it. min-w holds the
                       slot while letting a longer model name grow instead of clipping. */}
-                  <SelectTrigger className="min-w-[168px] text-sm" aria-label="Multishot model">
+                  <SelectTrigger className="min-w-[168px] text-sm data-[size=default]:h-10" aria-label="Multishot model">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -232,17 +271,6 @@ export function MultishotFocusView({
                   </SelectContent>
                 </Select>
 
-                <div className="text-right">
-                  <p className="text-sm font-medium tabular-nums">
-                    <span className={ladder.ok ? "text-foreground" : "text-destructive"}>
-                      {total}s
-                    </span>
-                    <span className="text-muted-foreground"> / {cap.maxTotalSeconds}s max</span>
-                  </p>
-                  <p className="text-eyebrow mt-0.5 text-muted-foreground">
-                    {draft.cuts.length} cuts
-                  </p>
-                </div>
                 {dirty && (
                   <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
                     Unsaved changes
@@ -250,42 +278,18 @@ export function MultishotFocusView({
                 )}
                 {!isReadOnly && (
                   <>
-                    <Button variant="ghost" onClick={() => setDraft(saved)} disabled={!dirty}>
+                    <Button variant="outline" size="lg" onClick={() => setDraft(saved)} disabled={!dirty}>
                       Cancel
                     </Button>
                     {/* D280 — Save is a synchronous updateNodeData, not a version write: this
                         node has no node_versions row. So no async, no error path, and no
                         "Saved" toast — the durable write is autosave's and has not happened
                         yet. The pill clearing is the truthful feedback. */}
-                    <Button
-                      variant={dirty ? "default" : "outline"}
-                      onClick={handleSave}
-                      disabled={!dirty}
-                    >
-                      Save
+                    <Button size="lg" onClick={handleSave} disabled={!dirty}>
+                      Save Changes
                     </Button>
                   </>
                 )}
-                <GuidedNextButton
-                  sourceId={nodeId}
-                  variant="button"
-                  onNavigate={() => onOpenChange(false)}
-                  onBeforeNavigate={
-                    dirty
-                      ? (proceed) =>
-                          setConfirm({
-                            title: "Discard unsaved shot edits?",
-                            description:
-                              "The Multishot Prompt will be written against the shots as they were last saved.",
-                            actionLabel: "Continue",
-                            // Honours the copy: the draft is dropped and the guided step then runs
-                            // against the committed ladder. `proceed` closes this sheet itself via
-                            // GuidedNextButton's own onNavigate, so this must not close it first.
-                            onConfirm: proceed,
-                          })
-                      : undefined
-                  }
-                />
               </div>
             </header>
           </div>

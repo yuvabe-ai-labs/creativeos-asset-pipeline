@@ -22,6 +22,12 @@ describe("normalizeInstagram", () => {
     expect(video.thumbnailUrl).toBeTruthy();
   });
 
+  it("keeps posts of any age for the fallback fetch (windowed: false)", () => {
+    const later = new Date("2030-01-01T00:00:00Z"); // every fixture post is now years old
+    expect(normalizeInstagram(instagramPosts, later).assets).toHaveLength(0);
+    expect(normalizeInstagram(instagramPosts, later, { windowed: false }).assets.length).toBeGreaterThan(0);
+  });
+
   it("takes a reel's videoUrl and a single image's displayUrl", () => {
     const reel = assets.find((a) => a.sourceUrl === instagramPosts[1].url)!;
     expect(reel.mediaType).toBe("video");
@@ -42,6 +48,12 @@ describe("normalizeInstagram", () => {
 
 describe("normalizeFacebook", () => {
   const { assets } = normalizeFacebook(facebookPosts, NOW);
+
+  it("keeps posts of any age for the fallback fetch (windowed: false)", () => {
+    const later = new Date("2030-01-01T00:00:00Z"); // every fixture post is now years old
+    expect(normalizeFacebook(facebookPosts, later).assets).toHaveLength(0);
+    expect(normalizeFacebook(facebookPosts, later, { windowed: false }).assets.length).toBeGreaterThan(0);
+  });
 
   it("takes a reel's HD mp4 with its poster", () => {
     const reel = assets.find((a) => a.sourceUrl === facebookPosts[0].url)!;

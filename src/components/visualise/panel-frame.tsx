@@ -24,10 +24,8 @@ export function PanelFrame({ view, aspect, label, description }: {
         <Skeleton className="absolute inset-0 rounded-none" />
         {/* What is being drawn, not just that something is (asked for in testing). */}
         <span className="absolute inset-x-0 bottom-0 flex flex-col gap-1 p-3">
-          <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-            <Loader2 className="size-3.5 animate-spin text-primary" strokeWidth={1.5} />
-            Drawing…
-          </span>
+          {/* No "Drawing…" word here: the panel's button and Generate all already say it. */}
+          <Loader2 className="size-3.5 animate-spin text-primary" strokeWidth={1.5} />
           <span className="line-clamp-5 text-xs leading-snug text-muted-foreground">{description}</span>
         </span>
       </div>

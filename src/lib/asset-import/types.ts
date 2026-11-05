@@ -34,6 +34,8 @@ export type AssetImportResult = {
   failed: number;
   /** The date a social refresh fetched from; null for a full fetch (D302). */
   since?: string | null;
+  /** True when nothing was posted in the window and the page's latest posts were taken instead. */
+  latest?: boolean;
 };
 
 /** One source's latest import, as the browser sees it. */

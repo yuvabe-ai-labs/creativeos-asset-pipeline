@@ -11,8 +11,10 @@ import { removeObject, uploadImportedBrandMedia } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
 import {
   IMPORT_DOWNLOAD_CONCURRENCY,
+  IMPORT_FALLBACK_MIN_MS,
   IMPORT_IMAGE_SIZE_LIMIT,
   IMPORT_PREVIEW_PX,
+  IMPORT_SCRAPE_BUDGET_MS,
   IMPORT_SOURCE_LABELS,
   IMPORT_VIDEO_SIZE_LIMIT,
 } from "./constants";
@@ -27,7 +29,9 @@ import { forEachLimited } from "@/lib/for-each-limited";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { describeError } from "@/lib/describe-error";
 
-const NORMALIZERS: Record<AssetImportInput["source"], (rows: never[]) => NormalizeResult> = {
+type Normalizer = (rows: never[], now?: Date, opts?: { windowed?: boolean }) => NormalizeResult;
+
+const NORMALIZERS: Record<AssetImportInput["source"], Normalizer> = {
   instagram: normalizeInstagram,
   facebook: normalizeFacebook,
   website: normalizeWebsite,
@@ -51,8 +55,31 @@ export async function runAssetImport(
     // bills for what is new. A website has no post dates: it is always crawled whole.
     const since = await planRefreshSince(clientId, source, target, { excludeJobId: jobId });
     await startJob(jobId, importCopy.collecting(source, since));
-    const rows = await runImportActor(source, target, { token, fetchImpl, since });
-    const { assets, error, errorCode } = NORMALIZERS[source](rows as never[]);
+    // One scrape budget for the run, fallback included, so the task always ends inside its
+    // maxDuration: a task killed mid-run would leave the job "running" and the KB spinner on.
+    const scrapeEnds = Date.now() + IMPORT_SCRAPE_BUDGET_MS;
+    const rows = await runImportActor(source, target, { token, fetchImpl, since, deadlineMs: IMPORT_SCRAPE_BUDGET_MS });
+    let { assets, error, errorCode } = NORMALIZERS[source](rows as never[]);
+
+    // Social fallback (D467): a first import of a page with nothing posted in the last 3 months
+    // (Apify's "no_items", or only old pinned posts that the window drops) takes the page's
+    // latest posts instead, whatever their age. A refresh never does: there, nothing in range
+    // just means nothing new.
+    const latest = source !== "website" && !since && assets.length === 0 && (!error || errorCode === "no_items");
+    if (latest) {
+      // The progress line stays "Collecting the last 3 months…": the fallback is not announced.
+      const deadlineMs = Math.max(scrapeEnds - Date.now(), IMPORT_FALLBACK_MIN_MS);
+      const latestRows = await runImportActor(source, target, { token, fetchImpl, latest: true, deadlineMs });
+      ({ assets, error, errorCode } = NORMALIZERS[source](latestRows as never[], new Date(), { windowed: false }));
+      // Nothing at all, even without the date filter: the page has never posted. The import
+      // finishes (it is not a failure), so the KB carries on with whatever else it has.
+      if (errorCode === "no_items") {
+        const result = { assetCount: 0, found: 0, failed: 0, since, latest: true };
+        await succeedJob(jobId, result, importCopy.noPostsAtAll);
+        return result;
+      }
+    }
+
     if (error) {
       // A refresh that finds nothing newer than last time has worked: there is just nothing new.
       if (since && errorCode === "no_items") {
@@ -80,7 +107,7 @@ export async function runAssetImport(
       }
     });
 
-    const result = { assetCount: saved, found: assets.length, failed, since };
+    const result = { assetCount: saved, found: assets.length, failed, since, ...(latest && { latest: true }) };
     if (failed > 0) {
       console.error("[asset-import] assets not saved", { jobId, source, failed, of: fresh.length, first: firstFailure });
     }

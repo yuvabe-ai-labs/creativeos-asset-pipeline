@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   IMPORT_SOURCE_LABELS,
-  SOCIAL_POST_LIMIT,
+  SOCIAL_FALLBACK_POSTS,
   SOCIAL_WINDOW_MONTHS,
   type ImportSource,
 } from "@/lib/asset-import/constants";
@@ -64,5 +64,5 @@ function describe(p: RefreshPlan): string {
     const date = new Date(`${p.since}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
     return `looks for new posts on ${where} since ${date}.`;
   }
-  return `brings in up to ${SOCIAL_POST_LIMIT} posts from the last ${SOCIAL_WINDOW_MONTHS} months on ${where}.`;
+  return `brings in every post from the last ${SOCIAL_WINDOW_MONTHS} months on ${where}, or the latest ${SOCIAL_FALLBACK_POSTS} if there are none.`;
 }
