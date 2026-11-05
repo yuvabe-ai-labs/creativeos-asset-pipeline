@@ -38,11 +38,20 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      # An empty value would still build, then ship a bundle with no Supabase config.
+      - name: Check build variables
+        run: |
+          test -n "${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" || { echo "::error::Repo variable NEXT_PUBLIC_SUPABASE_URL is not set"; exit 1; }
+          test -n "${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" || { echo "::error::Repo variable NEXT_PUBLIC_SUPABASE_ANON_KEY is not set"; exit 1; }
+
       # NEXT_PUBLIC_* are compiled into the browser bundle, so they are build inputs. Both are
       # public by design (the anon key ships to every browser) — repo variables, not secrets.
+      # An explicit staging dir skips gcloud's default-bucket ownership check, which lists every
+      # bucket in the project; the deployer only has access to this one bucket.
       - name: Build image (Cloud Build)
         run: >
           gcloud builds submit --project="$PROJECT" --config=cloudbuild.yaml
+          --gcs-source-staging-dir="gs://${PROJECT}_cloudbuild/source"
           --substitutions="_IMAGE=${IMAGE},_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }},_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
           .
 
