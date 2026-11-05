@@ -17,8 +17,10 @@ export function PanelTileCaption({ label, beat, time, visual, vo }: {
         </span>
         <span className="shrink-0 tabular-nums text-muted-foreground">{time}</span>
       </span>
-      <span className="line-clamp-3 text-sm text-foreground">{visual}</span>
-      {vo && <span className="line-clamp-2 text-sm text-muted-foreground">“{vo}”</span>}
+      {/* Written in full, never clamped: the shot and its line are what the reviewer is here to
+          read, and an ellipsis hid the half they needed. */}
+      <span className="text-sm text-foreground">{visual}</span>
+      {vo && <span className="text-sm text-muted-foreground">“{vo}”</span>}
     </figcaption>
   );
 }

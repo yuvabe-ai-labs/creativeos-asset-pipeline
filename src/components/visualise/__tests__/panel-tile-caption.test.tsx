@@ -15,6 +15,13 @@ describe("PanelTileCaption (D465: the shot under its frame)", () => {
     expect(at("“Saturday means idli.”")).toBeGreaterThan(at("Shobha lifts the lid."));
   });
 
+  it("shows the shot and its spoken line in full, never clamped", () => {
+    const html = renderToStaticMarkup(
+      <PanelTileCaption label="S1" beat="HOOK" time="0–3s" visual="Shobha lifts the lid." vo="Saturday means idli." />,
+    );
+    expect(html).not.toContain("line-clamp");
+  });
+
   it("leaves out an empty spoken line and an empty beat", () => {
     const html = renderToStaticMarkup(<PanelTileCaption label="S4" beat="" time="9–12s" visual="The hall." vo="" />);
     expect(html).not.toContain("“");
