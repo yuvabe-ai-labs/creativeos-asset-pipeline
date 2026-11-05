@@ -8337,3 +8337,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A per-avatar lookup at share time (one query per cast member). Freezing a stale or running preview. Showing the clip behind a "Watch" button.
 
 **Originated →** conversation in this session.
+
+### D467 — Instagram and Facebook imports take every post from the last 3 months, else the latest 50 *(recorded 2026-11-05; refines D302)*
+
+**Decision.** An Instagram or Facebook import takes every post from the last 3 months, with no post count (Apify `resultsLimit` is set to 1000 only as a guard against a runaway, billing run). When a first import finds nothing in that window (Apify's `no_items`, or only old pinned posts, which the window drops), it runs once more with no date filter and takes the page's latest 50 posts, whatever their age; the result records `latest: true`. A refresh never falls back: there, nothing in range means "No new posts", and a refresh after a fallback import starts at the window's edge. The fallback is not announced: the progress line stays "Collecting the last 3 months of … posts…". A page with no posts at all *finishes* (not fails) with "This page has no posts", so the KB carries on with whatever else it has. Both runs share one 12-minute scrape budget (the fallback gets at least 3 minutes), so the task always ends inside its 30-minute limit and never leaves the job "running" with the KB spinner on. A private or missing page fails as before, with no second run. A website has no post dates and never falls back.
+
+**Why.** User, 5 Nov 2026: an inactive brand page imported nothing ("No posts in the last 3 months"), leaving its KB with no social assets; a busy page's 3 months were cut at 50. Applied to Instagram first, then to Facebook the same day.
+
+**Rejected.** A fallback on refreshes, which would pull the same old posts on every refresh.
+
+**Originated →** conversation in this session; [2026-10-05-brand-kb-social-asset-import-design.md](2026-10-05-brand-kb-social-asset-import-design.md) §Limit updated.

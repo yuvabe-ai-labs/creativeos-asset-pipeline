@@ -16,18 +16,27 @@ function scriptedFetch(replies: Reply[]) {
 const run = (status: string) => ({ body: { data: { id: "run1", status, defaultDatasetId: "ds1" } } });
 
 describe("buildActorInput", () => {
-  it("asks Instagram and Facebook for up to 50 posts from the last 3 months", () => {
+  it("asks Instagram and Facebook for every post from the last 3 months", () => {
     expect(buildActorInput("instagram", "https://www.instagram.com/x/")).toMatchObject({
       directUrls: ["https://www.instagram.com/x/"],
       resultsType: "posts",
-      resultsLimit: 50,
+      resultsLimit: 1000, // a runaway guard, not a product limit
       onlyPostsNewerThan: "3 months",
     });
     expect(buildActorInput("facebook", "https://www.facebook.com/x/")).toMatchObject({
       startUrls: [{ url: "https://www.facebook.com/x/" }],
-      resultsLimit: 50,
+      resultsLimit: 1000,
       onlyPostsNewerThan: "3 months",
     });
+  });
+
+  it("asks the fallback for the latest 50 posts, with no date filter", () => {
+    const ig = buildActorInput("instagram", "https://www.instagram.com/x/", null, { latest: true });
+    expect(ig).toMatchObject({ resultsType: "posts", resultsLimit: 50 });
+    expect(ig).not.toHaveProperty("onlyPostsNewerThan");
+    const fb = buildActorInput("facebook", "https://www.facebook.com/x/", null, { latest: true });
+    expect(fb).toMatchObject({ startUrls: [{ url: "https://www.facebook.com/x/" }], resultsLimit: 50 });
+    expect(fb).not.toHaveProperty("onlyPostsNewerThan");
   });
 
   it("narrows a social refresh to posts since a date", () => {

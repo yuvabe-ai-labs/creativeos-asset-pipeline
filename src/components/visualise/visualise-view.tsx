@@ -68,11 +68,8 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
       <VisualiseReadiness
         stage={script.stage}
         readiness={model.readiness}
-        plan={model.plan}
         kitsFound={board.kits.length > 0}
-        drawingAll={draws.drawingAll}
         reopening={reopen.isPending}
-        onGenerateAll={() => void draws.drawAll(model.plan.shotIds)}
         onReopen={() => void onReopen()}
         extra={review?.actions}
       />
@@ -101,7 +98,6 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
           }
           action={
             <GenerateAllDialog
-              variant="outline"
               plan={model.plan}
               busy={draws.drawingAll}
               onConfirm={() => void draws.drawAll(model.plan.shotIds)}

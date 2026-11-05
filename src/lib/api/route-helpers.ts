@@ -302,6 +302,9 @@ export async function withTryCatch(
   try {
     return await handler();
   } catch (e) {
+    // A Supabase error is a plain object, not an Error: without this log its cause was lost
+    // and the browser saw only the fallback.
+    console.error(`[api] ${fallbackMessage}`, e);
     const message = e instanceof Error ? e.message : fallbackMessage;
     return apiError(message, 500);
   }

@@ -28,7 +28,7 @@ export function GuidedNextButton({
   onBeforeNavigate,
 }: {
   sourceId: string;
-  variant: "chip" | "button";
+  variant: "chip" | "button" | "link";
   onNavigate?: () => void;
   onBeforeNavigate?: (proceed: () => void) => void;
 }) {
@@ -84,6 +84,26 @@ export function GuidedNextButton({
         )}
       >
         <ArrowRight className="size-3" strokeWidth={1.5} /> {label}
+      </Button>
+    );
+  }
+
+  // A text link on the "Back to canvas" row (Multishot focus view): the header's right slot holds
+  // the view's own Save, so the next step sits opposite Back as navigation, not as a second CTA.
+  if (variant === "link") {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={handleClick}
+        disabled={disabled}
+        title={plan.gate.nudge}
+        className={cn(
+          "h-auto gap-1.5 border-0 p-0 text-primary transition-colors hover:bg-transparent hover:text-primary/80",
+          disabled && "disabled:pointer-events-auto cursor-not-allowed opacity-50",
+        )}
+      >
+        {label} <ArrowRight className="size-4" strokeWidth={1.5} />
       </Button>
     );
   }

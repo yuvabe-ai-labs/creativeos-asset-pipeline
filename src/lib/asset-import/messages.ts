@@ -19,6 +19,9 @@ export const importCopy = {
       : `Collecting the last ${SOCIAL_WINDOW_MONTHS} months of ${label} posts…`;
   },
 
+  /** Even the fallback found nothing: the page has never posted. A finished import, not a failure. */
+  noPostsAtAll: "This page has no posts",
+
   /** While the new assets are being stored. */
   adding(count: number): string {
     return count === 1 ? "Adding 1 new asset…" : `Adding ${count} new assets…`;
