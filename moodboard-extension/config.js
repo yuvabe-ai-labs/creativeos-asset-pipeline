@@ -9,4 +9,4 @@
 // A moodboard item is just a row of URLs (D92) — no bytes, no storage path — so a
 // capture written through production is instantly visible to a localhost app
 // reading the same Supabase project.
-const APP_BASE_URL = "https://creativeos-yuvabe.vercel.app";
+const APP_BASE_URL = "https://creativeos-yuvabe.cloud.run";
