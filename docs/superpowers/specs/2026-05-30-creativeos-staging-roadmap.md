@@ -8348,6 +8348,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session.
 
+### D467 — Instagram and Facebook imports take every post from the last 3 months, else the latest 50 *(recorded 2026-11-05; refines D302)*
+
+**Decision.** An Instagram or Facebook import takes every post from the last 3 months, with no post count (Apify `resultsLimit` is set to 1000 only as a guard against a runaway, billing run). When a first import finds nothing in that window (Apify's `no_items`, or only old pinned posts, which the window drops), it runs once more with no date filter and takes the page's latest 50 posts, whatever their age; the result records `latest: true`. A refresh never falls back: there, nothing in range means "No new posts", and a refresh after a fallback import starts at the window's edge. The fallback is not announced: the progress line stays "Collecting the last 3 months of … posts…". A page with no posts at all *finishes* (not fails) with "This page has no posts", so the KB carries on with whatever else it has. Both runs share one 12-minute scrape budget (the fallback gets at least 3 minutes), so the task always ends inside its 30-minute limit and never leaves the job "running" with the KB spinner on. A private or missing page fails as before, with no second run. A website has no post dates and never falls back.
+
+**Why.** User, 5 Nov 2026: an inactive brand page imported nothing ("No posts in the last 3 months"), leaving its KB with no social assets; a busy page's 3 months were cut at 50. Applied to Instagram first, then to Facebook the same day.
+
+**Rejected.** A fallback on refreshes, which would pull the same old posts on every refresh.
+
+**Originated →** conversation in this session; [2026-10-05-brand-kb-social-asset-import-design.md](2026-10-05-brand-kb-social-asset-import-design.md) §Limit updated.
 ### D467 — A product is a physical thing, never a service; a graphic-only shot has no location *(recorded 2026-11-02 as D465 in commit 18d39b2b, renumbered when staging's D465 merged in; refines D447, D457, D458)*
 
 **Decision.** The copilot's asset rules (script-copilot version 10; version 9 is D464) say a product is a physical thing the camera can show and a photo can be taken of. A service (a loan, insurance, an account, a card's benefits, a subscription, an app's features, a booking) is never a product: the reel shows it through people, places and actions, and the brand arrives through the voiceover and the logo added in the edit. A brand that sells only services gets an empty product list, and what a person in the story owns and uses (their own gold jewellery taken to a gold loan) is a prop. A shot that is only a graphic (a logo end card, a brand-colour background, a title card) has location "" and adds no location.

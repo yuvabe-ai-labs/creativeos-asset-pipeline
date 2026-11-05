@@ -59,17 +59,25 @@ export function usePanelDraws(clientId: string, scriptId: string, modelId: strin
 
   const drawAll = useCallback(async (shotIds: string[]) => {
     setDrawingAll(true);
+    // Every panel in the run shows as drawing from the click, not only the GENERATE_ALL_CONCURRENCY
+    // the queue has started: a panel waiting its turn must not offer its own Generate meanwhile.
+    // Each leaves the set when its own draw ends (drawQuietly's finally).
+    setDrawing((prev) => new Set([...prev, ...shotIds]));
     let capped = false;
+    let started: readonly string[] = [];
     const errors = new Set<string>();
     try {
-      await runQueue(shotIds, GENERATE_ALL_CONCURRENCY, async (shotId) => {
+      ({ started } = await runQueue(shotIds, GENERATE_ALL_CONCURRENCY, async (shotId) => {
         const result = await drawQuietly(shotId, { kind: "draw" });
         if (!result.ok) {
           errors.add(result.message);
           if (result.capped) capped = true;
         }
-      }, () => capped);
+      }, () => capped));
     } finally {
+      // Panels the queue never started (it stopped at the credit cap) are released here.
+      const begun = new Set(started);
+      setDrawing((prev) => new Set([...prev].filter((id) => begun.has(id) || !shotIds.includes(id))));
       setDrawingAll(false);
     }
     // The same failure (the cap, a blocked prompt) usually hits several panels: say each once.

@@ -35,7 +35,7 @@ vi.mock("sharp", () => {
   return { default: vi.fn(() => chain) };
 });
 
-import { failJob, getJob, listRecentJobs, succeedJob } from "@/lib/jobs/db";
+import { failJob, getJob, listRecentJobs, setJobPhase, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, latestImportedPostAt, listBrandImageRefs } from "@/lib/db/kb";
 import { removeObject, uploadImportedBrandMedia } from "@/lib/storage";
 import { runImportActor } from "./apify";
@@ -226,5 +226,82 @@ describe("runAssetImport", () => {
     await runAssetImport("job-1", { fetchImpl: mediaFetch() });
     expect(failJob).not.toHaveBeenCalled();
     expect(succeedJob).toHaveBeenCalledWith("job-1", expect.objectContaining({ assetCount: 0 }), "No new posts");
+    // A refresh never falls back to old posts.
+    expect(runImportActor).toHaveBeenCalledTimes(1);
+  });
+
+  describe("Social fallback: nothing in the last 3 months", () => {
+    const old = (n: number) => post(n, { timestamp: "2025-01-01T00:00:00Z" });
+
+    it("takes the page's latest posts, whatever their age", async () => {
+      vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+      vi.mocked(runImportActor).mockResolvedValueOnce([{ error: "no_items" }]).mockResolvedValueOnce([old(1), old(2)]);
+      const result = await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+      expect(vi.mocked(runImportActor).mock.calls[1][2]).toMatchObject({ latest: true });
+      expect(result).toEqual({ assetCount: 2, found: 2, failed: 0, since: null, latest: true });
+      expect(failJob).not.toHaveBeenCalled();
+    });
+
+    it("also falls back when the window holds only old pinned posts", async () => {
+      vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+      vi.mocked(runImportActor).mockResolvedValueOnce([old(1)]).mockResolvedValueOnce([old(1), old(2), old(3)]);
+      const result = await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+      expect(runImportActor).toHaveBeenCalledTimes(2);
+      expect(result).toMatchObject({ assetCount: 3, latest: true });
+    });
+
+    it("does not fall back when the window has posts", async () => {
+      vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+      vi.mocked(runImportActor).mockResolvedValue([post(1)]);
+      await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+      expect(runImportActor).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fall back when the page is private or missing", async () => {
+      vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+      vi.mocked(runImportActor).mockResolvedValue([{ error: "not_available" }]);
+      await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+      expect(runImportActor).toHaveBeenCalledTimes(1);
+      expect(failJob).toHaveBeenCalledWith("job-1", expect.stringMatching(/isn't public/));
+    });
+
+    it("finishes (not fails) with \"This page has no posts\" when the page has never posted", async () => {
+      vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+      vi.mocked(runImportActor).mockResolvedValue([{ error: "no_items" }]);
+      const result = await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+      expect(failJob).not.toHaveBeenCalled();
+      expect(succeedJob).toHaveBeenCalledWith("job-1", expect.objectContaining({ assetCount: 0 }), "This page has no posts");
+      expect(result).toMatchObject({ assetCount: 0, latest: true });
+    });
+
+    it("does not announce the fallback, and keeps both runs inside one scrape budget", async () => {
+      vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+      vi.mocked(runImportActor).mockResolvedValue([{ error: "no_items" }]);
+      await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+      expect(setJobPhase).not.toHaveBeenCalled();
+      const [first, second] = vi.mocked(runImportActor).mock.calls.map((c) => c[2].deadlineMs!);
+      expect(first).toBe(12 * 60_000);
+      expect(second).toBeLessThanOrEqual(first);
+    });
+
+    it("does the same for Facebook", async () => {
+      vi.mocked(getJob).mockResolvedValue(job("facebook") as never);
+      const fbPost = (n: number) => ({
+        url: `https://www.facebook.com/brand/posts/${n}`,
+        time: "2025-01-01T00:00:00Z",
+        media: [{ __typename: "Photo", image: { uri: `${CDN}${n}00_${n}11_${n}22_n.jpg` } }],
+      });
+      vi.mocked(runImportActor).mockResolvedValueOnce([{ error: "no_items" }]).mockResolvedValueOnce([fbPost(1), fbPost(2)]);
+      const result = await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+      expect(vi.mocked(runImportActor).mock.calls[1][2]).toMatchObject({ latest: true });
+      expect(result).toMatchObject({ assetCount: 2, found: 2, latest: true });
+    });
+
+    it("never falls back for a website", async () => {
+      vi.mocked(getJob).mockResolvedValue(job("website") as never);
+      vi.mocked(runImportActor).mockResolvedValue([]);
+      await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+      expect(runImportActor).toHaveBeenCalledTimes(1);
+    });
   });
 });

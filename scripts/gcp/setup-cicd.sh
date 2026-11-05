@@ -28,6 +28,9 @@ for role in roles/run.developer roles/cloudbuild.builds.editor roles/serviceusag
 done
 gcloud storage buckets add-iam-policy-binding "$SOURCE_BUCKET" --quiet \
   --member="serviceAccount:$DEPLOY_SA" --role=roles/storage.admin >/dev/null
+# `gcloud run deploy` checks the deploying account can pull the image it names.
+gcloud artifacts repositories add-iam-policy-binding "$REPO" --location="$REGION" --quiet \
+  --member="serviceAccount:$DEPLOY_SA" --role=roles/artifactregistry.reader >/dev/null
 # Deploying a revision that runs as RUN_SA, and a build that runs as BUILD_SA, both need actAs.
 for sa in "$RUN_SA" "$BUILD_SA"; do
   gcloud iam service-accounts add-iam-policy-binding "$sa" --quiet \

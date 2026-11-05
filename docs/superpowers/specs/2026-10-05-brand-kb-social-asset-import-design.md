@@ -14,7 +14,7 @@ Product answers (Cyril, 2026-10-03, "Brand KB: Social Asset Import — Open Ques
 | Question | Answer |
 |---|---|
 | Sources | Website, Instagram, Facebook (other handles later) |
-| Limit | Last 50 posts / 3 months — implemented as **up to 50 posts from the last 3 months**, whichever limit is hit first |
+| Limit | **Instagram and Facebook:** every post from the last 3 months; if there are none, the latest 50 posts of any age (D467) |
 | Asset types | Images **and** videos |
 | AI insights | **Assets only for now** — imported assets are not analysed |
 | Refresh | Import on setup, then a **manual refresh** (no schedule) |

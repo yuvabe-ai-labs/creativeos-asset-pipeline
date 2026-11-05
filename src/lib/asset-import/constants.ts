@@ -20,9 +20,21 @@ export const IMPORT_ACTORS: Record<ImportSource, string> = {
   facebook: "apify~facebook-posts-scraper",
 };
 
-/** "Last 50 posts / 3 months" — whichever limit is hit first (Cyril, 2026-10-03). */
-export const SOCIAL_POST_LIMIT = 50;
+/** Instagram and Facebook take every post from the last 3 months (D467). */
 export const SOCIAL_WINDOW_MONTHS = 3;
+
+/**
+ * Not a product limit, however many posts the window holds: only a guard so a runaway run (a
+ * page posting hundreds a day) cannot bill without end.
+ */
+export const SOCIAL_WINDOW_MAX_POSTS = 1000;
+/** When nothing was posted in the last 3 months: the page's latest posts, whatever their age. */
+export const SOCIAL_FALLBACK_POSTS = 50;
+
+/** How long one import may scrape, the fallback run included — well inside the task's 30 min. */
+export const IMPORT_SCRAPE_BUDGET_MS = 12 * 60_000;
+/** The least the fallback run is given, even when the window run used most of the budget. */
+export const IMPORT_FALLBACK_MIN_MS = 3 * 60_000;
 
 export const WEBSITE_MAX_PAGES = 10;
 /** The website actor bills per asset, so the run itself is capped (Apify `maxItems`). */

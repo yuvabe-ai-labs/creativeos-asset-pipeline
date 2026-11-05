@@ -3,7 +3,9 @@
 // Facebook page or a 10-page site can legitimately take longer.
 import {
   IMPORT_ACTORS,
-  SOCIAL_POST_LIMIT,
+  IMPORT_SCRAPE_BUDGET_MS,
+  SOCIAL_FALLBACK_POSTS,
+  SOCIAL_WINDOW_MAX_POSTS,
   SOCIAL_WINDOW_MONTHS,
   WEBSITE_MAX_ITEMS,
   WEBSITE_MAX_PAGES,
@@ -17,20 +19,32 @@ const TERMINAL = new Set(["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"]);
  * The actor input for one source. Verified field by field in the 2026-10-05 benchmark.
  * `since` (YYYY-MM-DD) narrows a social refresh to posts after the last import, so Apify bills
  * only for new posts; both actors take an absolute date there as well as a relative one.
+ *
+ * Instagram and Facebook take every post in the window. `latest` is the fallback for a page with
+ * nothing in the window: the newest posts, whatever their age, with no date filter at all (D467).
  */
-export function buildActorInput(source: ImportSource, target: string, since?: string | null): Record<string, unknown> {
+export function buildActorInput(
+  source: ImportSource,
+  target: string,
+  since?: string | null,
+  opts: { latest?: boolean } = {},
+): Record<string, unknown> {
   const window = since ?? `${SOCIAL_WINDOW_MONTHS} months`;
   switch (source) {
     case "instagram":
+      if (opts.latest) {
+        return { directUrls: [target], resultsType: "posts", resultsLimit: SOCIAL_FALLBACK_POSTS, addParentData: false };
+      }
       return {
         directUrls: [target],
         resultsType: "posts",
-        resultsLimit: SOCIAL_POST_LIMIT,
+        resultsLimit: SOCIAL_WINDOW_MAX_POSTS,
         onlyPostsNewerThan: window,
         addParentData: false,
       };
     case "facebook":
-      return { startUrls: [{ url: target }], resultsLimit: SOCIAL_POST_LIMIT, onlyPostsNewerThan: window };
+      if (opts.latest) return { startUrls: [{ url: target }], resultsLimit: SOCIAL_FALLBACK_POSTS };
+      return { startUrls: [{ url: target }], resultsLimit: SOCIAL_WINDOW_MAX_POSTS, onlyPostsNewerThan: window };
     case "website":
       return {
         startUrls: [{ url: target }],
@@ -56,18 +70,18 @@ type RunData = { id: string; status: string; defaultDatasetId: string };
 export async function runImportActor(
   source: ImportSource,
   target: string,
-  opts: { token: string; fetchImpl?: typeof fetch; deadlineMs?: number; since?: string | null },
+  opts: { token: string; fetchImpl?: typeof fetch; deadlineMs?: number; since?: string | null; latest?: boolean },
 ): Promise<unknown[]> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const headers = { Authorization: `Bearer ${opts.token}`, "Content-Type": "application/json" };
-  const deadline = Date.now() + (opts.deadlineMs ?? 12 * 60_000);
+  const deadline = Date.now() + (opts.deadlineMs ?? IMPORT_SCRAPE_BUDGET_MS);
 
   // maxItems caps what a pay-per-result actor can bill (the website actor charges per asset).
   const maxItems = source === "website" ? `?maxItems=${WEBSITE_MAX_ITEMS}` : "";
   const startRes = await fetchImpl(`${API}/acts/${IMPORT_ACTORS[source]}/runs${maxItems}`, {
     method: "POST",
     headers,
-    body: JSON.stringify(buildActorInput(source, target, opts.since)),
+    body: JSON.stringify(buildActorInput(source, target, opts.since, { latest: opts.latest })),
   });
   if (!startRes.ok) throw new Error(`Apify could not start the ${source} scrape (HTTP ${startRes.status}).`);
   let run = ((await startRes.json()) as { data: RunData }).data;
