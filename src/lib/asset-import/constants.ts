@@ -44,8 +44,19 @@ export const WEBSITE_MAX_ITEMS = 80;
 export const MIN_IMAGE_SIDE_PX = 200;
 
 export const IMPORT_DOWNLOAD_CONCURRENCY = 4;
+/** Images are read whole, because sharp needs every pixel for the preview, so they stay small. */
 export const IMPORT_IMAGE_SIZE_LIMIT = 25 * 1024 * 1024;
-export const IMPORT_VIDEO_SIZE_LIMIT = 200 * 1024 * 1024;
+/**
+ * Videos are streamed straight into storage, so memory does not limit them (D483). This cap
+ * guards the run's time and the storage bill against one enormous file.
+ */
+export const IMPORT_VIDEO_SIZE_LIMIT = 1024 * 1024 * 1024;
+/** sharp refuses images larger than this (about 8000 × 5000). The file is kept, without a preview. */
+export const IMPORT_PREVIEW_MAX_PIXELS = 40_000_000;
+/** How many skipped files an import names in its result. Its count covers all of them. */
+export const IMPORT_SKIPPED_LIST_MAX = 20;
+/** The import logs its memory every this many assets, and whenever it reaches a new peak. */
+export const IMPORT_MEMORY_LOG_EVERY = 25;
 
 /** Width of the WebP preview made for every imported image and video poster — what the grid
  *  shows, so a page of tiles costs kilobytes rather than the originals' megabytes. */

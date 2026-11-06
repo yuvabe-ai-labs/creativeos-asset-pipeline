@@ -4,24 +4,32 @@
 // team can read, because the caller is a background run nobody is watching.
 import "server-only";
 import { randomUUID } from "node:crypto";
-import sharp from "sharp";
-import { failJob, getJob, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
+import { failJob, getJob, saveJobCheckpoint, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
-import { removeObject, uploadImportedBrandMedia } from "@/lib/storage";
+import { removeObject, uploadImportedBrandMedia, uploadImportedBrandMediaStream } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
 import {
   IMPORT_DOWNLOAD_CONCURRENCY,
   IMPORT_FALLBACK_MIN_MS,
   IMPORT_IMAGE_SIZE_LIMIT,
-  IMPORT_PREVIEW_PX,
+  IMPORT_MEMORY_LOG_EVERY,
   IMPORT_SCRAPE_BUDGET_MS,
-  IMPORT_SOURCE_LABELS,
+  IMPORT_SKIPPED_LIST_MAX,
   IMPORT_VIDEO_SIZE_LIMIT,
 } from "./constants";
 import { THUMBNAIL_SIZE_LIMIT } from "@/lib/market/constants";
 import { runImportActor } from "./apify";
 import { normalizeFacebook, normalizeInstagram, normalizeWebsite } from "./normalize";
-import type { AssetImportInput, AssetImportResult, NormalizeResult, ScrapedAsset } from "./types";
+import type {
+  AssetImportInput,
+  AssetImportResult,
+  ImportCheckpoint,
+  NormalizeResult,
+  ScrapedAsset,
+  SkippedAsset,
+} from "./types";
+import { cappedStream, contentTypeOf, discardBody, MediaTooLargeError, readCapped } from "./media";
+import { makeImagePreview, measureImage } from "./preview";
 import { importedFilename } from "./utils";
 import { planRefreshSince } from "./refresh-plan";
 import { importCopy } from "./messages";
@@ -42,10 +50,17 @@ export async function runAssetImport(
   opts: { fetchImpl?: typeof fetch } = {},
 ): Promise<AssetImportResult | null> {
   const fetchImpl = opts.fetchImpl ?? fetch;
-  const job = await getJob<AssetImportInput, AssetImportResult>(jobId);
+  const job = await getJob<AssetImportInput, AssetImportResult & { checkpoint?: ImportCheckpoint }>(jobId);
   if (!job || !job.client_id) return null;
+  // A retry of a job that has already ended (it crashed after recording its result) has nothing to do.
+  if (job.status === "succeeded" || job.status === "failed") return null;
   const clientId = job.client_id;
   const { source, target } = job.input;
+
+  // A retry after a crash (D483) picks up the Apify runs the crashed attempt started, so the
+  // scrape is read again rather than paid for twice. Assets it already saved are skipped below.
+  const checkpoint: ImportCheckpoint = { ...job.result?.checkpoint };
+  const remember = (patch: ImportCheckpoint) => saveJobCheckpoint(jobId, Object.assign(checkpoint, patch));
 
   try {
     const token = process.env.APIFY_TOKEN;
@@ -58,7 +73,14 @@ export async function runAssetImport(
     // One scrape budget for the run, fallback included, so the task always ends inside its
     // maxDuration: a task killed mid-run would leave the job "running" and the KB spinner on.
     const scrapeEnds = Date.now() + IMPORT_SCRAPE_BUDGET_MS;
-    const rows = await runImportActor(source, target, { token, fetchImpl, since, deadlineMs: IMPORT_SCRAPE_BUDGET_MS });
+    const rows = await runImportActor(source, target, {
+      token,
+      fetchImpl,
+      since,
+      deadlineMs: IMPORT_SCRAPE_BUDGET_MS,
+      resumeRunId: checkpoint.windowRunId,
+      onStarted: (runId) => remember({ windowRunId: runId }),
+    });
     let { assets, error, errorCode } = NORMALIZERS[source](rows as never[]);
 
     // Social fallback (D467): a first import of a page with nothing posted in the last 3 months
@@ -69,7 +91,14 @@ export async function runAssetImport(
     if (latest) {
       // The progress line stays "Collecting the last 3 months…": the fallback is not announced.
       const deadlineMs = Math.max(scrapeEnds - Date.now(), IMPORT_FALLBACK_MIN_MS);
-      const latestRows = await runImportActor(source, target, { token, fetchImpl, latest: true, deadlineMs });
+      const latestRows = await runImportActor(source, target, {
+        token,
+        fetchImpl,
+        latest: true,
+        deadlineMs,
+        resumeRunId: checkpoint.latestRunId,
+        onStarted: (runId) => remember({ latestRunId: runId }),
+      });
       ({ assets, error, errorCode } = NORMALIZERS[source](latestRows as never[], new Date(), { windowed: false }));
       // Nothing at all, even without the date filter: the page has never posted. The import
       // finishes (it is not a failure), so the KB carries on with whatever else it has.
@@ -98,16 +127,30 @@ export async function runAssetImport(
     let saved = 0;
     let failed = 0;
     let firstFailure: string | null = null;
+    const skipped: SkippedAsset[] = [];
+    const memory = memoryLog(jobId, source);
     await forEachLimited(fresh, IMPORT_DOWNLOAD_CONCURRENCY, async (asset) => {
       const outcome = await saveAsset(clientId, asset, fetchImpl);
+      memory.after(asset);
       if (outcome.status === "saved") saved++;
       if (outcome.status === "failed") {
         failed++;
         firstFailure ??= `${asset.ref}: ${outcome.reason}`;
+        if (skipped.length < IMPORT_SKIPPED_LIST_MAX) {
+          skipped.push({ ref: asset.ref, sourceUrl: asset.sourceUrl ?? null, reason: outcome.reason });
+        }
       }
     });
+    memory.end();
 
-    const result = { assetCount: saved, found: assets.length, failed, since, ...(latest && { latest: true }) };
+    const result = {
+      assetCount: saved,
+      found: assets.length,
+      failed,
+      since,
+      ...(latest && { latest: true }),
+      ...(skipped.length > 0 && { skipped }),
+    };
     if (failed > 0) {
       console.error("[asset-import] assets not saved", { jobId, source, failed, of: fresh.length, first: firstFailure });
     }
@@ -118,7 +161,7 @@ export async function runAssetImport(
       await failJob(jobId, importCopy.couldNotSave(fresh.length));
       return result;
     }
-    await succeedJob(jobId, result, importCopy.done(saved, assets.length));
+    await succeedJob(jobId, result, importCopy.done(saved, assets.length, failed));
     if (saved > 0) await startImageAnalysisQuietly(clientId);
     return result;
   } catch (e) {
@@ -140,19 +183,31 @@ async function saveAsset(clientId: string, asset: ScrapedAsset, fetchImpl: typeo
   const uploaded: string[] = [];
   const discard = () => Promise.all(uploaded.map((url) => removeObject(url).catch(() => {})));
   try {
-    const limit = asset.mediaType === "video" ? IMPORT_VIDEO_SIZE_LIMIT : IMPORT_IMAGE_SIZE_LIMIT;
-    const media = await download(asset.url, limit, fetchImpl);
-    if (!media) return { status: "failed", reason: "download failed or too large" };
+    const res = await fetchImpl(asset.url);
+    if (!res.ok) {
+      discardBody(res);
+      return { status: "failed", reason: `download failed (HTTP ${res.status})` };
+    }
+    const contentType = contentTypeOf(res);
     // A page can label anything as an image; only real media is kept.
-    if (!/^(image|video)\//.test(media.contentType)) {
-      return { status: "failed", reason: `not media (${media.contentType})` };
+    if (!/^(image|video)\//.test(contentType)) {
+      discardBody(res);
+      return { status: "failed", reason: `not media (${contentType})` };
     }
 
     const id = randomUUID();
-    const ext = extForContentType(media.contentType);
+    const ext = extForContentType(contentType);
     const filename = importedFilename(asset, ext);
-    const stored = await uploadImportedBrandMedia({ clientId, imageId: id, filename, body: media.body, contentType: media.contentType });
-    uploaded.push(stored.url);
+    // A video passes straight through to storage, so it never sits whole in memory. An image is
+    // read whole, because its preview needs every pixel (D483).
+    const stored = contentType.startsWith("video/")
+      ? await storeStreamed(res, { clientId, imageId: id, filename, contentType })
+      : await storeWhole(res, { clientId, imageId: id, filename, contentType });
+    if (stored.url) uploaded.push(stored.url);
+    if (stored.bytes === 0) {
+      await discard();
+      return { status: "failed", reason: "empty file" };
+    }
 
     // The still that stands for the asset: the image itself, or a video's poster. It gives the
     // masonry its aspect ratio and the grid its small preview. Both are decoration — an asset
@@ -160,15 +215,15 @@ async function saveAsset(clientId: string, asset: ScrapedAsset, fetchImpl: typeo
     const still =
       asset.mediaType === "video"
         ? asset.thumbnailUrl
-          ? (await download(asset.thumbnailUrl, THUMBNAIL_SIZE_LIMIT, fetchImpl).catch(() => null))?.body
+          ? await downloadStill(asset.thumbnailUrl, fetchImpl)
           : undefined
-        : media.body;
-    const size = still ? await measure(still) : null;
+        : stored.body;
+    const size = still ? await measureImage(still) : null;
 
     let thumbnailUrl: string | null = null;
-    const previewSource = asset.mediaType === "video" || PREVIEWABLE.has(media.contentType) ? still : undefined;
+    const previewSource = asset.mediaType === "video" || PREVIEWABLE.has(contentType) ? still : undefined;
     if (previewSource) {
-      const preview = await makePreview(previewSource);
+      const preview = await makeImagePreview(previewSource);
       if (preview) {
         thumbnailUrl = (
           await uploadImportedBrandMedia({ clientId, imageId: id, filename: "preview.webp", body: preview, contentType: "image/webp" })
@@ -185,7 +240,7 @@ async function saveAsset(clientId: string, asset: ScrapedAsset, fetchImpl: typeo
       filename,
       fileExt: ext,
       storageUrl: stored.url,
-      sizeBytes: media.body.byteLength,
+      sizeBytes: stored.bytes,
       thumbnailUrl,
       sourceUrl: asset.sourceUrl ?? null,
       postedAt: asset.postedAt ?? null,
@@ -200,7 +255,7 @@ async function saveAsset(clientId: string, asset: ScrapedAsset, fetchImpl: typeo
     return { status: "saved" };
   } catch (e) {
     await discard();
-    return { status: "failed", reason: describeError(e) };
+    return { status: "failed", reason: e instanceof MediaTooLargeError ? `too large (${e.message})` : describeError(e) };
   }
 }
 
@@ -208,41 +263,69 @@ async function saveAsset(clientId: string, asset: ScrapedAsset, fetchImpl: typeo
  *  lose its animation. Both are shown as they are. */
 const PREVIEWABLE = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
 
-/** Displayed pixel size, or null when the bytes cannot be decoded. EXIF orientations 5–8 are
- *  rotated a quarter turn, so their stored width and height are swapped on screen. */
-async function measure(body: Buffer): Promise<{ width: number; height: number } | null> {
+type Destination = { clientId: string; imageId: string; filename: string; contentType: string };
+type Stored = { url: string; bytes: number; body?: Buffer };
+
+/** Streams a video into storage. Stopped, and nothing kept, once it passes the video limit. */
+async function storeStreamed(res: Response, to: Destination): Promise<Stored> {
+  const { stream, bytes } = cappedStream(res, IMPORT_VIDEO_SIZE_LIMIT);
+  const stored = await uploadImportedBrandMediaStream({ ...to, body: stream });
+  return { url: stored.url, bytes: bytes() };
+}
+
+/** Reads an image whole, stopping once it passes the image limit, then stores it. */
+async function storeWhole(res: Response, to: Destination): Promise<Stored> {
+  const body = await readCapped(res, IMPORT_IMAGE_SIZE_LIMIT);
+  if (body.byteLength === 0) return { url: "", bytes: 0 };
+  const stored = await uploadImportedBrandMedia({ ...to, body });
+  return { url: stored.url, bytes: body.byteLength, body };
+}
+
+/** A video's poster image, or undefined when it cannot be read. Decoration only. */
+async function downloadStill(url: string, fetchImpl: typeof fetch): Promise<Buffer | undefined> {
   try {
-    const { width, height, orientation } = await sharp(body).metadata();
-    if (!width || !height) return null;
-    return orientation && orientation >= 5 ? { width: height, height: width } : { width, height };
+    const res = await fetchImpl(url);
+    if (!res.ok) {
+      discardBody(res);
+      return undefined;
+    }
+    const body = await readCapped(res, THUMBNAIL_SIZE_LIMIT);
+    return body.byteLength > 0 ? body : undefined;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
-/** A WebP no wider or taller than IMPORT_PREVIEW_PX, or null when the bytes cannot be decoded. */
-async function makePreview(body: Buffer): Promise<Buffer | null> {
-  try {
-    return await sharp(body)
-      .rotate() // honour EXIF orientation before the metadata is dropped
-      .resize({ width: IMPORT_PREVIEW_PX, height: IMPORT_PREVIEW_PX, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 78 })
-      .toBuffer();
-  } catch {
-    return null;
-  }
-}
-
-async function download(
-  url: string,
-  limit: number,
-  fetchImpl: typeof fetch,
-): Promise<{ body: Buffer; contentType: string } | null> {
-  const res = await fetchImpl(url);
-  if (!res.ok) return null;
-  const contentType = res.headers.get("content-type")?.split(";")[0].trim().toLowerCase() || "application/octet-stream";
-  const body = Buffer.from(await res.arrayBuffer());
-  if (body.byteLength === 0 || body.byteLength > limit) return null;
-  return { body, contentType };
+/**
+ * Logs the process's memory while assets are saved (D483): every IMPORT_MEMORY_LOG_EVERY assets,
+ * and whenever it has grown by 25 MB since the last line. When a run is killed for memory, its
+ * last lines show how far it got and how memory grew.
+ */
+function memoryLog(jobId: string, source: string) {
+  const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
+  let count = 0;
+  let peak = 0;
+  let lastLogged = 0;
+  return {
+    after(asset: ScrapedAsset) {
+      count++;
+      const usage = process.memoryUsage();
+      peak = Math.max(peak, usage.rss);
+      if (count % IMPORT_MEMORY_LOG_EVERY !== 0 && usage.rss < lastLogged + 25 * 1024 * 1024) return;
+      lastLogged = usage.rss;
+      console.log("[asset-import] memory", {
+        jobId,
+        source,
+        assets: count,
+        rssMb: mb(usage.rss),
+        externalMb: mb(usage.external),
+        heapMb: mb(usage.heapUsed),
+        lastMedia: asset.mediaType,
+      });
+    },
+    end() {
+      if (count > 0) console.log("[asset-import] memory peak", { jobId, source, assets: count, peakRssMb: mb(peak) });
+    },
+  };
 }
 

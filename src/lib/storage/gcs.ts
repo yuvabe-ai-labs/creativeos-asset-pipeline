@@ -1,4 +1,6 @@
 import "server-only";
+import type { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { Storage } from "@google-cloud/storage";
 
 let _storage: Storage | null = null;
@@ -54,6 +56,15 @@ export async function _put(
     // A download name for files people save (the editor's package, D392).
     ...(opts.contentDisposition ? { metadata: { contentDisposition: opts.contentDisposition } } : {}),
   });
+}
+
+/**
+ * Writes a stream to storage without holding the whole file in memory (D483). A single-request
+ * upload, so a stream that fails part way leaves no object behind.
+ */
+export async function _putStream(path: string, body: Readable, contentType: string): Promise<void> {
+  const file = getStorage().bucket(getBucketName()).file(path);
+  await pipeline(body, file.createWriteStream({ contentType, resumable: false }));
 }
 
 // V4 signed URL authorizing a single direct browser → GCS upload (HTTP PUT).

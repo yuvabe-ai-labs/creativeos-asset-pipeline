@@ -87,4 +87,29 @@ describe("runImportActor", () => {
     const fetchImpl = scriptedFetch([{ status: 402, body: {} }]);
     await expect(runImportActor("instagram", "u", { token: "t", fetchImpl })).rejects.toThrow(/HTTP 402/);
   });
+
+  it("reports a new run's id, so a retry can continue it", async () => {
+    const onStarted = vi.fn();
+    const fetchImpl = scriptedFetch([run("SUCCEEDED"), { body: [{ a: 1 }] }]);
+    await runImportActor("instagram", "u", { token: "t", fetchImpl, onStarted });
+    expect(onStarted).toHaveBeenCalledWith("run1");
+  });
+
+  it("continues an earlier run instead of paying for a new scrape (D483)", async () => {
+    const onStarted = vi.fn();
+    const fetchImpl = scriptedFetch([run("SUCCEEDED"), { body: [{ a: 1 }] }]);
+    const items = await runImportActor("instagram", "u", { token: "t", fetchImpl, resumeRunId: "run1", onStarted });
+    expect(items).toEqual([{ a: 1 }]);
+    const calls = vi.mocked(fetchImpl).mock.calls.map((c) => [String(c[0]), (c[1] as RequestInit | undefined)?.method]);
+    expect(calls[0]).toEqual(["https://api.apify.com/v2/actor-runs/run1", undefined]);
+    expect(calls.some(([, method]) => method === "POST")).toBe(false);
+    expect(onStarted).not.toHaveBeenCalled();
+  });
+
+  it("starts a new run when Apify no longer has the earlier one", async () => {
+    const onStarted = vi.fn();
+    const fetchImpl = scriptedFetch([{ status: 404, body: {} }, run("SUCCEEDED"), { body: [{ a: 1 }] }]);
+    await runImportActor("instagram", "u", { token: "t", fetchImpl, resumeRunId: "gone", onStarted });
+    expect(onStarted).toHaveBeenCalledWith("run1");
+  });
 });
