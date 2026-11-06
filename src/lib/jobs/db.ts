@@ -1,7 +1,7 @@
 // background_jobs reads and writes (D306) — the lifecycle every long-running job shares.
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { JobLockedError, type BackgroundJobRow, type JobKind } from "./types";
+import { JOB_STOPPED_MESSAGE, JobLockedError, type BackgroundJobRow, type JobKind } from "./types";
 
 const TABLE = "background_jobs";
 
@@ -82,6 +82,13 @@ export const startJob = (jobId: string, phaseMessage?: string) =>
 export const setJobPhase = (jobId: string, phaseMessage: string) =>
   patchJob(jobId, { phase_message: phaseMessage });
 
+/**
+ * Records how far a running job got, so a retry after a crash can continue instead of starting
+ * over (D483). Kept in `result` until the job ends, when succeedJob replaces it.
+ */
+export const saveJobCheckpoint = (jobId: string, checkpoint: object) =>
+  patchJob(jobId, { result: { checkpoint } });
+
 export const succeedJob = (jobId: string, result: object, phaseMessage?: string) =>
   patchJob(jobId, {
     status: "succeeded",
@@ -100,7 +107,7 @@ export async function failStaleJobs(clientId: string, kind: JobKind, maxAgeMs: n
   const now = new Date();
   const { error } = await supabase
     .from(TABLE)
-    .update({ status: "failed", error: "This stopped before it finished. Try again.", finished_at: now.toISOString(), updated_at: now.toISOString() })
+    .update({ status: "failed", error: JOB_STOPPED_MESSAGE, finished_at: now.toISOString(), updated_at: now.toISOString() })
     .eq("client_id", clientId)
     .eq("kind", kind)
     .in("status", ["queued", "running"])

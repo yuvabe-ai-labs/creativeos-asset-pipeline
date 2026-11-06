@@ -62,29 +62,53 @@ export function buildActorInput(
 
 type RunData = { id: string; status: string; defaultDatasetId: string };
 
+/** An earlier run, or null when Apify no longer has it (then a new run is started). */
+async function readRun(runId: string, fetchImpl: typeof fetch, headers: Record<string, string>): Promise<RunData | null> {
+  const res = await fetchImpl(`${API}/actor-runs/${runId}`, { headers });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Apify run status failed (HTTP ${res.status}).`);
+  return ((await res.json()) as { data: RunData }).data;
+}
+
 /**
  * Runs the source's actor to completion and returns its dataset rows. A run that times out or
  * is aborted still returns whatever it wrote — partial assets beat none. Throws only when the
  * run produced nothing usable.
+ *
+ * `resumeRunId` continues a run started by an earlier attempt instead of paying for a new scrape
+ * (D483). `onStarted` hears a new run's id, so the caller can record it for that case.
  */
 export async function runImportActor(
   source: ImportSource,
   target: string,
-  opts: { token: string; fetchImpl?: typeof fetch; deadlineMs?: number; since?: string | null; latest?: boolean },
+  opts: {
+    token: string;
+    fetchImpl?: typeof fetch;
+    deadlineMs?: number;
+    since?: string | null;
+    latest?: boolean;
+    resumeRunId?: string | null;
+    onStarted?: (runId: string) => Promise<void> | void;
+  },
 ): Promise<unknown[]> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const headers = { Authorization: `Bearer ${opts.token}`, "Content-Type": "application/json" };
   const deadline = Date.now() + (opts.deadlineMs ?? IMPORT_SCRAPE_BUDGET_MS);
 
-  // maxItems caps what a pay-per-result actor can bill (the website actor charges per asset).
-  const maxItems = source === "website" ? `?maxItems=${WEBSITE_MAX_ITEMS}` : "";
-  const startRes = await fetchImpl(`${API}/acts/${IMPORT_ACTORS[source]}/runs${maxItems}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(buildActorInput(source, target, opts.since, { latest: opts.latest })),
-  });
-  if (!startRes.ok) throw new Error(`Apify could not start the ${source} scrape (HTTP ${startRes.status}).`);
-  let run = ((await startRes.json()) as { data: RunData }).data;
+  let run: RunData | null = opts.resumeRunId ? await readRun(opts.resumeRunId, fetchImpl, headers) : null;
+  if (!run) {
+    // maxItems caps what a pay-per-result actor can bill (the website actor charges per asset).
+    const maxItems = source === "website" ? `?maxItems=${WEBSITE_MAX_ITEMS}` : "";
+    const startRes = await fetchImpl(`${API}/acts/${IMPORT_ACTORS[source]}/runs${maxItems}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(buildActorInput(source, target, opts.since, { latest: opts.latest })),
+    });
+    if (!startRes.ok) throw new Error(`Apify could not start the ${source} scrape (HTTP ${startRes.status}).`);
+    const started: RunData = ((await startRes.json()) as { data: RunData }).data;
+    run = started;
+    await opts.onStarted?.(started.id);
+  }
 
   while (!TERMINAL.has(run.status)) {
     if (Date.now() > deadline) {
@@ -93,7 +117,7 @@ export async function runImportActor(
       break;
     }
     // waitForFinish holds the request open up to 60 s, so this loop is a handful of calls.
-    const res = await fetchImpl(`${API}/actor-runs/${run.id}?waitForFinish=60`, { headers });
+    const res: Response = await fetchImpl(`${API}/actor-runs/${run.id}?waitForFinish=60`, { headers });
     if (!res.ok) throw new Error(`Apify run status failed (HTTP ${res.status}).`);
     run = ((await res.json()) as { data: RunData }).data;
   }

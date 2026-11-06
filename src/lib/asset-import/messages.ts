@@ -28,9 +28,9 @@ export const importCopy = {
   },
 
   /** The one-line result of a finished import. */
-  done(added: number, found: number): string {
-    if (added > 0) return `${added} new`;
-    return found > 0 ? "Already up to date" : "No new posts";
+  done(added: number, found: number, notKept = 0): string {
+    const base = added > 0 ? `${added} new` : found > 0 ? "Already up to date" : "No new posts";
+    return notKept > 0 ? `${base} · ${notKept} couldn't be saved` : base;
   },
 
   /** A refresh that found nothing newer than last time — a success, not a failure. */
