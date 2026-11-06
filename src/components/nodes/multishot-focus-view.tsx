@@ -285,8 +285,8 @@ export function MultishotFocusView({
                         node has no node_versions row. So no async, no error path, and no
                         "Saved" toast — the durable write is autosave's and has not happened
                         yet. The pill clearing is the truthful feedback. */}
-                    <Button size="lg" onClick={handleSave} disabled={!dirty}>
-                      Save Changes
+                    <Button variant="outline-primary" size="lg" onClick={handleSave} disabled={!dirty}>
+                      Save
                     </Button>
                   </>
                 )}
@@ -399,6 +399,8 @@ export function MultishotFocusView({
                           setCuts((cs) => cs.map((c, j) => (j === i ? { ...c, text } : c)))
                         }
                         readOnly={isReadOnly}
+                        // Every keystroke reaches the draft, so Save enables while typing.
+                        live
                         multiline
                         placeholder="Describe this cut…"
                         className="text-sm leading-relaxed"
