@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { ScriptDocumentSkeleton } from "./script-document-skeleton";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -275,7 +274,7 @@ export function ScriptFocusView({
               {/* Three tiers, and exactly ONE filled button at any time:
                     · view      — Show original, a toggle rather than an action
                     · edit      — Re-extract / Replace script, both re-runnable
-                    · forward   — Fan out, or Save while edits are pending
+                    · forward   — Fan out (filled), with Save beside it as an outline
                   Save was the only filled button before, and it is disabled
                   whenever there is nothing to save — so the footer spent most of
                   its life with no live primary and three identical outlines.
@@ -328,23 +327,17 @@ export function ScriptFocusView({
                       Unsaved changes
                     </span>
                   )}
-                  {/* Pending edits make Save the primary; with nothing to save,
-                      fanning out is the real next step and takes the fill. */}
+                  {/* Fan out is always the filled primary: it keeps its look while edits
+                      are pending (it saves them first), and Save is the purple outline. */}
                   {shotCount > 0 && (
-                    <Button
-                      variant={dirty ? "outline" : "default"}
-                      size="lg"
-                      onClick={handleFanOut}
-                    >
-                      <Clapperboard
-                        className={cn("size-4", dirty && "text-muted-foreground")}
-                      />{" "}
+                    <Button variant="default" size="lg" onClick={handleFanOut}>
+                      <Clapperboard className="size-4" />{" "}
                       Fan out {clipCount} clip
                       {clipCount === 1 ? "" : "s"}
                     </Button>
                   )}
                   <Button
-                    variant={dirty ? "default" : "outline"}
+                    variant="outline-primary"
                     size="lg"
                     onClick={handleSave}
                     disabled={!dirty}

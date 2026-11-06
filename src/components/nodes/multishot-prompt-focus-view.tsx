@@ -726,8 +726,8 @@ export function MultishotPromptFocusView({
             <Button variant="outline" size="lg" onClick={handleDiscardEdits} disabled={!dirty}>
               Cancel
             </Button>
-            <Button size="lg" onClick={handleSavePlan} disabled={!dirty}>
-              Save Changes
+            <Button variant="outline-primary" size="lg" onClick={handleSavePlan} disabled={!dirty}>
+              Save
             </Button>
           </>
         )

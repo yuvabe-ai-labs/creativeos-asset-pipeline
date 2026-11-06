@@ -832,13 +832,14 @@ export function PromptFocusView({
                             multiline
                             value={draft}
                             onCommit={setDraft}
+                            live
                             readOnly={!editable}
                             placeholder="Empty — click to edit"
                             renderDisplay={renderBeats}
                             className="min-h-64 max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
                           />
                           <div className="flex shrink-0 items-center gap-2 self-start">
-                            <Button variant="outline" onClick={handleSave} disabled={!dirty}>
+                            <Button variant="outline-primary" onClick={handleSave} disabled={!dirty}>
                               Save
                             </Button>
                             {dirty && (
