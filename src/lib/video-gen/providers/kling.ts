@@ -3,6 +3,16 @@ import { logger } from "@trigger.dev/sdk/v3";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
 import { kling30Params, klingO1Params, kling30OmniParams } from "../params/kling";
 import { fitKlingImages } from "./kling-images";
+import { generateKlingOnFal, type KlingFalModel } from "./kling-fal";
+
+/**
+ * D484 — which connection Kling generations use. fal.ai (pay per use) by default; `native` sends
+ * them to Kling's own API as before, kept as a fallback while the Kling subscription runs out.
+ * Read per generation, so changing the env var needs no code change.
+ */
+export function klingTransport(): "fal" | "native" {
+  return process.env.KLING_TRANSPORT === "native" ? "native" : "fal";
+}
 
 const KLING_API_BASE = "https://api-singapore.klingai.com";
 const POLL_INTERVAL_MS = 5_000;
@@ -304,6 +314,8 @@ async function pollKlingTask(taskId: string): Promise<VideoGenResult> {
 
 type KlingEndpointConfig = {
   endpointPath: string;
+  /** The same model on fal (D484). */
+  falModel: KlingFalModel;
   /**
    * Only the omni endpoint accepts `refer_image`. Kling 3.0's content enum is
    * prompt / first_frame / last_frame / element, so references are dropped there rather than
@@ -355,6 +367,18 @@ async function generateWithKling(
     referenceUrls,
   });
 
+  // Image limits are the same on fal (300px floor, 0.4–2.5 ratio, 50MB), so the fitting above
+  // serves both connections.
+  if (klingTransport() === "fal") {
+    return generateKlingOnFal(config.falModel, {
+      prompt: input.prompt,
+      startFrameUrl: fitted.startFrameUrl,
+      endFrameUrl: fitted.endFrameUrl,
+      referenceUrls: fitted.referenceUrls,
+      params: input.params,
+    });
+  }
+
   const contents = buildKlingContents({
     prompt: input.prompt,
     startFrameUrl: fitted.startFrameUrl,
@@ -398,6 +422,7 @@ export const kling30: VideoGenModelSpec = {
     generateWithKling(
       {
         endpointPath: "/image-to-video/kling-3.0",
+        falModel: "kling-3-0",
         supportsReferences: false,
         requiresStartFrame: true,
       },
@@ -406,6 +431,8 @@ export const kling30: VideoGenModelSpec = {
     ),
 };
 
+// D484 — on fal, O1 is 1080p only, silent and 5 or 10 s; klingO1Params follows fal. On the native
+// fallback the settings builder above still clamps duration to 5/10 and treats absent audio as off.
 export const klingO1: VideoGenModelSpec = {
   id: "kling:kling-o1",
   provider: "kling",
@@ -418,6 +445,7 @@ export const klingO1: VideoGenModelSpec = {
     generateWithKling(
       {
         endpointPath: "/omni-video/kling-o1",
+        falModel: "kling-o1",
         supportsReferences: true,
         requiresStartFrame: false,
       },
@@ -446,6 +474,7 @@ export const kling30Omni: VideoGenModelSpec = {
     generateWithKling(
       {
         endpointPath: "/omni-video/kling-3.0-omni",
+        falModel: "kling-3-0-omni",
         supportsReferences: true,
         requiresStartFrame: false,
       },

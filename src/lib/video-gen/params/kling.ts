@@ -29,29 +29,6 @@ function durationParam(min: number, max: number, defaultValue: number): ParamSpe
   };
 }
 
-// O1 (the /omni-video endpoint) is NOT a continuous range like 3.0. Kling only accepts an
-// arbitrary duration when the request carries a `refer_image`; on a frames-only request it
-// rejects anything but 5 or 10:
-//   400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}
-// Two non-contiguous stops can't be expressed as a slider, so O1 gets a chip select instead.
-// D100 added `refer_image`, so 3–15 IS reachable once a reference is attached — the list stays at
-// 5/10 because the param spec is static and cannot narrow itself back when the last reference is
-// removed. Widening it needs a rule that pins 5/10 at referenceCount 0, not just a longer list.
-// Stores a STRING where 3.0's slider stores a number; both settings builders coerce with
-// Number(), so either survives the round trip.
-function durationSelectParam(options: string[], defaultValue: string): ParamSpec {
-  return {
-    name: "duration",
-    label: "Duration",
-    component: "select",
-    group: "primary",
-    order: 1,
-    visible: true,
-    defaultValue,
-    constraints: { type: "select", options },
-  };
-}
-
 // PRIMARY, beside Resolution and Duration (BUG-011). It was filed under Advanced as "a genuine
 // fine-tune", but whether a clip has sound is a primary decision — and in the collapsed section
 // nobody found it, so Kling clips shipped silent without anyone choosing that. Every other model
@@ -179,20 +156,37 @@ export const kling30OmniParams: ParamSpec[] = [
   negativePromptParam,
 ];
 
-// audio is native/off, NOT original/off. The omni endpoint's enum is native | original | off,
-// but `original` means "retain the original sound of the reference video" — it only applies to a
-// base_video / feature_video request, and buildKlingContents never sends one. Offering it gave
-// O1 users a choice between silence and silence; `native` (audio matching the visuals) is the
-// only way to actually get sound out of this model in our flow.
+// D484 — O1 as fal serves it: both fal O1 endpoints are 1080p only and silent, so Resolution and
+// Audio are gone (a saved node's old values are ignored; cost.ts prices O1 flat). Aspect ratio
+// applies whenever references are attached, because a start frame then rides fal's reference
+// endpoint as image 1 (providers/kling-fal.ts).
+//
+// Duration stays the 5/10 chip select. fal's O1 page lists 3–10 s, but its live validator rejects
+// anything else on a frames-only request — 422 "Duration only support 5 or 10 seconds when no
+// refer image" (staging, 10 Nov 2026) — exactly Kling's own code-1201 rule. Runtime behaviour wins
+// over the doc table, as it did before D484; a static spec cannot widen itself only when a
+// reference is attached.
+const o1AspectRatioParam: ParamSpec = {
+  ...aspectRatioParam,
+  description: "Used whenever reference images are attached.",
+};
+
+function durationSelectParam(options: string[], defaultValue: string): ParamSpec {
+  return {
+    name: "duration",
+    label: "Duration",
+    component: "select",
+    group: "primary",
+    order: 1,
+    visible: true,
+    defaultValue,
+    constraints: { type: "select", options },
+  };
+}
+
 export const klingO1Params: ParamSpec[] = [
-  resolutionParam(["720p", "1080p"], "720p"),
   durationSelectParam(["5", "10"], "5"),
-  audioParam(
-    ["native", "off"],
-    "native",
-    "Native sound matched to the visuals, spoken lines included. No extra cost on this model.",
-  ),
   multiShotParam,
-  aspectRatioParam,
+  o1AspectRatioParam,
   negativePromptParam,
 ];
