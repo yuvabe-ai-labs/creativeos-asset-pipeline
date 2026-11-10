@@ -77,14 +77,16 @@ update org_memberships m set preset_id = p.id
 
 alter table org_memberships alter column preset_id set not null;
 create index if not exists org_memberships_preset_id_idx on org_memberships (preset_id);
+create index if not exists org_memberships_invited_by_idx on org_memberships (invited_by);
 
 -- Until plan 3 retires the org_role writers (addOrgMember / updateMemberRole), keep preset_id
 -- following org_role. Named with "0_" so it fires BEFORE org_memberships_last_owner (Postgres
 -- fires same-event triggers in name order) and the last-owner check sees the new preset.
+-- Definer: reads role_presets, which is default-deny under RLS, so it must not depend on the caller's privileges.
 create or replace function sync_preset_from_org_role()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  if tg_op = 'INSERT' or new.org_role is distinct from old.org_role then
+  if (tg_op = 'INSERT' and new.preset_id is null) or (tg_op = 'UPDATE' and new.org_role is distinct from old.org_role) then
     select id into new.preset_id from role_presets where key = new.org_role;
   end if;
   return new;
@@ -97,8 +99,9 @@ create trigger org_memberships_0_sync_preset
   for each row execute function sync_preset_from_org_role();
 
 -- Last owner (D80/D181), now on presets. Same messages as 0012: removeOrgMemberAction shows them.
+-- Definer: reads role_presets and counts owners across memberships under RLS; without it the guard can silently pass.
 create or replace function enforce_last_owner()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare
   was_owner   boolean;
   still_owner boolean;
@@ -134,8 +137,13 @@ create table if not exists membership_permission_changes (
   foreign key (user_id, org_id) references org_memberships (user_id, org_id) on delete cascade
 );
 
-alter table clients drop constraint if exists clients_id_org_unique;
-alter table clients add constraint clients_id_org_unique unique (id, org_id);
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'clients_id_org_unique') then
+    alter table clients add constraint clients_id_org_unique unique (id, org_id);
+  end if;
+end
+$$;
 
 create table if not exists membership_clients (
   user_id   uuid not null,
@@ -165,8 +173,10 @@ create table if not exists org_invitations (
   revoked_at   timestamptz
 );
 create unique index if not exists org_invitations_one_open_per_email
-  on org_invitations (org_id, email) where accepted_at is null and revoked_at is null;
+  on org_invitations (org_id, lower(email)) where accepted_at is null and revoked_at is null;
 create index if not exists org_invitations_org_idx on org_invitations (org_id);
+create index if not exists org_invitations_preset_id_idx on org_invitations (preset_id);
+create index if not exists org_invitations_invited_by_idx on org_invitations (invited_by);
 
 -- Default-deny like 0017: only the service-role server path reads or writes these.
 alter table role_presets enable row level security;
