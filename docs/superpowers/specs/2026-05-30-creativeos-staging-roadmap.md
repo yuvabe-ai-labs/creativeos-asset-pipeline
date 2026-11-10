@@ -2791,7 +2791,7 @@ editor on the unmerged `feat/video-editor` branch; numbering this work D149 woul
 the moment either branch merged. The gap is deliberate, not lost history — see
 `2026-08-21-internal-approval-workflow-design.md` §2.1.
 
-### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(**SUPERSEDED by D491**; recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
 
 **Decision.** `addOrgMember` / `updateMemberRole` extend the `/admin/orgs/[id]` Members
 card with an add-member dialog and a per-row role `Select`. Org owners cannot provision
@@ -8613,3 +8613,116 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Unverified, accepted (Q8).** That fal's O3 reference endpoint takes a start frame and `image_urls` together; that embedded (data URI) images from the shape fitter are accepted; whether frames count toward fal's 7-image budget (the 5-reference cap stays); fal's per-shot text limit, since confirmed at 512 by fal's own 422. The first staging generations are the check; `KLING_TRANSPORT=native` is the fallback.
 
 **Originated →** this session; plan in the "Kling fal Migration Plan" artifact.
+
+### D489 — Access is a preset plus per-person ticks, stored in the database; the list of areas lives in code *(recorded 2026-11-11; refines D43, D188; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Decision.** A permission is `area.level`:
+- 21 areas
+- levels view, edit, generate, approve, share, delete; each area offers only the levels that apply
+
+Presets (`role_presets`, `role_preset_permissions`) are one platform-wide set, edited by the super admin: Owner (fixed, everything), Senior, Designer.
+
+A membership stores its preset plus the ticks its owner added or removed (`membership_permission_changes`). People follow their preset: preset edits and new areas reach them, and the owner's changes stay on top. Any tick in an area grants that area's view.
+
+The catalogue of areas and levels is code (`src/lib/permissions/catalogue.ts`). A new area ships with a migration that adds it to the right presets.
+
+Migration:
+- `org_role` is replaced by `preset_id`, and dropped once nothing reads it.
+- The last-owner trigger counts `is_owner` presets.
+- On day one, Senior and Designer keep exactly today's access, including creating clients and seeing credit usage. Owner gains `team.*`.
+
+**Why.**
+- User, 6–11 Nov 2026 (access proposal for the lead): tick permissions per person, presets fill the ticks, no custom roles, presets set up by us, permissions configurable in the database.
+- A tick only means something where the server checks it, so an area that exists only in the database would be a tick that does nothing. Everything an admin changes lives in the database.
+- Following the preset (user's choice, 11 Nov) means a new feature's area doesn't need a per-person decision.
+
+**Rejected.**
+- Ticks copied once at invite (every new area would need a manual backfill).
+- Per-agency presets and owner-made presets (user: one platform-wide set).
+- New fixed roles.
+- An area catalogue in the database (it can't add a check).
+- Approve on `internal_review` as well as on each production area (two ticks deciding one action). Approving a version needs Approve on the node's area.
+
+### D490 — Each person sees all clients or a picked list; out of scope is a 404 *(recorded 2026-11-11; extends D44; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Decision.** Scope is `org_memberships.all_clients` (true includes future clients) or a picked list in `membership_clients`. Its composite foreign key `(client_id, org_id)` stops a person being given another agency's client.
+
+Enforcement:
+- `withClient`, `withCanvas`, `withNode` and `withMoodboard` add the scope check after the org check and return 404, exactly like a foreign org.
+- Every handler and server action names its permission through a required `need` argument.
+- A coverage test fails on any route or action that neither declares a permission nor sits on a reasoned allowlist, and on any catalogue key that no check uses.
+- Lists (clients, review inbox) filter by scope.
+- A person with a picked list who creates a client gets it added to their list.
+
+**Why.** The lead's hierarchy (proposal §01): a designer works on Jackfruit only. Today every member sees every client, and the only role gate is approval (D166), so scope has to be enforced where the client is already resolved. 404 keeps D44's rule of never confirming a foreign resource exists.
+
+**Rejected.** 403 for out-of-scope clients. Checks only in the UI. Ad-hoc checks per route without a coverage test.
+
+### D491 — Owners invite their own team; one invite flow for everyone, emailed through Resend *(recorded 2026-11-11; supersedes D164; refines D181; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Decision.**
+- **Team page.** An in-app Team page (`team.*`) lists members and pending invites. One dialog invites and edits: who, preset, ticks, clients.
+- **No escalation.** No one grants a tick or client they don't have, so only an Owner makes an Owner. No one edits their own access.
+- **Invites.** An invite (`org_invitations`) holds the intended access and a sha256 of a random token. The link `/invite/[token]` is emailed through Resend and can also be copied. It is single use and lasts 7 days; resending or revoking invalidates it.
+- **Accepting** creates the account with the invited email, the profile and the membership, and signs the person in.
+- **Super admin.** Onboarding an agency works the same way (create it, invite its owner). The temporary-password `addOrgMember` path is retired.
+- **Removing** a person deletes the membership. The account is deleted only when no other membership remains.
+
+**Why.**
+- User, 11 Nov 2026, on decision 2 of the access proposal: yes, owners invite their own team, with email plus a copyable link, and Resend as the sender.
+- D164 deferred self-serve invites "not rejected on the merits" because the pilot needed two seats. Agencies now need to staff themselves.
+- Our own token, rather than Supabase's invite email, lets the same link be emailed and copied, and keeps the invite's access with it.
+
+**Rejected.**
+- Temporary passwords shared by hand.
+- Copy-link only.
+- Supabase's built-in mailer (a few emails per hour).
+- Supabase invite links (they can't carry the invite's access or be shown for copying).
+
+### D492 — One agency per person for now; every grant is keyed by person and agency so several can follow *(recorded 2026-11-11; refines D80, D181; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Decision.**
+- `org_memberships_one_org_per_user` stays.
+- Every grant, change and client list is keyed by `(user_id, org_id)`.
+- Only `resolveCallerContext` turns a user into a membership.
+- The five RLS policies that use `org_id = (select … limit 1)` move to `org_id in (select auth_org_ids())` now.
+- Inviting an email that already belongs to another agency is refused with a plain message.
+
+Allowing several agencies later means three things:
+1. drop the index
+2. add an agency switcher read by `resolveCallerContext`
+3. turn that refusal into "add a membership"
+
+**Why.**
+- User, 11 Nov 2026, on decision 1: a member can belong to several agencies in future. One for now, with a flexible schema, to be confirmed with the lead.
+- With two memberships, `limit 1` would pick an arbitrary agency. Fixing it now costs one function and removes a silent cross-agency bug later.
+
+**Deferred.**
+- Decisions 3 and 4, after discussion with the lead: per-person usage limits, free trial credits, self sign-up.
+- Later, in separate specs: securing brand-client review links, a Client role.
+
+### D493 — CASL evaluates permissions on server and browser; rules arrive with the first HTML *(recorded 2026-11-11; refines D300; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Decision.**
+- **Library.** `@casl/ability` and `@casl/react`, pinned exactly.
+- **Rules.** The server builds them from the access read, only from catalogue keys and client ids in our database: level = action, area = subject, picked clients = a `clientId $in` condition.
+- **Server helpers** require `clientId` for client-scoped areas, because CASL ignores conditions when asked about a subject type.
+- **First render.** The root layout passes the packed rules into an `AccessProvider`, which seeds the `/api/me` TanStack query (replacing the hand-rolled `useIdentity` cache). The first render therefore has the right buttons. The query refetches on focus and on any 403.
+- **Rendering:**
+  - no view → hidden, and the page calls `notFound()`
+  - view only → read-only content and a non-editable canvas
+  - missing generate → a disabled `GatedButton` with the reason
+  - other missing actions → not shown
+  - checks name capabilities, never presets
+
+**Why.**
+- User, 11 Nov 2026: use a library if one handles permissions well, including conditional rendering, researched rather than guessed.
+- CASL fits the model directly, runs on server and browser with plain-JSON rules, and makes the likely next step (a different preset per client) a rule condition.
+- Its 2026 advisories (CVE-2026-1774, and a `rulesToFields` issue fixed in 7.0.2) need attacker-controlled conditions, which this design never builds.
+
+**Rejected.**
+- Hand-rolled `can()` (we'd own React gating, rule transfer and conditions).
+- Casbin (configuration overhead, no React).
+- Cerbos, OpenFGA, SpiceDB, Permit.io (a service and a network call per check, against performance rules 1 and 5).
+- Oso (open-source library deprecated).
+- Permissions in Supabase JWT claims (stale until refresh, and they bloat every token).
