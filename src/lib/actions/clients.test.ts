@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { resolveImpersonationStateMock, resolveOrgIdMock, logMock, createClientMock } = vi.hoisted(() => ({
+const { resolveImpersonationStateMock, resolveOrgIdMock, resolveActingCallerMock, logMock, createClientMock } = vi.hoisted(() => ({
   resolveImpersonationStateMock: vi.fn(async (): Promise<
     { isImpersonating: false } | { isImpersonating: true; operatorId: string; targetOrgId: string; elevated: boolean }
   > => ({ isImpersonating: false })),
   resolveOrgIdMock: vi.fn(async () => "yuvabe-org"),
+  resolveActingCallerMock: vi.fn(async (): Promise<unknown> => null),
   logMock: vi.fn(async () => undefined),
   createClientMock: vi.fn(async (args: { name: string; orgId: string }) => ({
     id: "client-1",
@@ -16,18 +17,32 @@ const { resolveImpersonationStateMock, resolveOrgIdMock, logMock, createClientMo
   })),
 }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: resolveImpersonationStateMock }));
-// The guard is covered in permissions/action-guard.test.ts; here it resolves the effective org from the same mock the test drives.
-vi.mock("@/lib/permissions/action-guard", () => ({
-  checkActionAccess: vi.fn(async () => ({ caller: { userId: "u1", orgId: "yuvabe-org" }, effectiveOrgId: await resolveOrgIdMock(), target: null })),
+// The real guard runs (checkActionAccess); only the acting caller is stubbed. An "agency" target needs no row lookup.
+vi.mock("@/lib/permissions/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/permissions/server")>()),
+  resolveActingCaller: resolveActingCallerMock,
 }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: logMock }));
 vi.mock("@/lib/db/clients", () => ({ createClient: createClientMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
 import { createClientAction } from "./clients";
 
+// effectiveOrgId follows resolveOrgIdMock, as resolveActingCaller's would.
+function wireGuard(access = testOwnerAccess()) {
+  resolveActingCallerMock.mockImplementation(async () => ({
+    caller: { userId: "u1", orgId: "own-org", access },
+    effectiveOrgId: await resolveOrgIdMock(),
+    impersonation: { isImpersonating: false },
+  }));
+}
+
 describe("createClientAction", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    wireGuard();
+  });
 
   it("creates the client under the effective org (resolveOrgId), not a hardcoded caller org", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
@@ -53,5 +68,12 @@ describe("createClientAction", () => {
     await createClientAction({ name: "Acme" });
     expect(createClientMock).toHaveBeenCalled();
     expect(logMock).toHaveBeenCalledWith(expect.objectContaining({ eventType: "write_action" }));
+  });
+
+  it("rejects when the caller lacks clients.edit", async () => {
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+    wireGuard(testAccess({ keys: [] }));
+    await expect(createClientAction({ name: "Acme" })).rejects.toThrow("You don't have access to this. Ask your agency owner.");
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 });

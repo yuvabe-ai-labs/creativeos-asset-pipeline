@@ -8,7 +8,13 @@ const {
   resolveImpersonationStateMock,
   acquireCanvasLockMock,
   getCanvasLockMock,
+  checkActionAccessMock,
+  heartbeatCanvasLockMock,
+  releaseCanvasLockMock,
 } = vi.hoisted(() => ({
+  checkActionAccessMock: vi.fn(async (): Promise<unknown> => ({})),
+  heartbeatCanvasLockMock: vi.fn(async () => undefined),
+  releaseCanvasLockMock: vi.fn(async () => undefined),
   resolveImpersonationStateMock: vi.fn(
     async (): Promise<ImpersonationStateMockResult> => ({ isImpersonating: false }),
   ),
@@ -22,25 +28,59 @@ const {
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/permissions/action-guard", () => ({ checkActionAccess: vi.fn(async () => ({})) }));
+vi.mock("@/lib/permissions/action-guard", () => ({ checkActionAccess: checkActionAccessMock }));
 vi.mock("@/lib/auth/impersonation", () => ({
   resolveImpersonationState: resolveImpersonationStateMock,
 }));
 vi.mock("@/lib/db/canvas-lock", () => ({
   acquireCanvasLock: acquireCanvasLockMock,
-  heartbeatCanvasLock: vi.fn(async () => undefined),
-  releaseCanvasLock: vi.fn(async () => undefined),
+  heartbeatCanvasLock: heartbeatCanvasLockMock,
+  releaseCanvasLock: releaseCanvasLockMock,
   getCanvasLock: getCanvasLockMock,
 }));
 
-import { acquireCanvasLockAction } from "./canvas-lock";
+import {
+  acquireCanvasLockAction,
+  heartbeatCanvasLockAction,
+  releaseCanvasLockAction,
+  getCanvasLockAction,
+} from "./canvas-lock";
+
+function resetMocks() {
+  resolveImpersonationStateMock.mockReset().mockResolvedValue({ isImpersonating: false });
+  acquireCanvasLockMock.mockReset().mockResolvedValue({ ok: true });
+  getCanvasLockMock.mockReset().mockResolvedValue({ heldBy: null, heartbeatAt: null });
+  checkActionAccessMock.mockReset().mockResolvedValue({});
+  heartbeatCanvasLockMock.mockClear();
+  releaseCanvasLockMock.mockClear();
+}
+
+describe("lock actions declare their permission", () => {
+  beforeEach(resetMocks);
+
+  it("acquire and heartbeat need canvases.edit on the canvas", async () => {
+    await acquireCanvasLockAction("canvas-1", "s1", "Op");
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "canvases.edit", on: { canvasId: "canvas-1" } });
+    await heartbeatCanvasLockAction("canvas-1", "s1");
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "canvases.edit", on: { canvasId: "canvas-1" } });
+  });
+
+  it("release and get need canvases.view on the canvas", async () => {
+    await releaseCanvasLockAction("canvas-1", "s1");
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "canvases.view", on: { canvasId: "canvas-1" } });
+    await getCanvasLockAction("canvas-1");
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "canvases.view", on: { canvasId: "canvas-1" } });
+  });
+
+  it("acquire does not write the lock when the guard rejects", async () => {
+    checkActionAccessMock.mockRejectedValue(new Error("Not found."));
+    await expect(acquireCanvasLockAction("canvas-1", "s1", "Op")).rejects.toThrow("Not found.");
+    expect(acquireCanvasLockMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("acquireCanvasLockAction", () => {
-  beforeEach(() => {
-    resolveImpersonationStateMock.mockReset().mockResolvedValue({ isImpersonating: false });
-    acquireCanvasLockMock.mockReset().mockResolvedValue({ ok: true });
-    getCanvasLockMock.mockReset().mockResolvedValue({ heldBy: null, heartbeatAt: null });
-  });
+  beforeEach(resetMocks);
 
   it("does not acquire the lock while impersonating read-only (returns the current lock state instead)", async () => {
     resolveImpersonationStateMock.mockResolvedValue({

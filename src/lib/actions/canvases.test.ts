@@ -6,7 +6,9 @@ type ImpersonationStateMockResult =
   | { isImpersonating: false }
   | { isImpersonating: true; operatorId: string; targetOrgId: string; elevated: boolean };
 
-const { resolveImpersonationStateMock, resolveOrgIdMock, createCanvasMock, getScriptCanvasMock, getScriptMock, getClientByIdMock } = vi.hoisted(() => ({
+const { resolveImpersonationStateMock, resolveOrgIdMock, resolveTargetMock, resolveActingCallerMock, createCanvasMock, getScriptCanvasMock, getScriptMock, getClientByIdMock } = vi.hoisted(() => ({
+  resolveTargetMock: vi.fn(async (): Promise<{ clientId: string | null; orgId: string } | null> => null),
+  resolveActingCallerMock: vi.fn(async (): Promise<unknown> => null),
   getClientByIdMock: vi.fn(async (): Promise<unknown> => null),
   getScriptCanvasMock: vi.fn(async (): Promise<unknown> => null),
   getScriptMock: vi.fn(async (): Promise<unknown> => null),
@@ -21,9 +23,11 @@ const { resolveImpersonationStateMock, resolveOrgIdMock, createCanvasMock, getSc
 }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: resolveImpersonationStateMock }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn(async () => undefined) }));
-// The guard is covered in permissions/action-guard.test.ts; here it resolves the effective org from the same mock the test drives.
-vi.mock("@/lib/permissions/action-guard", () => ({
-  checkActionAccess: vi.fn(async () => ({ caller: { userId: "u1", orgId: "yuvabe-org" }, effectiveOrgId: await resolveOrgIdMock(), target: null })),
+// The real guard runs (checkActionAccess); only its two inputs are stubbed: the acting caller and the target row.
+vi.mock("@/lib/permissions/targets", () => ({ resolveTarget: resolveTargetMock }));
+vi.mock("@/lib/permissions/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/permissions/server")>()),
+  resolveActingCaller: resolveActingCallerMock,
 }));
 vi.mock("@/lib/db/canvases", () => ({
   createCanvas: createCanvasMock,
@@ -38,10 +42,24 @@ vi.mock("@/lib/db/nodes", () => ({ saveCanvasNodes: vi.fn(async () => undefined)
 vi.mock("@/lib/db/edges", () => ({ saveCanvasEdges: vi.fn(async () => undefined) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+import { testOwnerAccess } from "@/lib/permissions/test-fixtures";
 import { createCanvasAction, createCanvasFromScriptAction } from "./canvases";
 
+// effectiveOrgId follows resolveOrgIdMock; the target row sits in `targetOrg` (default: the same org).
+function wireGuard(targetOrg?: string) {
+  resolveActingCallerMock.mockImplementation(async () => ({
+    caller: { userId: "u1", orgId: "own-org", access: testOwnerAccess() },
+    effectiveOrgId: await resolveOrgIdMock(),
+    impersonation: { isImpersonating: false },
+  }));
+  resolveTargetMock.mockImplementation(async () => ({ clientId: "client-1", orgId: targetOrg ?? (await resolveOrgIdMock()) }));
+}
+
 describe("createCanvasAction", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    wireGuard();
+  });
 
   it("creates the canvas under the effective org (resolveOrgId), not the caller's own org", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
@@ -64,6 +82,16 @@ describe("createCanvasAction", () => {
     ).rejects.toThrow("Read-only while impersonating");
     expect(createCanvasMock).not.toHaveBeenCalled();
   });
+
+  it("rejects with Not found. when the client sits in a different org than the effective one", async () => {
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+    resolveOrgIdMock.mockResolvedValue("target-org");
+    wireGuard("other-org");
+    await expect(
+      createCanvasAction({ clientId: "client-1", clientSlug: "acme", name: "Reel 1" }),
+    ).rejects.toThrow("Not found.");
+    expect(createCanvasMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("createCanvasFromScriptAction", () => {
@@ -71,6 +99,7 @@ describe("createCanvasFromScriptAction", () => {
   const input = { clientId: "client-1", clientSlug: "acme", scriptId: "script-1", name: "Reel 12 · Golu starts today" };
   beforeEach(() => {
     vi.resetAllMocks();
+    wireGuard();
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
     resolveOrgIdMock.mockResolvedValue("org-1");
     getClientByIdMock.mockResolvedValue({ id: "client-1", org_id: "org-1" });
