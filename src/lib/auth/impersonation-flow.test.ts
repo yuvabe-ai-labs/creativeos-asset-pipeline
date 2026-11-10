@@ -96,20 +96,20 @@ describe("Stage 4 impersonation — checklist scenarios", () => {
 
   it("entering impersonation resolves the target org's data", async () => {
     await startImpersonation("target-org");
-    const res = await withClient(req("GET"), params, async () => NextResponse.json({ ok: true }));
+    const res = await withClient(req("GET"), params, { need: "scripts.view" }, async () => NextResponse.json({ ok: true }));
     expect(res.status).toBe(200); // client-1 belongs to target-org, so it resolves — not a 404
   });
 
   it("a write while non-elevated is blocked", async () => {
     await startImpersonation("target-org");
-    const res = await withClient(req("POST"), params, async () => NextResponse.json({ ok: true }));
+    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, async () => NextResponse.json({ ok: true }));
     expect(res.status).toBe(403);
   });
 
   it("enter elevated -> write -> exit produces exactly 3 ordered audit rows", async () => {
     await startImpersonation("target-org");
     await enterElevatedMode();
-    await withClient(req("POST"), params, async () => NextResponse.json({ ok: true }));
+    await withClient(req("POST"), params, { need: "scripts.edit" }, async () => NextResponse.json({ ok: true }));
     await endImpersonation();
 
     expect(auditRows.map((r) => r.event_type)).toEqual([

@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { getClientById } from "@/lib/db/clients";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { ClientRow, CanvasRow, NodeRow } from "@/lib/db/types";
-import { resolveOrgId, resolveCallerContext, type CallerContext } from "@/lib/dal";
-import { resolveImpersonationState } from "@/lib/auth/impersonation";
+import type { CallerContext } from "@/lib/dal";
+import { resolveImpersonationState, type ImpersonationState } from "@/lib/auth/impersonation";
+import { accessOf, resolveActingCaller } from "@/lib/permissions/server";
+import { denialFor, FORBIDDEN_MESSAGE, type Denial } from "@/lib/permissions/check";
+import type { PermissionKey } from "@/lib/permissions/catalogue";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
@@ -23,21 +26,27 @@ function unwrapEmbed<T>(value: T | T[] | null | undefined): T | null {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyResponse = NextResponse<any>;
 
+// D490: every handler names the one permission it needs. Required, so TypeScript forces the
+// decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
+export type Guard = { need: PermissionKey };
+
+function denial(denied: Denial, notFoundMessage: string): AnyResponse {
+  return denied === "not_found" ? apiError(notFoundMessage, 404) : apiError(FORBIDDEN_MESSAGE, 403);
+}
+
 // The Stage 4 write-gate (D81): while impersonating and not in elevated mode, every
 // non-GET/HEAD request is blocked before its handler runs. Allowed writes while
 // elevated are audit-logged here too, so every call site that adopts this gate gets
 // both behaviors for free — no per-route bookkeeping.
 export async function assertImpersonationWriteAllowed(req: Request): Promise<AnyResponse | null> {
+  return writeGate(req, await resolveImpersonationState());
+}
+
+async function writeGate(req: Request, impersonation: ImpersonationState): Promise<AnyResponse | null> {
   const method = req.method.toUpperCase();
   if (method === "GET" || method === "HEAD") return null;
-
-  const impersonation = await resolveImpersonationState();
   if (!impersonation.isImpersonating) return null;
-
-  if (!impersonation.elevated) {
-    return apiError(IMPERSONATION_READ_ONLY_MESSAGE, 403);
-  }
-
+  if (!impersonation.elevated) return apiError(IMPERSONATION_READ_ONLY_MESSAGE, 403);
   await logImpersonationEvent({
     operatorId: impersonation.operatorId,
     targetOrgId: impersonation.targetOrgId,
@@ -74,24 +83,22 @@ export function apiOk<T extends Record<string, unknown>>(
 export async function withClient(
   req: Request,
   params: Promise<{ id: string }>,
-  handler: (clientId: string, client: ClientRow) => Promise<AnyResponse>,
+  guard: Guard,
+  handler: (clientId: string, client: ClientRow, caller: CallerContext) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: clientId } = await params;
-  const client = await getClientById(clientId);
-  if (!client) return apiError("Client not found.", 404);
+  // The client lookup and the caller don't depend on each other (same reasoning as withNode).
+  const [client, acting] = await Promise.all([getClientById(clientId), resolveActingCaller()]);
+  // Org isolation: 404, never 403 — do not confirm foreign resources exist.
+  if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Client not found.", 404);
 
-  // Org isolation: a client outside the effective org (the caller's own org, or the
-  // impersonation target when active — resolveOrgId() decides which) is a 404 (never
-  // 403 — do not confirm foreign resources exist).
-  const effectiveOrgId = await resolveOrgId();
-  if (client.org_id !== effectiveOrgId) {
-    return apiError("Client not found.", 404);
-  }
+  const denied = denialFor(accessOf(acting.caller), guard.need, clientId);
+  if (denied) return denial(denied, "Client not found.");
 
-  const blocked = await assertImpersonationWriteAllowed(req);
+  const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
-  return handler(clientId, client);
+  return handler(clientId, client, acting.caller);
 }
 
 // ── Canvas resolution ──────────────────────────────────────────────────────────
@@ -108,30 +115,30 @@ type CanvasWithOrg = CanvasRow & {
 export async function withCanvas(
   req: Request,
   params: Promise<{ id: string }>,
-  handler: (canvasId: string, canvas: CanvasRow) => Promise<AnyResponse>,
+  guard: Guard,
+  handler: (canvasId: string, canvas: CanvasRow, caller: CallerContext) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: canvasId } = await params;
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("canvases")
-    .select("*, clients!inner(org_id)")
-    .eq("id", canvasId)
-    .maybeSingle();
+  const [{ data, error }, acting] = await Promise.all([
+    supabase.from("canvases").select("*, clients!inner(org_id)").eq("id", canvasId).maybeSingle(),
+    resolveActingCaller(),
+  ]);
   if (error) throw error;
   if (!data) return apiError("Canvas not found.", 404);
 
   const row = data as unknown as CanvasWithOrg;
   const client = unwrapEmbed(row.clients);
-  const effectiveOrgId = await resolveOrgId();
-  if (!client || client.org_id !== effectiveOrgId) {
-    return apiError("Canvas not found.", 404);
-  }
+  if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Canvas not found.", 404);
 
-  const blocked = await assertImpersonationWriteAllowed(req);
+  const denied = denialFor(accessOf(acting.caller), guard.need, row.client_id);
+  if (denied) return denial(denied, "Canvas not found.");
+
+  const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
   const { clients: _clients, ...canvas } = row;
-  return handler(canvasId, canvas as CanvasRow);
+  return handler(canvasId, canvas as CanvasRow, acting.caller);
 }
 
 // ── Node resolution ───────────────────────────────────────────────────────────
@@ -154,6 +161,7 @@ type NodeWithOrgChain = NodeRow & {
 export async function withNode(
   req: Request,
   params: Promise<{ id: string }>,
+  guard: Guard,
   handler: (
     nodeId: string,
     node: NodeRow,
@@ -173,42 +181,41 @@ export async function withNode(
   // the impersonation cookie don't depend on each other, so they run side by side — this
   // wrapper fronts every node route, the focus views' reads included.
   //
-  // The caller is resolved ONCE and the effective org derived from it here, rather than via
-  // resolveOrgId(): React's cache() does not dedupe inside route handlers, so calling both
-  // ran the Auth check and membership read twice per request, back to back.
-  const [{ data, error }, caller, impersonation] = await Promise.all([
+  // The caller is resolved ONCE (resolveActingCaller): React's cache() does not dedupe inside
+  // route handlers, so resolving it twice would re-run the Auth check and membership read.
+  const [{ data, error }, acting] = await Promise.all([
     supabase
       .from("nodes")
       .select("*, canvases!inner(client_id, clients!inner(org_id))")
       .eq("id", nodeId)
       .maybeSingle(),
-    resolveCallerContext(),
-    resolveImpersonationState(),
+    resolveActingCaller(),
   ]);
   if (error) throw error;
   if (!data) return options?.onNotFound?.() ?? apiError("Node not found.", 404);
-  // Same rule as resolveOrgId(): the impersonation target while a live session is active
-  // (D81), else the caller's own org.
-  const effectiveOrgId = impersonation.isImpersonating ? impersonation.targetOrgId : caller.orgId;
 
   const row = data as unknown as NodeWithOrgChain;
   const canvas = unwrapEmbed(row.canvases);
   const client = canvas ? unwrapEmbed(canvas.clients) : null;
-  if (!canvas || !client || client.org_id !== effectiveOrgId) {
+  if (!canvas || !client || client.org_id !== acting.effectiveOrgId) {
     return apiError("Node not found.", 404);
   }
 
-  const blocked = await assertImpersonationWriteAllowed(req);
+  const denied = denialFor(accessOf(acting.caller), guard.need, canvas.client_id);
+  if (denied) return denial(denied, "Node not found.");
+
+  const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
   const { canvases: _canvases, ...node } = row;
-  return handler(nodeId, node as NodeRow, caller, canvas.client_id, effectiveOrgId);
+  return handler(nodeId, node as NodeRow, acting.caller, canvas.client_id, acting.effectiveOrgId);
 }
 
 // ── Moodboard resolution ──────────────────────────────────────────────────────
 
 type MoodboardWithOrg = {
   id: string;
+  client_id: string;
   clients: { org_id: string } | { org_id: string }[] | null;
 };
 
@@ -220,28 +227,48 @@ type MoodboardWithOrg = {
 export async function withMoodboard(
   req: Request,
   moodboardId: string,
+  guard: Guard,
   handler: (moodboardId: string, caller: CallerContext) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("moodboards")
-    .select("id, clients!inner(org_id)")
-    .eq("id", moodboardId)
-    .maybeSingle();
+  const [{ data, error }, acting] = await Promise.all([
+    supabase
+      .from("moodboards")
+      .select("id, client_id, clients!inner(org_id)")
+      .eq("id", moodboardId)
+      .maybeSingle(),
+    resolveActingCaller(),
+  ]);
   if (error) throw error;
   if (!data) return apiError("Moodboard not found.", 404);
 
-  const client = unwrapEmbed((data as unknown as MoodboardWithOrg).clients);
-  const effectiveOrgId = await resolveOrgId();
-  if (!client || client.org_id !== effectiveOrgId) {
-    return apiError("Moodboard not found.", 404);
-  }
+  const row = data as unknown as MoodboardWithOrg;
+  const client = unwrapEmbed(row.clients);
+  if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Moodboard not found.", 404);
 
-  const blocked = await assertImpersonationWriteAllowed(req);
+  const denied = denialFor(accessOf(acting.caller), guard.need, row.client_id);
+  if (denied) return denial(denied, "Moodboard not found.");
+
+  const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
-  const caller = await resolveCallerContext();
-  return handler(moodboardId, caller);
+  return handler(moodboardId, acting.caller);
+}
+
+// For routes not rooted at one client or resource: the voice library, the moodboard index, the
+// review inbox and counts. A client-scoped key passes when held for at least one client; the
+// handler then filters what it returns with canSeeClient (D490).
+export async function withAccess(
+  req: Request,
+  guard: Guard,
+  handler: (caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const acting = await resolveActingCaller();
+  const denied = denialFor(accessOf(acting.caller), guard.need, null);
+  if (denied) return denial(denied, "Not found.");
+  const blocked = await writeGate(req, acting.impersonation);
+  if (blocked) return blocked;
+  return handler(acting.caller, acting.effectiveOrgId);
 }
 
 // ── Share-token resolution (D309) ─────────────────────────────────────────────
