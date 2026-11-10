@@ -106,8 +106,12 @@ const KLING_RESOLUTION_PRICING: Record<string, KlingResolutionRates> = {
   // used for 3.0 above, per this line's own prior comment) was overcharging every O1
   // generation with audio enabled. Flat rate now, matching the real "No Video Input" row
   // exactly — off and on both true, since audio doesn't move the price for this model.
+  // D484 — fal serves O1 at 1080p only, silent, $0.112/s on both its O1 endpoints. The node no
+  // longer offers resolution or audio, but saved nodes still carry "720p" and "native", so every
+  // key a saved or new node can send prices at the flat rate rather than returning null (which
+  // would refuse the generation).
   "kling:kling-o1": {
-    "720p": { off: 0.084, on: 0.084 },
+    "720p": { off: 0.112, on: 0.112 },
     "1080p": { off: 0.112, on: 0.112 },
   },
   // Source: kling.ai/document-api/pricing/base/video, the real table supplied by the operator

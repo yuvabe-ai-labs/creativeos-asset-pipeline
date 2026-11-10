@@ -9,6 +9,7 @@ import type { MultishotCapability, LadderCheck } from "./multishot-models";
 import { dialectForCapability } from "./prompt-token-dialect";
 import { renderRefs, toStoredRefs, citedRefIds, type RefEntry } from "./ref-binding";
 import { renderVoiceover } from "./voiceover";
+import { NO_ON_SCREEN_TEXT_LINE, SHORT_SOUND_LINE_MAX_CHARS } from "@/lib/video-gen/compose-omni-prompt";
 import type { VoLine } from "./reel-script";
 import { asRefRoles, type RefRoleEntry } from "./ref-roles";
 
@@ -151,6 +152,28 @@ export const SEQUENCE_VO_PREFIX = "Spoken over the whole sequence, in order: ";
  */
 export function sequenceVoPrefix(totalSeconds: number): string {
   return `Spoken over the whole sequence (0-${totalSeconds}s), starting in the first second and finished before ${totalSeconds}s, in order: `;
+}
+
+/** D484 — whether a prompt paragraph is the sequence voiceover `sequenceVoPrefix` introduces. */
+export function isSequenceVoParagraph(paragraph: string): boolean {
+  return /^Spoken over the whole sequence \(0-\d+s\), /.test(paragraph.trim());
+}
+
+/**
+ * D484 — the same introduction in fewer characters, for fal's Kling shot list (512 per shot). It
+ * keeps the window, the first-second start, the finish and the order, so the shot needs no
+ * separate SPEECH_TIMING sentence on top.
+ */
+export function shortSequenceVoPrefix(totalSeconds: number): string {
+  return `Spoken in order over the whole clip (0-${totalSeconds}s), starting in the first second, done by ${totalSeconds}s: `;
+}
+
+/** `sequenceVoPrefix` on a voiceover paragraph swapped for `shortSequenceVoPrefix`. */
+export function withShortSequenceVoPrefix(paragraph: string): string {
+  return paragraph.replace(
+    /^Spoken over the whole sequence \(0-(\d+)s\), starting in the first second and finished before \d+s, in order: /,
+    (_, total: string) => shortSequenceVoPrefix(Number(total)),
+  );
 }
 
 /**
@@ -363,16 +386,29 @@ export function checkPlanLimits(
   plan = renderPlanRefs(plan, cap, refIds);
   if (cap.maxCutChars !== null) {
     const byId = new Map(plan.beats.map((b) => [b.cutId, b.text]));
+    // D484 — on fal a triple-format (Kling) ladder is sent as one entry per shot (providers/
+    // kling-fal.ts buildShotList): a short rules line and the look in every shot, plus the sequence
+    // voiceover and the speech timing in the first. So a shot's budget is what that entry carries,
+    // not the beat alone. The rules line is counted at its longest form; the roles line is not
+    // counted, because the provider drops it from a shot that would not fit.
+    const triple = cap.shotFormat === "triple";
+    const total = cuts.reduce((n, c) => n + c.seconds, 0);
+    const look = triple ? plan.look.trim() : "";
+    const vo = triple ? renderVoiceover(sequenceVoiceover) : "";
+    const rulesReserve = triple ? "x".repeat(NO_ON_SCREEN_TEXT_LINE.length + 1 + SHORT_SOUND_LINE_MAX_CHARS) : "";
     for (const [i, cut] of cuts.entries()) {
-      // Measured on what is SENT. D307 — no voiceover rides a cut any more, so a beat's budget is
-      // the beat alone; the sequence's lines are measured with the whole prompt below.
-      const text = (byId.get(cut.id) ?? "").trim();
+      const beat = (byId.get(cut.id) ?? "").trim();
+      // The short voiceover introduction already carries the timing, so no SPEECH_TIMING with it.
+      const first = i === 0 && vo ? [`${shortSequenceVoPrefix(total)}${vo}`] : [];
+      const shared = [look, ...first].filter(Boolean);
+      const text = [rulesReserve, ...shared, beat].filter(Boolean).join("\n\n");
       if (text.length > cap.maxCutChars) {
         return {
           ok: false,
           reason:
-            `Shot ${i + 1} is ${text.length} characters · ` +
-            `${cap.label} allows ${cap.maxCutChars}. Shorten it, or rewrite that shot with AI.`,
+            `Shot ${i + 1} is ${text.length} characters` +
+            (triple ? " with the shared rules" + (look ? " and look" : "") : "") +
+            ` · ${cap.label} allows ${cap.maxCutChars}. Shorten it, or rewrite that shot with AI.`,
         };
       }
     }

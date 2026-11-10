@@ -348,12 +348,36 @@ describe("checkPlanLimits", () => {
       look: "y".repeat(3000),
       beats: [{ cutId: "c1", text: "x".repeat(400) }, { cutId: "c2", text: "x".repeat(400) }],
     };
-    const res = checkPlanLimits(long, planCuts, KLING);
+    // Per-shot cap off, so the whole-prompt cap is what this measures: with it on, the 3000-char
+    // look already fails shot 1 (D484 — the look rides every shot on fal).
+    const res = checkPlanLimits(long, planCuts, { ...KLING, maxCutChars: null });
     expect(res.ok).toBe(false);
     if (!res.ok) {
       expect(res.reason).toContain("3072");
       expect(res.reason).toContain("Shorten the rules or the longest shots.");
     }
+  });
+
+  // D484 — on fal each shot is sent with the look repeated, so the per-shot cap measures both.
+  it("counts the shared look against every shot's own cap", () => {
+    const res = checkPlanLimits(
+      { ...perModelPlan, look: "y".repeat(250), beats: [{ cutId: "c1", text: "a" }, { cutId: "c2", text: "x".repeat(200) }] },
+      planCuts,
+      KLING,
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toContain("Shot 2");
+      expect(res.reason).toContain("with the shared rules and look");
+    }
+  });
+
+  it("counts the sequence voiceover against the first shot only", () => {
+    const vo: VoLine[] = [{ text: "x".repeat(450), speaker: "narrator" }];
+    const plan = { ...perModelPlan, look: "", beats: [{ cutId: "c1", text: "a" }, { cutId: "c2", text: "b" }] };
+    const res = checkPlanLimits(plan, planCuts, KLING, [], vo);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toContain("Shot 1");
   });
 
   // Measured on what is actually SENT, not on the raw beats: the rendered string carries the
@@ -373,7 +397,8 @@ describe("checkPlanLimits", () => {
       { id: "c1", text: "", seconds: 2, voiceover: [{ text: "x".repeat(200), speaker: "narrator" }] },
       { id: "c2", text: "", seconds: 3 },
     ];
-    const plan = { ...perModelPlan, beats: [{ cutId: "c1", text: "y".repeat(400) }, perModelPlan.beats[1]] };
+    // 250, not 400: D484 reserves the short rules line in every Kling shot.
+    const plan = { ...perModelPlan, beats: [{ cutId: "c1", text: "y".repeat(250) }, perModelPlan.beats[1]] };
     expect(checkPlanLimits(plan, cutsWithVo, KLING)).toEqual({ ok: true });
   });
 });
@@ -698,7 +723,8 @@ describe("plan reference binding (BUG-010)", () => {
   });
 
   it("measures Kling's per-shot limit on the RENDERED beat, not the longer stored id form", () => {
-    const beat = `${"x".repeat(500)} @[File: A-very-long-reference-name.png](a)`;
+    // Fits once rendered (`@image_1`), not in the stored form; sized under D484's rules-line reserve.
+    const beat = `${"x".repeat(350)} @[File: A-very-long-reference-name.png](a)`;
     const p: MultishotPlan = { version: 1, look: "", beats: [{ cutId: "c1", text: beat }] };
     expect(checkPlanLimits(p, [{ id: "c1", text: "", seconds: 3 }], KLING, ["a"])).toEqual({ ok: true });
   });
@@ -811,7 +837,8 @@ describe("renderPlan — sequence voiceover", () => {
 
   it("counts against the whole-prompt budget, not any cut's", () => {
     const long: VoLine[] = [{ text: "x".repeat(KLING.maxPromptChars!), speaker: "narrator" }];
-    const result = checkPlanLimits(perModelPlan, planCuts, KLING, [], long);
+    // Per-shot cap off: on Kling the voiceover now also rides shot 1 (D484), which fails first.
+    const result = checkPlanLimits(perModelPlan, planCuts, { ...KLING, maxCutChars: null }, [], long);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/whole prompt/);
     expect(checkPlanLimits(perModelPlan, planCuts, KLING).ok).toBe(true);

@@ -168,10 +168,27 @@ const KLING_O1_END_FRAME_REQUIRES_START_FRAME: ConstraintRule = {
   reason: "End frame needs a start frame before you can generate",
 };
 
+// D484 — on fal, O1's references go to an endpoint with no frame fields; a start frame rides it as
+// image 1, but an end frame has no slot. Blocked here so the operator learns before Generate,
+// not from a failed run. O1 only: 3.0 Omni's fal endpoint takes both frames with references.
+const KLING_O1_END_FRAME_EXCLUDES_REFERENCES: ConstraintRule = {
+  id: "kling-o1-end-frame-excludes-references",
+  when: {
+    op: "and",
+    conditions: [
+      { field: "hasEndFrame", op: "eq", value: true },
+      { field: "referenceCount", op: "gt", value: 0 },
+    ],
+  },
+  effect: { disableGenerate: true },
+  reason: "Kling O1 can't use an end frame together with reference images. Remove one of them.",
+};
+
 // O1 exposes no multi_shot param, so it carries no multi-shot rule.
 const KLING_O1_RULES: ConstraintRule[] = [
   KLING_O1_NEEDS_START_FRAME_OR_REFERENCE,
   KLING_O1_END_FRAME_REQUIRES_START_FRAME,
+  KLING_O1_END_FRAME_EXCLUDES_REFERENCES,
 ];
 
 // The same two gates as O1 — both are properties of the /omni-video endpoint family, not of O1's
