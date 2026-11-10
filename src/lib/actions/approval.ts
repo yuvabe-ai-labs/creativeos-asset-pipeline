@@ -3,10 +3,13 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
   buildApprovalUpdate,
-  canSetApproval,
   requiresNote,
   type ApprovalStatus,
 } from "@/lib/approval";
+import { accessOf } from "@/lib/permissions/server";
+import { can, canAnywhere } from "@/lib/permissions/check";
+import { approveKeyForNodeType } from "@/lib/permissions/node-area";
+import { MEDIA_APPROVE_KEYS } from "@/lib/permissions/presets";
 import { withAction } from "@/lib/actions/with-action";
 import { insertDecision } from "@/lib/db/decisions";
 import { randomUUID } from "crypto";
@@ -43,11 +46,12 @@ export async function setVersionApprovalAction(
     const refuse = (error: string) => ({ ok: false as const, error });
     const caller = ctx.caller;
 
-    // R2.1/R2.2 — the role gate, against the caller's REAL org role. Checked before any
-    // read: a designer should not be able to probe which version ids exist. The UI also
-    // hides the control from them, but that is a courtesy on top of this, never the
+    // R2.1/R2.2, D489 — approving needs Approve on the node's area. D166 kept: refuse
+    // before any read when the person can approve nothing, so version ids can't be probed.
+    // The UI also hides the control, but that is a courtesy on top of this, never the
     // mechanism (R2.3).
-    if (!canSetApproval(caller.orgRole)) {
+    const access = accessOf(caller);
+    if (!MEDIA_APPROVE_KEYS.some((k) => canAnywhere(access, k))) {
       return refuse("You are not permitted to approve or reject work.");
     }
 
@@ -74,13 +78,26 @@ export async function setVersionApprovalAction(
     // the withClient/withNode 404-not-403 convention in route-helpers.ts.
     const { data: version, error: readErr } = await supabase
       .from("node_versions")
-      .select("id, org_id, node_id")
+      .select("id, org_id, node_id, nodes!inner(type, canvases!inner(client_id))")
       .eq("id", versionId)
       .maybeSingle();
     if (readErr) throw readErr;
-    const versionRow = version as { org_id: string | null; node_id: string | null } | null;
+    type NodeEmbed = { type: string; canvases: { client_id: string } | { client_id: string }[] | null };
+    const versionRow = version as {
+      org_id: string | null;
+      node_id: string | null;
+      nodes: NodeEmbed | NodeEmbed[] | null;
+    } | null;
     if (!versionRow || versionRow.org_id !== caller.orgId) {
       return refuse("Version not found.");
+    }
+
+    // Approve on THIS node's area, for THIS node's client.
+    const nodeEmbed = Array.isArray(versionRow.nodes) ? versionRow.nodes[0] : versionRow.nodes;
+    const canvasEmbed = nodeEmbed && (Array.isArray(nodeEmbed.canvases) ? nodeEmbed.canvases[0] : nodeEmbed.canvases);
+    const key = nodeEmbed ? approveKeyForNodeType(nodeEmbed.type) : null;
+    if (!key || !canvasEmbed || !can(access, key as "image_generation.approve", canvasEmbed.client_id)) {
+      return refuse("You are not permitted to approve or reject work.");
     }
 
     const at = new Date().toISOString();

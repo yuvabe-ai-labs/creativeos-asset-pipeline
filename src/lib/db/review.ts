@@ -11,7 +11,6 @@ import {
 // One page of a review list. Small enough that the first paint is fast on a slow
 // connection, large enough that a normal canvas needs no second fetch.
 export const DEFAULT_PAGE_SIZE = 25;
-import type { OrgRole } from "@/lib/dal-logic";
 import type { ApprovalStatus } from "@/lib/approval";
 
 // D159: every function here is a filter over the ONE review_queue_items view (migration
@@ -172,18 +171,21 @@ export async function listCanvasApprovalStatuses(
 export async function listOrgReviewInbox(
   orgId: string,
   userId: string,
-  role: OrgRole,
+  scope: { reviewTypes: readonly string[]; clientIds: readonly string[] | null },
   page: { limit: number; offset: number } = { limit: DEFAULT_PAGE_SIZE, offset: 0 },
 ): Promise<InboxItem[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from("review_queue_items")
     .select(QUEUE_COLUMNS)
     .eq("org_id", orgId)
-    // The role rule runs in SQL, not in JS after the fetch — otherwise every page comes
+    // The review-type rule runs in SQL, not in JS after the fetch — otherwise every page comes
     // back the wrong size (ask for 25, get 9). inboxFilterFor is proven equivalent to
     // selectInboxFor by queue.test.ts.
-    .or(inboxFilterFor(role, userId))
+    .or(inboxFilterFor(scope.reviewTypes, userId));
+  // null = all clients; otherwise only the person's own clients.
+  if (scope.clientIds !== null) query = query.in("client_id", [...scope.clientIds]);
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .order("version_id", { ascending: false })
     .range(page.offset, page.offset + page.limit - 1);

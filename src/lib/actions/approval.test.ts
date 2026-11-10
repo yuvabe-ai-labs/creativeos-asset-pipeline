@@ -34,6 +34,8 @@ vi.mock("@/lib/db/annotations", () => ({
 
 import { setVersionApprovalAction, markVersionApprovalSeenAction } from "./approval";
 import type { AnnotationPayload } from "@/lib/review-annotations/payload";
+import { testAccess } from "@/lib/permissions/test-fixtures";
+import type { Access } from "@/lib/permissions/access";
 
 function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
   return {
@@ -45,6 +47,12 @@ function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
     bounds: null,
     ...over,
   };
+}
+
+// The acting caller carries the access the action checks (D489); tests without one fall back to
+// owner access through vitest.setup.ts.
+function setAccess(access: Access, userId = "u1") {
+  mockCaller.mockResolvedValue({ ...caller("designer", userId), access });
 }
 
 function caller(orgRole: string, userId = "u1", orgId = "org-1") {
@@ -65,7 +73,7 @@ let updateSpy: ReturnType<typeof vi.fn>;
 // (only reached when a test attaches annotations).
 function stubDb(
   versionOrgId: string | null = "org-1",
-  options: { uploadError?: { message: string } | null } = {},
+  options: { uploadError?: { message: string } | null; nodeType?: string } = {},
 ) {
   const captured: { update?: Record<string, unknown> } = {};
   updateSpy = vi.fn((payload: Record<string, unknown>) => {
@@ -78,7 +86,15 @@ function stubDb(
         maybeSingle: async () =>
           versionOrgId === null
             ? { data: null, error: null }
-            : { data: { id: "v1", org_id: versionOrgId, node_id: "n1" }, error: null },
+            : {
+                data: {
+                  id: "v1",
+                  org_id: versionOrgId,
+                  node_id: "n1",
+                  nodes: { type: options.nodeType ?? "image-gen", canvases: { client_id: "c1" } },
+                },
+                error: null,
+              },
       }),
     }),
     update: updateSpy,
@@ -106,22 +122,36 @@ beforeEach(() => {
 });
 
 describe("setVersionApprovalAction", () => {
-  it("rejects a designer — R2.2, even calling the action directly", async () => {
-    mockCaller.mockResolvedValue(caller("designer"));
+  it("refuses before any read when the person can approve nothing", async () => {
+    setAccess(testAccess({ keys: ["canvases.view"] }));
     stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
       ok: false,
-      error: expect.stringMatching(/not permitted/i),
+      error: "You are not permitted to approve or reject work.",
+    });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("refuses approving video for a person who may approve only images", async () => {
+    setAccess(testAccess({ keys: ["image_generation.approve"] }));
+    stubDb("org-1", { nodeType: "video-gen" });
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
+      ok: false,
+      error: "You are not permitted to approve or reject work.",
     });
   });
 
-  it("does not even read the version for a designer — the role gate is first", async () => {
-    mockCaller.mockResolvedValue(caller("designer"));
+  it("refuses approving an image outside the person's clients", async () => {
+    setAccess(testAccess({ keys: ["image_generation.approve"], clientIds: ["other-client"] }));
     stubDb("org-1");
-    await expect(
-      setVersionApprovalAction("v1", { status: "approved" }),
-    ).resolves.toMatchObject({ ok: false });
-    expect(mockFrom).not.toHaveBeenCalled();
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toMatchObject({ ok: false });
+  });
+
+  it("approves an image for a person with image approve", async () => {
+    setAccess(testAccess({ keys: ["image_generation.approve"] }));
+    const captured = stubDb("org-1");
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({ ok: true });
+    expect(captured.update).toMatchObject({ approval_status: "approved" });
   });
 
   it("rejects a version belonging to another org", async () => {
@@ -325,9 +355,9 @@ describe("setVersionApprovalAction with annotations", () => {
     ).rejects.toThrow(/log down/);
   });
 
-  it("still enforces the role gate", async () => {
+  it("still enforces the approve gate", async () => {
     stubDb();
-    mockCaller.mockResolvedValue(caller("designer", "u2"));
+    setAccess(testAccess({ keys: ["canvases.view"] }), "u2");
     await expect(
       setVersionApprovalAction("v1", { status: "approved" }),
     ).resolves.toEqual({ ok: false, error: expect.stringMatching(/not permitted/i) });

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   buildApprovalUpdate,
-  canSetApproval,
   requiresNote,
   standingChangeRequest,
   type VersionDecisionSummary,
@@ -70,17 +69,6 @@ describe("buildApprovalUpdate", () => {
   it("pending: resets everything (who/when/note cleared)", () => {
     expect(buildApprovalUpdate({ status: "pending", by: BY, at: AT, note: "x" }))
       .toEqual({ approval_status: "pending", approved_by_user_id: null, approved_at: null, approved_seen_at: null, note: null });
-  });
-});
-
-describe("canSetApproval", () => {
-  it("permits owner and senior", () => {
-    expect(canSetApproval("owner")).toBe(true);
-    expect(canSetApproval("senior")).toBe(true);
-  });
-
-  it("refuses designer — R2.1, the whole point of the check", () => {
-    expect(canSetApproval("designer")).toBe(false);
   });
 });
 
