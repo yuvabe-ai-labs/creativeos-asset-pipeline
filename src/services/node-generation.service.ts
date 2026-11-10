@@ -1,8 +1,17 @@
 import { readJson } from "./read-json";
 import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
+import type { VideoEditResolution } from "@/lib/video-edit/record";
 
 /** D366 — a started background generation; its result arrives through the node's status. */
 export type StartedGeneration = { generationId: string };
+
+/** D483 — edit a finished take. */
+export type StartVideoEditBody = {
+  baseVersionId: string;
+  instruction: string;
+  referenceNodeIds: string[];
+  resolution: VideoEditResolution;
+};
 
 /** What a restored version puts the node back to (YUV-295). */
 export type RestoredVersion = {
@@ -38,6 +47,11 @@ class NodeGenerationService {
   /** Dubbing node (D375): lip-sync the active dub. */
   async startLipSync(nodeId: string, body: { versionId: string }): Promise<StartedGeneration> {
     return readJson<StartedGeneration>(await post(`/api/nodes/${nodeId}/lip-sync`, body), "Couldn't start lip sync.");
+  }
+
+  /** Video Gen (D483): edit the take. Answers once the job is started (202). */
+  async startVideoEdit(nodeId: string, body: StartVideoEditBody): Promise<StartedGeneration> {
+    return readJson<StartedGeneration>(await post(`/api/nodes/${nodeId}/video-edit`, body), "Couldn't start the edit.");
   }
 
   async restoreVersion(nodeId: string, versionId: string): Promise<RestoredVersion> {

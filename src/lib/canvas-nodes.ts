@@ -16,6 +16,7 @@ import type { GroupingVersion } from "@/lib/nodes/group-shots";
 import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
+import type { VideoEditNodeState } from "@/lib/video-edit/record";
 import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 
 export type ScriptNodeData = {
@@ -179,6 +180,8 @@ export type VideoGenNodeData = {
   parsed?: unknown; // D19: active version output (video URL, display only — never persisted)
   /** D284 — the Change voice workspace's last choice (voice + settings). */
   voiceChange?: { voiceId: string | null; settings: VoiceChangeSettings };
+  /** D483 — the Edit panel's last instruction, references and resolution. */
+  videoEdit?: VideoEditNodeState;
 };
 
 export type ShotNodeData = {
