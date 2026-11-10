@@ -5,7 +5,7 @@ import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { GEMINI_OMNI_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
+import { GEMINI_OMNI_12_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
 import { durationOfParams } from "@/lib/voice-change/record";
 import {
   VIDEO_EDIT_DEFAULT_RESOLUTION,
@@ -64,7 +64,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
   const toggle = (id: string) => {
     if (selectedSet.has(id)) return onChange({ ...state, referenceNodeIds: selectedIds.filter((x) => x !== id) });
     // Further ticks are ignored once the model's reference cap is reached.
-    if (selectedIds.length >= GEMINI_OMNI_IMAGE_INPUTS.maxReferenceImages) return;
+    if (selectedIds.length >= GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages) return;
     onChange({ ...state, referenceNodeIds: [...selectedIds, id] });
   };
 

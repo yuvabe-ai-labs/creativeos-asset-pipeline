@@ -9,11 +9,12 @@
 // to tell creators how long to write things, so a limit that moves in group-shots.ts or the
 // multishot table and not here would teach them to write to the wrong length.
 import { ASSUMED_SHOT_SECONDS, PACK_CEILING_SECONDS } from "@/lib/nodes/group-shots";
-import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
+// The current models only: a retiring version (Omni 1.1) gets no template of its own (D484).
+import { CURRENT_MULTISHOT_MODELS as MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
 
 const CEILING = PACK_CEILING_SECONDS;
 
-/** "Gemini Omni 1.1 up to 10s, Kling 3.0 Omni up to 15s (max 6 shots), Seedance 2.5 up to 30s" */
+/** "Gemini Omni 1.2 up to 15s, Kling 3.0 Omni up to 15s (max 6 shots), Seedance 2.5 up to 30s" */
 export const MULTISHOT_MODEL_RANGES = MULTISHOT_MODELS.map(
   (m) => `${m.label} up to ${m.maxTotalSeconds}s${m.maxCuts !== null ? ` (max ${m.maxCuts} shots)` : ""}`,
 ).join(", ");

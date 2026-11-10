@@ -22,7 +22,10 @@ export function buildConstraintState(
 
 function evaluateCondition(condition: Condition, state: ConstraintState): boolean {
   if ("field" in condition) {
-    const fieldValue = state[condition.field as keyof ConstraintState];
+    const fieldValue =
+      condition.field === "duration"
+        ? Number(state.params.duration)
+        : state[condition.field as keyof ConstraintState];
     switch (condition.op) {
       case "eq":  return fieldValue === condition.value;
       case "gt":

@@ -38,7 +38,8 @@ export type VideoGenResult = {
 
 // ── Constraint rule system (JSON-serializable, DB-ready) ──────────────────────
 
-export type ConditionField = "referenceCount" | "hasEndFrame" | "hasStartFrame";
+/** `duration` reads `params.duration` as a number (stored as a number or a numeric string). */
+export type ConditionField = "referenceCount" | "hasEndFrame" | "hasStartFrame" | "duration";
 export type ConditionOp = "gt" | "gte" | "eq";
 
 export type LeafCondition = {

@@ -20,6 +20,8 @@ describe("video model roster", () => {
   it("contains the consolidated roster: Veo x3 + Kling 3.0 + Kling O1 + Kling 3.0 Omni + Seedance 2.5 + Gemini Omni", () => {
     expect(Object.keys(videoGenClientModelMap).sort()).toEqual([
       "gemini:gemini-omni-1.1-flash",
+      // Added 2026-11-10 (D484); 1.1 stays selectable until it is retired.
+      "gemini:gemini-omni-1.2-flash",
       "kling:kling-3-0",
       // Added 2026-09-09 as the second multishot model (D235/D236).
       "kling:kling-3-0-omni",

@@ -1,5 +1,6 @@
 import type { HelpChapter } from "@/lib/help/types";
 import { PACK_CEILING_SECONDS } from "@/lib/nodes/group-shots";
+import { bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import {
   MULTISHOT_MODEL_RANGES,
   SINGLE_TAKE_PROMPT,
@@ -93,7 +94,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
     // the canvas — the script is the only place a creator shapes them, which is why this exists.
     slug: "structure-a-script",
     question: "How do I structure a script?",
-    summary: `Each timecoded block in a script becomes one shot, and shots are grouped in order into clips of up to ${PACK_CEILING_SECONDS} seconds — there's no merge or split on the canvas. So a script of ${PACK_CEILING_SECONDS}s or less with no clip headings is ONE clip, and a clip that long only Seedance 2.5 can generate. To generate on Gemini Omni (up to 10s) or Kling (up to 15s), mark the clips in the script itself with "CLIP 1 (0–10 SEC)", "CLIP 2 …" headings sized to that model — the "Clips for …" scenarios below write them for you, and fan-out never merges across a heading. Pick the scenario that matches what you want, copy its prompt into ChatGPT or Claude with your script, and paste the result into the Script node.`,
+    summary: `Each timecoded block in a script becomes one shot, and shots are grouped in order into clips of up to ${PACK_CEILING_SECONDS} seconds — there's no merge or split on the canvas. So a script of ${PACK_CEILING_SECONDS}s or less with no clip headings is ONE clip, and a clip that long only Seedance 2.5 can generate. To generate on Gemini Omni or Kling (up to 15s), mark the clips in the script itself with "CLIP 1 (0–10 SEC)", "CLIP 2 …" headings sized to that model — the "Clips for …" scenarios below write them for you, and fan-out never merges across a heading. Pick the scenario that matches what you want, copy its prompt into ChatGPT or Claude with your script, and paste the result into the Script node.`,
     stepStyle: "alternatives",
     steps: [
       {
@@ -101,7 +102,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
         body: [
           "For a single continuous shot: a walk-through, a product reveal, a oner.",
           "The script is one block marked ONE CONTINUOUS TAKE (NO CUTS), with the action written as camera movement.",
-          "Leave Multishot off. In Video Gen, pick a model that reaches the length — Veo up to 8s, Gemini Omni 10s, Kling 3.0 15s, Seedance 2.5 30s — and set Duration to match.",
+          "Leave Multishot off. In Video Gen, pick a model that reaches the length — Veo up to 8s, Gemini Omni 1.2 15s, Kling 3.0 15s, Seedance 2.5 30s — and set Duration to match.",
         ],
         clip: "",
         sample: { label: "Prompt · one unbroken take", text: SINGLE_TAKE_PROMPT },
@@ -122,7 +123,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
         title: `Clips for ${model.label} — ${model.minTotalSeconds}–${model.maxTotalSeconds}s each`,
         body: [
           `When you want this reel generated on ${model.label} specifically${model.maxCuts !== null ? ` (up to ${model.maxCuts} shots per clip)` : ""}.`,
-          `The prompt keeps one script and marks its clips with "CLIP 1 (0–${model.maxTotalSeconds} SEC)", "CLIP 2 …" headings of ${model.maxTotalSeconds}s or less, broken at natural beats. Paste it into the Script node; Fan out makes one node per clip, and each starts on ${model.label} because it fits.`,
+          `The prompt keeps one script and marks its clips with "CLIP 1 (0–${model.maxTotalSeconds} SEC)", "CLIP 2 …" headings of ${model.maxTotalSeconds}s or less, broken at natural beats. Paste it into the Script node; Fan out makes one node per clip, and ${bestFitMultishotModel([{ seconds: model.maxTotalSeconds }]) === model.id ? `each starts on ${model.label} because it fits` : `you can switch each to ${model.label} on the Multishot node`}.`,
           `Without those headings a script of up to ${PACK_CEILING_SECONDS}s is one clip, which only Seedance can generate — the headings are what get you onto ${model.label}.`,
         ],
         clip: "",
@@ -133,7 +134,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
         body: [
           "For bumpers, story ads and quick hooks. The cheapest and fastest to generate.",
           "One to three blocks, between 3 and 10 seconds in total.",
-          "Fits every multishot model, and as a single take Veo covers up to 8s and Gemini Omni up to 10s.",
+          "Fits every multishot model, and as a single take Veo covers up to 8s and Gemini Omni 1.2 up to 15s.",
         ],
         clip: "",
         sample: { label: "Prompt · short hook", text: SHORT_HOOK_PROMPT },

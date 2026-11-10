@@ -38,7 +38,7 @@ describe("videoEditGate", () => {
     expect(videoEditGate({ ...ok, sourceId: null })).toEqual({ ok: false, reason: "Generate a take first." });
     expect(videoEditGate({ ...ok, running: true })).toEqual({ ok: false, reason: "Wait for the current job to finish." });
     expect(videoEditGate({ ...ok, instruction: "   " })).toEqual({ ok: false, reason: "Describe the change first." });
-    expect(videoEditGate({ ...ok, durationSeconds: VIDEO_EDIT_MAX_SECONDS + 1 })).toEqual({ ok: false, reason: "Edits work on takes up to 10 seconds." });
+    expect(videoEditGate({ ...ok, durationSeconds: VIDEO_EDIT_MAX_SECONDS + 1 })).toEqual({ ok: false, reason: "Edits work on takes up to 15 seconds." });
     expect(videoEditGate({ ...ok, submitting: true })).toEqual({ ok: false, reason: "Starting…" });
   });
 });

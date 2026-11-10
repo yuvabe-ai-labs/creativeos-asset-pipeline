@@ -2,8 +2,18 @@ import type { VideoGenClientModelSpec, ConstraintRule } from "./types";
 import { veoParams, veoLiteParams } from "./params/veo";
 import { kling30Params, klingO1Params, kling30OmniParams } from "./params/kling";
 import { seedanceParams } from "./params/seedance";
-import { geminiOmniParams } from "./params/gemini-omni";
-import { GEMINI_OMNI_IMAGE_INPUTS, GEMINI_OMNI_RULES } from "./gemini-omni-shape";
+import {
+  geminiOmniParams,
+  geminiOmni12Params,
+  GEMINI_OMNI_11_MAX_SECONDS,
+  GEMINI_OMNI_12_MAX_SECONDS,
+} from "./params/gemini-omni";
+import {
+  GEMINI_OMNI_IMAGE_INPUTS,
+  GEMINI_OMNI_RULES,
+  GEMINI_OMNI_12_IMAGE_INPUTS,
+  GEMINI_OMNI_12_RULES,
+} from "./gemini-omni-shape";
 
 // ── Shared image input capability shapes ──────────────────────────────────────
 
@@ -238,8 +248,17 @@ const SEEDANCE_RULES: ConstraintRule[] = [
 
 // ── Model map ─────────────────────────────────────────────────────────────────
 
-/** Google's model that cuts between shots natively. One of two — see MULTISHOT_MODELS (D235). */
-export const GEMINI_OMNI_MODEL_ID = "gemini:gemini-omni-1.1-flash";
+/** Gemini Omni 1.1 — still selectable, being retired (D484). Saved nodes keep this id. */
+export const GEMINI_OMNI_11_MODEL_ID = "gemini:gemini-omni-1.1-flash";
+
+/** Gemini Omni 1.2 — 3–15s, the current Omni (D484). */
+export const GEMINI_OMNI_12_MODEL_ID = "gemini:gemini-omni-1.2-flash";
+
+/**
+ * Google's model that cuts between shots natively — see MULTISHOT_MODELS (D235). Always the
+ * CURRENT Omni version: the default for new nodes, multishot, edits and voice previews (D484).
+ */
+export const GEMINI_OMNI_MODEL_ID = GEMINI_OMNI_12_MODEL_ID;
 
 /** Kling's flagship omni endpoint — the second model that cuts between shots natively (D235). */
 export const KLING_OMNI_MODEL_ID = "kling:kling-3-0-omni";
@@ -331,13 +350,25 @@ export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
     params: seedanceParams,
     rules: SEEDANCE_RULES,
   },
-  [GEMINI_OMNI_MODEL_ID]: {
-    id: GEMINI_OMNI_MODEL_ID,
+  // 1.2 before 1.1 so the picker lists the current version first.
+  [GEMINI_OMNI_12_MODEL_ID]: {
+    id: GEMINI_OMNI_12_MODEL_ID,
+    provider: "gemini",
+    label: "Gemini Omni 1.2 Flash",
+    pickerLabel: "Omni 1.2",
+    providerLabel: "Google",
+    maxDurationSeconds: GEMINI_OMNI_12_MAX_SECONDS,
+    imageInputs: GEMINI_OMNI_12_IMAGE_INPUTS,
+    params: geminiOmni12Params,
+    rules: GEMINI_OMNI_12_RULES,
+  },
+  [GEMINI_OMNI_11_MODEL_ID]: {
+    id: GEMINI_OMNI_11_MODEL_ID,
     provider: "gemini",
     label: "Gemini Omni 1.1 Flash",
     pickerLabel: "Omni 1.1",
     providerLabel: "Google",
-    maxDurationSeconds: 10,
+    maxDurationSeconds: GEMINI_OMNI_11_MAX_SECONDS,
     imageInputs: GEMINI_OMNI_IMAGE_INPUTS,
     params: geminiOmniParams,
     rules: GEMINI_OMNI_RULES,

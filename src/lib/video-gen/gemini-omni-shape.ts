@@ -29,19 +29,51 @@ export const GEMINI_OMNI_IMAGE_INPUTS = {
   maxImagesWithFrames: 7,
 } as const;
 
-export const GEMINI_OMNI_RULES: ConstraintRule[] = [
+/**
+ * Omni 1.2. Google's model docs state "up to 6 reference images across a request". 1.1's 12 was
+ * our own measurement (D428) and isn't carried over until 1.2 is measured the same way. The
+ * 7-in-all cap with frames is 1.1's measured figure, kept so a start frame still leaves room for 6.
+ */
+export const GEMINI_OMNI_12_IMAGE_INPUTS = {
+  startFrame: true,
+  endFrame: true,
+  maxReferenceImages: 6,
+  maxImagesWithFrames: 7,
+} as const;
+
+/** Omni 1.2 interpolates between a first and last frame for 3–10s only; longer returns a 400. */
+export const OMNI_12_FRAME_PAIR_MAX_SECONDS = 10;
+
+const OMNI_LAST_FRAME_NEEDS_FIRST: ConstraintRule = {
+  id: "omni-last-frame-needs-first-frame",
+  when: {
+    op: "and",
+    conditions: [
+      { field: "hasEndFrame", op: "eq", value: true },
+      { field: "hasStartFrame", op: "eq", value: false },
+    ],
+  },
+  effect: { disableGenerate: true },
+  // Leads with the consequence rather than the tag names — an operator reads the panel, not
+  // the API docs. Matches the phrasing of Veo Lite's end-frame-requires-start-frame rule.
+  reason: "End frame needs a start frame — <LAST_FRAME> requires <FIRST_FRAME>",
+};
+
+export const GEMINI_OMNI_RULES: ConstraintRule[] = [OMNI_LAST_FRAME_NEEDS_FIRST];
+
+export const GEMINI_OMNI_12_RULES: ConstraintRule[] = [
+  OMNI_LAST_FRAME_NEEDS_FIRST,
   {
-    id: "omni-last-frame-needs-first-frame",
+    id: "omni-12-frame-pair-max-duration",
     when: {
       op: "and",
       conditions: [
+        { field: "hasStartFrame", op: "eq", value: true },
         { field: "hasEndFrame", op: "eq", value: true },
-        { field: "hasStartFrame", op: "eq", value: false },
+        { field: "duration", op: "gt", value: OMNI_12_FRAME_PAIR_MAX_SECONDS },
       ],
     },
     effect: { disableGenerate: true },
-    // Leads with the consequence rather than the tag names — an operator reads the panel, not
-    // the API docs. Matches the phrasing of Veo Lite's end-frame-requires-start-frame rule.
-    reason: "End frame needs a start frame — <LAST_FRAME> requires <FIRST_FRAME>",
+    reason: `With a start and end frame, clips can be up to ${OMNI_12_FRAME_PAIR_MAX_SECONDS}s. Shorten the duration or remove the end frame.`,
   },
 ];

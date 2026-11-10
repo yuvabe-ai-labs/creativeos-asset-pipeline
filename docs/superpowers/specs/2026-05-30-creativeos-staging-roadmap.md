@@ -8543,3 +8543,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Editing inside the Rough Cut Editor as a clip action (user: it is part of the Video Gen node, like Image Gen's edit). Editing a section of the take and splicing it back (user chose whole take only for now). Offering review comments as starting points (kept out of the first version). A separate edit node (an edit is a generation attempt on this node, D18).
 
 **Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D484 — Gemini Omni 1.2 is added beside 1.1 and becomes the default; 1.1 stays selectable until it is retired *(recorded 2026-11-10; refines D235, D261, D483)*
+
+**Decision.** `gemini:gemini-omni-1.2-flash` is a second Omni model in Video Gen, listed before 1.1 under Google. It takes 3–15s (1.1: 3–10s), up to 6 references (Google's stated limit; 1.1 keeps its measured 12), and blocks Generate when a start and end frame are both set and the duration is over 10s. `GEMINI_OMNI_MODEL_ID` now means the current Omni (1.2), so new Video Gen nodes, multishot, video edits (now up to 15s takes) and avatar voice previews use it. Saved nodes on 1.1 keep 1.1. In the multishot table 1.1 is marked `retiring`: still selectable, never picked for a new node, no help template. Omni is priced from Google's output tokens per second (1,931 / 5,792 / 8,688 / 17,376 at 360p / 720p / 1080p / 4k) times $17.50 (1.1) or $12 (1.2) per 1M tokens; from 2026-12-03 a 1.1 generation is priced at 1.2 rates, because Google routes and bills every 1.1 request as 1.2 from that date.
+
+**Why.** User, 10 Nov 2026: integrate 1.2, keep 1.1 as an option, retire it later. 1.2 is ~30% cheaper ($0.07/s at 720p), longer, and Google moves all 1.1 traffic to it on 3 Dec anyway. The old flat 1.1 rates were up to 11% under Google's (360p).
+
+**Rejected.** Replacing 1.1 in place (saved nodes and stamped multishot plans name the 1.1 id). Keeping 1.1 as the default until 3 Dec (it costs more for the same request). Pricing input tokens (prompt, reference images, an edit's source video) in this change; output-only for now, as before.
+
+**Originated →** this entry (aistudio.google.com/docs/pricing, /docs/models/gemini-omni-flash, /docs/omni, checked 2026-11-10).

@@ -15,7 +15,8 @@
 // node was packed at is pinned per parse as `groupingVersion` (D257), so raising it here does not
 // repack canvases that already exist.
 import {
-  GEMINI_OMNI_MODEL_ID,
+  GEMINI_OMNI_11_MODEL_ID,
+  GEMINI_OMNI_12_MODEL_ID,
   KLING_OMNI_MODEL_ID,
   SEEDANCE_MODEL_ID,
 } from "@/lib/video-gen/client-models";
@@ -58,12 +59,33 @@ export type MultishotCapability = {
    * whole-branch review's call.
    */
   refTokenBase: 0 | 1;
+  /**
+   * D484 — still selectable, so saved nodes keep working, but never picked for a NEW node
+   * (`bestFitMultishotModel`) and left out of the help templates. Set on a version being retired.
+   */
+  retiring?: true;
 };
 
 export const MULTISHOT_MODELS: MultishotCapability[] = [
+  // Listed first: `bestFitMultishotModel` keeps the first model on a tie, and at 15s Omni 1.2 ties
+  // Kling 3.0 Omni while costing less per second ($0.07 against $0.084 at 720p).
   {
-    id: GEMINI_OMNI_MODEL_ID,
+    id: GEMINI_OMNI_12_MODEL_ID,
+    label: "Gemini Omni 1.2",
+    minTotalSeconds: 3,
+    maxTotalSeconds: 15,
+    minCutSeconds: 1,
+    maxCuts: null,
+    maxCutChars: null,
+    maxPromptChars: null,
+    shotFormat: "timecode",
+    refTokenDialect: "image-ref",
+    refTokenBase: 0,
+  },
+  {
+    id: GEMINI_OMNI_11_MODEL_ID,
     label: "Gemini Omni 1.1",
+    retiring: true,
     minTotalSeconds: 3,
     maxTotalSeconds: 10,
     minCutSeconds: 1,
@@ -107,7 +129,10 @@ export const MULTISHOT_MODELS: MultishotCapability[] = [
   },
 ];
 
-export const DEFAULT_MULTISHOT_MODEL = GEMINI_OMNI_MODEL_ID;
+/** The models offered for new work: every multishot model except a retiring one. */
+export const CURRENT_MULTISHOT_MODELS = MULTISHOT_MODELS.filter((m) => !m.retiring);
+
+export const DEFAULT_MULTISHOT_MODEL = GEMINI_OMNI_12_MODEL_ID;
 
 /**
  * The capability for a node's `targetModel`.
@@ -218,9 +243,10 @@ export function checkLadder(
  *
  * Candidates are the models `checkLadder` accepts — the same check the node displays — so the pick
  * can never land on a model that immediately reports a violation, and a cut cap (Kling's 6) rules
- * a model out exactly as a length does. Among those, the smallest `maxTotalSeconds` wins: today
- * that is Omni up to 10s, Kling to 15s, Seedance past it. Not "cheapest" — Kling undercuts Omni per
- * second — but it does keep Seedance, at ~2.3x Omni, for ladders nothing else can hold.
+ * a model out exactly as a length does. Among those, the smallest `maxTotalSeconds` wins, the first
+ * listed on a tie: today that is Omni 1.2 up to 15s and Seedance past it. Kling 3.0 Omni has the
+ * same window with stricter caps, so it never wins a new node; it stays selectable. A retiring
+ * model (Omni 1.1) is never a candidate. Seedance, at ~3x Omni 1.2, is kept for longer ladders.
  *
  * Called at CREATION only (fan-out and the Script switch's conversion), and the result is stored
  * as `targetModel`. It is never re-run on an existing node: a Multishot Prompt is written in one
@@ -229,7 +255,7 @@ export function checkLadder(
  * says why, rather than choosing a model that fails anyway.
  */
 export function bestFitMultishotModel(cuts: { seconds: number }[]): string {
-  const fits = MULTISHOT_MODELS.filter((m) => checkLadder(cuts, m).ok);
+  const fits = CURRENT_MULTISHOT_MODELS.filter((m) => checkLadder(cuts, m).ok);
   if (fits.length === 0) return DEFAULT_MULTISHOT_MODEL;
   return fits.reduce((best, m) => (m.maxTotalSeconds < best.maxTotalSeconds ? m : best)).id;
 }

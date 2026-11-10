@@ -8,12 +8,13 @@ import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/cr
 import { isOwnStoredUrl } from "@/lib/storage";
 import { durationOfParams } from "@/lib/voice-change/record";
 import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
-import { GEMINI_OMNI_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
+import { GEMINI_OMNI_12_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
 import { collectConnectedUpstream } from "@/lib/video-gen/connected-images";
 import { composeVideoEditPrompt } from "@/lib/video-edit/prompt";
 import {
   VIDEO_EDIT_MAX_SECONDS,
   VIDEO_EDIT_RESOLUTIONS,
+  VIDEO_EDIT_TOO_LONG_MESSAGE,
   readVideoEdit,
   videoEditEstimateCredits,
   type VideoEditRecord,
@@ -39,7 +40,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!parsed.success) return apiError("Describe the change and pick a resolution.", 400);
       const { baseVersionId, instruction, resolution, mock } = parsed.data;
       const referenceNodeIds = [...new Set(parsed.data.referenceNodeIds)];
-      const cap = GEMINI_OMNI_IMAGE_INPUTS.maxReferenceImages;
+      const cap = GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages;
       if (referenceNodeIds.length > cap) return apiError(`Pick up to ${cap} references.`, 400);
       if (!process.env.GOOGLE_GENAI_API_KEY) return apiError("Video editing isn't set up yet.", 400);
 
@@ -58,7 +59,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
       const durationSeconds = durationOfParams(base.params_used ?? {});
       if (!durationSeconds) return apiError("This take has no recorded length, so it can't be priced.", 400);
-      if (durationSeconds > VIDEO_EDIT_MAX_SECONDS) return apiError("Edits work on takes up to 10 seconds.", 400);
+      if (durationSeconds > VIDEO_EDIT_MAX_SECONDS) return apiError(VIDEO_EDIT_TOO_LONG_MESSAGE, 400);
 
       // Rule 14 — every reference must be an image connected to this node.
       const byId = new Map(connected.images.map((img) => [img.id, img]));

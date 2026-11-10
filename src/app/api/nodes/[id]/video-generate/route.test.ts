@@ -240,7 +240,7 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
 
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toContain("Gemini Omni 1.1");
+    expect(json.error).toContain("Gemini Omni 1.2");
     expect(json.error).not.toContain("Kling 3.0 Omni");
 
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
@@ -261,7 +261,7 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     });
 
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain("Gemini Omni 1.1");
+    expect((await res.json()).error).toContain("Gemini Omni 1.2");
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
     expect(mocks.reserveCredits).not.toHaveBeenCalled();
   });

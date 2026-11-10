@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { HELP_CHAPTERS, visibleChapters, chapterBySlug } from "@/lib/help/chapters";
 import { ASSUMED_SHOT_SECONDS } from "@/lib/nodes/group-shots";
-import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
+// The help offers the current models only; a retiring version (Omni 1.1) gets no template (D484).
+import { CURRENT_MULTISHOT_MODELS as MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
 import { MULTISHOT_MODEL_RANGES } from "@/lib/help/script-structure-samples";
 
 describe("help chapters", () => {

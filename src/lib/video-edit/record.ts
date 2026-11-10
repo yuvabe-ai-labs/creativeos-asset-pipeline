@@ -7,8 +7,12 @@ export const VIDEO_EDIT_RESOLUTIONS = ["360p", "720p", "1080p", "4k"] as const;
 export type VideoEditResolution = (typeof VIDEO_EDIT_RESOLUTIONS)[number];
 export const VIDEO_EDIT_DEFAULT_RESOLUTION: VideoEditResolution = "720p";
 
-/** Omni's generation maximum. Edits were tested on 3–6 s takes; longer ones are untested. */
-export const VIDEO_EDIT_MAX_SECONDS = 10;
+/**
+ * Omni 1.2's edit-input maximum (D484; 1.1's was 10s). Edits were tested on 3–6 s takes on 1.1;
+ * longer ones are untested.
+ */
+export const VIDEO_EDIT_MAX_SECONDS = 15;
+export const VIDEO_EDIT_TOO_LONG_MESSAGE = `Edits work on takes up to ${VIDEO_EDIT_MAX_SECONDS} seconds.`;
 
 export const VIDEO_EDIT_REFUSED_MESSAGE =
   "This edit can't be made. Takes with children, or changing one person into another, are refused.";
@@ -77,7 +81,7 @@ export function videoEditGate(a: {
   if (!a.sourceId) return { ok: false, reason: "Generate a take first." };
   if (a.running) return { ok: false, reason: "Wait for the current job to finish." };
   if (!a.instruction.trim()) return { ok: false, reason: "Describe the change first." };
-  if (a.durationSeconds > VIDEO_EDIT_MAX_SECONDS) return { ok: false, reason: "Edits work on takes up to 10 seconds." };
+  if (a.durationSeconds > VIDEO_EDIT_MAX_SECONDS) return { ok: false, reason: VIDEO_EDIT_TOO_LONG_MESSAGE };
   if (a.submitting) return { ok: false, reason: "Starting…" };
   return { ok: true };
 }
