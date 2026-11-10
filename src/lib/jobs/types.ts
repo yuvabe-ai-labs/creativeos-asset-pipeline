@@ -33,6 +33,9 @@ export type BackgroundJobRow<Input = Record<string, unknown>, Result = Record<st
   updated_at: string;
 };
 
+/** What people see on a job whose run died without saying why: a crash, or a deploy mid-run. */
+export const JOB_STOPPED_MESSAGE = "This stopped before it finished. Try again.";
+
 /** Thrown when a job's lock key already has a live job — e.g. a second Refresh mid-import. */
 export class JobLockedError extends Error {
   constructor(public readonly lockKey: string) {

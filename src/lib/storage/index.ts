@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { _put, _remove, _signDownloadUrl, _signPutUrl, getBucketName, publicUrlFor } from "./gcs";
+import type { Readable } from "node:stream";
+import { _put, _putStream, _remove, _signDownloadUrl, _signPutUrl, getBucketName, publicUrlFor } from "./gcs";
 import { resolveOwnership, type Ownership } from "./ownership";
 import { DUBBING_UPLOAD_EXPIRY_MS } from "@/lib/dubbing/constants";
 import { mimeToExt } from "@/lib/image-gen/utils";
@@ -283,6 +284,19 @@ export async function uploadImportedBrandMedia(args: {
 }): Promise<UploadResult> {
   const path = pathForBrandImage({ clientId: args.clientId, imageId: args.imageId, filename: args.filename });
   return _upload(path, args.body, args.contentType);
+}
+
+/** An imported video, streamed straight into storage so it never sits whole in memory (D483). */
+export async function uploadImportedBrandMediaStream(args: {
+  clientId: string;
+  imageId: string;
+  filename: string;
+  body: Readable;
+  contentType: string;
+}): Promise<UploadResult> {
+  const path = pathForBrandImage({ clientId: args.clientId, imageId: args.imageId, filename: args.filename });
+  await _putStream(path, args.body, args.contentType);
+  return { path, url: publicUrlFor(path) };
 }
 
 // Authorize a direct browser upload of a brand image. The imageId only

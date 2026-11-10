@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// A small video limit, so a test can send a "too large" video in a few bytes.
+vi.mock("./constants", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./constants")>()),
+  IMPORT_VIDEO_SIZE_LIMIT: 10,
+}));
 vi.mock("@/lib/jobs/db", () => ({
   getJob: vi.fn(),
   listRecentJobs: vi.fn(async () => []),
@@ -8,6 +13,7 @@ vi.mock("@/lib/jobs/db", () => ({
   setJobPhase: vi.fn(),
   succeedJob: vi.fn(),
   failJob: vi.fn(),
+  saveJobCheckpoint: vi.fn(),
 }));
 vi.mock("@/lib/db/kb", () => ({
   latestImportedPostAt: vi.fn(async () => null),
@@ -20,6 +26,11 @@ vi.mock("@/lib/storage", () => ({
     url: `https://gcs/${a.imageId}/${a.filename}`,
     path: "p",
   })),
+  // Reads the stream to its end, as storage would, so its byte count and limit apply.
+  uploadImportedBrandMediaStream: vi.fn(async (a: { imageId: string; filename: string; body: AsyncIterable<unknown> }) => {
+    for await (const chunk of a.body) void chunk;
+    return { url: `https://gcs/${a.imageId}/${a.filename}`, path: "p" };
+  }),
 }));
 vi.mock("./apify", () => ({ runImportActor: vi.fn() }));
 // sharp decodes real images; these tests only care that a preview is made and stored.
@@ -32,12 +43,12 @@ vi.mock("sharp", () => {
     // EXIF orientation 6 = rotated a quarter turn: stored 1350×1080 shows as 1080×1350.
     metadata: async () => ({ width: 1350, height: 1080, orientation: 6 }),
   };
-  return { default: vi.fn(() => chain) };
+  return { default: Object.assign(vi.fn(() => chain), { cache: vi.fn(), concurrency: vi.fn() }) };
 });
 
-import { failJob, getJob, listRecentJobs, setJobPhase, succeedJob } from "@/lib/jobs/db";
+import { failJob, getJob, listRecentJobs, saveJobCheckpoint, setJobPhase, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, latestImportedPostAt, listBrandImageRefs } from "@/lib/db/kb";
-import { removeObject, uploadImportedBrandMedia } from "@/lib/storage";
+import { removeObject, uploadImportedBrandMedia, uploadImportedBrandMediaStream } from "@/lib/storage";
 import { runImportActor } from "./apify";
 import { runAssetImport } from "./run";
 
@@ -57,12 +68,15 @@ const post = (n: number, extra: Record<string, unknown> = {}) => ({
 
 /** Answers every download with bytes of the given type. */
 function mediaFetch(contentType = "image/jpeg", status = 200) {
-  return vi.fn(async () => ({
-    ok: status < 300,
-    status,
-    headers: new Headers({ "content-type": contentType }),
-    arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
-  })) as unknown as typeof fetch;
+  return vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status, headers: { "content-type": contentType } })) as unknown as typeof fetch;
+}
+
+/** Answers each download by its URL: the media type, the bytes, and any extra headers. */
+function fetchByUrl(answer: (url: string) => { contentType: string; bytes: number; headers?: Record<string, string> }) {
+  return vi.fn(async (url: string) => {
+    const a = answer(url);
+    return new Response(new Uint8Array(a.bytes).fill(7), { headers: { "content-type": a.contentType, ...a.headers } });
+  }) as unknown as typeof fetch;
 }
 
 describe("runAssetImport", () => {
@@ -303,5 +317,83 @@ describe("runAssetImport", () => {
       await runAssetImport("job-1", { fetchImpl: mediaFetch() });
       expect(runImportActor).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+// D483: an import's memory stays bounded, a file over its limit is skipped and named, and a
+// retry after a crash continues instead of paying for a new scrape.
+describe("runAssetImport, memory and crashes", () => {
+  const VIDEO = `${CDN}reel.mp4`;
+  const reel = (n: number) => post(n, { videoUrl: VIDEO });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    process.env.APIFY_TOKEN = "tok";
+    vi.mocked(listBrandImageRefs).mockResolvedValue(new Set());
+    vi.mocked(insertImportedBrandImage).mockImplementation(async (r) => ({ id: r.id }) as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([]);
+    vi.mocked(latestImportedPostAt).mockResolvedValue(null);
+    vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
+  });
+
+  it("streams a video into storage rather than holding it whole", async () => {
+    vi.mocked(runImportActor).mockResolvedValue([reel(1)]);
+    const fetchImpl = fetchByUrl((url) => (url === VIDEO ? { contentType: "video/mp4", bytes: 8 } : { contentType: "image/jpeg", bytes: 3 }));
+    await runAssetImport("job-1", { fetchImpl });
+    const streamed = vi.mocked(uploadImportedBrandMediaStream).mock.calls[0][0];
+    expect(streamed.contentType).toBe("video/mp4");
+    // The only whole-file upload is the poster's small preview.
+    expect(vi.mocked(uploadImportedBrandMedia).mock.calls.map((c) => c[0].filename)).toEqual(["preview.webp"]);
+    expect(vi.mocked(insertImportedBrandImage).mock.calls[0][0]).toMatchObject({ mediaType: "video", sizeBytes: 8 });
+  });
+
+  it("stops a video that passes its limit part way, and keeps nothing of it", async () => {
+    vi.mocked(runImportActor).mockResolvedValue([reel(1), post(2)]);
+    const fetchImpl = fetchByUrl((url) => (url === VIDEO ? { contentType: "video/mp4", bytes: 20 } : { contentType: "image/jpeg", bytes: 3 }));
+    const result = await runAssetImport("job-1", { fetchImpl });
+    expect(vi.mocked(insertImportedBrandImage).mock.calls.map((c) => c[0].mediaType)).toEqual(["image"]);
+    expect(result).toMatchObject({ assetCount: 1, failed: 1, skipped: [expect.objectContaining({ reason: expect.stringContaining("too large") })] });
+    expect(succeedJob).toHaveBeenCalledWith("job-1", result, "1 new · 1 couldn't be saved");
+  });
+
+  it("refuses an image whose declared size is over its limit before reading it", async () => {
+    vi.mocked(runImportActor).mockResolvedValue([post(1)]);
+    const fetchImpl = fetchByUrl(() => ({ contentType: "image/jpeg", bytes: 3, headers: { "content-length": String(30 * 1024 * 1024) } }));
+    await runAssetImport("job-1", { fetchImpl });
+    expect(uploadImportedBrandMedia).not.toHaveBeenCalled();
+    expect(failJob).toHaveBeenCalledWith("job-1", "Found 1 new asset but couldn't save them. Try again in a few minutes.");
+  });
+
+  it("names at most 20 skipped files, and counts them all", async () => {
+    vi.mocked(runImportActor).mockResolvedValue([...Array.from({ length: 25 }, (_, i) => post(i + 1)), reel(99)]);
+    const fetchImpl = fetchByUrl((url) => (url === VIDEO ? { contentType: "video/mp4", bytes: 3 } : { contentType: "text/html", bytes: 3 }));
+    const result = await runAssetImport("job-1", { fetchImpl });
+    expect(result).toMatchObject({ assetCount: 1, failed: 25 });
+    expect(result?.skipped).toHaveLength(20);
+  });
+
+  it("records the Apify run it starts, so a retry can continue it", async () => {
+    vi.mocked(runImportActor).mockImplementation(async (_s, _t, opts) => {
+      await opts.onStarted?.("run-new");
+      return [post(1)];
+    });
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(saveJobCheckpoint).toHaveBeenCalledWith("job-1", { windowRunId: "run-new" });
+  });
+
+  it("continues the Apify run a crashed attempt started, instead of starting a new one", async () => {
+    vi.mocked(getJob).mockResolvedValue({ ...job("instagram"), status: "running", result: { checkpoint: { windowRunId: "run-old" } } } as never);
+    vi.mocked(runImportActor).mockResolvedValue([post(1)]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[0][2]).toMatchObject({ resumeRunId: "run-old" });
+  });
+
+  it("does nothing when retried after its job has already ended", async () => {
+    vi.mocked(getJob).mockResolvedValue({ ...job("instagram"), status: "succeeded" } as never);
+    expect(await runAssetImport("job-1", { fetchImpl: mediaFetch() })).toBeNull();
+    expect(runImportActor).not.toHaveBeenCalled();
+    expect(succeedJob).not.toHaveBeenCalled();
   });
 });
