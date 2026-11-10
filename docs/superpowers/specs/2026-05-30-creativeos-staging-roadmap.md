@@ -8563,3 +8563,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Telling an edit apart by reading `inputs_snapshot` on the generations feed (the feed selects only the columns it shows, CLAUDE.md performance rule 8). A start mark only on the client (lost on a reload or another tab, where the job would read as a new take again).
 
 **Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D486 — Video Gen can switch between models that read the same multishot plan, without rewriting the prompt *(recorded 2026-11-10; refines D236, D239, D484)*
+
+**Decision.** A multishot plan is model-specific only through its shot format and reference-token dialect (the writer is chosen from the same pair). Every model sharing both with the plan's stamp reads it unchanged (`multishotModelsSharingPlan`; today Omni 1.1 and 1.2). Video Gen's picker on the multishot lane offers all of them instead of the stamped model alone; the node keeps its own model when it is one of them and is coerced to the stamp only when it is not (focus view and canvas-store's connect). The video-generate route accepts any of them and checks the ladder and prompt limits against the model REQUESTED, so a 14s Omni 1.2 plan on 1.1 is refused with "14s · Gemini Omni 1.1 allows 10s." The Multishot Prompt view reports no mismatch between such models. On a model change between two models of one provider, the params merge keeps free text (the negative prompt) and clamps an out-of-range slider instead of resetting both; across providers the tuned defaults still apply.
+
+**Why.** User, 10 Nov 2026: Omni 1.1 and 1.2 use the same prompt writer, so switching between them on a Video Gen node should not mean regenerating the prompt. Single-shot prompts already carried over (the video-prompt system prompt is per provider); only the multishot lock and the negative-prompt reset got in the way.
+
+**Rejected.** Re-stamping the plan when the node switches (the stamp records which writer produced it, and that does not change). Keeping custom free text across providers (each provider's negative default is tuned to its own artifacts).
+
+**Originated →** this entry.

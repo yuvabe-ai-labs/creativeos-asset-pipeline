@@ -10,6 +10,7 @@ import {
   bestFitMultishotModel,
   MultishotCapability,
   multishotPromptModels,
+  multishotModelsSharingPlan,
 } from "../multishot-models";
 import {
   videoGenClientModelMap,
@@ -282,5 +283,25 @@ describe("multishotPromptModels", () => {
   it("reads an unstamped plan as the default model, as the money path does", () => {
     const r = multishotPromptModels({ connected: false, nodeModel: undefined, planModel: undefined });
     expect(r.plan.id).toBe(DEFAULT_MULTISHOT_MODEL);
+  });
+});
+
+// D486 — models that read one plan unchanged: same shot format and reference dialect.
+describe("multishotModelsSharingPlan", () => {
+  it("pairs Omni 1.1 and 1.2, the plan's own model first", () => {
+    expect(multishotModelsSharingPlan(GEMINI_OMNI_12_MODEL_ID)).toEqual([GEMINI_OMNI_12_MODEL_ID, OMNI_11]);
+    expect(multishotModelsSharingPlan(OMNI_11)).toEqual([OMNI_11, GEMINI_OMNI_12_MODEL_ID]);
+  });
+
+  it("leaves Kling and Seedance on their own", () => {
+    expect(multishotModelsSharingPlan(KLING_OMNI_MODEL_ID)).toEqual([KLING_OMNI_MODEL_ID]);
+    expect(multishotModelsSharingPlan(SEEDANCE_MODEL_ID)).toEqual([SEEDANCE_MODEL_ID]);
+  });
+
+  it("reports no mismatch when the node moves between Omni versions, and one for Kling", () => {
+    const at = (nodeModel: string) =>
+      multishotPromptModels({ connected: true, nodeModel, planModel: GEMINI_OMNI_12_MODEL_ID }).mismatch;
+    expect(at(OMNI_11)).toBe(false);
+    expect(at(KLING_OMNI_MODEL_ID)).toBe(true);
   });
 });

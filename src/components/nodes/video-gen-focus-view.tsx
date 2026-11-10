@@ -47,7 +47,12 @@ import {
   videoGenClientModelMap,
   isVideoModelDeprecated,
 } from "@/lib/video-gen/client-models";
-import { multishotCapabilityFor, multishotRestrictionReason, checkLadder } from "@/lib/nodes/multishot-models";
+import {
+  multishotCapabilityFor,
+  multishotModelsSharingPlan,
+  multishotRestrictionReason,
+  checkLadder,
+} from "@/lib/nodes/multishot-models";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
@@ -232,12 +237,15 @@ function applyDefaultImageRoles(
  */
 function migrateVideoModelState({
   nextModelId,
+  previousModelId,
   currentParams,
   currentRoles,
   upstreamImages,
   derivedDuration,
 }: {
   nextModelId: string;
+  /** D486 — the model being left, so a same-provider switch keeps free text (smartMergeVideoParams). */
+  previousModelId: string;
   currentParams: Record<string, unknown>;
   currentRoles: Record<string, ImageRole>;
   upstreamImages: UpstreamImage[];
@@ -254,7 +262,7 @@ function migrateVideoModelState({
 } {
   const nextModel = videoGenClientModelMap[nextModelId];
   const defaults = nextModel
-    ? smartMergeVideoParams(currentParams, nextModel)
+    ? smartMergeVideoParams(currentParams, nextModel, previousModelId)
     : defaultsForVideoModel(nextModelId);
 
   // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration should
@@ -813,8 +821,17 @@ export function VideoGenFocusView({
   // 360p, rendered a select holding an unlisted value, left Generate enabled, and posted it. The
   // route then rebuilt params from Kling's specs, took "360p" from the body, `computeVideoCost`
   // returned null, and the request died as a 500 AFTER inserting a generation row.
-  const multishotTargetModel = isMultishotPromptConnected
-    ? multishotCapabilityFor(effectiveMultishotModel).id
+  //
+  // D486 — "the model" is any model that reads the plan as written (Omni 1.1 and 1.2 share one), so
+  // the node keeps its own choice when the plan runs on it and is coerced to the plan's model only
+  // when it does not.
+  const multishotModelIds = isMultishotPromptConnected
+    ? multishotModelsSharingPlan(effectiveMultishotModel)
+    : undefined;
+  const multishotTargetModel = multishotModelIds
+    ? multishotModelIds.includes(modelId)
+      ? modelId
+      : multishotModelIds[0]
     : undefined;
   // Not gated on `loadingConnected` (D430): the lane is known from the store, and this only sets
   // local state. Persisting still waits for the confirmed inputs (the effect below).
@@ -825,6 +842,7 @@ export function VideoGenFocusView({
   ) {
     const migrated = migrateVideoModelState({
       nextModelId: multishotTargetModel,
+      previousModelId: modelId,
       currentParams: params,
       currentRoles: imageRolesProp,
       upstreamImages,
@@ -1011,6 +1029,7 @@ export function VideoGenFocusView({
     // operator's own edit from ever being overwritten.
     const migrated = migrateVideoModelState({
       nextModelId,
+      previousModelId: modelId,
       currentParams: params,
       currentRoles: imageRolesProp,
       upstreamImages,
@@ -1424,7 +1443,8 @@ export function VideoGenFocusView({
   // checks don't fight over which reason wins.
   const ladderCheck =
     isMultishotPromptConnected && upstreamMultishotCuts
-      ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
+      // Against the model chosen, not the plan's: a 14s Omni 1.2 plan switched to 1.1 must say so.
+      ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(multishotTargetModel ?? effectiveMultishotModel))
       : null;
   // D299 — models the presenter's face rules out; a node already on one can't generate with it.
   const presenterUnavailable = presenterAvatar ? unavailableModelsFor(presenterAvatar) : undefined;
@@ -1859,7 +1879,7 @@ export function VideoGenFocusView({
                     // lane with nothing cached waits (its presenter rules come from the fetch).
                     loading={loadingConnected && !upstreamQuery.data && !isMultishotPromptConnected}
                     unavailable={presenterUnavailable}
-                    lockedToModelId={multishotTargetModel}
+                    lockedToModelIds={multishotModelIds}
                     restrictionReason={
                       isMultishotPromptConnected
                         ? multishotRestrictionReason(effectiveMultishotModel)

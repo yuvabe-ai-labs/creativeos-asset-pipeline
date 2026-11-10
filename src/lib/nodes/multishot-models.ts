@@ -152,6 +152,26 @@ export function multishotCapabilityFor(
 }
 
 /**
+ * D486 — the models a plan written for `targetModel` can generate on UNCHANGED, the plan's own
+ * model first.
+ *
+ * A plan is model-specific through two things only: the shot format `renderPlan` lays its beats
+ * out in, and the reference-token dialect its citations are stored in (the writer is chosen from
+ * the same pair, `multishotPromptFor`). Models that share both read the same plan. Today that is
+ * Omni 1.1 and 1.2. Whether the plan's LENGTH fits is a separate question that `checkLadder`
+ * answers against the model actually chosen.
+ */
+export function multishotModelsSharingPlan(targetModel: string | undefined | null): string[] {
+  const cap = multishotCapabilityFor(targetModel);
+  return [
+    cap.id,
+    ...MULTISHOT_MODELS.filter(
+      (m) => m.id !== cap.id && m.shotFormat === cap.shotFormat && m.refTokenDialect === cap.refTokenDialect,
+    ).map((m) => m.id),
+  ];
+}
+
+/**
  * The two models a Multishot Prompt node's view reasons about (D236/D237):
  *
  *   plan — the model the plan on screen was written for (its own stamp), else, with no plan
@@ -174,7 +194,9 @@ export function multishotPromptModels(input: {
   const plan = hasPlan
     ? multishotCapabilityFor(input.planModel)
     : (node ?? multishotCapabilityFor(undefined));
-  return { plan, node, mismatch: hasPlan && node !== null && plan.id !== node.id };
+  // D486 — a node switched to a model that reads the same plan (Omni 1.1 ↔ 1.2) is not a mismatch.
+  const mismatch = hasPlan && node !== null && !multishotModelsSharingPlan(plan.id).includes(node.id);
+  return { plan, node, mismatch };
 }
 
 /**
@@ -292,6 +314,8 @@ export function restrictionSentenceFor(
  */
 export function multishotRestrictionReason(targetModel: string | undefined | null): string {
   const cap = multishotCapabilityFor(targetModel);
-  const others = MULTISHOT_MODELS.filter((m) => m.id !== cap.id);
+  // D486 — models that read the same plan are choices on the picker, not ways out of it.
+  const sharing = multishotModelsSharingPlan(cap.id);
+  const others = MULTISHOT_MODELS.filter((m) => !sharing.includes(m.id));
   return restrictionSentenceFor(cap, others);
 }
