@@ -22,7 +22,7 @@ import {
 const BodySchema = z.object({
   baseVersionId: z.string().min(1),
   instruction: z.string().trim().min(1).max(2000),
-  referenceNodeIds: z.array(z.string().min(1)).max(GEMINI_OMNI_IMAGE_INPUTS.maxReferenceImages),
+  referenceNodeIds: z.array(z.string().min(1)),
   resolution: z.enum(VIDEO_EDIT_RESOLUTIONS),
   mock: z.boolean().optional(),
 });
@@ -37,7 +37,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (node.type !== "video-gen") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Describe the change and pick a resolution.", 400);
-      const { baseVersionId, instruction, referenceNodeIds, resolution, mock } = parsed.data;
+      const { baseVersionId, instruction, resolution, mock } = parsed.data;
+      const referenceNodeIds = [...new Set(parsed.data.referenceNodeIds)];
+      const cap = GEMINI_OMNI_IMAGE_INPUTS.maxReferenceImages;
+      if (referenceNodeIds.length > cap) return apiError(`Pick up to ${cap} references.`, 400);
       if (!process.env.GOOGLE_GENAI_API_KEY) return apiError("Video editing isn't set up yet.", 400);
 
       // D390 — an edit makes a new take: refused while the clip is in the Editor's reel.

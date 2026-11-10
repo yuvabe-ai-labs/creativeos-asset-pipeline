@@ -61,6 +61,7 @@ import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 import { voicePreviewCostUsd, voicePreviewParams } from "@/lib/avatars/voice-preview";
 import { SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
 import { AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
+import { VIDEO_EDIT_FAILED_MESSAGE, VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
 
 const ORIGINAL = "https://storage.googleapis.com/b/g1-original.mp4";
 const REVOICED = "https://storage.googleapis.com/b/g1-revoiced.mp4";
@@ -147,6 +148,42 @@ describe("completeGeneration — non-stored video (no voice)", () => {
       actualAmount: usdToFinalCredits(videoUsd()),
     });
     fetchSpy.mockRestore();
+  });
+});
+
+describe("completeGeneration — failed video edit (D483)", () => {
+  const EDIT = {
+    baseVersionId: "v3", rootVersionId: "v1", instruction: "make it beige", editPrompt: "make it beige",
+    referenceNodeIds: [], referenceUrls: [], resolution: "720p",
+  };
+  beforeEach(() => {
+    mocks.generation = { ...mocks.generation, inputs_snapshot: { videoEdit: EDIT } };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
+  it("stores plain words for a raw failure and still refunds", async () => {
+    await completeGeneration({ generationId: "g1", status: "failed", error: "Omni edit failed (500)" });
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: VIDEO_EDIT_FAILED_MESSAGE });
+    expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+  });
+
+  it("keeps the refused message", async () => {
+    await completeGeneration({ generationId: "g1", status: "failed", error: VIDEO_EDIT_REFUSED_MESSAGE });
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: VIDEO_EDIT_REFUSED_MESSAGE });
+  });
+
+  it("uses plain words when the download fails", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("x", { status: 404 }));
+    await completeGeneration({ generationId: "g1", status: "succeeded", videoUrl: "https://provider.example/v.mp4", durationSeconds: 5 });
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: VIDEO_EDIT_FAILED_MESSAGE });
+    expect(mocks.refundReservation).toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("leaves a failed normal video row unchanged", async () => {
+    mocks.generation = { ...mocks.generation, inputs_snapshot: {} };
+    await completeGeneration({ generationId: "g1", status: "failed", error: "Provider said no" });
+    expect(mocks.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "Provider said no" });
   });
 });
 

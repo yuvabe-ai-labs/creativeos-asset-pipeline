@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeVideoCost } from "@/lib/video-gen/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
-import { readVideoEdit, videoEditEstimateCredits, videoEditGate, VIDEO_EDIT_MAX_SECONDS } from "../record";
+import { plainVideoEditFailure, VIDEO_EDIT_FAILED_MESSAGE, VIDEO_EDIT_REFUSED_MESSAGE, readVideoEdit, videoEditEstimateCredits, videoEditGate, VIDEO_EDIT_MAX_SECONDS } from "../record";
 
 const RECORD = {
   baseVersionId: "v3", rootVersionId: "v1", instruction: "make the flour beige", editPrompt: "make the flour beige\n\nKeep…",
@@ -40,5 +40,16 @@ describe("videoEditGate", () => {
     expect(videoEditGate({ ...ok, instruction: "   " })).toEqual({ ok: false, reason: "Describe the change first." });
     expect(videoEditGate({ ...ok, durationSeconds: VIDEO_EDIT_MAX_SECONDS + 1 })).toEqual({ ok: false, reason: "Edits work on takes up to 10 seconds." });
     expect(videoEditGate({ ...ok, submitting: true })).toEqual({ ok: false, reason: "Starting…" });
+  });
+});
+
+describe("plainVideoEditFailure", () => {
+  it("keeps the refused message", () => {
+    expect(plainVideoEditFailure(VIDEO_EDIT_REFUSED_MESSAGE)).toBe(VIDEO_EDIT_REFUSED_MESSAGE);
+  });
+  it("replaces anything else with the plain failed message", () => {
+    expect(plainVideoEditFailure("Omni edit failed (500)")).toBe(VIDEO_EDIT_FAILED_MESSAGE);
+    expect(plainVideoEditFailure("Failed to fetch image (404): https://x")).toBe(VIDEO_EDIT_FAILED_MESSAGE);
+    expect(VIDEO_EDIT_FAILED_MESSAGE).toBe("The edit didn't finish. Try again.");
   });
 });

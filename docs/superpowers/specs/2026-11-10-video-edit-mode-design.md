@@ -42,7 +42,10 @@ Right column heading: **VIDEO**, then two switches side by side: **Edit voice** 
 turns both off (D383), as Edit voice does today.
 
 With **Edit** on, the right column keeps showing the take being edited and the centre column
-shows:
+shows the list below. While an edit runs, the right column shows the generating state instead
+(interim, until the take stays visible during an edit).
+
+Centre column:
 
 1. **References for this edit.** Thumbnails of the connected image inputs, each with a check.
    The images the take was generated with start checked. Same model as Image Gen's
@@ -107,8 +110,8 @@ No migration.
 }
 ```
 
-- **Node data:** `editInstruction` and `editReferenceNodeIds` ride `nodes.data`, so a half-written
-  edit survives closing the view.
+- **Node data:** one `videoEdit` object, `{ instruction, referenceNodeIds, resolution }`, rides
+  `nodes.data`, so a half-written edit survives closing the view.
 
 ## 6. Failures
 
@@ -129,7 +132,7 @@ continuous shot. Captions on the video may change."
 
 ## 8. Testing
 
-- Route: rejects an empty instruction, a non-active version, a locked node, a running node, and
+- Route: rejects an empty instruction, a locked node, a running node, and
   references from nodes not connected to this one (rule 14); reserves and refunds credits.
 - Task: builds the request body (video part, image parts in order, no duration/aspect); maps a
   refusal to the refused message and refunds; appends a version with `inputs_used.videoEdit`.

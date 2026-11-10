@@ -77,12 +77,12 @@ export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersio
     )
       .map((p) => `${p.label}: ${p.value}`)
       .join(" · ");
-    // D284 — a voice-changed version's provenance replaces the model/param lines above: its
+    // D284 / D483 — a voice-changed or edited version's provenance (`provenance`) replaces the model/param lines above: its
     // model is always the same ElevenLabs voice-change model, so naming it as "Voice: Anjali"
     // plus the settings it ran with is more useful than the generic pair. A D282 legacy
     // version (`params_used.voice`) has no `inputsUsed.voiceChange` and keeps the lines above —
     // `describeVersionParams` already folds its `readVoiceMeta` line into `paramSummary`.
-    const voiceChange = describeVoiceChange(v.inputsUsed, labelById) ?? describeVideoEdit(v.inputsUsed, labelById);
+    const provenance = describeVoiceChange(v.inputsUsed, labelById) ?? describeVideoEdit(v.inputsUsed, labelById);
 
     return {
       id: v.id,
@@ -92,14 +92,14 @@ export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersio
       makerName: v.makerName,
       decisions: v.decisions,
       thumb: v.output ? <VersionThumb kind="video" src={v.output} /> : undefined,
-      summary: voiceChange ? voiceChange.title : modelLabel || undefined,
-      meta: voiceChange ? (
+      summary: provenance ? provenance.title : modelLabel || undefined,
+      meta: provenance ? (
         <>
           <p className="line-clamp-1 text-[0.7rem] leading-snug text-primary">
-            {voiceChange.title}
+            {provenance.title}
           </p>
           <p className="mt-0.5 line-clamp-2 text-[0.65rem] leading-snug text-muted-foreground/80">
-            {voiceChange.detail}
+            {provenance.detail}
           </p>
         </>
       ) : (

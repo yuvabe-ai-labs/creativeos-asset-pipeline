@@ -130,7 +130,7 @@ export function buildOmniEditRequestBody(a: {
 /** A refusal is decided before anything renders. The operator sees plain words; the raw text is logged. */
 export function omniRefusalMessage(raw: string): string | null {
   // Observed on the live API: {"error":{"code":"content_blocked","message":"Input blocked: …"}}.
-  return /content_blocked|photorealistic children|blocked|safety|usage policy|prohibited/i.test(raw)
+  return /content_blocked|photorealistic children|usage policy/i.test(raw)
     ? VIDEO_EDIT_REFUSED_MESSAGE
     : null;
 }
@@ -149,7 +149,7 @@ async function editWithOmni(input: VideoGenInput & { editVideoUrl: string }): Pr
   const body = JSON.stringify(
     buildOmniEditRequestBody({
       text: input.prompt,
-      videoPart: { data: video.imageBytes, mime_type: video.mimeType },
+      videoPart: { data: video.imageBytes, mime_type: video.mimeType.startsWith("video/") ? video.mimeType : "video/mp4" },
       imageParts: images.map((img) => ({ type: "image", data: img.imageBytes, mime_type: img.mimeType })),
       resolution,
     }),

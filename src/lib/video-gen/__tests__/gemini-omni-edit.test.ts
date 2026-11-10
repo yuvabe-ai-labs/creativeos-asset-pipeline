@@ -34,10 +34,11 @@ describe("buildOmniEditRequestBody", () => {
 describe("omniRefusalMessage", () => {
   it("maps a policy refusal to the plain message", () => {
     expect(omniRefusalMessage('{"error":{"message":"Request blocked: inputs containing photorealistic children"}}')).toBe(VIDEO_EDIT_REFUSED_MESSAGE);
-    expect(omniRefusalMessage("The request was blocked by safety filters")).toBe(VIDEO_EDIT_REFUSED_MESSAGE);
+    expect(omniRefusalMessage('{"error":{"code":"content_blocked","message":"Input blocked"}}')).toBe(VIDEO_EDIT_REFUSED_MESSAGE);
     expect(omniRefusalMessage("violates our usage policy")).toBe(VIDEO_EDIT_REFUSED_MESSAGE);
   });
   it("leaves other failures alone", () => {
+    expect(omniRefusalMessage("Requests to this API generativelanguage.googleapis.com method google.ai.generativelanguage.v1beta.Interactions.Create are blocked.")).toBeNull();
     expect(omniRefusalMessage("Internal error (500)")).toBeNull();
   });
 });

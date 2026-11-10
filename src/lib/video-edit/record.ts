@@ -12,8 +12,14 @@ export const VIDEO_EDIT_MAX_SECONDS = 10;
 
 export const VIDEO_EDIT_REFUSED_MESSAGE =
   "This edit can't be made. Takes with children, or changing one person into another, are refused.";
+export const VIDEO_EDIT_FAILED_MESSAGE = "The edit didn't finish. Try again.";
 export const VIDEO_EDIT_LIMITS_NOTE =
   "The edit keeps the take's length and shape. It works best on a single continuous shot. Captions on the video may change.";
+
+/** What a person sees for a failed edit: the refusal as is, anything else in plain words. */
+export function plainVideoEditFailure(raw: string): string {
+  return raw === VIDEO_EDIT_REFUSED_MESSAGE ? VIDEO_EDIT_REFUSED_MESSAGE : VIDEO_EDIT_FAILED_MESSAGE;
+}
 
 /** Stored on `generations.inputs_snapshot.videoEdit`, carried onto the version's `inputs_used`. */
 export type VideoEditRecord = {

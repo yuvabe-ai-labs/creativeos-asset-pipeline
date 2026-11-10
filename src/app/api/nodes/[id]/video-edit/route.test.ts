@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { videoEditEstimateCredits } from "@/lib/video-edit/record";
+import { GEMINI_OMNI_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
 
 vi.mock("server-only", () => ({}));
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
@@ -66,6 +67,18 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     await post(BODY);
     const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as { inputsSnapshot: { videoEdit: { rootVersionId: string } } };
     expect(call.inputsSnapshot.videoEdit.rootVersionId).toBe("v1");
+  });
+
+  it("dedupes references and names the cap when too many are sent", async () => {
+    await post({ ...BODY, referenceNodeIds: ["n-pack", "n-pack"] });
+    const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as { inputsSnapshot: { videoEdit: { referenceNodeIds: string[] } } };
+    expect(call.inputsSnapshot.videoEdit.referenceNodeIds).toEqual(["n-pack"]);
+    mocks.insertGeneration.mockClear();
+    const many = Array.from({ length: GEMINI_OMNI_IMAGE_INPUTS.maxReferenceImages + 1 }, (_, i) => `n-${i}`);
+    const res = await post({ ...BODY, referenceNodeIds: many });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: `Pick up to ${GEMINI_OMNI_IMAGE_INPUTS.maxReferenceImages} references.` });
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
   });
 
   it("400s before recording anything on a bad request", async () => {

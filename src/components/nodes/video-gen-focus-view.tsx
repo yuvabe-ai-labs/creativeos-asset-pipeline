@@ -1210,9 +1210,10 @@ export function VideoGenFocusView({
     // silent wait reads as a dead click.
     const toastId = toast.loading("Restoring version…");
     try {
-      const { output, modelUsed, paramsUsed } = await videoGenApi.restoreVersion(nodeId, versionId);
+      const { output, modelUsed, paramsUsed, edited } = await videoGenApi.restoreVersion(nodeId, versionId);
       // D461 — a version made on a deprecated model brings back its video, not its model.
-      const restoredParams = modelUsed && !isVideoModelDeprecated(modelUsed)
+      // D483 — so does an edited version: Omni and a defaulted resolution are not the node's settings.
+      const restoredParams = !edited && modelUsed && !isVideoModelDeprecated(modelUsed)
         ? paramsForRestore(videoGenClientModelMap[modelUsed]?.params, paramsUsed)
         : null;
       if (modelUsed && restoredParams) {
@@ -1230,7 +1231,9 @@ export function VideoGenFocusView({
       toast.success(
         restoredParams
           ? "Version restored — model and settings applied"
-          : "Video restored — its settings are no longer available",
+          : edited
+            ? "Video restored — the node keeps its current settings"
+            : "Video restored — its settings are no longer available",
         { id: toastId },
       );
     } catch (e) {

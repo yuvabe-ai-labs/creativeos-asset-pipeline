@@ -5,6 +5,7 @@ import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { GEMINI_OMNI_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
 import { durationOfParams } from "@/lib/voice-change/record";
 import {
   VIDEO_EDIT_DEFAULT_RESOLUTION,
@@ -36,7 +37,7 @@ type Props = {
   locked: string | null;
   value: VideoEditNodeState | undefined;
   onChange: (next: VideoEditNodeState) => void;
-  /** The job was accepted — the caller marks the node as generating. */
+  /** The job was accepted. The mutation already marks the node as generating; the caller pauses the video and clears the old error. */
   onStarted: () => void;
 };
 
@@ -51,16 +52,21 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
     referenceNodeIds: null,
     resolution: VIDEO_EDIT_DEFAULT_RESOLUTION,
   };
-  const selectedIds = (state.referenceNodeIds ?? images.filter((img) => usedUrls.has(img.imageUrl)).map((img) => img.id))
-    .filter((id) => images.some((img) => img.id === id));
+  const selectedSet = new Set(state.referenceNodeIds ?? images.filter((img) => usedUrls.has(img.imageUrl)).map((img) => img.id));
+  // Sent in thumbnail order, not click order.
+  const selectedIds = images.filter((img) => selectedSet.has(img.id)).map((img) => img.id);
   const start = useStartVideoEdit(nodeId);
 
   const duration = durationOfParams(source?.paramsUsed ?? {});
   const credits = duration > 0 ? videoEditEstimateCredits(duration, state.resolution) : null;
   const gate = videoEditGate({ sourceId, instruction: state.instruction, durationSeconds: duration, running, locked, submitting: start.isPending });
 
-  const toggle = (id: string) =>
-    onChange({ ...state, referenceNodeIds: selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id] });
+  const toggle = (id: string) => {
+    if (selectedSet.has(id)) return onChange({ ...state, referenceNodeIds: selectedIds.filter((x) => x !== id) });
+    // Further ticks are ignored once the model's reference cap is reached.
+    if (selectedIds.length >= GEMINI_OMNI_IMAGE_INPUTS.maxReferenceImages) return;
+    onChange({ ...state, referenceNodeIds: [...selectedIds, id] });
+  };
 
   const submit = () => {
     if (!gate.ok || !sourceId) return;
