@@ -950,3 +950,37 @@ select relrowsecurity from pg_class where relname = 'media_transcripts';
 select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
+
+## Migration 0062 — permission-based access (D489–D492, 2026-11-11)
+
+`supabase/migrations/0062_permission_based_access.sql`: presets (`role_presets`,
+`role_preset_permissions`), per-person ticks (`membership_permission_changes`), picked clients
+(`membership_clients`), invitations (`org_invitations`, used from plan 3), the access read
+`get_membership_access(uuid)`, and `auth_org_ids()` behind the eight "org isolation" policies.
+Paste into the Supabase SQL editor → Run.
+
+**Safe to re-run:** every create uses `if not exists` / `create or replace`, the seed uses
+`on conflict do nothing`, and policies are dropped before they are created.
+
+**Nothing changes for anyone on day one:** each membership gets the preset matching its
+`org_role` and `all_clients = true`. `org_role` stays and is kept in sync by
+`org_memberships_0_sync_preset` until a later migration drops it.
+
+**Ordering:**
+
+1. Merge the code (plan 1) to the branch being deployed.
+2. Apply 0062.
+3. Deploy the app. The new code calls `get_membership_access`; deploying before 0062 sends
+   everyone to `/login?error=no-membership`.
+
+**Verify after running:**
+
+```sql
+-- expect owner|t|0, senior|f|56, designer|f|53
+select key, is_owner, (select count(*) from role_preset_permissions r where r.preset_id = p.id)
+  from role_presets p order by sort;
+-- expect 0
+select count(*) from org_memberships where preset_id is null;
+-- expect one row per member, for any member's user id
+select * from get_membership_access('<a member user id>');
+```
