@@ -86,7 +86,7 @@ export function RedrawPopover({ label = "Redraw", suggestions, credits, canChang
           {canChange && (
             <Button size="sm" disabled={!trimmed} onClick={() => finish(onChange)}>
               <Wand2 className="size-3.5" strokeWidth={1.5} />
-              Change this picture
+              Edit this picture
               <AvatarCreditCost credits={credits} />
             </Button>
           )}

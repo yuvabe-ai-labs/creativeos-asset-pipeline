@@ -753,6 +753,7 @@ export function VideoPromptFocusView({
                           multiline
                           value={draft}
                           onCommit={setDraft}
+                          live
                           readOnly={!editable}
                           placeholder="Empty — click to edit"
                           renderDisplay={(text) => (
@@ -762,7 +763,7 @@ export function VideoPromptFocusView({
                         />
                       )}
                       <div className="flex items-center gap-2 self-start">
-                        <Button variant="outline" onClick={handleSave} disabled={!dirty}>
+                        <Button variant="outline-primary" onClick={handleSave} disabled={!dirty}>
                           Save
                         </Button>
                         {dirty && (

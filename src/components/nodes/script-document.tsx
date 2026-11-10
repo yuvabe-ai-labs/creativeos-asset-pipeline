@@ -96,6 +96,9 @@ export function ScriptDocument({
     );
   }
 
+  // Fields here are `live`: the Script view buffers every edit behind its own Save, so each
+  // keystroke reaches the draft and Save enables while typing (the shot length stays on blur:
+  // it parses a number).
   const set = (path: Path) => (v: string) => onChange?.(path, v);
   const shots = script.visual_script?.shots ?? [];
   // Task 6 — one edit, two paths: the shot's own lines, and the reel-level `voiceover` string
@@ -116,6 +119,7 @@ export function ScriptDocument({
   return (
     <div className="grid w-full gap-12 text-sm">
       <EditableField
+        live
         value={script.title ?? ""}
         onCommit={set(["title"])}
         readOnly={readOnly}
@@ -131,6 +135,7 @@ export function ScriptDocument({
         <div className="grid grid-cols-2 gap-2">
           {(["date", "post_time", "category", "theme"] as const).map((k) => (
             <EditableField
+              live
               key={k}
               value={script.schedule?.[k] ?? ""}
               onCommit={set(["schedule", k])}
@@ -143,6 +148,7 @@ export function ScriptDocument({
 
       <Section label="Objective">
         <EditableField
+          live
           value={script.strategic_objective ?? ""}
           onCommit={set(["strategic_objective"])}
           readOnly={readOnly}
@@ -153,6 +159,7 @@ export function ScriptDocument({
 
       <Section label="Production type">
         <EditableField
+          live
           value={script.ai_production_type ?? ""}
           onCommit={set(["ai_production_type"])}
           readOnly={readOnly}
@@ -175,6 +182,7 @@ export function ScriptDocument({
                     <span className="pt-1 text-muted-foreground">{i + 1}.</span>
                     <div className="flex-1">
                       <EditableField
+                        live
                         value={shots[i]?.description ?? ""}
                         onCommit={set(["visual_script", "shots", i, "description"])}
                         readOnly={readOnly}
@@ -214,6 +222,7 @@ export function ScriptDocument({
                       <VoLinesEditor
                         lines={shots[i]?.voiceover}
                         readOnly={readOnly}
+                        live
                         onChange={setVoiceover(i)}
                       />
                     </div>
@@ -245,6 +254,7 @@ export function ScriptDocument({
         <div className="mt-3">
           <span className="text-xs text-muted-foreground">Execution</span>
           <EditableField
+            live
             value={script.visual_script?.execution_refinement ?? ""}
             onCommit={set(["visual_script", "execution_refinement"])}
             readOnly={readOnly}
@@ -257,6 +267,7 @@ export function ScriptDocument({
       <Section label="On-screen text">
         <div className="grid gap-2">
           <EditableField
+            live
             value={script.on_screen_text?.intro ?? ""}
             onCommit={set(["on_screen_text", "intro"])}
             readOnly={readOnly}
@@ -265,6 +276,7 @@ export function ScriptDocument({
           {body.map((_, i) => (
             <div key={i} className="flex items-center gap-2">
               <EditableField
+                live
                 value={body[i] ?? ""}
                 onCommit={set(["on_screen_text", "body", i])}
                 readOnly={readOnly}
@@ -293,6 +305,7 @@ export function ScriptDocument({
             </Button>
           )}
           <EditableField
+            live
             value={script.on_screen_text?.outro ?? ""}
             onCommit={set(["on_screen_text", "outro"])}
             readOnly={readOnly}
@@ -303,6 +316,7 @@ export function ScriptDocument({
 
       <Section label="Music & sound">
         <EditableField
+          live
           value={script.music_sound ?? ""}
           onCommit={set(["music_sound"])}
           readOnly={readOnly}
@@ -313,6 +327,7 @@ export function ScriptDocument({
 
       <Section label="Caption">
         <EditableField
+          live
           value={script.caption ?? ""}
           onCommit={set(["caption"])}
           readOnly={readOnly}
@@ -323,12 +338,14 @@ export function ScriptDocument({
 
       <Section label="CTA">
         <EditableField
+          live
           value={script.cta ?? ""}
           onCommit={set(["cta"])}
           readOnly={readOnly}
           placeholder="Add CTA…"
         />
         <EditableField
+          live
           value={script.thumbnail_hook ?? ""}
           onCommit={set(["thumbnail_hook"])}
           readOnly={readOnly}
@@ -342,6 +359,7 @@ export function ScriptDocument({
           {qc.map((_, i) => (
             <li key={i} className="flex items-center gap-2">
               <EditableField
+                live
                 value={qc[i] ?? ""}
                 onCommit={set(["qc_notes", i])}
                 readOnly={readOnly}
@@ -377,6 +395,7 @@ export function ScriptDocument({
           {links.map((_, i) => (
             <li key={i} className="flex items-center gap-2">
               <EditableField
+                live
                 value={links[i] ?? ""}
                 onCommit={set(["product_links", i])}
                 readOnly={readOnly}

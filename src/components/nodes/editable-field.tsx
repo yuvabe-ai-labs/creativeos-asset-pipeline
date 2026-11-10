@@ -26,6 +26,14 @@ type EditableFieldProps = {
   // Custom render for the committed (non-editing) value. Clicking still enters
   // edit mode — the raw text is always what gets edited. Falls back to plain text.
   renderDisplay?: (value: string) => ReactNode;
+  /**
+   * Report every keystroke through `onCommit`, not only on Enter / blur. For a field inside a
+   * view that BUFFERS its edits behind its own Save (the Multishot focus view), so that view's
+   * Save enables as soon as something is typed. Esc still reverts, by committing the value the
+   * edit started from. Never set it where `onCommit` writes through to the canvas: that would
+   * be a store write (and an autosave) per keystroke.
+   */
+  live?: boolean;
 };
 
 // Click-to-edit text. Renders as read-only text until clicked, then becomes an
@@ -41,9 +49,13 @@ export function EditableField({
   className,
   editClassName,
   renderDisplay,
+  live = false,
 }: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  // The value the current edit started from — what Esc goes back to in `live` mode, where the
+  // parent's `value` has already followed every keystroke.
+  const [start, setStart] = useState(value);
 
   const editable = useCanvasEditable();
   const isReadOnly = readOnly || !editable; // D33: strict read-only under the lock
@@ -73,6 +85,7 @@ export function EditableField({
         type="button"
         onClick={() => {
           setDraft(value);
+          setStart(value);
           setEditing(true);
         }}
         title="Click to edit"
@@ -88,13 +101,18 @@ export function EditableField({
     );
   }
 
+  function change(next: string) {
+    setDraft(next);
+    if (live) onCommit(next);
+  }
   function commit() {
     setEditing(false);
-    if (draft !== value) onCommit(draft);
+    if (!live && draft !== value) onCommit(draft);
   }
   function cancel() {
     setEditing(false);
-    setDraft(value);
+    setDraft(start);
+    if (live && draft !== start) onCommit(start);
   }
 
   if (multiline) {
@@ -103,7 +121,7 @@ export function EditableField({
         autoFocus
         rows={3}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => change(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
           // stopPropagation, not just preventDefault: when this field sits inside a Sheet or
@@ -129,7 +147,7 @@ export function EditableField({
     <Input
       autoFocus
       value={draft}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={(e) => change(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
         // See the multiline branch above — an enclosing Sheet/Dialog closes on Escape from a
