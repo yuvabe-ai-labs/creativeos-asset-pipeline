@@ -1,8 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { Sparkles, Loader2, Settings2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Sparkles, Settings2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { durationOfParams } from "@/lib/voice-change/record";
 import {
@@ -21,7 +20,7 @@ import {
 import type { UpstreamImage } from "@/lib/video-gen/api";
 import { useStartVideoEdit, startErrorMessage } from "@/hooks/queries/node-generation";
 import { ImageGenEditReferences } from "./image-gen-edit-references";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
+import { GenerateFooter } from "./generate-footer";
 import { VideoGenModelPicker } from "./video-gen-model-picker";
 import { FieldLabel } from "./field-label";
 import { ParamChipGroup } from "./param-chip-group";
@@ -49,8 +48,9 @@ type Props = {
   onStarted: () => void;
 };
 
-// D483 — Edit, in the focus view's centre column (where Edit voice sits). The output column keeps
-// showing the take being edited. The model and resolution use the generate settings' own controls.
+// D483 — Edit video, in the focus view's centre column (where Change voice sits). The output column
+// keeps showing the take being edited. The model and resolution use the generate settings' own
+// controls, and the button sits in the same pinned footer as Generate (D486).
 export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running, editing, locked, value, onChange, onStarted }: Props) {
   const source = versions.find((v) => v.id === sourceId) ?? null;
   // Until the operator picks, the images this take was generated with start checked.
@@ -100,7 +100,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
   };
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-1 flex-col gap-8">
       <VideoGenModelPicker
         modelId={modelId}
         onModelChange={(next) => isVideoEditModelId(next) && onChange({ ...state, modelId: next })}
@@ -128,7 +128,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
       <div className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-card">
         <div className="flex items-center gap-1.5">
           <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
-          <span className="text-eyebrow">Edit this video</span>
+          <span className="text-eyebrow">What should change?</span>
         </div>
         <Textarea
           value={state.instruction}
@@ -139,13 +139,18 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
           className="nodrag resize-none"
         />
         <p className="text-xs text-muted-foreground">{VIDEO_EDIT_LIMITS_NOTE}</p>
-        <Button className="w-full" disabled={busy || !gate.ok} onClick={submit} title={gate.ok || busy ? undefined : gate.reason}>
-          {busy ? <Loader2 className="size-4 animate-spin" strokeWidth={1.5} /> : <Sparkles className="size-4" strokeWidth={1.5} />}
-          {busy ? "Editing…" : "Edit video"}
-          {!busy && credits !== null && <EstimatedCreditsLabel credits={credits} />}
-        </Button>
-        {!busy && !gate.ok && <p className="text-xs text-muted-foreground">{gate.reason}</p>}
       </div>
+      <GenerateFooter
+        className="-mx-6 -mb-5"
+        label="Edit video"
+        busy={busy}
+        busyLabel="Editing…"
+        onClick={submit}
+        disabled={busy || !gate.ok}
+        disabledReason={gate.ok ? null : gate.reason}
+        notice={!busy && !gate.ok ? <p className="text-xs text-muted-foreground">{gate.reason}</p> : null}
+        credits={credits}
+      />
     </div>
   );
 }

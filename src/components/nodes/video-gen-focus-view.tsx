@@ -127,7 +127,8 @@ import { ActiveOnlyNotice } from "./active-only-notice";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
-import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
+import { VideoGenEditTools } from "./video-gen-edit-tools";
+import { VideoGenModeHeader } from "./video-gen-mode-header";
 import { VideoGenEditVideo } from "./video-gen-edit-video";
 import type { VideoEditNodeState } from "@/lib/video-edit/record";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
@@ -651,6 +652,18 @@ export function VideoGenFocusView({
 
   const { isGenerating, isChangingVoice, isEditingVideo, lastError, setGenerating, setLastError } =
     useGenerationStatus(nodeId);
+
+  // D486 — opening one edit tool closes the other and anything that can't combine with it (the
+  // annotate mode, a captured frame); the panel lives in the centre column's video pane.
+  const openEditTool = (tool: "edit" | "voice", next: boolean) => {
+    setEditVideoOpen(tool === "edit" && next);
+    setChangeVoiceOpen(tool === "voice" && next);
+    if (!next) return;
+    setSelected("video");
+    setReviewAnnotating(false);
+    setCapturedFrame(null);
+    setOpenTimecode(null);
+  };
 
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
@@ -1817,8 +1830,11 @@ export function VideoGenFocusView({
                 min-content width, so one long unbreakable string inside any pane silently
                 overrides w-[54%] and squeezes the video column beside it. */}
             <div className="min-h-0 w-1/2 min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised xl:w-[54%]">
-              {/* D284 — Edit voice takes over this column, as Image Gen's Edit does. */}
+              {/* D284 — Change voice takes over this column, as Image Gen's Edit does; D486 — under a
+                  slim header whose Close returns to the generate settings. */}
               {selected === "video" && changeVoiceOpen && (
+                <>
+                <VideoGenModeHeader icon={AudioLines} title="Change the voice" onClose={() => setChangeVoiceOpen(false)} />
                 <div className="px-6 py-5">
                   <VideoGenChangeVoice
                     nodeId={nodeId}
@@ -1841,11 +1857,15 @@ export function VideoGenFocusView({
                     }}
                   />
                 </div>
+                </>
               )}
 
-              {/* D483 — Edit takes over this column, as Edit voice does. */}
+              {/* D483 — Edit video takes over this column, as Change voice does; D486 — under a slim
+                  header, with its button pinned to the bottom like Generate's. */}
               {selected === "video" && editVideoOpen && (
-                <div className="px-6 py-5">
+                <div className="flex min-h-full flex-col">
+                <VideoGenModeHeader icon={Sparkles} title="Edit this video" onClose={() => setEditVideoOpen(false)} />
+                <div className="flex flex-1 flex-col px-6 py-5">
                   <VideoGenEditVideo
                     nodeId={nodeId}
                     versions={versions}
@@ -1861,6 +1881,7 @@ export function VideoGenFocusView({
                       setLastError(null);
                     }}
                   />
+                </div>
                 </div>
               )}
 
@@ -2218,8 +2239,8 @@ export function VideoGenFocusView({
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               {/* D433 — a fixed one-line header that never changes height, so the player below never
                   moves. Versions are picked in History (the rail), not stepped here; while an
-                  older take plays, a quiet tag names it in place of the Edit voice switch (which
-                  acts on the active take only). */}
+                  older take plays, a quiet tag names it in place of the edit tools (which act on the
+                  active take only). */}
               <div className="flex h-8 min-w-0 shrink-0 items-center gap-3">
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
@@ -2228,43 +2249,22 @@ export function VideoGenFocusView({
                 {viewing.isViewingOther && viewed ? (
                   <ViewingTag label={viewedLabel} />
                 ) : !loadingVersions && versions.some((v) => v.output && !v.error) && (
-                  <div className="flex items-center gap-4">
-                    <VideoGenChangeVoiceToggle
-                      id={`video-edit-voice-${nodeId}`}
-                      checked={changeVoiceOpen}
-                      // Free during a voice change — that's the mode it runs in — but not while a
-                      // new video is generating.
-                      disabled={!editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
-                      onCheckedChange={(next) => {
-                        setChangeVoiceOpen(next);
-                        if (next) {
-                          setEditVideoOpen(false);
-                          setSelected("video"); // the editor lives in the centre column's video pane
-                          // The two modes never combine — mirror the annotate toggle's off-cleanup.
-                          setReviewAnnotating(false);
-                          setCapturedFrame(null);
-                          setOpenTimecode(null);
-                        }
-                      }}
-                    />
-                    <VideoGenChangeVoiceToggle
-                      id={`video-edit-${nodeId}`}
-                      label="Edit"
-                      checked={editVideoOpen}
+                  <VideoGenEditTools
+                    edit={{
+                      open: editVideoOpen,
+                      running: isEditingVideo,
                       // Free during an edit (the mode it runs in), but not while anything else runs.
-                      disabled={!editable || Boolean(lockReason) || (isGenerating && !isEditingVideo) || viewing.isViewingOther}
-                      onCheckedChange={(next) => {
-                        setEditVideoOpen(next);
-                        if (next) {
-                          setChangeVoiceOpen(false);
-                          setSelected("video");
-                          setReviewAnnotating(false);
-                          setCapturedFrame(null);
-                          setOpenTimecode(null);
-                        }
-                      }}
-                    />
-                  </div>
+                      disabled: !editable || Boolean(lockReason) || (isGenerating && !isEditingVideo) || viewing.isViewingOther,
+                      onOpenChange: (next) => openEditTool("edit", next),
+                    }}
+                    voice={{
+                      open: changeVoiceOpen,
+                      running: isChangingVoice,
+                      // Free during a voice change, but not while anything else runs.
+                      disabled: !editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther,
+                      onOpenChange: (next) => openEditTool("voice", next),
+                    }}
+                  />
                 )}
               </div>
               <div className="min-h-0 flex-1">

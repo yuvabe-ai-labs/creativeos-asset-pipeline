@@ -8573,3 +8573,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Re-stamping the plan when the node switches (the stamp records which writer produced it, and that does not change). Keeping custom free text across providers (each provider's negative default is tuned to its own artifacts).
 
 **Originated →** this entry.
+
+### D486 — Edit video and Change voice are icon tools on the take, not switches *(recorded 2026-11-10; amends D284, D483)*
+
+**Decision.** The two switches beside the VIDEO heading ("Edit voice", "Edit") are replaced by two small icon buttons at the right of that heading: a sparkle for Edit video and a waveform for Change voice, named on hover, tinted while their panel is open, with a dot while their job runs. Opening one swaps the centre column for its panel under a slim header with a Close back to the generate settings; opening one closes the other. Edit video's button moves into the same pinned footer Generate uses (`GenerateFooter`).
+
+**Why.** User, 10 Nov 2026: two switches were hard to use and read as main actions. Generate is the screen's main job; editing a take is a tool on it. Mockups compared mode tabs, an "Edit" menu, rail items, buttons under the player, then three quiet entry points; the user picked the icon buttons.
+
+**Rejected.** Mode tabs over the centre column (clear, but made edits look as important as Generating). A "⋯" menu (quietest, but hides the feature). Text links under the take (compete with the take's tags). Rail items (mix places with actions).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.

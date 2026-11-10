@@ -21,7 +21,7 @@ right. Omni can take a video and return the same video with one change applied.
 
 In:
 
-- An **Edit** toggle on the Video Gen focus view, beside **Edit voice**.
+- An **Edit video** tool on the Video Gen focus view, beside **Change voice** (D486).
 - Editing the **whole active take**, with a typed instruction and chosen reference images.
 - The result is a **new version** of the same node.
 
@@ -32,19 +32,21 @@ Out (this version):
 - Editing inside the Rough Cut Editor.
 - A separate edit node.
 
-The UX team is reworking this surface. This spec fixes the behaviour; the layout below is the
-interim one.
-
 ## 3. Layout
 
-Right column heading: **VIDEO**, then two switches side by side: **Edit voice** (D284) and
-**Edit**. Only one can be on. Turning one on turns the other off. Moving off the active version
-turns both off (D383), as Edit voice does today.
+Edit video and Change voice are tools on the take, not main actions (D486). Two small icon
+buttons sit at the right of the VIDEO heading: a sparkle for Edit video, a waveform for Change
+voice. Their names show on hover, the one whose panel is open stays tinted, and a small dot shows
+while its job runs. Opening one swaps the centre column for its panel under a slim header ("Edit
+this video" / "Change the voice") with a Close that returns to the generate settings; opening one
+closes the other. Moving off the active version closes both (D383).
 
-With **Edit** on, the right column keeps showing the take being edited and the centre column
-shows the list below. While an edit runs, Edit stays open, the right column keeps the take under
-an "Editing the video…" veil (as Edit voice does), the button reads "Editing…", and reopening the
-node lands back in Edit. The canvas card reads "Editing…".
+While an edit runs, Edit stays open, the right column keeps the take under an "Editing the
+video…" veil (as Change voice does), the button reads "Editing…", and reopening the node lands
+back in Edit. The canvas card reads "Editing…".
+
+The Edit video panel's button sits in the same pinned footer as Generate, with the reason it is
+disabled shown above it.
 
 Centre column:
 
@@ -61,7 +63,7 @@ Centre column:
 4. **Edit video** button with the credit estimate. Disabled while the instruction is empty, while
    the node is working, or while the node is locked by an Editor (D390).
 
-All controls are shadcn primitives (`Switch`, `Textarea`, `Button`).
+All controls are shadcn primitives (`Button`, `Textarea`, `Tooltip`).
 
 ## 4. Request
 
@@ -142,5 +144,5 @@ continuous shot. Captions on the video may change."
   references from nodes not connected to this one (rule 14); reserves and refunds credits.
 - Task: builds the request body (video part, image parts in order, no duration/aspect); maps a
   refusal to the refused message and refunds; appends a version with `inputs_used.videoEdit`.
-- Focus view: the two switches are exclusive; switching versions turns Edit off; Edit video is
+- Focus view: the two tools are exclusive; switching versions closes both; Edit video is
   disabled with an empty instruction.
