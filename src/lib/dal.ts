@@ -8,11 +8,24 @@ import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import {
   mapAppMetadataToPlatformRole,
   mapAppMetadataToMustChangePassword,
+  presetKeyToOrgRole,
   type CallerContext,
-  type OrgRole,
 } from "./dal-logic";
+import { accessFromRow, type MembershipAccessRow } from "@/lib/permissions/access";
 
 export type { CallerContext } from "./dal-logic";
+
+// D489/D492: ONE round trip returns the membership and everything access needs. Several rows
+// = several agencies, which is not allowed yet (the one_org_per_user index); when it is, the
+// agency switcher's choice picks the row here, and nowhere else.
+async function loadMembershipAccess(userId: string): Promise<MembershipAccessRow | null> {
+  const db = createServerSupabase();
+  const { data, error } = await db.rpc("get_membership_access", { p_user_id: userId });
+  if (error) throw error;
+  const rows = (data ?? []) as MembershipAccessRow[];
+  if (rows.length > 1) throw new Error("Belonging to more than one agency is not supported yet.");
+  return rows[0] ?? null;
+}
 
 // The primary auth entry point (from Stage 1C onward). Every route handler / server
 // action / protected page will call this at the top. Cached per request (React cache)
@@ -27,16 +40,8 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
   const mustChangePassword = mapAppMetadataToMustChangePassword(user.app_metadata);
 
-  // Membership read uses the service-role client. org_memberships has no RLS by design
-  // in Stage 1 (app-layer enforces) — see the Stage 1 plan's Global Constraints.
-  const db = createServerSupabase();
-  const { data: membership, error } = await db
-    .from("org_memberships")
-    .select("org_id, org_role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!membership) {
+  const row = await loadMembershipAccess(user.id);
+  if (!row) {
     // Authenticated but unprovisioned — treat as no access.
     redirect("/login?error=no-membership");
   }
@@ -45,9 +50,10 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
     userId: user.id,
     email: user.email ?? null,
     platformRole,
-    orgId: membership.org_id as string,
-    orgRole: membership.org_role as OrgRole,
+    orgId: row.org_id,
+    orgRole: presetKeyToOrgRole(row.preset_key),
     mustChangePassword,
+    access: accessFromRow(row),
   };
 });
 
@@ -64,22 +70,17 @@ export const resolveCallerContextOrNull = cache(async (): Promise<CallerContext 
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
   const mustChangePassword = mapAppMetadataToMustChangePassword(user.app_metadata);
 
-  const db = createServerSupabase();
-  const { data: membership, error } = await db
-    .from("org_memberships")
-    .select("org_id, org_role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!membership) return null;
+  const row = await loadMembershipAccess(user.id);
+  if (!row) return null;
 
   return {
     userId: user.id,
     email: user.email ?? null,
     platformRole,
-    orgId: membership.org_id as string,
-    orgRole: membership.org_role as OrgRole,
+    orgId: row.org_id,
+    orgRole: presetKeyToOrgRole(row.preset_key),
     mustChangePassword,
+    access: accessFromRow(row),
   };
 });
 

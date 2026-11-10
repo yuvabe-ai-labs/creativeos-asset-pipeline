@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapAppMetadataToPlatformRole, orgRoleToIdentityRole, mapAppMetadataToMustChangePassword } from "./dal-logic";
+import { mapAppMetadataToPlatformRole, orgRoleToIdentityRole, mapAppMetadataToMustChangePassword, presetKeyToOrgRole } from "./dal-logic";
 
 describe("mapAppMetadataToPlatformRole", () => {
   it("reads super_admin from app_metadata", () => {
@@ -38,5 +38,14 @@ describe("mapAppMetadataToMustChangePassword", () => {
     expect(mapAppMetadataToMustChangePassword(undefined)).toBe(false);
     expect(mapAppMetadataToMustChangePassword({ must_change_password: "true" })).toBe(false); // wrong type
     expect(mapAppMetadataToMustChangePassword(true)).toBe(false); // wrong shape entirely
+  });
+});
+
+describe("presetKeyToOrgRole", () => {
+  it("maps the seeded presets and treats anything else as designer", () => {
+    expect(presetKeyToOrgRole("owner")).toBe("owner");
+    expect(presetKeyToOrgRole("senior")).toBe("senior");
+    expect(presetKeyToOrgRole("designer")).toBe("designer");
+    expect(presetKeyToOrgRole("editor")).toBe("designer");
   });
 });

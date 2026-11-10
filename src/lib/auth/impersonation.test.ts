@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ImpersonationEvent } from "@/lib/db/impersonation-audit";
+import { testOwnerAccess } from "@/lib/permissions/test-fixtures";
 import type { OrgRow } from "@/lib/db/organizations";
 
 vi.mock("server-only", () => ({}));
@@ -106,6 +107,7 @@ describe("resolveImpersonationState", () => {
       orgId: "yuvabe-org",
       orgRole: "owner",
       mustChangePassword: false,
+      access: testOwnerAccess(),
     });
     await expect(resolveImpersonationState()).resolves.toEqual({ isImpersonating: false });
   });

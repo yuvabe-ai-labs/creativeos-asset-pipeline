@@ -1,3 +1,5 @@
+import type { Access } from "@/lib/permissions/access";
+
 export type PlatformRole = "super_admin" | "member";
 export type OrgRole = "owner" | "senior" | "designer";
 
@@ -6,8 +8,11 @@ export type CallerContext = {
   email: string | null;
   platformRole: PlatformRole;
   orgId: string;
+  /** Derived from the preset key until plan 2 removes it; new code checks access, never this. */
   orgRole: OrgRole;
   mustChangePassword: boolean;
+  /** D489: what this person may do. Read it through accessOf(), never directly. */
+  access: Access;
 };
 
 // Reads the platform role from a JWT's app_metadata. Anything that is not the exact
@@ -40,4 +45,10 @@ export function mapAppMetadataToMustChangePassword(appMetadata: unknown): boolea
 // ever creates owner memberships — see D80/the Stage 1 index doc.)
 export function orgRoleToIdentityRole(orgRole: OrgRole): "senior" | "designer" {
   return orgRole === "designer" ? "designer" : "senior";
+}
+
+// The three seeded presets map onto the old roles; any other preset reads as designer, the
+// narrowest, for the few places still reading orgRole until plan 2.
+export function presetKeyToOrgRole(presetKey: string): OrgRole {
+  return presetKey === "owner" || presetKey === "senior" ? presetKey : "designer";
 }

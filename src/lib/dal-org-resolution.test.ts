@@ -15,16 +15,12 @@ vi.mock("@/lib/supabase/ssr-server", () => ({
 vi.mock("@/lib/supabase/get-user-with-retry", () => ({
   getUserWithRetry: vi.fn(async () => ({ id: "op-1", email: "op@yuvabe.com", app_metadata: { platform_role: "super_admin" } })),
 }));
-const membershipMock = vi.fn(async () => ({
-  data: { org_id: "yuvabe-org", org_role: "owner" },
-  error: null,
-}));
+const rpcMock = vi.fn(async () => ({ data: [testMembershipRow({ org_id: "yuvabe-org" })], error: null }));
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabase: vi.fn(() => ({
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: membershipMock }) }) }),
-  })),
+  createServerSupabase: vi.fn(() => ({ rpc: rpcMock })),
 }));
 
+import { testMembershipRow } from "@/lib/permissions/test-fixtures";
 import { encodeImpersonationCookie } from "@/lib/auth/impersonation-logic";
 
 const SECRET = "test-secret";
@@ -34,7 +30,7 @@ describe("page-level org resolution uses resolveOrgId(), not caller.orgId", () =
     vi.resetModules();
     vi.clearAllMocks();
     process.env.IMPERSONATION_COOKIE_SECRET = SECRET;
-    membershipMock.mockResolvedValue({ data: { org_id: "yuvabe-org", org_role: "owner" }, error: null });
+    rpcMock.mockResolvedValue({ data: [testMembershipRow({ org_id: "yuvabe-org" })], error: null });
   });
 
   it("resolves the operator's own org when not impersonating", async () => {
