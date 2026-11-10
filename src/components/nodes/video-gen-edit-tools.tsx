@@ -14,7 +14,7 @@ type Tool = {
   onOpenChange: (open: boolean) => void;
 };
 
-// D486 — Edit video and Change voice are tools on the take, not main actions: two quiet icon
+// D487 — Edit video and Change voice are tools on the take, not main actions: two quiet icon
 // buttons at the right of the VIDEO heading, named on hover, tinted while their panel is open.
 export function VideoGenEditTools({ edit, voice }: { edit: Tool; voice: Tool }) {
   return (

@@ -50,7 +50,7 @@ type Props = {
 
 // D483 — Edit video, in the focus view's centre column (where Change voice sits). The output column
 // keeps showing the take being edited. The model and resolution use the generate settings' own
-// controls, and the button sits in the same pinned footer as Generate (D486).
+// controls, and the button sits in the same pinned footer as Generate (D487).
 export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running, editing, locked, value, onChange, onStarted }: Props) {
   const source = versions.find((v) => v.id === sourceId) ?? null;
   // Until the operator picks, the images this take was generated with start checked.

@@ -653,7 +653,7 @@ export function VideoGenFocusView({
   const { isGenerating, isChangingVoice, isEditingVideo, lastError, setGenerating, setLastError } =
     useGenerationStatus(nodeId);
 
-  // D486 — opening one edit tool closes the other and anything that can't combine with it (the
+  // D487 — opening one edit tool closes the other and anything that can't combine with it (the
   // annotate mode, a captured frame); the panel lives in the centre column's video pane.
   const openEditTool = (tool: "edit" | "voice", next: boolean) => {
     setEditVideoOpen(tool === "edit" && next);
@@ -1830,7 +1830,7 @@ export function VideoGenFocusView({
                 min-content width, so one long unbreakable string inside any pane silently
                 overrides w-[54%] and squeezes the video column beside it. */}
             <div className="min-h-0 w-1/2 min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised xl:w-[54%]">
-              {/* D284 — Change voice takes over this column, as Image Gen's Edit does; D486 — under a
+              {/* D284 — Change voice takes over this column, as Image Gen's Edit does; D487 — under a
                   slim header whose Close returns to the generate settings. */}
               {selected === "video" && changeVoiceOpen && (
                 <>
@@ -1860,7 +1860,7 @@ export function VideoGenFocusView({
                 </>
               )}
 
-              {/* D483 — Edit video takes over this column, as Change voice does; D486 — under a slim
+              {/* D483 — Edit video takes over this column, as Change voice does; D487 — under a slim
                   header, with its button pinned to the bottom like Generate's. */}
               {selected === "video" && editVideoOpen && (
                 <div className="flex min-h-full flex-col">

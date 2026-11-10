@@ -21,7 +21,7 @@ right. Omni can take a video and return the same video with one change applied.
 
 In:
 
-- An **Edit video** tool on the Video Gen focus view, beside **Change voice** (D486).
+- An **Edit video** tool on the Video Gen focus view, beside **Change voice** (D487).
 - Editing the **whole active take**, with a typed instruction and chosen reference images.
 - The result is a **new version** of the same node.
 
@@ -34,7 +34,7 @@ Out (this version):
 
 ## 3. Layout
 
-Edit video and Change voice are tools on the take, not main actions (D486). Two small icon
+Edit video and Change voice are tools on the take, not main actions (D487). Two small icon
 buttons sit at the right of the VIDEO heading: a sparkle for Edit video, a waveform for Change
 voice. Their names show on hover, the one whose panel is open stays tinted, and a small dot shows
 while its job runs. Opening one swaps the centre column for its panel under a slim header ("Edit

@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// D486 — the slim header on an edit tool's panel (Edit video, Change voice): what it is, and a
+// D487 — the slim header on an edit tool's panel (Edit video, Change voice): what it is, and a
 // Close that returns the centre column to the generate settings.
 export function VideoGenModeHeader({ icon: Icon, title, onClose }: { icon: LucideIcon; title: string; onClose: () => void }) {
   return (

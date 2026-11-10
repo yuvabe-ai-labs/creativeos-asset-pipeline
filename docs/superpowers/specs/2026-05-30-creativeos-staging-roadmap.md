@@ -8574,7 +8574,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** this entry.
 
-### D486 — Edit video and Change voice are icon tools on the take, not switches *(recorded 2026-11-10; amends D284, D483)*
+### D487 — Edit video and Change voice are icon tools on the take, not switches *(recorded 2026-11-10; amends D284, D483)*
 
 **Decision.** The two switches beside the VIDEO heading ("Edit voice", "Edit") are replaced by two small icon buttons at the right of that heading: a sparkle for Edit video and a waveform for Change voice, named on hover, tinted while their panel is open, with a dot while their job runs. Opening one swaps the centre column for its panel under a slim header with a Close back to the generate settings; opening one closes the other. Edit video's button moves into the same pinned footer Generate uses (`GenerateFooter`).
 
