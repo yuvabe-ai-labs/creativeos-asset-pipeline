@@ -57,6 +57,28 @@ export function soundDesignClause(prompt: string): string {
 }
 
 /**
+ * D484 — the sound rule for ONE entry of fal's Kling shot list, which caps every shot at 512
+ * characters. `soundDesignClause` alone runs to 300, so each shot carries this short form (same
+ * decision about who speaks), and only the first shot adds `SPEECH_TIMING`.
+ */
+export function shortSoundLine(prompt: string): string {
+  const narrator = NARRATOR_LINE.test(prompt);
+  const onCamera = ON_CAMERA_LINE.test(prompt);
+  if (narrator && onCamera) return "Only the given lines are spoken: the voiceover off-screen, the rest on camera by the person named. No music.";
+  if (onCamera) return "Only the given lines are spoken, on camera by the person named. No voiceover, no music.";
+  if (narrator) return "Only the voiceover is spoken, off-screen. Nobody on screen speaks. No music.";
+  return "Ambience and foley only. Nobody speaks. No music.";
+}
+
+/** Whether the prompt has a line to be spoken, by a narrator or on camera. */
+export function hasSpokenLine(prompt: string): boolean {
+  return NARRATOR_LINE.test(prompt) || ON_CAMERA_LINE.test(prompt);
+}
+
+/** The longest `shortSoundLine`, for budgets that must hold whichever one is sent. */
+export const SHORT_SOUND_LINE_MAX_CHARS = 108;
+
+/**
  * Emitted on EVERY shot.
  *
  * Omni renders screen-space type well, which is the problem: left alone it invents signage,

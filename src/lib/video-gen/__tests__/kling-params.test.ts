@@ -38,18 +38,11 @@ describe("kling30Params", () => {
 });
 
 describe("klingO1Params", () => {
-  it("has resolution, duration, audio, and multi_shot", () => {
-    expect(names(klingO1Params)).toEqual(
-      expect.arrayContaining(["resolution", "duration", "audio", "multi_shot"]),
-    );
-  });
-
-  // The omni enum is native | original | off, but `original` only retains a reference video's
-  // own soundtrack and we never send a video — so it produced silence. `native` is the only
-  // value that yields audio in our flow; offering `original` made audio unreachable on O1.
-  it("audio offers native, not the reference-video-only original", () => {
-    const p = klingO1Params.find((p) => p.name === "audio")!;
-    expect(p.constraints).toEqual({ type: "select", options: ["native", "off"] });
+  // D484 — fal serves O1 at 1080p only and silent, so neither control would change anything.
+  it("has duration and multi_shot, and no resolution or audio", () => {
+    expect(names(klingO1Params)).toEqual(expect.arrayContaining(["duration", "multi_shot"]));
+    expect(names(klingO1Params)).not.toContain("resolution");
+    expect(names(klingO1Params)).not.toContain("audio");
   });
 
   // Kling defaults multi_shot to true server-side, so this must be present and default false —
@@ -60,9 +53,8 @@ describe("klingO1Params", () => {
     expect(p.defaultValue).toBe(false);
   });
 
-  // Not a slider like 3.0: Kling's /omni-video endpoint accepts an arbitrary duration only when
-  // a refer_image is supplied, and we only ever send first_frame — so 5 and 10 are the sole
-  // legal values, and two non-contiguous stops cannot be a range control.
+  // fal's page lists 3–10 s, but its live validator takes only 5 or 10 without a reference image
+  // (422, staging, 10 Nov 2026) — Kling's own code-1201 rule. Two stops, so a chip select.
   it("duration is a 5/10 select, not a continuous slider", () => {
     const p = klingO1Params.find((p) => p.name === "duration")!;
     expect(p.component).toBe("select");
@@ -89,14 +81,6 @@ describe("klingO1Params", () => {
   it("is O1-only: 3.0 declares no aspect_ratio", () => {
     expect(kling30Params.some((p) => p.name === "aspect_ratio")).toBe(false);
   });
-
-  it("offers no duration Kling would reject with code 1201", () => {
-    const p = klingO1Params.find((p) => p.name === "duration")!;
-    const options = p.constraints.type === "select" ? p.constraints.options : [];
-    expect(options).not.toContain("3");
-    expect(options).not.toContain("4");
-    expect(options).not.toContain("8");
-  });
 });
 
 // The slider stores a number where the select stored a string. Both must survive the round
@@ -113,8 +97,6 @@ describe("duration value handling", () => {
   it("O1 defaults to a string matching one of its options", () => {
     const p = klingO1Params.find((p) => p.name === "duration")!;
     expect(p.defaultValue).toBe("5");
-    const options = p.constraints.type === "select" ? p.constraints.options : [];
-    expect(options).toContain(p.defaultValue);
   });
 
   // Both models agree on 5s, so switching between them keeps the length the user chose.
@@ -204,7 +186,6 @@ describe("Kling audio control", () => {
   it.each([
     ["Kling 3.0", kling30Params],
     ["Kling 3.0 Omni", kling30OmniParams],
-    ["Kling O1", klingO1Params],
   ])("%s shows audio with the primary controls, right after duration", (_, params) => {
     const audio = params.find((p) => p.name === "audio")!;
     const duration = params.find((p) => p.name === "duration")!;

@@ -508,11 +508,14 @@ describe("POST video-generate — reference roles and the no-text line", () => {
   // The plan passed Kling's 3072 ceiling on its own; the added lines must not tip it over.
   it("drops the roles line rather than push Kling over its whole-prompt ceiling", async () => {
     const long = (n: number) => "x".repeat(n);
-    mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, {
+    // Six full shots, no look, and a long roles line: D484 counts the look and a short rules line
+    // against every shot's 512, so the whole prompt nears 3072 through many shots plus the roles.
+    const sixCuts: MultishotCut[] = Array.from({ length: 6 }, (_, i) => ({ id: `c${i + 1}`, text: "", seconds: 2 }));
+    mocks.graph = buildGraph(sixCuts, KLING_OMNI_MODEL_ID, {
       ...PLAN,
-      look: long(2000),
-      beats: [{ cutId: "c1", text: long(480) }, { cutId: "c2", text: long(480) }],
-      refRoles: [{ id: "ig", role: "product", name: long(60) }],
+      look: "",
+      beats: sixCuts.map((c) => ({ cutId: c.id, text: long(380) })),
+      refRoles: [{ id: "ig", role: "product", name: long(700) }],
     });
     const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: { ig: "reference" } });
     expect(res.status).toBe(202);

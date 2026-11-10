@@ -13,6 +13,24 @@ function state(over: Partial<ConstraintState> = {}): ConstraintState {
   };
 }
 
+describe("Kling O1 on fal (D484)", () => {
+  it("blocks an end frame together with references, with a reason the operator can act on", () => {
+    const rules = videoGenClientModelMap["kling:kling-o1"].rules;
+    const result = evaluateConstraints(rules, state({ hasEndFrame: true, referenceCount: 1 }));
+    expect(result.disableGenerate).toBe(true);
+    expect(result.disableGenerateReason).toMatch(/end frame together with reference images/);
+  });
+
+  it("allows a start frame with references, and does not apply to 3.0 Omni", () => {
+    expect(evaluateConstraints(videoGenClientModelMap["kling:kling-o1"].rules, state({ referenceCount: 2 })).disableGenerate).toBe(false);
+    const omni = evaluateConstraints(
+      videoGenClientModelMap["kling:kling-3-0-omni"].rules,
+      state({ hasEndFrame: true, referenceCount: 1 }),
+    );
+    expect(omni.disableGenerate).toBe(false);
+  });
+});
+
 describe("Kling constraint rules", () => {
   // Previously this surfaced only as a throw inside the Trigger task — a generation that
   // failed minutes later. As a rule it disables Generate up front.
