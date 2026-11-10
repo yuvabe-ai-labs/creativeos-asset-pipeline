@@ -2,6 +2,7 @@ import "server-only";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
+import { checkActionAccess, type ActionContext, type ActionGuard } from "@/lib/permissions/action-guard";
 
 // Stage 4 write-gate for server actions (D101) — the action-side counterpart to
 // route-helpers.ts's assertImpersonationWriteAllowed(). Server actions have no
@@ -12,7 +13,8 @@ import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 // Errors for invalid states (see renameCanvasAction, deleteKBDocumentAction, etc).
 export async function withAction<T>(
   actionName: string,
-  handler: () => Promise<T>,
+  guard: ActionGuard,
+  handler: (ctx: ActionContext) => Promise<T>,
 ): Promise<T> {
   const impersonation = await resolveImpersonationState();
 
@@ -20,7 +22,8 @@ export async function withAction<T>(
     throw new Error(IMPERSONATION_READ_ONLY_MESSAGE);
   }
 
-  const result = await handler();
+  const ctx = await checkActionAccess(guard);
+  const result = await handler(ctx);
 
   if (impersonation.isImpersonating && impersonation.elevated) {
     await logImpersonationEvent({

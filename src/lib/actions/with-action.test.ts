@@ -13,15 +13,23 @@ vi.mock("@/lib/auth/impersonation", () => ({
 }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: logMock }));
 
+const { checkActionAccessMock } = vi.hoisted(() => ({
+  checkActionAccessMock: vi.fn(async (): Promise<unknown> => ({ caller: { userId: "u1" }, effectiveOrgId: "org-1", target: null })),
+}));
+vi.mock("@/lib/permissions/action-guard", () => ({ checkActionAccess: checkActionAccessMock }));
+
 import { withAction } from "./with-action";
 
 describe("withAction", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    checkActionAccessMock.mockResolvedValue({ caller: { userId: "u1" }, effectiveOrgId: "org-1", target: null });
+  });
 
   it("runs the handler and returns its result when not impersonating", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
     const handler = vi.fn(async () => "result");
-    await expect(withAction("testAction", handler)).resolves.toBe("result");
+    await expect(withAction("testAction", { custom: "test" }, handler)).resolves.toBe("result");
     expect(handler).toHaveBeenCalled();
     expect(logMock).not.toHaveBeenCalled();
   });
@@ -31,7 +39,7 @@ describe("withAction", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
     const handler = vi.fn(async () => "result");
-    await expect(withAction("testAction", handler)).rejects.toThrow(
+    await expect(withAction("testAction", { custom: "test" }, handler)).rejects.toThrow(
       "Read-only while impersonating",
     );
     expect(handler).not.toHaveBeenCalled();
@@ -43,7 +51,7 @@ describe("withAction", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: true,
     });
     const handler = vi.fn(async () => "result");
-    await expect(withAction("testAction", handler)).resolves.toBe("result");
+    await expect(withAction("testAction", { custom: "test" }, handler)).resolves.toBe("result");
     expect(logMock).toHaveBeenCalledWith({
       operatorId: "op-1",
       targetOrgId: "org-1",
@@ -57,7 +65,16 @@ describe("withAction", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: true,
     });
     const handler = vi.fn(async () => { throw new Error("db error"); });
-    await expect(withAction("testAction", handler)).rejects.toThrow("db error");
+    await expect(withAction("testAction", { custom: "test" }, handler)).rejects.toThrow("db error");
+    expect(logMock).not.toHaveBeenCalled();
+  });
+
+  it("stops before the handler when the guard refuses", async () => {
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+    checkActionAccessMock.mockRejectedValue(new Error("Not found."));
+    const handler = vi.fn(async () => "result");
+    await expect(withAction("testAction", { need: "canvases.edit", on: { canvasId: "cv-1" } }, handler)).rejects.toThrow("Not found.");
+    expect(handler).not.toHaveBeenCalled();
     expect(logMock).not.toHaveBeenCalled();
   });
 });

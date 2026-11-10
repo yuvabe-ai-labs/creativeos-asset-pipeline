@@ -41,7 +41,7 @@ describe("IMPERSONATION_READ_ONLY_MESSAGE", () => {
   });
 
   it("is the exact message the server-action gate throws", async () => {
-    await expect(withAction("someAction", async () => "done")).rejects.toThrow(
+    await expect(withAction("someAction", { custom: "test" }, async () => "done")).rejects.toThrow(
       IMPERSONATION_READ_ONLY_MESSAGE,
     );
   });

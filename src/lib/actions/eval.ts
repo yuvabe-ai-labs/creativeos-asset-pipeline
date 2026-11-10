@@ -10,7 +10,7 @@ export async function setVersionLabelAction(
   versionId: string,
   label: { decision: "pass" | "fail" | null; note: string | null },
 ) {
-  return withAction("setVersionLabelAction", async () => {
+  return withAction("setVersionLabelAction", { need: "canvases.edit", on: { versionId } }, async () => {
     const supabase = createServerSupabase();
     const { error } = await supabase
       .from("node_versions")

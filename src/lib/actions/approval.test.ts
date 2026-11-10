@@ -17,7 +17,8 @@ vi.mock("@/lib/supabase/server", () => ({
 // withAction is Stage 4's impersonation write-gate; pass it through so these tests
 // exercise the approval rules rather than impersonation state.
 vi.mock("@/lib/actions/with-action", () => ({
-  withAction: (_name: string, fn: () => Promise<unknown>) => fn(),
+  withAction: async (_name: string, _guard: unknown, fn: (ctx: unknown) => Promise<unknown>) =>
+    fn({ caller: await mockCaller(), effectiveOrgId: "org-1", target: null }),
 }));
 // D241-D244: annotations ride this action, but their DB writes are exercised as unit
 // tests of insertDecision/insertAnnotations themselves (decisions.test.ts,

@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { ALL_PERMISSION_KEYS, isPermissionKey } from "@/lib/permissions/catalogue";
+import { NOT_YET_CHECKED } from "@/lib/permissions/not-yet-checked";
+
+// D490: the second argument is a guard — { need, on } or { custom: "<reason>" }.
+const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_]+\.[a-z]+)"|custom:\s*")/;
+const LOCK_ACTIONS = ["getCanvasLockAction", "acquireCanvasLockAction", "heartbeatCanvasLockAction", "releaseCanvasLockAction"];
 
 // Enumerates every exported `*Action` function across src/lib/actions/*.ts and asserts
 // each is either wrapped in withAction(...) or explicitly allowlisted below with a
@@ -100,6 +106,50 @@ describe("every mutating server action is gated by withAction() or explicitly al
             `either wrap it, or add it to ALLOWLIST with a one-line reason.`,
         ).toBe(true);
       });
+
+      if (!(name in ALLOWLIST)) {
+        it(`${name} (${file.split(/[\\/]/).pop()}) declares a permission guard`, () => {
+          const match = GUARD_RE.exec(body);
+          expect(match, `${name} must pass { need, on } or { custom } as withAction's second argument`).not.toBeNull();
+          if (match && match[2]) expect(isPermissionKey(match[2])).toBe(true);
+        });
+      }
     }
   }
+});
+
+describe("canvas lock actions check permission themselves", () => {
+  const source = readFileSync(join(ACTIONS_DIR, "canvas-lock.ts"), "utf8");
+  const actions = extractExportedActionFunctions(source);
+  for (const name of LOCK_ACTIONS) {
+    it(`${name} calls checkActionAccess(`, () => {
+      const action = actions.find((a) => a.name === name);
+      expect(action, `${name} not found`).toBeDefined();
+      expect(action!.body).toContain("checkActionAccess(");
+    });
+  }
+});
+
+function collect(dir: string, suffix: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) return collect(p, suffix);
+    return name.endsWith(suffix) && !name.endsWith(".test.ts") ? [p] : [];
+  });
+}
+
+it("every catalogue key is checked by a route, an action, a page or the approval map", () => {
+  const sources = [
+    ...collect("src/app/api", "route.ts"),
+    ...collect("src/lib/actions", ".ts"),
+    ...collect("src/app/clients", "page.tsx"),
+    "src/lib/permissions/node-area.ts",
+  ].map((f) => readFileSync(f, "utf8"));
+  const used = new Set(
+    sources
+      .flatMap((s) => [...s.matchAll(/"([a-z_]+\.(?:view|edit|generate|approve|share|delete))"/g)].map((m) => m[1]))
+      .filter(isPermissionKey),
+  );
+  const missing = ALL_PERMISSION_KEYS.filter((k) => !used.has(k) && !(k in NOT_YET_CHECKED));
+  expect(missing).toEqual([]);
 });

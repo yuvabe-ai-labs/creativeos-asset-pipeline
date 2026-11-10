@@ -22,6 +22,7 @@ const {
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/permissions/action-guard", () => ({ checkActionAccess: vi.fn(async () => ({})) }));
 vi.mock("@/lib/auth/impersonation", () => ({
   resolveImpersonationState: resolveImpersonationStateMock,
 }));

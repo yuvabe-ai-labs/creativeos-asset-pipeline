@@ -9,7 +9,7 @@ vi.mock("@/lib/db/clients", () => ({ setKBStatus: vi.fn(), getClientById: vi.fn(
 vi.mock("@/lib/db/kb-jobs", () => ({}));
 // withAction is the impersonation write-gate; pass it through so these tests exercise the save.
 vi.mock("@/lib/actions/with-action", () => ({
-  withAction: (_name: string, fn: () => Promise<unknown>) => fn(),
+  withAction: (_name: string, _guard: unknown, fn: (ctx: unknown) => Promise<unknown>) => fn({ target: null }),
 }));
 vi.mock("@/lib/db/kb", () => ({
   getKBImageAnalysis: vi.fn(),

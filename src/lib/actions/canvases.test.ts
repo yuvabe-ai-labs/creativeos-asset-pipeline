@@ -21,7 +21,10 @@ const { resolveImpersonationStateMock, resolveOrgIdMock, createCanvasMock, getSc
 }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: resolveImpersonationStateMock }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn(async () => undefined) }));
-vi.mock("@/lib/dal", () => ({ resolveOrgId: resolveOrgIdMock }));
+// The guard is covered in permissions/action-guard.test.ts; here it resolves the effective org from the same mock the test drives.
+vi.mock("@/lib/permissions/action-guard", () => ({
+  checkActionAccess: vi.fn(async () => ({ caller: { userId: "u1", orgId: "yuvabe-org" }, effectiveOrgId: await resolveOrgIdMock(), target: null })),
+}));
 vi.mock("@/lib/db/canvases", () => ({
   createCanvas: createCanvasMock,
   renameCanvas: vi.fn(async () => undefined),

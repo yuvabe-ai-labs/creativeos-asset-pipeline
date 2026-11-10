@@ -7,6 +7,7 @@ import {
   getCanvasLock,
 } from "@/lib/db/canvas-lock";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
+import { checkActionAccess } from "@/lib/permissions/action-guard";
 
 // Lock actions are per-editor-session bookkeeping (who currently holds the edit lock),
 // not tenant business data — deliberately NOT gated by withAction() (Stage 4). Gating
@@ -27,6 +28,8 @@ export async function acquireCanvasLockAction(
   name: string | null,
 ) {
   const impersonation = await resolveImpersonationState();
+  // Holding the lock is entering edit mode (D161's non-acquiring review mode covers view-only).
+  await checkActionAccess({ need: "canvases.edit", on: { canvasId } });
   if (impersonation.isImpersonating && !impersonation.elevated) {
     // Read-only impersonation: report the current lock state as a "denied" acquire
     // (getCanvasLock's shape differs — heldBy can be null — so map it onto
@@ -47,13 +50,16 @@ export async function acquireCanvasLockAction(
 }
 
 export async function heartbeatCanvasLockAction(canvasId: string, sessionId: string) {
+  await checkActionAccess({ need: "canvases.edit", on: { canvasId } });
   return heartbeatCanvasLock(canvasId, sessionId);
 }
 
 export async function releaseCanvasLockAction(canvasId: string, sessionId: string) {
+  await checkActionAccess({ need: "canvases.view", on: { canvasId } });
   await releaseCanvasLock(canvasId, sessionId);
 }
 
 export async function getCanvasLockAction(canvasId: string) {
+  await checkActionAccess({ need: "canvases.view", on: { canvasId } });
   return getCanvasLock(canvasId);
 }

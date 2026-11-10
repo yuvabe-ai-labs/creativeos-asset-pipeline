@@ -1,7 +1,6 @@
 "use server";
 
 import { createServerSupabase } from "@/lib/supabase/server";
-import { resolveCallerContext } from "@/lib/dal";
 import {
   buildApprovalUpdate,
   canSetApproval,
@@ -40,9 +39,9 @@ export async function setVersionApprovalAction(
     annotations?: AnnotationPayload[];
   },
 ): Promise<ApprovalActionResult> {
-  return withAction("setVersionApprovalAction", async (): Promise<ApprovalActionResult> => {
+  return withAction("setVersionApprovalAction", { custom: "needs Approve on the version's node area; checked after reading the node type (Task 9)" }, async (ctx): Promise<ApprovalActionResult> => {
     const refuse = (error: string) => ({ ok: false as const, error });
-    const caller = await resolveCallerContext();
+    const caller = ctx.caller;
 
     // R2.1/R2.2 — the role gate, against the caller's REAL org role. Checked before any
     // read: a designer should not be able to probe which version ids exist. The UI also
@@ -170,8 +169,8 @@ export async function setVersionApprovalAction(
 // this is a read receipt, not a security boundary that should surface failures to a
 // fire-and-forget caller.
 export async function markVersionApprovalSeenAction(versionId: string): Promise<void> {
-  return withAction("markVersionApprovalSeenAction", async () => {
-    const caller = await resolveCallerContext();
+  return withAction("markVersionApprovalSeenAction", { need: "internal_review.view", on: { versionId } }, async (ctx) => {
+    const caller = ctx.caller;
     const supabase = createServerSupabase();
 
     const { data: version, error: readErr } = await supabase
