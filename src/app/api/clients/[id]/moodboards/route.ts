@@ -3,14 +3,14 @@ import { apiError, apiOk, withClient } from "@/lib/api/route-helpers";
 import { listMoodboards, createMoodboard } from "@/lib/db/moodboards";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "moodboards.view" }, async (clientId) => {
     const moodboards = await listMoodboards(clientId);
     return apiOk({ moodboards });
   });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "moodboards.edit" }, async (clientId) => {
     let body: { name?: string };
     try {
       body = await req.json();

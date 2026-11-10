@@ -30,7 +30,7 @@ const BodySchema = z.object({
 // while one is running) and what the next one would cost.
 export async function GET(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "avatars.view" }, async (clientId) =>
     withTryCatch("Could not load the voice preview.", async () => {
       const avatar = await getAvatar(clientId, avatarId);
       if (!avatar) return apiError("Avatar not found.", 404);
@@ -45,7 +45,7 @@ export async function GET(req: Request, { params }: Ctx) {
 // signs its uploads and queues the task; the generation webhook settles or refunds.
 export async function POST(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "avatars.generate" }, async (clientId, client) =>
     withTryCatch("Could not start the voice preview.", async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) {

@@ -5,7 +5,7 @@ import { getJob } from "@/lib/jobs/db";
 // The export dialog polls this (D392). A job is only visible through the canvas it exports.
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string; jobId: string }> }) {
   const { cid, jobId } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.view" }, async (canvasId) =>
     withTryCatch("Couldn't read the export.", async () => {
       const job = await getJob<ExportJobInput, ExportResult>(jobId);
       if (!job || job.kind !== "editor-export" || job.input?.canvasId !== canvasId) return apiError("Export not found.", 404);

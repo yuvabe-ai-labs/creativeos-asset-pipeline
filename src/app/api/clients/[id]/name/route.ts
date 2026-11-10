@@ -5,7 +5,7 @@ import { CLIENT_NAME_MAX_LENGTH } from "@/lib/clients/constants";
 
 // PATCH /api/clients/:id/name — rename a client. Body: { name: string }. The slug is unchanged.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, (clientId) =>
+  return withClient(req, params, { need: "client_profile.edit" }, (clientId) =>
     withQuietErrors("Couldn't rename the client. Try again.", async () => {
       const body = (await req.json().catch(() => null)) as { name?: unknown } | null;
       const name = typeof body?.name === "string" ? body.name.trim() : "";

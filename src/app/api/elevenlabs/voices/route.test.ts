@@ -3,13 +3,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAccountVoicesCached: vi.fn(),
   getLibraryPageCached: vi.fn(),
-  resolveCallerContextOrNull: vi.fn(async (): Promise<{ userId: string } | null> => ({ userId: "u1" })),
 }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({
   getAccountVoicesCached: mocks.getAccountVoicesCached,
   getLibraryPageCached: mocks.getLibraryPageCached,
 }));
-vi.mock("@/lib/dal", () => ({ resolveCallerContextOrNull: mocks.resolveCallerContextOrNull }));
+// The chokepoint (agency, permission) has its own tests; here it just runs the handler.
+vi.mock("@/lib/api/route-helpers", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
+  return { ...actual, withAccess: (_req: Request, _guard: unknown, fn: () => Promise<Response>) => fn() };
+});
 
 import { GET } from "./route";
 import { ElevenLabsKeyMissingError, ElevenLabsHttpError } from "@/lib/elevenlabs/client";
@@ -58,10 +61,5 @@ describe("GET /api/elevenlabs/voices", () => {
     expect((await get()).status).toBe(403);
     mocks.getAccountVoicesCached.mockRejectedValueOnce(new Error("socket hang up"));
     expect((await get()).status).toBe(502);
-  });
-
-  it("401s without a session", async () => {
-    mocks.resolveCallerContextOrNull.mockResolvedValueOnce(null);
-    expect((await get()).status).toBe(401);
   });
 });

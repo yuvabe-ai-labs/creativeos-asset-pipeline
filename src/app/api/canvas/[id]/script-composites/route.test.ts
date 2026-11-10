@@ -5,7 +5,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withCanvas: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("cv1", { id: "cv1", client_id: "cl1" }),
+    withCanvas: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("cv1", { id: "cv1", client_id: "cl1" }),
   };
 });
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(async () => ({ userId: "u1" })) }));

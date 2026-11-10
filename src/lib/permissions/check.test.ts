@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { can, canAnywhere, canSeeClient, denialFor, FORBIDDEN_MESSAGE } from "./check";
+import { can, canAnywhere, canSeeClient, denialFor, scopeIds, FORBIDDEN_MESSAGE } from "./check";
 import { accessFromRow, ownerAccess } from "./access";
 import { testAccess, testMembershipRow } from "./test-fixtures";
 
@@ -64,6 +64,11 @@ describe("permission checks", () => {
     expect(a.presetKey).toBe("designer");
     expect(can(a, "scripts.edit", "c-9")).toBe(true);
     expect(can(a, "scripts.edit", "c-1")).toBe(false);
+  });
+
+  it("scopeIds is null for all clients and the list otherwise", () => {
+    expect(scopeIds(all)).toBeNull();
+    expect(scopeIds(picked)).toEqual(["c-1"]);
   });
 
   it("uses the agreed refusal copy", () => {

@@ -15,6 +15,11 @@ export function canSeeClient(access: Access, clientId: string): boolean {
   return access.clientScope === "all" || access.clientScope.has(clientId);
 }
 
+/** The client ids a list query should be limited to; null = every client in the agency. */
+export function scopeIds(access: Access): string[] | null {
+  return access.clientScope === "all" ? null : [...access.clientScope];
+}
+
 // Server checks. A client-scoped key must name the client: asking CASL about a subject TYPE
 // ignores conditions and answers "yes if any rule exists" (D493's sharp edge).
 export function can(access: Access, key: ClientScopedKey, clientId: string): boolean;

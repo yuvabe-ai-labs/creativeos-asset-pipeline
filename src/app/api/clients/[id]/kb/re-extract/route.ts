@@ -34,7 +34,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "brand_knowledge.generate" }, async (clientId) => {
     return withTryCatch("Re-extraction failed", async () => {
       const docs = await listKBDocuments(clientId);
 

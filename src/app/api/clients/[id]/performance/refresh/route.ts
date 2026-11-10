@@ -9,7 +9,7 @@ import { parseInstagramHandle } from "@/lib/market/performance";
 const MIN_INTERVAL_MS = 60 * 60 * 1000;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "market.generate" }, async (clientId) =>
     withTryCatch("Could not refresh performance data.", async () => {
       const body = (await req.json().catch(() => null)) as { handle?: unknown } | null;
       const handle = parseInstagramHandle(typeof body?.handle === "string" ? body.handle : null);

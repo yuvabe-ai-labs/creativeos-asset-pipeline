@@ -6,7 +6,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (sourceNodeId, sourceNode, caller) => {
+  return withNode(req, params, { need: "canvases.edit" }, async (sourceNodeId, sourceNode, caller) => {
     return withTryCatch("Duplicate node failed", async () => {
       const supabase = createServerSupabase();
 

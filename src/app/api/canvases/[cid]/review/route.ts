@@ -15,7 +15,7 @@ export async function GET(
 ) {
   const { cid } = await params;
   const page = parsePageParams(new URL(req.url).searchParams);
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "internal_review.view" }, async (canvasId) =>
     withTryCatch("Failed to load review items", async () => {
       const orgId = await resolveOrgId();
       const items = await listCanvasPendingItems(orgId, canvasId, page);

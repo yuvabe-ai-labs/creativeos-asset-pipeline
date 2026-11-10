@@ -6,7 +6,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withNode: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
+    withNode: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
       fn("ig", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1"),
   };
 });

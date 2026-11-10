@@ -17,7 +17,7 @@ const BESIDE_X = 360;
 
 export async function POST(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.generate" }, async (canvasId) =>
     withTryCatch("Couldn't set up the dub. Try again.", async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Say which clip to dub.", 400);

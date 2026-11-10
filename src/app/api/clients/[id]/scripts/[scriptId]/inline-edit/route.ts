@@ -13,7 +13,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // spec 2 §9 "Inline AI edit": applied at once, with undo; only the selection changes.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "scripts.generate" }, async (clientId, client) =>
     withTryCatch("Could not make that edit.", async () => {
       const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
       const path = typeof body?.path === "string" ? body.path : "";

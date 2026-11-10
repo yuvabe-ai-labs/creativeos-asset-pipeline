@@ -23,7 +23,7 @@ const BodySchema = z.object({ nodeId: z.uuid(), pieceIds: z.array(z.string().min
 
 export async function POST(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId, canvas) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.generate" }, async (canvasId, canvas) =>
     withTryCatch(START_FAILED, async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Say which clips to caption.", 400);

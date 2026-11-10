@@ -12,7 +12,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, async (clientId, client) => {
+  return withClient(req, params, { need: "brand_knowledge.edit" }, async (clientId, client) => {
     return withTryCatch("Failed to mark KB ready", async () => {
       const { versionId } = await req.json() as { versionId: string };
       if (!versionId) return apiError("Missing versionId.", 400);

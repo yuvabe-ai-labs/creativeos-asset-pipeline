@@ -3,6 +3,8 @@ import { listRecentCanvases } from "@/lib/db/canvases";
 import { getOrgReviewCounts } from "@/lib/db/review";
 import { ClientsHomeTabs } from "@/components/clients/clients-home-tabs";
 import { resolveOrgId } from "@/lib/dal";
+import { resolveActingCaller, accessOf } from "@/lib/permissions/server";
+import { scopeIds } from "@/lib/permissions/check";
 
 export const dynamic = "force-dynamic"; // always read fresh from the DB
 
@@ -15,7 +17,7 @@ export default async function ClientsPage() {
     listClients(effectiveOrgId),
     listArchivedClients(effectiveOrgId),
     listRecentCanvases(effectiveOrgId),
-    getOrgReviewCounts(effectiveOrgId),
+    resolveActingCaller().then(({ caller }) => getOrgReviewCounts(effectiveOrgId, scopeIds(accessOf(caller)))),
   ]);
 
   return (

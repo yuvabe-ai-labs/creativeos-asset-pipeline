@@ -24,7 +24,7 @@ const MAX_SHOTS = 8;
 // relative gets the family's look; a relative whose face exists comes back for the face to use.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, castId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "scripts.generate" }, async (clientId, client) =>
     withTryCatch("Could not describe the person.", async () => {
       const parsed = Body.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);

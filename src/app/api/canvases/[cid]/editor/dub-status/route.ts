@@ -10,7 +10,7 @@ import type { EditorDubJob } from "@/lib/editor/dub-jobs";
 
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.view" }, async (canvasId) =>
     withTryCatch("Couldn't read the dubs.", async () => {
       const nodeId = z.uuid().safeParse(new URL(req.url).searchParams.get("nodeId"));
       if (!nodeId.success) return apiError("Say which Editor.", 400);

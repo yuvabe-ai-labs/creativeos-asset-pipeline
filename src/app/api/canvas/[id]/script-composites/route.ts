@@ -33,7 +33,7 @@ type Entry = Parameters<typeof insertNodesWithFirstVersions>[1][number];
 // read here, from the script's own takes and generations. The browser then adds and wires them.
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withCanvas(req, params, async (canvasId, canvas) =>
+  return withCanvas(req, params, { need: "canvases.edit" }, async (canvasId, canvas) =>
     withTryCatch("Couldn't add the script's pictures.", async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Say which pictures to add.", 400);

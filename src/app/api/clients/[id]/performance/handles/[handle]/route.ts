@@ -11,7 +11,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; handle: string }> },
 ) {
   const { handle: rawHandle } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "market.delete" }, async (clientId) =>
     withTryCatch("Could not remove that handle.", async () => {
       // Canonicalize the path segment the same way it was canonicalized on the way in,
       // so a link carrying "@Foo" still targets the row stored as "foo".

@@ -8,7 +8,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   // Guard on the board, not the item: the item is addressed through its board's URL, so
   // proving the caller owns the board is what authorizes the delete. removeItem is still
   // scoped by itemId, which belongs to that board by construction of the route.
-  return withMoodboard(req, id, async () => {
+  return withMoodboard(req, id, { need: "moodboards.edit" }, async () => {
     // Objects must not outlive their row. The thumbnail has leaked this way since
     // D185; the archived media would be a much larger leak, so both are cleaned up
     // here — best-effort, because a storage hiccup must never stop someone deleting

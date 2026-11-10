@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ from: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: () => ({ from: mocks.from }) }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withNode: (_r: Request, _p: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: "editor", position: { x: 0, y: 0 }, canvas_id: "cv" }, { userId: "u1" }, "client-1", "org-1") };
+  return { ...actual, withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: "editor", position: { x: 0, y: 0 }, canvas_id: "cv" }, { userId: "u1" }, "client-1", "org-1") };
 });
 
 import { POST } from "../route";

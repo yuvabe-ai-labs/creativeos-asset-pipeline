@@ -37,7 +37,7 @@ const START_FAILED = "Couldn't start the edit. Try again.";
 // and settles credits. Its own type (like a voice change's `voice`) is what lets the focus view
 // keep Edit open and the take on screen while it runs.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "video_generation.generate" }, (nodeId, node, caller, clientId, effectiveOrgId) => {
     return withTryCatch(START_FAILED, async () => {
       if (node.type !== "video-gen") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));

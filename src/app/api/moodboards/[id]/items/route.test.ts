@@ -31,7 +31,7 @@ vi.mock("@/lib/supabase/server", () => ({
       select: () => ({
         eq: () => ({
           maybeSingle: async () => ({
-            data: boardOrgId === null ? null : { id: "board-1", clients: { org_id: boardOrgId } },
+            data: boardOrgId === null ? null : { id: "board-1", client_id: "client-1", clients: { org_id: boardOrgId } },
             error: null,
           }),
         }),

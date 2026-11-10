@@ -5,7 +5,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, (clientId) =>
+  return withClient(req, params, { need: "client_profile.edit" }, (clientId) =>
     withTryCatch("Drive folder update failed", async () => {
       const body = await req.json().catch(() => null);
       const folderId =

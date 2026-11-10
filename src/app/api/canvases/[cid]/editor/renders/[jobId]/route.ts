@@ -5,7 +5,7 @@ import { getJob } from "@/lib/jobs/db";
 // The MP4 dialog polls this (D417). A render is only visible through the canvas it renders.
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string; jobId: string }> }) {
   const { cid, jobId } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.view" }, async (canvasId) =>
     withTryCatch("Couldn't read the video.", async () => {
       const job = await getJob<RenderJobInput, RenderResult>(jobId);
       if (!job || job.kind !== "editor-render" || job.input?.canvasId !== canvasId) return apiError("Video not found.", 404);

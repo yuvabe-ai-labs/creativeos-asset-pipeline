@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withNode: (_r: Request, _p: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
+  return { ...actual, withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
 });
 vi.mock("@/lib/voice-change/source", async () => ({ ...(await vi.importActual<object>("@/lib/voice-change/source")), resolveVoiceChangeSource: mocks.resolve }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({ getVoiceCached: mocks.getVoiceCached }));

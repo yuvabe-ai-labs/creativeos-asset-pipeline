@@ -17,7 +17,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string; commentId: string }
 // client's comment; the reply belongs to that thread's version and part.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, commentId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "client_review.edit" }, async (clientId) =>
     withTryCatch("Could not post the reply.", async () => {
       const parsed = parseReply(await req.json().catch(() => null));
       if (!parsed.ok) return apiError(parsed.error, 400);

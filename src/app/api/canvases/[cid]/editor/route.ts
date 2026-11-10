@@ -16,7 +16,7 @@ const SaveSchema = z.object({ nodeId: z.uuid(), sessionId: z.string().min(1), do
 
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.view" }, async (canvasId) =>
     withTryCatch("Couldn't load the editor.", async () => {
       const state = await loadEditorState(canvasId);
       if (!state) return apiError("This canvas has no Editor yet.", 404);
@@ -27,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ cid: str
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.edit" }, async (canvasId) =>
     withTryCatch("Couldn't save the edit.", async () => {
       const parsed = SaveSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("That edit isn't valid.", 400);

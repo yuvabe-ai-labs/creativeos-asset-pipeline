@@ -35,7 +35,7 @@ const DrawSchema = KindSchema.and(z.object({ modelId: z.string().refine(isPanelM
 // once. A drawn take becomes the pick; the operator can pick an earlier one back.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, shotId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "storyboard.generate" }, async (clientId, client) =>
     withTryCatch("Could not draw the panel.", async () => {
       const body = DrawSchema.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Invalid request body.", 400);

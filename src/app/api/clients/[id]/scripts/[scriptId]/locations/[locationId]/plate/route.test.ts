@@ -42,7 +42,7 @@ beforeEach(() => {
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Client", org_id: "org-1" } as never);
-  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", email: "u@x.com" } as never);
+  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", email: "u@x.com", orgId: "org-1" } as never);
   vi.mocked(loadKbText).mockResolvedValue("");
   vi.mocked(getScript).mockResolvedValue(script());
   vi.mocked(runBilledImageGeneration).mockResolvedValue({ generation: { output_snapshot: "https://x/plate.png" }, creditsCharged: 1 } as never);

@@ -16,7 +16,7 @@ const Body = z.object({ avatarId: z.uuid().nullable() });
 // drafts are allowed, because the inline maker links its draft as soon as it exists.
 export async function PUT(req: Request, { params }: Ctx) {
   const { scriptId, castId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "scripts.edit" }, async (clientId) =>
     withTryCatch("Could not change the avatar.", async () => {
       const parsed = Body.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);
@@ -38,7 +38,7 @@ export async function PUT(req: Request, { params }: Ctx) {
 // left as written. Visualise's own link is PUT above (D338).
 export async function PATCH(req: Request, { params }: Ctx) {
   const { scriptId, castId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "scripts.edit" }, async (clientId) =>
     withTryCatch("Could not change the avatar.", async () => {
       const body = (await req.json().catch(() => null)) as { avatarId?: unknown } | null;
       const avatarId = body?.avatarId ?? null;

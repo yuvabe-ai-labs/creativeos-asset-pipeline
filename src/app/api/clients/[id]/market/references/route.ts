@@ -6,7 +6,7 @@ import { MARKET_BUCKETS, type MarketBucket } from "@/lib/market/constants";
 import { resolveCallerContext } from "@/lib/dal";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "market.edit" }, async (clientId) => {
     let body: { url?: string; bucket?: string; note?: string };
     try {
       body = await req.json();

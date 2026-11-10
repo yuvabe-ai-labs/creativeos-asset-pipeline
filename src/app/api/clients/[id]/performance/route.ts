@@ -15,7 +15,7 @@ import {
 /** One handle's sub-tab payload (D253). Scoped to a single tracked handle — a client
  *  may track several and each stands alone. Reads nothing from Brand Kit (D252). */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "market.view" }, async (clientId) =>
     withTryCatch("Could not load performance data.", async () => {
       const handle = parseInstagramHandle(new URL(req.url).searchParams.get("handle"));
       if (!handle) return apiError("A handle is required.", 400);

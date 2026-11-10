@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // script or its notes (spec 2 §9 "Typing"), and the undo of an inline edit. One field, nothing else.
 export async function PATCH(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "scripts.edit" }, async (clientId) =>
     withTryCatch("Could not save that change.", async () => {
       const body = (await req.json().catch(() => null)) as { path?: unknown; value?: unknown } | null;
       const target = typeof body?.path === "string" ? parseFieldPath(body.path) : null;

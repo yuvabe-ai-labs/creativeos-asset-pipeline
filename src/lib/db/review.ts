@@ -48,15 +48,16 @@ const QUEUE_COLUMNS =
 
 // R5.1/R5.2/R5.3 — one RPC call, never one query per row (PRD §8: the client list renders
 // for every org member on every visit).
-export async function getOrgReviewCounts(orgId: string): Promise<ReviewCounts> {
+export async function getOrgReviewCounts(
+  orgId: string,
+  clientIds: readonly string[] | null,
+): Promise<ReviewCounts> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase.rpc("org_review_counts", { p_org_id: orgId });
   if (error) throw error;
-  return summarizeCounts(
-    ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[]).map(
-      (r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending }),
-    ),
-  );
+  const rows = ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[])
+    .filter((r) => clientIds === null || clientIds.includes(r.client_id));
+  return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending })));
 }
 
 // Resolves maker names in ONE round trip for the whole page of rows, then maps. Doing it

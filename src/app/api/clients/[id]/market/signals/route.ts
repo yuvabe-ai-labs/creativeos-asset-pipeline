@@ -4,7 +4,7 @@ import { createSignal } from "@/lib/db/signals";
 import { resolveCallerContext } from "@/lib/dal";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "market.edit" }, async (clientId) => {
     let body: { name?: string; tags?: string[]; description?: string; itemIds?: string[] };
     try {
       body = await req.json();

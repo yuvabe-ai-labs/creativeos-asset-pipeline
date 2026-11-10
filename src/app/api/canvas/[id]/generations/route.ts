@@ -15,7 +15,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return withCanvas(req, params, async (canvasId) => {
+  return withCanvas(req, params, { need: "canvases.view" }, async (canvasId) => {
     const supabase = createServerSupabase();
 
     // Step 1: fetch all nodes in this canvas

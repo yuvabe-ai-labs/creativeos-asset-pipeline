@@ -15,7 +15,7 @@ export const maxDuration = 120;
 // which must be "true". The voice is named "<client> · <name>" on the shared ElevenLabs account
 // so it can be traced back, and recorded for the client.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId, client) => {
+  return withClient(req, params, { need: "voices.generate" }, async (clientId, client) => {
     let form: FormData;
     try {
       form = await req.formData();

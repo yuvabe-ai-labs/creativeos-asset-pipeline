@@ -4,6 +4,8 @@ import { getClientBySlug } from "@/lib/db/clients";
 import { listCanvases } from "@/lib/db/canvases";
 import { getOrgReviewCounts } from "@/lib/db/review";
 import { resolveOrgId } from "@/lib/dal";
+import { resolveActingCaller, accessOf } from "@/lib/permissions/server";
+import { scopeIds } from "@/lib/permissions/check";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -68,7 +70,7 @@ export default async function ClientPage({
   // numbers. Same RPC the client list uses — R5.5 holds at runtime, not just in the schema.
   const [canvases, reviewCounts] = await Promise.all([
     listCanvases(client.id),
-    getOrgReviewCounts(effectiveOrgId),
+    resolveActingCaller().then(({ caller }) => getOrgReviewCounts(effectiveOrgId, scopeIds(accessOf(caller)))),
   ]);
 
   return (

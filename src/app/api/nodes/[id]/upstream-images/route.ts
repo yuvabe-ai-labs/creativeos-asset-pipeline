@@ -20,7 +20,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, node) => {
+  return withNode(req, params, { need: "canvases.view" }, async (nodeId, node) => {
     try {
       const { direct, promptNodes, promptUpstreamBatches, images } = await collectConnectedUpstream(nodeId, node.type);
 

@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // beside it: the linked avatars, every take, the picks and the regional kits.
 export async function GET(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "storyboard.view" }, async (clientId) =>
     withTryCatch("Could not load the storyboard.", async () => {
       const script = await getScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);

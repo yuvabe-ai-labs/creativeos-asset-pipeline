@@ -17,7 +17,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // 2026; D386), so the client's link always shows what was just sent, never an older version.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "client_review.edit" }, async (clientId) =>
     withTryCatch("Could not move the script.", async () => {
       const parsed = parseStageMove(await req.json().catch(() => null));
       if (!parsed.ok) return apiError(parsed.error, 400);

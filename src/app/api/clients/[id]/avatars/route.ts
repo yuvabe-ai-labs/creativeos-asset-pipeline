@@ -11,7 +11,7 @@ const CreateSchema = z.object({
 
 // GET /api/clients/:id/avatars — the client's live avatars, drafts included.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "avatars.view" }, async (clientId) =>
     withTryCatch("Could not load the avatars.", async () =>
       apiOk({ avatars: await listAvatars(clientId) }),
     ),
@@ -21,7 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/clients/:id/avatars — start a draft. Called by the Studio at the first upload,
 // carrying whatever name and story were typed before it (D287).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "avatars.edit" }, async (clientId) =>
     withTryCatch("Could not create the avatar.", async () => {
       const parsed = CreateSchema.safeParse(await req.json().catch(() => ({})));
       if (!parsed.success) return apiError("Invalid request body.", 400);

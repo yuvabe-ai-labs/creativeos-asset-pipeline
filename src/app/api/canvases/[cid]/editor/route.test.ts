@@ -11,7 +11,7 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: () => ({
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "cv1", clients: { org_id: "org-1" } }, error: null }) }) }) }),
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "cv1", client_id: "cl1", clients: { org_id: "org-1" } }, error: null }) }) }) }),
   }),
 }));
 vi.mock("@/lib/editor/load-state", () => ({ loadEditorState: vi.fn(), EditUnreadableError: class extends Error {} }));

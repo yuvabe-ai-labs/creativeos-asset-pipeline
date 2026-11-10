@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   getAccountVoicesCached: vi.fn(),
   getVoiceCached: vi.fn(),
   invalidateAccountVoices: vi.fn(),
-  resolveCallerContextOrNull: vi.fn(async (): Promise<{ userId: string } | null> => ({ userId: "u1" })),
 }));
 vi.mock("@/lib/elevenlabs/voice-catalog", () => ({ saveLibraryVoice: mocks.saveLibraryVoice }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({
@@ -13,7 +12,11 @@ vi.mock("@/lib/elevenlabs/voices-cache", () => ({
   getVoiceCached: mocks.getVoiceCached,
   invalidateAccountVoices: mocks.invalidateAccountVoices,
 }));
-vi.mock("@/lib/dal", () => ({ resolveCallerContextOrNull: mocks.resolveCallerContextOrNull }));
+// The chokepoint (agency, permission) has its own tests; here it just runs the handler.
+vi.mock("@/lib/api/route-helpers", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
+  return { ...actual, withAccess: (_req: Request, _guard: unknown, fn: () => Promise<Response>) => fn() };
+});
 
 import { POST } from "./route";
 import { ElevenLabsHttpError } from "@/lib/elevenlabs/client";
@@ -54,10 +57,5 @@ describe("POST /api/elevenlabs/voices/save", () => {
 
   it("400s on an invalid body", async () => {
     expect((await post({ voiceId: "x" })).status).toBe(400);
-  });
-
-  it("401s without a session", async () => {
-    mocks.resolveCallerContextOrNull.mockResolvedValueOnce(null);
-    expect((await post(BODY)).status).toBe(401);
   });
 });

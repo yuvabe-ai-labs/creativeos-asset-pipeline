@@ -42,7 +42,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; avatarId: string }> },
 ) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "avatars.edit" }, async (clientId) => {
     const parsed = VoiceSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid request body.", 400);
     const choice = parsed.data;

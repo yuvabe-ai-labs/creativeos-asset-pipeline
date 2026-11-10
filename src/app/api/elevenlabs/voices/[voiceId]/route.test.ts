@@ -2,10 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getVoiceCached: vi.fn(),
-  resolveCallerContextOrNull: vi.fn(async (): Promise<{ userId: string } | null> => ({ userId: "u1" })),
 }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({ getVoiceCached: mocks.getVoiceCached }));
-vi.mock("@/lib/dal", () => ({ resolveCallerContextOrNull: mocks.resolveCallerContextOrNull }));
+// The chokepoint (agency, permission) has its own tests; here it just runs the handler.
+vi.mock("@/lib/api/route-helpers", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
+  return { ...actual, withAccess: (_req: Request, _guard: unknown, fn: () => Promise<Response>) => fn() };
+});
 
 import { GET } from "./route";
 
@@ -27,10 +30,5 @@ describe("GET /api/elevenlabs/voices/[voiceId]", () => {
     const res = await get("gone");
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe("That voice is no longer on the ElevenLabs account.");
-  });
-
-  it("401s without a session", async () => {
-    mocks.resolveCallerContextOrNull.mockResolvedValueOnce(null);
-    expect((await get("s1")).status).toBe(401);
   });
 });

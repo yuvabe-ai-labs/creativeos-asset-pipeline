@@ -12,7 +12,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; source: string }> },
 ) {
   const { source } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "brand_assets.edit" }, async (clientId) =>
     withQuietErrors("Couldn't save that. Try again.", async () => {
       if (!IMPORT_SOURCES.includes(source as ImportSource)) return apiError("Unknown source.", 404);
       const body = (await req.json().catch(() => null)) as { value?: unknown } | null;

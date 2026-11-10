@@ -13,7 +13,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // there are none.
 export async function GET(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "scripts.view" }, async (clientId) =>
     withTryCatch("Could not load the script.", async () => {
       const script = await getScript(clientId, scriptId);
       // Missing or another client's: a 404 either way, never confirming a foreign id exists.
@@ -40,7 +40,7 @@ export async function GET(req: Request, { params }: Ctx) {
 // shared with the client, or a panel is being drawn; the database decides all three under one lock.
 export async function DELETE(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "scripts.delete" }, async (clientId) =>
     withTryCatch("Could not delete the script.", async () => {
       const result = await deleteScript(clientId, scriptId);
       if (result === "deleted") return apiOk({ ok: true as const });

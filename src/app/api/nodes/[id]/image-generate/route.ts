@@ -28,7 +28,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "image_generation.generate" }, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | {
           modelId?: unknown;

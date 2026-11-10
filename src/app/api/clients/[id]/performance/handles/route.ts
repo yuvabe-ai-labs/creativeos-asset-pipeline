@@ -6,7 +6,7 @@ import { parseInstagramHandle } from "@/lib/market/performance";
 /** The handle sub-tab strip (D253). Handles and nothing else — Performance does not
  *  read Brand Kit (D252), so there is no suggestion field for a caller to depend on. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "market.view" }, async (clientId) =>
     withTryCatch("Could not load tracked handles.", async () => {
       const handles = await listTrackedHandles(clientId);
       return apiOk({ handles });
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
  *  hold the dialog open on a spinner. The client fires the refresh route the moment
  *  the new sub-tab mounts, so the wait is shown on the tab, not in a modal. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "market.edit" }, async (clientId) =>
     withTryCatch("Could not add that handle.", async () => {
       const body = (await req.json().catch(() => null)) as { handle?: unknown } | null;
       const raw = typeof body?.handle === "string" ? body.handle : null;

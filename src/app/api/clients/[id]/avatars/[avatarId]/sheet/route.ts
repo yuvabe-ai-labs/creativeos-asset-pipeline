@@ -34,7 +34,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string; avatarId: string }> },
 ) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "avatars.generate" }, async (clientId, client) =>
     withTryCatch("Could not generate the profile sheet.", async () => {
       const parsed = SheetSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Choose a model.", 400);
