@@ -55,12 +55,20 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     const snapshot = call.inputsSnapshot as Record<string, unknown>;
     expect(snapshot.referenceUrls).toEqual([PACK.imageUrl]);
     expect(snapshot.videoEdit).toMatchObject({ baseVersionId: "v3", rootVersionId: "v3", instruction: "Make the flour beige", referenceNodeIds: ["n-pack"], referenceUrls: [PACK.imageUrl], resolution: "720p" });
-    expect(snapshot.prompt).toContain("<IMAGE_REF_0> is Jackfruit 365 pack.");
+    expect(snapshot.prompt).toContain("Reference images, in the order attached: 1. Jackfruit 365 pack.");
+    expect(snapshot.prompt).not.toContain("IMAGE_REF");
     expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_12_MODEL_ID));
     expect(mocks.trigger).toHaveBeenCalledWith("video-generate", expect.objectContaining({
       generationId: "gen-7", modelId: "gemini:gemini-omni-1.2-flash", editVideoUrl: TAKE,
       referenceUrls: [PACK.imageUrl], params: { resolution: "720p", durationSeconds: 6 }, mockMode: false,
     }));
+  });
+
+  it("sends an @-mentioned connected image as a reference even when it wasn't ticked", async () => {
+    await post({ ...BODY, referenceNodeIds: [], instruction: "Replace the pot with @[Image: pack](n-pack)" });
+    const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as { inputsSnapshot: { prompt: string; videoEdit: { referenceNodeIds: string[] } } };
+    expect(call.inputsSnapshot.videoEdit.referenceNodeIds).toEqual(["n-pack"]);
+    expect(call.inputsSnapshot.prompt.startsWith("Replace the pot with Jackfruit 365 pack (reference image 1)")).toBe(true);
   });
 
   it("keeps the root of an edit chain", async () => {

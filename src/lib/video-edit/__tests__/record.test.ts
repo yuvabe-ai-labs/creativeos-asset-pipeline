@@ -4,7 +4,7 @@ import { usdToFinalCredits } from "@/lib/credits/units";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
 import {
   plainVideoEditFailure, VIDEO_EDIT_FAILED_MESSAGE, VIDEO_EDIT_REFUSED_MESSAGE, VIDEO_EDIT_DEFAULT_MODEL_ID,
-  readVideoEdit, videoEditEstimateCredits, videoEditGate, videoEditLimitsFor,
+  readVideoEdit, videoEditEstimateCredits, videoEditGate, videoEditLimitsFor, editResolutionForTake,
 } from "../record";
 
 const RECORD = {
@@ -74,5 +74,18 @@ describe("videoEditLimitsFor", () => {
     expect(videoEditLimitsFor(GEMINI_OMNI_12_MODEL_ID)).toEqual({ label: "Omni 1.2", maxSeconds: 15, maxReferences: 6 });
     expect(videoEditLimitsFor(GEMINI_OMNI_11_MODEL_ID)).toEqual({ label: "Omni 1.1", maxSeconds: 10, maxReferences: 12 });
     expect(VIDEO_EDIT_DEFAULT_MODEL_ID).toBe(GEMINI_OMNI_12_MODEL_ID);
+  });
+});
+
+describe("editResolutionForTake", () => {
+  it("keeps the take's own resolution when an edit offers it", () => {
+    expect(editResolutionForTake("1080p")).toBe("1080p");
+    expect(editResolutionForTake("4K")).toBe("4k");
+  });
+  it("picks the closest offered one otherwise, and 720p when there is none", () => {
+    expect(editResolutionForTake("480p")).toBe("360p");
+    expect(editResolutionForTake("2k")).toBe("1080p");
+    expect(editResolutionForTake(undefined)).toBe("720p");
+    expect(editResolutionForTake("auto")).toBe("720p");
   });
 });

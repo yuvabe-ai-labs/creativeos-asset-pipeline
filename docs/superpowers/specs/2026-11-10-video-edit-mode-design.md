@@ -45,25 +45,28 @@ While an edit runs, Edit stays open, the right column keeps the take under an "E
 video…" veil (as Change voice does), the button reads "Editing…", and reopening the node lands
 back in Edit. The canvas card reads "Editing…".
 
-The Edit video panel's button sits in the same pinned footer as Generate, with the reason it is
-disabled shown above it.
+Both panels' buttons sit in the same pinned footer as Generate; the reason one is disabled shows
+on hover. Nothing else sits under the prompt box.
 
-Centre column:
+Edit video's centre column:
 
-1. **Model and resolution.** The generate settings' own controls: the model picker offering
-   Omni 1.2 (default) and Omni 1.1 only, and the Resolution chips (360p · 720p · 1080p · 4k,
-   default 720p) inside its card. Each model's limits apply: 1.2 takes up to 15 s and 6
-   references, 1.1 up to 10 s and 12 references. 1080p and 4k are upscaled from 720p (see
-   `cost.ts`), so they cost more for the same edit.
+1. **Model.** The generate settings' own model picker, offering Omni 1.2 (default) and Omni 1.1
+   only. Each model's limits apply: 1.2 takes up to 15 s and 6 references, 1.1 up to 10 s and
+   12 references. Under it, a closed **Advanced** section holds Resolution (360p · 720p ·
+   1080p · 4k); its heading shows the current one. An edit starts at the take's own resolution,
+   or the closest one offered, until the operator picks another. 1080p and 4k are upscaled from
+   720p (see `cost.ts`), so they cost more for the same edit.
 2. **References for this edit.** Thumbnails of the connected image inputs, each with a check.
    The images the take was generated with start checked. Same model as Image Gen's
    `editReferenceNodeIds` (D37): a reference must be a connected node; no upload here.
-3. **Edit this video.** A `Textarea`. Placeholder: "Describe what to change and where: remove
-   the cups… · replace the pot with the product reference… · make the light warmer…"
-4. **Edit video** button with the credit estimate. Disabled while the instruction is empty, while
-   the node is working, or while the node is locked by an Editor (D390).
+3. **What should change?** The mention editor Image Gen uses: typing @ offers the connected
+   images as chips. A mentioned image is always sent as a reference, ticked or not. The text is
+   kept in the panel while typing and saved to the node when the box loses focus or the edit
+   starts (YUV-447: saving on every keystroke moved the caret to the end).
+4. **Edit video** in the pinned footer, with the credit estimate. Disabled while the instruction
+   is empty, while the node is working, or while the node is locked by an Editor (D390).
 
-All controls are shadcn primitives (`Button`, `Textarea`, `Tooltip`).
+All controls are shadcn primitives (`Button`, `Tooltip`, `Accordion`) or existing node editors.
 
 ## 4. Request
 
@@ -71,17 +74,21 @@ One Omni interaction, `task: "edit"`:
 
 ```
 input: [
-  { type: "text",  text: <instruction, references written as <IMAGE_REF_n>> },
+  { type: "text",  text: <instruction, references named in plain words> },
   { type: "video", data: <take, base64>, mime_type: "video/mp4" },
   { type: "image", ... }   // one per checked reference, in order
 ]
 response_format: { type: "video", resolution, delivery: "uri" }
 ```
 
-- The instruction is sent with a fixed suffix that asks the model to keep everything not named
-  as it is (people, product, setting, lighting, camera). The literal text sent is recorded.
-- Reference order follows the thumbnail order; `<IMAGE_REF_0>` is the first checked one. The
-  reference cap is Omni's `maxReferenceImages`.
+- Google's Omni guide (checked 2026-11-10, D488): reference images are supported for video
+  editing; control strings such as `<IMAGE_REF_0>` are deprecated and unsupported in future
+  models; simple prompts work best, ending with "Keep everything else the same". So each
+  @-mention is written as the image's name and position ("Jackfruit 365 pack (reference image
+  2)"), the references are listed by name in the order attached, and the text ends with "Keep
+  everything else the same." The literal text sent is recorded.
+- Reference order follows the thumbnail order; ticked images first, then any mentioned image
+  that wasn't ticked. The cap is the chosen model's.
 - No `duration` or `aspect_ratio`: the edit API rejects them. The output has the take's length
   and shape.
 - The take is fetched server-side in the task, never sent through the route body (performance
@@ -133,10 +140,10 @@ No migration.
 No vendor names or raw errors reach the UI. The provider maps a refusal to the plain message
 before it reaches the generation row; the raw response stays in the task's log.
 
-## 7. Limits shown under the instruction
+## 7. Limits
 
-One line, small: "The edit keeps the take's length and shape. It works best on a single
-continuous shot. Captions on the video may change."
+None shown in the panel. The length and reference caps surface as the button's disabled reason
+when they are exceeded.
 
 ## 8. Testing
 

@@ -8,7 +8,7 @@ import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/cr
 import { isOwnStoredUrl } from "@/lib/storage";
 import { durationOfParams } from "@/lib/voice-change/record";
 import { collectConnectedUpstream } from "@/lib/video-gen/connected-images";
-import { composeVideoEditPrompt } from "@/lib/video-edit/prompt";
+import { composeVideoEditPrompt, mentionedImageIds } from "@/lib/video-edit/prompt";
 import {
   VIDEO_EDIT_DEFAULT_MODEL_ID,
   VIDEO_EDIT_MODEL_IDS,
@@ -44,8 +44,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!parsed.success) return apiError("Describe the change and pick a resolution.", 400);
       const { baseVersionId, instruction, resolution, modelId, mock } = parsed.data;
       const limits = videoEditLimitsFor(modelId);
-      const referenceNodeIds = [...new Set(parsed.data.referenceNodeIds)];
-      if (referenceNodeIds.length > limits.maxReferences) return apiError(videoEditTooManyReferencesMessage(modelId), 400);
+      const tickedIds = [...new Set(parsed.data.referenceNodeIds)];
+      if (tickedIds.length > limits.maxReferences) return apiError(videoEditTooManyReferencesMessage(modelId), 400);
       if (!process.env.GOOGLE_GENAI_API_KEY) return apiError("Video editing isn't set up yet.", 400);
 
       // D390 — an edit makes a new take: refused while the clip is in the Editor's reel.
@@ -67,13 +67,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       // Rule 14 — every reference must be an image connected to this node.
       const byId = new Map(connected.images.map((img) => [img.id, img]));
+      // An image @-mentioned in the instruction is sent as a reference even if its tile wasn't
+      // ticked; a mention of anything that isn't a connected image stays plain text.
+      const referenceNodeIds = [...new Set([...tickedIds, ...mentionedImageIds(instruction).filter((id) => byId.has(id))])];
+      if (referenceNodeIds.length > limits.maxReferences) return apiError(videoEditTooManyReferencesMessage(modelId), 400);
       const refs = referenceNodeIds.map((id) => byId.get(id));
       if (refs.some((r) => !r)) return apiError("One of the references is no longer connected. Reopen the node and try again.", 400);
       const references = refs as NonNullable<(typeof refs)[number]>[];
 
       const editPrompt = composeVideoEditPrompt({
         instruction,
-        references: references.map((r) => ({ label: r.filename ?? "a reference image" })),
+        references: references.map((r) => ({ id: r.id, label: r.filename ?? "a reference image" })),
       });
       const referenceUrls = references.map((r) => r.imageUrl);
       const videoEdit: VideoEditRecord = {

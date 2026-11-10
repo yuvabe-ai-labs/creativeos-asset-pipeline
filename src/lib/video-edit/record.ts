@@ -13,6 +13,22 @@ export const VIDEO_EDIT_RESOLUTIONS = ["360p", "720p", "1080p", "4k"] as const;
 export type VideoEditResolution = (typeof VIDEO_EDIT_RESOLUTIONS)[number];
 export const VIDEO_EDIT_DEFAULT_RESOLUTION: VideoEditResolution = "720p";
 
+const LINES: Record<VideoEditResolution, number> = { "360p": 360, "720p": 720, "1080p": 1080, "4k": 2160 };
+
+/**
+ * The resolution an edit starts at: the take's own, or the closest one an edit offers (a 480p
+ * Seedance take edits at 360p, a 2k one at 1080p), so the edit comes back looking like the take.
+ * 720p when the take recorded none.
+ */
+export function editResolutionForTake(takeResolution: unknown): VideoEditResolution {
+  if (typeof takeResolution !== "string") return VIDEO_EDIT_DEFAULT_RESOLUTION;
+  const r = takeResolution.trim().toLowerCase();
+  if (VIDEO_EDIT_RESOLUTIONS.includes(r as VideoEditResolution)) return r as VideoEditResolution;
+  const lines = r === "2k" ? 1440 : r.endsWith("k") ? Number(r.slice(0, -1)) * 540 : Number.parseInt(r, 10);
+  if (!Number.isFinite(lines) || lines <= 0) return VIDEO_EDIT_DEFAULT_RESOLUTION;
+  return VIDEO_EDIT_RESOLUTIONS.reduce((best, x) => (Math.abs(LINES[x] - lines) < Math.abs(LINES[best] - lines) ? x : best));
+}
+
 /** The models an edit can run on (D483/D484), newest first. */
 export const VIDEO_EDIT_MODEL_IDS = [GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_11_MODEL_ID] as const;
 export type VideoEditModelId = (typeof VIDEO_EDIT_MODEL_IDS)[number];
@@ -49,8 +65,6 @@ export function videoEditTooManyReferencesMessage(modelId: VideoEditModelId): st
 export const VIDEO_EDIT_REFUSED_MESSAGE =
   "This edit can't be made. Takes with children, or changing one person into another, are refused.";
 export const VIDEO_EDIT_FAILED_MESSAGE = "The edit didn't finish. Try again.";
-export const VIDEO_EDIT_LIMITS_NOTE =
-  "The edit keeps the take's length and shape. It works best on a single continuous shot. Captions on the video may change.";
 
 /** What a person sees for a failed edit: the refusal as is, anything else in plain words. */
 export function plainVideoEditFailure(raw: string): string {
@@ -74,7 +88,8 @@ export type VideoEditRecord = {
 export type VideoEditNodeState = {
   instruction: string;
   referenceNodeIds: string[] | null;
-  resolution: VideoEditResolution;
+  /** Absent until the operator picks one: the take's own (editResolutionForTake). */
+  resolution?: VideoEditResolution;
   /** Absent until the operator picks one: the default model. */
   modelId?: VideoEditModelId;
 };

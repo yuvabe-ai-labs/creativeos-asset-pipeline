@@ -8592,3 +8592,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Only raising the machine (an import could still crash, and crashes would still go unrecorded). Retrying on out-of-memory without the checkpoint (each retry would pay Apify for the same scrape again). One video at a time (bounds memory but still drops videos over the limit). Batching files by total size (cannot fit one file larger than the budget, and has nothing left to manage once videos stream). Google's Storage Transfer Service fetching the files from their URLs (built for bulk background transfers rather than links that expire, and images still have to be fetched for their previews).
 
 **Originated →** conversation in this session; write-up in the "Asset Import Memory Crash" artifact.
+
+### D488 — An edit names its references in plain words, and the operator points at them with @-mentions *(recorded 2026-11-10; refines D483, D485)*
+
+**Decision.** The Edit video prompt box is the mention editor Image Gen uses: typing @ offers the connected images, and a mentioned image is always sent as a reference. The text sent to Omni writes each mention as the image's name and position ("Jackfruit 365 pack (reference image 2)"), lists the references by name in the order attached, and ends with "Keep everything else the same." No `<IMAGE_REF_n>` tags are sent. The instruction is typed into a local draft and saved to the node on blur and on start. Resolution starts at the take's own (or the closest offered) and sits under a closed Advanced section; Edit voice's button joins Edit video's in Generate's pinned footer; the limits line under the prompt is gone.
+
+**Why.** User, 10 Nov 2026: point at references with @-mentions, match the take's resolution by default, keep the panel clean. Google's Omni guide (checked 2026-11-10): reference images are supported for video editing; `<IMAGE_REF_0>` and the other control strings are deprecated and unsupported in future models; simple edit prompts work best with "Keep everything else the same". YUV-447: the caret jumped to the end on Space or Backspace because every keystroke round-tripped through node data.
+
+**Rejected.** Keeping `<IMAGE_REF_n>` (worked on 1.1 in our tests, but Google says future models drop it). Our longer keep-everything sentence (Google warns overly descriptive edit prompts cause unintended changes).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.

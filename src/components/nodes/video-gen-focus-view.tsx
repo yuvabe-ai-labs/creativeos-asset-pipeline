@@ -1833,9 +1833,9 @@ export function VideoGenFocusView({
               {/* D284 — Change voice takes over this column, as Image Gen's Edit does; D487 — under a
                   slim header whose Close returns to the generate settings. */}
               {selected === "video" && changeVoiceOpen && (
-                <>
-                <VideoGenModeHeader icon={AudioLines} title="Change the voice" onClose={() => setChangeVoiceOpen(false)} />
-                <div className="px-6 py-5">
+                <div className="flex min-h-full flex-col">
+                <VideoGenModeHeader icon={AudioLines} title="Edit voice" onClose={() => setChangeVoiceOpen(false)} />
+                <div className="flex flex-1 flex-col px-6 py-5">
                   <VideoGenChangeVoice
                     nodeId={nodeId}
                     versions={versions}
@@ -1857,14 +1857,14 @@ export function VideoGenFocusView({
                     }}
                   />
                 </div>
-                </>
+                </div>
               )}
 
               {/* D483 — Edit video takes over this column, as Change voice does; D487 — under a slim
                   header, with its button pinned to the bottom like Generate's. */}
               {selected === "video" && editVideoOpen && (
                 <div className="flex min-h-full flex-col">
-                <VideoGenModeHeader icon={Sparkles} title="Edit this video" onClose={() => setEditVideoOpen(false)} />
+                <VideoGenModeHeader icon={Sparkles} title="Edit video" onClose={() => setEditVideoOpen(false)} />
                 <div className="flex flex-1 flex-col px-6 py-5">
                   <VideoGenEditVideo
                     nodeId={nodeId}
