@@ -312,6 +312,13 @@ export function MentionInstructionEditor({
         fileUrl: u.fileUrl,
         fileKind: u.fileKind,
       }));
+  // `handleInput` below is memoised on `onChange` alone, so a caller with a stable `onChange`
+  // (a state setter) kept the list from the first render, which is often before the connected
+  // images have loaded: `@` then offered nothing. The list is read through a ref instead.
+  const eligibleRef = useRef(eligible);
+  useEffect(() => {
+    eligibleRef.current = eligible;
+  });
 
   // Initial population
   useEffect(() => {
@@ -337,7 +344,7 @@ export function MentionInstructionEditor({
   }
 
   function openDropdown(query: string, pos: { top: number; left: number }) {
-    const filtered = eligible.filter((item) =>
+    const filtered = eligibleRef.current.filter((item) =>
       item.label.toLowerCase().includes(query.toLowerCase()),
     );
     if (filtered.length === 0) { closeDropdown(); return; }
