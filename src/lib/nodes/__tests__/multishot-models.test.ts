@@ -10,14 +10,26 @@ import {
   bestFitMultishotModel,
   MultishotCapability,
   multishotPromptModels,
+  multishotModelsSharingPlan,
 } from "../multishot-models";
-import { videoGenClientModelMap, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import {
+  videoGenClientModelMap,
+  GEMINI_OMNI_11_MODEL_ID,
+  GEMINI_OMNI_12_MODEL_ID,
+  GEMINI_OMNI_MODEL_ID,
+  KLING_OMNI_MODEL_ID,
+  SEEDANCE_MODEL_ID,
+} from "@/lib/video-gen/client-models";
+
+// The 10s-window cases below are written against Omni 1.1, which is still selectable (D484).
+const OMNI_11 = GEMINI_OMNI_11_MODEL_ID;
 
 const cuts = (...secs: number[]) => secs.map((seconds, i) => ({ id: `c${i}`, text: "", seconds }));
 
 describe("multishotCapabilityFor", () => {
   it("resolves each declared model", () => {
-    expect(multishotCapabilityFor(GEMINI_OMNI_MODEL_ID).maxTotalSeconds).toBe(10);
+    expect(multishotCapabilityFor(GEMINI_OMNI_12_MODEL_ID).maxTotalSeconds).toBe(15);
+    expect(multishotCapabilityFor(OMNI_11).maxTotalSeconds).toBe(10);
     expect(multishotCapabilityFor(KLING_OMNI_MODEL_ID).maxTotalSeconds).toBe(15);
   });
 
@@ -63,14 +75,20 @@ describe("multishotCapabilityFor", () => {
     expect(sd.refTokenDialect).toBe("seedance-image");
   });
 
-  it("gives every capability a distinct reference dialect", () => {
-    const dialects = MULTISHOT_MODELS.map((m) => m.refTokenDialect);
-    expect(new Set(dialects).size).toBe(MULTISHOT_MODELS.length);
+  // Versions of one model family share a dialect (Omni 1.1 and 1.2); different families never do.
+  it("gives every model family a distinct reference dialect", () => {
+    const familyOf = (id: string) => id.split(":")[0];
+    const byDialect = new Map<string, Set<string>>();
+    for (const m of MULTISHOT_MODELS) {
+      byDialect.set(m.refTokenDialect, (byDialect.get(m.refTokenDialect) ?? new Set()).add(familyOf(m.id)));
+    }
+    for (const families of byDialect.values()) expect(families.size).toBe(1);
+    expect(byDialect.size).toBe(new Set(MULTISHOT_MODELS.map((m) => familyOf(m.id))).size);
   });
 });
 
 describe("checkLadder", () => {
-  const omni = multishotCapabilityFor(GEMINI_OMNI_MODEL_ID);
+  const omni = multishotCapabilityFor(OMNI_11);
   const kling = multishotCapabilityFor(KLING_OMNI_MODEL_ID);
 
   it("accepts a ladder inside the window", () => {
@@ -79,7 +97,8 @@ describe("checkLadder", () => {
 
   // The switch case from D237: the same ladder is legal on one model and not the other, and
   // switching must not silently rewrite it.
-  it("accepts 14s on Kling and refuses it on Omni", () => {
+  it("accepts 14s on Kling and Omni 1.2 and refuses it on Omni 1.1", () => {
+    expect(checkLadder(cuts(7, 7), multishotCapabilityFor(GEMINI_OMNI_12_MODEL_ID))).toEqual({ ok: true });
     expect(checkLadder(cuts(7, 7), kling)).toEqual({ ok: true });
     const refused = checkLadder(cuts(7, 7), omni);
     expect(refused.ok).toBe(false);
@@ -143,7 +162,7 @@ describe("multishotRestrictionReason", () => {
   // Reads correctly with Seedance as the third model.
   it("names the plan's model with three models in the system", () => {
     const forOmni = multishotRestrictionReason(GEMINI_OMNI_MODEL_ID);
-    expect(forOmni).toContain("written for Gemini Omni 1.1");
+    expect(forOmni).toContain("written for Gemini Omni 1.2");
     expect(forOmni).toContain("Multishot node");
     expect(forOmni).not.toContain("written for Kling");
   });
@@ -162,7 +181,7 @@ describe("multishotRestrictionReason", () => {
     const sentence = restrictionSentenceFor(cap, others);
 
     expect(sentence).toContain("Multishot node");
-    expect(sentence).not.toContain("Gemini Omni 1.1");
+    expect(sentence).not.toContain("Gemini Omni 1.2");
     expect(sentence).not.toContain("Test Third Model");
   });
 });
@@ -171,7 +190,8 @@ describe("describeCapability", () => {
   const cap = (id: string) => MULTISHOT_MODELS.find((m) => m.id === id)!;
 
   it("states the total window", () => {
-    expect(describeCapability(cap(GEMINI_OMNI_MODEL_ID))).toBe("3–10s");
+    expect(describeCapability(cap(GEMINI_OMNI_12_MODEL_ID))).toBe("3–15s");
+    expect(describeCapability(cap(OMNI_11))).toBe("3–10s");
   });
 
   it("adds a cut cap where the vendor publishes one", () => {
@@ -196,18 +216,24 @@ describe("bestFitMultishotModel", () => {
     expect(bestFitMultishotModel(cuts(1, 2))).toBe(GEMINI_OMNI_MODEL_ID);
   });
 
-  it("moves an 11-15s ladder to Kling, not Seedance", () => {
-    expect(bestFitMultishotModel(cuts(6, 6))).toBe(KLING_OMNI_MODEL_ID);
+  // Omni 1.2 and Kling 3.0 Omni share the 15s window; Omni 1.2 is listed first and wins the tie.
+  it("keeps an 11-15s ladder on Omni 1.2, not Kling or Seedance", () => {
+    expect(bestFitMultishotModel(cuts(6, 6))).toBe(GEMINI_OMNI_12_MODEL_ID);
+  });
+
+  // D484 — a retiring version stays selectable but never starts a new node.
+  it("never picks the retiring Omni 1.1, even for a ladder it fits", () => {
+    expect(checkLadder(cuts(3, 5), multishotCapabilityFor(OMNI_11))).toEqual({ ok: true });
+    expect(bestFitMultishotModel(cuts(3, 5))).not.toBe(OMNI_11);
   });
 
   it("moves a ladder past 15s to Seedance", () => {
     expect(bestFitMultishotModel(cuts(3, 5, 6, 4, 6))).toBe(SEEDANCE_MODEL_ID);
   });
 
-  // Length alone would say Kling; Kling's 6-cut cap rules it out. The pick asks checkLadder, the
-  // same check the node shows, so it can never land on a model that reports a violation.
-  it("skips Kling when the ladder has more cuts than Kling allows", () => {
-    expect(bestFitMultishotModel(cuts(2, 2, 2, 2, 2, 1, 1))).toBe(SEEDANCE_MODEL_ID);
+  // Omni 1.2 states no cut cap, so a 7-cut ladder inside 15s stays on it.
+  it("keeps a many-cut ladder inside 15s on Omni 1.2", () => {
+    expect(bestFitMultishotModel(cuts(2, 2, 2, 2, 2, 1, 1))).toBe(GEMINI_OMNI_12_MODEL_ID);
   });
 
   // Nothing fits: stay on the default and let checkLadder say why, rather than pick a model that
@@ -257,5 +283,25 @@ describe("multishotPromptModels", () => {
   it("reads an unstamped plan as the default model, as the money path does", () => {
     const r = multishotPromptModels({ connected: false, nodeModel: undefined, planModel: undefined });
     expect(r.plan.id).toBe(DEFAULT_MULTISHOT_MODEL);
+  });
+});
+
+// D486 — models that read one plan unchanged: same shot format and reference dialect.
+describe("multishotModelsSharingPlan", () => {
+  it("pairs Omni 1.1 and 1.2, the plan's own model first", () => {
+    expect(multishotModelsSharingPlan(GEMINI_OMNI_12_MODEL_ID)).toEqual([GEMINI_OMNI_12_MODEL_ID, OMNI_11]);
+    expect(multishotModelsSharingPlan(OMNI_11)).toEqual([OMNI_11, GEMINI_OMNI_12_MODEL_ID]);
+  });
+
+  it("leaves Kling and Seedance on their own", () => {
+    expect(multishotModelsSharingPlan(KLING_OMNI_MODEL_ID)).toEqual([KLING_OMNI_MODEL_ID]);
+    expect(multishotModelsSharingPlan(SEEDANCE_MODEL_ID)).toEqual([SEEDANCE_MODEL_ID]);
+  });
+
+  it("reports no mismatch when the node moves between Omni versions, and one for Kling", () => {
+    const at = (nodeModel: string) =>
+      multishotPromptModels({ connected: true, nodeModel, planModel: GEMINI_OMNI_12_MODEL_ID }).mismatch;
+    expect(at(OMNI_11)).toBe(false);
+    expect(at(KLING_OMNI_MODEL_ID)).toBe(true);
   });
 });

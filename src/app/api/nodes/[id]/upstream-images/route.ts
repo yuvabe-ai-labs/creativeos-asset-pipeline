@@ -1,6 +1,4 @@
-import { getUpstreamOutputs } from "@/lib/db/nodes";
-import { getPromptUpstream, withAvatarImages } from "@/lib/avatars/presenter-server";
-import { scriptAssetIds, withScriptAssetImages } from "@/lib/scripts/asset-nodes";
+import { scriptAssetIds } from "@/lib/scripts/asset-nodes";
 import { planCitedRefIds, renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { imageRefDialect } from "@/lib/nodes/prompt-token-dialect";
 import { multishotVoiceover } from "@/lib/nodes/voiceover";
@@ -16,7 +14,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { videoGenClientModelMap, usableVideoModelId } from "@/lib/video-gen/client-models";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
-import { upstreamImageOf } from "@/lib/video-gen/upstream-image";
+import { collectConnectedUpstream } from "@/lib/video-gen/connected-images";
 
 export async function GET(
   req: Request,
@@ -24,36 +22,7 @@ export async function GET(
 ) {
   return withNode(req, params, async (nodeId, node) => {
     try {
-      // D436 — an Avatar wired straight in is its images, as on the generate routes.
-      const direct = withScriptAssetImages(await withAvatarImages(nodeId, await getUpstreamOutputs(nodeId)));
-
-      // Also collect upstream of any prompt nodes (2-level traversal): a Video Gen's Motion or
-      // Multishot Prompt, an Image Gen's Prompt (D440; its presenter's face included). Surfaces
-      // what is wired into the prompt node, as image-generate and video-generate send it.
-      const promptNodes = direct.filter((u) =>
-        node.type === "image-gen" ? u.type === "prompt" : u.type === "video-prompt" || u.type === "multishot-prompt",
-      );
-      const promptUpstreamBatches = await Promise.all(
-        promptNodes.map((u) => getPromptUpstream(u.nodeId)),
-      );
-
-      // Merge and deduplicate; direct edges take precedence.
-      const seen = new Map(direct.map((u) => [u.nodeId, u]));
-      for (const batch of promptUpstreamBatches) {
-        for (const u of batch) {
-          if (!seen.has(u.nodeId)) seen.set(u.nodeId, u);
-        }
-      }
-      const allUpstream = Array.from(seen.values());
-
-      // D440 — a generated image (Image Gen, Composite) counts when wired straight into this node
-      // or into its prompt node, on every lane. It used to count through a Multishot Prompt only:
-      // one on a Motion Prompt was the writer's vision context and never reached the video model.
-      // Mirrors video-generate/route.ts.
-      const images = allUpstream.flatMap((u) => {
-        const image = upstreamImageOf(u);
-        return image ? [image] : [];
-      });
+      const { direct, promptNodes, promptUpstreamBatches, images } = await collectConnectedUpstream(nodeId, node.type);
 
       // Surface the connected prompt node so the focus view can display its motion prompt text —
       // a video-prompt node's string output directly, or a multishot-prompt node's MultishotPlan

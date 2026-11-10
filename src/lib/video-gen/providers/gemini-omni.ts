@@ -1,15 +1,30 @@
 import "server-only";
 import { logger } from "@trigger.dev/sdk/v3";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
-import { geminiOmniParams } from "../params/gemini-omni";
-import { GEMINI_OMNI_IMAGE_INPUTS, GEMINI_OMNI_RULES } from "../gemini-omni-shape";
+import {
+  geminiOmniParams,
+  geminiOmni12Params,
+  GEMINI_OMNI_11_MAX_SECONDS,
+  GEMINI_OMNI_12_MAX_SECONDS,
+} from "../params/gemini-omni";
+import {
+  GEMINI_OMNI_IMAGE_INPUTS,
+  GEMINI_OMNI_RULES,
+  GEMINI_OMNI_12_IMAGE_INPUTS,
+  GEMINI_OMNI_12_RULES,
+  OMNI_12_FRAME_PAIR_MAX_SECONDS,
+} from "../gemini-omni-shape";
 import { planOmniInput } from "../plan-omni-input";
 import { composeOmniPrompt } from "../compose-omni-prompt";
 import { fetchAsBase64 } from "./fetch-as-base64";
 import { fetchOrThrow } from "./fetch-error";
+import { VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "../client-models";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const OMNI_MODEL = "gemini-omni-1.1-flash";
+/** The Gemini API model names. Each app model id maps to exactly one (see the specs at the end). */
+export const OMNI_11_API_MODEL = "gemini-omni-1.1-flash";
+export const OMNI_12_API_MODEL = "gemini-omni-1.2-flash";
 
 // Omni generates synchronously (background:false), so the whole render happens inside this one
 // request. Node's fetch defaults to a 300s headers timeout, which a 10s 1080p/4k generation can
@@ -27,7 +42,6 @@ function getApiKey(): string {
 const VALID_RESOLUTIONS = ["360p", "720p", "1080p", "4k"];
 const VALID_ASPECT_RATIOS = ["16:9", "9:16"];
 const MIN_DURATION = 3;
-const MAX_DURATION = 10;
 
 /**
  * The clamped duration in seconds, as a NUMBER.
@@ -39,10 +53,13 @@ const MAX_DURATION = 10;
  * Clamped rather than trusted: params/gemini-omni.ts is a static spec, and a node saved before a
  * spec change still holds its old value with nothing re-validating it on load.
  */
-export function omniDurationSeconds(params: Record<string, unknown>): number {
+export function omniDurationSeconds(
+  params: Record<string, unknown>,
+  maxSeconds: number = GEMINI_OMNI_11_MAX_SECONDS,
+): number {
   const parsed = Number(params.duration);
   if (!Number.isFinite(parsed)) return 8;
-  return Math.min(MAX_DURATION, Math.max(MIN_DURATION, Math.round(parsed)));
+  return Math.min(maxSeconds, Math.max(MIN_DURATION, Math.round(parsed)));
 }
 
 /**
@@ -61,6 +78,7 @@ export function omniDurationSeconds(params: Record<string, unknown>): number {
  */
 export function buildOmniResponseFormat(
   params: Record<string, unknown>,
+  maxSeconds: number = GEMINI_OMNI_11_MAX_SECONDS,
 ): Record<string, unknown> {
   const resolution = String(params.resolution ?? "720p");
   const ratio = String(params.aspect_ratio ?? "16:9");
@@ -69,7 +87,7 @@ export function buildOmniResponseFormat(
     resolution: VALID_RESOLUTIONS.includes(resolution) ? resolution : "720p",
     aspect_ratio: VALID_ASPECT_RATIOS.includes(ratio) ? ratio : "16:9",
     delivery: "uri",
-    duration: `${omniDurationSeconds(params)}s`,
+    duration: `${omniDurationSeconds(params, maxSeconds)}s`,
   };
 }
 
@@ -88,16 +106,120 @@ export function buildOmniRequestBody(args: {
   text: string;
   task: string;
   params: Record<string, unknown>;
+  /** The Gemini API model name. Defaults to 1.1 so the shape tests read as before. */
+  model?: string;
+  maxSeconds?: number;
 }): Record<string, unknown> {
   return {
-    model: OMNI_MODEL,
+    model: args.model ?? OMNI_11_API_MODEL,
     input: [...args.imageParts, { type: "text", text: args.text }],
     generation_config: { video_config: { task: args.task } },
-    response_format: buildOmniResponseFormat(args.params),
+    response_format: buildOmniResponseFormat(args.params, args.maxSeconds),
     store: true,
     background: false,
     stream: false,
   };
+}
+
+/**
+ * D483 — the edit request. Verified on the live API, November 2026: text first, then the video,
+ * then reference images (addressed as <IMAGE_REF_n> in that order). `duration` and `aspect_ratio`
+ * are rejected for `task: "edit"`; the output keeps the input's length and shape.
+ */
+export function buildOmniEditRequestBody(a: {
+  text: string;
+  videoPart: { data: string; mime_type: string };
+  imageParts: Array<Record<string, unknown>>;
+  resolution: string;
+  model?: string;
+}): Record<string, unknown> {
+  return {
+    model: a.model ?? OMNI_11_API_MODEL,
+    input: [{ type: "text", text: a.text }, { type: "video", ...a.videoPart }, ...a.imageParts],
+    generation_config: { video_config: { task: "edit" } },
+    response_format: {
+      type: "video",
+      resolution: VALID_RESOLUTIONS.includes(a.resolution) ? a.resolution : "720p",
+      delivery: "uri",
+    },
+    store: true,
+    background: false,
+    stream: false,
+  };
+}
+
+/** A refusal is decided before anything renders. The operator sees plain words; the raw text is logged. */
+export function omniRefusalMessage(raw: string): string | null {
+  // Observed on the live API: {"error":{"code":"content_blocked","message":"Input blocked: …"}}.
+  return /content_blocked|photorealistic children|usage policy/i.test(raw)
+    ? VIDEO_EDIT_REFUSED_MESSAGE
+    : null;
+}
+
+/** What differs between Omni versions on the wire. Everything else is one request shape. */
+type OmniVersion = {
+  apiModel: string;
+  maxSeconds: number;
+  /** Set when a first + last frame pair has a shorter ceiling than the model (1.2: 10s). */
+  framePairMaxSeconds?: number;
+};
+
+async function editWithOmni(
+  input: VideoGenInput & { editVideoUrl: string },
+  version: OmniVersion,
+): Promise<VideoGenResult> {
+  const durationSeconds = Number(input.params.durationSeconds);
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error("Edit has no recorded take length");
+  }
+
+  const [video, ...images] = await Promise.all([
+    fetchAsBase64(input.editVideoUrl),
+    ...input.referenceUrls.map((url) => fetchAsBase64(url)),
+  ]);
+  const resolution = String(input.params.resolution ?? "720p");
+  const body = JSON.stringify(
+    buildOmniEditRequestBody({
+      text: input.prompt,
+      videoPart: { data: video.imageBytes, mime_type: video.mimeType.startsWith("video/") ? video.mimeType : "video/mp4" },
+      imageParts: images.map((img) => ({ type: "image", data: img.imageBytes, mime_type: img.mimeType })),
+      resolution,
+      model: version.apiModel,
+    }),
+  );
+  logger.info("Omni edit request", {
+    model: version.apiModel,
+    images: images.length,
+    resolution,
+    durationSeconds,
+    bodyKB: Math.round(Buffer.byteLength(body) / 1024),
+  });
+
+  const res = await fetchOrThrow("Omni edit", `${API_BASE}/interactions`, {
+    method: "POST",
+    headers: { "x-goog-api-key": getApiKey(), "Content-Type": "application/json" },
+    body,
+    signal: AbortSignal.timeout(OMNI_REQUEST_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const raw = await res.text();
+    logger.error("Omni edit refused or failed", { status: res.status, body: raw.slice(0, 2000) });
+    throw new Error(omniRefusalMessage(raw) ?? `Omni edit failed (${res.status})`);
+  }
+
+  const interaction = (await res.json()) as OmniInteraction;
+  logger.info("Omni edit interaction", { id: interaction.id, status: interaction.status });
+  if (interaction.status === "failed") {
+    const message = interaction.error?.message ?? "unknown error";
+    logger.error("Omni edit failed", { message });
+    throw new Error(omniRefusalMessage(message) ?? "The edit didn't finish. Try again.");
+  }
+
+  const videoUrl = extractOmniVideoUri(interaction);
+  if (!videoUrl) throw new Error("Omni edit completed but returned no video URI");
+  const fileName = fileNameFromUri(videoUrl);
+  if (fileName) await waitForFileReady(fileName);
+  return { videoUrl, durationSeconds };
 }
 
 type OmniContent = { type: string; mime_type?: string; uri?: string; data?: string };
@@ -180,11 +302,26 @@ async function waitForFileReady(fileName: string): Promise<void> {
   logger.info("Omni file still not ACTIVE after polling — continuing", { fileName });
 }
 
-async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
+async function generateWithOmni(input: VideoGenInput, version: OmniVersion): Promise<VideoGenResult> {
+  // D483 — an edit of a stored take. Routed before anything generation-specific runs.
+  if (input.editVideoUrl) return editWithOmni({ ...input, editVideoUrl: input.editVideoUrl }, version);
+
   // D207 mirrored server-side. The client evaluates the same rule, so this is the backstop for a
   // caller that bypasses the UI — a named error now rather than a 400 minutes later.
   if (input.endFrameUrl && !input.startFrameUrl) {
     throw new Error("<LAST_FRAME> requires <FIRST_FRAME> — Omni cannot use an end frame alone");
+  }
+  const durationSeconds = omniDurationSeconds(input.params, version.maxSeconds);
+  // Same backstop for 1.2's frame-pair ceiling (GEMINI_OMNI_12_RULES disables Generate client-side).
+  if (
+    version.framePairMaxSeconds !== undefined &&
+    input.startFrameUrl &&
+    input.endFrameUrl &&
+    durationSeconds > version.framePairMaxSeconds
+  ) {
+    throw new Error(
+      `With a start and end frame, clips can be up to ${version.framePairMaxSeconds}s. Shorten the duration or remove the end frame.`,
+    );
   }
 
   const plan = planOmniInput({
@@ -213,7 +350,14 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
 
   const text = composeOmniPrompt({ prompt: input.prompt, params: input.params, plan });
   const body = JSON.stringify(
-    buildOmniRequestBody({ imageParts, text, task: plan.task, params: input.params }),
+    buildOmniRequestBody({
+      imageParts,
+      text,
+      task: plan.task,
+      params: input.params,
+      model: version.apiModel,
+      maxSeconds: version.maxSeconds,
+    }),
   );
 
   // Logged before the await: on a timeout there is no response to log, and store:true means the
@@ -221,10 +365,11 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
   // bodyKB is here because the images travel INLINE as base64: a few large references push this
   // into tens of MB, and a server that drops an oversized body reports only "fetch failed".
   logger.info("Omni request", {
+    model: version.apiModel,
     task: plan.task,
     images: plan.uploads.length,
     resolution: String(input.params.resolution ?? "720p"),
-    durationSeconds: omniDurationSeconds(input.params),
+    durationSeconds,
     bodyKB: Math.round(Buffer.byteLength(body) / 1024),
   });
 
@@ -262,18 +407,39 @@ async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
 
   // The REQUESTED duration — Omni returns none in its response. Read from the same helper the
   // request used, never parsed back off the "8s" wire value.
-  return { videoUrl, durationSeconds: omniDurationSeconds(input.params) };
+  return { videoUrl, durationSeconds };
 }
 
+const OMNI_11: OmniVersion = { apiModel: OMNI_11_API_MODEL, maxSeconds: GEMINI_OMNI_11_MAX_SECONDS };
+const OMNI_12: OmniVersion = {
+  apiModel: OMNI_12_API_MODEL,
+  maxSeconds: GEMINI_OMNI_12_MAX_SECONDS,
+  framePairMaxSeconds: OMNI_12_FRAME_PAIR_MAX_SECONDS,
+};
+
+/** Being retired: Google routes every 1.1 request to 1.2 from 2026-12-03 (D484). */
 export const geminiOmni: VideoGenModelSpec = {
-  id: "gemini:gemini-omni-1.1-flash",
+  id: GEMINI_OMNI_11_MODEL_ID,
   provider: "gemini",
   label: "Gemini Omni 1.1 Flash",
   pickerLabel: "Omni 1.1",
   providerLabel: "Google",
-  maxDurationSeconds: 10,
+  maxDurationSeconds: GEMINI_OMNI_11_MAX_SECONDS,
   imageInputs: GEMINI_OMNI_IMAGE_INPUTS,
   params: geminiOmniParams,
   rules: GEMINI_OMNI_RULES,
-  generate: generateWithOmni,
+  generate: (input) => generateWithOmni(input, OMNI_11),
+};
+
+export const geminiOmni12: VideoGenModelSpec = {
+  id: GEMINI_OMNI_12_MODEL_ID,
+  provider: "gemini",
+  label: "Gemini Omni 1.2 Flash",
+  pickerLabel: "Omni 1.2",
+  providerLabel: "Google",
+  maxDurationSeconds: GEMINI_OMNI_12_MAX_SECONDS,
+  imageInputs: GEMINI_OMNI_12_IMAGE_INPUTS,
+  params: geminiOmni12Params,
+  rules: GEMINI_OMNI_12_RULES,
+  generate: (input) => generateWithOmni(input, OMNI_12),
 };

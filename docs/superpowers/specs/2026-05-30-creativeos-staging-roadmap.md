@@ -8534,6 +8534,55 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session.
 
+### D483 — Video Gen gets an Edit toggle beside Edit voice; an edit is a new version of the whole take *(recorded 2026-11-10; follows D284, D37)*
+
+**Decision.** The Video Gen focus view has two switches beside the VIDEO heading, **Edit voice** (D284) and **Edit**, and only one can be on. Edit shows the connected images as checkable references, an instruction box, a resolution choice (360p to 4k, default 720p) and an Edit video button with its credit estimate. It sends the whole active take (up to 10 seconds) to Gemini Omni with `task: "edit"`, as a `video` generation run by the existing `video-generate` task with an `editVideoUrl`, billed at Omni's rate for the chosen resolution. The result is appended as a new version with `inputs_used.videoEdit` (base and root version, instruction, literal prompt, references, resolution). A refusal or a failure refunds and makes no version.
+
+**Why.** User, 10 Nov 2026: most review feedback asks for one change to a take that is otherwise right (flour colour, an expression, a wider frame). Generating again costs a full take and loses what was right. Tests on Chupps and Jackfruit 365 takes showed the edit keeps the rest of the take when the change is to something already in it. The UX team is reworking the surface, so the two switches are the interim layout.
+
+**Rejected.** Editing inside the Rough Cut Editor as a clip action (user: it is part of the Video Gen node, like Image Gen's edit). Editing a section of the take and splicing it back (user chose whole take only for now). Offering review comments as starting points (kept out of the first version). A separate edit node (an edit is a generation attempt on this node, D18).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D484 — Gemini Omni 1.2 is added beside 1.1 and becomes the default; 1.1 stays selectable until it is retired *(recorded 2026-11-10; refines D235, D261, D483)*
+
+**Decision.** `gemini:gemini-omni-1.2-flash` is a second Omni model in Video Gen, listed before 1.1 under Google. It takes 3–15s (1.1: 3–10s), up to 6 references (Google's stated limit; 1.1 keeps its measured 12), and blocks Generate when a start and end frame are both set and the duration is over 10s. `GEMINI_OMNI_MODEL_ID` now means the current Omni (1.2), so new Video Gen nodes, multishot, video edits (now up to 15s takes) and avatar voice previews use it. Saved nodes on 1.1 keep 1.1. In the multishot table 1.1 is marked `retiring`: still selectable, never picked for a new node, no help template. Omni is priced from Google's output tokens per second (1,931 / 5,792 / 8,688 / 17,376 at 360p / 720p / 1080p / 4k) times $17.50 (1.1) or $12 (1.2) per 1M tokens; from 2026-12-03 a 1.1 generation is priced at 1.2 rates, because Google routes and bills every 1.1 request as 1.2 from that date.
+
+**Why.** User, 10 Nov 2026: integrate 1.2, keep 1.1 as an option, retire it later. 1.2 is ~30% cheaper ($0.07/s at 720p), longer, and Google moves all 1.1 traffic to it on 3 Dec anyway. The old flat 1.1 rates were up to 11% under Google's (360p).
+
+**Rejected.** Replacing 1.1 in place (saved nodes and stamped multishot plans name the 1.1 id). Keeping 1.1 as the default until 3 Dec (it costs more for the same request). Pricing input tokens (prompt, reference images, an edit's source video) in this change; output-only for now, as before.
+
+**Originated →** this entry (aistudio.google.com/docs/pricing, /docs/models/gemini-omni-flash, /docs/omni, checked 2026-11-10).
+
+### D485 — An edit is its own job type and runs on the Omni the operator picks *(recorded 2026-11-10; refines D483, D484)*
+
+**Decision.** A Video Gen edit is recorded as a `generations` row of type `edit`, not `video`. The focus view reads it as its own kind, so while an edit runs Edit stays open, the take stays on screen under an "Editing the video…" veil, the button and the canvas card read "Editing…", and reopening the node lands back in Edit, the same treatment D284 gives a voice change. The Edit panel uses the generate settings' own controls: the model picker, offering Omni 1.2 (default) and Omni 1.1 only, and the Resolution chips inside its card. Each model's own length and reference caps and price apply (1.2: 15 s, 6 references; 1.1: 10 s, 12 references), and the edit record carries the model.
+
+**Why.** User, 10 Nov 2026: with an edit running the view switched back to the generate settings, showed "Generating…" with an empty frame, and the Edit panel said "Wait for the current job to finish"; and once 1.2 was added, an edit should be able to run on either model. The resolution control also looked different from the generate settings'.
+
+**Rejected.** Telling an edit apart by reading `inputs_snapshot` on the generations feed (the feed selects only the columns it shows, CLAUDE.md performance rule 8). A start mark only on the client (lost on a reload or another tab, where the job would read as a new take again).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D486 — Video Gen can switch between models that read the same multishot plan, without rewriting the prompt *(recorded 2026-11-10; refines D236, D239, D484)*
+
+**Decision.** A multishot plan is model-specific only through its shot format and reference-token dialect (the writer is chosen from the same pair). Every model sharing both with the plan's stamp reads it unchanged (`multishotModelsSharingPlan`; today Omni 1.1 and 1.2). Video Gen's picker on the multishot lane offers all of them instead of the stamped model alone; the node keeps its own model when it is one of them and is coerced to the stamp only when it is not (focus view and canvas-store's connect). The video-generate route accepts any of them and checks the ladder and prompt limits against the model REQUESTED, so a 14s Omni 1.2 plan on 1.1 is refused with "14s · Gemini Omni 1.1 allows 10s." The Multishot Prompt view reports no mismatch between such models. On a model change between two models of one provider, the params merge keeps free text (the negative prompt) and clamps an out-of-range slider instead of resetting both; across providers the tuned defaults still apply.
+
+**Why.** User, 10 Nov 2026: Omni 1.1 and 1.2 use the same prompt writer, so switching between them on a Video Gen node should not mean regenerating the prompt. Single-shot prompts already carried over (the video-prompt system prompt is per provider); only the multishot lock and the negative-prompt reset got in the way.
+
+**Rejected.** Re-stamping the plan when the node switches (the stamp records which writer produced it, and that does not change). Keeping custom free text across providers (each provider's negative default is tuned to its own artifacts).
+
+**Originated →** this entry.
+
+### D487 — Edit video and Change voice are icon tools on the take, not switches *(recorded 2026-11-10; amends D284, D483)*
+
+**Decision.** The two switches beside the VIDEO heading ("Edit voice", "Edit") are replaced by two small icon buttons at the right of that heading: a sparkle for Edit video and a waveform for Change voice, named on hover, tinted while their panel is open, with a dot while their job runs. Opening one swaps the centre column for its panel under a slim header with a Close back to the generate settings; opening one closes the other. Edit video's button moves into the same pinned footer Generate uses (`GenerateFooter`).
+
+**Why.** User, 10 Nov 2026: two switches were hard to use and read as main actions. Generate is the screen's main job; editing a take is a tool on it. Mockups compared mode tabs, an "Edit" menu, rail items, buttons under the player, then three quiet entry points; the user picked the icon buttons.
+
+**Rejected.** Mode tabs over the centre column (clear, but made edits look as important as Generating). A "⋯" menu (quietest, but hides the feature). Text links under the take (compete with the take's tags). Rail items (mix places with actions).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
 ### D483 — An asset import keeps its memory bounded, and a crashed one is recorded and continues *(recorded 2026-11-06; refines D302, D306)*
 
 **Decision.** `asset-import` runs on `medium-1x` (2 GB). A video is streamed from its source into storage and never held whole; videos are capped at 1 GB. An image is still read whole, because `sharp` needs every pixel for the preview, but the download stops the moment it passes 25 MB. `sharp` keeps no cache, uses one thread, refuses images over 40 million pixels (the file is kept without a preview) and handles one image at a time. A file that is not kept is named in the job's `result.skipped` (up to 20, with `failed` counting all) and in the result line ("79 new · 1 couldn't be saved"). The import records each Apify run it starts in the job's `result.checkpoint`. The task retries once after a crash, on `medium-2x`, and the retry continues that Apify run instead of starting a new one, then skips the assets already saved. A retry of a job that has already ended does nothing. A scheduled task, `reconcile-background-jobs` (every 15 minutes), marks an `asset-import` or `image-analysis` job failed once its Trigger.dev run has ended without recording it, or after 45 minutes when Trigger.dev no longer has the run. It changes only jobs that are still live. The import logs its memory as it saves assets.

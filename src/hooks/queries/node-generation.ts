@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { nodeGenerationService } from "@/services/node-generation.service";
+import { nodeGenerationService, type StartVideoEditBody } from "@/services/node-generation.service";
 import { ApiError } from "@/services/read-json";
 import { nodeVersionKeys } from "@/hooks/queries/node-versions";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
@@ -48,6 +48,14 @@ export function useStartLipSync(nodeId: string) {
   return useMutation({
     mutationFn: (body: { versionId: string }) => nodeGenerationService.startLipSync(nodeId, body),
     onSuccess: (started) => markGenerationStarted(nodeId, "lipsync", started.generationId),
+  });
+}
+
+export function useStartVideoEdit(nodeId: string) {
+  const markGenerationStarted = useCanvasStore((s) => s.markGenerationStarted);
+  return useMutation({
+    mutationFn: (body: StartVideoEditBody) => nodeGenerationService.startVideoEdit(nodeId, body),
+    onSuccess: (started) => markGenerationStarted(nodeId, "edit", started.generationId),
   });
 }
 

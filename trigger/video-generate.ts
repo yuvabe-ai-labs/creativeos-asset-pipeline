@@ -28,6 +28,8 @@ export const videoGenerateTask = task({
     referenceUrls: string[];
     /** D299 — the presenter's voice, on Seedance. Other providers ignore it. */
     referenceAudioUrl?: string;
+    /** D483 — edit this stored take instead of generating (Gemini Omni). */
+    editVideoUrl?: string;
     params: Record<string, unknown>;
     mockMode?: boolean;
   }, { ctx }) => {
@@ -72,6 +74,7 @@ export const videoGenerateTask = task({
         endFrameUrl: payload.endFrameUrl,
         referenceUrls: payload.referenceUrls ?? [],
         referenceAudioUrl: payload.referenceAudioUrl,
+        editVideoUrl: payload.editVideoUrl,
         params: payload.params,
       });
 

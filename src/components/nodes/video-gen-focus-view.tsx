@@ -15,6 +15,7 @@ import { parseAspectRatio } from "@/lib/canvas/media-fit";
 import {
   ArrowLeft,
   AudioLines,
+  Sparkles,
   BadgeCheck,
   ChevronDown,
   Clapperboard,
@@ -46,7 +47,12 @@ import {
   videoGenClientModelMap,
   isVideoModelDeprecated,
 } from "@/lib/video-gen/client-models";
-import { multishotCapabilityFor, multishotRestrictionReason, checkLadder } from "@/lib/nodes/multishot-models";
+import {
+  multishotCapabilityFor,
+  multishotModelsSharingPlan,
+  multishotRestrictionReason,
+  checkLadder,
+} from "@/lib/nodes/multishot-models";
 import { totalOf, type MultishotCut } from "@/lib/nodes/multishot-cuts";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { smartMergeVideoParams } from "@/lib/video-gen/params/merge";
@@ -121,7 +127,10 @@ import { ActiveOnlyNotice } from "./active-only-notice";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
-import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
+import { VideoGenEditTools } from "./video-gen-edit-tools";
+import { VideoGenModeHeader } from "./video-gen-mode-header";
+import { VideoGenEditVideo } from "./video-gen-edit-video";
+import type { VideoEditNodeState } from "@/lib/video-edit/record";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
 import { VideoGenPresenterNotes } from "./video-gen-presenter-notes";
 import { useShotPresenter } from "@/hooks/use-shot-presenter";
@@ -229,12 +238,15 @@ function applyDefaultImageRoles(
  */
 function migrateVideoModelState({
   nextModelId,
+  previousModelId,
   currentParams,
   currentRoles,
   upstreamImages,
   derivedDuration,
 }: {
   nextModelId: string;
+  /** D486 — the model being left, so a same-provider switch keeps free text (smartMergeVideoParams). */
+  previousModelId: string;
   currentParams: Record<string, unknown>;
   currentRoles: Record<string, ImageRole>;
   upstreamImages: UpstreamImage[];
@@ -251,7 +263,7 @@ function migrateVideoModelState({
 } {
   const nextModel = videoGenClientModelMap[nextModelId];
   const defaults = nextModel
-    ? smartMergeVideoParams(currentParams, nextModel)
+    ? smartMergeVideoParams(currentParams, nextModel, previousModelId)
     : defaultsForVideoModel(nextModelId);
 
   // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration should
@@ -318,6 +330,7 @@ type Props = {
   params?: Record<string, unknown>;
   imageRoles: Record<string, ImageRole>;
   voiceChange?: VoiceChangeNodeState;
+  videoEdit?: VideoEditNodeState;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -530,6 +543,7 @@ export function VideoGenFocusView({
   params: paramsProp,
   imageRoles: imageRolesProp,
   voiceChange: voiceChangeProp,
+  videoEdit: videoEditProp,
   onPatch,
 }: Props) {
   const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
@@ -575,6 +589,8 @@ export function VideoGenFocusView({
   // D284 — the right column's video-vs-workspace mode; the two never combine (see the toggle
   // below the version history's annotate control).
   const [changeVoiceOpen, setChangeVoiceOpen] = useState(false);
+  // D483 — Edit, the other centre-column mode. Never on together with Edit voice.
+  const [editVideoOpen, setEditVideoOpen] = useState(false);
   const [capturedFrame, setCapturedFrame] = useState<{
     base64: string;
     timecodeMs: number;
@@ -600,6 +616,7 @@ export function VideoGenFocusView({
   const viewing = useVersionViewing(versions, activeVersionId, open, () => {
     setReviewAnnotating(false);
     setChangeVoiceOpen(false);
+    setEditVideoOpen(false);
     setCapturedFrame(null);
     setOpenTimecode(null);
   });
@@ -633,8 +650,20 @@ export function VideoGenFocusView({
   const [pendingInputs, setPendingInputs] = useState<{ id: string; label: string }[]>([]);
   const showConnectedSkeleton = loadingConnected && !upstreamQuery.data;
 
-  const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
+  const { isGenerating, isChangingVoice, isEditingVideo, lastError, setGenerating, setLastError } =
     useGenerationStatus(nodeId);
+
+  // D487 — opening one edit tool closes the other and anything that can't combine with it (the
+  // annotate mode, a captured frame); the panel lives in the centre column's video pane.
+  const openEditTool = (tool: "edit" | "voice", next: boolean) => {
+    setEditVideoOpen(tool === "edit" && next);
+    setChangeVoiceOpen(tool === "voice" && next);
+    if (!next) return;
+    setSelected("video");
+    setReviewAnnotating(false);
+    setCapturedFrame(null);
+    setOpenTimecode(null);
+  };
 
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
   const [openNodeSeed, setOpenNodeSeed] = useState({ open, nodeId });
@@ -650,6 +679,8 @@ export function VideoGenFocusView({
       // D284 — reopening while a voice change runs lands back in Edit voice, where it was
       // started; otherwise on the generate settings.
       setChangeVoiceOpen(isChangingVoice && !requested);
+      // D483 — and while an edit runs, back in Edit.
+      setEditVideoOpen(isEditingVideo && !requested);
       setLoadingConnected(true);
       // Re-seed the approval fields from the versions on every open (see the block below).
       setSeededVersions(undefined);
@@ -678,6 +709,19 @@ export function VideoGenFocusView({
     setSeenChangingVoice(isChangingVoice);
     if (isChangingVoice && open && !changeVoiceOpen) {
       setChangeVoiceOpen(true);
+      setEditVideoOpen(false);
+      setSelected("video");
+      setReviewAnnotating(false);
+    }
+  }
+
+  // D483 — the same for an edit: one that becomes known while the view is open opens Edit.
+  const [seenEditingVideo, setSeenEditingVideo] = useState(isEditingVideo);
+  if (seenEditingVideo !== isEditingVideo) {
+    setSeenEditingVideo(isEditingVideo);
+    if (isEditingVideo && open && !editVideoOpen) {
+      setEditVideoOpen(true);
+      setChangeVoiceOpen(false);
       setSelected("video");
       setReviewAnnotating(false);
     }
@@ -790,8 +834,17 @@ export function VideoGenFocusView({
   // 360p, rendered a select holding an unlisted value, left Generate enabled, and posted it. The
   // route then rebuilt params from Kling's specs, took "360p" from the body, `computeVideoCost`
   // returned null, and the request died as a 500 AFTER inserting a generation row.
-  const multishotTargetModel = isMultishotPromptConnected
-    ? multishotCapabilityFor(effectiveMultishotModel).id
+  //
+  // D486 — "the model" is any model that reads the plan as written (Omni 1.1 and 1.2 share one), so
+  // the node keeps its own choice when the plan runs on it and is coerced to the plan's model only
+  // when it does not.
+  const multishotModelIds = isMultishotPromptConnected
+    ? multishotModelsSharingPlan(effectiveMultishotModel)
+    : undefined;
+  const multishotTargetModel = multishotModelIds
+    ? multishotModelIds.includes(modelId)
+      ? modelId
+      : multishotModelIds[0]
     : undefined;
   // Not gated on `loadingConnected` (D430): the lane is known from the store, and this only sets
   // local state. Persisting still waits for the confirmed inputs (the effect below).
@@ -802,6 +855,7 @@ export function VideoGenFocusView({
   ) {
     const migrated = migrateVideoModelState({
       nextModelId: multishotTargetModel,
+      previousModelId: modelId,
       currentParams: params,
       currentRoles: imageRolesProp,
       upstreamImages,
@@ -988,6 +1042,7 @@ export function VideoGenFocusView({
     // operator's own edit from ever being overwritten.
     const migrated = migrateVideoModelState({
       nextModelId,
+      previousModelId: modelId,
       currentParams: params,
       currentRoles: imageRolesProp,
       upstreamImages,
@@ -1201,9 +1256,10 @@ export function VideoGenFocusView({
     // silent wait reads as a dead click.
     const toastId = toast.loading("Restoring version…");
     try {
-      const { output, modelUsed, paramsUsed } = await videoGenApi.restoreVersion(nodeId, versionId);
+      const { output, modelUsed, paramsUsed, edited } = await videoGenApi.restoreVersion(nodeId, versionId);
       // D461 — a version made on a deprecated model brings back its video, not its model.
-      const restoredParams = modelUsed && !isVideoModelDeprecated(modelUsed)
+      // D483 — so does an edited version: Omni and a defaulted resolution are not the node's settings.
+      const restoredParams = !edited && modelUsed && !isVideoModelDeprecated(modelUsed)
         ? paramsForRestore(videoGenClientModelMap[modelUsed]?.params, paramsUsed)
         : null;
       if (modelUsed && restoredParams) {
@@ -1221,7 +1277,9 @@ export function VideoGenFocusView({
       toast.success(
         restoredParams
           ? "Version restored — model and settings applied"
-          : "Video restored — its settings are no longer available",
+          : edited
+            ? "Video restored — the node keeps its current settings"
+            : "Video restored — its settings are no longer available",
         { id: toastId },
       );
     } catch (e) {
@@ -1398,7 +1456,8 @@ export function VideoGenFocusView({
   // checks don't fight over which reason wins.
   const ladderCheck =
     isMultishotPromptConnected && upstreamMultishotCuts
-      ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(effectiveMultishotModel))
+      // Against the model chosen, not the plan's: a 14s Omni 1.2 plan switched to 1.1 must say so.
+      ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(multishotTargetModel ?? effectiveMultishotModel))
       : null;
   // D299 — models the presenter's face rules out; a node already on one can't generate with it.
   const presenterUnavailable = presenterAvatar ? unavailableModelsFor(presenterAvatar) : undefined;
@@ -1474,9 +1533,9 @@ export function VideoGenFocusView({
           : undefined,
   });
 
-  // A voice change keeps showing the video it is re-voicing, veiled (like Image Gen's edit);
-  // only a fresh video gets the empty-frame skeleton.
-  const mode: "skeleton" | "result" | "empty" = isGenerating && !(isChangingVoice && videoUrl)
+  // A voice change or an edit keeps showing the video it is working on, veiled (like Image Gen's
+  // edit); only a fresh video gets the empty-frame skeleton.
+  const mode: "skeleton" | "result" | "empty" = isGenerating && !((isChangingVoice || isEditingVideo) && videoUrl)
     ? "skeleton"
     : videoUrl
       ? "result"
@@ -1771,8 +1830,11 @@ export function VideoGenFocusView({
                 min-content width, so one long unbreakable string inside any pane silently
                 overrides w-[54%] and squeezes the video column beside it. */}
             <div className="min-h-0 w-1/2 min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised xl:w-[54%]">
-              {/* D284 — Edit voice takes over this column, as Image Gen's Edit does. */}
+              {/* D284 — Change voice takes over this column, as Image Gen's Edit does; D487 — under a
+                  slim header whose Close returns to the generate settings. */}
               {selected === "video" && changeVoiceOpen && (
+                <>
+                <VideoGenModeHeader icon={AudioLines} title="Change the voice" onClose={() => setChangeVoiceOpen(false)} />
                 <div className="px-6 py-5">
                   <VideoGenChangeVoice
                     nodeId={nodeId}
@@ -1795,10 +1857,36 @@ export function VideoGenFocusView({
                     }}
                   />
                 </div>
+                </>
+              )}
+
+              {/* D483 — Edit video takes over this column, as Change voice does; D487 — under a slim
+                  header, with its button pinned to the bottom like Generate's. */}
+              {selected === "video" && editVideoOpen && (
+                <div className="flex min-h-full flex-col">
+                <VideoGenModeHeader icon={Sparkles} title="Edit this video" onClose={() => setEditVideoOpen(false)} />
+                <div className="flex flex-1 flex-col px-6 py-5">
+                  <VideoGenEditVideo
+                    nodeId={nodeId}
+                    versions={versions}
+                    sourceId={activeVersion?.output && !activeVersion.error ? activeVersion.id : null}
+                    images={upstreamImages}
+                    running={isGenerating && !isEditingVideo}
+                    editing={isEditingVideo}
+                    locked={lockReason}
+                    value={videoEditProp}
+                    onChange={(next) => onPatch({ videoEdit: next })}
+                    onStarted={() => {
+                      videoRef.current?.pause();
+                      setLastError(null);
+                    }}
+                  />
+                </div>
+                </div>
               )}
 
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
-              {selected === "video" && !changeVoiceOpen && (
+              {selected === "video" && !changeVoiceOpen && !editVideoOpen && (
                 <div className="flex min-h-full flex-col gap-10 px-6 py-5">
                   {/* Model first: it decides which roles exist, which params show, and which
                       combinations are legal, so every choice below it is downstream of this one. */}
@@ -1812,7 +1900,7 @@ export function VideoGenFocusView({
                     // lane with nothing cached waits (its presenter rules come from the fetch).
                     loading={loadingConnected && !upstreamQuery.data && !isMultishotPromptConnected}
                     unavailable={presenterUnavailable}
-                    lockedToModelId={multishotTargetModel}
+                    lockedToModelIds={multishotModelIds}
                     restrictionReason={
                       isMultishotPromptConnected
                         ? multishotRestrictionReason(effectiveMultishotModel)
@@ -1929,7 +2017,7 @@ export function VideoGenFocusView({
                     className="-mx-6 -mb-5"
                     label={videoUrl ? "Re-generate" : "Generate video"}
                     busy={isGenerating}
-                    busyLabel={isChangingVoice ? "Changing voice…" : "Generating…"}
+                    busyLabel={isChangingVoice ? "Changing voice…" : isEditingVideo ? "Editing…" : "Generating…"}
                     onClick={handleGenerate}
                     disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
                     disabledReason={disableGenerate ? disableGenerateReason : null}
@@ -2050,7 +2138,10 @@ export function VideoGenFocusView({
                                   // D284: annotating and the Change voice workspace don't combine.
                                   const next = !reviewAnnotating;
                                   setReviewAnnotating(next);
-                                  if (next) setChangeVoiceOpen(false);
+                                  if (next) {
+                                    setChangeVoiceOpen(false);
+                                    setEditVideoOpen(false);
+                                  }
                                   setCapturedFrame(null);
                                   setOpenTimecode(null);
                                 }
@@ -2148,8 +2239,8 @@ export function VideoGenFocusView({
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               {/* D433 — a fixed one-line header that never changes height, so the player below never
                   moves. Versions are picked in History (the rail), not stepped here; while an
-                  older take plays, a quiet tag names it in place of the Edit voice switch (which
-                  acts on the active take only). */}
+                  older take plays, a quiet tag names it in place of the edit tools (which act on the
+                  active take only). */}
               <div className="flex h-8 min-w-0 shrink-0 items-center gap-3">
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
@@ -2158,21 +2249,20 @@ export function VideoGenFocusView({
                 {viewing.isViewingOther && viewed ? (
                   <ViewingTag label={viewedLabel} />
                 ) : !loadingVersions && versions.some((v) => v.output && !v.error) && (
-                  <VideoGenChangeVoiceToggle
-                    id={`video-edit-voice-${nodeId}`}
-                    checked={changeVoiceOpen}
-                    // Free during a voice change — that's the mode it runs in — but not while a
-                    // new video is generating.
-                    disabled={!editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
-                    onCheckedChange={(next) => {
-                      setChangeVoiceOpen(next);
-                      if (next) {
-                        setSelected("video"); // the editor lives in the centre column's video pane
-                        // The two modes never combine — mirror the annotate toggle's off-cleanup.
-                        setReviewAnnotating(false);
-                        setCapturedFrame(null);
-                        setOpenTimecode(null);
-                      }
+                  <VideoGenEditTools
+                    edit={{
+                      open: editVideoOpen,
+                      running: isEditingVideo,
+                      // Free during an edit (the mode it runs in), but not while anything else runs.
+                      disabled: !editable || Boolean(lockReason) || (isGenerating && !isEditingVideo) || viewing.isViewingOther,
+                      onOpenChange: (next) => openEditTool("edit", next),
+                    }}
+                    voice={{
+                      open: changeVoiceOpen,
+                      running: isChangingVoice,
+                      // Free during a voice change, but not while anything else runs.
+                      disabled: !editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther,
+                      onOpenChange: (next) => openEditTool("voice", next),
                     }}
                   />
                 )}
@@ -2372,11 +2462,15 @@ export function VideoGenFocusView({
 
                       {/* D284 — the take being re-voiced stays in place under a veil, the same
                           treatment Image Gen gives an image being edited. */}
-                      {isChangingVoice && (
+                      {(isChangingVoice || isEditingVideo) && (
                         <div className="absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm">
                           <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
-                            <AudioLines className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
-                            Changing voice…
+                            {isEditingVideo ? (
+                              <Sparkles className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                            ) : (
+                              <AudioLines className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                            )}
+                            {isEditingVideo ? "Editing the video…" : "Changing voice…"}
                           </div>
                         </div>
                       )}

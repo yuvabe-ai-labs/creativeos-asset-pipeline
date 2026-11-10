@@ -32,7 +32,7 @@ import {
 import { referenceRolesLine } from "@/lib/nodes/ref-roles";
 import { withRequestLines } from "@/lib/video-gen/request-prompt";
 import { NO_ON_SCREEN_TEXT_LINE, soundDesignClause } from "@/lib/video-gen/compose-omni-prompt";
-import { multishotCapabilityFor, checkLadder } from "@/lib/nodes/multishot-models";
+import { multishotCapabilityFor, multishotModelsSharingPlan, checkLadder } from "@/lib/nodes/multishot-models";
 import { checkPlanLimits, planCoverage, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { totalOf } from "@/lib/nodes/multishot-cuts";
 import { mapUpstreamForVideo } from "@/lib/nodes/resolve-inputs";
@@ -126,13 +126,15 @@ export async function POST(
     // reserveCredits — for the same reason as the D97 rules check further down: a rejected request
     // must neither record a generation nor touch the org's credit balance.
     if (resolved.cuts) {
-      const cap = multishotCapabilityFor(resolved.targetModel);
-      if (modelId !== cap.id) {
+      // D486 — any model that reads the plan as written is accepted (Omni 1.1 and 1.2 share one);
+      // its length and limits are then checked against the model actually requested.
+      if (!multishotModelsSharingPlan(resolved.targetModel).includes(modelId)) {
         return apiError(
-          `This multishot plan was written for ${cap.label}. Regenerate the prompt to target another model.`,
+          `This multishot plan was written for ${multishotCapabilityFor(resolved.targetModel).label}. Regenerate the prompt to target another model.`,
           400,
         );
       }
+      const cap = multishotCapabilityFor(modelId);
 
       const ladder = checkLadder(resolved.cuts, cap);
       if (!ladder.ok) return apiError(ladder.reason, 400);
@@ -305,7 +307,7 @@ export async function POST(
     );
     // The plan was measured against the model's whole-prompt ceiling (Kling: 3072) BEFORE these
     // lines, so they give way rather than push a passing prompt over it: roles first, then all.
-    const maxChars = resolved.cuts ? multishotCapabilityFor(resolved.targetModel).maxPromptChars : null;
+    const maxChars = resolved.cuts ? multishotCapabilityFor(modelId).maxPromptChars : null;
     const fits = (text: string) => maxChars === null || text.length <= maxChars;
     prompt = [
       withRequestLines(prompt, { provider: config.provider, rolesLine }),

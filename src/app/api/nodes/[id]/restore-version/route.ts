@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { setActiveVersion } from "@/lib/db/versions";
+import { readVideoEdit } from "@/lib/video-edit/record";
 import { apiError, apiOk, withTryCatch, withNode } from "@/lib/api/route-helpers";
 
 // POST /api/nodes/:id/restore-version — move the active-version pointer to a
@@ -23,7 +24,7 @@ export async function POST(
       const supabase = createServerSupabase();
       const { data: version, error } = await supabase
         .from("node_versions")
-        .select("id, output, model_used, params_used")
+        .select("id, output, model_used, params_used, inputs_used")
         .eq("id", versionId)
         .eq("node_id", nodeId)
         .single();
@@ -36,7 +37,11 @@ export async function POST(
         output: unknown;
         model_used: unknown;
         params_used: unknown;
+        inputs_used: Record<string, unknown> | null;
       };
+      // D483 — an edited version was made by Omni with only its own resolution and length. Applying
+      // those to the node would swap its model and settings, so the client is told to keep both.
+      if (readVideoEdit(v.inputs_used?.videoEdit)) return apiOk({ output: v.output ?? null, edited: true });
       return apiOk({
         // Every prior caller's output IS a string (image/video/text prompts), so this widening
         // is additive: `v.output` decodes straight off the JSONB column, a JSON string decodes

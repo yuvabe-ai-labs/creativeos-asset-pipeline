@@ -9,6 +9,35 @@ const VIDEO_MODEL_PRICING: Record<
   "openai:sora-2":     { perSecond: 0.10,   audioMultiplier: 1.0 },
 };
 
+// Omni output tokens per second of video (Google's published table, identical for 1.1 and 1.2).
+const OMNI_OUTPUT_TOKENS_PER_SECOND: Record<string, number> = {
+  "360p": 1_931, "720p": 5_792, "1080p": 8_688, "4k": 17_376,
+};
+// USD per 1M video output tokens. 1.2 is ~30% cheaper: $0.07/s at 720p against 1.1's ~$0.10/s.
+const OMNI_11_VIDEO_OUT_PER_M = 17.5;
+const OMNI_12_VIDEO_OUT_PER_M = 12.0;
+
+function omniRates(usdPerMillion: number): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(OMNI_OUTPUT_TOKENS_PER_SECOND).map(([res, tps]) => [res, (tps * usdPerMillion) / 1_000_000]),
+  );
+}
+
+/**
+ * From this instant Google routes every `gemini-omni-1.1-flash` request to 1.2 and bills it at
+ * 1.2 rates (aistudio.google.com/docs/pricing). A 1.1 node priced at 1.1 rates after it would be
+ * charged ~45% more than Google charges us. The docs give only the date; read as midnight Pacific.
+ */
+export const OMNI_11_REROUTE_AT = new Date("2026-12-03T08:00:00Z");
+
+/** The model id whose rates apply to a generation started at `at`. */
+export function pricedVideoModelId(modelId: string, at: Date = new Date()): string {
+  if (modelId === "gemini:gemini-omni-1.1-flash" && at >= OMNI_11_REROUTE_AT) {
+    return "gemini:gemini-omni-1.2-flash";
+  }
+  return modelId;
+}
+
 // Source: ai.google.dev/gemini-api/docs/pricing (verified 2026-08-08). Every Veo 3.1 row is
 // still the flat "with audio" price (default) — no separate, cheaper no-audio tier — so audio
 // stays irrelevant to price, same as before. What changed: params/veo.ts now exposes a
@@ -30,13 +59,11 @@ const RESOLUTION_ONLY_PRICING: Record<string, Record<string, number>> = {
   "veo:veo-3.1-lite":  { "720p": 0.05, "1080p": 0.08 },
   "veo:veo-3.1-fast":  { "720p": 0.10, "1080p": 0.12 },
   "veo:veo-3.1":       { "720p": 0.40, "1080p": 0.40 },
-  // Source: ai.google.dev/gemini-api/docs/pricing + the Omni 1.1 launch post (verified
-  // 2026-08-28). 1080p and 4k are UPSCALED from a 720p generation, not natively rendered — the
-  // price rises 1.5x and 3x for resolution alone, which is why 720p is the default and 360p
-  // ($0.03/s, ~60% faster) is the draft tier.
-  "gemini:gemini-omni-1.1-flash": {
-    "360p": 0.03, "720p": 0.10, "1080p": 0.15, "4k": 0.30,
-  },
+  // Gemini Omni (D484). Source: aistudio.google.com/docs/pricing, verified 2026-11-10. Omni bills
+  // video OUTPUT tokens at a fixed rate per second of video, by resolution; 1080p and 4k are
+  // upscaled from 720p. Rates are tokens/s × the per-token price, so a price change is one number.
+  "gemini:gemini-omni-1.1-flash": omniRates(OMNI_11_VIDEO_OUT_PER_M),
+  "gemini:gemini-omni-1.2-flash": omniRates(OMNI_12_VIDEO_OUT_PER_M),
   // Source: ref/byteplus-docs/seedance_2.5_PRICING.md, the vendor's own worked examples
   // ("input without video", which is the only shape this app produces — we never send a
   // reference video).
@@ -152,6 +179,8 @@ export function computeVideoCost(
   durationSeconds: number,
   audioEnabled: boolean,
   resolution?: string,
+  /** When the generation runs. Only Omni 1.1 reads it (pricedVideoModelId). */
+  at: Date = new Date(),
 ): { usd: number; inr: number } | null {
   const resolutionPricing = KLING_RESOLUTION_PRICING[modelId];
   if (resolutionPricing) {
@@ -166,7 +195,7 @@ export function computeVideoCost(
     return { usd, inr: usd * USD_TO_INR };
   }
 
-  const resolutionOnlyPricing = RESOLUTION_ONLY_PRICING[modelId];
+  const resolutionOnlyPricing = RESOLUTION_ONLY_PRICING[pricedVideoModelId(modelId, at)];
   if (resolutionOnlyPricing) {
     // Strict lookup, same as Kling above — an unreachable resolution returns null rather than
     // silently substituting the 720p rate.

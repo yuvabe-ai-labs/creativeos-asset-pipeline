@@ -29,6 +29,8 @@ describe("jobKindOf", () => {
     expect(jobKindOf("image")).toBe("image");
     expect(jobKindOf("voice")).toBe("voice");
     expect(jobKindOf("video")).toBe("video");
+    // D483 — an edit is its own kind, so the view keeps Edit open and the take on screen.
+    expect(jobKindOf("edit")).toBe("edit");
   });
 });
 
