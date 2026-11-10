@@ -23,6 +23,11 @@ export type VideoGenInput = {
    * Veo accept no audio input at all.
    */
   referenceAudioUrl?: string;
+  /**
+   * D483 — edit this stored take instead of generating. Gemini Omni only; the output has the
+   * take's length and shape, and `params.durationSeconds` carries that length for costing.
+   */
+  editVideoUrl?: string;
   params: Record<string, unknown>;
 };
 

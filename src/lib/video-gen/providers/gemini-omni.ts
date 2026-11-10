@@ -7,6 +7,7 @@ import { planOmniInput } from "../plan-omni-input";
 import { composeOmniPrompt } from "../compose-omni-prompt";
 import { fetchAsBase64 } from "./fetch-as-base64";
 import { fetchOrThrow } from "./fetch-error";
+import { VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const OMNI_MODEL = "gemini-omni-1.1-flash";
@@ -100,6 +101,93 @@ export function buildOmniRequestBody(args: {
   };
 }
 
+/**
+ * D483 — the edit request. Verified on the live API, November 2026: text first, then the video,
+ * then reference images (addressed as <IMAGE_REF_n> in that order). `duration` and `aspect_ratio`
+ * are rejected for `task: "edit"`; the output keeps the input's length and shape.
+ */
+export function buildOmniEditRequestBody(a: {
+  text: string;
+  videoPart: { data: string; mime_type: string };
+  imageParts: Array<Record<string, unknown>>;
+  resolution: string;
+}): Record<string, unknown> {
+  return {
+    model: OMNI_MODEL,
+    input: [{ type: "text", text: a.text }, { type: "video", ...a.videoPart }, ...a.imageParts],
+    generation_config: { video_config: { task: "edit" } },
+    response_format: {
+      type: "video",
+      resolution: VALID_RESOLUTIONS.includes(a.resolution) ? a.resolution : "720p",
+      delivery: "uri",
+    },
+    store: true,
+    background: false,
+    stream: false,
+  };
+}
+
+/** A refusal is decided before anything renders. The operator sees plain words; the raw text is logged. */
+export function omniRefusalMessage(raw: string): string | null {
+  // Observed on the live API: {"error":{"code":"content_blocked","message":"Input blocked: …"}}.
+  return /content_blocked|photorealistic children|blocked|safety|usage policy|prohibited/i.test(raw)
+    ? VIDEO_EDIT_REFUSED_MESSAGE
+    : null;
+}
+
+async function editWithOmni(input: VideoGenInput & { editVideoUrl: string }): Promise<VideoGenResult> {
+  const durationSeconds = Number(input.params.durationSeconds);
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error("Edit has no recorded take length");
+  }
+
+  const [video, ...images] = await Promise.all([
+    fetchAsBase64(input.editVideoUrl),
+    ...input.referenceUrls.map((url) => fetchAsBase64(url)),
+  ]);
+  const resolution = String(input.params.resolution ?? "720p");
+  const body = JSON.stringify(
+    buildOmniEditRequestBody({
+      text: input.prompt,
+      videoPart: { data: video.imageBytes, mime_type: video.mimeType },
+      imageParts: images.map((img) => ({ type: "image", data: img.imageBytes, mime_type: img.mimeType })),
+      resolution,
+    }),
+  );
+  logger.info("Omni edit request", {
+    images: images.length,
+    resolution,
+    durationSeconds,
+    bodyKB: Math.round(Buffer.byteLength(body) / 1024),
+  });
+
+  const res = await fetchOrThrow("Omni edit", `${API_BASE}/interactions`, {
+    method: "POST",
+    headers: { "x-goog-api-key": getApiKey(), "Content-Type": "application/json" },
+    body,
+    signal: AbortSignal.timeout(OMNI_REQUEST_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const raw = await res.text();
+    logger.error("Omni edit refused or failed", { status: res.status, body: raw.slice(0, 2000) });
+    throw new Error(omniRefusalMessage(raw) ?? `Omni edit failed (${res.status})`);
+  }
+
+  const interaction = (await res.json()) as OmniInteraction;
+  logger.info("Omni edit interaction", { id: interaction.id, status: interaction.status });
+  if (interaction.status === "failed") {
+    const message = interaction.error?.message ?? "unknown error";
+    logger.error("Omni edit failed", { message });
+    throw new Error(omniRefusalMessage(message) ?? "The edit didn't finish. Try again.");
+  }
+
+  const videoUrl = extractOmniVideoUri(interaction);
+  if (!videoUrl) throw new Error("Omni edit completed but returned no video URI");
+  const fileName = fileNameFromUri(videoUrl);
+  if (fileName) await waitForFileReady(fileName);
+  return { videoUrl, durationSeconds };
+}
+
 type OmniContent = { type: string; mime_type?: string; uri?: string; data?: string };
 type OmniStep = { type: string; content?: OmniContent[] };
 type OmniInteraction = {
@@ -181,6 +269,9 @@ async function waitForFileReady(fileName: string): Promise<void> {
 }
 
 async function generateWithOmni(input: VideoGenInput): Promise<VideoGenResult> {
+  // D483 — an edit of a stored take. Routed before anything generation-specific runs.
+  if (input.editVideoUrl) return editWithOmni({ ...input, editVideoUrl: input.editVideoUrl });
+
   // D207 mirrored server-side. The client evaluates the same rule, so this is the backstop for a
   // caller that bypasses the UI — a named error now rather than a 400 minutes later.
   if (input.endFrameUrl && !input.startFrameUrl) {
