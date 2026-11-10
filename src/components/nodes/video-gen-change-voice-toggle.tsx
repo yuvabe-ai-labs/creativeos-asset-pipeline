@@ -3,16 +3,17 @@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
-// D284 — "Edit voice", beside the video heading: the same switch-in-a-label the Image Gen
-// node uses for "Edit". On, the centre column holds the voice editor and this column shows
-// the take being re-voiced.
+// D284 / D483 — "Edit voice" and "Edit", beside the video heading. On, the centre column holds
+// the matching editor and this column shows the take being edited.
 export function VideoGenChangeVoiceToggle({
   id,
+  label = "Edit voice",
   checked,
   disabled,
   onCheckedChange,
 }: {
   id: string;
+  label?: string;
   checked: boolean;
   disabled: boolean;
   onCheckedChange: (v: boolean) => void;
@@ -22,7 +23,7 @@ export function VideoGenChangeVoiceToggle({
       htmlFor={id}
       className="flex shrink-0 cursor-pointer items-center gap-2.5 text-sm font-medium text-foreground"
     >
-      Edit voice
+      {label}
       <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
     </Label>
   );

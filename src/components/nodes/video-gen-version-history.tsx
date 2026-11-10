@@ -4,6 +4,7 @@ import type { ApprovalStatus, VersionDecisionSummary } from "@/lib/approval";
 import { describeVersionParams } from "@/lib/generations/version-params";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { describeVoiceChange } from "@/lib/voice-change/describe";
+import { describeVideoEdit } from "@/lib/video-edit/describe";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VersionList } from "./version-list";
 import { VersionThumb } from "./version-thumb";
@@ -24,6 +25,8 @@ export type VideoGenVersionInputs = {
   // D284 — present on a voice-changed version; read via `describeVoiceChange` (Task 6), never
   // dereferenced directly here.
   voiceChange?: unknown;
+  // D483 — present on an edited version; read via describeVideoEdit.
+  videoEdit?: unknown;
 };
 
 export type VideoGenVersionSummary = {
@@ -79,7 +82,7 @@ export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersio
     // plus the settings it ran with is more useful than the generic pair. A D282 legacy
     // version (`params_used.voice`) has no `inputsUsed.voiceChange` and keeps the lines above —
     // `describeVersionParams` already folds its `readVoiceMeta` line into `paramSummary`.
-    const voiceChange = describeVoiceChange(v.inputsUsed, labelById);
+    const voiceChange = describeVoiceChange(v.inputsUsed, labelById) ?? describeVideoEdit(v.inputsUsed, labelById);
 
     return {
       id: v.id,

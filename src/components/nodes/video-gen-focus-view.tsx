@@ -122,6 +122,8 @@ import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VideoGenChangeVoiceToggle } from "./video-gen-change-voice-toggle";
+import { VideoGenEditVideo } from "./video-gen-edit-video";
+import type { VideoEditNodeState } from "@/lib/video-edit/record";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
 import { VideoGenPresenterNotes } from "./video-gen-presenter-notes";
 import { useShotPresenter } from "@/hooks/use-shot-presenter";
@@ -318,6 +320,7 @@ type Props = {
   params?: Record<string, unknown>;
   imageRoles: Record<string, ImageRole>;
   voiceChange?: VoiceChangeNodeState;
+  videoEdit?: VideoEditNodeState;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -530,6 +533,7 @@ export function VideoGenFocusView({
   params: paramsProp,
   imageRoles: imageRolesProp,
   voiceChange: voiceChangeProp,
+  videoEdit: videoEditProp,
   onPatch,
 }: Props) {
   const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
@@ -575,6 +579,8 @@ export function VideoGenFocusView({
   // D284 — the right column's video-vs-workspace mode; the two never combine (see the toggle
   // below the version history's annotate control).
   const [changeVoiceOpen, setChangeVoiceOpen] = useState(false);
+  // D483 — Edit, the other centre-column mode. Never on together with Edit voice.
+  const [editVideoOpen, setEditVideoOpen] = useState(false);
   const [capturedFrame, setCapturedFrame] = useState<{
     base64: string;
     timecodeMs: number;
@@ -600,6 +606,7 @@ export function VideoGenFocusView({
   const viewing = useVersionViewing(versions, activeVersionId, open, () => {
     setReviewAnnotating(false);
     setChangeVoiceOpen(false);
+    setEditVideoOpen(false);
     setCapturedFrame(null);
     setOpenTimecode(null);
   });
@@ -650,6 +657,7 @@ export function VideoGenFocusView({
       // D284 — reopening while a voice change runs lands back in Edit voice, where it was
       // started; otherwise on the generate settings.
       setChangeVoiceOpen(isChangingVoice && !requested);
+      setEditVideoOpen(false);
       setLoadingConnected(true);
       // Re-seed the approval fields from the versions on every open (see the block below).
       setSeededVersions(undefined);
@@ -678,6 +686,7 @@ export function VideoGenFocusView({
     setSeenChangingVoice(isChangingVoice);
     if (isChangingVoice && open && !changeVoiceOpen) {
       setChangeVoiceOpen(true);
+      setEditVideoOpen(false);
       setSelected("video");
       setReviewAnnotating(false);
     }
@@ -1797,8 +1806,28 @@ export function VideoGenFocusView({
                 </div>
               )}
 
+              {/* D483 — Edit takes over this column, as Edit voice does. */}
+              {selected === "video" && editVideoOpen && (
+                <div className="px-6 py-5">
+                  <VideoGenEditVideo
+                    nodeId={nodeId}
+                    versions={versions}
+                    sourceId={activeVersion?.output && !activeVersion.error ? activeVersion.id : null}
+                    images={upstreamImages}
+                    running={isGenerating}
+                    locked={lockReason}
+                    value={videoEditProp}
+                    onChange={(next) => onPatch({ videoEdit: next })}
+                    onStarted={() => {
+                      videoRef.current?.pause();
+                      setLastError(null);
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Video — flat, independently-collapsible peer groups (Frames / Output / Fine-tune / Advanced) */}
-              {selected === "video" && !changeVoiceOpen && (
+              {selected === "video" && !changeVoiceOpen && !editVideoOpen && (
                 <div className="flex min-h-full flex-col gap-10 px-6 py-5">
                   {/* Model first: it decides which roles exist, which params show, and which
                       combinations are legal, so every choice below it is downstream of this one. */}
@@ -2050,7 +2079,10 @@ export function VideoGenFocusView({
                                   // D284: annotating and the Change voice workspace don't combine.
                                   const next = !reviewAnnotating;
                                   setReviewAnnotating(next);
-                                  if (next) setChangeVoiceOpen(false);
+                                  if (next) {
+                                    setChangeVoiceOpen(false);
+                                    setEditVideoOpen(false);
+                                  }
                                   setCapturedFrame(null);
                                   setOpenTimecode(null);
                                 }
@@ -2158,23 +2190,42 @@ export function VideoGenFocusView({
                 {viewing.isViewingOther && viewed ? (
                   <ViewingTag label={viewedLabel} />
                 ) : !loadingVersions && versions.some((v) => v.output && !v.error) && (
-                  <VideoGenChangeVoiceToggle
-                    id={`video-edit-voice-${nodeId}`}
-                    checked={changeVoiceOpen}
-                    // Free during a voice change — that's the mode it runs in — but not while a
-                    // new video is generating.
-                    disabled={!editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
-                    onCheckedChange={(next) => {
-                      setChangeVoiceOpen(next);
-                      if (next) {
-                        setSelected("video"); // the editor lives in the centre column's video pane
-                        // The two modes never combine — mirror the annotate toggle's off-cleanup.
-                        setReviewAnnotating(false);
-                        setCapturedFrame(null);
-                        setOpenTimecode(null);
-                      }
-                    }}
-                  />
+                  <div className="flex items-center gap-4">
+                    <VideoGenChangeVoiceToggle
+                      id={`video-edit-voice-${nodeId}`}
+                      checked={changeVoiceOpen}
+                      // Free during a voice change — that's the mode it runs in — but not while a
+                      // new video is generating.
+                      disabled={!editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther}
+                      onCheckedChange={(next) => {
+                        setChangeVoiceOpen(next);
+                        if (next) {
+                          setEditVideoOpen(false);
+                          setSelected("video"); // the editor lives in the centre column's video pane
+                          // The two modes never combine — mirror the annotate toggle's off-cleanup.
+                          setReviewAnnotating(false);
+                          setCapturedFrame(null);
+                          setOpenTimecode(null);
+                        }
+                      }}
+                    />
+                    <VideoGenChangeVoiceToggle
+                      id={`video-edit-${nodeId}`}
+                      label="Edit"
+                      checked={editVideoOpen}
+                      disabled={!editable || Boolean(lockReason) || isChangingVoice || viewing.isViewingOther}
+                      onCheckedChange={(next) => {
+                        setEditVideoOpen(next);
+                        if (next) {
+                          setChangeVoiceOpen(false);
+                          setSelected("video");
+                          setReviewAnnotating(false);
+                          setCapturedFrame(null);
+                          setOpenTimecode(null);
+                        }
+                      }}
+                    />
+                  </div>
                 )}
               </div>
               <div className="min-h-0 flex-1">
