@@ -42,23 +42,26 @@ Right column heading: **VIDEO**, then two switches side by side: **Edit voice** 
 turns both off (D383), as Edit voice does today.
 
 With **Edit** on, the right column keeps showing the take being edited and the centre column
-shows the list below. While an edit runs, the right column shows the generating state instead
-(interim, until the take stays visible during an edit).
+shows the list below. While an edit runs, Edit stays open, the right column keeps the take under
+an "Editing the video…" veil (as Edit voice does), the button reads "Editing…", and reopening the
+node lands back in Edit. The canvas card reads "Editing…".
 
 Centre column:
 
-1. **References for this edit.** Thumbnails of the connected image inputs, each with a check.
+1. **Model and resolution.** The generate settings' own controls: the model picker offering
+   Omni 1.2 (default) and Omni 1.1 only, and the Resolution chips (360p · 720p · 1080p · 4k,
+   default 720p) inside its card. Each model's limits apply: 1.2 takes up to 15 s and 6
+   references, 1.1 up to 10 s and 12 references. 1080p and 4k are upscaled from 720p (see
+   `cost.ts`), so they cost more for the same edit.
+2. **References for this edit.** Thumbnails of the connected image inputs, each with a check.
    The images the take was generated with start checked. Same model as Image Gen's
    `editReferenceNodeIds` (D37): a reference must be a connected node; no upload here.
-2. **Edit this video.** A `Textarea`. Placeholder: "Describe what to change and where: remove
+3. **Edit this video.** A `Textarea`. Placeholder: "Describe what to change and where: remove
    the cups… · replace the pot with the product reference… · make the light warmer…"
-3. **Resolution.** 360p · 720p · 1080p · 4k, default 720p. 1080p and 4k are upscaled from 720p
-   (see `cost.ts`), so they cost more for the same edit.
 4. **Edit video** button with the credit estimate. Disabled while the instruction is empty, while
    the node is working, or while the node is locked by an Editor (D390).
 
-All controls are shadcn primitives (`Switch`, `Textarea`, `ToggleGroup`/`Button`, checkbox
-thumbnails built on `Checkbox`).
+All controls are shadcn primitives (`Switch`, `Textarea`, `Button`).
 
 ## 4. Request
 
@@ -86,7 +89,8 @@ response_format: { type: "video", resolution, delivery: "uri" }
 
 No migration.
 
-- **Generation:** a `generations` row of type `video` with `model_used` set to Omni and
+- **Generation:** a `generations` row of type `edit` (its own type, as a voice change is
+  `voice`, so the view can tell an edit from a new take) with `model_used` set to the chosen Omni and
   `params_snapshot` `{ resolution, durationSeconds }`. It is billed by `computeVideoCost` at the
   chosen resolution for the take's length, the same rate as an Omni generation. Credits are
   reserved on start and refunded on failure.
@@ -94,8 +98,9 @@ No migration.
   Omni provider sees it and sends an edit request instead of a generation. Waiting for the file,
   downloading it, storing it, appending the version and settling credits all stay on the existing
   path (`completeGeneration`). The task runs once and never retries (rule 12).
-- **Length cap:** takes up to 10 seconds, Omni's generation maximum. Our tests edited 3 to 6
-  second takes; longer edits are untested, so the route refuses anything over 10 seconds.
+- **Length and reference caps:** the chosen model's own (1.2: 15 s, 6 references; 1.1: 10 s, 12
+  references), read off its client spec. Our tests edited 3 to 6 second takes on 1.1; longer
+  edits are untested.
 - **Version:** appended with `insertVersion`, set active. `inputs_used.videoEdit`:
 
 ```
@@ -106,11 +111,12 @@ No migration.
   editPrompt,           // the literal text sent
   referenceNodeIds,     // the checked connected nodes
   referenceUrls,        // what was sent, in order
-  resolution
+  resolution,
+  modelId               // the Omni the edit ran on (absent on edits made before D485: those ran on 1.1)
 }
 ```
 
-- **Node data:** one `videoEdit` object, `{ instruction, referenceNodeIds, resolution }`, rides
+- **Node data:** one `videoEdit` object, `{ instruction, referenceNodeIds, resolution, modelId }`, rides
   `nodes.data`, so a half-written edit survives closing the view.
 
 ## 6. Failures

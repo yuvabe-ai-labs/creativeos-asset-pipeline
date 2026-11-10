@@ -1,6 +1,6 @@
 import { readJson } from "./read-json";
 import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
-import type { VideoEditResolution } from "@/lib/video-edit/record";
+import type { VideoEditModelId, VideoEditResolution } from "@/lib/video-edit/record";
 
 /** D366 — a started background generation; its result arrives through the node's status. */
 export type StartedGeneration = { generationId: string };
@@ -11,6 +11,7 @@ export type StartVideoEditBody = {
   instruction: string;
   referenceNodeIds: string[];
   resolution: VideoEditResolution;
+  modelId: VideoEditModelId;
 };
 
 /** What a restored version puts the node back to (YUV-295). */

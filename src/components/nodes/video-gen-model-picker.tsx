@@ -31,6 +31,7 @@ export function VideoGenModelPicker({
   restrictionReason,
   loading = false,
   unavailable,
+  offeredModelIds,
   children,
 }: {
   modelId: string;
@@ -66,17 +67,21 @@ export function VideoGenModelPicker({
    * presenter is what rules them out, not wonder where Seedance went.
    */
   unavailable?: Record<string, string>;
+  /** D483 — when set, only these models are offered (Edit runs on Omni only). */
+  offeredModelIds?: readonly string[];
   /** Settings that belong to the chosen model (resolution, duration) and share its card. */
   children?: ReactNode;
 }) {
   const editable = useCanvasEditable(); // D33: false when this session is read-only
 
   // Drop the models this node cannot use, and any provider group left with none.
+  const offered = (id: string) =>
+    (lockedToModelId === undefined || id === lockedToModelId) && (!offeredModelIds || offeredModelIds.includes(id));
   const shownGroups =
-    lockedToModelId === undefined
+    lockedToModelId === undefined && !offeredModelIds
       ? videoGenClientModelGroups
       : videoGenClientModelGroups
-          .map((g) => ({ ...g, models: g.models.filter((m) => m.id === lockedToModelId) }))
+          .map((g) => ({ ...g, models: g.models.filter((m) => offered(m.id)) }))
           .filter((g) => g.models.length > 0);
 
   return (

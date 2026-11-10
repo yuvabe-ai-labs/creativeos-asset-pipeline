@@ -15,6 +15,10 @@ describe("describeVideoEdit", () => {
       detail: "edited from v3 · 2 references · 1080p",
     });
   });
+  it("names the model when the edit recorded one", () => {
+    const withModel = { videoEdit: { ...inputsUsed.videoEdit, modelId: "gemini:gemini-omni-1.2-flash" } };
+    expect(describeVideoEdit(withModel, new Map([["v3", "v3"]]))?.detail).toBe("edited from v3 · Omni 1.2 · 2 references · 1080p");
+  });
   it("is null for a version that isn't an edit", () => {
     expect(describeVideoEdit({ prompt: "p" }, new Map())).toBeNull();
     expect(describeVideoEdit(undefined, new Map())).toBeNull();

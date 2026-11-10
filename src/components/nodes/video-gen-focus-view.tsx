@@ -15,6 +15,7 @@ import { parseAspectRatio } from "@/lib/canvas/media-fit";
 import {
   ArrowLeft,
   AudioLines,
+  Sparkles,
   BadgeCheck,
   ChevronDown,
   Clapperboard,
@@ -640,7 +641,7 @@ export function VideoGenFocusView({
   const [pendingInputs, setPendingInputs] = useState<{ id: string; label: string }[]>([]);
   const showConnectedSkeleton = loadingConnected && !upstreamQuery.data;
 
-  const { isGenerating, isChangingVoice, lastError, setGenerating, setLastError } =
+  const { isGenerating, isChangingVoice, isEditingVideo, lastError, setGenerating, setLastError } =
     useGenerationStatus(nodeId);
 
   // Reset detail view when the sheet opens or switches to a different node; re-arm skeletons.
@@ -657,7 +658,8 @@ export function VideoGenFocusView({
       // D284 — reopening while a voice change runs lands back in Edit voice, where it was
       // started; otherwise on the generate settings.
       setChangeVoiceOpen(isChangingVoice && !requested);
-      setEditVideoOpen(false);
+      // D483 — and while an edit runs, back in Edit.
+      setEditVideoOpen(isEditingVideo && !requested);
       setLoadingConnected(true);
       // Re-seed the approval fields from the versions on every open (see the block below).
       setSeededVersions(undefined);
@@ -687,6 +689,18 @@ export function VideoGenFocusView({
     if (isChangingVoice && open && !changeVoiceOpen) {
       setChangeVoiceOpen(true);
       setEditVideoOpen(false);
+      setSelected("video");
+      setReviewAnnotating(false);
+    }
+  }
+
+  // D483 — the same for an edit: one that becomes known while the view is open opens Edit.
+  const [seenEditingVideo, setSeenEditingVideo] = useState(isEditingVideo);
+  if (seenEditingVideo !== isEditingVideo) {
+    setSeenEditingVideo(isEditingVideo);
+    if (isEditingVideo && open && !editVideoOpen) {
+      setEditVideoOpen(true);
+      setChangeVoiceOpen(false);
       setSelected("video");
       setReviewAnnotating(false);
     }
@@ -1486,9 +1500,9 @@ export function VideoGenFocusView({
           : undefined,
   });
 
-  // A voice change keeps showing the video it is re-voicing, veiled (like Image Gen's edit);
-  // only a fresh video gets the empty-frame skeleton.
-  const mode: "skeleton" | "result" | "empty" = isGenerating && !(isChangingVoice && videoUrl)
+  // A voice change or an edit keeps showing the video it is working on, veiled (like Image Gen's
+  // edit); only a fresh video gets the empty-frame skeleton.
+  const mode: "skeleton" | "result" | "empty" = isGenerating && !((isChangingVoice || isEditingVideo) && videoUrl)
     ? "skeleton"
     : videoUrl
       ? "result"
@@ -1817,7 +1831,8 @@ export function VideoGenFocusView({
                     versions={versions}
                     sourceId={activeVersion?.output && !activeVersion.error ? activeVersion.id : null}
                     images={upstreamImages}
-                    running={isGenerating}
+                    running={isGenerating && !isEditingVideo}
+                    editing={isEditingVideo}
                     locked={lockReason}
                     value={videoEditProp}
                     onChange={(next) => onPatch({ videoEdit: next })}
@@ -1961,7 +1976,7 @@ export function VideoGenFocusView({
                     className="-mx-6 -mb-5"
                     label={videoUrl ? "Re-generate" : "Generate video"}
                     busy={isGenerating}
-                    busyLabel={isChangingVoice ? "Changing voice…" : "Generating…"}
+                    busyLabel={isChangingVoice ? "Changing voice…" : isEditingVideo ? "Editing…" : "Generating…"}
                     onClick={handleGenerate}
                     disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
                     disabledReason={disableGenerate ? disableGenerateReason : null}
@@ -2216,7 +2231,8 @@ export function VideoGenFocusView({
                       id={`video-edit-${nodeId}`}
                       label="Edit"
                       checked={editVideoOpen}
-                      disabled={!editable || Boolean(lockReason) || isChangingVoice || viewing.isViewingOther}
+                      // Free during an edit (the mode it runs in), but not while anything else runs.
+                      disabled={!editable || Boolean(lockReason) || (isGenerating && !isEditingVideo) || viewing.isViewingOther}
                       onCheckedChange={(next) => {
                         setEditVideoOpen(next);
                         if (next) {
@@ -2426,11 +2442,15 @@ export function VideoGenFocusView({
 
                       {/* D284 — the take being re-voiced stays in place under a veil, the same
                           treatment Image Gen gives an image being edited. */}
-                      {isChangingVoice && (
+                      {(isChangingVoice || isEditingVideo) && (
                         <div className="absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm">
                           <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm font-medium shadow-card">
-                            <AudioLines className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
-                            Changing voice…
+                            {isEditingVideo ? (
+                              <Sparkles className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                            ) : (
+                              <AudioLines className="size-4 animate-pulse text-primary" strokeWidth={1.5} />
+                            )}
+                            {isEditingVideo ? "Editing the video…" : "Changing voice…"}
                           </div>
                         </div>
                       )}

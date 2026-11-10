@@ -8553,3 +8553,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Replacing 1.1 in place (saved nodes and stamped multishot plans name the 1.1 id). Keeping 1.1 as the default until 3 Dec (it costs more for the same request). Pricing input tokens (prompt, reference images, an edit's source video) in this change; output-only for now, as before.
 
 **Originated →** this entry (aistudio.google.com/docs/pricing, /docs/models/gemini-omni-flash, /docs/omni, checked 2026-11-10).
+
+### D485 — An edit is its own job type and runs on the Omni the operator picks *(recorded 2026-11-10; refines D483, D484)*
+
+**Decision.** A Video Gen edit is recorded as a `generations` row of type `edit`, not `video`. The focus view reads it as its own kind, so while an edit runs Edit stays open, the take stays on screen under an "Editing the video…" veil, the button and the canvas card read "Editing…", and reopening the node lands back in Edit, the same treatment D284 gives a voice change. The Edit panel uses the generate settings' own controls: the model picker, offering Omni 1.2 (default) and Omni 1.1 only, and the Resolution chips inside its card. Each model's own length and reference caps and price apply (1.2: 15 s, 6 references; 1.1: 10 s, 12 references), and the edit record carries the model.
+
+**Why.** User, 10 Nov 2026: with an edit running the view switched back to the generate settings, showed "Generating…" with an empty frame, and the Edit panel said "Wait for the current job to finish"; and once 1.2 was added, an edit should be able to run on either model. The resolution control also looked different from the generate settings'.
+
+**Rejected.** Telling an edit apart by reading `inputs_snapshot` on the generations feed (the feed selects only the columns it shows, CLAUDE.md performance rule 8). A start mark only on the client (lost on a reload or another tab, where the job would read as a new take again).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.

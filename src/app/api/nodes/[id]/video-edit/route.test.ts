@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { videoEditEstimateCredits } from "@/lib/video-edit/record";
 import { GEMINI_OMNI_12_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
@@ -50,12 +51,12 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ generationId: "gen-7" });
     const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
-    expect(call).toMatchObject({ nodeId: "n1", orgId: "org-1", type: "video", modelUsed: "gemini:gemini-omni-1.2-flash", paramsSnapshot: { resolution: "720p", durationSeconds: 6 } });
+    expect(call).toMatchObject({ nodeId: "n1", orgId: "org-1", type: "edit", modelUsed: "gemini:gemini-omni-1.2-flash", paramsSnapshot: { resolution: "720p", durationSeconds: 6 } });
     const snapshot = call.inputsSnapshot as Record<string, unknown>;
     expect(snapshot.referenceUrls).toEqual([PACK.imageUrl]);
     expect(snapshot.videoEdit).toMatchObject({ baseVersionId: "v3", rootVersionId: "v3", instruction: "Make the flour beige", referenceNodeIds: ["n-pack"], referenceUrls: [PACK.imageUrl], resolution: "720p" });
     expect(snapshot.prompt).toContain("<IMAGE_REF_0> is Jackfruit 365 pack.");
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p"));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_12_MODEL_ID));
     expect(mocks.trigger).toHaveBeenCalledWith("video-generate", expect.objectContaining({
       generationId: "gen-7", modelId: "gemini:gemini-omni-1.2-flash", editVideoUrl: TAKE,
       referenceUrls: [PACK.imageUrl], params: { resolution: "720p", durationSeconds: 6 }, mockMode: false,
@@ -77,13 +78,31 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     const many = Array.from({ length: GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages + 1 }, (_, i) => `n-${i}`);
     const res = await post({ ...BODY, referenceNodeIds: many });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: `Pick up to ${GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages} references.` });
+    expect(await res.json()).toEqual({ error: `Omni 1.2 takes up to ${GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages} references. Untick some.` });
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("runs on Omni 1.1 when asked, with 1.1's price, limits and model on the record", async () => {
+    const res = await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID });
+    expect(res.status).toBe(202);
+    const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(call).toMatchObject({ type: "edit", modelUsed: GEMINI_OMNI_11_MODEL_ID });
+    expect((call.inputsSnapshot as { videoEdit: { modelId: string } }).videoEdit.modelId).toBe(GEMINI_OMNI_11_MODEL_ID);
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_11_MODEL_ID));
+    expect(mocks.trigger).toHaveBeenCalledWith("video-generate", expect.objectContaining({ modelId: GEMINI_OMNI_11_MODEL_ID }));
+    // 1.1 takes up to 10 s; 1.2 up to 15 s.
+    mocks.insertGeneration.mockClear();
+    mocks.getVersionById.mockResolvedValueOnce({ ...BASE, params_used: { durationSeconds: 12 } });
+    const long = await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID });
+    expect(long.status).toBe(400);
+    expect(await long.json()).toEqual({ error: "Omni 1.1 edits takes up to 10 seconds." });
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
   });
 
   it("400s before recording anything on a bad request", async () => {
     expect((await post({ ...BODY, instruction: "  " })).status).toBe(400);
     expect((await post({ ...BODY, resolution: "8k" })).status).toBe(400);
+    expect((await post({ ...BODY, modelId: "veo:veo-3.1" })).status).toBe(400);
     expect((await post({ ...BODY, referenceNodeIds: ["not-connected"] })).status).toBe(400);
     mocks.getVersionById.mockResolvedValueOnce({ ...BASE, node_id: "other" });
     expect((await post(BODY)).status).toBe(400);

@@ -1,18 +1,50 @@
 // D483 — Video Gen's Edit mode. Client-safe: the focus view, History and the route all read this.
 import { computeVideoCost } from "@/lib/video-gen/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import {
+  GEMINI_OMNI_11_MODEL_ID,
+  GEMINI_OMNI_12_MODEL_ID,
+  GEMINI_OMNI_MODEL_ID,
+  modelPickerLabel,
+  videoGenClientModelMap,
+} from "@/lib/video-gen/client-models";
 
 export const VIDEO_EDIT_RESOLUTIONS = ["360p", "720p", "1080p", "4k"] as const;
 export type VideoEditResolution = (typeof VIDEO_EDIT_RESOLUTIONS)[number];
 export const VIDEO_EDIT_DEFAULT_RESOLUTION: VideoEditResolution = "720p";
 
+/** The models an edit can run on (D483/D484), newest first. */
+export const VIDEO_EDIT_MODEL_IDS = [GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_11_MODEL_ID] as const;
+export type VideoEditModelId = (typeof VIDEO_EDIT_MODEL_IDS)[number];
+export const VIDEO_EDIT_DEFAULT_MODEL_ID = GEMINI_OMNI_MODEL_ID as VideoEditModelId;
+
+export function isVideoEditModelId(v: unknown): v is VideoEditModelId {
+  return VIDEO_EDIT_MODEL_IDS.includes(v as VideoEditModelId);
+}
+
 /**
- * Omni 1.2's edit-input maximum (D484; 1.1's was 10s). Edits were tested on 3–6 s takes on 1.1;
- * longer ones are untested.
+ * What a model allows for an edit, read off its client spec so it can't drift from generation:
+ * the longest take (1.2: 15 s, 1.1: 10 s) and the most references (1.2: 6, 1.1: 12). Edits were
+ * tested on 3–6 s takes on 1.1; longer ones are untested.
  */
-export const VIDEO_EDIT_MAX_SECONDS = 15;
-export const VIDEO_EDIT_TOO_LONG_MESSAGE = `Edits work on takes up to ${VIDEO_EDIT_MAX_SECONDS} seconds.`;
+export function videoEditLimitsFor(modelId: VideoEditModelId): { label: string; maxSeconds: number; maxReferences: number } {
+  const spec = videoGenClientModelMap[modelId];
+  return {
+    label: modelPickerLabel(spec),
+    maxSeconds: spec.maxDurationSeconds,
+    maxReferences: spec.imageInputs.maxReferenceImages,
+  };
+}
+
+export function videoEditTooLongMessage(modelId: VideoEditModelId): string {
+  const { label, maxSeconds } = videoEditLimitsFor(modelId);
+  return `${label} edits takes up to ${maxSeconds} seconds.`;
+}
+
+export function videoEditTooManyReferencesMessage(modelId: VideoEditModelId): string {
+  const { label, maxReferences } = videoEditLimitsFor(modelId);
+  return `${label} takes up to ${maxReferences} references. Untick some.`;
+}
 
 export const VIDEO_EDIT_REFUSED_MESSAGE =
   "This edit can't be made. Takes with children, or changing one person into another, are refused.";
@@ -34,6 +66,8 @@ export type VideoEditRecord = {
   referenceNodeIds: string[];
   referenceUrls: string[];
   resolution: VideoEditResolution;
+  /** Absent on edits made before the model choice (D484); those ran on Omni 1.1. */
+  modelId?: VideoEditModelId;
 };
 
 /** The panel's last choice, kept on the node (`nodes.data.videoEdit`). null ids = use the take's own. */
@@ -41,6 +75,8 @@ export type VideoEditNodeState = {
   instruction: string;
   referenceNodeIds: string[] | null;
   resolution: VideoEditResolution;
+  /** Absent until the operator picks one: the default model. */
+  modelId?: VideoEditModelId;
 };
 
 const isStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
@@ -60,12 +96,13 @@ export function readVideoEdit(value: unknown): VideoEditRecord | null {
     referenceNodeIds: v.referenceNodeIds,
     referenceUrls: v.referenceUrls,
     resolution: v.resolution as VideoEditResolution,
+    ...(isVideoEditModelId(v.modelId) ? { modelId: v.modelId } : {}),
   };
 }
 
 /** The one price both the panel's estimate and the route's reservation use. */
-export function videoEditEstimateCredits(durationSeconds: number, resolution: VideoEditResolution): number {
-  const cost = computeVideoCost(GEMINI_OMNI_MODEL_ID, durationSeconds, true, resolution);
+export function videoEditEstimateCredits(durationSeconds: number, resolution: VideoEditResolution, modelId: VideoEditModelId): number {
+  const cost = computeVideoCost(modelId, durationSeconds, true, resolution);
   return cost ? usdToFinalCredits(cost.usd) : 0;
 }
 
@@ -73,15 +110,19 @@ export function videoEditGate(a: {
   sourceId: string | null;
   instruction: string;
   durationSeconds: number;
+  referenceCount: number;
+  modelId: VideoEditModelId;
   running: boolean;
   locked: string | null;
   submitting: boolean;
 }): { ok: true } | { ok: false; reason: string } {
+  const limits = videoEditLimitsFor(a.modelId);
   if (a.locked) return { ok: false, reason: a.locked };
   if (!a.sourceId) return { ok: false, reason: "Generate a take first." };
   if (a.running) return { ok: false, reason: "Wait for the current job to finish." };
   if (!a.instruction.trim()) return { ok: false, reason: "Describe the change first." };
-  if (a.durationSeconds > VIDEO_EDIT_MAX_SECONDS) return { ok: false, reason: VIDEO_EDIT_TOO_LONG_MESSAGE };
+  if (a.durationSeconds > limits.maxSeconds) return { ok: false, reason: videoEditTooLongMessage(a.modelId) };
+  if (a.referenceCount > limits.maxReferences) return { ok: false, reason: videoEditTooManyReferencesMessage(a.modelId) };
   if (a.submitting) return { ok: false, reason: "Starting…" };
   return { ok: true };
 }

@@ -1,4 +1,4 @@
-import { readVideoEdit } from "./record";
+import { readVideoEdit, videoEditLimitsFor } from "./record";
 
 // D483 — an edited version's provenance for History, as describeVoiceChange does for D284.
 export function describeVideoEdit(
@@ -12,6 +12,8 @@ export function describeVideoEdit(
     title: `Edit: ${ve.instruction}`,
     detail: [
       `edited from ${labelById.get(ve.baseVersionId) ?? "an earlier version"}`,
+      // Edits from before the model choice (D484) carry none.
+      ...(ve.modelId ? [videoEditLimitsFor(ve.modelId).label] : []),
       `${refs} ${refs === 1 ? "reference" : "references"}`,
       ve.resolution,
     ].join(" · "),

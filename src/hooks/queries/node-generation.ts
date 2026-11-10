@@ -55,7 +55,7 @@ export function useStartVideoEdit(nodeId: string) {
   const markGenerationStarted = useCanvasStore((s) => s.markGenerationStarted);
   return useMutation({
     mutationFn: (body: StartVideoEditBody) => nodeGenerationService.startVideoEdit(nodeId, body),
-    onSuccess: (started) => markGenerationStarted(nodeId, "video", started.generationId),
+    onSuccess: (started) => markGenerationStarted(nodeId, "edit", started.generationId),
   });
 }
 
