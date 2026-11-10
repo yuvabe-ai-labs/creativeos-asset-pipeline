@@ -8533,3 +8533,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Deriving Video Gen's whole list from the store (its rows depend on server work: avatar and product expansion and the rendered prompt). Letting role writes run on the instant row (CLAUDE.md performance rule 10: cached data is for showing). Saving only what changed, which is worth doing for every save but is a larger, separate change to autosave.
 
 **Originated →** conversation in this session.
+
+### D483 — Video Gen gets an Edit toggle beside Edit voice; an edit is a new version of the whole take *(recorded 2026-11-10; follows D284, D37)*
+
+**Decision.** The Video Gen focus view has two switches beside the VIDEO heading, **Edit voice** (D284) and **Edit**, and only one can be on. Edit shows the connected images as checkable references, an instruction box, a resolution choice (360p to 4k, default 720p) and an Edit video button with its credit estimate. It sends the whole active take (up to 10 seconds) to Gemini Omni with `task: "edit"`, as a `video` generation run by the existing `video-generate` task with an `editVideoUrl`, billed at Omni's rate for the chosen resolution. The result is appended as a new version with `inputs_used.videoEdit` (base and root version, instruction, literal prompt, references, resolution). A refusal or a failure refunds and makes no version.
+
+**Why.** User, 10 Nov 2026: most review feedback asks for one change to a take that is otherwise right (flour colour, an expression, a wider frame). Generating again costs a full take and loses what was right. Tests on Chupps and Jackfruit 365 takes showed the edit keeps the rest of the take when the change is to something already in it. The UX team is reworking the surface, so the two switches are the interim layout.
+
+**Rejected.** Editing inside the Rough Cut Editor as a clip action (user: it is part of the Video Gen node, like Image Gen's edit). Editing a section of the take and splicing it back (user chose whole take only for now). Offering review comments as starting points (kept out of the first version). A separate edit node (an edit is a generation attempt on this node, D18).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.

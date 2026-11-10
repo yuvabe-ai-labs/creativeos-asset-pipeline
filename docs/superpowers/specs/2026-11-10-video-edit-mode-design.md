@@ -1,0 +1,137 @@
+# Video Gen: Edit mode (video in, video out)
+
+**Date:** 2026-11-10
+**Status:** Approved, to be planned. Recorded as **D483** in
+`2026-05-30-creativeos-staging-roadmap.md` §7.
+**Relates to:** D27 / D37 (Image Gen edit), D284 (Edit voice as a version action), D390 (Editor
+lock), D217 (Omni request shape).
+**Grounded in:** live tests of `gemini-omni-1.1-flash` with `video_config.task: "edit"` on
+Chupps and Jackfruit 365 takes, November 2026 (results page kept outside the repo).
+
+---
+
+## 1. Problem
+
+Most review feedback on a finished take asks for a small change, not a new take: the flour
+should be beige, she should smile, the pan should fit in the frame. Today the only route is to
+change the prompt and generate again, which costs a full take and often loses what was already
+right. Omni can take a video and return the same video with one change applied.
+
+## 2. Scope
+
+In:
+
+- An **Edit** toggle on the Video Gen focus view, beside **Edit voice**.
+- Editing the **whole active take**, with a typed instruction and chosen reference images.
+- The result is a **new version** of the same node.
+
+Out (this version):
+
+- Editing a section of a take.
+- Review comments offered as starting points.
+- Editing inside the Rough Cut Editor.
+- A separate edit node.
+
+The UX team is reworking this surface. This spec fixes the behaviour; the layout below is the
+interim one.
+
+## 3. Layout
+
+Right column heading: **VIDEO**, then two switches side by side: **Edit voice** (D284) and
+**Edit**. Only one can be on. Turning one on turns the other off. Moving off the active version
+turns both off (D383), as Edit voice does today.
+
+With **Edit** on, the right column keeps showing the take being edited and the centre column
+shows:
+
+1. **References for this edit.** Thumbnails of the connected image inputs, each with a check.
+   The images the take was generated with start checked. Same model as Image Gen's
+   `editReferenceNodeIds` (D37): a reference must be a connected node; no upload here.
+2. **Edit this video.** A `Textarea`. Placeholder: "Describe what to change and where: remove
+   the cups… · replace the pot with the product reference… · make the light warmer…"
+3. **Resolution.** 360p · 720p · 1080p · 4k, default 720p. 1080p and 4k are upscaled from 720p
+   (see `cost.ts`), so they cost more for the same edit.
+4. **Edit video** button with the credit estimate. Disabled while the instruction is empty, while
+   the node is working, or while the node is locked by an Editor (D390).
+
+All controls are shadcn primitives (`Switch`, `Textarea`, `ToggleGroup`/`Button`, checkbox
+thumbnails built on `Checkbox`).
+
+## 4. Request
+
+One Omni interaction, `task: "edit"`:
+
+```
+input: [
+  { type: "text",  text: <instruction, references written as <IMAGE_REF_n>> },
+  { type: "video", data: <take, base64>, mime_type: "video/mp4" },
+  { type: "image", ... }   // one per checked reference, in order
+]
+response_format: { type: "video", resolution, delivery: "uri" }
+```
+
+- The instruction is sent with a fixed suffix that asks the model to keep everything not named
+  as it is (people, product, setting, lighting, camera). The literal text sent is recorded.
+- Reference order follows the thumbnail order; `<IMAGE_REF_0>` is the first checked one. The
+  reference cap is Omni's `maxReferenceImages`.
+- No `duration` or `aspect_ratio`: the edit API rejects them. The output has the take's length
+  and shape.
+- The take is fetched server-side in the task, never sent through the route body (performance
+  rule 8).
+
+## 5. Data
+
+No migration.
+
+- **Generation:** a `generations` row of type `video` with `model_used` set to Omni and
+  `params_snapshot` `{ resolution, durationSeconds }`. It is billed by `computeVideoCost` at the
+  chosen resolution for the take's length, the same rate as an Omni generation. Credits are
+  reserved on start and refunded on failure.
+- **Task:** the existing `video-generate` task, with one new payload field, `editVideoUrl`. The
+  Omni provider sees it and sends an edit request instead of a generation. Waiting for the file,
+  downloading it, storing it, appending the version and settling credits all stay on the existing
+  path (`completeGeneration`). The task runs once and never retries (rule 12).
+- **Length cap:** takes up to 10 seconds, Omni's generation maximum. Our tests edited 3 to 6
+  second takes; longer edits are untested, so the route refuses anything over 10 seconds.
+- **Version:** appended with `insertVersion`, set active. `inputs_used.videoEdit`:
+
+```
+{
+  baseVersionId,        // the take that was edited
+  rootVersionId,        // the first generated take in the chain
+  instruction,          // what the operator typed
+  editPrompt,           // the literal text sent
+  referenceNodeIds,     // the checked connected nodes
+  referenceUrls,        // what was sent, in order
+  resolution
+}
+```
+
+- **Node data:** `editInstruction` and `editReferenceNodeIds` ride `nodes.data`, so a half-written
+  edit survives closing the view.
+
+## 6. Failures
+
+| Case | What the operator sees | Charge | Version |
+|---|---|---|---|
+| Refused (children, swapping one person for another) | "This edit can't be made. Takes with children, or changing one person into another, are refused." | Refunded | None |
+| Omni or network failure | "The edit didn't finish. Try again." | Refunded | None |
+| Node feeds an Editor | Button disabled with the existing D390 reason | n/a | n/a |
+| Node already working | Button disabled | n/a | n/a |
+
+No vendor names or raw errors reach the UI. The provider maps a refusal to the plain message
+before it reaches the generation row; the raw response stays in the task's log.
+
+## 7. Limits shown under the instruction
+
+One line, small: "The edit keeps the take's length and shape. It works best on a single
+continuous shot. Captions on the video may change."
+
+## 8. Testing
+
+- Route: rejects an empty instruction, a non-active version, a locked node, a running node, and
+  references from nodes not connected to this one (rule 14); reserves and refunds credits.
+- Task: builds the request body (video part, image parts in order, no duration/aspect); maps a
+  refusal to the refused message and refunds; appends a version with `inputs_used.videoEdit`.
+- Focus view: the two switches are exclusive; switching versions turns Edit off; Edit video is
+  disabled with an empty instruction.
