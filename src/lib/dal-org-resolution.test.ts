@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { testMembershipRow } from "@/lib/permissions/test-fixtures";
 
 vi.mock("server-only", () => ({}));
 
@@ -9,18 +10,25 @@ const { cookieStore } = vi.hoisted(() => ({
 }));
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
 
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((to: string) => {
+    throw new Error("REDIRECT " + to);
+  }),
+}));
 vi.mock("@/lib/supabase/ssr-server", () => ({
   createSSRServerClient: vi.fn(async () => ({})),
 }));
 vi.mock("@/lib/supabase/get-user-with-retry", () => ({
   getUserWithRetry: vi.fn(async () => ({ id: "op-1", email: "op@yuvabe.com", app_metadata: { platform_role: "super_admin" } })),
 }));
-const rpcMock = vi.fn(async () => ({ data: [testMembershipRow({ org_id: "yuvabe-org" })], error: null }));
+const rpcMock = vi.fn(async (): Promise<{ data: unknown; error: unknown }> => ({
+  data: [testMembershipRow({ org_id: "yuvabe-org" })],
+  error: null,
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({ rpc: rpcMock })),
 }));
 
-import { testMembershipRow } from "@/lib/permissions/test-fixtures";
 import { encodeImpersonationCookie } from "@/lib/auth/impersonation-logic";
 
 const SECRET = "test-secret";
@@ -52,6 +60,48 @@ describe("page-level org resolution uses resolveOrgId(), not caller.orgId", () =
     cookieStore.get.mockReturnValue({ value: cookie });
     const { resolveOrgId } = await import("@/lib/dal");
     await expect(resolveOrgId()).resolves.toBe("target-org");
+  });
+});
+
+describe("caller context membership read", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    cookieStore.get.mockReturnValue(undefined);
+  });
+
+  it("rejects when the access read fails", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+    const { resolveCallerContext } = await import("@/lib/dal");
+    await expect(resolveCallerContext()).rejects.toMatchObject({ message: "boom" });
+  });
+
+  it("rejects when the user belongs to more than one agency", async () => {
+    rpcMock.mockResolvedValue({
+      data: [testMembershipRow({ org_id: "a" }), testMembershipRow({ org_id: "b" })],
+      error: null,
+    });
+    const { resolveCallerContext } = await import("@/lib/dal");
+    await expect(resolveCallerContext()).rejects.toThrow("Belonging to more than one agency is not supported yet.");
+  });
+
+  it("redirects (or returns null) when there is no membership", async () => {
+    rpcMock.mockResolvedValue({ data: [], error: null });
+    const { resolveCallerContext, resolveCallerContextOrNull } = await import("@/lib/dal");
+    await expect(resolveCallerContext()).rejects.toThrow("REDIRECT /login?error=no-membership");
+    await expect(resolveCallerContextOrNull()).resolves.toBeNull();
+  });
+
+  it("builds the caller from a designer membership row", async () => {
+    rpcMock.mockResolvedValue({
+      data: [testMembershipRow({ preset_key: "designer", is_owner: false, org_id: "org-7" })],
+      error: null,
+    });
+    const { resolveCallerContext } = await import("@/lib/dal");
+    const caller = await resolveCallerContext();
+    expect(caller.orgId).toBe("org-7");
+    expect(caller.orgRole).toBe("designer");
+    expect(caller.access.presetKey).toBe("designer");
   });
 });
 
