@@ -144,6 +144,8 @@ it("every catalogue key is checked by a route, an action, a page or the approval
     ...collect("src/lib/actions", ".ts"),
     ...collect("src/app/clients", "page.tsx"),
     "src/lib/permissions/node-area.ts",
+    // credits.view decides whether /api/me and the first render carry credit figures at all.
+    "src/lib/me/payload.ts",
   ].map((f) => readFileSync(f, "utf8"));
   const used = new Set(
     sources

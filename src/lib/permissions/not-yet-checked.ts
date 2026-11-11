@@ -5,7 +5,6 @@ export const NOT_YET_CHECKED: Record<string, string> = {
   "team.view": "Team page, plan 3",
   "team.edit": "Team page, plan 3",
   "team.delete": "Team page, plan 3",
-  "credits.view": "/api/me credit figures, plan 2",
   "downloads.view": "download buttons, plan 2 (files sit in public buckets; UI-only until they go private)",
   "downloads.share": "download buttons, plan 2 (files sit in public buckets; UI-only until they go private)",
 };

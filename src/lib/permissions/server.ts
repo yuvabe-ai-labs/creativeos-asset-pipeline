@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { resolveCallerContext, type CallerContext } from "@/lib/dal";
+import { resolveCallerContext, resolveCallerContextOrNull, type CallerContext } from "@/lib/dal";
 import { resolveImpersonationState, type ImpersonationState } from "@/lib/auth/impersonation";
 import { ownerAccess, type Access } from "./access";
 
@@ -17,14 +17,25 @@ export type ActingCaller = {
   impersonation: ImpersonationState;
 };
 
+function actingFrom(caller: CallerContext, impersonation: ImpersonationState): ActingCaller {
+  if (impersonation.isImpersonating) {
+    return { caller: { ...caller, access: ownerAccess() }, effectiveOrgId: impersonation.targetOrgId, impersonation };
+  }
+  return { caller, effectiveOrgId: caller.orgId, impersonation };
+}
+
 // The caller and the agency they are acting in, resolved once. While a super admin
 // impersonates (D81) they act as that agency's owner: the target org, owner access. caller.orgId
 // stays their own (attribution and credits already use effectiveOrgId, as withNode did).
 // React cache() dedupes this within a page render; route handlers call it once and pass it on.
 export const resolveActingCaller = cache(async (): Promise<ActingCaller> => {
   const [caller, impersonation] = await Promise.all([resolveCallerContext(), resolveImpersonationState()]);
-  if (impersonation.isImpersonating) {
-    return { caller: { ...caller, access: ownerAccess() }, effectiveOrgId: impersonation.targetOrgId, impersonation };
-  }
-  return { caller, effectiveOrgId: caller.orgId, impersonation };
+  return actingFrom(caller, impersonation);
+});
+
+// The same without a redirect, for the root layout, which renders on /login and the public
+// review pages too. Null = nobody signed in (or no membership).
+export const resolveActingCallerOrNull = cache(async (): Promise<ActingCaller | null> => {
+  const [caller, impersonation] = await Promise.all([resolveCallerContextOrNull(), resolveImpersonationState()]);
+  return caller ? actingFrom(caller, impersonation) : null;
 });

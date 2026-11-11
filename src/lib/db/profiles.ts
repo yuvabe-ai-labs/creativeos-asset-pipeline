@@ -48,3 +48,14 @@ export async function resolveDisplayNames(
     ]),
   );
 }
+
+/** The person's own display name; null when they have no profile row yet. */
+export async function getDisplayName(userId: string): Promise<string | null> {
+  const { data, error } = await createServerSupabase()
+    .from("profiles")
+    .select("display_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { display_name: string | null } | null)?.display_name ?? null;
+}
