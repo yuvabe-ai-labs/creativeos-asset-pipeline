@@ -1,5 +1,5 @@
 import { exchangeRefreshToken } from "@/lib/drive/client";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withAccess } from "@/lib/api/route-helpers";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
@@ -25,7 +25,7 @@ export type DriveFoldersResponse = {
   items: { id: string; name: string; isShared: boolean }[];
 };
 
-export async function GET(_req?: Request) {
+async function readDrive() {
   let accessToken: string;
   try {
     accessToken = await exchangeRefreshToken();
@@ -62,4 +62,10 @@ export async function GET(_req?: Request) {
   } catch (err) {
     return apiError(err instanceof Error ? err.message : "Drive API error", 502);
   }
+}
+
+// Every agency reads Drive through ONE platform-wide token (known limitation, plan 1), so the
+// Drive routes need canvas edit, checked through withAccess.
+export async function GET(req: Request) {
+  return withAccess(req, { need: "canvases.edit" }, () => readDrive());
 }

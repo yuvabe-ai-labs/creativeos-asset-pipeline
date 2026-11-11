@@ -89,18 +89,20 @@ export async function getScriptCanvas(clientId: string, scriptId: string): Promi
 
 // Recency-sorted canvases within the caller's org (for the Clients-home "Recent
 // canvases" tab). Capped so the list stays bounded as canvas count grows. Org-scoped
-// for everyone, including super_admin — see the note on listClients.
+// for everyone, including super_admin — see the note on listClients. clientIds: the person's
+// picked clients, or null when they are on all clients.
 export async function listRecentCanvases(
   orgId: string,
+  clientIds: readonly string[] | null,
   limit = 30,
 ): Promise<RecentCanvas[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from("canvases")
     .select("*, clients!inner(slug, name, logo_url, org_id)")
-    .eq("clients.org_id", orgId)
-    .order("updated_at", { ascending: false })
-    .limit(limit);
+    .eq("clients.org_id", orgId);
+  if (clientIds !== null) query = query.in("client_id", [...clientIds]);
+  const { data, error } = await query.order("updated_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return ((data ?? []) as RawRecentCanvasRow[]).map(mapRecentCanvas);
 }

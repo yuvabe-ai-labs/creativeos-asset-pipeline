@@ -956,26 +956,55 @@ where type = 'transcribe' and status = 'running' and created_at < now() - interv
 `supabase/migrations/0062_permission_based_access.sql`: presets (`role_presets`,
 `role_preset_permissions`), per-person ticks (`membership_permission_changes`), picked clients
 (`membership_clients`), invitations (`org_invitations`, used from plan 3), the access read
-`get_membership_access(uuid)`, and `auth_org_ids()` behind the eight "org isolation" policies.
+`get_membership_access(uuid)`, `auth_org_ids()` behind the eight "org isolation" policies, and
+two triggers that keep nodes and edges on their own canvas (below).
 Paste into the Supabase SQL editor → Run.
 
 **Safe to re-run:** every create uses `if not exists` / `create or replace`, the seed uses
-`on conflict do nothing`, and policies are dropped before they are created.
+`on conflict do nothing`, and policies and triggers are dropped before they are created.
 
 **Nothing changes for anyone on day one:** each membership gets the preset matching its
 `org_role` and `all_clients = true`. `org_role` stays and is kept in sync by
 `org_memberships_0_sync_preset` until a later migration drops it.
 
-**Ordering:**
+**Nodes and edges stay on their canvas.** Canvas saves upsert nodes and edges by the ids the
+browser sends, and node ids are not secret. Two triggers stop a save from reaching another
+canvas's rows:
 
-1. Merge the code (plan 1) to the branch being deployed.
-2. Apply 0062.
-3. Deploy the app. The new code calls `get_membership_access`; deploying before 0062 sends
-   everyone to `/login?error=no-membership`.
+- `nodes_keep_canvas` (before update of `canvas_id` on `nodes`): refuses any change to a node's
+  `canvas_id`, so a save carrying another canvas's node id fails instead of moving that node.
+- `edges_keep_canvas` (before insert or update on `edges`): refuses an edge unless both its
+  source and target nodes are on the edge's canvas, and refuses a change to an edge's
+  `canvas_id`.
+
+A refused row fails the whole save with a `check_violation` error. The autosave shows its
+usual "could not save" message and retries; no legitimate flow moves nodes or edges between
+canvases (duplicating stays on the same canvas).
+
+**Backward-compatible with the old code:** the old code keeps reading `org_role`, which the sync
+trigger keeps in step with `preset_id`; the last-owner check reads presets the same trigger
+keeps current; the RLS rewrite gives the same answer while each person has one agency. So
+0062 can go in first and the old app keeps running on it.
+
+**Ordering** (merging deploys on this repo: Vercel is git-integrated):
+
+1. Apply 0062 to the environment's database (staging before any staging deploy of this
+   branch, production before the merge to `main`).
+2. Run the checks below and confirm they pass.
+3. Then merge and deploy the code (plan 1). The new code calls `get_membership_access` on every
+   signed-in request. Deployed before 0062, that function is missing, the read throws, and
+   every signed-in request fails: the app is down for everyone until 0062 is applied.
 
 **Verify after running:**
 
 ```sql
+-- expect 0: no edge joins nodes on another canvas (such an edge would fail every save of its canvas)
+select count(*) from edges e
+  join nodes s on s.id = e.source_node_id
+  join nodes t on t.id = e.target_node_id
+ where s.canvas_id <> e.canvas_id or t.canvas_id <> e.canvas_id;
+-- expect both triggers
+select tgname from pg_trigger where tgname in ('nodes_keep_canvas', 'edges_keep_canvas');
 -- expect owner|t|0, senior|f|56, designer|f|53
 select key, is_owner, (select count(*) from role_preset_permissions r where r.preset_id = p.id)
   from role_presets p order by sort;

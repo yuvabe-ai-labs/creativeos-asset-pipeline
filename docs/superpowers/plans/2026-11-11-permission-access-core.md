@@ -95,9 +95,11 @@ Found while mapping:
 
   (`deleteKBDocumentAction` and `deleteBrandImageAction` already compare the row's client with the one they were given, but never check that client's agency.)
 
-## Known limitation, not fixed here
+## Known limitations, not fixed here
 
 The 8 RLS policies stay agency-level, not client-level. Realtime is browser-side and can technically receive rows for another client in the same agency. All reads and writes through our server are client-scoped.
+
+Google Drive is shared by every agency. All six `drive/*` routes use one platform-wide refresh token (`GDRIVE_REFRESH_TOKEN`, `src/lib/drive/client.ts`), and `drive/picker-token` gives the browser a one-hour `drive.readonly` access token for that account. Anyone with `canvases.edit` in any agency can browse, search and open every file that account can see, including folders filed for another agency's clients. The routes now need `canvases.edit` (through `withAccess`) instead of only a signed-in session, which narrows who can use them but does not separate agencies. Separating them needs a Drive connection per agency, which is not part of these plans.
 
 ## File structure
 

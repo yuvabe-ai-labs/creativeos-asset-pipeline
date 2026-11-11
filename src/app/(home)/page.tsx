@@ -16,7 +16,7 @@ export default async function ClientsPage() {
   const [clients, archivedClients, recentCanvases, reviewCounts] = await Promise.all([
     listClients(effectiveOrgId, clientIds),
     listArchivedClients(effectiveOrgId, clientIds),
-    listRecentCanvases(effectiveOrgId),
+    listRecentCanvases(effectiveOrgId, clientIds),
     getOrgReviewCounts(effectiveOrgId, clientIds),
   ]);
 

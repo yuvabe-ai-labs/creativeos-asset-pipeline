@@ -1,7 +1,8 @@
 -- D489–D492: presets + per-person ticks + picked clients, invites, and agency-ready keys.
--- Apply after the app code that reads it is merged but BEFORE that code is deployed: the new
--- code reads get_membership_access(); the old code keeps reading org_role, which stays (and is
--- kept in sync) until a later migration drops it.
+-- Apply to an environment's database and verify it BEFORE the code that reads it is merged or
+-- deployed there (merging deploys on this repo). The old code keeps working on top of it: it
+-- reads org_role, which stays (and is kept in sync) until a later migration drops it. The new
+-- code without it fails every signed-in request, because get_membership_access() is missing.
 
 -- ── 1. Presets ───────────────────────────────────────────────────────────────
 create table if not exists role_presets (
@@ -232,5 +233,46 @@ drop policy if exists "org isolation" on node_versions;
 create policy "org isolation" on node_versions for select using (org_id in (select auth_org_ids()));
 drop policy if exists "org isolation" on node_version_decisions;
 create policy "org isolation" on node_version_decisions for select using (org_id in (select auth_org_ids()));
+
+-- ── 7. Nodes and edges stay on their own canvas ──────────────────────────────
+-- Canvas saves upsert nodes and edges by the ids the browser sends. Ids are not secret, so
+-- without these a save carrying another canvas's node id would move that node onto the caller's
+-- canvas, and an edge from another canvas's node would feed its output into the caller's
+-- generations. Checked in the database so a save pays no extra round trip; a refused row fails
+-- the whole save.
+create or replace function keep_node_on_its_canvas()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.canvas_id is distinct from old.canvas_id then
+    raise exception 'A node cannot move to another canvas' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists nodes_keep_canvas on nodes;
+create trigger nodes_keep_canvas
+  before update of canvas_id on nodes
+  for each row execute function keep_node_on_its_canvas();
+
+-- Definer: the endpoint check must see both nodes whatever the writer's row access.
+create or replace function keep_edge_on_its_canvas()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' and new.canvas_id is distinct from old.canvas_id then
+    raise exception 'An edge cannot move to another canvas' using errcode = 'check_violation';
+  end if;
+  if not exists (select 1 from nodes where id = new.source_node_id and canvas_id = new.canvas_id)
+     or not exists (select 1 from nodes where id = new.target_node_id and canvas_id = new.canvas_id) then
+    raise exception 'An edge must join two nodes on its own canvas' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists edges_keep_canvas on edges;
+create trigger edges_keep_canvas
+  before insert or update on edges
+  for each row execute function keep_edge_on_its_canvas();
 
 notify pgrst, 'reload schema';

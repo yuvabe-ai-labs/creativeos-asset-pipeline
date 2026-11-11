@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
+// The chokepoint (permission) is covered by ../guard.test.ts; here it just runs the handler.
+vi.mock("@/lib/api/route-helpers", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers")),
+  withAccess: (_req: Request, _guard: unknown, fn: () => Promise<Response>) => fn(),
+}));
+
 vi.mock("@/lib/drive/client", () => ({
   exchangeRefreshToken: vi.fn(),
 }));

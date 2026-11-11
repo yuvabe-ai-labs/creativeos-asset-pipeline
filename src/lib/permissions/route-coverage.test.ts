@@ -8,12 +8,6 @@ import { isPermissionKey } from "./catalogue";
 const ALLOWLIST: Record<string, string> = {
   "admin/orgs/[id]/generations": "super admin (requireSuperAdmin)",
   "admin/orgs/[id]/impersonation-sessions": "super admin (requireSuperAdmin)",
-  "drive/browse": "signed in; the person's own Google Drive through their own token",
-  "drive/file/[id]": "signed in; the person's own Google Drive through their own token",
-  "drive/files": "signed in; the person's own Google Drive through their own token",
-  "drive/folders": "signed in; the person's own Google Drive through their own token",
-  "drive/picker-token": "signed in; the person's own Google Drive through their own token",
-  "drive/thumbnail/[id]": "signed in; the person's own Google Drive through their own token",
   "image-proxy": "signed in; proxies a public image URL, no agency data",
   me: "signed in; the caller's own identity and access",
   "r/[token]": "share token, no account (withShareToken)",

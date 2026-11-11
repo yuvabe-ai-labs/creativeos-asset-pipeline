@@ -379,8 +379,15 @@ each one either:
 The allowlist covers:
 - `webhooks/*` (shared secret)
 - `r/*` (share token, no account)
-- `me`, `image-proxy` and `drive/*` (signed-in only, no agency data written)
+- `me` and `image-proxy` (signed-in only, no agency data)
 - `admin/*` (`requireSuperAdmin`)
+
+`drive/*` is not on the allowlist. Every Drive route reads through one platform-wide
+refresh token (`GDRIVE_REFRESH_TOKEN`), and `drive/picker-token` hands the browser a
+one-hour `drive.readonly` token for that account, so the routes need `canvases.edit`
+through `withAccess`. That does not separate agencies: anyone with `canvases.edit` in any
+agency can see every file the shared account can see. This is a known limitation until
+each agency connects its own Drive.
 
 A second assertion: every catalogue key is used by at least one check, so no tick does
 nothing.
@@ -391,7 +398,9 @@ Server pages check the permission for the page and `notFound()` without it. For 
 - `/clients/[id]/kb` needs `brand_knowledge.view`.
 - `/team` needs `team.view`.
 
-The clients list on the home page filters to the caller's scope.
+The clients list, the recent canvases and the review counts on the home page filter to the
+caller's scope. `/eval/[canvasId]` shows "Canvas not found" for a canvas in another agency
+or outside the caller's clients, and the 404 page without `canvases.view`.
 
 ## 6. Library and conditional rendering
 

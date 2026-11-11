@@ -54,8 +54,9 @@ export async function getOrgReviewCounts(
   const supabase = createServerSupabase();
   const { data, error } = await supabase.rpc("org_review_counts", { p_org_id: orgId });
   if (error) throw error;
+  const inScope = clientIds === null ? null : new Set(clientIds);
   const rows = ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[])
-    .filter((r) => clientIds === null || clientIds.includes(r.client_id));
+    .filter((r) => inScope === null || inScope.has(r.client_id));
   return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending })));
 }
 
