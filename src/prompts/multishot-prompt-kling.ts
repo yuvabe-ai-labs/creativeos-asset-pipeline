@@ -36,7 +36,8 @@ import {
 // @11 (D455): shares the rule that the operator's direction comes first and is written into beats.
 // @12 (D457): shares the graphics-after-generation, action-first and place-not-props rules.
 // @13 (D458): shares the props-keep-their-names and shot-by-shot steady camera rules.
-export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@13";
+// @14 (D491): shares the named-not-described rule for a referenced person.
+export const MULTISHOT_KLING_PROMPT_ID = "multishot-prompt-kling@14";
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation on Kling 3.0 Omni.
 
@@ -63,7 +64,8 @@ ${VO_PERFORMANCE_RULES}
 NAMING THINGS THE REFERENCES CARRY
 Kling merges two things it cannot tell apart, so distinctness is a hard requirement here:
 
-- Never give two different un-referenced people the same broad description. "A young woman" twice
+- Never give two different un-referenced people the same broad description (a referenced person
+  is told apart by name and picture, never by describing them). "A young woman" twice
   produces one person in two places, or a blend of both. Separate them by something the eye can
   hold — wardrobe, hair, height, what they are carrying.
 - Where two visually similar products appear in the same shot, say what separates them in space:

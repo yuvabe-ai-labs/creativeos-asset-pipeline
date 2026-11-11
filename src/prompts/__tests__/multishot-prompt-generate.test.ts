@@ -425,7 +425,15 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
     expect(system).toMatch(/reproduces only the elements the prompt NAMES/);
     expect(system).toMatch(/BACKGROUND \/ LOCATION/);
     expect(system).toMatch(/read the panels in order/i);
-    expect(system).toMatch(/EVERY visible wardrobe item/);
+  });
+
+  // D491 — the writer listed skin tone and every outfit item, and the words fought the avatar's picture.
+  it.each(writers)("%s: a person is named and pinned, never described", (_, system) => {
+    expect(system).not.toMatch(/EVERY visible wardrobe item/);
+    expect(system).not.toMatch(/a young woman in a loose oatmeal shirt/);
+    expect(system).toMatch(/Maya, exactly as in her reference/);
+    expect(system).toMatch(/never describe their skin tone, face, hair, build or clothing/);
+    expect(system).toMatch(/write that change, and only that/);
   });
 
   // D441 — text about a product competes with its picture and the model draws a hybrid.
@@ -457,7 +465,7 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
     expect(system).toMatch(/outrank everything else here: the shot text, the storyboard/);
     expect(system).toMatch(/Leaving something out is not\s+following it/);
     expect(system).toMatch(/the operator's direction still outranks both/);
-    expect(system).toMatch(/an item the direction removes or changes is written as directed/);
+    expect(system).toMatch(/the direction or the shot text changes something the picture shows/);
   });
 
   // D457 — Reel 07: a review card and a claim card were rendered as real cards with garbled text; the
@@ -486,8 +494,8 @@ describe("references get a role and are honoured in full (D281, D319)", () => {
   });
 
   it("bumps every prompt id", () => {
-    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@16");
-    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@13");
-    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@12");
+    expect(MULTISHOT_PROMPT_ID).toBe("multishot-prompt-generate@17");
+    expect(MULTISHOT_KLING_PROMPT_ID).toBe("multishot-prompt-kling@14");
+    expect(multishotPromptFor(SEEDANCE_MODEL_ID).id).toBe("multishot-prompt-seedance@13");
   });
 });

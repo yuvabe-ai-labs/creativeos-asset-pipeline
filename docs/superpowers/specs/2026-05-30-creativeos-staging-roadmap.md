@@ -8631,3 +8631,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A side sheet (still narrow, still scrolls). Fixing the old layout in place (left the cramped column and the second version-list design). Click-to-set, as before (the client sees a pick at once; a preview first matches D383).
 
 **Originated →** this session.
+
+### D491 — A referenced person is named and pinned to their picture, never described *(recorded 2026-11-11; extends D441, refines D319)*
+
+**Decision.** The multishot writers (Omni, Kling, Seedance) treat a person reference the way D441 treats a product: the beat names them ("Maya", "the man") and pins them to the picture ("Maya, exactly as in her reference"). It never states their age, build, skin tone, face, hair, glasses, clothing or accessories. It writes what the picture cannot give: action, pose, expression, framing. The one exception is a change the direction or shot text asks for (barefoot, jacket off), which is written, and only that. The reading's `contents` for a person is a few words. Un-referenced people are still described specifically.
+
+**Why.** User, 11 Nov 2026: with an avatar attached, beats still spelled out skin tone and outfit, and the words conflicted with the picture (a different face or a mix of the written and pictured clothes), the same hybrid D441 fixed for products. The D319 CHARACTER rule asked for exactly that list in every beat.
+
+**Rejected.** Keeping a short description for continuity across beats (the picture already gives continuity, and any description is one more thing to conflict). Describing only the wardrobe (the outfit was where most conflicts showed).
+
+**Originated →** this session.
