@@ -35,6 +35,7 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
   return (
     <EditorShell
       canvasId={canvas.id}
+      clientId={client.id}
       canvasPath={canvasPath}
       breadcrumb={`${client.name} / ${canvas.name}`}
       title={`${reelName} · rough cut`}

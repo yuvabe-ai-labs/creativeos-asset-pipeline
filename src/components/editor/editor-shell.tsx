@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
+import { ClientIdProvider } from "@/components/canvas/client-id-context";
 import { LockBanner } from "@/components/canvas/lock-banner";
+import { useCan } from "@/components/permissions/use-can";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useEditorAutosave } from "@/hooks/use-editor-autosave";
 import { useEditorLayout } from "@/hooks/use-editor-layout";
@@ -32,6 +34,7 @@ import { EditorStoreProvider, useEditorStore } from "./editor-store-provider";
 
 type Props = {
   canvasId: string;
+  clientId: string;
   canvasPath: string;
   breadcrumb: string;
   title: string;
@@ -46,20 +49,26 @@ const SIDE_RAIL = "40px";
 // lock (D391): read-only without it.
 export function EditorShell(props: Props) {
   return (
-    <EditorStoreProvider doc={props.initialState.doc} sources={props.initialState.sources}>
-      <EditorPlaybackProvider>
-        <AutoCaptionsProvider canvasId={props.canvasId} nodeId={props.initialState.editorNodeId}>
-          <EditorViewProvider>
-            <EditorShellBody {...props} />
-          </EditorViewProvider>
-        </AutoCaptionsProvider>
-      </EditorPlaybackProvider>
-    </EditorStoreProvider>
+    <ClientIdProvider value={props.clientId}>
+      <EditorStoreProvider doc={props.initialState.doc} sources={props.initialState.sources}>
+        <EditorPlaybackProvider>
+          <AutoCaptionsProvider canvasId={props.canvasId} nodeId={props.initialState.editorNodeId}>
+            <EditorViewProvider>
+              <EditorShellBody {...props} />
+            </EditorViewProvider>
+          </AutoCaptionsProvider>
+        </EditorPlaybackProvider>
+      </EditorStoreProvider>
+    </ClientIdProvider>
   );
 }
 
-function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState }: Props) {
-  const lock = useCanvasLock(canvasId);
+function EditorShellBody({ canvasId, clientId, canvasPath, breadcrumb, title, initialState }: Props) {
+  // D493: holding the lock is editing. Without canvases.edit and video_editor.edit the cut opens
+  // view only and never takes the lock from whoever is editing.
+  const canEditCanvas = useCan("canvases.edit", clientId);
+  const canEditCut = useCan("video_editor.edit", clientId);
+  const lock = useCanvasLock(canvasId, { acquire: canEditCanvas && canEditCut });
   const setEditable = useEditorStore((s) => s.setEditable);
   const select = useEditorStore((s) => s.select);
   useEffect(() => setEditable(lock.canEdit), [lock.canEdit, setEditable]);
@@ -116,7 +125,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
               if (clearsSelection(e.currentTarget, e.target, e.button)) select(null);
             }}
           >
-            {!lock.canEdit && <LockBanner heldByName={lock.heldByName} canTakeOver={lock.canTakeOver} onTakeOver={lock.takeOver} />}
+            {!lock.canEdit && <LockBanner viewOnly={lock.viewOnly} heldByName={lock.heldByName} canTakeOver={lock.canTakeOver} onTakeOver={lock.takeOver} />}
             <div
               className="grid min-h-0 flex-1 gap-3 px-4 pt-3 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
               style={{ gridTemplateColumns: `${sourcesOpen ? SIDE_OPEN.sources : SIDE_RAIL} minmax(0,1fr) ${inspectorOpen ? SIDE_OPEN.inspector : SIDE_RAIL}` }}
