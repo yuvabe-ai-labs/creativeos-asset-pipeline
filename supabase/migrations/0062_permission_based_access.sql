@@ -281,13 +281,13 @@ create or replace function org_review_counts_for_types(p_org_id uuid, p_node_typ
 returns table (client_id uuid, canvas_id uuid, pending int)
 language sql
 stable
-as $
+as $$
   select client_id, canvas_id, count(*)::int
     from review_queue_items
    where org_id = p_org_id
      and approval_status = 'pending'
      and node_type = any(p_node_types)
    group by client_id, canvas_id;
-$;
+$$;
 
 notify pgrst, 'reload schema';
