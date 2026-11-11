@@ -2014,6 +2014,7 @@ export function VideoGenFocusView({
                       decide what it will cost and whether it is even legal to run.
                       D435 — the same pinned GenerateFooter every node has. */}
                   <GenerateFooter
+                    need="video_generation.generate"
                     className="-mx-6 -mb-5"
                     label={videoUrl ? "Re-generate" : "Generate video"}
                     busy={isGenerating}

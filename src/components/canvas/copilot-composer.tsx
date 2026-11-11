@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Send, X, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { GatedButton } from "@/components/permissions/gated-button";
+import { useClientId } from "./client-id-context";
 import { useCanvasStore } from "./canvas-store-provider";
 import { nodeLabel } from "@/lib/nodes/describe-node";
 import { selectionSignature } from "@/lib/copilot/actions";
@@ -27,6 +29,7 @@ export function CopilotComposer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const nodes = useCanvasStore((s) => s.nodes);
+  const clientId = useClientId();
   // @-mention picker state: non-null while the composer is mid-@reference.
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -278,13 +281,15 @@ export function CopilotComposer({
         >
           <Paperclip className="size-3.5" /> Attach script
         </Button>
-        <Button
+        <GatedButton
+          need="canvas_copilot.generate"
+          clientId={clientId}
           onClick={() => submit()}
           disabled={thinking || (input.trim().length === 0 && !attachment)}
           className="gap-1.5"
         >
           <Send className="size-3.5" /> Send
-        </Button>
+        </GatedButton>
       </div>
     </div>
   );

@@ -764,6 +764,7 @@ export function PromptFocusView({
                   {/* D435 — the same Generate every node has, at the column's foot under the
                       scrolling settings, so it never needs scrolling to reach. */}
                   <GenerateFooter
+                    need="canvases.generate"
                     className="shrink-0"
                     label={output ? "Re-generate" : "Generate prompt"}
                     busy={generating}

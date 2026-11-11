@@ -1,10 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GenerateFooter } from "../generate-footer";
+import { TestAbilityProvider } from "@/components/permissions/test-ability-provider";
+import { GENERATE_OFF_REASON } from "@/components/permissions/gated-button";
 
-const render = (over: Partial<Parameters<typeof GenerateFooter>[0]> = {}) =>
+const render = (over: Partial<Parameters<typeof GenerateFooter>[0]> = {}, keys?: Parameters<typeof TestAbilityProvider>[0]["keys"]) =>
   renderToStaticMarkup(
-    <GenerateFooter label="Re-generate" busy={false} onClick={vi.fn()} disabled={false} credits={605} {...over} />,
+    <TestAbilityProvider keys={keys}>
+      <GenerateFooter need="video_generation.generate" label="Re-generate" busy={false} onClick={vi.fn()} disabled={false} credits={605} {...over} />
+    </TestAbilityProvider>,
   );
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -23,5 +27,11 @@ describe("GenerateFooter", () => {
     expect(text(html)).toContain("Changing voice…");
     expect(text(html)).not.toContain("Est.");
     expect(html).toMatch(/<button[^>]*disabled=""/);
+  });
+
+  it("is disabled with the reason when generating is turned off for the person", () => {
+    const html = render({}, []);
+    expect(html).toMatch(/<button[^>]*disabled=""/);
+    expect(text(html)).toContain(GENERATE_OFF_REASON);
   });
 });

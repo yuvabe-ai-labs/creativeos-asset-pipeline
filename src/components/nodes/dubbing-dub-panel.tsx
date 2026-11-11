@@ -1,7 +1,6 @@
 "use client";
 
 import { Info, Languages, MessageSquareQuote } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DUB_LANGUAGES, DUB_STYLES, PRESENTER_VOICE, dubLanguageLabel, dubStyleLabel, dubVoiceLabel, type DubLanguage, type DubPace, type DubStyle, type DubVoiceChoice } from "@/lib/dubbing/types";
@@ -9,7 +8,8 @@ import { dubCredits } from "@/lib/dubbing/cost";
 import { DUB_NO_LENGTH_MESSAGE } from "@/lib/dubbing/copy";
 import { FieldLabel } from "./field-label";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
-import { DisabledReason } from "./disabled-reason";
+import { GatedButton } from "@/components/permissions/gated-button";
+import { useClientId } from "@/components/canvas/client-id-context";
 import { DubbingAdvanced } from "./dubbing-advanced";
 import { dubBlockedReason } from "@/lib/dubbing/blocked-reasons";
 
@@ -38,6 +38,7 @@ type Props = {
 
 // D378 — the Dub tab: a language, a translation style, and Dub (each run is a new version).
 export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onStyleChange, voice, onVoiceChange, pace, onPaceChange, sourceSeconds, sourceLoading, hasSource, hasDub, running, editable, locked = null, onDub }: Props) {
+  const clientId = useClientId();
   const busy = running !== null;
   const blocked = dubBlockedReason({ editable, running, hasSource, sourceLoading, sourceSeconds, locked });
   const canDub = editable && hasSource && sourceSeconds > 0 && !busy;
@@ -93,12 +94,19 @@ export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onS
       <DubbingAdvanced nodeId={nodeId} language={language} voice={voice} onVoiceChange={onVoiceChange} pace={pace} onPaceChange={onPaceChange} disabled={!editable || busy} />
 
       <div className="flex flex-col gap-2">
-        <DisabledReason reason={canDub ? null : blocked}>
-          <Button onClick={onDub} disabled={!canDub} className="w-full">
-            {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}
-            {running !== "dub" && sourceSeconds > 0 && <EstimatedCreditsLabel credits={dubCredits(sourceSeconds)} />}
-          </Button>
-        </DisabledReason>
+        <GatedButton
+          need="audio.generate"
+          clientId={clientId}
+          onClick={onDub}
+          disabled={!canDub}
+          disabledReason={blocked}
+          className="w-full"
+          triggerClassName="block w-full"
+          tooltipSide="bottom"
+        >
+          {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}
+          {running !== "dub" && sourceSeconds > 0 && <EstimatedCreditsLabel credits={dubCredits(sourceSeconds)} />}
+        </GatedButton>
         <p className="text-xs text-muted-foreground">Each dub is added to History as a new version.</p>
       </div>
     </div>

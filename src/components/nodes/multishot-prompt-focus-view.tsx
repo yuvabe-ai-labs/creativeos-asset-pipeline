@@ -916,6 +916,7 @@ export function MultishotPromptFocusView({
                     {/* Generate, at the foot of the column it acts on — D435, the same pinned
                         GenerateFooter every node has. */}
                     <GenerateFooter
+                      need="video_generation.generate"
                       className="shrink-0 px-5"
                       icon={ListVideo}
                       label={planDraft ? "Re-generate" : "Generate multishot prompt"}
