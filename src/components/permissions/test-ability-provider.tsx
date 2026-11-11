@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import { AbilityProvider } from "@casl/react";
+import { browserClientScope } from "@/lib/permissions/browser";
+import { ClientScopeContext } from "./client-scope";
 import { buildAbility, buildRules } from "@/lib/permissions/ability";
 import { ALL_PERMISSION_KEYS, type PermissionKey } from "@/lib/permissions/catalogue";
 
@@ -16,5 +18,9 @@ export function TestAbilityProvider({
   children: ReactNode;
 }) {
   const ability = buildAbility(buildRules(new Set(keys), clientIds ? new Set(clientIds) : "all"));
-  return <AbilityProvider value={ability}>{children}</AbilityProvider>;
+  return (
+    <AbilityProvider value={ability}>
+      <ClientScopeContext.Provider value={browserClientScope(clientIds ?? "all")}>{children}</ClientScopeContext.Provider>
+    </AbilityProvider>
+  );
 }

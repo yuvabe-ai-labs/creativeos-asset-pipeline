@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AbilityProvider } from "@casl/react";
 import { invalidateMe, meKeys, useMe } from "@/hooks/queries/me";
 import { onAccessDenied } from "@/lib/permissions/access-signal";
-import { abilityFromPacked, rulesFromPacked } from "@/lib/permissions/browser";
+import { abilityFromPacked, browserClientScope, rulesFromPacked } from "@/lib/permissions/browser";
+import { ClientScopeContext } from "./client-scope";
 import type { MePayload } from "@/lib/me/types";
 
 // D493 §6.3. The root layout hands over the payload it built for this request; it seeds the me
@@ -37,5 +38,12 @@ export function AccessProvider({ initial, children }: { initial: MePayload | nul
 
   useEffect(() => onAccessDenied(() => void invalidateMe(queryClient)), [queryClient]);
 
-  return <AbilityProvider value={ability}>{children}</AbilityProvider>;
+  // Structural sharing keeps `clientScope` the same reference until it really changes.
+  const scope = useMemo(() => browserClientScope(data?.clientScope), [data?.clientScope]);
+
+  return (
+    <AbilityProvider value={ability}>
+      <ClientScopeContext.Provider value={scope}>{children}</ClientScopeContext.Provider>
+    </AbilityProvider>
+  );
 }

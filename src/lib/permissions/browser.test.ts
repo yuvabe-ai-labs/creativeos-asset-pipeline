@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ALL_PERMISSION_KEYS } from "./catalogue";
 import { testAccess } from "./test-fixtures";
-import { abilityFromPacked, canInBrowser, packAccessRules } from "./browser";
+import { abilityFromPacked, browserClientScope, canInBrowser, canSeeClientInScope, packAccessRules } from "./browser";
 
 const CLIENTS = ["c1", "c2", "c3", undefined] as const;
 
@@ -40,5 +40,16 @@ describe("rules sent to the browser", () => {
   it("an empty rule list allows nothing", () => {
     const ability = abilityFromPacked([]);
     expect(ALL_PERMISSION_KEYS.some((k) => canInBrowser(ability, k, "c1"))).toBe(false);
+  });
+});
+
+describe("client scope decision", () => {
+  it("all sees every client, a list sees only its clients, unknown sees none", () => {
+    expect(canSeeClientInScope(browserClientScope("all"), "c9")).toBe(true);
+    const some = browserClientScope(["c1", "c2"]);
+    expect(canSeeClientInScope(some, "c1")).toBe(true);
+    expect(canSeeClientInScope(some, "c9")).toBe(false);
+    expect(canSeeClientInScope(browserClientScope([]), "c1")).toBe(false);
+    expect(canSeeClientInScope(browserClientScope(undefined), "c1")).toBe(false);
   });
 });

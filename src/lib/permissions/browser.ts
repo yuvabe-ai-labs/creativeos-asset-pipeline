@@ -30,3 +30,17 @@ export function canInBrowser(ability: AppAbility, key: PermissionKey, clientId?:
   if (clientId && isClientScopedKey(key)) return ability.can(level, subject(area, { clientId }));
   return ability.can(level, area);
 }
+
+// The client scope as the browser holds it: "all", the set of visible client ids, or null while
+// nothing is known (which shows nothing).
+export type BrowserClientScope = "all" | ReadonlySet<string> | null;
+
+export function browserClientScope(scope: "all" | readonly string[] | undefined): BrowserClientScope {
+  if (!scope) return null;
+  return scope === "all" ? "all" : new Set(scope);
+}
+
+export function canSeeClientInScope(scope: BrowserClientScope, clientId: string): boolean {
+  if (!scope) return false;
+  return scope === "all" || scope.has(clientId);
+}

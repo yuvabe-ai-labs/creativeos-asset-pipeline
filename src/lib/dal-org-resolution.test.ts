@@ -29,6 +29,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({ rpc: rpcMock })),
 }));
 
+import { getUserWithRetry } from "@/lib/supabase/get-user-with-retry";
 import { encodeImpersonationCookie } from "@/lib/auth/impersonation-logic";
 
 const SECRET = "test-secret";
@@ -102,6 +103,34 @@ describe("caller context membership read", () => {
     expect(caller.orgId).toBe("org-7");
     expect(caller.orgRole).toBe("designer");
     expect(caller.access.presetKey).toBe("designer");
+  });
+});
+
+describe("one session read per render", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    cookieStore.get.mockReturnValue(undefined);
+    rpcMock.mockResolvedValue({ data: [testMembershipRow({ org_id: "yuvabe-org" })], error: null });
+    // React's cache() does not memoize outside a render, so stand in a simple memoizer.
+    vi.doMock("react", async (orig) => ({
+      ...(await orig<typeof import("react")>()),
+      cache: <A extends unknown[], R>(fn: (...a: A) => R) => {
+        const seen = new Map<string, R>();
+        return (...a: A) => {
+          const k = JSON.stringify(a);
+          if (!seen.has(k)) seen.set(k, fn(...a));
+          return seen.get(k) as R;
+        };
+      },
+    }));
+  });
+
+  it("reads the session once when both resolvers run", async () => {
+    const { resolveCallerContext, resolveCallerContextOrNull } = await import("@/lib/dal");
+    await resolveCallerContextOrNull();
+    await resolveCallerContext();
+    expect(getUserWithRetry).toHaveBeenCalledTimes(1);
   });
 });
 

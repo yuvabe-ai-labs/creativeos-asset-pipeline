@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useContext } from "react";
 import { useAbility } from "@casl/react";
-import { useMe } from "@/hooks/queries/me";
 import type { AppAbility } from "@/lib/permissions/ability";
 import type { PermissionKey } from "@/lib/permissions/catalogue";
-import { canInBrowser } from "@/lib/permissions/browser";
+import { canInBrowser, canSeeClientInScope } from "@/lib/permissions/browser";
+import { ClientScopeContext } from "./client-scope";
 
 // Every browser check goes through these: what to SHOW, never what to permit (the server decides).
-// In-memory, from the one ability AccessProvider holds; the ability only changes when the rules
+// In-memory, from the one ability and scope AccessProvider holds; they only change when the rules
 // do, so a canvas drag never re-renders a gated component.
 
 export function useAppAbility(): AppAbility {
@@ -21,8 +21,5 @@ export function useCan(key: PermissionKey, clientId?: string): boolean {
 }
 
 export function useCanSeeClient(clientId: string): boolean {
-  const scope = useMe().data?.clientScope;
-  const picked = useMemo(() => (scope && scope !== "all" ? new Set(scope) : null), [scope]);
-  if (!scope) return false;
-  return scope === "all" || (picked?.has(clientId) ?? false);
+  return canSeeClientInScope(useContext(ClientScopeContext), clientId);
 }

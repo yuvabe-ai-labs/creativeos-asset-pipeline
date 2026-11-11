@@ -29,6 +29,9 @@ const loadMembershipAccess = cache(async (userId: string): Promise<MembershipAcc
   return rows[0] ?? null;
 });
 
+// One Supabase session read per render, shared by both resolvers (AGENTS.md rule 6).
+const loadSessionUser = cache(async () => getUserWithRetry(await createSSRServerClient()));
+
 function buildCallerContext(
   user: NonNullable<Awaited<ReturnType<typeof getUserWithRetry>>>,
   platformRole: CallerContext["platformRole"],
@@ -51,8 +54,7 @@ function buildCallerContext(
 // handlers, so routes get the caller from their chokepoint instead. Redirects to /login if
 // unauthenticated.
 export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
-  const supabase = await createSSRServerClient();
-  const user = await getUserWithRetry(supabase);
+  const user = await loadSessionUser();
   if (!user) redirect("/login");
 
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
@@ -73,8 +75,7 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
 // when there's no session; do not use this for anything that gates access to real data (use
 // resolveCallerContext() for that — its redirect is the correct behavior everywhere else).
 export const resolveCallerContextOrNull = cache(async (): Promise<CallerContext | null> => {
-  const supabase = await createSSRServerClient();
-  const user = await getUserWithRetry(supabase);
+  const user = await loadSessionUser();
   if (!user) return null;
 
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
