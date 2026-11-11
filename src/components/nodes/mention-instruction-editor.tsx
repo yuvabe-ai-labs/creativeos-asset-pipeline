@@ -255,14 +255,47 @@ function populateEditor(
   }
 }
 
-function measureCaretViewport(): { top: number; left: number } | null {
+type CaretRect = { top: number; bottom: number; left: number };
+
+/**
+ * Where the caret is on screen. A collapsed range at the start of a line (or right after a chip)
+ * often measures as an empty rect, and `@` then opened nothing; the editor's own box is the
+ * fallback, so the menu always has somewhere to sit.
+ */
+function measureCaretViewport(editor: HTMLElement | null): CaretRect | null {
   const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) return null;
-  const range = sel.getRangeAt(0).cloneRange();
-  range.collapse(true);
-  const rect = range.getBoundingClientRect();
-  if (!rect.width && !rect.height) return null;
-  return { top: rect.top, left: rect.left };
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(true);
+    const rect = range.getBoundingClientRect?.();
+    if (rect && (rect.width || rect.height)) return { top: rect.top, bottom: rect.bottom, left: rect.left };
+  }
+  if (!editor) return null;
+  const box = editor.getBoundingClientRect();
+  return { top: box.top, bottom: box.top + 20, left: box.left + 12 };
+}
+
+const MENU_MARGIN = 8;
+const MENU_GAP = 4;
+const MENU_MAX_HEIGHT = 320;
+const MENU_WIDTH = 320; // max-w-xs
+
+/**
+ * Opens on the side of the caret with more room and caps its height to that room, so a long list
+ * scrolls inside the menu instead of running off the top of the screen (which used to force the
+ * operator to zoom the browser out to reach the first items).
+ */
+function menuPlacement(caret: CaretRect): React.CSSProperties {
+  const vh = window.innerHeight;
+  const vw = window.innerWidth;
+  const above = caret.top - MENU_GAP - MENU_MARGIN;
+  const below = vh - caret.bottom - MENU_GAP - MENU_MARGIN;
+  const placeBelow = below >= above || below >= MENU_MAX_HEIGHT;
+  const left = Math.max(MENU_MARGIN, Math.min(caret.left, vw - MENU_WIDTH - MENU_MARGIN));
+  const maxHeight = Math.max(120, Math.min(MENU_MAX_HEIGHT, placeBelow ? below : above));
+  return placeBelow
+    ? { position: "fixed", top: caret.bottom + MENU_GAP, left, maxHeight, zIndex: 9999 }
+    : { position: "fixed", bottom: vh - caret.top + MENU_GAP, left, maxHeight, zIndex: 9999 };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -286,7 +319,7 @@ export function MentionInstructionEditor({
 
   const [dropdownState, setDropdownState] = useState<{
     open: boolean;
-    pos: { top: number; left: number } | null;
+    pos: CaretRect | null;
     filtered: DropdownItem[];
     activeIndex: number;
   }>({ open: false, pos: null, filtered: [], activeIndex: 0 });
@@ -343,7 +376,7 @@ export function MentionInstructionEditor({
     setDropdownState((s) => ({ ...s, open: false }));
   }
 
-  function openDropdown(query: string, pos: { top: number; left: number }) {
+  function openDropdown(query: string, pos: CaretRect) {
     const filtered = eligibleRef.current.filter((item) =>
       item.label.toLowerCase().includes(query.toLowerCase()),
     );
@@ -387,7 +420,7 @@ export function MentionInstructionEditor({
     onChange(text);
     const q = getAtQuery(text, caretOffset);
     if (q !== null) {
-      const pos = measureCaretViewport();
+      const pos = measureCaretViewport(el);
       if (pos) openDropdown(q, pos);
     } else {
       closeDropdown();
@@ -486,6 +519,13 @@ export function MentionInstructionEditor({
     // read as the paste being duplicated into all of them.
   }, [handleInput]);
 
+  // Arrow keys move the highlight; keep it visible once the list scrolls.
+  useEffect(() => {
+    if (!dropdownState.open) return;
+    const item = dropdownRef.current?.children[dropdownState.activeIndex];
+    if (item instanceof HTMLElement) item.scrollIntoView?.({ block: "nearest" });
+  }, [dropdownState.open, dropdownState.activeIndex]);
+
   useEffect(() => {
     if (!dropdownState.open) return;
     function onMouseDown(e: MouseEvent) {
@@ -536,14 +576,8 @@ export function MentionInstructionEditor({
         createPortal(
           <div
             ref={dropdownRef}
-            style={{
-              position: "fixed",
-              top: dropdownState.pos.top,
-              left: dropdownState.pos.left,
-              transform: "translateY(-100%)",
-              zIndex: 9999,
-            }}
-            className="min-w-50 max-w-xs rounded-lg border border-border bg-popover shadow-lg overflow-hidden"
+            style={menuPlacement(dropdownState.pos)}
+            className="min-w-50 max-w-xs overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover shadow-lg"
           >
             {dropdownState.filtered.map((item, i) => (
               <Button
