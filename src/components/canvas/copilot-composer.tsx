@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { GatedButton } from "@/components/permissions/gated-button";
 import { useClientId } from "./client-id-context";
 import { useCanvasStore } from "./canvas-store-provider";
+import { useCanvasEditable } from "./canvas-editable-context";
 import { nodeLabel } from "@/lib/nodes/describe-node";
 import { selectionSignature } from "@/lib/copilot/actions";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,8 @@ export function CopilotComposer({
   onSend: (text: string, attachment: Attachment | null, contextIds: string[]) => void;
   thinking: boolean;
 }) {
+  // Attaching a script creates a node, so it is offered only where the canvas can be changed.
+  const canEdit = useCanvasEditable();
   const [input, setInput] = useState("");
   // The last message the human sent — recalled by ArrowUp on an empty composer (shell-style).
   const [lastSent, setLastSent] = useState("");
@@ -271,6 +274,7 @@ export function CopilotComposer({
           onChange={onPickFile}
           className="hidden"
         />
+        {canEdit ? (
         <Button
           variant="ghost"
           size="xs"
@@ -281,6 +285,9 @@ export function CopilotComposer({
         >
           <Paperclip className="size-3.5" /> Attach script
         </Button>
+        ) : (
+          <span />
+        )}
         <GatedButton
           need="canvas_copilot.generate"
           clientId={clientId}

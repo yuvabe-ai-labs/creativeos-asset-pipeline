@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { isNodeGenerating } from "@/lib/canvas-store";
 import { useReactFlow } from "@xyflow/react";
 import { useCanvasStore, useCanvasStoreApi } from "./canvas-store-provider";
+import { useCanvasEditable } from "./canvas-editable-context";
 import { PLAYBOOKS, type RunContext, type SlotSpec, type SlotValue } from "@/lib/copilot/playbooks";
 import {
   applyInference,
@@ -10,7 +11,7 @@ import {
   resolveSlotReply,
   type PlaybookRun,
 } from "@/lib/copilot/runner";
-import { planConnections, resolveNodeTarget } from "@/lib/copilot/actions";
+import { COPILOT_VIEW_ONLY_REPLY, planConnections, resolveNodeTarget } from "@/lib/copilot/actions";
 
 const LIVE = new Set<PlaybookRun["status"]>(["eliciting", "running", "waiting-human"]);
 
@@ -20,6 +21,7 @@ const LIVE = new Set<PlaybookRun["status"]>(["eliciting", "running", "waiting-hu
 // itself lives in the canvas store (survives the panel closing).
 export function usePlaybookRunner(say: (text: string) => void) {
   const storeApi = useCanvasStoreApi();
+  const canEdit = useCanvasEditable();
   const { setCenter } = useReactFlow();
   // Reactive read of ONLY the status — re-arms the subscription effect on pause/resume.
   const runStatus = useCanvasStore((s) => s.playbookRun?.status);
@@ -153,6 +155,10 @@ export function usePlaybookRunner(say: (text: string) => void) {
   function startPlaybook(name: string, rawSlots: Record<string, SlotValue>) {
     const playbook = PLAYBOOKS[name];
     if (!playbook) return;
+    if (!canEdit) {
+      say(COPILOT_VIEW_ONLY_REPLY);
+      return;
+    }
     const state = storeApi.getState();
     if (state.playbookRun && LIVE.has(state.playbookRun.status)) {
       say(
