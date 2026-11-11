@@ -8622,3 +8622,21 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping the manual step (it drifts). Deploying workers and app in parallel (a race on new task ids). One shared access token (the projects are in different accounts). Relying on the project in `trigger.config.ts` (hardcoded to staging since a962a9b1).
 
 **Originated →** this session; plan `currently-we-are-manually-abundant-sunset.md`.
+### D489 — A script's text is typed on the Visualise board; In review it is read-only; a reopened script shows the client's open comments *(recorded 2026-11-11; amends D347, refines D349)*
+
+**Decision.** While a script is in Visualise, its text on the board (title, header facts, purpose, setting and camera, disclaimers, watch-outs, and each shot's beat, action and spoken line) is typed in place, the same way it is at Generate (`PATCH …/scripts/:scriptId/visualise`, one field per write through `writeField`). The write is refused unless the stage is `visualise`, so In review the text is read-only. Adding, removing or splitting shots and the reel's notes stay with the copilot (Reopen). A changed shot marks its panel Out of date through the take's shot key. After a Reopen to Generate, a script the client commented on shows the Visualise board's own Comments column beside the script (the same components and wiring, `useTeamReviewSurface`; 20rem from `xl`, a sheet below it opened by the same Comments button), with Reply, Resolve and the activity as on the board.
+
+**Why.** User, 11 Nov 2026: a small fix at Visualise should not need a Reopen; once the script is with the client it should not change under them; after a Reopen the team needs the client's words beside the copilot.
+
+**Rejected.** Editing In review (D349's "editing stays allowed In review" now covers visual work only: avatars, panels, products and locations). A card above the script (tried first; it pushed the script down and read as part of it). A separate comments design for Generate (tried second; inconsistent with the board, so AGENTS.md now has a UI consistency rule). A tab inside the copilot, and a sheet only.
+
+**Originated →** this session.
+### D490 — A storyboard panel's versions open as a focus view with the shared version list *(recorded 2026-11-11; refines D344, D345, D465; follows D180, D383)*
+
+**Decision.** The panel view (a tile's Versions) is a wide two-pane dialog: the frame at full height on the left; on the right the shot (action, spoken line, on-screen text, who is on screen), then the takes in the shared `VersionList` (newest first, v1…vN, no approval marker), then Redraw with "Edit the prompt" beside it. A row click previews the take on the left; `VersionViewingBar` ("The panel still uses v3", Back, Restore) sets it, as on the canvas. Redraw and the prompt act only on the take in use, so they step aside while another is previewed. A spoken line already written with quotes is not quoted again (`spokenLine`).
+
+**Why.** User, 11 Nov 2026: the dialog was messy. It was a narrow column that always scrolled, opened scrolled to the bottom (focus landed on the first take), showed two purple rings (picked and focused), doubled the quotes, split Redraw from the prompt, and had its own "Takes" strip unlike every other version list.
+
+**Rejected.** A side sheet (still narrow, still scrolls). Fixing the old layout in place (left the cramped column and the second version-list design). Click-to-set, as before (the client sees a pick at once; a preview first matches D383).
+
+**Originated →** this session.

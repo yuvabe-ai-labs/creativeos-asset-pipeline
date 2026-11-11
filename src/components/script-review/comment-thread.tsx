@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, CircleCheck, Reply, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,11 +53,13 @@ export function CommentThread({ thread }: { thread: Thread }) {
           )}
           {onReply && !replying && (
             <Button variant="ghost" size="xs" onClick={() => setReplying(true)}>
+              <Reply strokeWidth={1.5} />
               Reply
             </Button>
           )}
           {onResolve && (
             <Button variant="ghost" size="xs" onClick={toggleResolved} disabled={busy}>
+              {thread.resolved ? <RotateCcw strokeWidth={1.5} /> : <CircleCheck strokeWidth={1.5} />}
               {thread.resolved ? "Reopen thread" : "Resolve"}
             </Button>
           )}
