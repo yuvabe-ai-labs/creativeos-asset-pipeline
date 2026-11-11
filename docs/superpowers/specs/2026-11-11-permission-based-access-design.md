@@ -365,8 +365,12 @@ stop someone who has a URL. Making buckets private is its own project.
 
 **Approving a version** (`setVersionApprovalAction`) replaces
 `canSetApproval(caller.orgRole)` with `can(caller, areaOf(node) + ".approve")`. `areaOf`
-maps a node type to its area and lives next to the catalogue. As today (D166), the check
-runs before any database read.
+maps a node type to its area and lives next to the catalogue. Prompt nodes are approved in
+the area they feed: `prompt` with `image_generation.approve`, `video-prompt` and
+`multishot-prompt` with `video_generation.approve`. As today (D166), a person who can
+approve nothing is refused before any database read. A version in another agency or for a
+client outside the person's list answers "Version not found.", checked against the agency
+being acted in, so an elevated impersonator can approve.
 
 ### 5.3 Coverage test
 

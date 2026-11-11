@@ -202,6 +202,9 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
   });
 }
 
+// View is enough: this recovers a stuck build. It only marks an unfinished job failed so the
+// page stops waiting on it; it starts nothing, spends nothing and changes no brand knowledge,
+// and anyone who can see the page would otherwise be stuck behind a dead build.
 export async function markStuckJobFailed(jobId: string): Promise<void> {
   return withAction("markStuckJobFailed", { need: "brand_knowledge.view", on: { kbJobId: jobId } }, async () => {
     const job = await getKBJob(jobId);

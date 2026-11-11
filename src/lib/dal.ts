@@ -46,11 +46,10 @@ function buildCallerContext(
   };
 }
 
-// The primary auth entry point (from Stage 1C onward). Every route handler / server
-// action / protected page will call this at the top. Cached per request (React cache)
-// so N callers in one render share one session read + one membership query. Redirects
-// to /login if unauthenticated — note /login doesn't exist until Stage 1C, so hitting
-// this unauthenticated in 1B correctly redirects toward a page that 404s for now.
+// The primary auth entry point. Cached per request (React cache) so N callers in one page
+// render share one session read + one membership query; cache() does not dedupe inside route
+// handlers, so routes get the caller from their chokepoint instead. Redirects to /login if
+// unauthenticated.
 export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
   const supabase = await createSSRServerClient();
   const user = await getUserWithRetry(supabase);
