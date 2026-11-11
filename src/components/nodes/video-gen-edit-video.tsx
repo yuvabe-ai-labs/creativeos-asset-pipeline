@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Settings2, SlidersHorizontal } from "lucide-react";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Sparkles } from "lucide-react";
 import { durationOfParams } from "@/lib/voice-change/record";
 import { mentionedImageIds } from "@/lib/video-edit/prompt";
 import {
@@ -25,11 +24,11 @@ import { ImageGenEditReferences } from "./image-gen-edit-references";
 import { GenerateFooter } from "./generate-footer";
 import { MentionInstructionEditor } from "./mention-instruction-editor";
 import { VideoGenModelPicker } from "./video-gen-model-picker";
-import { FieldLabel } from "./field-label";
 import { ParamChipGroup } from "./param-chip-group";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 
-const PLACEHOLDER = "Describe what to change. Type @ to point at a reference: replace the pot with @pack…";
+const PLACEHOLDER =
+  "Describe what to change and where: remove the bowl… · replace the plate with the product reference… · make the light warmer…";
 
 type Props = {
   nodeId: string;
@@ -50,10 +49,9 @@ type Props = {
   onStarted: () => void;
 };
 
-// D483 — Edit video, in the focus view's centre column (where Edit voice sits). The output column
-// keeps showing the take being edited. The model uses the generate settings' own picker, the
-// resolution sits under a closed Advanced section (it starts at the take's own), and the button
-// sits in the same pinned footer as Generate (D487).
+// D483 — Edit video, the centre column's Edit video tab (D492). The output column keeps showing
+// the take being edited. The model uses the generate settings' own picker; the prompt, the
+// resolution (it starts at the take's own) and the button share one card.
 export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running, editing, locked, value, onChange, onStarted }: Props) {
   const source = versions.find((v) => v.id === sourceId) ?? null;
   const state: VideoEditNodeState = value ?? { instruction: "", referenceNodeIds: null };
@@ -121,7 +119,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
   }));
 
   return (
-    <div className="flex flex-1 flex-col gap-8">
+    <div className="flex flex-col gap-8">
       <VideoGenModelPicker
         modelId={modelId}
         onModelChange={(next) => isVideoEditModelId(next) && onChange({ ...state, instruction: draft, modelId: next })}
@@ -136,51 +134,42 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
         canSetBase={false}
       />
 
-      <div className="flex flex-col gap-4">
-        <div className="space-y-2" onBlur={commitDraft}>
-          <span className="text-eyebrow">What should change?</span>
+      <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5 shadow-card">
+        <div className="flex flex-col gap-3" onBlur={commitDraft}>
+          <span className="flex items-center gap-1.5">
+            <Sparkles className="size-3.5 text-primary" strokeWidth={1.5} />
+            <span className="text-eyebrow">Edit this video</span>
+          </span>
           <MentionInstructionEditor
             value={draft}
             onChange={setDraft}
             placeholder={PLACEHOLDER}
             upstream={upstream}
             disabled={Boolean(locked) || busy}
-            className="nodrag min-h-28"
+            className="nodrag min-h-32"
           />
         </div>
-        {/* A fine-tune, so it sits closed under the prompt rather than in the model's card. */}
-        <Accordion className="border-none">
-          <AccordionItem value="advanced" className="border-none">
-            <AccordionTrigger className="py-0 hover:no-underline">
-              <span className="flex items-center gap-1.5">
-                <SlidersHorizontal className="size-3.5 text-primary" strokeWidth={1.5} />
-                <span className="text-eyebrow">Advanced</span>
-                <span className="text-xs font-normal text-muted-foreground">· {resolution}</span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 pt-4">
-              <FieldLabel icon={Settings2} label="Resolution" />
-              <ParamChipGroup
-                options={VIDEO_EDIT_RESOLUTIONS.map((r) => ({ value: r, label: r }))}
-                value={resolution}
-                onValueChange={(r) => onChange({ ...state, instruction: draft, resolution: r as VideoEditResolution })}
-                disabled={busy}
-              />
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <div className="flex flex-col gap-2">
+          <span className="text-eyebrow text-[0.65rem]! text-muted-foreground">Resolution</span>
+          <ParamChipGroup
+            options={VIDEO_EDIT_RESOLUTIONS.map((r) => ({ value: r, label: r }))}
+            value={resolution}
+            onValueChange={(r) => onChange({ ...state, instruction: draft, resolution: r as VideoEditResolution })}
+            disabled={busy}
+          />
+        </div>
+        {/* Generate's own button, here inside the card rather than pinned to the column. */}
+        <GenerateFooter
+          className="static mt-0 border-t-0 bg-transparent p-0"
+          label="Edit video"
+          busy={busy}
+          busyLabel="Editing…"
+          onClick={submit}
+          disabled={busy || !gate.ok}
+          disabledReason={gate.ok ? null : gate.reason}
+          credits={credits}
+        />
       </div>
-
-      <GenerateFooter
-        className="-mx-6 -mb-5"
-        label="Edit video"
-        busy={busy}
-        busyLabel="Editing…"
-        onClick={submit}
-        disabled={busy || !gate.ok}
-        disabledReason={gate.ok ? null : gate.reason}
-        credits={credits}
-      />
     </div>
   );
 }

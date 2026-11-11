@@ -34,39 +34,37 @@ Out (this version):
 
 ## 3. Layout
 
-Edit video and Change voice are tools on the take, not main actions (D487). Two small icon
-buttons sit at the right of the VIDEO heading: a sparkle for Edit video, a waveform for Change
-voice. Their names show on hover, the one whose panel is open stays tinted, and a small dot shows
-while its job runs. Opening one swaps the centre column for its panel under a slim header ("Edit
-this video" / "Change the voice") with a Close that returns to the generate settings; opening one
-closes the other. Moving off the active version closes both (D383).
+An **Edit** menu at the right of the VIDEO heading (D493), on the take's right edge, offers **Edit
+video** and **Edit voice**; it opens on hover or click. Picking one swaps the centre column for
+that panel, which opens with a back arrow and its title; the arrow returns to the generate
+settings, the column's default. The menu shows once a finished take exists, is hidden while an
+older take plays (the edits act on the active take), and carries a dot while an edit or voice
+change runs. The active take shows its version ("v2") on the player.
 
-While an edit runs, Edit stays open, the right column keeps the take under an "Editing the
-video…" veil (as Change voice does), the button reads "Editing…", and reopening the node lands
-back in Edit. The canvas card reads "Editing…".
-
-Both panels' buttons sit in the same pinned footer as Generate; the reason one is disabled shows
-on hover. Nothing else sits under the prompt box.
+While an edit runs, Edit video stays selected, the right column keeps the take under an "Editing
+the video…" veil (as Edit voice does), the button reads "Editing…", and reopening the node lands
+back on Edit video. The canvas card reads "Editing…".
 
 Edit video's centre column:
 
 1. **Model.** The generate settings' own model picker, offering Omni 1.2 (default) and Omni 1.1
    only. Each model's limits apply: 1.2 takes up to 15 s and 6 references, 1.1 up to 10 s and
-   12 references. Under it, a closed **Advanced** section holds Resolution (360p · 720p ·
-   1080p · 4k); its heading shows the current one. An edit starts at the take's own resolution,
-   or the closest one offered, until the operator picks another. 1080p and 4k are upscaled from
-   720p (see `cost.ts`), so they cost more for the same edit.
+   12 references.
 2. **References for this edit.** Thumbnails of the connected image inputs, each with a check.
-   The images the take was generated with start checked. Same model as Image Gen's
-   `editReferenceNodeIds` (D37): a reference must be a connected node; no upload here.
-3. **What should change?** The mention editor Image Gen uses: typing @ offers the connected
-   images as chips. A mentioned image is always sent as a reference, ticked or not. The text is
-   kept in the panel while typing and saved to the node when the box loses focus or the edit
-   starts (YUV-447: saving on every keystroke moved the caret to the end).
-4. **Edit video** in the pinned footer, with the credit estimate. Disabled while the instruction
-   is empty, while the node is working, or while the node is locked by an Editor (D390).
+   The images the take was generated with start checked. A reference must be a connected node.
+3. **Edit this video** card:
+   - the prompt, in the mention editor Image Gen uses: typing @ offers the connected images, and
+     a mentioned image is always sent as a reference. The text is kept in the panel while typing
+     and saved to the node when the box loses focus or the edit starts (YUV-447);
+   - **Resolution** chips (360p · 720p · 1080p · 4k), starting at the take's own resolution or
+     the closest one offered;
+   - the **Edit video** button with the credit estimate; the reason it is disabled shows on hover.
 
-All controls are shadcn primitives (`Button`, `Tooltip`, `Accordion`) or existing node editors.
+Edit voice's centre column: the take, the voice, and a **Settings** card with Speaker boost,
+Remove background noise and the **Change voice** button.
+
+All controls are shadcn primitives (`Tabs`, `Button`, `Switch`, `Tooltip`) or existing node
+editors.
 
 ## 4. Request
 
