@@ -130,7 +130,7 @@ describe("every org-scoped page resolves its org via resolveOrgId(), not caller.
   for (const relPath of pageFiles) {
     it(`${relPath} calls resolveOrgId(), not caller.orgId, for org scoping`, () => {
       const source = readFileSync(join(process.cwd(), relPath), "utf8");
-      expect(source).toContain("resolveOrgId()");
+      expect(/\bresolveOrgId\(|\bloadClientPage\(|\bresolveActingCaller\(/.test(stripLineComments(source))).toBe(true);
       // A page using caller.orgId for org-scoping (not some other field) is exactly
       // the C1 regression — this substring check is deliberately blunt, matching the
       // action-coverage test's own philosophy: cheap, source-level, and it fails loudly

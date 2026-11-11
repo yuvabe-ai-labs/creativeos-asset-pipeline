@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
+import { loadClientPage } from "@/lib/permissions/page";
 import { listCanvases } from "@/lib/db/canvases";
 import { getOrgReviewCounts } from "@/lib/db/review";
-import { resolveOrgId } from "@/lib/dal";
-import { resolveActingCaller, accessOf } from "@/lib/permissions/server";
+import { accessOf } from "@/lib/permissions/server";
 import { scopeIds } from "@/lib/permissions/check";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
@@ -40,27 +39,7 @@ export default async function ClientPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params; // `id` is the client slug
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-
-  // Org isolation: a client outside the caller's org renders as not-found, never
-  // confirming a foreign org's client exists — same rule as withClient() in
-  // route-helpers.ts, applied here since this page bypasses that helper.
-  if (!client || client.org_id !== effectiveOrgId) {
-    return (
-      <main className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-6 py-12">
-        <Card className="flex min-w-[26rem] flex-col items-center gap-3 border-dashed p-16 text-center">
-          <p className="font-display text-2xl font-medium">Client not found</p>
-          <Button
-            variant="outline"
-            className="mt-2"
-            nativeButton={false}
-            render={<Link href="/">← All clients</Link>}
-          />
-        </Card>
-      </main>
-    );
-  }
+  const { client, caller, effectiveOrgId } = await loadClientPage(id, "canvases.view");
 
   if (client.kb_status !== "ready") {
     redirect(`/clients/${client.slug}/kb`);
@@ -70,7 +49,7 @@ export default async function ClientPage({
   // numbers. Same RPC the client list uses — R5.5 holds at runtime, not just in the schema.
   const [canvases, reviewCounts] = await Promise.all([
     listCanvases(client.id),
-    resolveActingCaller().then(({ caller }) => getOrgReviewCounts(effectiveOrgId, scopeIds(accessOf(caller)))),
+    getOrgReviewCounts(effectiveOrgId, scopeIds(accessOf(caller))),
   ]);
 
   return (

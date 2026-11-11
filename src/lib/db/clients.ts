@@ -16,28 +16,36 @@ export type { ClientWithCount };
 // Org-scoped: every caller — including super_admin — sees only their own org's
 // clients here. Cross-org visibility is /admin's job (organizations.ts), not this
 // repository's; super_admin's own everyday workspace stays exactly like any owner's.
-export async function listClients(orgId: string): Promise<ClientWithCount[]> {
+export async function listClients(
+  orgId: string,
+  clientIds: readonly string[] | null,
+): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
   // Embed canvas timestamps over the FK relationship; derive count + last_active in JS.
-  const { data, error } = await supabase
+  let query = supabase
     .from("clients")
     .select("*, canvases(updated_at)")
     .eq("org_id", orgId)
-    .is("archived_at", null) // active clients only
-    .order("created_at", { ascending: false });
+    .is("archived_at", null); // active clients only
+  if (clientIds !== null) query = query.in("id", [...clientIds]);
+  const { data, error } = await query.order("created_at", { ascending: false });
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
 
 // Archived clients, most-recently-archived first — for the Archived tab. Org-scoped.
-export async function listArchivedClients(orgId: string): Promise<ClientWithCount[]> {
+export async function listArchivedClients(
+  orgId: string,
+  clientIds: readonly string[] | null,
+): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from("clients")
     .select("*, canvases(updated_at)")
     .eq("org_id", orgId)
-    .not("archived_at", "is", null)
-    .order("archived_at", { ascending: false });
+    .not("archived_at", "is", null);
+  if (clientIds !== null) query = query.in("id", [...clientIds]);
+  const { data, error } = await query.order("archived_at", { ascending: false });
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
@@ -52,6 +60,15 @@ export async function setClientArchived(
     .from("clients")
     .update({ archived_at: archived ? new Date().toISOString() : null })
     .eq("id", clientId);
+  if (error) throw error;
+}
+
+// D490: someone with a picked client list who creates a client gets it on their list in the
+// same request; otherwise they would create a client they cannot open.
+export async function addClientToMembership(userId: string, orgId: string, clientId: string): Promise<void> {
+  const { error } = await createServerSupabase()
+    .from("membership_clients")
+    .insert({ user_id: userId, org_id: orgId, client_id: clientId });
   if (error) throw error;
 }
 

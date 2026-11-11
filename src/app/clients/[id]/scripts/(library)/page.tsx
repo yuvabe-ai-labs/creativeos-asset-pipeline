@@ -1,10 +1,9 @@
+import { loadClientPage } from "@/lib/permissions/page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
 import { listScriptDeleteBlocks, listScripts } from "@/lib/db/scripts";
 import { listUnwrittenScripts } from "@/lib/db/script-generate";
 import { listFeedbackCounts } from "@/lib/db/script-reviews";
-import { resolveOrgId } from "@/lib/dal";
 import { ScriptsLibrary } from "@/components/scripts/scripts-library";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -14,10 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ScriptsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; // `id` is the client slug
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-  // Org isolation, as the Avatars page: a client outside the caller's org redirects like a missing one.
-  if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  const { client } = await loadClientPage(id, "scripts.view");
 
   const [scripts, unwritten, feedback, deleteBlocks] = await Promise.all([
     listScripts(client.id), listUnwrittenScripts(client.id), listFeedbackCounts(client.id), listScriptDeleteBlocks(client.id),

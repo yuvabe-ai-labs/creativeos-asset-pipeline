@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { resolveImpersonationStateMock, resolveOrgIdMock, resolveActingCallerMock, logMock, createClientMock } = vi.hoisted(() => ({
+const { resolveImpersonationStateMock, resolveOrgIdMock, resolveActingCallerMock, logMock, createClientMock, addMemberMock } = vi.hoisted(() => ({
   resolveImpersonationStateMock: vi.fn(async (): Promise<
     { isImpersonating: false } | { isImpersonating: true; operatorId: string; targetOrgId: string; elevated: boolean }
   > => ({ isImpersonating: false })),
   resolveOrgIdMock: vi.fn(async () => "yuvabe-org"),
   resolveActingCallerMock: vi.fn(async (): Promise<unknown> => null),
   logMock: vi.fn(async () => undefined),
+  addMemberMock: vi.fn(async () => undefined),
   createClientMock: vi.fn(async (args: { name: string; orgId: string }) => ({
     id: "client-1",
     slug: "acme",
@@ -23,7 +24,7 @@ vi.mock("@/lib/permissions/server", async (importOriginal) => ({
   resolveActingCaller: resolveActingCallerMock,
 }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: logMock }));
-vi.mock("@/lib/db/clients", () => ({ createClient: createClientMock }));
+vi.mock("@/lib/db/clients", () => ({ createClient: createClientMock, addClientToMembership: addMemberMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
@@ -75,5 +76,19 @@ describe("createClientAction", () => {
     wireGuard(testAccess({ keys: [] }));
     await expect(createClientAction({ name: "Acme" })).rejects.toThrow("You don't have access to this. Ask your agency owner.");
     expect(createClientMock).not.toHaveBeenCalled();
+  });
+  it("adds the new client to a picked-list person's own list", async () => {
+    resolveOrgIdMock.mockResolvedValue("target-org");
+    createClientMock.mockResolvedValue({ id: "client-9", slug: "acme", name: "Acme", org_id: "target-org" });
+    wireGuard(testAccess({ keys: ["clients.edit"], clientIds: [] }));
+    await createClientAction({ name: "Acme" });
+    expect(addMemberMock).toHaveBeenCalledWith("u1", "target-org", "client-9");
+  });
+
+  it("does not touch the list for all-clients access", async () => {
+    resolveOrgIdMock.mockResolvedValue("target-org");
+    createClientMock.mockResolvedValue({ id: "client-9", slug: "acme", name: "Acme", org_id: "target-org" });
+    await createClientAction({ name: "Acme" });
+    expect(addMemberMock).not.toHaveBeenCalled();
   });
 });

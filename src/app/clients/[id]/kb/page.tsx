@@ -1,7 +1,6 @@
+import { loadClientPage } from "@/lib/permissions/page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
-import { resolveOrgId } from "@/lib/dal";
 import {
   listKBDocuments,
   listBrandImages,
@@ -30,14 +29,7 @@ export default async function KBPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-
-  // Org isolation: a client outside the caller's org redirects the same as a
-  // nonexistent one — see the note in ../page.tsx.
-  if (!client || client.org_id !== effectiveOrgId) {
-    redirect("/");
-  }
+  const { client } = await loadClientPage(id, "brand_knowledge.view");
 
   const [documents, images, activeKBVersion, latestJob, brandDetails] = await Promise.all([
     listKBDocuments(client.id),

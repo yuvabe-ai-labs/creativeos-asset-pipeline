@@ -1,8 +1,7 @@
+import { loadClientPage } from "@/lib/permissions/page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
 import { listAvatars } from "@/lib/db/avatars";
-import { resolveOrgId } from "@/lib/dal";
 import { AvatarsLibrary } from "@/components/avatars/avatars-library";
 import {
   Breadcrumb,
@@ -17,12 +16,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AvatarsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; // `id` is the client slug
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-
-  // Org isolation: a client outside the caller's org redirects the same as a nonexistent
-  // one — mirrors the Market page's guard.
-  if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  const { client } = await loadClientPage(id, "avatars.view");
 
   const avatars = await listAvatars(client.id);
 
