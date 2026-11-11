@@ -7,6 +7,8 @@ import { AppHeader } from "@/components/layout/app-header";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { headerTopClass } from "@/lib/auth/impersonation-ui";
+import { AccessProvider } from "@/components/permissions/access-provider";
+import { loadInitialMe } from "@/lib/me/payload";
 
 // Yuvabe brand fonts (ref/Yuvabe Studios Design System). Two families only.
 const clash = localFont({
@@ -45,8 +47,10 @@ export default async function RootLayout({
 }>) {
   // resolveImpersonationState is cache()d per request, so this is deduped with the
   // banner's own call — it costs nothing, and it keeps the header's offset colocated
-  // with the element it offsets against.
-  const { isImpersonating } = await resolveImpersonationState();
+  // with the element it offsets against. loadInitialMe resolves the caller once for this render
+  // (shared with the page through cache()) and builds the same payload /api/me returns, so the
+  // first HTML already has the right buttons (D493).
+  const [{ isImpersonating }, me] = await Promise.all([resolveImpersonationState(), loadInitialMe()]);
 
   return (
     <html
@@ -55,10 +59,12 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <QueryProvider>
+        <AccessProvider initial={me}>
         <ImpersonationBanner />
         <AppHeader className={headerTopClass(isImpersonating)} />
         {children}
         <Toaster />
+        </AccessProvider>
         </QueryProvider>
       </body>
     </html>
