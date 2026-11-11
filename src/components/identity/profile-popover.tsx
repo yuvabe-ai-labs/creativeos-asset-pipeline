@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Building2, LogOut, UserRound } from "lucide-react";
-import { useIdentity, resetIdentityCache } from "@/hooks/use-identity";
+import { useIdentity } from "@/hooks/use-identity";
+import { useQueryClient } from "@tanstack/react-query";
 import { logoutAction } from "@/lib/actions/auth";
 import { initials } from "@/lib/format/initials";
 import { createBrowserSupabase } from "@/lib/supabase/client";
@@ -27,6 +28,7 @@ const ROLE_LABELS: Record<OrgRole, string> = {
 export function ProfilePopover() {
   const { hydrated, identity, orgId, orgName, orgRole, creditsUsed, monthlyCreditLimit } =
     useIdentity();
+  const queryClient = useQueryClient();
   const [liveDelta, setLiveDelta] = useState(0);
 
   // This subscription lives HERE, in the always-mounted popover shell, and NOT in
@@ -86,16 +88,13 @@ export function ProfilePopover() {
   // stale until the next full page load — accepted, not engineered around.
   const used = creditsUsed === null ? null : creditsUsed + liveDelta;
 
-  // A Server Action's redirect() is a soft, client-side transition — it would leave every
-  // module-level client cache (useIdentity's included) intact across sign-out, which was
-  // the root cause of a stale-identity-from-the-previous-account bug (sign out of org A,
-  // sign in as org B in the same tab, header keeps showing org A until a manual refresh).
-  // resetIdentityCache() closes that specific gap immediately; the hard window.location
-  // navigation below is the actual fix — it forces a full reload, guaranteeing every
-  // module-level cache in the app (not just identity's) starts clean for the next sign-in.
+  // A Server Action's redirect() is a soft, client-side transition, so every client cache would
+  // survive sign-out. Clearing the query cache drops this person's identity and access at once
+  // (it replaces resetIdentityCache()); the hard navigation below then starts every module-level
+  // cache in the app clean for the next sign-in.
   async function handleSignOut(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    resetIdentityCache();
+    queryClient.clear();
     await logoutAction();
     window.location.href = "/login";
   }
