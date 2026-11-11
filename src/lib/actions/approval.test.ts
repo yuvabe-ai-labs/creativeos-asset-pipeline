@@ -15,11 +15,16 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: () => ({ from: mockFrom }),
 }));
 // withAction is Stage 4's impersonation write-gate; pass it through so these tests
-// exercise the approval rules rather than impersonation state.
+// exercise the approval rules rather than impersonation state. `acting.orgId` is the agency
+// being acted in (an elevated impersonator's differs from caller.orgId).
+const acting = { orgId: "org-1" };
 vi.mock("@/lib/actions/with-action", () => ({
   withAction: async (_name: string, _guard: unknown, fn: (ctx: unknown) => Promise<unknown>) =>
-    fn({ caller: await mockCaller(), effectiveOrgId: "org-1", target: null }),
+    fn({ caller: await mockCaller(), effectiveOrgId: acting.orgId, target: null, impersonation: { isImpersonating: false } }),
 }));
+// The version's client, agency and node type come from resolveTarget (one query).
+const mockResolveTarget = vi.fn();
+vi.mock("@/lib/permissions/targets", () => ({ resolveTarget: (t: unknown) => mockResolveTarget(t) }));
 // D241-D244: annotations ride this action, but their DB writes are exercised as unit
 // tests of insertDecision/insertAnnotations themselves (decisions.test.ts,
 // annotations.test.ts) — here we only assert THIS action calls them correctly.
@@ -80,25 +85,12 @@ function stubDb(
     captured.update = payload;
     return { eq: async () => ({ error: null }) };
   });
-  mockFrom.mockImplementation(() => ({
-    select: () => ({
-      eq: () => ({
-        maybeSingle: async () =>
-          versionOrgId === null
-            ? { data: null, error: null }
-            : {
-                data: {
-                  id: "v1",
-                  org_id: versionOrgId,
-                  node_id: "n1",
-                  nodes: { type: options.nodeType ?? "image-gen", canvases: { client_id: "c1" } },
-                },
-                error: null,
-              },
-      }),
-    }),
-    update: updateSpy,
-  }));
+  mockResolveTarget.mockResolvedValue(
+    versionOrgId === null
+      ? null
+      : { clientId: "c1", orgId: versionOrgId, nodeType: options.nodeType ?? "image-gen", nodeId: "n1" },
+  );
+  mockFrom.mockImplementation(() => ({ update: updateSpy }));
   mockUploadAssets.mockImplementation(
     async (_nodeId: string, _decisionId: string, anns: { seq: number }[]) => {
       if (options.uploadError) throw new Error(options.uploadError.message);
@@ -113,6 +105,8 @@ function stubDb(
 }
 
 beforeEach(() => {
+  acting.orgId = "org-1";
+  mockResolveTarget.mockReset();
   mockFrom.mockReset();
   mockUploadAssets.mockReset();
   mockInsertDecision.mockClear();
@@ -129,7 +123,31 @@ describe("setVersionApprovalAction", () => {
       ok: false,
       error: "You are not permitted to approve or reject work.",
     });
+    expect(mockResolveTarget).not.toHaveBeenCalled();
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("reads the version through resolveTarget", async () => {
+    stubDb("org-1");
+    await setVersionApprovalAction("v1", { status: "approved" });
+    expect(mockResolveTarget).toHaveBeenCalledWith({ versionId: "v1" });
+  });
+
+  it("approves a prompt node with image approve, and a video prompt with video approve", async () => {
+    setAccess(testAccess({ keys: ["image_generation.approve", "video_generation.approve"] }));
+    for (const nodeType of ["prompt", "video-prompt", "multishot-prompt"]) {
+      stubDb("org-1", { nodeType });
+      await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({ ok: true });
+    }
+  });
+
+  it("lets an elevated impersonator approve in the agency they act in, recorded there", async () => {
+    mockCaller.mockResolvedValue(caller("owner", "operator-1", "operator-own-org"));
+    acting.orgId = "org-1";
+    const captured = stubDb("org-1");
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({ ok: true });
+    expect(captured.update).toMatchObject({ approval_status: "approved" });
+    expect(mockInsertDecision).toHaveBeenCalledWith(expect.objectContaining({ orgId: "org-1" }));
   });
 
   it("refuses approving video for a person who may approve only images", async () => {
@@ -141,10 +159,15 @@ describe("setVersionApprovalAction", () => {
     });
   });
 
-  it("refuses approving an image outside the person's clients", async () => {
+  // Outside the person's clients answers like another agency: never confirms the version exists.
+  it("refuses an image outside the person's clients as not found", async () => {
     setAccess(testAccess({ keys: ["image_generation.approve"], clientIds: ["other-client"] }));
-    stubDb("org-1");
-    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toMatchObject({ ok: false });
+    const captured = stubDb("org-1");
+    await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
+      ok: false,
+      error: "Version not found.",
+    });
+    expect(captured.update).toBeUndefined();
   });
 
   it("approves an image for a person with image approve", async () => {

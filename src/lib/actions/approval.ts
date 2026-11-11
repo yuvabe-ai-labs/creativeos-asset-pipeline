@@ -7,7 +7,9 @@ import {
   type ApprovalStatus,
 } from "@/lib/approval";
 import { accessOf } from "@/lib/permissions/server";
-import { can, canAnywhere } from "@/lib/permissions/check";
+import { can, canAnywhere, canSeeClient } from "@/lib/permissions/check";
+import { resolveTarget } from "@/lib/permissions/targets";
+import type { ClientScopedKey } from "@/lib/permissions/catalogue";
 import { approveKeyForNodeType } from "@/lib/permissions/node-area";
 import { MEDIA_APPROVE_KEYS } from "@/lib/permissions/presets";
 import { withAction } from "@/lib/actions/with-action";
@@ -75,28 +77,18 @@ export async function setVersionApprovalAction(
 
     // Tenancy, not just role: a senior of org A must not be able to annotate org B's
     // work by guessing a version id. 404-shaped message (never "wrong org"), matching
-    // the withClient/withNode 404-not-403 convention in route-helpers.ts.
-    const { data: version, error: readErr } = await supabase
-      .from("node_versions")
-      .select("id, org_id, node_id, nodes!inner(type, canvases!inner(client_id))")
-      .eq("id", versionId)
-      .maybeSingle();
-    if (readErr) throw readErr;
-    type NodeEmbed = { type: string; canvases: { client_id: string } | { client_id: string }[] | null };
-    const versionRow = version as {
-      org_id: string | null;
-      node_id: string | null;
-      nodes: NodeEmbed | NodeEmbed[] | null;
-    } | null;
-    if (!versionRow || versionRow.org_id !== caller.orgId) {
+    // the withClient/withNode 404-not-403 convention in route-helpers.ts. A client outside
+    // the person's list answers the same way (D490). Compared with the agency being acted
+    // in, so an elevated impersonator approves in the agency they are viewing.
+    const target = await resolveTarget({ versionId });
+    if (!target?.clientId || target.orgId !== ctx.effectiveOrgId || !canSeeClient(access, target.clientId)) {
       return refuse("Version not found.");
     }
+    const orgId = target.orgId;
 
     // Approve on THIS node's area, for THIS node's client.
-    const nodeEmbed = Array.isArray(versionRow.nodes) ? versionRow.nodes[0] : versionRow.nodes;
-    const canvasEmbed = nodeEmbed && (Array.isArray(nodeEmbed.canvases) ? nodeEmbed.canvases[0] : nodeEmbed.canvases);
-    const key = nodeEmbed ? approveKeyForNodeType(nodeEmbed.type) : null;
-    if (!key || !canvasEmbed || !can(access, key as "image_generation.approve", canvasEmbed.client_id)) {
+    const key = target.nodeType ? approveKeyForNodeType(target.nodeType) : null;
+    if (!key || !can(access, key as ClientScopedKey, target.clientId)) {
       return refuse("You are not permitted to approve or reject work.");
     }
 
@@ -112,11 +104,11 @@ export async function setVersionApprovalAction(
     const decisionId = randomUUID();
     let uploaded: { seq: number; maskPath: string }[] = [];
     if (annotations.length > 0) {
-      if (!versionRow.node_id) return refuse("Version not found.");
+      if (!target.nodeId) return refuse("Version not found.");
       // Assets land in GCS under the node they annotate, via the same lib/storage module
       // every generated asset uses (D247) — not a separate Supabase bucket.
       uploaded = await uploadAnnotationAssets(
-        versionRow.node_id,
+        target.nodeId,
         decisionId,
         annotations,
       );
@@ -136,7 +128,7 @@ export async function setVersionApprovalAction(
         insertDecision({
           id: decisionId,
           versionId,
-          orgId: caller.orgId,
+          orgId,
           status: input.status as "approved" | "changes_requested",
           note,
           decidedByUserId: caller.userId,
@@ -152,7 +144,7 @@ export async function setVersionApprovalAction(
             if (!stored) throw new Error(`No uploaded asset for annotation ${a.seq}.`);
             return {
               decision_id: decisionId,
-              org_id: caller.orgId,
+              org_id: orgId,
               seq: a.seq,
               kind: a.kind,
               timecode_ms: a.timecodeMs,

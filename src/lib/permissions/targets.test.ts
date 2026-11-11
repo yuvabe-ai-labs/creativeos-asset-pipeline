@@ -85,11 +85,11 @@ describe("resolveTarget", () => {
     ["objects", { type: "image", canvases: { client_id: "c1" } }],
     ["arrays", [{ type: "image", canvases: [{ client_id: "c1" }] }]],
   ])("versionId takes the org from node_versions and the client from nodes>canvases (%s)", async (_n, nodes) => {
-    row({ org_id: "o1", nodes });
-    expect(await resolveTarget({ versionId: "v1" })).toEqual({ clientId: "c1", orgId: "o1", nodeType: "image" });
+    row({ org_id: "o1", node_id: "n1", nodes });
+    expect(await resolveTarget({ versionId: "v1" })).toEqual({ clientId: "c1", orgId: "o1", nodeType: "image", nodeId: "n1" });
     expect(calls).toEqual({
       table: "node_versions",
-      select: "org_id, nodes!inner(type, canvases!inner(client_id))",
+      select: "org_id, node_id, nodes!inner(type, canvases!inner(client_id))",
       eq: [["id", "v1"]],
     });
   });

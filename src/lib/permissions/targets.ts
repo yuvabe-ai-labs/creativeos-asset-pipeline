@@ -10,7 +10,8 @@ export type ActionTarget =
   | { kbJobId: string }
   | "agency";
 
-export type ResolvedTarget = { clientId: string | null; orgId: string; nodeType?: string };
+/** nodeType: for node and version targets. nodeId: for version targets (the version's node). */
+export type ResolvedTarget = { clientId: string | null; orgId: string; nodeType?: string; nodeId?: string };
 
 type Embed<T> = T | T[] | null;
 const one = <T,>(v: Embed<T>): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
@@ -44,13 +45,15 @@ export async function resolveTarget(target: Exclude<ActionTarget, "agency">): Pr
   if ("versionId" in target) {
     const { data, error } = await db
       .from("node_versions")
-      .select("org_id, nodes!inner(type, canvases!inner(client_id))")
+      .select("org_id, node_id, nodes!inner(type, canvases!inner(client_id))")
       .eq("id", target.versionId)
       .maybeSingle();
     if (error) throw error;
     const n = data ? one(data.nodes as Embed<{ type: string; canvases: Embed<{ client_id: string }> }>) : null;
     const cv = n ? one(n.canvases) : null;
-    return data && n && cv ? { clientId: cv.client_id, orgId: data.org_id as string, nodeType: n.type } : null;
+    return data && n && cv
+      ? { clientId: cv.client_id, orgId: data.org_id as string, nodeType: n.type, nodeId: data.node_id as string }
+      : null;
   }
   if ("kbVersionId" in target) {
     const { data, error } = await db
