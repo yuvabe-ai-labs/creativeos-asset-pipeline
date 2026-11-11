@@ -5,6 +5,8 @@ import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useCanDownload } from "@/components/permissions/use-can";
+import { useClientId } from "@/components/canvas/client-id-context";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -29,6 +31,8 @@ export function EditorRenderDialog({ canvasId, nodeId, open, onClose, flush }: {
   onClose(): void;
   flush(): Promise<void>;
 }) {
+  // An editor result is not an approved version, so it downloads under downloads.share (D493).
+  const canDownload = useCanDownload(useClientId(), false);
   const start = useStartRender(canvasId);
   const [jobId, setJobId] = useState<string | null>(null);
   const [quality, setQuality] = useState<RenderQuality>("full");
@@ -116,11 +120,14 @@ export function EditorRenderDialog({ canvasId, nodeId, open, onClose, flush }: {
             </Button>
           )}
           {failed && <Button onClick={() => void begin()} disabled={start.isPending}>Try again</Button>}
-          {result && (
+          {result && canDownload && (
             <Button nativeButton={false} render={<a href={result.url} download={result.fileName} />} className="min-w-0 gap-2 font-semibold">
               <Download className="size-4 flex-none" strokeWidth={1.5} />
               <span className="truncate">Download {result.fileName}</span>
             </Button>
+          )}
+          {result && !canDownload && (
+            <p className="self-center text-sm text-muted-foreground">Downloading is turned off for you. Ask your agency owner.</p>
           )}
         </div>
       </DialogContent>

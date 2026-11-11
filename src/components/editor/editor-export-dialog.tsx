@@ -4,6 +4,8 @@
 import { useMemo } from "react";
 import { Check, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useCanDownload } from "@/components/permissions/use-can";
+import { useClientId } from "@/components/canvas/client-id-context";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useExportStatus } from "@/hooks/queries/editor";
 import { captionFont } from "@/lib/editor/caption-fonts";
@@ -19,6 +21,8 @@ export function EditorExportDialog({ canvasId, jobId, title, dubLabel, onClose, 
   onClose(): void;
   onRetry(): void;
 }) {
+  // An editor result is not an approved version, so it downloads under downloads.share (D493).
+  const canDownload = useCanDownload(useClientId(), false);
   const { data } = useExportStatus(canvasId, jobId);
   const pieces = useEditorStore((s) => s.doc.pieces.length);
   const hasCaptions = useEditorStore((s) => s.doc.captions.length > 0);
@@ -75,11 +79,14 @@ export function EditorExportDialog({ canvasId, jobId, title, dubLabel, onClose, 
         <div className="flex justify-end gap-2.5 border-t border-border pt-[18px]">
           <Button variant="outline" onClick={onClose}>Close</Button>
           {failed && <Button onClick={onRetry}>Try again</Button>}
-          {result && (
+          {result && canDownload && (
             <Button nativeButton={false} render={<a href={result.url} download={result.fileName} />} className="min-w-0 gap-2 font-semibold">
               <Download className="size-4 flex-none" strokeWidth={1.5} />
               <span className="truncate">Download {result.fileName}</span>
             </Button>
+          )}
+          {result && !canDownload && (
+            <p className="self-center text-sm text-muted-foreground">Downloading is turned off for you. Ask your agency owner.</p>
           )}
         </div>
       </DialogContent>
