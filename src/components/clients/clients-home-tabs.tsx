@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { ClientsGrid } from "@/components/clients/clients-grid";
 import { RecentCanvasesTable } from "@/components/canvases/recent-canvases-table";
+import { useCan } from "@/components/permissions/use-can";
 import { useReviewCounts } from "@/hooks/use-review-counts";
 import type { ClientWithCount } from "@/lib/db/clients";
 import type { RecentCanvas } from "@/lib/db/recent-canvas";
@@ -37,6 +38,7 @@ export function ClientsHomeTabs({
   // R8.1/R8.2: ONE subscription for the whole page, not one per row. Seeded from the
   // server value so the first paint is already correct.
   const liveCounts = useReviewCounts(reviewCounts);
+  const canCreateClients = useCan("clients.edit");
 
   return (
     <Tabs value={tab} onValueChange={setTab}>
@@ -58,7 +60,7 @@ export function ClientsHomeTabs({
               )}
             </TabsTrigger>
           </TabsList>
-          {tab === "clients" && <NewClientDialog />}
+          {tab === "clients" && canCreateClients && <NewClientDialog />}
         </div>
       </header>
 
@@ -67,7 +69,7 @@ export function ClientsHomeTabs({
           <EmptyState
             title="No clients yet"
             body="A client keeps every brand document, canvas, and asset siloed under one account — set it up once and reuse it across every reel."
-            action={<NewClientDialog trigger={<Button>+ Add client</Button>} />}
+            action={canCreateClients ? <NewClientDialog trigger={<Button>+ Add client</Button>} /> : undefined}
           />
         ) : (
           <ClientsGrid clients={clients} counts={liveCounts.byClient} />

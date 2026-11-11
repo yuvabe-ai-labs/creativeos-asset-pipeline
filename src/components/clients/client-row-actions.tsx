@@ -10,11 +10,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CLIENT_SECTIONS } from "@/components/clients/client-sections";
-
-// The sections a tile doesn't pin as actions. Hidden for archived clients: shortcuts
-// into a recovery view would invite work on a client nobody is meant to be working on.
-const UNPINNED = CLIENT_SECTIONS.filter((s) => !s.pinned);
+import { useCan } from "@/components/permissions/use-can";
+import { useClientSections } from "@/components/clients/use-client-sections";
 
 const itemClass = "h-auto w-full justify-start gap-2 rounded-md px-2.5 py-2 font-normal";
 
@@ -31,6 +28,13 @@ export function ClientRowActions({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  // D493: sections the person can't view, and Archive without clients.delete, are not shown. The
+  // sections are hidden for archived clients: shortcuts into a recovery view would invite work
+  // on a client nobody is meant to be working on.
+  const unpinned = useClientSections(clientId).filter((s) => !s.pinned);
+  const canArchive = useCan("clients.delete");
+  const showSections = !archived && unpinned.length > 0;
+
   async function toggle() {
     await fetch(`/api/clients/${clientId}`, {
       method: "PATCH",
@@ -41,6 +45,8 @@ export function ClientRowActions({
     startTransition(() => router.refresh());
   }
 
+  if (!showSections && !canArchive) return null;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -50,9 +56,9 @@ export function ClientRowActions({
         <MoreHorizontal className="size-4" strokeWidth={1.5} />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-48 gap-0 p-1">
-        {!archived && (
+        {showSections && (
           <>
-            {UNPINNED.map((section) => (
+            {unpinned.map((section) => (
               <Button
                 key={section.label}
                 variant="ghost"
@@ -64,23 +70,25 @@ export function ClientRowActions({
                 {section.label}
               </Button>
             ))}
-            <div className="-mx-1 my-1 border-t" aria-hidden />
+            {canArchive && <div className="-mx-1 my-1 border-t" aria-hidden />}
           </>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={toggle}
-          disabled={pending}
-          className={itemClass}
-        >
-          {archived ? (
-            <ArchiveRestore className="size-4" strokeWidth={1.5} />
-          ) : (
-            <Archive className="size-4" strokeWidth={1.5} />
-          )}
-          {archived ? "Unarchive" : "Archive"}
-        </Button>
+        {canArchive && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={toggle}
+            disabled={pending}
+            className={itemClass}
+          >
+            {archived ? (
+              <ArchiveRestore className="size-4" strokeWidth={1.5} />
+            ) : (
+              <Archive className="size-4" strokeWidth={1.5} />
+            )}
+            {archived ? "Unarchive" : "Archive"}
+          </Button>
+        )}
       </PopoverContent>
     </Popover>
   );

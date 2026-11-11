@@ -1,3 +1,4 @@
+import type { ClientScopedKey } from "@/lib/permissions/catalogue";
 import { BookOpen, FileText, Globe, Images, UserRound, type LucideIcon } from "lucide-react";
 
 export type ClientSection = {
@@ -7,6 +8,8 @@ export type ClientSection = {
   hint: string;
   /** Pinned sections get a labelled action on the home tile; the rest live in its ⋯ menu. */
   pinned?: boolean;
+  /** The view a person needs to see this section's link (D493: no view → not shown). */
+  need: ClientScopedKey;
 };
 
 /**
@@ -19,6 +22,7 @@ export const CLIENT_SECTIONS: ClientSection[] = [
     href: (slug) => `/clients/${slug}/scripts`,
     icon: FileText,
     label: "Scripts",
+    need: "scripts.view",
     hint: "Reel scripts, draft to sign-off",
     pinned: true,
   },
@@ -26,24 +30,28 @@ export const CLIENT_SECTIONS: ClientSection[] = [
     href: (slug) => `/clients/${slug}/kb`,
     icon: BookOpen,
     label: "Brand KB",
+    need: "brand_knowledge.view",
     hint: "Positioning, products, audience",
   },
   {
     href: (slug) => `/clients/${slug}/brand-assets`,
     icon: Images,
     label: "Brand assets",
+    need: "brand_assets.view",
     hint: "Imported from website and socials",
   },
   {
     href: (slug) => `/clients/${slug}/market`,
     icon: Globe,
     label: "Market",
+    need: "market.view",
     hint: "Direct, Adjacent and Signals",
   },
   {
     href: (slug) => `/clients/${slug}/avatars`,
     icon: UserRound,
     label: "Avatars",
+    need: "avatars.view",
     hint: "Reusable characters and voices",
     pinned: true,
   },

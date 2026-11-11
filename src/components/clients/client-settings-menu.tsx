@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CLIENT_SECTIONS } from "@/components/clients/client-sections";
+import { useClientSections } from "@/components/clients/use-client-sections";
 
 /**
  * Entry point to the client's surfaces beside its canvases: its scripts, its knowledge (Brand KB,
@@ -12,7 +12,9 @@ import { CLIENT_SECTIONS } from "@/components/clients/client-sections";
  * from here rather than from a tab strip — tabs would promise in-place switching that a route
  * change doesn't deliver.
  */
-export function ClientSettingsMenu({ slug }: { slug: string }) {
+export function ClientSettingsMenu({ clientId, slug }: { clientId: string; slug: string }) {
+  const sections = useClientSections(clientId);
+  if (sections.length === 0) return null;
   return (
     <Popover>
       <PopoverTrigger
@@ -24,7 +26,7 @@ export function ClientSettingsMenu({ slug }: { slug: string }) {
         }
       />
       <PopoverContent align="end" className="w-60 p-1">
-        {CLIENT_SECTIONS.map((item) => (
+        {sections.map((item) => (
           <Button
             key={item.label}
             variant="ghost"

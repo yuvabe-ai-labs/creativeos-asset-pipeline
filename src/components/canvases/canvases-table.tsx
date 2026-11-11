@@ -35,22 +35,28 @@ import {
 } from "@/components/ui/popover";
 import { renameCanvasAction, deleteCanvasAction } from "@/lib/actions/canvases";
 import { PendingCountPill } from "@/components/shared/pending-count-pill";
+import { useCan } from "@/components/permissions/use-can";
 import { useReviewCounts } from "@/hooks/use-review-counts";
 import type { CanvasRow } from "@/lib/db/types";
 import type { ReviewCounts } from "@/lib/review/queue";
 
 export function CanvasesTable({
   canvases,
+  clientId,
   clientSlug,
   reviewCounts,
 }: {
   canvases: CanvasRow[];
+  clientId: string;
   clientSlug: string;
   reviewCounts: ReviewCounts;
 }) {
   const router = useRouter();
   // R8.1: one subscription for the table, seeded from the server-rendered counts.
   const liveCounts = useReviewCounts(reviewCounts);
+  // D493: Rename needs canvases.edit, Delete canvases.delete; without either the ⋯ menu is not shown.
+  const canRename = useCan("canvases.edit", clientId);
+  const canDelete = useCan("canvases.delete", clientId);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
   const [renamingCanvas, setRenamingCanvas] = useState<CanvasRow | null>(null);
@@ -210,41 +216,47 @@ export function CanvasesTable({
 
                   {/* ⋯ action menu — sits on top of the link */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Popover>
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground"
-                            aria-label="Canvas actions"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <MoreHorizontal className="size-4" strokeWidth={1.5} />
-                          </Button>
-                        }
-                      />
-                      <PopoverContent align="end" className="w-36 p-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 font-normal"
-                          onClick={() => openRename(canvas)}
-                        >
-                          <Pencil className="size-3.5" strokeWidth={1.5} />
-                          Rename
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => setDeletingCanvas(canvas)}
-                        >
-                          <Trash2 className="size-3.5" strokeWidth={1.5} />
-                          Delete
-                        </Button>
-                      </PopoverContent>
-                    </Popover>
+                    {(canRename || canDelete) && (
+                      <Popover>
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-muted-foreground"
+                              aria-label="Canvas actions"
+                              onClick={(e) => e.preventDefault()}
+                            >
+                              <MoreHorizontal className="size-4" strokeWidth={1.5} />
+                            </Button>
+                          }
+                        />
+                        <PopoverContent align="end" className="w-36 p-1">
+                          {canRename && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 font-normal"
+                              onClick={() => openRename(canvas)}
+                            >
+                              <Pencil className="size-3.5" strokeWidth={1.5} />
+                              Rename
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => setDeletingCanvas(canvas)}
+                            >
+                              <Trash2 className="size-3.5" strokeWidth={1.5} />
+                              Delete
+                            </Button>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    )}
                   </div>
                 </li>
               ))}

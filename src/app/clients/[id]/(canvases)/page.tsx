@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { loadClientPage } from "@/lib/permissions/page";
 import { listCanvases } from "@/lib/db/canvases";
 import { getOrgReviewCounts } from "@/lib/db/review";
+import { can } from "@/lib/permissions/check";
 import { accessOf } from "@/lib/permissions/server";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
@@ -50,6 +51,8 @@ export default async function ClientPage({
     getOrgReviewCounts(effectiveOrgId, accessOf(caller)),
   ]);
 
+  const canAddCanvas = can(accessOf(caller), "canvases.edit", client.id);
+
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
       <Breadcrumb className="animate-rise">
@@ -68,8 +71,8 @@ export default async function ClientPage({
         <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} />
 
         <div className="flex shrink-0 items-end gap-2">
-          <ClientSettingsMenu slug={client.slug} />
-          <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
+          <ClientSettingsMenu clientId={client.id} slug={client.slug} />
+          {canAddCanvas && <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />}
         </div>
       </header>
 
@@ -78,17 +81,20 @@ export default async function ClientPage({
           title="No canvases yet"
           body="A canvas is one reel project — script, shots, prompts, images and clips on a single board."
           action={
-            <NewCanvasDialog
-              clientId={client.id}
-              clientSlug={client.slug}
-              trigger={<Button>+ New canvas</Button>}
-            />
+            canAddCanvas ? (
+              <NewCanvasDialog
+                clientId={client.id}
+                clientSlug={client.slug}
+                trigger={<Button>+ New canvas</Button>}
+              />
+            ) : undefined
           }
         />
       ) : (
         <div className="animate-rise">
           <CanvasesTable
             canvases={canvases}
+            clientId={client.id}
             clientSlug={client.slug}
             reviewCounts={reviewCounts}
           />
