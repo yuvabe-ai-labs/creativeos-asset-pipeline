@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useGalleryDrawer as useGalleryCommit } from "./use-gallery-drawer";
 import { GALLERY_DRAG_MIME } from "@/components/canvas/gallery-drawer/gallery-drawer";
 import type { GalleryImage } from "@/components/canvas/gallery-drawer/types";
@@ -18,16 +19,19 @@ export function useGalleryNodeDrop(
   position: { x: number; y: number },
 ) {
   const { handleAdd } = useGalleryCommit();
+  const canEdit = useCanvasEditable();
 
   const onDragOver = useCallback((e: React.DragEvent) => {
+    if (!canEdit) return; // view-only or locked by someone else: not a drop target
     if (!e.dataTransfer.types.includes(GALLERY_DRAG_MIME)) return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "copy";
-  }, []);
+  }, [canEdit]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
+      if (!canEdit) return;
       const raw = e.dataTransfer.getData(GALLERY_DRAG_MIME);
       if (!raw) return;
       e.preventDefault();
@@ -41,7 +45,7 @@ export function useGalleryNodeDrop(
         console.warn("[gallery] node drop payload malformed:", err);
       }
     },
-    [handleAdd, nodeId, position],
+    [canEdit, handleAdd, nodeId, position],
   );
 
   return { onDragOver, onDrop };

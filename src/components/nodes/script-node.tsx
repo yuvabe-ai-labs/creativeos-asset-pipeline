@@ -22,6 +22,7 @@ import { DEFAULT_SIGNAL_MODE, type SignalMode } from "@/lib/market/constants";
 import type { GroupingVersion } from "@/lib/nodes/group-shots";
 import type { SceneBeatCache } from "@/lib/nodes/scene-beats";
 import { useNodeConnectionState } from "./use-node-connection-state";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useAddAvatarNode } from "@/hooks/use-add-avatar-node";
 import { AVATAR_DRAG_MIME, parseAvatarDragPayload } from "@/lib/avatars/canvas";
 
@@ -57,6 +58,7 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
   const isParsing = useCanvasStore((s) => s.scriptParsing[id] === true);
   const connState = useNodeConnectionState(id, "script");
   const addAvatarNode = useAddAvatarNode();
+  const canEdit = useCanvasEditable();
 
   // Open locally (double-click / "Open ↗") OR when the shared signal points here —
   // the Generation Tray, guided flow, or the copilot's open_node (setFocusedNodeId).
@@ -81,12 +83,13 @@ export function ScriptNode({ id, data, selected }: NodeProps) {
       // D298 — drop an avatar from the gallery here and it becomes this script's presenter.
       // Stopped here so the pane's own drop handler does not also add a loose node.
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(AVATAR_DRAG_MIME)) return;
+        if (!canEdit || !e.dataTransfer.types.includes(AVATAR_DRAG_MIME)) return;
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = "copy";
       }}
       onDrop={(e) => {
+        if (!canEdit) return;
         const avatar = parseAvatarDragPayload(e.dataTransfer.getData(AVATAR_DRAG_MIME));
         if (!avatar) return;
         e.preventDefault();
