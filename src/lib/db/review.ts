@@ -51,8 +51,8 @@ const QUEUE_COLUMNS =
 // R5.1/R5.2/R5.3: one read, never one query per row (PRD §8: the client list renders for every
 // org member on every visit). Pending counts are of the work the person can approve (D489), in
 // their clients (D490). With every review type that is the org_review_counts RPC, as before.
-// With some, the RPC can't tell types apart, so the pending rows of those types are read (two
-// columns) and counted here. With none, there is nothing to count.
+// With some it is org_review_counts_for_types (grouped in SQL, so no row cap undercounts).
+// With none, there is nothing to count.
 export async function getOrgReviewCounts(orgId: string, access: Access): Promise<ReviewCounts> {
   const types = reviewableNodeTypes(access);
   if (types.length === 0) return summarizeCounts([]);
@@ -68,16 +68,14 @@ export async function getOrgReviewCounts(orgId: string, access: Access): Promise
     return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending })));
   }
 
-  const { data, error } = await supabase
-    .from("review_queue_items")
-    .select("client_id, canvas_id")
-    .eq("org_id", orgId)
-    .eq("approval_status", "pending")
-    .in("node_type", types);
+  const { data, error } = await supabase.rpc("org_review_counts_for_types", {
+    p_org_id: orgId,
+    p_node_types: types,
+  });
   if (error) throw error;
-  const rows = ((data ?? []) as { client_id: string; canvas_id: string }[])
+  const rows = ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[])
     .filter((r) => inScope === null || inScope.has(r.client_id));
-  return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: 1 })));
+  return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending })));
 }
 
 // Resolves maker names in ONE round trip for the whole page of rows, then maps. Doing it

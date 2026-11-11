@@ -25,6 +25,12 @@ describe("rules sent to the browser", () => {
     expect(canInBrowser(ability, "scripts.edit", "c9")).toBe(false);
   });
 
+  it("refuses a client-scoped key for an empty client id (outside a canvas)", () => {
+    const ability = abilityFromPacked(packAccessRules(testAccess({ keys: ["scripts.edit"] })));
+    expect(canInBrowser(ability, "scripts.edit", "")).toBe(false);
+    expect(canInBrowser(ability, "scripts.edit")).toBe(true);
+  });
+
   it("without a client, answers whether the person has the key for any client (tabs, nav)", () => {
     const ability = abilityFromPacked(packAccessRules(testAccess({ keys: ["scripts.edit"], clientIds: ["c1"] })));
     expect(canInBrowser(ability, "scripts.edit")).toBe(true);

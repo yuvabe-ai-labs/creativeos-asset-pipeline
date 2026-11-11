@@ -71,17 +71,46 @@ describe("getOrgReviewCounts", () => {
     expect(counts.byClient).toEqual({ c1: 2, c2: 5 });
   });
 
-  it("counts only the review types the person can approve", async () => {
-    state.result = { data: [{ client_id: "c1", canvas_id: "cv1" }, { client_id: "c1", canvas_id: "cv1" }], error: null };
+  it("counts only the review types the person can approve, grouped in SQL", async () => {
+    state.result = { data: [{ client_id: "c1", canvas_id: "cv1", pending: 2 }], error: null };
     const counts = await getOrgReviewCounts("org-1", testAccess({ keys: ["image_generation.approve"] }));
-    expect(inCalls()).toEqual([["in", ["node_type", ["image-gen"]]]]);
-    expect(calls.some(([m]) => m === "rpc")).toBe(false);
+    expect(calls).toEqual([
+      ["rpc", ["org_review_counts_for_types", { p_org_id: "org-1", p_node_types: ["image-gen"] }]],
+    ]);
     expect(counts.byCanvas).toEqual({ cv1: 2 });
+  });
+
+  it("keeps the client scope on the some-types path", async () => {
+    state.result = { data: rows, error: null };
+    const counts = await getOrgReviewCounts(
+      "org-1",
+      testAccess({ keys: ["image_generation.approve"], clientIds: ["c2"] }),
+    );
+    expect(counts.byClient).toEqual({ c2: 5 });
+  });
+
+  it("throws when the some-types read fails", async () => {
+    state.result = { data: null, error: new Error("boom") };
+    await expect(
+      getOrgReviewCounts("org-1", testAccess({ keys: ["image_generation.approve"] })),
+    ).rejects.toThrow("boom");
   });
 
   it("reads nothing for someone who can approve nothing", async () => {
     const counts = await getOrgReviewCounts("org-1", testAccess({ keys: ["internal_review.view"] }));
     expect(calls).toEqual([]);
     expect(counts.total).toBe(0);
+  });
+});
+
+describe("listClientsWithMoodboards", () => {
+  it("keeps to the person's clients when they have a list", async () => {
+    await listClientsWithMoodboards("org-1", ["c1"]);
+    expect(inCalls()).toEqual([["in", ["id", ["c1"]]]]);
+  });
+
+  it("does not filter by client for someone on all clients", async () => {
+    await listClientsWithMoodboards("org-1", null);
+    expect(inCalls()).toEqual([]);
   });
 });

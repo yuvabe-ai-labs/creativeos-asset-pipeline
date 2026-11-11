@@ -275,4 +275,19 @@ create trigger edges_keep_canvas
   before insert or update on edges
   for each row execute function keep_edge_on_its_canvas();
 
+-- Pending review counts for some review types only (a person who can approve images but not
+-- video). Same shape as 0031's org_review_counts, grouped in SQL so no row cap undercounts.
+create or replace function org_review_counts_for_types(p_org_id uuid, p_node_types text[])
+returns table (client_id uuid, canvas_id uuid, pending int)
+language sql
+stable
+as $
+  select client_id, canvas_id, count(*)::int
+    from review_queue_items
+   where org_id = p_org_id
+     and approval_status = 'pending'
+     and node_type = any(p_node_types)
+   group by client_id, canvas_id;
+$;
+
 notify pgrst, 'reload schema';

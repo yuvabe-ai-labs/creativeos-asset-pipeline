@@ -957,7 +957,9 @@ where type = 'transcribe' and status = 'running' and created_at < now() - interv
 `role_preset_permissions`), per-person ticks (`membership_permission_changes`), picked clients
 (`membership_clients`), invitations (`org_invitations`, used from plan 3), the access read
 `get_membership_access(uuid)`, `auth_org_ids()` behind the eight "org isolation" policies, and
-two triggers that keep nodes and edges on their own canvas (below).
+two triggers that keep nodes and edges on their own canvas (below), and
+`org_review_counts_for_types(uuid, text[])` (pending review counts for some review types, grouped
+in SQL like 0031's `org_review_counts`).
 Paste into the Supabase SQL editor → Run.
 
 **Safe to re-run:** every create uses `if not exists` / `create or replace`, the seed uses
@@ -1012,4 +1014,6 @@ select key, is_owner, (select count(*) from role_preset_permissions r where r.pr
 select count(*) from org_memberships where preset_id is null;
 -- expect one row per member, for any member's user id
 select * from get_membership_access('<a member user id>');
+-- expect one row
+select proname from pg_proc where proname = 'org_review_counts_for_types';
 ```

@@ -25,8 +25,11 @@ export function abilityFromPacked(packed: PackedRules): AppAbility {
 // What to SHOW. With a client, a client-scoped key is checked for that client. Without one it
 // asks about the subject type, which CASL answers "yes if any rule exists": right for a tab or
 // a nav item, never enough on the server (plan 1's can() requires the client there).
+// An empty string is not "no client": it is what useClientId() returns outside a canvas, so a
+// client-scoped key fails closed.
 export function canInBrowser(ability: AppAbility, key: PermissionKey, clientId?: string): boolean {
   const { area, level } = splitKey(key);
+  if (clientId === "" && isClientScopedKey(key)) return false;
   if (clientId && isClientScopedKey(key)) return ability.can(level, subject(area, { clientId }));
   return ability.can(level, area);
 }

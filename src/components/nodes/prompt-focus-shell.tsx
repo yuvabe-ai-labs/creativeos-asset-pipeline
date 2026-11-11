@@ -48,7 +48,7 @@ export type PromptFocusShellSlots = {
   // The viewed version's label ("v1"); empty while nothing is viewed.
   viewedLabel: string;
   isViewingOther: boolean;
-  // A ready-wired <InlineApprovalBar> (gated on the viewer's role, and on viewing the active
+  // A ready-wired <InlineApprovalBar> (gated on the node area's Approve, and on viewing the active
   // version) — the caller places it beside its own eval bar.
   approvalControls: ReactNode;
 };
