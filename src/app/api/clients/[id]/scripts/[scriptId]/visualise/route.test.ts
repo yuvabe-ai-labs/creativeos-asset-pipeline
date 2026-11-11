@@ -9,12 +9,14 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/scripts", () => ({ getScript: vi.fn() }));
 vi.mock("@/lib/scripts/visualise/board-server", () => ({ loadVisualiseBoard: vi.fn() }));
+vi.mock("@/lib/db/script-visualise", () => ({ setVisualiseField: vi.fn() }));
 
 import { resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
 import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
+import { setVisualiseField } from "@/lib/db/script-visualise";
 
 const ctx = { params: Promise.resolve({ id: "c1", scriptId: SCRIPT_ID }) };
 const get = () => new NextRequest(`http://localhost/api/clients/c1/scripts/${SCRIPT_ID}/visualise`);
@@ -40,5 +42,33 @@ describe("GET …/scripts/:scriptId/visualise", () => {
     vi.mocked(getScript).mockResolvedValue(null);
     const { GET } = await import("./route");
     expect((await GET(get(), ctx)).status).toBe(404);
+  });
+});
+
+describe("PATCH …/scripts/:scriptId/visualise", () => {
+  const patch = (body: unknown) =>
+    new NextRequest(`http://localhost/api/clients/c1/scripts/${SCRIPT_ID}/visualise`, { method: "PATCH", body: JSON.stringify(body) });
+
+  it("writes one script field and returns the script", async () => {
+    vi.mocked(setVisualiseField).mockResolvedValue({ ok: true, script: makeScript() });
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ path: "context.purpose", value: "New purpose" }), ctx);
+    expect(res.status).toBe(200);
+    expect(setVisualiseField).toHaveBeenCalledWith("c1", SCRIPT_ID, { kind: "context", field: "purpose" }, "New purpose");
+    expect(await res.json()).toMatchObject({ script: { id: SCRIPT_ID } });
+  });
+
+  it("refuses the reel's notes, which the board does not show", async () => {
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ path: "notes.brief", value: "x" }), ctx);
+    expect(res.status).toBe(400);
+    expect(setVisualiseField).not.toHaveBeenCalled();
+  });
+
+  it("passes on the refusal for a script that is not in Visualise", async () => {
+    vi.mocked(setVisualiseField).mockResolvedValue({ ok: false, error: "The script can be edited here only while it is in Visualise.", status: 409 });
+    const { PATCH } = await import("./route");
+    const res = await PATCH(patch({ path: "header.title", value: "T" }), ctx);
+    expect(res.status).toBe(409);
   });
 });

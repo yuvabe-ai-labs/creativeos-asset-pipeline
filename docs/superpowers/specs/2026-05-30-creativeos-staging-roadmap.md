@@ -8613,3 +8613,12 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Unverified, accepted (Q8).** That fal's O3 reference endpoint takes a start frame and `image_urls` together; that embedded (data URI) images from the shape fitter are accepted; whether frames count toward fal's 7-image budget (the 5-reference cap stays); fal's per-shot text limit, since confirmed at 512 by fal's own 422. The first staging generations are the check; `KLING_TRANSPORT=native` is the fallback.
 
 **Originated →** this session; plan in the "Kling fal Migration Plan" artifact.
+### D489 — A script's text is typed on the Visualise board; In review it is read-only; a reopened script shows the client's open comments *(recorded 2026-11-11; amends D347, refines D349)*
+
+**Decision.** While a script is in Visualise, its text on the board (title, header facts, purpose, setting and camera, disclaimers, watch-outs, and each shot's beat, action and spoken line) is typed in place, the same way it is at Generate (`PATCH …/scripts/:scriptId/visualise`, one field per write through `writeField`). The write is refused unless the stage is `visualise`, so In review the text is read-only. Adding, removing or splitting shots and the reel's notes stay with the copilot (Reopen). A changed shot marks its panel Out of date through the take's shot key. After a Reopen to Generate, a script the client commented on shows the Visualise board's own Comments column beside the script (the same components and wiring, `useTeamReviewSurface`; 20rem from `xl`, a sheet below it opened by the same Comments button), with Reply, Resolve and the activity as on the board.
+
+**Why.** User, 11 Nov 2026: a small fix at Visualise should not need a Reopen; once the script is with the client it should not change under them; after a Reopen the team needs the client's words beside the copilot.
+
+**Rejected.** Editing In review (D349's "editing stays allowed In review" now covers visual work only: avatars, panels, products and locations). A card above the script (tried first; it pushed the script down and read as part of it). A separate comments design for Generate (tried second; inconsistent with the board, so AGENTS.md now has a UI consistency rule). A tab inside the copilot, and a sheet only.
+
+**Originated →** this session.
