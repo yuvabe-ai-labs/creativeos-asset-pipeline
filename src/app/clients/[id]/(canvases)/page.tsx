@@ -11,7 +11,6 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ClientSettingsMenu } from "@/components/clients/client-settings-menu";
 import { ClientIdentity } from "@/components/clients/client-identity";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Breadcrumb,
   BreadcrumbItem,
