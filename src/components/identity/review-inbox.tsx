@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useCan } from "@/components/permissions/use-can";
 import { useIdentity } from "@/hooks/use-identity";
 import { useReviewList } from "@/hooks/use-review-list";
 import { ApprovalStatusIcon } from "@/components/review/approval-status-icon";
@@ -25,17 +26,19 @@ import { cn } from "@/lib/utils";
 // which is why there is no role prop here to get wrong.
 export function ReviewInbox() {
   const { hydrated } = useIdentity();
+  // D493: no internal_review.view means no inbox, and no request the server would refuse.
+  const canReview = useCan("internal_review.view");
   const [open, setOpen] = useState(false);
   // Kept subscribed while closed so the badge count is live — the badge IS the feature
   // (R9.1); a count that only updates when you open the popover would be pointless.
   const { items, loading, loadingMore, hasMore, loadMore } = useReviewList(
     "/api/review/inbox",
-    hydrated,
+    hydrated && canReview,
   );
 
   // Nothing waiting: render nothing at all, matching PendingCountPill's zero rule (R5.1).
   // An empty inbox icon is a small standing reproach for no reason.
-  if (!hydrated || (!loading && items.length === 0)) return null;
+  if (!canReview || !hydrated || (!loading && items.length === 0)) return null;
   // Don't flash an empty badge during the very first load.
   if (loading && items.length === 0) return null;
 

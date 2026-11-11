@@ -21,6 +21,7 @@ import { PanelTile } from "./panel-tile";
 import { StoryboardGrid } from "./storyboard-grid";
 import { VisualiseReadiness } from "./visualise-readiness";
 import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
+import { useCan } from "@/components/permissions/use-can";
 
 // Spec 3 §4, laid out as a storyboard sheet (D465): the readiness line across the top; the summary
 // card with the cast, locations and products as chips; then every shot's panel at full width, each
@@ -45,6 +46,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   const draws = usePanelDraws(clientId, script.id, panelModelId);
   const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const reopen = useReopenScript(clientId, script.id);
+  const canReopen = useCan("scripts.approve", clientId);
   const pick = usePickTake(clientId, script.id);
   const [openShot, setOpenShot] = useState<string | null>(null);
   const timed = useMemo(() => timeShots(script.doc.shots), [script.doc.shots]);
@@ -66,6 +68,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
     <ScriptAssetsProvider clientId={clientId} scriptId={script.id}>
     <div className="flex flex-col gap-6">
       <VisualiseReadiness
+        canReopen={canReopen}
         stage={script.stage}
         readiness={model.readiness}
         kitsFound={board.kits.length > 0}

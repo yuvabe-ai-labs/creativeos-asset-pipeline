@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useIdentity } from "./use-identity";
+import { useCan } from "@/components/permissions/use-can";
 import { subscribeToOrgVersionUpdates } from "@/lib/realtime/org-version-updates";
 import { authFetch } from "@/lib/supabase/session-ready";
 import type { ReviewCounts } from "@/lib/review/queue";
@@ -20,6 +21,8 @@ const REFETCH_DEBOUNCE_MS = 400;
 export function useReviewCounts(initial: ReviewCounts): ReviewCounts {
   const [counts, setCounts] = useState<ReviewCounts>(initial);
   const { orgId } = useIdentity();
+  // No internal_review.view: keep the server's counts and don't ask for a refresh it would refuse.
+  const canReview = useCan("internal_review.view");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Re-seed when the server sends a newer value (a navigation, or router.refresh()).
@@ -35,7 +38,7 @@ export function useReviewCounts(initial: ReviewCounts): ReviewCounts {
   }
 
   useEffect(() => {
-    if (!orgId) return;
+    if (!orgId || !canReview) return;
 
     const refetch = async () => {
       try {
@@ -57,7 +60,7 @@ export function useReviewCounts(initial: ReviewCounts): ReviewCounts {
       if (timerRef.current) clearTimeout(timerRef.current);
       unsubscribe();
     };
-  }, [orgId]);
+  }, [orgId, canReview]);
 
   return counts;
 }

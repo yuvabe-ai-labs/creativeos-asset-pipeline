@@ -6,8 +6,8 @@ const items = [
   { id: "confirm.c1", label: "To confirm", question: "Confirm: October 2026", path: "notes.confirm.c1" },
   { id: "header.postDate", label: "Post date", question: "What's the post date for this reel?", path: "header.postDate" },
 ];
-const bar = (over: { disabled?: boolean } = {}) =>
-  renderToStaticMarkup(<MarkFinalBar openItems={items} canUndo={false} onUndo={() => {}} onMarkFinal={() => {}} pending={false} disabled={over.disabled ?? false} />);
+const bar = (over: { disabled?: boolean; canMarkFinal?: boolean } = {}) =>
+  renderToStaticMarkup(<MarkFinalBar openItems={items} canUndo={false} onUndo={() => {}} onMarkFinal={() => {}} pending={false} disabled={over.disabled ?? false} canMarkFinal={over.canMarkFinal} />);
 
 describe("MarkFinalBar", () => {
   it("offers Mark final with items still open, and says how many (D363)", () => {
@@ -19,6 +19,13 @@ describe("MarkFinalBar", () => {
 
   it("stays off with no draft or while the copilot works", () => {
     expect(bar({ disabled: true })).toMatch(/<button[^>]*disabled=""[^>]*>(?:(?!<\/button>)[\s\S])*Mark final/);
+  });
+
+  it("is not shown without scripts.approve; Undo and the open count stay", () => {
+    const html = bar({ canMarkFinal: false });
+    expect(html).not.toContain("Mark final");
+    expect(html).toContain("Undo");
+    expect(html).toContain("2 still open");
   });
 
   it("names a confirmation by what to confirm, and anything else by its label", () => {

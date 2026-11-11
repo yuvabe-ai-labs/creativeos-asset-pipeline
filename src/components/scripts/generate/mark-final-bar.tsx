@@ -25,13 +25,15 @@ const SHOWN = 4;
 
 /** Spec 2 §10, as D363 revises it: Mark final is there once a draft exists. While anything is still
  *  open (§8) it asks first, naming what is open; the items stay in the notes either way. */
-export function MarkFinalBar({ openItems, canUndo, onUndo, onMarkFinal, pending, disabled }: {
+export function MarkFinalBar({ openItems, canUndo, onUndo, onMarkFinal, pending, disabled, canMarkFinal = true }: {
   openItems: OpenItem[];
   canUndo: boolean;
   onUndo: () => void;
   onMarkFinal: () => void;
   pending: boolean;
   disabled: boolean;
+  /** False without scripts.approve: Mark final and its confirm are not shown (D493). */
+  canMarkFinal?: boolean;
 }) {
   const [asking, setAsking] = useState(false);
   const open = openItems.length;
@@ -45,6 +47,7 @@ export function MarkFinalBar({ openItems, canUndo, onUndo, onMarkFinal, pending,
       <span className="text-sm text-muted-foreground" aria-live="polite">
         {open > 0 ? `${open} still open` : "Ready for the client to read"}
       </span>
+      {canMarkFinal && (<>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger render={<span className="inline-block" />}>
@@ -72,6 +75,7 @@ export function MarkFinalBar({ openItems, canUndo, onUndo, onMarkFinal, pending,
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </>)}
     </div>
   );
 }

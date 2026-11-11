@@ -18,6 +18,8 @@ import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
 import { sharePathFor } from "@/lib/client-review/paths";
 import type { NodeClientReview } from "@/lib/client-review/wire";
 import { useClientFeedback } from "./client-feedback-context";
+import { useCan } from "@/components/permissions/use-can";
+import { useClientId } from "@/components/canvas/client-id-context";
 
 // D309 — the client feedback drawer. Right side, vertical: the cut on top, the client's
 // comments under it; clicking a comment's timecode scrubs the video there.
@@ -79,6 +81,8 @@ function FeedbackPanel({
 }) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const editable = useCanvasEditable();
+  // D493: uploading the cut makes the client's review link, so it needs client_review.share.
+  const canShare = useCan("client_review.share", useClientId());
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { data, isPending: loading, isError, refetch } = useNodeClientReview(nodeId);
@@ -174,7 +178,7 @@ function FeedbackPanel({
                 Retry
               </Button>
             </>
-          ) : !editable ? (
+          ) : !editable || !canShare ? (
             <p className="text-sm text-muted-foreground">No cut uploaded yet.</p>
           ) : (
             <>

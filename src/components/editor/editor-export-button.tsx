@@ -4,6 +4,9 @@ import { useState } from "react";
 import { ChevronDown, Clapperboard, Download, Film } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/components/permissions/use-can";
+import { useClientId } from "@/components/canvas/client-id-context";
+import { GENERATE_OFF_REASON } from "@/components/permissions/gated-button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useStartExport } from "@/hooks/queries/editor";
 import { dubLanguageLabel } from "@/lib/dubbing/types";
@@ -25,6 +28,12 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
   const font = useEditorStore((s) => s.doc.captionStyle.font);
   const dubLanguage = useEditorStore((s) => s.sources.find((x) => x.language && s.doc.pieces.some((p) => p.sourceNodeId === x.nodeId && p.sound === "dubbed"))?.language ?? null);
 
+  // D493: the MP4 is a render (video_editor.generate); the Premiere package is sharing the edit
+  // (video_editor.share). Without either, Export is not shown.
+  const clientId = useClientId();
+  const canRender = useCan("video_editor.generate", clientId);
+  const canPackage = useCan("video_editor.share", clientId);
+
   const run = async () => {
     // D393 — a caption whose font lacks some of its letters arrives in a substitute font.
     const uncovered = captions.filter((c) => !fontCoversText(font, c.text)).length;
@@ -41,6 +50,8 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
     }
   };
 
+  if (!canRender && !canPackage) return null;
+
   return (
     <>
       <DropdownMenu>
@@ -54,20 +65,22 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
           }
         />
         <DropdownMenuContent align="end" className="w-72">
-          <DropdownMenuItem onClick={() => setMp4Open(true)} className="items-start gap-3 py-2">
+          <DropdownMenuItem disabled={!canRender} onClick={() => setMp4Open(true)} className="items-start gap-3 py-2">
             <Film className="mt-0.5 size-4" strokeWidth={1.5} />
             <span className="flex flex-col gap-0.5">
               <span className="font-medium">MP4 video</span>
-              <span className="text-xs text-muted-foreground">Ready to post or send</span>
+              <span className="text-xs text-muted-foreground">{canRender ? "Ready to post or send" : GENERATE_OFF_REASON}</span>
             </span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void run()} className="items-start gap-3 py-2">
-            <Clapperboard className="mt-0.5 size-4" strokeWidth={1.5} />
-            <span className="flex flex-col gap-0.5">
-              <span className="font-medium">Premiere Pro package</span>
-              <span className="text-xs text-muted-foreground">An editable sequence for your editor</span>
-            </span>
-          </DropdownMenuItem>
+          {canPackage && (
+            <DropdownMenuItem onClick={() => void run()} className="items-start gap-3 py-2">
+              <Clapperboard className="mt-0.5 size-4" strokeWidth={1.5} />
+              <span className="flex flex-col gap-0.5">
+                <span className="font-medium">Premiere Pro package</span>
+                <span className="text-xs text-muted-foreground">An editable sequence for your editor</span>
+              </span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <EditorRenderDialog canvasId={canvasId} nodeId={nodeId} open={mp4Open} onClose={() => setMp4Open(false)} flush={flush} />

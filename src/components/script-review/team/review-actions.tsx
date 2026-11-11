@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/components/permissions/use-can";
 import { useMoveScriptStage } from "@/hooks/queries/script-review";
 import { errorMessage } from "@/lib/avatars/utils";
 import type { TeamScriptReview } from "@/lib/script-review/assemble";
@@ -34,6 +35,10 @@ export function ReviewActions({ clientId, script, review, commentCount, canvasAc
   const stage = review?.stage ?? script.stage;
   const latest = review?.latest ?? null;
   const move = useMoveScriptStage(clientId, script.id);
+  // D493: sharing needs client_review.share; a stage move needs client_review.edit, and Move to
+  // In review is the share dialog, so it needs both.
+  const canShare = useCan("client_review.share", clientId);
+  const canMove = useCan("client_review.edit", clientId);
   const path = review?.shareToken && latest ? scriptSharePathFor(review.shareToken, script.doc.header.title) : null;
 
   async function run(m: TeamStageMove) {
@@ -53,11 +58,11 @@ export function ReviewActions({ clientId, script, review, commentCount, canvasAc
           Version {latest.number} · shared {formatShortDay(latest.sharedAt)}
         </span>
       )}
-      {(stage === "in_review" || stage === "visualise") && (
+      {canShare && (stage === "in_review" || (stage === "visualise" && canMove)) && (
         <ShareDialog clientId={clientId} script={script} latest={latest} moving={stage === "visualise"} />
       )}
-      {path && <CopyLinkButton path={path} />}
-      {teamMovesFrom(stage).filter((m) => m !== "to_review").map((m) => (
+      {canShare && path && <CopyLinkButton path={path} />}
+      {canMove && teamMovesFrom(stage).filter((m) => m !== "to_review").map((m) => (
         <Button key={m} variant="outline" size="sm" disabled={move.isPending} onClick={() => void run(m)}>
           {TEAM_STAGE_MOVES[m].label}
         </Button>
