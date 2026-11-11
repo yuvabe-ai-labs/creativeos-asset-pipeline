@@ -432,7 +432,7 @@ export function mergeRefinedPlan(
 /**
  * Has the operator hand-edited the plan since it was last generated, restored or saved?
  *
- * Drives the Multishot Prompt focus view's Save button, its "Unsaved changes" pill, the sheet's
+ * Drives the Multishot Prompt focus view's Save button, the sheet's
  * close-confirm, and the lockout on every path that would replace the plan wholesale (D240, D242).
  *
  * Compared FIELD-WISE rather than by `JSON.stringify`: stringify is key-order dependent, so a plan

@@ -99,6 +99,9 @@ export type PromptFocusShellProps = {
   // Controls for the header's right slot, after the credits readout and a divider — e.g. a
   // view's own Cancel / Save Changes for a buffered draft. Omitted = credits readout alone.
   headerActions?: ReactNode;
+  // Puts the guided next step in the header's right slot as a button, after `headerActions`
+  // (Cancel, Save, then on), instead of as a text link on the Back row. Off = the Back-row link.
+  guidedInHeader?: boolean;
   // The fixed tabs ("prompt" / "details" / "request") switch on `selected` internally —
   // everything about their content is per-prompt-type. The two panes generic enough to live
   // here are rendered by the shell itself: the connected-node detail (when a connected input is
@@ -178,6 +181,7 @@ export function PromptFocusShell({
   emptyNoun,
   renderVersionOutput,
   headerActions,
+  guidedInHeader = false,
   children,
 }: PromptFocusShellProps) {
   const { identity } = useIdentity();
@@ -235,6 +239,15 @@ export function PromptFocusShell({
     });
   }
 
+  const guidedNext = (variant: "link" | "button") => (
+    <GuidedNextButton
+      sourceId={nodeId}
+      variant={variant}
+      onNavigate={() => onOpenChange(false)}
+      onBeforeNavigate={dirty ? confirmLeaveDirty : undefined}
+    />
+  );
+
   const approvalControls = (
     <>
       {viewing.isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}
@@ -270,7 +283,7 @@ export function PromptFocusShell({
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
             {/* Navigation row: Back on the left, the guided next step opposite it as a text link —
                 both are ways OUT of this view, so they share a row and leave the header's right
-                slot to the view's own controls (same layout as multishot-focus-view.tsx). */}
+                slot to the view's own controls. With `guidedInHeader` it moves to that slot instead. */}
             <div className="flex items-center justify-between gap-4">
               <Button
                 type="button"
@@ -280,12 +293,7 @@ export function PromptFocusShell({
               >
                 <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
               </Button>
-              <GuidedNextButton
-                sourceId={nodeId}
-                variant="link"
-                onNavigate={() => onOpenChange(false)}
-                onBeforeNavigate={dirty ? confirmLeaveDirty : undefined}
-              />
+              {!guidedInHeader && guidedNext("link")}
             </div>
 
             <header className="mt-4 flex items-center justify-between gap-4">
@@ -303,10 +311,13 @@ export function PromptFocusShell({
               <div className="flex shrink-0 items-center gap-3">
                 {/* Always rendered — pre-generation it reads "0 credits used". */}
                 <UsagePopover versions={versions} />
-                {headerActions && (
+                {(headerActions || guidedInHeader) && (
                   <>
                     <div className="h-6 w-px bg-border" aria-hidden />
-                    <div className="flex items-center gap-2">{headerActions}</div>
+                    <div className="flex items-center gap-2">
+                      {headerActions}
+                      {guidedInHeader && guidedNext("button")}
+                    </div>
                   </>
                 )}
               </div>

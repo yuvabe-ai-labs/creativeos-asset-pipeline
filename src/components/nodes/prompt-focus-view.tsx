@@ -620,6 +620,19 @@ export function PromptFocusView({
               <div className="flex shrink-0 items-center gap-2">
                 {/* Always rendered — pre-generation it reads "0 credits used". */}
                 <UsagePopover versions={versions} />
+                <div className="h-6 w-px bg-border" aria-hidden />
+                {/* Cancel, Save, then the guided next step — always shown, the same size, as in
+                    Multishot. Cancel / Save enable only while the prompt has unsaved edits. */}
+                {editable && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => setDraft(output ?? "")} disabled={!dirty}>
+                      Cancel
+                    </Button>
+                    <Button variant="outline-primary" size="sm" onClick={handleSave} disabled={!dirty}>
+                      Save
+                    </Button>
+                  </>
+                )}
                 <GuidedNextButton
                   sourceId={nodeId}
                   variant="button"
@@ -826,7 +839,7 @@ export function PromptFocusView({
                           {/* Read view by default — the pane is read far more than edited. One
                               sentence per beat (the generator writes its required elements in a
                               stable order, so sentence ≈ section), measure capped at 65ch.
-                              Clicking swaps to the raw-text editor; the Save flow below is
+                              Clicking swaps to the raw-text editor; the header's Save flow is
                               unchanged — commit (blur / Cmd+Enter) only updates the draft. */}
                           <EditableField
                             multiline
@@ -838,16 +851,6 @@ export function PromptFocusView({
                             renderDisplay={renderBeats}
                             className="min-h-64 max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
                           />
-                          <div className="flex shrink-0 items-center gap-2 self-start">
-                            <Button variant="outline-primary" onClick={handleSave} disabled={!dirty}>
-                              Save
-                            </Button>
-                            {dirty && (
-                              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                                Unsaved changes
-                              </span>
-                            )}
-                          </div>
                         </>
                       )}
                         </>

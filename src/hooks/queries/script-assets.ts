@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import { useMutation, useMutationState, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { scriptAssetsService, type AssetWrite, type PlateRedraw, type UploadTarget } from "@/services/script-assets.service";
-import type { AssetOp } from "@/lib/scripts/assets";
+import { applyAssetOp, type AssetOp } from "@/lib/scripts/assets";
+import type { ScriptDoc } from "@/lib/scripts/schema";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
 import { scriptKeys } from "./scripts";
 import { visualiseKeys, type BoardData } from "./visualise";
@@ -25,11 +26,49 @@ function landDoc(queryClient: QueryClient, clientId: string, scriptId: string, {
   if (stage === "generate") void queryClient.invalidateQueries({ queryKey: generate });
 }
 
+const opKey = (clientId: string, scriptId: string) => ["script-assets", clientId, scriptId, "op"] as const;
+
+/** Applies an op to whichever cached copy holds this script's doc, through the same pure
+ *  `applyAssetOp` the server runs. An op it rejects leaves that copy alone. */
+function applyLocally(queryClient: QueryClient, clientId: string, scriptId: string, op: AssetOp) {
+  const step = <T extends { script: { doc: ScriptDoc } }>(prev: T | undefined): T | undefined => {
+    if (!prev) return prev;
+    const res = applyAssetOp(prev.script.doc, op);
+    return res.ok ? { ...prev, script: { ...prev.script, doc: res.doc } } : prev;
+  };
+  queryClient.setQueryData<GenerateState>(scriptKeys.generate(clientId, scriptId), step);
+  queryClient.setQueryData<BoardData>(visualiseKeys.board(clientId, scriptId), step);
+}
+
 export function useScriptAssetOp(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
+  const generate = scriptKeys.generate(clientId, scriptId);
+  const board = visualiseKeys.board(clientId, scriptId);
   return useMutation({
+    mutationKey: opKey(clientId, scriptId),
     mutationFn: (op: AssetOp) => scriptAssetsService.applyOp(clientId, scriptId, op),
-    onSuccess: (write) => landDoc(queryClient, clientId, scriptId, write),
+    // Show the pick at once: a picker that waits on the round trip keeps showing (and ticking) the
+    // old value until the server answers. A read in flight would land the old doc over it, so stop it.
+    onMutate: async (op) => {
+      await Promise.all([queryClient.cancelQueries({ queryKey: generate }), queryClient.cancelQueries({ queryKey: board })]);
+      const before = { generate: queryClient.getQueryData<GenerateState>(generate), board: queryClient.getQueryData<BoardData>(board) };
+      applyLocally(queryClient, clientId, scriptId, op);
+      return before;
+    },
+    onError: (_e, _op, before) => {
+      if (before) {
+        queryClient.setQueryData(generate, before.generate);
+        queryClient.setQueryData(board, before.board);
+      }
+      void queryClient.invalidateQueries({ queryKey: generate });
+      void queryClient.invalidateQueries({ queryKey: board });
+    },
+    // While a later op is still on its way, this answer predates it: landing it would flash the
+    // later pick back to this one. The last op to finish lands the server's doc.
+    onSuccess: (write) => {
+      if (queryClient.isMutating({ mutationKey: opKey(clientId, scriptId) }) > 1) return;
+      landDoc(queryClient, clientId, scriptId, write);
+    },
   });
 }
 
