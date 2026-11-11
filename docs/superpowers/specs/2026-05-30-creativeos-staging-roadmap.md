@@ -8670,3 +8670,33 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Tabs (D492): they made the edits look as important as Generate.
 
 **Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D492 — The @ menu opens where there is room and scrolls inside itself *(recorded 2026-11-11)*
+
+**Decision.** The mention editor's @ menu opens below the caret when there is more room below (or a full menu fits), otherwise above, and its height is capped to that room (at most 320px) so a long list scrolls inside the menu. It never leaves the screen sideways, and arrow keys keep the highlighted item in view. When the caret has no measurable box (start of a line, right after a chip), the menu anchors to the editor instead of not opening.
+
+**Why.** User, 11 Nov 2026: with many references the menu always opened upward with no height limit, ran off the top of the screen, and the first items could only be reached by zooming the browser out; sometimes @ opened nothing at all (the empty caret box).
+
+**Rejected.** Moving the menu onto a Popover primitive (a larger change for a positioning bug; the portal and keyboard handling already work).
+
+**Originated →** this session.
+
+### D493 — A script's Product and Location show their picture in every input preview *(recorded 2026-11-11; refines D450)*
+
+**Decision.** One helper, `canvasPicture` (`src/lib/nodes/canvas-picture.ts`), gives the picture a canvas node shows (upload, generated image, product packshot, location plate), and every node that lists its inputs uses it instead of its own copy. The shared `ConnectedDetailView` shows any input that carries an image, whatever its node type. The Prompt, Motion Prompt and Multishot Prompt views fall back to the canvas picture when the server's preview has no row for the input (`selectedInputPreview`).
+
+**Why.** User, 11 Nov 2026: a background or product from the script read "no preview" in node previews. Four node files each had their own picture lookup covering only files, sketches and generated images, and the detail view only treated a fixed list of types as pictures, so a product with its URL in hand still read "No content yet".
+
+**Rejected.** Adding `product` / `location` to each copy (the next new type would miss them again).
+
+**Originated →** this session.
+
+### D494 — Omni 1.2 takes 24 references alone and 9 images in all with frames, as measured *(recorded 2026-11-11; amends D484, follows D428)*
+
+**Decision.** `GEMINI_OMNI_12_IMAGE_INPUTS` becomes `maxReferenceImages: 24`, `maxImagesWithFrames: 9` (was Google's documented 6, and 1.1's measured 7 with frames). Video edits read the same cap, as before (D483).
+
+**Why.** User, 11 Nov 2026: 1.1 turned out to take more than its documented limit; check 1.2. Probed live against `gemini-omni-1.2-flash` the D428 way (numbered, coloured cards, 360p / 4s, `reference_to_video`, frames read back). References alone: 6, 8, 12, 16 and 24 rendered every card's number and colour; 32 kept the numbers but two cards' colours drifted. With frames: start + 8, start + end + 6 and start + end + 7 held both frames and every card; start + end + 8 misnumbered a card; start + 10 and start + 12 dropped the start frame (it became a card on the table); start + end + 12 turned both frames into cards. One run per case, so the cutoffs are a guide.
+
+**Rejected.** Keeping Google's 6 (well under what renders correctly). 32 (the API accepts it, but colours drift). A separate, lower cap for edits (edits were not probed; they keep reading the generation cap so the two can't drift, and edit references are ticked by hand).
+
+**Originated →** this session; probe script and frames kept outside the repo.

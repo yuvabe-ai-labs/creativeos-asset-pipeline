@@ -70,8 +70,10 @@ describe("Gemini Omni versions (D484)", () => {
     expect(ids.indexOf(OMNI_12)).toBeLessThan(ids.indexOf(OMNI_11));
   });
 
-  it("caps 1.2 at Google's documented 6 references", () => {
-    expect(videoGenClientModelMap[OMNI_12].imageInputs.maxReferenceImages).toBe(6);
+  // D494 — measured live: 24 references alone, 9 images in all with frames.
+  it("caps 1.2 at its measured 24 references, 9 images with frames", () => {
+    expect(videoGenClientModelMap[OMNI_12].imageInputs.maxReferenceImages).toBe(24);
+    expect(videoGenClientModelMap[OMNI_12].imageInputs.maxImagesWithFrames).toBe(9);
   });
 
   // Google: first + last frame interpolation is 3–10s on 1.2; a longer request is a 400.
