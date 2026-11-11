@@ -1,5 +1,4 @@
 import { apiOk, withClient, withQuietErrors } from "@/lib/api/route-helpers";
-import { resolveCallerContextOrNull } from "@/lib/dal";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { getImageAnalysisStatus, startImageAnalysis } from "@/lib/image-analysis/start";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
@@ -25,10 +24,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/clients/:id/image-analysis — read any images without a card and rewrite the section,
 // even if no image changed (the tab's Analyse / Refresh). Returns at once; the run is in the background.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "brand_knowledge.generate" }, async (clientId) =>
+  return withClient(req, params, { need: "brand_knowledge.generate" }, async (clientId, _client, caller) =>
     withQuietErrors("Couldn't start the image analysis. Try again.", async () => {
-      const caller = await resolveCallerContextOrNull();
-      await startImageAnalysis(clientId, caller?.userId ?? null, { force: true });
+      await startImageAnalysis(clientId, caller.userId, { force: true });
       return apiOk(await statusWithSection(clientId));
     }),
   );

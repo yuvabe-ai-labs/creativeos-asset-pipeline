@@ -3,10 +3,9 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { ensureSystemBoards } from "@/lib/db/moodboards";
 import { ingestReference } from "@/lib/market/ingest";
 import { MARKET_BUCKETS, type MarketBucket } from "@/lib/market/constants";
-import { resolveCallerContext } from "@/lib/dal";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "market.edit" }, async (clientId) => {
+  return withClient(req, params, { need: "market.edit" }, async (clientId, _client, caller) => {
     let body: { url?: string; bucket?: string; note?: string };
     try {
       body = await req.json();
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return withTryCatch("Could not add the reference.", async () => {
       const boards = await ensureSystemBoards(clientId);
       const board = body.bucket === "direct" ? boards.direct : boards.adjacent;
-      const { userId } = await resolveCallerContext();
+      const { userId } = caller;
       const item = await ingestReference({
         boardId: board.id,
         clientId,

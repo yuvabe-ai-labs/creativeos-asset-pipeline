@@ -1,6 +1,5 @@
 import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getCanvasNode, insertNodesWithFirstVersions, NodeIdConflictError } from "@/lib/db/canvas-graph";
 import { getScript } from "@/lib/db/scripts";
 import { listPanelRecipes, listPlateRecipes } from "@/lib/db/script-panels";
@@ -33,13 +32,13 @@ type Entry = Parameters<typeof insertNodesWithFirstVersions>[1][number];
 // read here, from the script's own takes and generations. The browser then adds and wires them.
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withCanvas(req, params, { need: "canvases.edit" }, async (canvasId, canvas) =>
+  return withCanvas(req, params, { need: "canvases.edit" }, async (canvasId, canvas, caller) =>
     withTryCatch("Couldn't add the script's pictures.", async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Say which pictures to add.", 400);
       const { scriptNodeId, panels: panelRequests, plates: plateRequests } = parsed.data;
 
-      const [caller, scriptNode] = await Promise.all([resolveCallerContext(), getCanvasNode(canvasId, scriptNodeId)]);
+      const scriptNode = await getCanvasNode(canvasId, scriptNodeId);
       const data = scriptNode?.data as { storyboard?: ScriptStoryboard; assets?: ScriptCanvasAssets } | undefined;
       if (scriptNode?.type !== "script") return apiError(NOTHING_TO_ADD, 400);
       const storyboard = data?.storyboard;

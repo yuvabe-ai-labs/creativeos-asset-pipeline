@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import {
   changeGenerateScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState,
 } from "@/lib/db/script-generate";
@@ -22,7 +21,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // Bad input is refused up front as an ordinary JSON error, before anything streams.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, { need: "scripts.generate" }, async (clientId, client) =>
+  return withClient(req, params, { need: "scripts.generate" }, async (clientId, client, caller) =>
     withTryCatch("The copilot could not answer.", async () => {
       const body = (await req.json().catch(() => null)) as { text?: unknown; leadAvatarId?: unknown } | null;
       const text = typeof body?.text === "string" ? body.text.trim() : "";
@@ -35,7 +34,7 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!script) return apiError("Script not found.", 404);
       if (script.stage !== "generate") return apiError("This script is final. Reopen it from Visualise to change it.", 409);
 
-      const { userId } = await resolveCallerContext();
+      const { userId } = caller;
       const history = await listScriptMessages(clientId, scriptId);
       await insertScriptMessages(clientId, scriptId, userId, [{ role: "user", content: text, card: null }]);
 

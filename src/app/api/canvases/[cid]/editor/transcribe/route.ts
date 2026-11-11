@@ -2,7 +2,6 @@ import { tasks } from "@trigger.dev/sdk";
 import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
-import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { CreditLimitError, refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { failGeneration, insertGeneration } from "@/lib/db/generations";
 import { listTranscribedUrls } from "@/lib/db/media-transcripts";
@@ -23,14 +22,14 @@ const BodySchema = z.object({ nodeId: z.uuid(), pieceIds: z.array(z.string().min
 
 export async function POST(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.generate" }, async (canvasId, canvas) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.generate" }, async (canvasId, canvas, caller, orgId) =>
     withTryCatch(START_FAILED, async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Say which clips to caption.", 400);
       const { nodeId, pieceIds } = parsed.data;
       if (!process.env.ELEVEN_LABS_API_KEY) return apiError("Captions aren't set up yet.", 400);
 
-      const [state, orgId, caller] = await Promise.all([loadEditorState(canvasId), resolveOrgId(), resolveCallerContext()]);
+      const state = await loadEditorState(canvasId);
       if (!state || state.editorNodeId !== nodeId) return apiError("Editor not found.", 404);
 
       const { files, noSound } = planTranscription(state.doc, state.sources, pieceIds);

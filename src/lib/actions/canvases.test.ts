@@ -50,7 +50,8 @@ function wireGuard(targetOrg?: string) {
   resolveActingCallerMock.mockImplementation(async () => ({
     caller: { userId: "u1", orgId: "own-org", access: testOwnerAccess() },
     effectiveOrgId: await resolveOrgIdMock(),
-    impersonation: { isImpersonating: false },
+    // As the real resolveActingCaller does: the impersonation state rides with the caller.
+    impersonation: (await resolveImpersonationStateMock()) ?? { isImpersonating: false },
   }));
   resolveTargetMock.mockImplementation(async () => ({ clientId: "client-1", orgId: targetOrg ?? (await resolveOrgIdMock()) }));
 }

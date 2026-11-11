@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { unwrapEmbed as one, type Embed } from "@/lib/db/embed";
 
 export type ActionTarget =
   | { clientId: string }
@@ -12,9 +13,6 @@ export type ActionTarget =
 
 /** nodeType: for node and version targets. nodeId: for version targets (the version's node). */
 export type ResolvedTarget = { clientId: string | null; orgId: string; nodeType?: string; nodeId?: string };
-
-type Embed<T> = T | T[] | null;
-const one = <T,>(v: Embed<T>): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
 
 // One query per target, resolving to the client and agency it belongs to. null = no such row.
 export async function resolveTarget(target: Exclude<ActionTarget, "agency">): Promise<ResolvedTarget | null> {

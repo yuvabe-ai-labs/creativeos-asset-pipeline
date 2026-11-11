@@ -69,5 +69,25 @@ describe("checkActionAccess", () => {
     actingMock.mockResolvedValue(acting([]));
     const ctx = await checkActionAccess({ custom: "checks area approve itself" });
     expect(ctx.caller.userId).toBe("u1");
+    expect(targetMock).not.toHaveBeenCalled();
+  });
+
+  // One round trip, not two: the target row does not depend on who is asking.
+  it("reads the caller and the target at the same time", async () => {
+    let release!: (v: unknown) => void;
+    actingMock.mockImplementation(() => new Promise((r) => { release = r; }));
+    targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
+    const pending = checkActionAccess({ need: "canvases.edit", on: { canvasId: "cv-1" } });
+    await Promise.resolve();
+    expect(targetMock).toHaveBeenCalledWith({ canvasId: "cv-1" });
+    release(acting(["canvases.edit"]));
+    await expect(pending).resolves.toMatchObject({ target: { clientId: "c-1" } });
+  });
+
+  it("hands back the impersonation state it resolved", async () => {
+    const impersonation = { isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: true };
+    actingMock.mockResolvedValue({ ...acting(["clients.edit"]), impersonation });
+    const ctx = await checkActionAccess({ need: "clients.edit", on: "agency" });
+    expect(ctx.impersonation).toBe(impersonation);
   });
 });

@@ -1,7 +1,6 @@
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { listScripts } from "@/lib/db/scripts";
 import { isScriptStage } from "@/lib/scripts/constants";
-import { resolveCallerContext } from "@/lib/dal";
 import { createGenerateScript } from "@/lib/db/script-generate";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { SCRIPT_FORMATS } from "@/lib/scripts/copilot/formats";
@@ -23,9 +22,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/clients/:id/scripts — New script (spec 2 §3): an empty script at Generate, with the
 // copilot's opening already in its conversation. The copilot is the only way a script is made.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "scripts.edit" }, async (clientId, client) =>
+  return withClient(req, params, { need: "scripts.edit" }, async (clientId, client, caller) =>
     withTryCatch("Could not start a new script.", async () => {
-      const { userId } = await resolveCallerContext();
+      const { userId } = caller;
       const ctx = await loadCopilotContext(client);
       const opening = openingMessage({ clientName: client.name, formats: SCRIPT_FORMATS.map((f) => f.name), hasKb: ctx.hasKb });
       const script = await createGenerateScript({ clientId, userId, brief: EMPTY_BRIEF, notes: EMPTY_NOTES, opening });

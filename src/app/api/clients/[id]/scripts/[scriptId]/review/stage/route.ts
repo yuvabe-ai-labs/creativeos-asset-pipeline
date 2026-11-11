@@ -1,6 +1,5 @@
 // src/app/api/clients/[id]/scripts/[scriptId]/review/stage/route.ts
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getScript } from "@/lib/db/scripts";
 import { moveScriptStage } from "@/lib/db/script-reviews";
 import { SCRIPT_STAGE_LABEL } from "@/lib/scripts/constants";
@@ -17,7 +16,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // 2026; D386), so the client's link always shows what was just sent, never an older version.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, { need: "client_review.edit" }, async (clientId) =>
+  return withClient(req, params, { need: "client_review.edit" }, async (clientId, _client, caller) =>
     withTryCatch("Could not move the script.", async () => {
       const parsed = parseStageMove(await req.json().catch(() => null));
       if (!parsed.ok) return apiError(parsed.error, 400);
@@ -30,7 +29,6 @@ export async function POST(req: Request, { params }: Ctx) {
           409,
         );
       }
-      const caller = await resolveCallerContext();
       const actorName = await teamActorName(caller);
       const moved = await moveScriptStage({ scriptId: script.id, clientId, from: rule.from, to: rule.to, event: rule.event, actorName });
       if (!moved) return apiError("Someone else just moved this script. Reload to see where it is.", 409);

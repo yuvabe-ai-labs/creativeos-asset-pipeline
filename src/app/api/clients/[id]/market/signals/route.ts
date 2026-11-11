@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { createSignal } from "@/lib/db/signals";
-import { resolveCallerContext } from "@/lib/dal";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "market.edit" }, async (clientId) => {
+  return withClient(req, params, { need: "market.edit" }, async (clientId, _client, caller) => {
     let body: { name?: string; tags?: string[]; description?: string; itemIds?: string[] };
     try {
       body = await req.json();
@@ -20,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     const itemIds = body.itemIds;
     return withTryCatch("Could not create the signal.", async () => {
-      const { userId } = await resolveCallerContext();
+      const { userId } = caller;
       const signal = await createSignal(clientId, {
         name,
         tags: Array.isArray(body.tags) ? body.tags : [],

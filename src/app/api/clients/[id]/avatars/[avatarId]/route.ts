@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { archiveAvatar, getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { listScriptsUsingAvatar } from "@/lib/db/script-visualise";
 import { archiveRefusal } from "@/lib/scripts/visualise/cast";
@@ -50,7 +49,7 @@ export async function GET(req: Request, { params }: Ctx) {
 // Images are changed by the images routes, never here.
 export async function PATCH(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, { need: "avatars.edit" }, async (clientId) =>
+  return withClient(req, params, { need: "avatars.edit" }, async (clientId, _client, caller) =>
     withTryCatch("Could not save the avatar.", async () => {
       const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);
@@ -58,7 +57,6 @@ export async function PATCH(req: Request, { params }: Ctx) {
       const current = await getAvatar(clientId, avatarId);
       if (!current || current.archivedAt) return apiError(NOT_FOUND, 404);
 
-      const caller = await resolveCallerContext();
       const plan = planAvatarUpdate(
         current, parsed.data, { userId: caller.userId, now: new Date().toISOString() },
       );

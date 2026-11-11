@@ -45,8 +45,10 @@ vi.mock("@/lib/db/clients", () => ({
 // used in src/app/api/nodes/[id]/file/drive/route.test.ts. nodeOrgIdHolder is mutable so
 // individual tests can point the node at a different org (e.g. the impersonation target)
 // without redeclaring the whole mock.
-const { nodeOrgIdHolder, nodeQueryGate } = vi.hoisted(() => ({
+const { nodeOrgIdHolder, nodeQueryGate, selects } = vi.hoisted(() => ({
   nodeOrgIdHolder: { orgId: "org-1" },
+  // The select string each table was read with (withMoodboard must read client_id).
+  selects: {} as Record<string, string>,
   // When set, the node lookup stays pending until this promise settles — lets a test
   // observe what withNode does WHILE that query is still in flight.
   nodeQueryGate: { wait: null as Promise<void> | null },
@@ -54,6 +56,18 @@ const { nodeOrgIdHolder, nodeQueryGate } = vi.hoisted(() => ({
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: (table: string) => {
+      // withCanvas and withMoodboard: canvas-1 / board-1 sit under client-1 in nodeOrgIdHolder's org.
+      if (table === "canvases" || table === "moodboards") {
+        const row = table === "canvases"
+          ? { id: "canvas-1", client_id: "client-1", name: "Reel", clients: { org_id: nodeOrgIdHolder.orgId } }
+          : { id: "board-1", client_id: "client-1", clients: [{ org_id: nodeOrgIdHolder.orgId }] };
+        return {
+          select: (cols: string) => {
+            selects[table] = cols;
+            return { eq: () => ({ maybeSingle: async () => ({ data: row, error: null }) }) };
+          },
+        };
+      }
       if (table === "nodes") {
         return {
           select: () => ({
@@ -89,7 +103,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { resolveCallerContext } from "@/lib/dal";
 import { testAccess } from "@/lib/permissions/test-fixtures";
-import { withClient, withNode, withAccess } from "./route-helpers";
+import { withCanvas, withClient, withMoodboard, withNode, withAccess } from "./route-helpers";
 
 const params = Promise.resolve({ id: "client-1" });
 function req(method: string) {
@@ -267,7 +281,7 @@ describe("withClient guard (D490)", () => {
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
     const res = await withClient(req("POST"), params, { need: "scripts.edit" }, handler);
     expect(res.status).toBe(200);
-    expect(handler).toHaveBeenCalledWith("client-1", expect.objectContaining({ id: "client-1" }), expect.objectContaining({ userId: "user-1" }));
+    expect(handler).toHaveBeenCalledWith("client-1", expect.objectContaining({ id: "client-1" }), expect.objectContaining({ userId: "user-1" }), "org-1");
   });
 
   it("answers 404 for a client outside the caller's list, exactly like a foreign agency", async () => {
@@ -310,6 +324,84 @@ describe("withNode guard", () => {
     callerHolder.access = testAccess({ keys: ["canvases.view"] });
     const res = await withNode(req("POST"), Promise.resolve({ id: "node-1" }), { need: "video_generation.generate" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
+  });
+});
+
+describe("withCanvas guard", () => {
+  const canvasParams = () => Promise.resolve({ id: "canvas-1" });
+  beforeEach(() => {
+    callerHolder.access = null;
+    nodeOrgIdHolder.orgId = "org-1";
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("hands the handler the canvas, the caller and the agency acted in", async () => {
+    callerHolder.access = testAccess({ keys: ["canvases.view"], clientIds: ["client-1"] });
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "canvases.view" }, handler);
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith("canvas-1", { id: "canvas-1", client_id: "client-1", name: "Reel" }, expect.objectContaining({ userId: "user-1" }), "org-1");
+  });
+
+  it("answers 404 for a canvas whose client is outside the caller's list", async () => {
+    callerHolder.access = testAccess({ keys: ["canvases.view"], clientIds: ["other-client"] });
+    const handler = vi.fn(async () => NextResponse.json({}));
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "canvases.view" }, handler);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Canvas not found." });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for another agency's canvas", async () => {
+    nodeOrgIdHolder.orgId = "org-2";
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "canvases.view" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
+  });
+
+  it("answers 403 with the agreed copy when the tick is missing", async () => {
+    callerHolder.access = testAccess({ keys: ["canvases.view"] });
+    const res = await withCanvas(req("POST"), canvasParams(), { need: "canvases.edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
+  });
+
+  it("passes the impersonated agency as the one acted in", async () => {
+    nodeOrgIdHolder.orgId = "target-org";
+    resolveImpersonationStateMock.mockResolvedValueOnce({ isImpersonating: true, operatorId: "op", targetOrgId: "target-org", elevated: false });
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    await withCanvas(req("GET"), canvasParams(), { need: "canvases.view" }, handler);
+    expect(handler).toHaveBeenCalledWith("canvas-1", expect.anything(), expect.anything(), "target-org");
+  });
+});
+
+describe("withMoodboard guard", () => {
+  beforeEach(() => {
+    callerHolder.access = null;
+    nodeOrgIdHolder.orgId = "org-1";
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("reads the board's client and hands the handler the caller and the agency acted in", async () => {
+    callerHolder.access = testAccess({ keys: ["moodboards.view"], clientIds: ["client-1"] });
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    const res = await withMoodboard(req("GET"), "board-1", { need: "moodboards.view" }, handler);
+    expect(res.status).toBe(200);
+    expect(selects.moodboards).toContain("client_id");
+    expect(handler).toHaveBeenCalledWith("board-1", expect.objectContaining({ userId: "user-1" }), "org-1");
+  });
+
+  it("answers 404 for a board whose client is outside the caller's list", async () => {
+    callerHolder.access = testAccess({ keys: ["moodboards.view"], clientIds: ["other-client"] });
+    const res = await withMoodboard(req("GET"), "board-1", { need: "moodboards.view" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Moodboard not found." });
+  });
+
+  it("answers 403 with the agreed copy when the tick is missing", async () => {
+    callerHolder.access = testAccess({ keys: ["moodboards.view"] });
+    const res = await withMoodboard(req("POST"), "board-1", { need: "moodboards.edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
   });
 });
 

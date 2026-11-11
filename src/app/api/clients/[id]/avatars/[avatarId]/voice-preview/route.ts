@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar } from "@/lib/db/avatars";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
@@ -45,7 +44,7 @@ export async function GET(req: Request, { params }: Ctx) {
 // signs its uploads and queues the task; the generation webhook settles or refunds.
 export async function POST(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, { need: "avatars.generate" }, async (clientId, client) =>
+  return withClient(req, params, { need: "avatars.generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not start the voice preview.", async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) {
@@ -78,7 +77,6 @@ export async function POST(req: Request, { params }: Ctx) {
         voice = found;
       }
 
-      const caller = await resolveCallerContext();
       const line = parsed.data.line;
       const prompt = buildVoicePreviewPrompt(line, mode);
       const paramsSnapshot = voicePreviewParams(engine);

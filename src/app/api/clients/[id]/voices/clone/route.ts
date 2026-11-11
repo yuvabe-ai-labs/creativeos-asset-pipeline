@@ -1,5 +1,4 @@
 import { apiError, apiOk, withClient } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { addClientVoice } from "@/lib/db/client-voices";
 import { cloneVoice } from "@/lib/elevenlabs/voice-catalog";
 import { getVoiceCached, invalidateAccountVoices } from "@/lib/elevenlabs/voices-cache";
@@ -15,7 +14,7 @@ export const maxDuration = 120;
 // which must be "true". The voice is named "<client> · <name>" on the shared ElevenLabs account
 // so it can be traced back, and recorded for the client.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "voices.generate" }, async (clientId, client) => {
+  return withClient(req, params, { need: "voices.generate" }, async (clientId, client, caller) => {
     let form: FormData;
     try {
       form = await req.formData();
@@ -34,7 +33,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (invalid) return apiError(invalid, 400);
 
     try {
-      const caller = await resolveCallerContext();
       const voiceId = await cloneVoice({
         name: `${client.name} · ${name}`,
         ...(description ? { description } : {}),

@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { apiError, apiOk, withMoodboard, withTryCatch } from "@/lib/api/route-helpers";
 import { listItems, getMoodboardClientId } from "@/lib/db/moodboards";
 import { ingestReference } from "@/lib/market/ingest";
-import { resolveCallerContext } from "@/lib/dal";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return withMoodboard(req, id, { need: "moodboards.edit" }, async (moodboardId) => {
+  return withMoodboard(req, id, { need: "moodboards.edit" }, async (moodboardId, caller) => {
     let body: { imageUrl?: string; pageUrl?: string; sourceUrl?: string; note?: string };
     try {
       body = await req.json();
@@ -35,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return withTryCatch("Could not add the reference.", async () => {
       const clientId = await getMoodboardClientId(moodboardId);
       if (!clientId) return apiError("Moodboard not found.", 404);
-      const { userId } = await resolveCallerContext();
+      const { userId } = caller;
       const item = await ingestReference({
         boardId: moodboardId,
         clientId,

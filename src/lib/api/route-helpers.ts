@@ -13,15 +13,7 @@ import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
 import { toCanonicalShareToken } from "@/lib/client-review/token";
 import { getScriptReviewByToken } from "@/lib/db/script-reviews";
 import type { ScriptReviewByToken } from "@/lib/script-review/wire";
-
-// PostgREST may surface an embedded to-one relation as an object or a single-element
-// array, depending on schema-cache heuristics (same ambiguity handled in
-// recent-canvas.ts and organizations.ts::listOrgMembers). Shared here since withCanvas
-// and withNode both need it (withNode needs it twice, for two nested levels).
-function unwrapEmbed<T>(value: T | T[] | null | undefined): T | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
+import { unwrapEmbed } from "@/lib/db/embed";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyResponse = NextResponse<any>;
@@ -80,11 +72,15 @@ export function apiOk<T extends Record<string, unknown>>(
 
 // ── Client resolution ─────────────────────────────────────────────────────────
 
+// Every chokepoint below resolves the caller ONCE (resolveActingCaller) and hands the handler
+// that caller and the agency being acted in. Handlers use them and never resolve the caller
+// again: React's cache() does not dedupe inside route handlers, so a second resolution re-runs
+// the Auth check and the access read, and loses the owner access an impersonator acts with.
 export async function withClient(
   req: Request,
   params: Promise<{ id: string }>,
   guard: Guard,
-  handler: (clientId: string, client: ClientRow, caller: CallerContext) => Promise<AnyResponse>,
+  handler: (clientId: string, client: ClientRow, caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: clientId } = await params;
   // The client lookup and the caller don't depend on each other (same reasoning as withNode).
@@ -98,7 +94,7 @@ export async function withClient(
   const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
-  return handler(clientId, client, acting.caller);
+  return handler(clientId, client, acting.caller, acting.effectiveOrgId);
 }
 
 // ── Canvas resolution ──────────────────────────────────────────────────────────
@@ -107,16 +103,14 @@ type CanvasWithOrg = CanvasRow & {
   clients: { org_id: string } | { org_id: string }[] | null;
 };
 
-// Same org-isolation shape as withClient(), for the handful of routes rooted at a
-// canvas id instead of a client id (/api/canvas/[id]/*, /api/canvases/[cid]/*) —
-// these never went through withClient() at all, since it only guards
-// /api/clients/[id]/*, so they had no org check whatsoever. Canvas -> client -> org,
-// resolved in one query via an embedded join, not two sequential lookups.
+// Same shape as withClient() for routes rooted at a canvas id (/api/canvas/[id]/*,
+// /api/canvases/[cid]/*): agency, client scope and the permission, 404 before 403.
+// Canvas -> client -> org in one query via an embedded join, beside the caller.
 export async function withCanvas(
   req: Request,
   params: Promise<{ id: string }>,
   guard: Guard,
-  handler: (canvasId: string, canvas: CanvasRow, caller: CallerContext) => Promise<AnyResponse>,
+  handler: (canvasId: string, canvas: CanvasRow, caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: canvasId } = await params;
   const supabase = createServerSupabase();
@@ -138,7 +132,7 @@ export async function withCanvas(
   if (blocked) return blocked;
 
   const { clients: _clients, ...canvas } = row;
-  return handler(canvasId, canvas as CanvasRow, acting.caller);
+  return handler(canvasId, canvas as CanvasRow, acting.caller, acting.effectiveOrgId);
 }
 
 // ── Node resolution ───────────────────────────────────────────────────────────
@@ -169,10 +163,11 @@ export async function withNode(
     clientId: string,
     effectiveOrgId: string,
   ) => Promise<AnyResponse>,
-  // Route-local override for the "row doesn't exist" case. Callers whose result is
+  // Route-local override for the "row doesn't exist" case only. Callers whose result is
   // meaningless for a missing node (e.g. /cost — no row means no generations, same
-  // as zero) can hand back a soft default instead of the generic 404; the org-mismatch
-  // branch below always stays a hard 404 (that's an access check, not a lookup miss).
+  // as zero) can hand back a soft default instead of the generic 404. Every denial stays
+  // hard: another agency's node and a client outside the person's list are a 404, a
+  // missing permission a 403, and the write gate still runs (access checks, not lookup misses).
   options?: { onNotFound?: () => AnyResponse },
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
@@ -223,12 +218,13 @@ type MoodboardWithOrg = {
 // rooted at a moodboard id (/api/moodboards/[id]/*). Those shipped deliberately open
 // under D14 ("auth deferred, like the rest of the app") and were never revisited when
 // auth landed — so a board id from ANY org resolved and served, or deleted, its items.
-// Moodboard -> client -> org in one query, 404 (never 403) on mismatch.
+// Moodboard -> client -> org in one query: another agency or a client outside the person's
+// list is a 404, a missing permission a 403.
 export async function withMoodboard(
   req: Request,
   moodboardId: string,
   guard: Guard,
-  handler: (moodboardId: string, caller: CallerContext) => Promise<AnyResponse>,
+  handler: (moodboardId: string, caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const supabase = createServerSupabase();
   const [{ data, error }, acting] = await Promise.all([
@@ -252,7 +248,7 @@ export async function withMoodboard(
   const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
-  return handler(moodboardId, acting.caller);
+  return handler(moodboardId, acting.caller, acting.effectiveOrgId);
 }
 
 // For routes not rooted at one client or resource: the voice library, the moodboard index, the

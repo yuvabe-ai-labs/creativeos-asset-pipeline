@@ -106,10 +106,8 @@ describe("caller context membership read", () => {
 });
 
 // Strips `//` line comments before the caller.orgId check below, so a file's own
-// explanatory prose (e.g. eval/[canvasId]/page.tsx's "Uses resolveOrgId() (not
-// caller.orgId) for consistency..." comment) can't produce a false positive — the
-// check cares about actual usage, not the string appearing in a comment about why it
-// was deliberately avoided.
+// explanatory prose can't produce a false positive — the check cares about actual usage,
+// not the string appearing in a comment about why it was deliberately avoided.
 function stripLineComments(source: string): string {
   // [^\r\n]* (not `.*` anchored on `$`) so this also works on CRLF line endings —
   // `.` excludes line terminators, so a trailing \r before \n stops `.*$` from ever
@@ -130,7 +128,7 @@ describe("every org-scoped page resolves its org via resolveOrgId(), not caller.
   for (const relPath of pageFiles) {
     it(`${relPath} calls resolveOrgId(), not caller.orgId, for org scoping`, () => {
       const source = readFileSync(join(process.cwd(), relPath), "utf8");
-      expect(/\bresolveOrgId\(|\bloadClientPage\(|\bresolveActingCaller\(/.test(stripLineComments(source))).toBe(true);
+      expect(/\bresolveOrgId\(|\bloadClientPage\(|\bloadCanvasPage\(|\bresolveActingCaller\(/.test(stripLineComments(source))).toBe(true);
       // A page using caller.orgId for org-scoping (not some other field) is exactly
       // the C1 regression — this substring check is deliberately blunt, matching the
       // action-coverage test's own philosophy: cheap, source-level, and it fails loudly

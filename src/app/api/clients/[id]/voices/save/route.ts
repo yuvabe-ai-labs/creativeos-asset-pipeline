@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { addClientVoice } from "@/lib/db/client-voices";
 import { saveLibraryVoice } from "@/lib/elevenlabs/voice-catalog";
 import {
@@ -20,13 +19,12 @@ const BodySchema = z.object({
 // it to the ElevenLabs account (or reuse the copy already there, as /api/elevenlabs/voices/save
 // does), then record it for the client so it appears under "This client".
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "voices.edit" }, async (clientId) => {
+  return withClient(req, params, { need: "voices.edit" }, async (clientId, _client, caller) => {
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid request body.", 400);
     const body = parsed.data;
 
     try {
-      const caller = await resolveCallerContext();
       // `v.voiceId === body.voiceId`: a saved copy can keep the Library voice_id itself
       // (observed live, see the account-wide save route), so originalVoiceId alone is not enough.
       let voice =

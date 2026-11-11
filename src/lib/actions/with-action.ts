@@ -1,5 +1,4 @@
 import "server-only";
-import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 import { checkActionAccess, type ActionContext, type ActionGuard } from "@/lib/permissions/action-guard";
@@ -11,18 +10,19 @@ import { checkActionAccess, type ActionContext, type ActionGuard } from "@/lib/p
 // Unlike the route-helper gate, this THROWS rather than returning an error value,
 // matching this codebase's existing convention of server actions throwing plain
 // Errors for invalid states (see renameCanvasAction, deleteKBDocumentAction, etc).
+// The guard resolves the impersonation state with the caller, so it is read once.
 export async function withAction<T>(
   actionName: string,
   guard: ActionGuard,
   handler: (ctx: ActionContext) => Promise<T>,
 ): Promise<T> {
-  const impersonation = await resolveImpersonationState();
+  const ctx = await checkActionAccess(guard);
+  const { impersonation } = ctx;
 
   if (impersonation.isImpersonating && !impersonation.elevated) {
     throw new Error(IMPERSONATION_READ_ONLY_MESSAGE);
   }
 
-  const ctx = await checkActionAccess(guard);
   const result = await handler(ctx);
 
   if (impersonation.isImpersonating && impersonation.elevated) {

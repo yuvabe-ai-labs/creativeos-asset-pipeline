@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { publicUrlFor, removeObject } from "@/lib/storage";
 import { frontChangePatch, withStatus } from "@/lib/avatars/utils";
@@ -27,7 +26,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string; avatarId: string }> },
 ) {
   const { avatarId } = await params;
-  return withClient(req, params, { need: "avatars.edit" }, async (clientId) =>
+  return withClient(req, params, { need: "avatars.edit" }, async (clientId, _client, caller) =>
     withTryCatch("Could not save the image.", async () => {
       const parsed = FinalizeSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);
@@ -46,7 +45,6 @@ export async function POST(
       const current = await getAvatar(clientId, avatarId);
       if (!current || current.archivedAt) return apiError("Avatar not found.", 404);
 
-      const caller = await resolveCallerContext();
       const image: AvatarImage = {
         url: publicUrlFor(path),
         width: imageWidth ?? null,
