@@ -8613,3 +8613,12 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Unverified, accepted (Q8).** That fal's O3 reference endpoint takes a start frame and `image_urls` together; that embedded (data URI) images from the shape fitter are accepted; whether frames count toward fal's 7-image budget (the 5-reference cap stays); fal's per-shot text limit, since confirmed at 512 by fal's own 422. The first staging generations are the check; `KLING_TRANSPORT=native` is the fallback.
 
 **Originated →** this session; plan in the "Kling fal Migration Plan" artifact.
+### D489 — Trigger.dev workers deploy from GitHub Actions on every staging and main push *(recorded 2026-11-11)*
+
+**Decision.** A reusable workflow, `.github/workflows/trigger-deploy.yml`, runs `npm run deploy:trigger -- --project-ref <ref> --env prod`. `deploy-staging.yml` calls it on every push to `staging` (docs-only pushes skipped; a newer push cancels the one in flight). `deploy-prod.yml` calls it on every push to `main` as a `trigger` job, and the Cloud Run `deploy` job `needs:` it. Each target is a GitHub Environment (`staging`, `production`) holding its own secret `TRIGGER_ACCESS_TOKEN` (a Personal Access Token of the account that owns that project) and variable `TRIGGER_PROJECT_REF`. Staging is `proj_oowdgamapcwpnltwkxde` (account creativeos@), production `proj_mlnaizhphqpdqwzctaag` (account developer@). `--project-ref` overrides the project in `trigger.config.ts`, so CI never depends on what that file hardcodes. Task env vars stay in each Trigger dashboard, set by hand before a merge that needs them.
+
+**Why.** User, 11 Nov 2026: Trigger was deployed by hand after each push, so the workers could fall behind the app. The two projects sit in different Trigger accounts (free tier), so one token can't deploy both. Workers deploy before the app so a task id the new app calls already exists, and a failed worker deploy stops the app deploy.
+
+**Rejected.** Keeping the manual step (it drifts). Deploying workers and app in parallel (a race on new task ids). One shared access token (the projects are in different accounts). Relying on the project in `trigger.config.ts` (hardcoded to staging since a962a9b1).
+
+**Originated →** this session; plan `currently-we-are-manually-abundant-sunset.md`.

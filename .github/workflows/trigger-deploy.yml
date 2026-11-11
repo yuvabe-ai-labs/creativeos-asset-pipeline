@@ -1,0 +1,54 @@
+# Deploys the Trigger.dev workers (everything under trigger/) to one environment's project.
+# Called by deploy-staging.yml and deploy-prod.yml; never runs on its own (D489).
+#
+# Staging and production are separate Trigger projects in separate Trigger accounts, so each
+# GitHub Environment holds its own:
+#   secret   TRIGGER_ACCESS_TOKEN  Personal Access Token (tr_pat_…) of the account that owns it
+#   variable TRIGGER_PROJECT_REF   the project ref (proj_…)
+# --project-ref overrides whatever project trigger.config.ts names, so CI always deploys to
+# the project of the environment it runs in.
+name: Deploy Trigger.dev
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub Environment to deploy (staging | production)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 30
+    env:
+      TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+      TRIGGER_PROJECT_REF: ${{ vars.TRIGGER_PROJECT_REF }}
+      # trigger.config.ts reads this when it isn't hardcoded; keep it in step with the flag.
+      TRIGGER_PROJECT_ID: ${{ vars.TRIGGER_PROJECT_REF }}
+    steps:
+      # Fail loudly rather than deploy with no credentials or to the config file's project.
+      - name: Check Trigger settings
+        run: |
+          test -n "$TRIGGER_ACCESS_TOKEN" || { echo "::error::Secret TRIGGER_ACCESS_TOKEN is not set on the '${{ inputs.environment }}' environment"; exit 1; }
+          test -n "$TRIGGER_PROJECT_REF" || { echo "::error::Variable TRIGGER_PROJECT_REF is not set on the '${{ inputs.environment }}' environment"; exit 1; }
+          echo "Deploying to Trigger project $TRIGGER_PROJECT_REF (${{ inputs.environment }})"
+
+      - uses: actions/checkout@v4
+
+      # trigger.config.ts uses process.loadEnvFile (Node 20.6+).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Same command as a manual `npm run deploy:trigger`. Each project is single-environment
+      # (free tier), so the target is that project's prod environment.
+      - name: Deploy workers
+        run: npm run deploy:trigger -- --project-ref "$TRIGGER_PROJECT_REF" --env prod --skip-update-check
