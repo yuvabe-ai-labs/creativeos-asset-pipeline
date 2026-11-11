@@ -127,8 +127,9 @@ import { ActiveOnlyNotice } from "./active-only-notice";
 import { VideoGenUsagePopover } from "./video-gen-usage-popover";
 import { VideoGenRequestPanel } from "./video-gen-request-panel";
 import { versionLabelsById } from "@/lib/generations/version-labels";
-import { VideoGenEditTools } from "./video-gen-edit-tools";
-import { VideoGenModeHeader } from "./video-gen-mode-header";
+import { VideoGenEditMenu, type VideoGenMode } from "./video-gen-edit-menu";
+import { VideoGenEditPanelHeader } from "./video-gen-edit-panel-header";
+import { useElementWidth } from "@/hooks/use-element-width";
 import { VideoGenEditVideo } from "./video-gen-edit-video";
 import type { VideoEditNodeState } from "@/lib/video-edit/record";
 import { VideoGenChangeVoice, type VoiceChangeNodeState } from "./video-gen-change-voice";
@@ -653,13 +654,19 @@ export function VideoGenFocusView({
   const { isGenerating, isChangingVoice, isEditingVideo, lastError, setGenerating, setLastError } =
     useGenerationStatus(nodeId);
 
-  // D487 — opening one edit tool closes the other and anything that can't combine with it (the
-  // annotate mode, a captured frame); the panel lives in the centre column's video pane.
-  const openEditTool = (tool: "edit" | "voice", next: boolean) => {
-    setEditVideoOpen(tool === "edit" && next);
-    setChangeVoiceOpen(tool === "voice" && next);
-    if (!next) return;
+  // D493 — the centre column's mode, picked from the Edit menu on the take (Generate is the
+  // default; an edit panel's back arrow returns to it). Opening an edit closes anything that can't
+  // combine with it (the annotate mode, a captured frame); every panel lives in the centre
+  // column's video pane.
+  // D493 — the active take's frame width: the VIDEO header takes it, so the Edit menu sits on the
+  // take's right edge at any column width instead of floating past a narrow 9:16 video.
+  const [measurePlayerBox, playerBoxWidth] = useElementWidth<HTMLDivElement>();
+  const centreMode: VideoGenMode = editVideoOpen ? "edit" : changeVoiceOpen ? "voice" : "generate";
+  const setCentreMode = (next: VideoGenMode) => {
+    setEditVideoOpen(next === "edit");
+    setChangeVoiceOpen(next === "voice");
     setSelected("video");
+    if (next === "generate") return;
     setReviewAnnotating(false);
     setCapturedFrame(null);
     setOpenTimecode(null);
@@ -1830,12 +1837,11 @@ export function VideoGenFocusView({
                 min-content width, so one long unbreakable string inside any pane silently
                 overrides w-[54%] and squeezes the video column beside it. */}
             <div className="min-h-0 w-1/2 min-w-0 shrink-0 overflow-y-auto border-x border-primary/25 bg-card panel-raised xl:w-[54%]">
-              {/* D284 — Change voice takes over this column, as Image Gen's Edit does; D487 — under a
-                  slim header whose Close returns to the generate settings. */}
+              {/* D284 — Edit voice takes over this column, as Image Gen's Edit does (D493: from the
+                  Edit menu, with a back arrow to the generate settings). */}
               {selected === "video" && changeVoiceOpen && (
-                <div className="flex min-h-full flex-col">
-                <VideoGenModeHeader icon={AudioLines} title="Edit voice" onClose={() => setChangeVoiceOpen(false)} />
-                <div className="flex flex-1 flex-col px-6 py-5">
+                <div className="flex flex-col gap-6 px-6 py-5">
+                  <VideoGenEditPanelHeader title="Edit voice" onBack={() => setCentreMode("generate")} />
                   <VideoGenChangeVoice
                     nodeId={nodeId}
                     versions={versions}
@@ -1857,15 +1863,12 @@ export function VideoGenFocusView({
                     }}
                   />
                 </div>
-                </div>
               )}
 
-              {/* D483 — Edit video takes over this column, as Change voice does; D487 — under a slim
-                  header, with its button pinned to the bottom like Generate's. */}
+              {/* D483 — Edit video takes over this column, as Edit voice does (D493). */}
               {selected === "video" && editVideoOpen && (
-                <div className="flex min-h-full flex-col">
-                <VideoGenModeHeader icon={Sparkles} title="Edit video" onClose={() => setEditVideoOpen(false)} />
-                <div className="flex flex-1 flex-col px-6 py-5">
+                <div className="flex flex-col gap-6 px-6 py-5">
+                  <VideoGenEditPanelHeader title="Edit video" onBack={() => setCentreMode("generate")} />
                   <VideoGenEditVideo
                     nodeId={nodeId}
                     versions={versions}
@@ -1881,7 +1884,6 @@ export function VideoGenFocusView({
                       setLastError(null);
                     }}
                   />
-                </div>
                 </div>
               )}
 
@@ -2239,32 +2241,37 @@ export function VideoGenFocusView({
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 bg-muted/20 px-6 py-5">
               {/* D433 — a fixed one-line header that never changes height, so the player below never
                   moves. Versions are picked in History (the rail), not stepped here; while an
-                  older take plays, a quiet tag names it in place of the edit tools (which act on the
-                  active take only). */}
-              <div className="flex h-8 min-w-0 shrink-0 items-center gap-3">
+                  older take plays, a quiet tag names it beside the heading. */}
+              <div
+                className="flex h-8 min-w-0 max-w-full shrink-0 items-center gap-3"
+                style={playerBoxWidth && mode === "result" && !viewing.isViewingOther ? { width: playerBoxWidth } : undefined}
+              >
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
                   <span className="text-eyebrow">Video</span>
                 </div>
                 {viewing.isViewingOther && viewed ? (
                   <ViewingTag label={viewedLabel} />
-                ) : !loadingVersions && versions.some((v) => v.output && !v.error) && (
-                  <VideoGenEditTools
-                    edit={{
-                      open: editVideoOpen,
-                      running: isEditingVideo,
-                      // Free during an edit (the mode it runs in), but not while anything else runs.
-                      disabled: !editable || Boolean(lockReason) || (isGenerating && !isEditingVideo) || viewing.isViewingOther,
-                      onOpenChange: (next) => openEditTool("edit", next),
-                    }}
-                    voice={{
-                      open: changeVoiceOpen,
-                      running: isChangingVoice,
-                      // Free during a voice change, but not while anything else runs.
-                      disabled: !editable || Boolean(lockReason) || (isGenerating && !isChangingVoice) || viewing.isViewingOther,
-                      onOpenChange: (next) => openEditTool("voice", next),
-                    }}
-                  />
+                ) : null}
+                {/* D493 — Edit video and Edit voice act on the active take: once there is a finished
+                    one, and not while an older take plays. */}
+                {!loadingVersions && versions.some((v) => v.output && !v.error) && !viewing.isViewingOther && (
+                  <div className="ml-auto">
+                    <VideoGenEditMenu
+                      mode={centreMode}
+                      onModeChange={setCentreMode}
+                      edit={{
+                        running: isEditingVideo,
+                        // Free during an edit (the mode it runs in), but not while anything else runs.
+                        disabled: !editable || Boolean(lockReason) || (isGenerating && !isEditingVideo),
+                      }}
+                      voice={{
+                        running: isChangingVoice,
+                        // Free during a voice change, but not while anything else runs.
+                        disabled: !editable || Boolean(lockReason) || (isGenerating && !isChangingVoice),
+                      }}
+                    />
+                  </div>
                 )}
               </div>
               <div className="min-h-0 flex-1">
@@ -2419,8 +2426,14 @@ export function VideoGenFocusView({
                         ))}
                       </div>
                     )}
-                    <div className="relative min-h-0 w-fit max-w-full flex-1">
+                    <div ref={measurePlayerBox} className="relative min-h-0 w-fit max-w-full flex-1">
                       {playerLoading}
+                      {/* D492 — which take this is, on the take itself. */}
+                      {activeLabel && (
+                        <span className="pointer-events-none absolute left-2 top-2 z-30 rounded-full bg-foreground/70 px-2 py-0.5 text-[0.7rem] font-medium text-background">
+                          {activeLabel}
+                        </span>
+                      )}
                       <video
                         // While annotating, the frame has to be readable back out of a
                         // canvas — and GCS public objects send no CORS headers (see
