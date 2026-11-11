@@ -1,5 +1,6 @@
 "use client";
 
+import { selectedInputPreview } from "@/lib/nodes/canvas-picture";
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -244,7 +245,7 @@ export function PromptFocusView({
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
   const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
-    ? preview.connected.find((c) => c.nodeId === selected) ?? null
+    ? selectedInputPreview(preview.connected, upstream, selected)
     : null;
   // Cross-check highlights for the read view: the curated keywords for each set control,
   // plus camera-spec patterns (focal length, aperture) that always highlight — under an

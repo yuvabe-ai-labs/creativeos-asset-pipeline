@@ -1,5 +1,6 @@
 "use client";
 
+import { selectedInputPreview } from "@/lib/nodes/canvas-picture";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -233,7 +234,7 @@ export function MultishotPromptFocusView({
 
   const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
-    ? preview.connected.find((c) => c.nodeId === selected) ?? null
+    ? selectedInputPreview(preview.connected, upstream, selected)
     : null;
 
   // The attached images in `<IMAGE_REF_N>` order — shared by every chip editor on this node
