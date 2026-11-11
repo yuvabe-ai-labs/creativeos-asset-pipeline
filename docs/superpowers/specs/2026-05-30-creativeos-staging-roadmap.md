@@ -8660,3 +8660,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping the icon or labelled tools with a Close header (D487). Resolution in a closed Advanced section and pinned buttons (D488): the mockup puts both in the card.
 
 **Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D493 — Edit video and Edit voice open from an "Edit" menu on the take, with a back arrow *(recorded 2026-11-11; amends D492)*
+
+**Decision.** The Generate / Edit video / Edit voice tabs under the VIDEO heading become one "Edit" menu at the right of that heading (pencil, "Edit", chevron; opens on hover or click) with two items, Edit video and Edit voice. The VIDEO header takes the active take's rendered width, so the menu sits on the take's right edge at any column width. Each edit panel opens with a back arrow and its title; the arrow returns the centre column to the generate settings, which stay its default. The menu shows once a finished take exists, is hidden while an older take plays, and carries a dot while an edit or voice change runs. The panels' contents are unchanged from D492.
+
+**Why.** User, 11 Nov 2026, from the UX team's "⋯ Edit menu + Back to video" board: a menu keeps the edits as secondary actions on the take, with Generate as the screen's main job.
+
+**Rejected.** Tabs (D492): they made the edits look as important as Generate.
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.

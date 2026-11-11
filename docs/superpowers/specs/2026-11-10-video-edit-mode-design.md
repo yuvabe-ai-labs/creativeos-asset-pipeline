@@ -34,10 +34,12 @@ Out (this version):
 
 ## 3. Layout
 
-Under the VIDEO heading, three line tabs pick what the centre column holds (D492): **Generate**,
-**Edit video**, **Edit voice**. The edit tabs show once a finished take exists, are off while an
-older take plays (they act on the active take), and carry a dot while their job runs. The active
-take shows its version ("v2") on the player.
+An **Edit** menu at the right of the VIDEO heading (D493), on the take's right edge, offers **Edit
+video** and **Edit voice**; it opens on hover or click. Picking one swaps the centre column for
+that panel, which opens with a back arrow and its title; the arrow returns to the generate
+settings, the column's default. The menu shows once a finished take exists, is hidden while an
+older take plays (the edits act on the active take), and carries a dot while an edit or voice
+change runs. The active take shows its version ("v2") on the player.
 
 While an edit runs, Edit video stays selected, the right column keeps the take under an "Editing
 the video…" veil (as Edit voice does), the button reads "Editing…", and reopening the node lands
