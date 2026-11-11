@@ -39,36 +39,46 @@ A permission is `area.level`. The levels are `view`, `edit`, `generate`, `approv
 
 | Group | Area key | Covers | Levels |
 |---|---|---|---|
-| Brand setup | `client_profile` | Name, logo, website, linked Drive folder | view, edit |
+| Brand setup | `client_profile` | Name, logo, website, linked Drive folder | edit |
 | | `brand_knowledge` | KB documents and images, extracted facts, ready-check | view, edit, generate, delete |
 | | `brand_assets` | Brand kit files, social asset imports | view, edit, generate, delete |
 | | `market` | Signals, references, tracked handles, performance numbers | view, edit, generate, delete |
 | | `moodboards` | Boards and their items | view, edit, delete |
-| Story | `scripts` | Script library, writing, script copilot, mark final, reopen, script review share | view, edit, generate, approve, share, delete |
+| Story | `scripts` | Script library, writing, script copilot, mark final, reopen, script review share | view, edit, generate, approve, delete |
 | | `storyboard` | Visualise panels, location plates, panel pick per shot | view, edit, generate |
 | | `avatars` | Cast library, avatar images, turnaround sheet, assigned voice | view, edit, generate, delete |
 | | `voices` | Voice library, saved voices, cloning | view, edit, generate, delete |
-| Production | `canvases` | Create, rename, nodes, prompts, uploads, Drive import, restore versions | view, edit, delete |
-| | `image_generation` | Images, composites, compose, upstream references | view, generate, approve |
-| | `video_generation` | Video, multishot, scene split, video prompts, video edit | view, generate, approve |
-| | `audio` | Dubbing, voice change, lip-sync | view, generate, approve |
-| | `canvas_copilot` | The canvas AI chat that adds and changes nodes | view, generate |
+| Production | `canvases` | Create, rename, nodes, prompts, uploads, Drive import, restore versions; Generate covers AI-written text nodes (prompt, script parse, file extract) | view, edit, generate, delete |
+| | `image_generation` | Images, composites, compose, upstream references | generate, approve |
+| | `video_generation` | Video, multishot, scene split, video prompts, video edit | generate, approve |
+| | `audio` | Dubbing, voice change, lip-sync | generate, approve |
+| | `canvas_copilot` | The canvas AI chat that adds and changes nodes | generate |
 | | `video_editor` | Timeline, transcripts, renders, exports | view, edit, generate, share |
-| Review and delivery | `internal_review` | Review inbox, region notes | view, edit |
-| | `client_review` | Cut upload, review links, client comments, team replies | view, edit, share, delete |
+| Review and delivery | `internal_review` | Review inbox | view |
+| | `client_review` | Cut upload, review links, client comments, team replies | view, edit, share |
 | | `downloads` | View = download approved finals; Share = download anything, drafts included | view, share |
-| Running the agency | `clients` | Create, rename, archive clients | view, edit, delete |
+| Running the agency | `clients` | Create, rename, archive clients | edit, delete |
 | | `team` | Invite and remove people, change their ticks and clients | view, edit, delete |
 | | `credits` | Credit usage and costs | view |
+
+That is 59 keys.
 
 Changes from the proposal table shown to the lead:
 
 - **Approving a version** needs Approve on that node's area (`image_generation.approve` for
   an image node, `scripts.approve` for marking a script final, and so on).
-  `internal_review` therefore has View and Edit (region notes), not Approve, so one action
-  never has two ticks deciding it.
+  `internal_review` therefore has View only, not Approve, so one action never has two ticks
+  deciding it.
 - **`client_profile` has no Delete.** Deleting a client is `clients.delete`.
 - **`credits` is View only.** Buying credits and changing plan do not exist yet.
+- **`canvases.generate` is new.** It covers AI-written text nodes (prompt, script parse,
+  file extract).
+- **Levels dropped where nothing checks them:** `client_profile.view`, `scripts.share`,
+  `canvas_copilot.view`, `image_generation.view`, `video_generation.view`, `audio.view`,
+  `internal_review.edit`, `client_review.delete`, `clients.view`. A tick that checks nothing
+  is not shipped.
+- **Not checked yet in plan 1:** `team.*` (plan 3), `credits.view` (plan 2) and
+  `downloads.*` (plan 2, UI only).
 
 **Rules applied when computing a person's permissions:**
 
@@ -88,7 +98,10 @@ in the database.
 |---|---|
 | **Owner** | Everything, always. Fixed: it can't be edited and can't have per-person changes. |
 | **Senior** | Every level in every area except `team.*`. |
-| **Designer** | Same as Senior, minus every `approve` (including `scripts.approve`). |
+| **Designer** | Same as Senior, minus `image_generation.approve`, `video_generation.approve` and `audio.approve`. |
+
+Designer keeps `scripts.approve`: the mark-final and reopen routes have no role check
+today, so designers can already mark scripts final.
 
 Senior and Designer match what those roles can do today:
 
@@ -116,7 +129,7 @@ new area to it, everyone on that preset gets the change. Their owner's changes s
 
 A membership is either `all_clients = true` (every client of the agency, including future
 ones) or a list in `membership_clients`. When a person with a list creates a client, that
-client is added to their list in the same write.
+client is added to their list. If adding it fails, the new client is removed again.
 
 A client outside the caller's scope behaves exactly like a client in another agency: 404,
 and it is never listed, so its existence is not confirmed.
@@ -195,6 +208,14 @@ create unique index org_invitations_one_open_per_email
 All new tables get RLS enabled with no policies (default-deny, as 0017). They are read and
 written only by the service-role server path.
 
+**As built in 0062:**
+
+- The trigger functions run as `security definer`, so the last-owner guard cannot pass
+  silently because RLS hides rows from it.
+- The open-invite uniqueness is case-insensitive: the index is on `(org_id, lower(email))`.
+- The `clients (id, org_id)` unique constraint is added only if it is missing, so the
+  migration can be run again.
+
 **Notes:**
 
 - The composite foreign key on `membership_clients` means a person can only be given
@@ -227,6 +248,9 @@ For now a person belongs to one agency. The schema and code stay ready for more:
   user into a membership. Today it takes the only row; later it takes the agency chosen in
   an agency switcher (a cookie checked against the user's memberships). No other code
   queries `org_memberships` by user to find "their" org; the plan moves any that do.
+- **RLS scope.** The policies are agency-level. Client scope is enforced on every server
+  read and write, not in RLS, so Realtime can carry rows of other clients in the same
+  agency to the browser.
 - **RLS, fixed now.** Five policies (0014, 0035, 0040) use
   `org_id = (select org_id from org_memberships where user_id = auth.uid() limit 1)`. With
   two memberships, `limit 1` picks an arbitrary agency. They are rewritten to
@@ -283,7 +307,24 @@ check the org. Each gains:
    forces every handler to decide. A missing permission returns 403 with
    "You don't have access to this. Ask your agency owner."
 
-`withAction` gains the same `need` argument for server actions.
+`withAction` gains the same `need` argument for server actions. Server actions carry the
+same permission and target guard as routes.
+
+Mapping the routes found gaps with no agency check at all. They are closed in plan 1:
+
+- Routes (any signed-in user with an id could act on another agency's data):
+  `POST /api/clients/[id]/kb/re-analyze`, `POST /api/nodes/[id]/file/finalize`,
+  `/file/from-url`, `/file/sign`, and `POST /api/copilot`, `/copilot/actions`,
+  `/copilot/references`.
+- Server actions: `saveCanvasNodesAction`, `saveCanvasAction`, `saveScriptOutputAction`,
+  `savePromptOutputAction`, `renameCanvasAction`, `deleteCanvasAction`,
+  `createCanvasAction`, `createCanvasFromScriptAction`, `patchKBFieldAction`,
+  `saveKBOutputAction`, `markKBReadyAction`, `markStuckJobFailed`, `setVersionLabelAction`.
+  `deleteKBDocumentAction` and `deleteBrandImageAction` compared the row's client with the
+  one given but never checked that client's agency.
+
+**Canvas lock.** Acquiring and heartbeat need `canvases.edit`; release and get need
+`canvases.view`.
 
 Each HTTP method declares its own permission, so a GET can need `scripts.view` and the
 POST on the same path `scripts.edit`.
@@ -319,7 +360,8 @@ POST on the same path `scripts.edit`.
 is checked where a download URL is issued. Before release, the plan lists every place that
 hands the browser a file URL for download and puts each behind `downloads.view` (approved
 versions) or `downloads.share` (anything). Showing media inside the app stays under the
-area's `view`.
+area's `view`. Files sit in public buckets, so the Downloads ticks hide buttons but cannot
+stop someone who has a URL. Making buckets private is its own project.
 
 **Approving a version** (`setVersionApprovalAction`) replaces
 `canSetApproval(caller.orgRole)` with `can(caller, areaOf(node) + ".approve")`. `areaOf`

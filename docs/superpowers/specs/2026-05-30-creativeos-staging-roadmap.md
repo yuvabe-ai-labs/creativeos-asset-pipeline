@@ -8643,6 +8643,8 @@ Migration:
 - An area catalogue in the database (it can't add a check).
 - Approve on `internal_review` as well as on each production area (two ticks deciding one action). Approving a version needs Approve on the node's area.
 
+**Refined in plan 1 (2026-11-11).** The catalogue is 59 keys: `canvases.generate` was added (AI-written text nodes), and levels that nothing checks were dropped (`client_profile.view`, `scripts.share`, `canvas_copilot.view`, `image_generation.view`, `video_generation.view`, `audio.view`, `internal_review.edit`, `client_review.delete`, `clients.view`). Designer keeps `scripts.approve` and loses only the image, video and audio approvals. `downloads.*` only hides buttons, because files sit in public buckets. Migration 0062's trigger functions run as `security definer` so the last-owner guard cannot pass silently under RLS, the open-invite uniqueness is on `lower(email)`, and the `clients (id, org_id)` unique constraint is added only if missing.
+
 ### D490 — Each person sees all clients or a picked list; out of scope is a 404 *(recorded 2026-11-11; extends D44; originated → `2026-11-11-permission-based-access-design.md`)*
 
 **Decision.** Scope is `org_memberships.all_clients` (true includes future clients) or a picked list in `membership_clients`. Its composite foreign key `(client_id, org_id)` stops a person being given another agency's client.
@@ -8657,6 +8659,8 @@ Enforcement:
 **Why.** The lead's hierarchy (proposal §01): a designer works on Jackfruit only. Today every member sees every client, and the only role gate is approval (D166), so scope has to be enforced where the client is already resolved. 404 keeps D44's rule of never confirming a foreign resource exists.
 
 **Rejected.** 403 for out-of-scope clients. Checks only in the UI. Ad-hoc checks per route without a coverage test.
+
+**Refined in plan 1 (2026-11-11).** Server actions carry the same permission and target guard as routes. Seven routes (`kb/re-analyze`, `nodes/[id]/file/finalize`, `file/from-url`, `file/sign`, `copilot`, `copilot/actions`, `copilot/references`) and several canvas, node and KB actions had no agency check and now do. If adding a new client to the creator's list fails, the client is removed again. Canvas lock acquire and heartbeat need `canvases.edit`; release and get need `canvases.view`. Known limitation: the RLS policies stay agency-level, so Realtime can carry rows of other clients in the same agency to the browser; all server reads and writes are client-scoped.
 
 ### D491 — Owners invite their own team; one invite flow for everyone, emailed through Resend *(recorded 2026-11-11; supersedes D164; refines D181; originated → `2026-11-11-permission-based-access-design.md`)*
 
