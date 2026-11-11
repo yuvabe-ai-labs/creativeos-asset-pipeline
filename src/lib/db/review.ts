@@ -1,6 +1,9 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { resolveDisplayNames } from "./profiles";
+import { scopeIds } from "@/lib/permissions/check";
+import { REVIEWABLE_NODE_TYPES, reviewableNodeTypes } from "@/lib/permissions/node-area";
+import type { Access } from "@/lib/permissions/access";
 import {
   summarizeCounts,
   inboxFilterFor,
@@ -45,19 +48,36 @@ const QUEUE_COLUMNS =
   "node_id, node_type, node_title, version_id, output, approval_status, note, " +
   "operator_user_id, operator, approved_by_user_id, approved_seen_at, created_at";
 
-// R5.1/R5.2/R5.3 — one RPC call, never one query per row (PRD §8: the client list renders
-// for every org member on every visit).
-export async function getOrgReviewCounts(
-  orgId: string,
-  clientIds: readonly string[] | null,
-): Promise<ReviewCounts> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase.rpc("org_review_counts", { p_org_id: orgId });
-  if (error) throw error;
+// R5.1/R5.2/R5.3: one read, never one query per row (PRD §8: the client list renders for every
+// org member on every visit). Pending counts are of the work the person can approve (D489), in
+// their clients (D490). With every review type that is the org_review_counts RPC, as before.
+// With some, the RPC can't tell types apart, so the pending rows of those types are read (two
+// columns) and counted here. With none, there is nothing to count.
+export async function getOrgReviewCounts(orgId: string, access: Access): Promise<ReviewCounts> {
+  const types = reviewableNodeTypes(access);
+  if (types.length === 0) return summarizeCounts([]);
+  const clientIds = scopeIds(access);
   const inScope = clientIds === null ? null : new Set(clientIds);
-  const rows = ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[])
+  const supabase = createServerSupabase();
+
+  if (types.length === REVIEWABLE_NODE_TYPES.length) {
+    const { data, error } = await supabase.rpc("org_review_counts", { p_org_id: orgId });
+    if (error) throw error;
+    const rows = ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[])
+      .filter((r) => inScope === null || inScope.has(r.client_id));
+    return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending })));
+  }
+
+  const { data, error } = await supabase
+    .from("review_queue_items")
+    .select("client_id, canvas_id")
+    .eq("org_id", orgId)
+    .eq("approval_status", "pending")
+    .in("node_type", types);
+  if (error) throw error;
+  const rows = ((data ?? []) as { client_id: string; canvas_id: string }[])
     .filter((r) => inScope === null || inScope.has(r.client_id));
-  return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending })));
+  return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: 1 })));
 }
 
 // Resolves maker names in ONE round trip for the whole page of rows, then maps. Doing it

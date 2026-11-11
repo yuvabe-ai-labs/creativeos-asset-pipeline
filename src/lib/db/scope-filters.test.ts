@@ -25,6 +25,7 @@ vi.mock("@/lib/supabase/server", () => {
 });
 vi.mock("./profiles", () => ({ resolveDisplayNames: vi.fn(async () => new Map()) }));
 
+import { testAccess } from "@/lib/permissions/test-fixtures";
 import { listRecentCanvases } from "./canvases";
 import { getOrgReviewCounts } from "./review";
 import { listClientsWithMoodboards } from "./moodboards";
@@ -54,29 +55,33 @@ describe("getOrgReviewCounts", () => {
     { client_id: "c1", canvas_id: "cv1", pending: 2 },
     { client_id: "c2", canvas_id: "cv2", pending: 5 },
   ];
+  const approver = (clientIds?: string[]) =>
+    testAccess({ keys: ["image_generation.approve", "video_generation.approve"], clientIds });
 
   it("counts only the person's clients when they have a list", async () => {
     state.result = { data: rows, error: null };
-    const counts = await getOrgReviewCounts("org-1", ["c1"]);
+    const counts = await getOrgReviewCounts("org-1", approver(["c1"]));
     expect(counts.byClient).toEqual({ c1: 2 });
     expect(counts.byCanvas).toEqual({ cv1: 2 });
   });
 
   it("counts every client for someone on all clients", async () => {
     state.result = { data: rows, error: null };
-    const counts = await getOrgReviewCounts("org-1", null);
+    const counts = await getOrgReviewCounts("org-1", approver());
     expect(counts.byClient).toEqual({ c1: 2, c2: 5 });
   });
-});
 
-describe("listClientsWithMoodboards", () => {
-  it("keeps to the person's clients when they have a list", async () => {
-    await listClientsWithMoodboards("org-1", ["c1"]);
-    expect(inCalls()).toEqual([["in", ["id", ["c1"]]]]);
+  it("counts only the review types the person can approve", async () => {
+    state.result = { data: [{ client_id: "c1", canvas_id: "cv1" }, { client_id: "c1", canvas_id: "cv1" }], error: null };
+    const counts = await getOrgReviewCounts("org-1", testAccess({ keys: ["image_generation.approve"] }));
+    expect(inCalls()).toEqual([["in", ["node_type", ["image-gen"]]]]);
+    expect(calls.some(([m]) => m === "rpc")).toBe(false);
+    expect(counts.byCanvas).toEqual({ cv1: 2 });
   });
 
-  it("does not filter by client for someone on all clients", async () => {
-    await listClientsWithMoodboards("org-1", null);
-    expect(inCalls()).toEqual([]);
+  it("reads nothing for someone who can approve nothing", async () => {
+    const counts = await getOrgReviewCounts("org-1", testAccess({ keys: ["internal_review.view"] }));
+    expect(calls).toEqual([]);
+    expect(counts.total).toBe(0);
   });
 });

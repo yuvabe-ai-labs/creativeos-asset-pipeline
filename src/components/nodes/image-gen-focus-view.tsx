@@ -76,7 +76,7 @@ import {
   setVersionApprovalAction,
   markVersionApprovalSeenAction,
 } from "@/lib/actions/approval";
-import { useIdentity } from "@/hooks/use-identity";
+import { useCanApproveNode } from "@/components/permissions/use-can-approve-node";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -326,7 +326,7 @@ export function ImageGenFocusView({
   const [approvedByName, setApprovedByName] = useState<string | null>(null);
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
-  const { identity } = useIdentity();
+  const canApprove = useCanApproveNode("image-gen");
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   // The connected Prompt node's active output — the text this image is generated from. Read
   // through the same versions cache as the Prompt node's own focus view, so a prompt just
@@ -1379,7 +1379,7 @@ export function ImageGenFocusView({
                           approvedByName={approvedByName}
                           approvedAt={approvedAt}
                           saving={approvalSaving}
-                          canApprove={identity?.role === "senior" && !viewing.isViewingOther}
+                          canApprove={canApprove && !viewing.isViewingOther}
                           onSet={saveApproval}
                           annotationCount={reviewDrafts.drafts.length}
                           annotating={reviewAnnotating}

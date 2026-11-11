@@ -2,7 +2,6 @@ import Link from "next/link";
 import { loadClientPage } from "@/lib/permissions/page";
 import { getCanvasBySlug } from "@/lib/db/canvases";
 import { accessOf } from "@/lib/permissions/server";
-import { scopeIds } from "@/lib/permissions/check";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -78,7 +77,7 @@ export default async function CanvasPage({
       getLatestKBJob(client.id),
       getActiveKBVersion(client.id),
       // R5.3: seeds the Review control's count so it is right on first paint.
-      getOrgReviewCounts(effectiveOrgId, scopeIds(accessOf(caller))),
+      getOrgReviewCounts(effectiveOrgId, accessOf(caller)),
     ]);
 
   let initialDriveRootFolder: { id: string; name: string } | null = null;

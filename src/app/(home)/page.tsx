@@ -17,7 +17,7 @@ export default async function ClientsPage() {
     listClients(effectiveOrgId, clientIds),
     listArchivedClients(effectiveOrgId, clientIds),
     listRecentCanvases(effectiveOrgId, clientIds),
-    getOrgReviewCounts(effectiveOrgId, clientIds),
+    getOrgReviewCounts(effectiveOrgId, accessOf(caller)),
   ]);
 
   return (
