@@ -1,14 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import type { VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 
 type Props = {
@@ -16,12 +12,6 @@ type Props = {
   sourceId: string | null;
   settings: VoiceChangeSettings;
   onSettings: (patch: Partial<VoiceChangeSettings>) => void;
-  estimatedCredits: number | null;
-  applyBlockedReason: string | null;
-  submitting: boolean;
-  /** A voice change is running — the button reads "Changing voice…" until the new version lands. */
-  changing: boolean;
-  onApply: () => void;
 };
 
 function SliderRow({ label, hint, value, onCommit }: { label: string; hint?: string; value: number; onCommit: (v: number) => void }) {
@@ -64,7 +54,6 @@ export function VideoGenChangeVoiceSettings(p: Props) {
   const [seedText, setSeedText] = useState(p.settings.seed?.toString() ?? "");
   const seedN = Number(seedText);
   const seedInvalid = seedText !== "" && (!Number.isInteger(seedN) || seedN < 0 || seedN > 4294967295);
-  const busy = p.submitting || p.changing;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-seeds the local text from the new source's settings, same idiom as use-market.ts's initial fetch
     setSeedText(p.settings.seed?.toString() ?? "");
@@ -109,17 +98,6 @@ export function VideoGenChangeVoiceSettings(p: Props) {
           <p className="text-xs text-destructive">Seed must be a whole number from 0 to 4294967295</p>
         )}
       </div>
-
-      <Tooltip>
-        <TooltipTrigger render={<span className="block w-full" />}>
-          <Button type="button" size="lg" className="w-full" onClick={p.onApply} disabled={Boolean(p.applyBlockedReason) || busy}>
-            {busy ? <Loader2 className="size-4 animate-spin" strokeWidth={1.5} /> : <Sparkles className="size-4" strokeWidth={1.5} />}
-            {busy ? "Changing voice…" : "Change voice"}
-            {!busy && p.estimatedCredits !== null && <EstimatedCreditsLabel credits={p.estimatedCredits} />}
-          </Button>
-        </TooltipTrigger>
-        {p.applyBlockedReason && !busy && <TooltipContent side="top">{p.applyBlockedReason}</TooltipContent>}
-      </Tooltip>
     </div>
   );
 }

@@ -41,7 +41,9 @@ import { REF_ROLES } from "@/lib/nodes/ref-roles";
 //     background contributes its place, not the loose things lying in it.
 // @16 (D458): props keep their names and an unlabelled prop stays plain; the camera is set shot by
 //     shot (a camera note in the production notes is for its own shot), steady unless asked.
-export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@16";
+// @17 (D491): a referenced person is named and pinned like a product, never described (no skin
+//     tone, hair, build or clothing); only a change the direction asks for is written.
+export const MULTISHOT_PROMPT_ID = "multishot-prompt-generate@17";
 
 /**
  * How to READ an attached reference image and name what it shows — without binding it to a beat.
@@ -78,13 +80,13 @@ EVERY REFERENCE HAS A ROLE — DECIDE IT, THEN HONOUR IT IN FULL. The operator's
 - An image whose subject is irrelevant but whose colour, light or grade is striking, with nothing else to take from it, is a STYLE reference.
 A direction that states a role always wins over what you infer.
 
-A CHARACTER OR PRODUCT REFERENCE CARRIES IDENTITY, NOT ITS BACKDROP. From it, carry who or what it shows — face, build, hair, wardrobe, the product's design. Never carry its background, backdrop, studio lighting, the colour of a seamless, its camera angle or its framing into any beat. A sheet showing one subject from several angles on a plain background is an identity sheet, never a location. Only a reference whose role is background or storyboard contributes a place or a composition.
+A CHARACTER OR PRODUCT REFERENCE CARRIES IDENTITY, NOT ITS BACKDROP. The picture carries who or what it shows; your words only name them. Never carry its background, backdrop, studio lighting, the colour of a seamless, its camera angle or its framing into any beat. A sheet showing one subject from several angles on a plain background is an identity sheet, never a location. Only a reference whose role is background or storyboard contributes a place or a composition.
 
-What you write depends on the role. A PRODUCT is carried by its picture: you name it and never describe it. A place, a storyboard or a person needs words, because for those the video model reproduces only the elements the prompt NAMES: anything you leave unwritten is usually dropped or replaced. Study each image and write what its role asks:
+What you write depends on the role. A PRODUCT or a PERSON is carried by its picture: you name them and never describe them. A place or a storyboard needs words, because for those the video model reproduces only the elements the prompt NAMES: anything you leave unwritten is usually dropped or replaced. Study each image and write what its role asks:
 
 - BACKGROUND / LOCATION / SETTING / ENVIRONMENT — the subject is placed IN that place. Read it closely in your reference notes: the kind of space, its surfaces and its fixed furniture. In every beat set there, name the place and at most two of its elements, the ones the action uses or stands beside ("at the marble counter, the arched window behind her"). Loose things lying in the picture (food, dishes, devices, bags) are not this shot's props unless its shot text calls for them. Do not write its light, palette or grade into the beats; the picture carries them. Do not swap in a different place or simplify it to a generic one.
 - STORYBOARD / SHOT REFERENCE / COMPOSITION — read the panels in order (left to right, top to bottom unless they are numbered) and map them to the shots in order, unless the direction maps them differently. For each shot, carry what its panel shows: shot size, camera angle and height, where the subject sits in frame, what they are doing, and any arrow or note indicating a camera move or action. Never carry the drawing style — sketch lines, greyscale, panel borders, handwritten notes — into any beat; a storyboard is a plan for the shot, not its appearance. Its packs and labels are drawn blank on purpose: never let a panel describe the product.
-- CHARACTER / PERSON / AVATAR — describe the person so they read as the same individual in every beat they appear in: apparent age and build, skin tone, hair (colour, length, style), facial hair or glasses, and EVERY visible wardrobe item with its colour and material (top, layers, bottoms, footwear), plus accessories (jewellery, watch, bag, headwear), as the direction leaves them: an item the direction removes or changes is written as directed, never as pictured. Repeat that description, not a shortened one, in every beat the character appears in, and only in the beats whose shot text involves a person.
+- CHARACTER / PERSON / AVATAR — name the person in a few words (their name when the direction or script gives one, otherwise "the man", "the woman") and pin them to the picture: "Maya, exactly as in her reference". Never describe their age, build, skin tone, face, hair, facial hair, glasses, clothing or accessories: the reference carries all of that, and prose competing with it produces a different person or a mix of outfits. Write about them only what the picture cannot give: the action, pose, expression and framing. The one exception is a change: when the direction or the shot text changes something the picture shows (barefoot, a jacket off, a saree instead of jeans), write that change, and only that, in each beat they are in. Name them in every beat they appear in, and only in the beats whose shot text involves a person.
 - PRODUCT — name it by what it is, in a few words ("the tea pouch", "the sliders"), and say how many when there is more than one. Never describe its colour, material, shape, components, label text, lettering or logo: the reference carries all of that, and prose competing with it produces a hybrid of the two.
 - STYLE / MOOD / LOOK — the picture carries its light and colour. Write nothing about it into the beats, and never take its subject or its location.
 
@@ -96,7 +98,7 @@ Instead, NAME WHAT YOU SAW, in prose, wherever that thing appears in a beat:
 
 ${example}
 
-For a product, a short identifying name is exactly right wherever it appears: "the tea pouch", "the ceramic mug". For a character in passing, a short phrase: "a young woman in a loose oatmeal shirt". It tells the operator which attachment you meant, so a misreading is caught in the text rather than in a finished video. Never go further into a product's design, colour, material, label or logo. Describe instead what the reference cannot: framing, motion, wardrobe, ground contact. A background, storyboard or central character is described as its role asks above, using as much of the beat as any length limit allows.
+For a product or a person, a short identifying name is exactly right wherever it appears: "the tea pouch", "the ceramic mug", "Maya", "the man". It tells the operator which attachment you meant, so a misreading is caught in the text rather than in a finished video. Never go further into a product's design, colour, material, label or logo, or a person's looks or clothes. Describe instead what the reference cannot: framing, motion, expression, ground contact. A background or storyboard is described as its role asks above, using as much of the beat as any length limit allows.
 
 Name the thing IN EVERY BEAT it appears in, not once at the top.
 
@@ -253,7 +255,7 @@ materials move.
 BE SPECIFIC ABOUT WHO AND WHAT
 Name people, clothing and objects specifically rather than generically ("a young woman" -> "a young
 woman in a loose linen shirt"), but add no setting the shot text does not name. A referenced
-product is the exception: name it, never describe it (see PRESERVATION).
+product or person is the exception: name them, never describe them (see PRESERVATION).
 
 Do not write on-screen text, captions, titles or signage copy into a beat. The request carries a
 standing instruction against screen-space type, and asking for lettering here would contradict it.
@@ -262,7 +264,12 @@ PRESERVATION
 A referenced product is carried by its picture, not by your words. Name it, then pin it to the
 picture in a few words whenever it is on screen: "the pouch exactly as in its reference". Never
 describe its colour, material, shape, label text, lettering or logo: prose about the product
-competes with the picture and the model draws a hybrid.`;
+competes with the picture and the model draws a hybrid.
+
+A referenced person is carried the same way: name them ("Maya, exactly as in her reference") and
+never describe their skin tone, face, hair, build or clothing. Words about how they look compete
+with the picture and the model draws someone else, or mixes the written outfit with the pictured
+one. Write only a change the direction or shot text asks for.`;
 
 const SYSTEM = `You write the shot-by-shot motion plan for a single multi-shot video generation.
 
@@ -339,7 +346,7 @@ const REFERENCE_READING = {
       contents: {
         type: "string",
         description:
-          "What the image actually shows, in the detail its role needs: for a location, the space, surfaces, props and their positions; for a storyboard, each panel in order with shot size, angle, subject placement and action; for a person, age, build, hair and every wardrobe item and accessory with colours; for a product, what it is in a few words; for a brand mark or style reference, brief.",
+          "What the image actually shows, in the detail its role needs: for a location, the space, surfaces, props and their positions; for a storyboard, each panel in order with shot size, angle, subject placement and action; for a person or a product, who or what it is in a few words (the picture carries their looks); for a brand mark or style reference, brief.",
       },
 
     },

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { checkLadder, multishotCapabilityFor } from "@/lib/nodes/multishot-models";
-import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, GEMINI_OMNI_11_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
@@ -240,7 +240,7 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
 
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toContain("Gemini Omni 1.1");
+    expect(json.error).toContain("Gemini Omni 1.2");
     expect(json.error).not.toContain("Kling 3.0 Omni");
 
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
@@ -261,7 +261,7 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     });
 
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain("Gemini Omni 1.1");
+    expect((await res.json()).error).toContain("Gemini Omni 1.2");
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
     expect(mocks.reserveCredits).not.toHaveBeenCalled();
   });
@@ -292,6 +292,37 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(payload.prompt).toContain("[0-3s]");
     expect(payload.prompt).not.toContain("shot 1, ");
     expect(payload.params.multi_shot).toBeUndefined();
+  });
+
+  // D486 — Omni 1.1 and 1.2 read the same plan, so a 1.2 plan generates on 1.1 without a rewrite,
+  // and its length is then measured against 1.1's own 10s window.
+  it("generates an Omni 1.2 plan on Omni 1.1 when the ladder fits 1.1", async () => {
+    const cuts: MultishotCut[] = [
+      { id: "c1", text: "keys", seconds: 3 },
+      { id: "c2", text: "cab", seconds: 5 },
+    ];
+    mocks.graph = buildGraph(cuts, GEMINI_OMNI_11_MODEL_ID, PLAN, GEMINI_OMNI_MODEL_ID);
+
+    const res = await post({ modelId: GEMINI_OMNI_11_MODEL_ID, params: {}, imageRoles: { ig: "reference" } });
+
+    expect(res.status).toBe(202);
+    const [, payload] = mocks.triggerTask.mock.calls[0] as unknown as [string, { modelId: string; prompt: string }];
+    expect(payload.modelId).toBe(GEMINI_OMNI_11_MODEL_ID);
+    expect(payload.prompt).toContain("[0-3s]");
+  });
+
+  it("refuses an Omni 1.2 plan longer than 10s on Omni 1.1, naming 1.1's window", async () => {
+    const cuts: MultishotCut[] = [
+      { id: "c1", text: "keys", seconds: 7 },
+      { id: "c2", text: "cab", seconds: 7 },
+    ];
+    mocks.graph = buildGraph(cuts, GEMINI_OMNI_11_MODEL_ID, PLAN, GEMINI_OMNI_MODEL_ID);
+
+    const res = await post({ modelId: GEMINI_OMNI_11_MODEL_ID, params: {}, imageRoles: { ig: "reference" } });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("14s · Gemini Omni 1.1 allows 10s.");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
   });
 
   // D279 — the hole this closes: renderPlan and checkPlanLimits both resolve a missing beat to
@@ -477,11 +508,14 @@ describe("POST video-generate — reference roles and the no-text line", () => {
   // The plan passed Kling's 3072 ceiling on its own; the added lines must not tip it over.
   it("drops the roles line rather than push Kling over its whole-prompt ceiling", async () => {
     const long = (n: number) => "x".repeat(n);
-    mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, {
+    // Six full shots, no look, and a long roles line: D484 counts the look and a short rules line
+    // against every shot's 512, so the whole prompt nears 3072 through many shots plus the roles.
+    const sixCuts: MultishotCut[] = Array.from({ length: 6 }, (_, i) => ({ id: `c${i + 1}`, text: "", seconds: 2 }));
+    mocks.graph = buildGraph(sixCuts, KLING_OMNI_MODEL_ID, {
       ...PLAN,
-      look: long(2000),
-      beats: [{ cutId: "c1", text: long(480) }, { cutId: "c2", text: long(480) }],
-      refRoles: [{ id: "ig", role: "product", name: long(60) }],
+      look: "",
+      beats: sixCuts.map((c) => ({ cutId: c.id, text: long(380) })),
+      refRoles: [{ id: "ig", role: "product", name: long(700) }],
     });
     const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: { ig: "reference" } });
     expect(res.status).toBe(202);

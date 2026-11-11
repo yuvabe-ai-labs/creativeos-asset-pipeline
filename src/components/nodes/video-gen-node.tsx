@@ -45,7 +45,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
   const totalCredits = useNodeCost(id);
 
   const [focusOpen, setFocusOpen] = useState(false);
-  const { isGenerating, isChangingVoice } = useGenerationStatus(id);
+  const { isGenerating, isChangingVoice, isEditingVideo } = useGenerationStatus(id);
   // D384 — the card takes the video's shape; while generating, it reserves the chosen shape.
   const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, parseAspectRatio((d.params as Record<string, unknown> | undefined)?.aspect_ratio));
   const box = videoUrl || isGenerating ? nodeMediaBox(media.ratio, "output") : null;
@@ -127,7 +127,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
           {videoUrl && box && (
             <div className="mb-2">
               <NodeMedia kind="video" src={videoUrl} alt={title || "Generated video"} box={box} onMeasured={media.onMeasured}>
-                {isGenerating && <GeneratingVeil label={isChangingVoice ? "Changing voice…" : "Generating…"} />}
+                {isGenerating && <GeneratingVeil label={isChangingVoice ? "Changing voice…" : isEditingVideo ? "Editing…" : "Generating…"} />}
               </NodeMedia>
             </div>
           )}
@@ -171,6 +171,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
       params={d.params}
       imageRoles={d.imageRoles ?? {}}
       voiceChange={d.voiceChange}
+      videoEdit={d.videoEdit}
       onPatch={handlePatch}
     />
     </>

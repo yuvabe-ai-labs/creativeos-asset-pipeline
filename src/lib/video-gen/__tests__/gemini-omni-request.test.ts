@@ -5,6 +5,8 @@ import {
   buildOmniRequestBody,
   extractOmniVideoUri,
   fileNameFromUri,
+  buildOmniEditRequestBody,
+  OMNI_12_API_MODEL,
 } from "../providers/gemini-omni";
 
 describe("omniDurationSeconds", () => {
@@ -143,5 +145,33 @@ describe("buildOmniRequestBody", () => {
     expect(body.response_format).toEqual({
       type: "video", resolution: "1080p", aspect_ratio: "9:16", delivery: "uri", duration: "5s",
     });
+  });
+});
+
+// D484 — Omni 1.2 is the same request shape with its own model name and a 15s ceiling.
+describe("Omni 1.2 request", () => {
+  it("clamps to 15s instead of 10s", () => {
+    expect(omniDurationSeconds({ duration: 15 }, 15)).toBe(15);
+    expect(omniDurationSeconds({ duration: 20 }, 15)).toBe(15);
+    expect(buildOmniResponseFormat({ duration: 13 }, 15).duration).toBe("13s");
+  });
+
+  it("names gemini-omni-1.2-flash on generate and edit requests", () => {
+    const gen = buildOmniRequestBody({
+      imageParts: [], text: "x", task: "text_to_video", params: { duration: 14 },
+      model: OMNI_12_API_MODEL, maxSeconds: 15,
+    });
+    expect(gen.model).toBe("gemini-omni-1.2-flash");
+    expect((gen.response_format as { duration: string }).duration).toBe("14s");
+    const edit = buildOmniEditRequestBody({
+      text: "x", videoPart: { data: "V", mime_type: "video/mp4" }, imageParts: [], resolution: "720p",
+      model: OMNI_12_API_MODEL,
+    });
+    expect(edit.model).toBe("gemini-omni-1.2-flash");
+  });
+
+  it("still sends 1.1 when no model is given", () => {
+    expect(buildOmniRequestBody({ imageParts: [], text: "x", task: "text_to_video", params: {} }).model)
+      .toBe("gemini-omni-1.1-flash");
   });
 });

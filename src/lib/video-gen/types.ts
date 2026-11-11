@@ -23,6 +23,11 @@ export type VideoGenInput = {
    * Veo accept no audio input at all.
    */
   referenceAudioUrl?: string;
+  /**
+   * D483 — edit this stored take instead of generating. Gemini Omni only; the output has the
+   * take's length and shape, and `params.durationSeconds` carries that length for costing.
+   */
+  editVideoUrl?: string;
   params: Record<string, unknown>;
 };
 
@@ -33,7 +38,8 @@ export type VideoGenResult = {
 
 // ── Constraint rule system (JSON-serializable, DB-ready) ──────────────────────
 
-export type ConditionField = "referenceCount" | "hasEndFrame" | "hasStartFrame";
+/** `duration` reads `params.duration` as a number (stored as a number or a numeric string). */
+export type ConditionField = "referenceCount" | "hasEndFrame" | "hasStartFrame" | "duration";
 export type ConditionOp = "gt" | "gte" | "eq";
 
 export type LeafCondition = {

@@ -135,6 +135,7 @@ export function DrawFocusView({
                 />
               </SheetTitle>
               <Button
+                variant="outline-primary"
                 size="lg"
                 onClick={() =>
                   existingImageUrl ? setConfirmSave(true) : handleSave()

@@ -110,12 +110,11 @@ export function GuidedNextButton({
 
   return (
     <Button
-      variant="outline"
+      variant="outline-primary"
       size="sm"
       onClick={handleClick}
       disabled={disabled}
       title={plan.gate.nudge}
-      className="border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
     >
       {label} <ArrowRight className="size-4" strokeWidth={1.5} />
     </Button>

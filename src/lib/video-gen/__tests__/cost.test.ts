@@ -36,9 +36,12 @@ describe("computeVideoCost — Kling (resolution-keyed)", () => {
     expect(computeVideoCost("kling:kling-3-0", 10, true, "4k")?.usd).toBeCloseTo(4.2);
   });
 
-  it("o1: audio never changes price (real table splits by video-input, unreachable here, not audio), no 4k tier", () => {
-    expect(computeVideoCost("kling:kling-o1", 10, false, "720p")?.usd).toBeCloseTo(0.84);
-    expect(computeVideoCost("kling:kling-o1", 10, true, "720p")?.usd).toBeCloseTo(0.84);
+  // D484 — fal serves O1 at 1080p only, so a saved 720p node and a new node (no resolution) both
+  // price at the flat 1080p rate; audio never moves it; no 4k tier.
+  it("o1: flat $0.112/s on fal whatever the saved resolution or audio, no 4k tier", () => {
+    expect(computeVideoCost("kling:kling-o1", 10, false)?.usd).toBeCloseTo(1.12);
+    expect(computeVideoCost("kling:kling-o1", 10, false, "720p")?.usd).toBeCloseTo(1.12);
+    expect(computeVideoCost("kling:kling-o1", 10, true, "720p")?.usd).toBeCloseTo(1.12);
     expect(computeVideoCost("kling:kling-o1", 10, false, "1080p")?.usd).toBeCloseTo(1.12);
     expect(computeVideoCost("kling:kling-o1", 10, true, "1080p")?.usd).toBeCloseTo(1.12);
     expect(computeVideoCost("kling:kling-o1", 10, false, "4k")).toBeNull();

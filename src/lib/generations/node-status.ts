@@ -4,7 +4,7 @@ import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import { isImageStartFailure } from "@/lib/image-gen/failure-copy";
 import { IMAGE_RUN_MAX_AGE_MS } from "@/lib/image-gen/constants";
 
-export type GenerationJobKind = "image" | "video" | "voice" | "dub" | "lipsync";
+export type GenerationJobKind = "image" | "video" | "voice" | "dub" | "lipsync" | "edit";
 
 export type NodeGenerationStatus = {
   isGenerating: boolean;
@@ -13,7 +13,7 @@ export type NodeGenerationStatus = {
 };
 
 export function jobKindOf(type: GenerationFeedRow["type"]): GenerationJobKind {
-  if (type === "voice" || type === "image" || type === "dub" || type === "lipsync") return type;
+  if (type === "voice" || type === "image" || type === "dub" || type === "lipsync" || type === "edit") return type;
   return "video";
 }
 
@@ -70,12 +70,14 @@ export function nodeGenerationStatus(
 
 const SUCCESS: Partial<Record<GenerationFeedRow["type"], string>> = {
   voice: "Voice changed and added as a new version",
+  edit: "Edit ready and added as a new version",
   image: "Image ready",
   dub: "Dub ready",
   lipsync: "Lip sync ready",
 };
 const FAILURE: Partial<Record<GenerationFeedRow["type"], string>> = {
   voice: "Voice change failed",
+  edit: "Edit failed",
   dub: "Dubbing failed",
   lipsync: "Lip sync failed",
 };

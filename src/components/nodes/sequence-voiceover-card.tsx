@@ -29,7 +29,8 @@ export function SequenceVoiceoverCard({ nodeId, lines, clipSeconds, readOnly, on
       {empty && (
         <p className="text-xs text-muted-foreground">No lines, so nobody speaks in this clip.</p>
       )}
-      <VoLinesEditor lines={lines} readOnly={readOnly} people={people} onChange={onChange} />
+      {/* `live`: onChange feeds the Multishot view's draft, so Save enables while typing. */}
+      <VoLinesEditor lines={lines} readOnly={readOnly} people={people} live onChange={onChange} />
       {tooLong && (
         <p className="text-xs text-destructive">
           These lines take about {needed}s to say, and this clip is {clipSeconds}s. Shorten them or

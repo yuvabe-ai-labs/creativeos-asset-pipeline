@@ -4,7 +4,7 @@ import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "./client-models";
 import { veoLite, veoFast, veoQuality } from "./providers/veo";
 import { kling30, klingO1, kling30Omni } from "./providers/kling";
 import { seedance25 } from "./providers/seedance";
-import { geminiOmni } from "./providers/gemini-omni";
+import { geminiOmni, geminiOmni12 } from "./providers/gemini-omni";
 
 export const videoGenRegistry: Record<string, VideoGenModelSpec> = {
   [veoLite.id]: veoLite,
@@ -14,6 +14,7 @@ export const videoGenRegistry: Record<string, VideoGenModelSpec> = {
   [klingO1.id]: klingO1,
   [kling30Omni.id]: kling30Omni,
   [seedance25.id]: seedance25,
+  [geminiOmni12.id]: geminiOmni12,
   [geminiOmni.id]: geminiOmni,
 };
 

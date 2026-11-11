@@ -8533,3 +8533,120 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Deriving Video Gen's whole list from the store (its rows depend on server work: avatar and product expansion and the rendered prompt). Letting role writes run on the instant row (CLAUDE.md performance rule 10: cached data is for showing). Saving only what changed, which is worth doing for every save but is a larger, separate change to autosave.
 
 **Originated →** conversation in this session.
+
+### D483 — Video Gen gets an Edit toggle beside Edit voice; an edit is a new version of the whole take *(recorded 2026-11-10; follows D284, D37)*
+
+**Decision.** The Video Gen focus view has two switches beside the VIDEO heading, **Edit voice** (D284) and **Edit**, and only one can be on. Edit shows the connected images as checkable references, an instruction box, a resolution choice (360p to 4k, default 720p) and an Edit video button with its credit estimate. It sends the whole active take (up to 10 seconds) to Gemini Omni with `task: "edit"`, as a `video` generation run by the existing `video-generate` task with an `editVideoUrl`, billed at Omni's rate for the chosen resolution. The result is appended as a new version with `inputs_used.videoEdit` (base and root version, instruction, literal prompt, references, resolution). A refusal or a failure refunds and makes no version.
+
+**Why.** User, 10 Nov 2026: most review feedback asks for one change to a take that is otherwise right (flour colour, an expression, a wider frame). Generating again costs a full take and loses what was right. Tests on Chupps and Jackfruit 365 takes showed the edit keeps the rest of the take when the change is to something already in it. The UX team is reworking the surface, so the two switches are the interim layout.
+
+**Rejected.** Editing inside the Rough Cut Editor as a clip action (user: it is part of the Video Gen node, like Image Gen's edit). Editing a section of the take and splicing it back (user chose whole take only for now). Offering review comments as starting points (kept out of the first version). A separate edit node (an edit is a generation attempt on this node, D18).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D484 — Gemini Omni 1.2 is added beside 1.1 and becomes the default; 1.1 stays selectable until it is retired *(recorded 2026-11-10; refines D235, D261, D483)*
+
+**Decision.** `gemini:gemini-omni-1.2-flash` is a second Omni model in Video Gen, listed before 1.1 under Google. It takes 3–15s (1.1: 3–10s), up to 6 references (Google's stated limit; 1.1 keeps its measured 12), and blocks Generate when a start and end frame are both set and the duration is over 10s. `GEMINI_OMNI_MODEL_ID` now means the current Omni (1.2), so new Video Gen nodes, multishot, video edits (now up to 15s takes) and avatar voice previews use it. Saved nodes on 1.1 keep 1.1. In the multishot table 1.1 is marked `retiring`: still selectable, never picked for a new node, no help template. Omni is priced from Google's output tokens per second (1,931 / 5,792 / 8,688 / 17,376 at 360p / 720p / 1080p / 4k) times $17.50 (1.1) or $12 (1.2) per 1M tokens; from 2026-12-03 a 1.1 generation is priced at 1.2 rates, because Google routes and bills every 1.1 request as 1.2 from that date.
+
+**Why.** User, 10 Nov 2026: integrate 1.2, keep 1.1 as an option, retire it later. 1.2 is ~30% cheaper ($0.07/s at 720p), longer, and Google moves all 1.1 traffic to it on 3 Dec anyway. The old flat 1.1 rates were up to 11% under Google's (360p).
+
+**Rejected.** Replacing 1.1 in place (saved nodes and stamped multishot plans name the 1.1 id). Keeping 1.1 as the default until 3 Dec (it costs more for the same request). Pricing input tokens (prompt, reference images, an edit's source video) in this change; output-only for now, as before.
+
+**Originated →** this entry (aistudio.google.com/docs/pricing, /docs/models/gemini-omni-flash, /docs/omni, checked 2026-11-10).
+
+### D485 — An edit is its own job type and runs on the Omni the operator picks *(recorded 2026-11-10; refines D483, D484)*
+
+**Decision.** A Video Gen edit is recorded as a `generations` row of type `edit`, not `video`. The focus view reads it as its own kind, so while an edit runs Edit stays open, the take stays on screen under an "Editing the video…" veil, the button and the canvas card read "Editing…", and reopening the node lands back in Edit, the same treatment D284 gives a voice change. The Edit panel uses the generate settings' own controls: the model picker, offering Omni 1.2 (default) and Omni 1.1 only, and the Resolution chips inside its card. Each model's own length and reference caps and price apply (1.2: 15 s, 6 references; 1.1: 10 s, 12 references), and the edit record carries the model.
+
+**Why.** User, 10 Nov 2026: with an edit running the view switched back to the generate settings, showed "Generating…" with an empty frame, and the Edit panel said "Wait for the current job to finish"; and once 1.2 was added, an edit should be able to run on either model. The resolution control also looked different from the generate settings'.
+
+**Rejected.** Telling an edit apart by reading `inputs_snapshot` on the generations feed (the feed selects only the columns it shows, CLAUDE.md performance rule 8). A start mark only on the client (lost on a reload or another tab, where the job would read as a new take again).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D486 — Video Gen can switch between models that read the same multishot plan, without rewriting the prompt *(recorded 2026-11-10; refines D236, D239, D484)*
+
+**Decision.** A multishot plan is model-specific only through its shot format and reference-token dialect (the writer is chosen from the same pair). Every model sharing both with the plan's stamp reads it unchanged (`multishotModelsSharingPlan`; today Omni 1.1 and 1.2). Video Gen's picker on the multishot lane offers all of them instead of the stamped model alone; the node keeps its own model when it is one of them and is coerced to the stamp only when it is not (focus view and canvas-store's connect). The video-generate route accepts any of them and checks the ladder and prompt limits against the model REQUESTED, so a 14s Omni 1.2 plan on 1.1 is refused with "14s · Gemini Omni 1.1 allows 10s." The Multishot Prompt view reports no mismatch between such models. On a model change between two models of one provider, the params merge keeps free text (the negative prompt) and clamps an out-of-range slider instead of resetting both; across providers the tuned defaults still apply.
+
+**Why.** User, 10 Nov 2026: Omni 1.1 and 1.2 use the same prompt writer, so switching between them on a Video Gen node should not mean regenerating the prompt. Single-shot prompts already carried over (the video-prompt system prompt is per provider); only the multishot lock and the negative-prompt reset got in the way.
+
+**Rejected.** Re-stamping the plan when the node switches (the stamp records which writer produced it, and that does not change). Keeping custom free text across providers (each provider's negative default is tuned to its own artifacts).
+
+**Originated →** this entry.
+
+### D487 — Edit video and Change voice are icon tools on the take, not switches *(recorded 2026-11-10; amends D284, D483)*
+
+**Decision.** The two switches beside the VIDEO heading ("Edit voice", "Edit") are replaced by two small icon buttons at the right of that heading: a sparkle for Edit video and a waveform for Change voice, named on hover, tinted while their panel is open, with a dot while their job runs. Opening one swaps the centre column for its panel under a slim header with a Close back to the generate settings; opening one closes the other. Edit video's button moves into the same pinned footer Generate uses (`GenerateFooter`).
+
+**Why.** User, 10 Nov 2026: two switches were hard to use and read as main actions. Generate is the screen's main job; editing a take is a tool on it. Mockups compared mode tabs, an "Edit" menu, rail items, buttons under the player, then three quiet entry points; the user picked the icon buttons.
+
+**Rejected.** Mode tabs over the centre column (clear, but made edits look as important as Generating). A "⋯" menu (quietest, but hides the feature). Text links under the take (compete with the take's tags). Rail items (mix places with actions).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
+### D483 — An asset import keeps its memory bounded, and a crashed one is recorded and continues *(recorded 2026-11-06; refines D302, D306)*
+
+**Decision.** `asset-import` runs on `medium-1x` (2 GB). A video is streamed from its source into storage and never held whole; videos are capped at 1 GB. An image is still read whole, because `sharp` needs every pixel for the preview, but the download stops the moment it passes 25 MB. `sharp` keeps no cache, uses one thread, refuses images over 40 million pixels (the file is kept without a preview) and handles one image at a time. A file that is not kept is named in the job's `result.skipped` (up to 20, with `failed` counting all) and in the result line ("79 new · 1 couldn't be saved"). The import records each Apify run it starts in the job's `result.checkpoint`. The task retries once after a crash, on `medium-2x`, and the retry continues that Apify run instead of starting a new one, then skips the assets already saved. A retry of a job that has already ended does nothing. A scheduled task, `reconcile-background-jobs` (every 15 minutes), marks an `asset-import` or `image-analysis` job failed once its Trigger.dev run has ended without recording it, or after 45 minutes when Trigger.dev no longer has the run. It changes only jobs that are still live. The import logs its memory as it saves assets.
+
+**Why.** User, 5 Nov 2026: an Instagram import was killed with TASK_PROCESS_OOM_KILLED. On the default `small-1x` (0.5 GB) each import downloaded 4 files at a time and held each one whole, and the size limit was checked only after the download. 14 imports on staging had stopped at the "Adding N new assets" step, 11 of them Instagram. A killed run never marked its job failed, so the job stayed "running" until someone opened that client's imports 45 minutes later: the BIBA run crashed after 1.5 minutes and its job was marked failed 90 minutes later, and 6 crashed jobs were still "running" days later. Measured with the storage library: a streamed upload used 25 MB more memory for a 16 MB file and 38 MB for a 512 MB file, and an upload that failed part way left no object in the bucket. The cause of the crashes is inferred, not profiled; the memory log is there to confirm it.
+
+**Rejected.** Only raising the machine (an import could still crash, and crashes would still go unrecorded). Retrying on out-of-memory without the checkpoint (each retry would pay Apify for the same scrape again). One video at a time (bounds memory but still drops videos over the limit). Batching files by total size (cannot fit one file larger than the budget, and has nothing left to manage once videos stream). Google's Storage Transfer Service fetching the files from their URLs (built for bulk background transfers rather than links that expire, and images still have to be fetched for their previews).
+
+**Originated →** conversation in this session; write-up in the "Asset Import Memory Crash" artifact.
+
+### D488 — An edit names its references in plain words, and the operator points at them with @-mentions *(recorded 2026-11-10; refines D483, D485)*
+
+**Decision.** The Edit video prompt box is the mention editor Image Gen uses: typing @ offers the connected images, and a mentioned image is always sent as a reference. The text sent to Omni writes each mention as the image's name and position ("Jackfruit 365 pack (reference image 2)"), lists the references by name in the order attached, and ends with "Keep everything else the same." No `<IMAGE_REF_n>` tags are sent. The instruction is typed into a local draft and saved to the node on blur and on start. Resolution starts at the take's own (or the closest offered) and sits under a closed Advanced section; Edit voice's button joins Edit video's in Generate's pinned footer; the limits line under the prompt is gone.
+
+**Why.** User, 10 Nov 2026: point at references with @-mentions, match the take's resolution by default, keep the panel clean. Google's Omni guide (checked 2026-11-10): reference images are supported for video editing; `<IMAGE_REF_0>` and the other control strings are deprecated and unsupported in future models; simple edit prompts work best with "Keep everything else the same". YUV-447: the caret jumped to the end on Space or Backspace because every keystroke round-tripped through node data.
+
+**Rejected.** Keeping `<IMAGE_REF_n>` (worked on 1.1 in our tests, but Google says future models drop it). Our longer keep-everything sentence (Google warns overly descriptive edit prompts cause unintended changes).
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
+### D484 — Kling video runs through fal.ai, with Kling's own API kept as a fallback *(recorded 2026-11-10; refines D99, D100, D101, D238, D376)*
+
+**Decision.** Kling 3.0, Kling 3.0 Omni and Kling O1 are sent to fal.ai's queue by default (`src/lib/video-gen/providers/kling-fal.ts`, through `src/lib/fal/client.ts`, key `FAL_KEY`). `KLING_TRANSPORT=native` sends them to Kling's own API as before; that path stays until the Kling subscription is cancelled, and is then removed. Model ids stay `kling:*`. The endpoint is the resolution on fal: 3.0 → `fal-ai/kling-video/v3/{standard|pro|4k}/image-to-video`; 3.0 Omni ("Kling O3" on fal) → `fal-ai/kling-video/o3/{standard|pro|4k}/reference-to-video`, which takes both frames, references and aspect ratio together. The prompt still arrives in Kling's own dialect and is translated at the boundary: `@image_N` → `@ImageN`; a Multishot `shot n, s, text;` ladder → fal's `multi_prompt` list, where every shot carries a short rules line ("No on-screen text." + `shortSoundLine`, at most 127 characters) and the look, and the first shot adds the `Reference roles:` line (dropped if that shot would not fit), the sequence voiceover and `SPEECH_TIMING`; the full sound clause and the Avoid line are not sent in a shot list, and a shot that still exceeds fal's 512 is refused before submission with the shot named; on the Omni endpoints, which have no negative-prompt field, the negative prompt becomes an "Avoid: …" line. O1 on fal is two endpoints, chosen per request: frames → `o1/image-to-video`, references → `o1/reference-to-video`, with a start frame riding as `@Image1` (every handle moves up one); end frame + references is refused by a client rule and in the provider. O1 is therefore 1080p only, silent, 5 or 10 s, priced flat at $0.112/s for every saved resolution. (fal's O1 page lists 3–10 s and the node briefly offered it; fal's live validator answered a 6 s start-frame request with 422 "Duration only support 5 or 10 seconds when no refer image", Kling's own code-1201 rule, so the 5/10 select is back and any other saved value is sent as 5.) The Multishot per-shot 512 check now counts the rules line (at its longest) and the look in every shot, and the voiceover plus timing in shot 1. fal's result carries no duration, so a fal clip settles on the requested length (the ladder's total for Multishot).
+
+**Why.** User, 10 Nov 2026: Kling's API needs a monthly subscription and prepaid packs that expire (August 2026 lost 806 of 1,000 units); fal bills per use at the same per-second list price for 3.0 and 3.0 Omni at every tier, so their credits are unchanged. Decisions taken in the "Kling on fal.ai" and "Kling fal Migration Plan" artifacts: keep O1 and split by request (Q1), Avoid line (Q2), keep both connections for a while (Q4), fal's shot list (Q5) with the lead in every shot (Q6), convert tags at send time (Q7), no paid test runs (Q8), one shared fal key (Q9), cost-dashboard spec updated later (Q10). The voiceover-in-shot-1 rule was proposed and accepted with the plan, since repeating it would have Kling speak the line once per shot. Q6 as first built (the full lead repeated in every shot) failed on the first local run with fal's 422 "Prompt must not exceed 512 characters": no-text (18) + the narrator sound clause (300) + the default Avoid line (207) is 531 before any shot text. The user chose the short-rules layout above (option 2 of three) the same day.
+
+**Rejected.** Retiring O1 for 3.0 Omni, D461-style (the user kept O1). Switching at once and deleting the native path (no fallback while credits remain). Keeping the typed `shot n, s, text;` ladder on fal (undocumented there; a wrong guess yields one long shot with no error). The full lead in every shot (over fal's 512 per shot). The shared text in shot 1 only (shot 1 still overflows, and later shots lose the look and the no-music rule). A shortened Avoid list in shot lists (the user left it out; the negative prompt still applies to single prompts). Rewriting stored `@image_N` handles (saved nodes and every Kling prompt writer would change for nothing). Separate fal keys per environment. O3's image-to-video endpoints for 3.0 Omni (no reference images).
+
+**Unverified, accepted (Q8).** That fal's O3 reference endpoint takes a start frame and `image_urls` together; that embedded (data URI) images from the shape fitter are accepted; whether frames count toward fal's 7-image budget (the 5-reference cap stays); fal's per-shot text limit, since confirmed at 512 by fal's own 422. The first staging generations are the check; `KLING_TRANSPORT=native` is the fallback.
+
+**Originated →** this session; plan in the "Kling fal Migration Plan" artifact.
+### D489 — Trigger.dev workers deploy from GitHub Actions on every staging and main push *(recorded 2026-11-11)*
+
+**Decision.** A reusable workflow, `.github/workflows/trigger-deploy.yml`, runs `npm run deploy:trigger -- --project-ref <ref> --env prod`. `deploy-staging.yml` calls it on every push to `staging` (docs-only pushes skipped; a newer push cancels the one in flight). `deploy-prod.yml` calls it on every push to `main` as a `trigger` job, and the Cloud Run `deploy` job `needs:` it. Each target is a GitHub Environment (`staging`, `production`) holding its own secret `TRIGGER_ACCESS_TOKEN` (a Personal Access Token of the account that owns that project) and variable `TRIGGER_PROJECT_REF`. Staging is `proj_oowdgamapcwpnltwkxde` (account creativeos@), production `proj_mlnaizhphqpdqwzctaag` (account developer@). `--project-ref` overrides the project in `trigger.config.ts`, so CI never depends on what that file hardcodes. Task env vars stay in each Trigger dashboard, set by hand before a merge that needs them.
+
+**Why.** User, 11 Nov 2026: Trigger was deployed by hand after each push, so the workers could fall behind the app. The two projects sit in different Trigger accounts (free tier), so one token can't deploy both. Workers deploy before the app so a task id the new app calls already exists, and a failed worker deploy stops the app deploy.
+
+**Rejected.** Keeping the manual step (it drifts). Deploying workers and app in parallel (a race on new task ids). One shared access token (the projects are in different accounts). Relying on the project in `trigger.config.ts` (hardcoded to staging since a962a9b1).
+
+**Originated →** this session; plan `currently-we-are-manually-abundant-sunset.md`.
+### D489 — A script's text is typed on the Visualise board; In review it is read-only; a reopened script shows the client's open comments *(recorded 2026-11-11; amends D347, refines D349)*
+
+**Decision.** While a script is in Visualise, its text on the board (title, header facts, purpose, setting and camera, disclaimers, watch-outs, and each shot's beat, action and spoken line) is typed in place, the same way it is at Generate (`PATCH …/scripts/:scriptId/visualise`, one field per write through `writeField`). The write is refused unless the stage is `visualise`, so In review the text is read-only. Adding, removing or splitting shots and the reel's notes stay with the copilot (Reopen). A changed shot marks its panel Out of date through the take's shot key. After a Reopen to Generate, a script the client commented on shows the Visualise board's own Comments column beside the script (the same components and wiring, `useTeamReviewSurface`; 20rem from `xl`, a sheet below it opened by the same Comments button), with Reply, Resolve and the activity as on the board.
+
+**Why.** User, 11 Nov 2026: a small fix at Visualise should not need a Reopen; once the script is with the client it should not change under them; after a Reopen the team needs the client's words beside the copilot.
+
+**Rejected.** Editing In review (D349's "editing stays allowed In review" now covers visual work only: avatars, panels, products and locations). A card above the script (tried first; it pushed the script down and read as part of it). A separate comments design for Generate (tried second; inconsistent with the board, so AGENTS.md now has a UI consistency rule). A tab inside the copilot, and a sheet only.
+
+**Originated →** this session.
+### D490 — A storyboard panel's versions open as a focus view with the shared version list *(recorded 2026-11-11; refines D344, D345, D465; follows D180, D383)*
+
+**Decision.** The panel view (a tile's Versions) is a wide two-pane dialog: the frame at full height on the left; on the right the shot (action, spoken line, on-screen text, who is on screen), then the takes in the shared `VersionList` (newest first, v1…vN, no approval marker), then Redraw with "Edit the prompt" beside it. A row click previews the take on the left; `VersionViewingBar` ("The panel still uses v3", Back, Restore) sets it, as on the canvas. Redraw and the prompt act only on the take in use, so they step aside while another is previewed. A spoken line already written with quotes is not quoted again (`spokenLine`).
+
+**Why.** User, 11 Nov 2026: the dialog was messy. It was a narrow column that always scrolled, opened scrolled to the bottom (focus landed on the first take), showed two purple rings (picked and focused), doubled the quotes, split Redraw from the prompt, and had its own "Takes" strip unlike every other version list.
+
+**Rejected.** A side sheet (still narrow, still scrolls). Fixing the old layout in place (left the cramped column and the second version-list design). Click-to-set, as before (the client sees a pick at once; a preview first matches D383).
+
+**Originated →** this session.
+
+### D491 — A referenced person is named and pinned to their picture, never described *(recorded 2026-11-11; extends D441, refines D319)*
+
+**Decision.** The multishot writers (Omni, Kling, Seedance) treat a person reference the way D441 treats a product: the beat names them ("Maya", "the man") and pins them to the picture ("Maya, exactly as in her reference"). It never states their age, build, skin tone, face, hair, glasses, clothing or accessories. It writes what the picture cannot give: action, pose, expression, framing. The one exception is a change the direction or shot text asks for (barefoot, jacket off), which is written, and only that. The reading's `contents` for a person is a few words. Un-referenced people are still described specifically.
+
+**Why.** User, 11 Nov 2026: with an avatar attached, beats still spelled out skin tone and outfit, and the words conflicted with the picture (a different face or a mix of the written and pictured clothes), the same hybrid D441 fixed for products. The D319 CHARACTER rule asked for exactly that list in every beat.
+
+**Rejected.** Keeping a short description for continuity across beats (the picture already gives continuity, and any description is one more thing to conflict). Describing only the wardrobe (the outfit was where most conflicts showed).
+
+**Originated →** this session.

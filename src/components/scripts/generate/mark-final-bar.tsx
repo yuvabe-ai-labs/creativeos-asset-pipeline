@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { CheckCircle2, Loader2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,9 @@ const SHOWN = 4;
 
 /** Spec 2 §10, as D363 revises it: Mark final is there once a draft exists. While anything is still
  *  open (§8) it asks first, naming what is open; the items stay in the notes either way. */
-export function MarkFinalBar({ openItems, canUndo, onUndo, onMarkFinal, pending, disabled }: {
+export function MarkFinalBar({ leading, openItems, canUndo, onUndo, onMarkFinal, pending, disabled }: {
+  /** At the start of the bar (D489: the client comments button, below `xl`). */
+  leading?: ReactNode;
   openItems: OpenItem[];
   canUndo: boolean;
   onUndo: () => void;
@@ -39,6 +41,7 @@ export function MarkFinalBar({ openItems, canUndo, onUndo, onMarkFinal, pending,
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-3">
+      {leading}
       <Button variant="ghost" size="sm" disabled={!canUndo} onClick={onUndo}>
         <Undo2 strokeWidth={1.5} /> Undo
       </Button>

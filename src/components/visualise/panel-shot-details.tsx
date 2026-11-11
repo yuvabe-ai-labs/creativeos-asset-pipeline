@@ -1,4 +1,5 @@
 import type { Shot } from "@/lib/scripts/schema";
+import { spokenLine } from "@/lib/scripts/utils";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -15,7 +16,7 @@ export function PanelShotDetails({ shot, castNames }: { shot: Shot; castNames: s
   return (
     <div className="flex flex-col gap-3">
       <Field label="Action">{shot.visual}</Field>
-      {shot.vo && <Field label="Spoken">“{shot.vo}”</Field>}
+      {shot.vo && <Field label="Spoken">{spokenLine(shot.vo)}</Field>}
       {shot.onScreenText && <Field label="On-screen text">{shot.onScreenText}</Field>}
       <Field label="On screen">{castNames.length > 0 ? castNames.join(", ") : "Nobody (B-roll)"}</Field>
     </div>

@@ -11,6 +11,10 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        /* An outlined action in the brand colour: Save Changes in the focus views, the guided
+           next step. Purple stays a line and text, never a fill (used sparingly). */
+        "outline-primary":
+          "border-primary/40 bg-background text-primary hover:bg-primary/5 hover:text-primary aria-expanded:bg-primary/5",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:

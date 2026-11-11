@@ -21,53 +21,64 @@ export const GEMINI_OMNI_NEGATIVE_DEFAULT =
 //
 // There is deliberately NO `continuous_take` param: the Shot node's multishot toggle already
 // carries that decision, and two controls for one thing is the pair that drifts apart.
-export const geminiOmniParams: ParamSpec[] = [
-  {
-    name: "resolution",
-    label: "Resolution",
-    component: "select",
-    group: "primary",
-    order: 0,
-    visible: true,
-    defaultValue: "720p",
-    constraints: { type: "select", options: ["360p", "720p", "1080p", "4k"] },
-    description:
-      "720p is the only natively rendered tier — 1080p and 4k are upscaled from it, at 1.5x and " +
-      "3x the price. 360p costs a third of 720p and is the draft tier for iterating.",
-  },
-  {
-    // ALWAYS sent. Omitting duration yields the API default of 8s, so a 10s timecode ladder
-    // would come back truncated at 8s with no error and at full price.
-    name: "duration",
-    label: "Duration",
-    component: "slider",
-    group: "primary",
-    order: 1,
-    visible: true,
-    defaultValue: 8,
-    constraints: { type: "slider", min: 3, max: 10, step: 1 },
-  },
-  {
-    // 16:9 and 9:16 only — no 1:1, unlike Kling O1.
-    name: "aspect_ratio",
-    label: "Aspect Ratio",
-    component: "select",
-    group: "primary",
-    order: 2,
-    visible: true,
-    defaultValue: "9:16",
-    constraints: { type: "select", options: ["16:9", "9:16"] },
-  },
-  {
-    // NOT an API field — Omni has no negative-prompt parameter at all. Folded into the prompt as
-    // an `Avoid:` paragraph by composeOmniPrompt, the shape composeVeoPrompt uses on Lite (D183).
-    name: "negative_prompt",
-    label: "Negative Prompt",
-    component: "textarea",
-    group: "primary",
-    order: 3,
-    visible: true,
-    defaultValue: GEMINI_OMNI_NEGATIVE_DEFAULT,
-    constraints: { type: "textarea", maxLength: 2500 },
-  },
-];
+//
+// Built per version because the duration ceiling is the one thing that differs: 1.1 renders
+// 3–10s, 1.2 renders 3–15s.
+function omniParams(maxDurationSeconds: number): ParamSpec[] {
+  return [
+    {
+      name: "resolution",
+      label: "Resolution",
+      component: "select",
+      group: "primary",
+      order: 0,
+      visible: true,
+      defaultValue: "720p",
+      constraints: { type: "select", options: ["360p", "720p", "1080p", "4k"] },
+      description:
+        "720p is the only natively rendered tier — 1080p and 4k are upscaled from it, at 1.5x and " +
+        "3x the price. 360p costs a third of 720p and is the draft tier for iterating.",
+    },
+    {
+      // ALWAYS sent. Omitting duration yields the API default (8s on 1.1, 10s on 1.2), so a
+      // longer timecode ladder would come back truncated with no error and at full price.
+      name: "duration",
+      label: "Duration",
+      component: "slider",
+      group: "primary",
+      order: 1,
+      visible: true,
+      defaultValue: 8,
+      constraints: { type: "slider", min: 3, max: maxDurationSeconds, step: 1 },
+    },
+    {
+      // 16:9 and 9:16 only — no 1:1, unlike Kling O1.
+      name: "aspect_ratio",
+      label: "Aspect Ratio",
+      component: "select",
+      group: "primary",
+      order: 2,
+      visible: true,
+      defaultValue: "9:16",
+      constraints: { type: "select", options: ["16:9", "9:16"] },
+    },
+    {
+      // NOT an API field — Omni has no negative-prompt parameter at all. Folded into the prompt as
+      // an `Avoid:` paragraph by composeOmniPrompt, the shape composeVeoPrompt uses on Lite (D183).
+      name: "negative_prompt",
+      label: "Negative Prompt",
+      component: "textarea",
+      group: "primary",
+      order: 3,
+      visible: true,
+      defaultValue: GEMINI_OMNI_NEGATIVE_DEFAULT,
+      constraints: { type: "textarea", maxLength: 2500 },
+    },
+  ];
+}
+
+export const GEMINI_OMNI_11_MAX_SECONDS = 10;
+export const GEMINI_OMNI_12_MAX_SECONDS = 15;
+
+export const geminiOmniParams: ParamSpec[] = omniParams(GEMINI_OMNI_11_MAX_SECONDS);
+export const geminiOmni12Params: ParamSpec[] = omniParams(GEMINI_OMNI_12_MAX_SECONDS);

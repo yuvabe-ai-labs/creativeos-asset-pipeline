@@ -64,7 +64,7 @@ export function resolveTrayKind(
 ): TrayKind {
   if (jobType === "dub" || jobType === "lipsync") return "dub";
   if (jobType === "image") return "image";
-  if (jobType === "video") return "video";
+  if (jobType === "video" || jobType === "edit") return "video";
   return nodeType === "video-prompt" ? "motion-prompt" : "image-prompt";
 }
 

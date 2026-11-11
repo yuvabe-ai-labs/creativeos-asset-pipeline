@@ -13,6 +13,8 @@ type VoLinesEditorProps = {
   /** D472 — who can speak a line, picked from a list (the narrator, or these people on camera).
    *  Without it, the speaker is typed as before. */
   people?: readonly string[];
+  /** Report each keystroke (EditableField `live`) — only where `onChange` feeds a buffered draft. */
+  live?: boolean;
 };
 
 // Task 6 — the shot row is the one place a spoken line is read and edited (operator: "we planned
@@ -31,7 +33,7 @@ type VoLinesEditorProps = {
 // them and the line wrapped every three or four words. Stacked, the spoken words get the full
 // width and the speaker reads as the caption it is. The remove control appears on hover so a
 // column of lines is a column of words, not a column of buttons.
-export function VoLinesEditor({ lines, onChange, readOnly = false, people }: VoLinesEditorProps) {
+export function VoLinesEditor({ lines, onChange, readOnly = false, people, live = false }: VoLinesEditorProps) {
   const rows = lines ?? [];
   if (readOnly && rows.length === 0) return null;
 
@@ -78,6 +80,7 @@ export function VoLinesEditor({ lines, onChange, readOnly = false, people }: VoL
                 updateLine(i, { speaker: speaker.trim() === "" ? "narrator" : speaker })
               }
               readOnly={readOnly}
+              live={live}
               placeholder="narrator"
               className="text-eyebrow text-muted-foreground"
               editClassName="h-auto rounded-md border-0 bg-primary/5 px-1.5 py-0.5 shadow-none focus-visible:border-0 focus-visible:ring-0"
@@ -88,6 +91,7 @@ export function VoLinesEditor({ lines, onChange, readOnly = false, people }: VoL
                 value={line.text}
                 onCommit={(text) => updateLine(i, { text })}
                 readOnly={readOnly}
+                live={live}
                 multiline
                 placeholder="Spoken line…"
                 className="text-sm leading-relaxed"
