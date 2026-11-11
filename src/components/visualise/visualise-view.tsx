@@ -138,6 +138,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
           open
           onOpenChange={(o) => { if (!o) setOpenShot(null); }}
           label={shotLabel(openShot)}
+          time={formatRange(openTimed.start, openTimed.end)}
           view={model.views.get(openShot)!}
           inputs={model.inputs.get(openShot)!}
           aspect={model.aspect}

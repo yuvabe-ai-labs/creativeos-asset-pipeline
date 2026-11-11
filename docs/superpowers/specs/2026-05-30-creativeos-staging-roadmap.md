@@ -8622,3 +8622,12 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Editing In review (D349's "editing stays allowed In review" now covers visual work only: avatars, panels, products and locations). A card above the script (tried first; it pushed the script down and read as part of it). A separate comments design for Generate (tried second; inconsistent with the board, so AGENTS.md now has a UI consistency rule). A tab inside the copilot, and a sheet only.
 
 **Originated →** this session.
+### D490 — A storyboard panel's versions open as a focus view with the shared version list *(recorded 2026-11-11; refines D344, D345, D465; follows D180, D383)*
+
+**Decision.** The panel view (a tile's Versions) is a wide two-pane dialog: the frame at full height on the left; on the right the shot (action, spoken line, on-screen text, who is on screen), then the takes in the shared `VersionList` (newest first, v1…vN, no approval marker), then Redraw with "Edit the prompt" beside it. A row click previews the take on the left; `VersionViewingBar` ("The panel still uses v3", Back, Restore) sets it, as on the canvas. Redraw and the prompt act only on the take in use, so they step aside while another is previewed. A spoken line already written with quotes is not quoted again (`spokenLine`).
+
+**Why.** User, 11 Nov 2026: the dialog was messy. It was a narrow column that always scrolled, opened scrolled to the bottom (focus landed on the first take), showed two purple rings (picked and focused), doubled the quotes, split Redraw from the prompt, and had its own "Takes" strip unlike every other version list.
+
+**Rejected.** A side sheet (still narrow, still scrolls). Fixing the old layout in place (left the cramped column and the second version-list design). Click-to-set, as before (the client sees a pick at once; a preview first matches D383).
+
+**Originated →** this session.
