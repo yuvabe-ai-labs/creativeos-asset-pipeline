@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isUnhandledPointer, urlWithParam, urlWithoutParams } from "./focus-pointer";
+import { isUnhandledPointer, pointerAction, urlWithParam, urlWithoutParams } from "./focus-pointer";
 
 describe("isUnhandledPointer", () => {
   it("honours the first pointer of a session", () => {
@@ -20,6 +20,30 @@ describe("isUnhandledPointer", () => {
     expect(isUnhandledPointer(null, null)).toBe(false);
     expect(isUnhandledPointer(null, "n1")).toBe(false);
     expect(isUnhandledPointer("", null)).toBe(false);
+  });
+});
+
+describe("pointerAction", () => {
+  it("opens a link's node when no view is open", () => {
+    expect(pointerAction("n1", null, null)).toBe("open");
+    expect(pointerAction("n2", "n1", null)).toBe("open");
+  });
+
+  it("does nothing for a link already followed, or no link", () => {
+    expect(pointerAction("n1", "n1", null)).toBe("none");
+    expect(pointerAction(null, null, null)).toBe("none");
+    expect(pointerAction(null, "n1", "n2")).toBe("none");
+  });
+
+  it("does nothing when the URL already names the open view", () => {
+    expect(pointerAction("n2", "n2", "n2")).toBe("none");
+  });
+
+  // The bug: Multishot Prompt → Open video generation. The video view is open, a server action
+  // finishes, and Next.js writes back the Multishot Prompt's URL. That must not reopen it.
+  it("corrects a stale URL instead of reopening the view it names", () => {
+    expect(pointerAction("multishot", "video", "video")).toBe("correct");
+    expect(pointerAction("multishot", "multishot", "video")).toBe("correct");
   });
 });
 

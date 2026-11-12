@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { LockBanner } from "@/components/canvas/lock-banner";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
@@ -13,19 +13,16 @@ import type { EditorState } from "@/lib/editor/types";
 import { AutoCaptionsProvider } from "./auto-captions-context";
 import { EditorExportButton } from "./editor-export-button";
 import { EditorHeader } from "./editor-header";
-import { EditorPropsPanel } from "./editor-props-panel";
-import { EditorSourcesPanel } from "./editor-sources-panel";
 import { EditorPlaybackProvider } from "./editor-playback-context";
 import { EditorTimeline } from "./editor-timeline";
 import { EditorCaptionLane } from "./editor-caption-lane";
 import { EditorTimelineCaptionTools } from "./editor-auto-captions-button";
-import { EditorStageWithCaption } from "./editor-stage-with-caption";
 import { EditorDivider } from "./editor-divider";
 import { EditorDubProvider } from "./editor-dub-context";
-import { EditorPanelRail } from "./editor-panel-rail";
 import { EditorSessionProvider } from "./editor-session-context";
-import { EditorUiProvider } from "./editor-ui-context";
+import { EditorUiProvider, type EditorSide } from "./editor-ui-context";
 import { EditorViewMenu } from "./editor-view-menu";
+import { EditorWorkArea } from "./editor-work-area";
 import { EditorViewProvider } from "./editor-view-context";
 import { useEditorShortcuts } from "@/hooks/use-editor-shortcuts";
 import { EditorStoreProvider, useEditorStore } from "./editor-store-provider";
@@ -38,12 +35,9 @@ type Props = {
   initialState: EditorState;
 };
 
-const SIDE_OPEN = { sources: "232px", inspector: "340px" };
-const SIDE_RAIL = "40px";
-
-// D388 — the Rough Cut Editor page. D403: it fills the screen; Sources and Inspector collapse to
-// rails, a divider resizes the timeline, and the timeline scrolls on its own. It holds the canvas
-// lock (D391): read-only without it.
+// D388 — the Rough Cut Editor page. D403: it fills the screen; the side panel (Sources | Inspector)
+// collapses to a rail, a divider resizes the timeline, and the timeline scrolls on its own. It holds
+// the canvas lock (D391): read-only without it.
 export function EditorShell(props: Props) {
   return (
     <EditorStoreProvider doc={props.initialState.doc} sources={props.initialState.sources}>
@@ -66,7 +60,9 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
   // Seeds the shared query with the server render, so the canvas card shows this edit on return.
   useEditorState(canvasId, { initialData: initialState });
   const layout = useEditorLayout();
-  const { sources: sourcesOpen, inspector: inspectorOpen, timelineHeight } = layout.layout;
+  // The side panel's open state is the layout's `inspector` flag (remembered per browser).
+  const { inspector: panelOpen, timelineHeight } = layout.layout;
+  const [side, setSide] = useState<EditorSide>("inspector");
 
   const { status, flush } = useEditorAutosave({
     canvasId,
@@ -80,7 +76,17 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
     () => navigate(canvasPath, flush).catch((err: Error) => toast.error(`${err.message} Your latest changes aren't saved yet, so you're still here.`)),
     [navigate, canvasPath, flush],
   );
-  const panels = useMemo(() => ({ toggleSources: layout.toggleSources, toggleInspector: layout.toggleInspector }), [layout.toggleSources, layout.toggleInspector]);
+  // Ctrl 1 / Ctrl 2 show Sources / the Inspector; pressed again on the side already showing, they hide the panel.
+  const { toggleInspector } = layout;
+  const showSide = useCallback(
+    (s: EditorSide) => {
+      if (panelOpen && side === s) return toggleInspector();
+      setSide(s);
+      if (!panelOpen) toggleInspector();
+    },
+    [panelOpen, side, toggleInspector],
+  );
+  const panels = useMemo(() => ({ toggleSources: () => showSide("sources"), toggleInspector: () => showSide("inspector") }), [showSide]);
   useEditorShortcuts(panels);
   const session = useMemo(() => ({ canvasId, editorNodeId: initialState.editorNodeId, sessionId: lock.sessionId, flush }), [canvasId, initialState.editorNodeId, lock.sessionId, flush]);
 
@@ -95,7 +101,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
   return (
     <EditorSessionProvider value={session}>
       <EditorDubProvider>
-      <EditorUiProvider inspectorShown={inspectorOpen} showInspector={layout.toggleInspector} goToCanvas={goToCanvas}>
+      <EditorUiProvider panelShown={panelOpen} showPanel={toggleInspector} side={side} setSide={setSide} goToCanvas={goToCanvas}>
         <div className="flex h-dvh flex-col overflow-hidden bg-background">
           <EditorHeader
             breadcrumb={breadcrumb}
@@ -105,7 +111,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
             onBack={goToCanvas}
             actions={
               <>
-                <EditorViewMenu layout={layout} />
+                <EditorViewMenu layout={layout} panelOpen={panelOpen} side={side} onShowSide={showSide} />
                 <EditorExportButton canvasId={canvasId} nodeId={initialState.editorNodeId} title={title} flush={flush} />
               </>
             }
@@ -117,14 +123,7 @@ function EditorShellBody({ canvasId, canvasPath, breadcrumb, title, initialState
             }}
           >
             {!lock.canEdit && <LockBanner heldByName={lock.heldByName} canTakeOver={lock.canTakeOver} onTakeOver={lock.takeOver} />}
-            <div
-              className="grid min-h-0 flex-1 gap-3 px-4 pt-3 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-              style={{ gridTemplateColumns: `${sourcesOpen ? SIDE_OPEN.sources : SIDE_RAIL} minmax(0,1fr) ${inspectorOpen ? SIDE_OPEN.inspector : SIDE_RAIL}` }}
-            >
-              {sourcesOpen ? <EditorSourcesPanel onCollapse={layout.toggleSources} /> : <EditorPanelRail label="Sources" side="left" shortcut="Ctrl 1" onExpand={layout.toggleSources} />}
-              <EditorStageWithCaption />
-              {inspectorOpen ? <EditorPropsPanel onCollapse={layout.toggleInspector} /> : <EditorPanelRail label="Inspector" side="right" shortcut="Ctrl 2" onExpand={layout.toggleInspector} />}
-            </div>
+            <EditorWorkArea layout={layout} />
             <EditorDivider height={timelineHeight} onResize={layout.setTimelineHeight} />
             <EditorTimeline height={timelineHeight} captionsLane={(scale) => <EditorCaptionLane scale={scale} />} tools={<EditorTimelineCaptionTools />} />
           </div>

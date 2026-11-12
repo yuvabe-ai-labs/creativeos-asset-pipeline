@@ -1,11 +1,12 @@
 "use client";
 // One piece on the Video lane: its own frames, its badges (dub, lip sync), edges to trim. Pointer
-// handling lives in useTimelineDrag (D404); right-click opens the clip's menu (D405).
+// handling lives in useTimelineDrag (D404); right-click opens the clip's menu (D405), and so does the
+// ⋯ button the selected clip shows (task-menu design).
 import { dubLanguageLabel } from "@/lib/dubbing/types";
 import { formatTime } from "@/lib/editor/timeline";
 import type { Piece, SourceView } from "@/lib/editor/types";
 import { cn } from "@/lib/utils";
-import { EditorClipMenu } from "./editor-clip-menu";
+import { EditorClipMenu, EditorClipMoreButton } from "./editor-clip-menu";
 import { EditorFilmstrip } from "./editor-filmstrip";
 
 export const VIDEO_LANE_PX = 64;
@@ -61,6 +62,11 @@ export function EditorTimelinePiece({ piece, index, source, left, width, selecte
           {piece.picture === "lipSynced" && <span className="rounded-full bg-primary/90 px-1.5 text-[9.5px] text-primary-foreground [text-shadow:none]">LIP</span>}
         </span>
         <span className="pointer-events-none absolute bottom-1 left-2 text-[10px] tabular-nums text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,.75)]">{formatTime(piece.out - piece.in)}</span>
+        {selected && w > 72 && (
+          <span className="absolute right-3 top-1/2 z-20 -translate-y-1/2">
+            <EditorClipMoreButton piece={piece} source={source} />
+          </span>
+        )}
         {edge("in")}
         {edge("out")}
       </div>
