@@ -67,8 +67,10 @@ The panel uses five kinds of message beyond plain conversation, the same in ever
 ### 4.5 After a stage is approved
 
 - Approval does not close a stage. The person can add documents to an approved brand KB, or more research to approved market research, at any time, in the chat or on the screen.
-- Anything new is surfaced in the chat. The copilot shows what it would change as a before and after, and asks for approval.
-- Nothing new counts as approved until the person approves it. The copilot never folds new material in silently.
+- Anything new the copilot reads or proposes is surfaced in the chat. The copilot shows what it would change as a before and after, and asks for approval.
+- Only changes the copilot makes need approval. An edit the person makes by hand on the screen applies at once, as today.
+- Nothing the copilot proposes counts as approved until the person approves it. The copilot never folds new material in silently.
+- A change waiting for approval locks nothing. Scripts keep working from the approved version. Once the change is approved, new scripts use it; scripts that already exist are not touched.
 
 ## 5. Stage by stage
 
@@ -147,8 +149,7 @@ These are product decisions. None is assumed in this document. Each belongs to a
 4. The first sketch had a step "what kind of stories". Is that part of market research, part of scripting, or its own step?
 5. Which extra steps would make scripts more consistent, interesting and detailed?
 6. On the canvas, what does the copilot do beyond references and prompts? What replaces the retired "image for a shot" guided run, and do the existing "next node" buttons stay?
-7. While a change to an approved brand KB or market research is waiting for approval, do the stages after it lock again, or stay open on the approved version?
-8. An internal approval before client review is planned separately. Where does it sit in a script's steps?
+7. An internal approval before client review is planned separately. Where does it sit in a script's steps?
 
 ### Decided on 2026-11-12 (Cyril)
 
@@ -157,6 +158,8 @@ These are product decisions. None is assumed in this document. Each belongs to a
 - Pasting an existing script skips the gates.
 - The onboarding thread runs through to creating the first script.
 - An approved stage stays open: the person can add documents or research at any time. Anything new is shown in the chat as a before and after and waits for approval (section 4.5).
+- Only changes the copilot makes need approval. Edits made by hand on the screen apply at once.
+- A change waiting for approval locks nothing. Scripts keep working from the approved version; once the change is approved, new scripts use it and existing scripts are not touched.
 
 ## 9. Success
 
