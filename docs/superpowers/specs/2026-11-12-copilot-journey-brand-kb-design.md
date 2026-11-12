@@ -37,7 +37,7 @@ On the Brand KB page, the panel becomes a chat with the brand KB copilot. It doe
 ### 2.3 Walks the review
 
 - When the build lands, the copilot gives a short account of what it found and where it was unsure.
-- It asks about what it could not settle, one question at a time, with likely answers as buttons and free text always allowed. Example: the site uses two colour sets; which is the main palette?
+- It asks about what it could not settle, one question at a time, with likely answers as buttons and free text always allowed. Example: the audience age range was inferred, not stated; is 25 to 40 right?
 - An answer fills or corrects the field. The value is marked as coming from the person.
 - It tells the person what is left: which sections still have fields to review. It links to them; it does not review them.
 - The person reviews on the screen as today. The panel keeps up with what was done by hand and does not ask about a field the person has already settled.
@@ -47,7 +47,8 @@ On the Brand KB page, the panel becomes a chat with the brand KB copilot. It doe
 
 This is section 4.5 of the parent spec, applied to the brand KB.
 
-- The person can add a document, an image, a link or a plain statement ("we no longer say 'chemical-free'") at any time, including after the KB is approved.
+- The person can add a document, an image or a plain statement ("we no longer say 'chemical-free'") at any time, including after the KB is approved.
+- A plain statement lives in the thread and in the fields it changed. It is not a source file. *(My call. Reading an arbitrary link is not in piece 2: sources stay the kinds the KB has today.)*
 - The copilot reads the new material against the current KB and answers with a **change card**: each field it would change, shown before and after, with where the new value came from.
 - Each field on the card can be kept or dropped. Approving the card applies the kept ones. Discarding it applies nothing.
 - Applied fields count as approved by the person. Fields the card did not name are untouched, with their reviews and hand edits intact.
@@ -82,7 +83,7 @@ The five message kinds from the parent spec, section 4.3, all used here: status 
 
 - It never approves the brand KB and never marks it ready.
 - It never changes a reviewed field without an approved change card.
-- It never states a brand fact without a source: the website, a named document, an image, or the person. If it has no source it asks.
+- It never proposes a value without saying where it came from: a named document, an image, or the person. If it has no source it asks. *(My call: this covers what comes through the chat from now on. For a field filled by the original build, the copilot can say only what the KB already records, that it was stated or inferred; it does not claim a page or a document it cannot show.)*
 - It never starts a paid collection of images from the site or socials again without the person saying so. Refreshing those costs money and is confirmed today; that stays.
 - It never sends the person to another screen to supply something it could take in the chat.
 
@@ -118,3 +119,7 @@ These change what gets built. They are not decided.
 3. **Removing a source from an approved KB.** Should the copilot propose removing what came from that source, as a change card, or leave the KB alone?
 4. **Who may approve the brand KB.** Still open from the parent spec (question 2): any teammate, or a named role?
 5. **Mid-build questions.** May the copilot ask a question while the build is still running (for example about socials), or only once the KB has landed?
+6. **What "existing scripts are not touched" means.** Today every script reads the client's one live KB each time the copilot works on it, so a hand edit to the KB already reaches existing scripts on their next turn. Does an approved change card behave the same way (what is already written in a script is not rewritten, but its next turn reads the new KB)? Or must a script stay on the KB as it was when the script started, which hand edits do not do today?
+7. **Image Analysis.** Adding an image today re-studies the images and rewrites the Image Analysis section with no approval, and can put an approved field there back to "needs review". Is Image Analysis exempt from the change-card rule, as it already is from the "every field reviewed" rule, or must it go through a card too?
+8. **A discarded card.** When the person discards a card, does the attached document stay in Source files? If it stays, a later rebuild reads it again.
+9. **How many questions.** The build marks fields as inferred or leaves them empty; a new KB can have a dozen or more. Does the copilot ask about all of them, or only the few that matter most and leave the rest to the review on screen?
