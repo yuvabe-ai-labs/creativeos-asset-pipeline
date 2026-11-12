@@ -395,7 +395,7 @@ update on their next `/api/me` refetch (focus or a 403).
 
 - `check`: the full order of §4.2 as a table test, including several agencies and the super
   admin.
-- Rules from access: owner, member, waiting member, per-client override.
+- Access built from the RPC rows: owner, member, waiting member, per-client override, several agencies.
 - Coverage: every route and action has a `need` from the action list.
 - Chokepoints: 404 for another agency and for a client the person is not on, 403 for a missing
   permission.
