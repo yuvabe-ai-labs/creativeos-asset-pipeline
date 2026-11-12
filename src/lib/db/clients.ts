@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { uniqueSlug } from "@/lib/slug";
 import type { ClientRow } from "./types";
@@ -66,7 +67,8 @@ export async function getClientById(id: string): Promise<ClientRow | null> {
   return (data as ClientRow) ?? null;
 }
 
-export async function getClientBySlug(slug: string): Promise<ClientRow | null> {
+// cache(): the client layout and the page under it ask for the same client in one request.
+export const getClientBySlug = cache(async (slug: string): Promise<ClientRow | null> => {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("clients")
@@ -75,7 +77,7 @@ export async function getClientBySlug(slug: string): Promise<ClientRow | null> {
     .maybeSingle();
   if (error) throw error;
   return (data as ClientRow) ?? null;
-}
+});
 
 export async function createClient(input: {
   name: string;
@@ -152,6 +154,18 @@ export async function setKBStatus(
   const { error } = await supabase
     .from("clients")
     .update({ kb_status: status })
+    .eq("id", clientId);
+  if (error) throw error;
+}
+
+export async function setMarketStatus(
+  clientId: string,
+  status: ClientRow["market_status"],
+): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("clients")
+    .update({ market_status: status })
     .eq("id", clientId);
   if (error) throw error;
 }

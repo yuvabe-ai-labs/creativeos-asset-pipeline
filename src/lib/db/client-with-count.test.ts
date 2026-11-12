@@ -9,6 +9,7 @@ const base: RawClientWithCanvases = {
   logo_url: null,
   website_url: null,
   kb_status: "pending",
+  market_status: "approved",
   active_kb_version_id: null,
   created_at: "2026-06-01T00:00:00Z",
   updated_at: "2026-06-01T00:00:00Z",

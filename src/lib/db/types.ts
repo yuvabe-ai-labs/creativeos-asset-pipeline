@@ -9,6 +9,7 @@ export type ClientRow = {
   logo_url: string | null;
   website_url: string | null;
   kb_status: "pending" | "in_review" | "ready";
+  market_status: "pending" | "approved"; // a person approves market research; scripts open on "approved"
   active_kb_version_id: string | null;
   created_at: string;
   updated_at: string;
