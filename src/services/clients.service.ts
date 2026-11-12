@@ -20,6 +20,12 @@ class ClientsService {
     });
     return logoUrl;
   }
+
+  /** A person approves the client's market research, which opens new scripts. */
+  async approveMarket(clientId: string): Promise<void> {
+    const res = await fetch(`/api/clients/${clientId}/market/approve`, { method: "POST" });
+    await readJson<{ ok: true }>(res, "Could not approve market research.");
+  }
 }
 
 export const clientsService = new ClientsService();

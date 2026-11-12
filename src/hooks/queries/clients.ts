@@ -22,3 +22,12 @@ export function useUploadClientLogo(clientId: string) {
     onSuccess: () => router.refresh(),
   });
 }
+
+/** The stage tabs and the gates are drawn by the server layout, so approving refreshes the route. */
+export function useApproveMarket(clientId: string) {
+  const router = useRouter();
+  return useMutation({
+    mutationFn: () => clientsService.approveMarket(clientId),
+    onSuccess: () => router.refresh(),
+  });
+}
