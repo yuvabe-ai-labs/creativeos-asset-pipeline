@@ -8670,3 +8670,23 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Tabs (D492): they made the edits look as important as Generate.
 
 **Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D494 — One frame around every client screen: stage tabs and a foldable copilot guide *(recorded 2026-11-12)*
+
+**Decision.** A server layout at `src/app/clients/[id]/layout.tsx` wraps every client screen. It reads the client once and draws five tabs across the top (Brand KB, Market research, Scripts, Avatars, Brand assets); the three stage tabs show approved, in progress or locked. On the Brand KB, Market research and Scripts pages a copilot panel sits on the left and folds to a rail (remembered per client in the browser). In this first piece the panel is a fixed guide worked out from the client's status: what is done, what is waiting for the person, the next approval. It has no chat. The canvas editor and a script's own page (which keeps its script copilot) get no panel; the canvas editor gets no tabs either. The pages themselves are unchanged.
+
+**Why.** User, 11 to 12 Nov 2026: the pipeline's pieces all exist but nothing connects them; a panel on the left should take a person through it as a layer over the existing screens, foldable so it never blocks stepping in by hand. One layout is the single place that knows where a client is, so no page repeats it.
+
+**Rejected.** A tab bar repeated in each page (five copies to keep in step). A panel owned by each page (no shared state, no shared fold). Chat in the panel now: there is no stage agent to answer yet, and an input that does nothing misleads.
+
+**Originated →** `2026-11-12-copilot-journey-design.md`.
+
+### D495 — Stages are gated by a person's approval: brand KB, then market research, then scripts *(recorded 2026-11-12; refines Market Signals V1)*
+
+**Decision.** `clients.market_status` (`pending` or `approved`, migration 0062). Market research opens when the brand KB is ready. A person approves market research with a button on its page; that opens new scripts. Until then a script's copilot refuses to write a new script, and still takes a pasted script. A script already written is never blocked. Every client that existed before the migration is approved, and only an explicit `pending` gates anything, so a database the migration has not reached locks nothing. The copilot never approves.
+
+**Why.** User, 12 Nov 2026: stages gated by approval; a person always approves for now; existing clients are assumed approved; pasting a script skips the gates.
+
+**Rejected.** Marking existing brand KBs ready to satisfy the gate (it would claim a review nobody did). Blocking the New script button outright (pasting happens inside the script copilot, so the paste would be blocked too). Market Signals V1's "no AI anywhere" is untouched by this piece; the research agent is a later piece and will need its own decision.
+
+**Originated →** `2026-11-12-copilot-journey-design.md`.
