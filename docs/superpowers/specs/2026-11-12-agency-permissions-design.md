@@ -66,6 +66,7 @@ Each agency has exactly one owner.
   shows them first as "Owner · everything".
 - Only the owner can: see and use the Team page, invite and remove people, change a person's
   permissions, create and archive clients, manage People lists, and see credit usage.
+- A new agency has no owner until the owner the super admin invited accepts (§6.3).
 - The owner cannot be removed or demoted. Ownership moves only through the super admin
   (§6.6), which makes another member owner and the previous owner a member with all four
   permissions on every client.
@@ -121,11 +122,13 @@ rather than followed by a corrective migration. Sections 7 (node and edge trigge
 - index on `client_id` (People list)
 
 `org_invitations` (new):
-- `id`, `org_id`, `email`, `token_hash` (sha256 of a random token), `invited_by`, `created_at`,
-  `expires_at` (7 days), `accepted_at`, `revoked_at`
+- `id`, `org_id`, `email`, `as_owner boolean not null default false`, `token_hash` (sha256 of a
+  random token), `invited_by`, `created_at`, `expires_at` (7 days), `accepted_at`, `revoked_at`
 - unique index on `token_hash`
 - unique partial index on `(org_id, lower(email))` where not accepted and not revoked (one open
   invite per person per agency)
+- unique partial index on `(org_id)` where `as_owner` and not accepted and not revoked (one open
+  owner invite per agency)
 - index on `org_id`
 
 Not created: `role_presets`, `role_preset_permissions`, `membership_permission_changes`.
@@ -151,7 +154,9 @@ this code (§9).
   adds what was added. A row-level override (§8) survives every change except one to the same
   permission.
 - **Owner protection.** After update or delete on `org_memberships` (deferred to the end of the
-  transaction): refuse if the agency is left with no owner. Counting the owners that remain,
+  transaction): when the changed row was an owner, refuse if the agency is left with no owner.
+  An agency created by the super admin has no owner until its invited owner accepts; the rule
+  starts to apply from then. Counting the owners that remain,
   rather than protecting one named owner, works unchanged when several are allowed, and lets
   the transfer function demote and promote in either order. Messages stay plain: "The agency owner
   can't be removed."
@@ -287,11 +292,12 @@ All screens use the existing shadcn primitives and follow Cyril's page for layou
 ### 6.1 Team page (`/team`, owner only)
 
 Three sections:
-- **Waiting for you.** People who entered their details. Card: name, email, "Details entered
-  {date}", the four permissions as switches (none on by default), "Generate spends the agency's
+- **Waiting for you.** People who accepted their invite. Card: name, email, "Joined {date} ·
+  invited by {name}", the four permissions as switches (none on by default), "Generate spends the agency's
   credits. These apply on every client {name} is added to.", and **Give access**, which saves
-  the permissions and sets `access_given_at`. The person then appears under Members, still
-  seeing the onboarding screen until added to a client.
+  the permissions and sets `access_given_at`, and **Remove**, which deletes the membership (they
+  can be invited again). After Give access the person appears under Members, still seeing the
+  onboarding screen until added to a client. The header's Team link shows the number waiting.
 - **Invited.** Open invites: email, sent date, expiry, Copy link, Resend (new token, old one
   stops working), Revoke.
 - **Members.** Owner first as "Owner · everything". Each member: name, email, permission chips,
@@ -299,7 +305,9 @@ Three sections:
   cascade applies it to every client. Remove asks for confirmation and deletes the membership.
 
 Invite: an **Invite** button opens a dialog with one email field. It creates the invitation,
-emails the link through Resend and shows it to copy.
+emails the link through Resend and shows it to copy. Refused with a plain message: an invalid
+email, someone already in the agency, or an email with an open invite ("Resend it from the
+Invited list").
 
 ### 6.2 People list (`/clients/[id]/people`, owner only)
 
@@ -313,11 +321,16 @@ emails the link through Resend and shows it to copy.
 
 - Invalid, used, revoked or expired: a plain message and a link to sign in.
 - No account for the invited email: name and password, then the account, profile and membership
-  (waiting) are created and the person is signed in and sees the onboarding screen.
-- Account exists: sign in if needed, then "Join {Agency}". Signed in as a different email: "This
+  are created and the person is signed in. A member invite starts waiting and shows the
+  onboarding screen. An owner invite ("Set up {Agency}") makes them the owner with access given
+  at once; they land on an empty client list with **New client** and **Invite your team**.
+- Account exists (the person is already in another agency): sign in if needed, then
+  "Join {Agency}". No second account; the new agency becomes the selected one. Signed in as a different email: "This
   invite is for {email}. Sign in with that email to accept it."
 - Accepting is single use and marks the invitation accepted in the same step that creates the
   membership.
+- When a member accepts, the agency's owner and the person who invited them are emailed: "{Name}
+  joined {Agency}. Give them access on the Team page."
 
 ### 6.4 Onboarding screen (`/onboarding`)
 
@@ -334,12 +347,34 @@ Designer to Owner or Member, and credits show only to the owner.
 
 ### 6.6 Super admin (`/admin/orgs/[id]`)
 
-- Creating an agency stays; its owner is invited by email (the temporary-password path is
-  retired, as in D497).
-- Members tab: the same member list as the Team page, plus **Make owner** (calls
-  `transfer_agency_owner`) and the same Invite dialog, so the super admin can invite into any
-  agency.
-- `member-role-select` is removed.
+The super admin manages any agency's people from Admin, without entering the agency. The agency
+page has three tabs:
+- **Overview**: as today (people, clients, credits, and "View as {Agency}", which stays as it is:
+  read-only, or elevated with its audit log).
+- **Team**: the Team page component of §6.1 itself, with the owner's powers (invite, give access,
+  edit, remove), plus **Make owner** on each member (calls `transfer_agency_owner`). The Invite
+  dialog adds an **As: Member | Owner** choice; Owner is offered only while the agency has no
+  owner and no open owner invite.
+- **Clients**: the agency's clients; each opens the People list component of §6.2.
+
+Onboarding an agency: create it (name), then invite its owner from the Team tab. The admin list
+marks agencies with no owner yet. The temporary-password path (`addOrgMember`, D497) and
+`member-role-select` are removed.
+
+Every change the super admin makes from Admin is written to the same audit log as elevated
+view-as (`logImpersonationEvent`, event type `admin_action`, with the agency, the action and the
+person affected).
+
+### 6.7 Emails (Resend)
+
+| Email | To | When |
+|---|---|---|
+| "{Inviter} invited you to join {Agency} on CreativeOS" | Invited member | Invite or Resend |
+| "Set up {Agency} on CreativeOS" | Invited owner | Owner invite or Resend |
+| "{Name} joined {Agency}. Give them access on the Team page." | Owner and inviter | A member accepts |
+
+Invites are limited to 50 per agency per day, so a leaked session can't mass-mail. Without
+`RESEND_API_KEY` the invite is still created and the link shown to copy.
 
 ## 7. Several agencies per person
 
@@ -403,7 +438,9 @@ update on their next `/api/me` refetch (focus or a 403).
 - Chokepoints: 404 for another agency and for a client the person is not on, 403 for a missing
   permission.
 - Server actions: invite (create, resend, revoke, accept for a new and an existing account, wrong
-  email), give access, edit permissions, add and remove people, switch agency, transfer owner.
+  email, owner invite only while no owner, daily limit), give access, remove someone waiting,
+  edit permissions, add and remove people, switch agency, transfer owner, and the same actions
+  from Admin writing the audit log.
 - SQL (cascade, owner protection, backfill) is checked by hand on staging after the migration;
   the steps are listed in the migration doc.
 

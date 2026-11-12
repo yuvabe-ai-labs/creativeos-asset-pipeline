@@ -8814,3 +8814,22 @@ Allowing several agencies later means three things:
 - Keeping CASL as a wrapper (a dependency and its advisories for a layer that decides nothing).
 - CASL `$in` conditions per client (scans every client on each check).
 - Keeping area keys (`scripts.approve`) on routes and reducing them to the four permissions in the checker. It would have made area-level access later a data change, but Arun chose plain actions on 12 Nov for simpler names; going granular later means revisiting each route. The granular build is at tag `perm-granular-v1`.
+
+### D505 — Yuvabe manages any agency's people from Admin; only Yuvabe invites an owner *(recorded 2026-11-13; refines D497, D502; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- **Admin.** The admin agency page has Overview, Team and Clients tabs. Team and Clients render the owner's Team page and People list components, with the owner's powers, plus Make owner. View-as stays as it is (read-only, or elevated and audit-logged). Changes made from Admin go to the same audit log (`admin_action`).
+- **Owner invites.** An invitation carries `as_owner`. Only the super admin sends one, and only while the agency has no owner and no open owner invite. Accepting makes the person owner with access given at once. A new agency has no owner until then, so the owner-protection rule applies only once an owner exists.
+- **Joining.** When a member accepts, the owner and the inviter are emailed, and the Team link shows how many are waiting. A waiting person can be removed.
+- **Existing logins.** Inviting an email that already has a login adds a membership after the person signs in and presses Join; no second account.
+- **Limit.** 50 invites per agency per day.
+
+**Why.**
+- Arun, 13 Nov: the super admin must be able to set permissions; chose Team and People inside Admin over working through elevated view-as.
+- Elevated view-as already audit-logs its changes; logging Admin changes to the same place keeps that accountability.
+- Without an owner invite a new agency could never get its first owner through the invite flow, and without a join email a new person could wait unnoticed.
+
+**Rejected.**
+- Managing people only through elevated view-as (fewer screens, less convenient when setting agencies up).
+- Owners inviting other owners (one owner per agency, D500).
+- Temporary passwords for a new agency's owner (D497 retired them).
