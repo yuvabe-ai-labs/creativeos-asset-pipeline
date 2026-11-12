@@ -50,18 +50,25 @@ Every client screen shares one frame:
 
 ### 4.3 What the panel says
 
-The panel uses four kinds of message beyond plain conversation, the same in every stage:
+The panel uses five kinds of message beyond plain conversation, the same in every stage:
 
 - **Status line:** what the copilot has done or is doing ("Read the website", "Exploring the competition").
 - **Question with reply choices:** one question at a time, with the likely answers as buttons and free text always allowed.
 - **Waiting for you:** a marker naming the one thing the person has to do next. It also shows on the folded rail.
 - **Gate card:** the next approval, what it unlocks, and why the copilot cannot do it for the person.
+- **Change card:** a before and after of something new on an approved stage, with approve and discard.
 
 ### 4.4 Stepping in and out
 
 - The person can fold the panel at any time and work on the screen by hand.
 - The copilot notices what changed by hand and picks up from there. It does not redo or overwrite the person's work.
 - The person can ask the copilot to carry on, to explain a choice, or to change something it did.
+
+### 4.5 After a stage is approved
+
+- Approval does not close a stage. The person can add documents to an approved brand KB, or more research to approved market research, at any time, in the chat or on the screen.
+- Anything new is surfaced in the chat. The copilot shows what it would change as a before and after, and asks for approval.
+- Nothing new counts as approved until the person approves it. The copilot never folds new material in silently.
 
 ## 5. Stage by stage
 
@@ -122,7 +129,7 @@ Everything else works as it does now.
 This is too large for one plan. Proposed as six pieces, each with its own plan, each usable when it lands:
 
 1. **The shell:** shared frame, stage tabs, the foldable guide panel (no chat yet) and the approval gates.
-2. **Brand audit agent** in the onboarding thread, with saved threads, the four message kinds and attachments in the chat.
+2. **Brand audit agent** in the onboarding thread, with saved threads, the five message kinds and attachments in the chat.
 3. **Market research agent** and the market research approval.
 4. **Scripting** moved into the panel, starting from the approved brand KB and research.
 5. **Visualise and review** guidance in the script's thread.
@@ -140,7 +147,7 @@ These are product decisions. None is assumed in this document. Each belongs to a
 4. The first sketch had a step "what kind of stories". Is that part of market research, part of scripting, or its own step?
 5. Which extra steps would make scripts more consistent, interesting and detailed?
 6. On the canvas, what does the copilot do beyond references and prompts? What replaces the retired "image for a shot" guided run, and do the existing "next node" buttons stay?
-7. If an approved brand KB or market research is edited later, do the stages after it lock again?
+7. While a change to an approved brand KB or market research is waiting for approval, do the stages after it lock again, or stay open on the approved version?
 8. An internal approval before client review is planned separately. Where does it sit in a script's steps?
 
 ### Decided on 2026-11-12 (Cyril)
@@ -149,6 +156,7 @@ These are product decisions. None is assumed in this document. Each belongs to a
 - Avatars and Brand assets are added as tabs beside the stage tabs.
 - Pasting an existing script skips the gates.
 - The onboarding thread runs through to creating the first script.
+- An approved stage stays open: the person can add documents or research at any time. Anything new is shown in the chat as a before and after and waits for approval (section 4.5).
 
 ## 9. Success
 
