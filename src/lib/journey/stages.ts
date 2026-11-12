@@ -10,7 +10,7 @@ export type JourneyClient = Pick<ClientRow, "kb_status" | "market_status">;
 
 export function journeyState(client: JourneyClient): JourneyState {
   const kbReady = client.kb_status === "ready";
-  const marketApproved = client.market_status === "approved";
+  const marketApproved = !marketPending(client);
   return {
     kb: kbReady ? "approved" : "in_progress",
     market: marketApproved ? "approved" : kbReady ? "in_progress" : "locked",
@@ -20,9 +20,15 @@ export function journeyState(client: JourneyClient): JourneyState {
 
 /** New scripts wait for approved market research. A pasted script does not (see the turn route). */
 export function scriptsLocked(client: JourneyClient): boolean {
-  return client.market_status !== "approved";
+  return marketPending(client);
 }
 
 export function canApproveMarket(client: JourneyClient): boolean {
-  return client.kb_status === "ready" && client.market_status === "pending";
+  return client.kb_status === "ready" && marketPending(client);
+}
+
+/** Only an explicit "pending" gates anything. A row read before migration 0062 reached the
+ *  database has no market_status at all, and must not lock every client's scripts. */
+function marketPending(client: JourneyClient): boolean {
+  return client.market_status === "pending";
 }

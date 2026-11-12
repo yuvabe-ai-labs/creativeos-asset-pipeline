@@ -57,7 +57,7 @@ export default async function KBPage({
     <main
       className={
         isReviewOrEdit
-          ? "mx-auto flex h-[calc(100vh-4rem)] w-full max-w-5xl flex-col px-6 pt-6"
+          ? "mx-auto flex h-[calc(100vh-7rem)] w-full max-w-5xl flex-col px-6 pt-6" // header 4rem + stage tabs 3rem
           : "mx-auto w-full max-w-5xl flex-1 px-6 py-12"
       }
     >

@@ -8,7 +8,7 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId, client) =>
     withTryCatch("Could not approve market research.", async () => {
-      if (client.market_status === "approved") return apiOk({ ok: true as const });
+      if (client.market_status !== "pending") return apiOk({ ok: true as const });
       if (client.kb_status !== "ready") return apiError("Approve the brand KB before market research.", 409);
 
       await setMarketStatus(clientId, "approved");

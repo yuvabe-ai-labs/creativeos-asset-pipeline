@@ -24,6 +24,17 @@ describe("journeyState", () => {
   });
 });
 
+describe("before the market_status column exists", () => {
+  // Code can reach a database before migration 0062 does. A row without the column must read as
+  // approved, or every client's scripts would lock.
+  const row = { kb_status: "ready" } as unknown as Parameters<typeof journeyState>[0];
+  it("reads as approved and unlocked", () => {
+    expect(journeyState(row)).toEqual({ kb: "approved", market: "approved", scripts: "open" });
+    expect(scriptsLocked(row)).toBe(false);
+    expect(canApproveMarket(row)).toBe(false);
+  });
+});
+
 describe("canApproveMarket", () => {
   it("only with a ready KB and pending research", () => {
     expect(canApproveMarket({ kb_status: "ready", market_status: "pending" })).toBe(true);
