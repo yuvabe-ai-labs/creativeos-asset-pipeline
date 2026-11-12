@@ -5,6 +5,7 @@ import { listScriptDeleteBlocks, listScripts } from "@/lib/db/scripts";
 import { listUnwrittenScripts } from "@/lib/db/script-generate";
 import { listFeedbackCounts } from "@/lib/db/script-reviews";
 import { resolveOrgId } from "@/lib/dal";
+import { scriptsLocked } from "@/lib/journey/stages";
 import { ScriptsLibrary } from "@/components/scripts/scripts-library";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -34,7 +35,7 @@ export default async function ScriptsPage({ params }: { params: Promise<{ id: st
           <BreadcrumbItem><BreadcrumbPage>Scripts</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <ScriptsLibrary clientId={client.id} clientName={client.name} clientSlug={client.slug} scripts={scripts} unwritten={unwritten} feedback={feedback} deleteBlocks={deleteBlocks} />
+      <ScriptsLibrary clientId={client.id} clientName={client.name} clientSlug={client.slug} scripts={scripts} unwritten={unwritten} feedback={feedback} deleteBlocks={deleteBlocks} locked={scriptsLocked(client)} />
     </main>
   );
 }

@@ -122,3 +122,58 @@ describe("POST .../turn", () => {
     expect(insertScriptMessages).not.toHaveBeenCalled();
   });
 });
+
+// Copilot journey spec §5.3: new scripts wait for approved market research; a pasted script does not.
+describe("POST .../turn while market research is pending", () => {
+  const GATE = "New scripts open once market research is approved. You can paste a script you already have.";
+  const pasted = Array.from({ length: 8 }, (_, i) => `Shot ${i + 1}: ${"words ".repeat(12)}`).join("\n");
+
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    await allowClient();
+    const { getClientById } = await import("@/lib/db/clients");
+    vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1", kb_status: "ready", market_status: "pending" } as never);
+    vi.mocked(getGenerateScript).mockResolvedValue(generateScript());
+    vi.mocked(listScriptMessages).mockResolvedValue([]);
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
+    vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(generateScript()) as never);
+    vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
+  });
+
+  it("refuses a chat message on an unwritten script", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(send({ text: "Write me a festival reel" }) as never, { params });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(GATE);
+    expect(insertScriptMessages).not.toHaveBeenCalled();
+    expect(prepareTurn).not.toHaveBeenCalled();
+  });
+
+  it("lets a pasted script through", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(send({ text: pasted }) as never, { params });
+    expect(res.status).toBe(200);
+    await lines(res);
+    expect(prepareTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets an already written script be edited", async () => {
+    vi.mocked(getGenerateScript).mockResolvedValue(generateScript({ doc: scriptDocSchema.parse(reel01) }));
+    const { POST } = await import("./route");
+    const res = await POST(send({ text: "Shorter hook" }) as never, { params });
+    expect(res.status).toBe(200);
+    await lines(res);
+    expect(prepareTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("changes nothing once market research is approved", async () => {
+    const { getClientById } = await import("@/lib/db/clients");
+    vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1", kb_status: "ready", market_status: "approved" } as never);
+    const { POST } = await import("./route");
+    const res = await POST(send({ text: "Write me a festival reel" }) as never, { params });
+    expect(res.status).toBe(200);
+    await lines(res);
+    expect(prepareTurn).toHaveBeenCalledTimes(1);
+  });
+});

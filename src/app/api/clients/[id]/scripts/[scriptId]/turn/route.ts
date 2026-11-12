@@ -9,6 +9,8 @@ import { streamingCaller, structuredCaller } from "@/lib/scripts/copilot/model";
 import { prepareTurn, type Reply } from "@/lib/scripts/copilot/turn";
 import { MAX_PASTE_CHARS, SCRIPT_QUICK_MODEL, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
 import { isUuid } from "@/lib/avatars/utils";
+import { mightBeScript } from "@/lib/scripts/copilot/import";
+import { scriptsLocked } from "@/lib/journey/stages";
 
 // A first draft is one long structured call; give it room (as the avatar generation routes do).
 export const maxDuration = 300;
@@ -34,6 +36,11 @@ export async function POST(req: Request, { params }: Ctx) {
       const script = await getGenerateScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);
       if (script.stage !== "generate") return apiError("This script is final. Reopen it from Visualise to change it.", 409);
+      // Copilot journey spec §5.3: a new script waits for approved market research. A pasted script
+      // does not, and a script already written is never stranded. Refused before anything is saved.
+      if (scriptsLocked(client) && script.doc === null && !mightBeScript(text)) {
+        return apiError("New scripts open once market research is approved. You can paste a script you already have.", 409);
+      }
 
       const { userId } = await resolveCallerContext();
       const history = await listScriptMessages(clientId, scriptId);
