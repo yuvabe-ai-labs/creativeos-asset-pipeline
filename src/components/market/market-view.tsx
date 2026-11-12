@@ -17,6 +17,7 @@ import type { MoodboardItem } from "@/lib/db/moodboards";
 import { MARKET_MASONRY, type MarketBucket } from "@/lib/market/constants";
 import { MarketGridSkeleton } from "@/components/skeletons/market-grid-skeleton";
 import { AddReferenceTile } from "./add-reference-tile";
+import { ApproveMarketButton } from "./approve-market-button";
 import { AddReferenceDialog } from "./add-reference-dialog";
 import { ReferenceTile } from "./reference-tile";
 import { ReferenceLightbox } from "./reference-lightbox";
@@ -37,10 +38,13 @@ type PendingDelete =
 export function MarketView({
   clientId,
   clientName,
+  approval,
 }: {
   clientId: string;
   clientName: string;
   clientSlug: string;
+  /** Copilot journey: whether the research is approved, and whether it can be approved now. */
+  approval: { approved: boolean; canApprove: boolean };
 }) {
   const market = useMarket(clientId);
   const [tab, setTab] = useState<MarketTab>("direct");
@@ -93,12 +97,17 @@ export function MarketView({
     <div className="flex flex-col gap-4">
       {/* The breadcrumb already establishes client and section, so the header names
           the page and says what it is for — matching the Brand KB page. */}
-      <header className="animate-rise mb-2 mt-4">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Market</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          What is happening around {clientName} — evidence the team collects, and the
-          patterns designers distil from it.
-        </p>
+      <header className="animate-rise mb-2 mt-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Market research</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            What is happening around {clientName} — evidence the team collects, and the
+            patterns designers distil from it.
+          </p>
+        </div>
+        {(approval.approved || approval.canApprove) && (
+          <ApproveMarketButton clientId={clientId} approved={approval.approved} />
+        )}
       </header>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as MarketTab)}>
