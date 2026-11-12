@@ -37,9 +37,7 @@ Kept from plans 1 and 2:
   triggers that keep each on its canvas, scoped recent canvases and `/eval`, the Drive token,
   an empty client id failing closed.
 - `/api/me` on TanStack Query, `AccessProvider`, `useCan`, `GatedButton`, the 403 access signal.
-- CASL (`@casl/ability` 7.0.3, `@casl/react` 7.0.1, exact pins), now behind one checker.
-
-Removed: the area catalogue, presets and their editor, per-person changes, the merge of preset
+Removed: CASL (`@casl/ability`, `@casl/react`) and the packed rules sent to the browser, the area catalogue, presets and their editor, per-person changes, the merge of preset
 and changes, the two download levels, the node-type-to-area map, `all_clients`.
 
 ## 2. Model
@@ -223,9 +221,11 @@ Order:
 6. `view`, `edit`: allow.
 7. Generate, approve, share, delete: allow if the client row has it, else `forbidden`.
 
-Every step is a Map or Set lookup. CASL builds the ability from the same data for the browser
-and for later finer rules; it is never given a `clientId $in` list, which would scan every
-client on each check. Routes and components call `check` or `useCan`, never CASL directly.
+Every step is a Map or Set lookup. The browser runs the same function on the same data
+(`src/lib/permissions/check.ts` has no server-only imports), so server and browser cannot
+disagree. Routes and components call `check` or `useCan` and nothing else, so rules that
+depend on the resource itself (for example "only what they created") can later be added behind
+these two functions, with a library such as CASL if it helps, without touching routes or screens.
 
 `view` and `edit` are still named by routes, so each route's intent stays visible and a later
 read-only person changes step 6 only.
@@ -266,7 +266,8 @@ The coverage test keeps failing any route or action without a `need`, and now ch
 ## 5. Browser
 
 - `/api/me` returns: the person's agencies `[{ id, name, isOwner }]`, `selectedOrgId`, the
-  selected agency's packed rules and client ids, `accessGiven`. It stays seeded from the root
+  selected agency's access (owner or not, whether access is given, permissions, and each client
+  id with its permissions). It stays seeded from the root
   layout, refetches on focus and on any 403, and skips retries on 4xx.
 - `useCan(action, clientId)` and `GatedButton` stay. Generate shows a disabled button with the
   reason; Approve, Share and Delete are hidden when missing. Download buttons no longer gate.

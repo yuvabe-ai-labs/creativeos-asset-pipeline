@@ -8715,7 +8715,7 @@ Allowing several agencies later means three things:
 
 ### D499 — CASL evaluates permissions on server and browser; rules arrive with the first HTML *(recorded 2026-11-11; refines D300; originated → `2026-11-11-permission-based-access-design.md`)*
 
-**Refined by D504 (2026-11-12).** CASL stays, behind one checker that does Map and Set lookups; no `clientId $in` conditions.
+**Superseded by D504 (2026-11-12).** CASL is removed; one checker does Map and Set lookups on server and browser.
 
 **Decision.**
 - **Library.** `@casl/ability` and `@casl/react`, pinned exactly.
@@ -8794,22 +8794,23 @@ Allowing several agencies later means three things:
 
 **Rejected.** Opening another agency's link directly with that membership.
 
-### D504 — One checker decides; CASL stays underneath *(recorded 2026-11-12; refines D499; originated → `2026-11-12-agency-permissions-design.md`)*
+### D504 — One checker decides, on server and browser; CASL is removed *(recorded 2026-11-12; supersedes D499; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
 - `check(access, action, { orgId, clientId })` is the only function that decides, in a fixed order: super admin, membership, owner, owner-only actions, client row, view and edit, then the four permissions.
 - Every step is a Map or Set lookup on access loaded once per request.
 - Routes still name `view` and `edit`.
-- CASL builds the same rules for the browser and for finer rules later, without `clientId $in` conditions.
+- The browser runs the same `check` on the access data from `/api/me`; `useCan` wraps it.
+- CASL (`@casl/ability`, `@casl/react`) is removed. Rules that depend on the resource itself ("only what they created") can be added later behind `check` and `useCan`, with CASL if it helps, without touching routes or screens.
 - The canvas works out its permissions once for its client; nodes read the result.
 - `useCanvasEditable()` returns `can("edit")`.
 
 **Why.**
 - Anupama's summary: one central server-side checker taking the user, the action, and the organisation and client, returning allow or deny.
-- Arun, 12 Nov: keep CASL for finer access control later.
+- Arun, 12 Nov: first kept CASL for finer access later, then removed it once routes were to name plain actions. With four actions, no areas and Map lookups for speed, CASL would build and ship rules that never decide anything.
 - A `$in` list scans every client on each check, which the performance rules forbid for anything a canvas runs per node.
 
 **Rejected.**
-- Dropping CASL for a plain function (finer rules later would mean rebuilding browser gating).
-- CASL `$in` conditions.
+- Keeping CASL as a wrapper (a dependency and its advisories for a layer that decides nothing).
+- CASL `$in` conditions per client (scans every client on each check).
 - Keeping area keys (`scripts.approve`) on routes and reducing them to the four permissions in the checker. It would have made area-level access later a data change, but Arun chose plain actions on 12 Nov for simpler names; going granular later means revisiting each route. The granular build is at tag `perm-granular-v1`.
