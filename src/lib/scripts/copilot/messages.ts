@@ -1,5 +1,6 @@
 import { scriptCopilotPrompt } from "@/prompts/script-copilot";
 import type { ScriptDoc } from "../schema";
+import { withoutLocationVersions } from "../assets";
 import type { Angle, Brief, ConfirmationCard, OpenItem, ScriptNotes } from "./schema";
 
 // Builds each copilot call's two messages (D334, D335). System: the rules, the task, the client's
@@ -102,7 +103,8 @@ export function editPrompt(base: CopilotBase, i: { doc: ScriptDoc; notes: Script
   return {
     system: system(base, "edit"),
     user: [
-      section("The script as it stands (JSON, with ids)", json(i.doc)),
+      // D489 — the past plates are history, not script: they stay out of the prompt.
+      section("The script as it stands (JSON, with ids)", json(withoutLocationVersions(i.doc))),
       section("The reel's notes (JSON; confirmations have ids for confirm_item)", json(i.notes)),
       section("Still open before Final", i.openItems.map((o) => `- ${o.label}: ${o.question}`).join("\n")),
       conversationSection(i.conversation),
