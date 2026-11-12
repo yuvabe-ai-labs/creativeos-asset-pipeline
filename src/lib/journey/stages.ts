@@ -23,6 +23,10 @@ export function scriptsLocked(client: JourneyClient): boolean {
   return marketPending(client);
 }
 
+/** What the script copilot says when a new script is asked for while they are locked. */
+export const SCRIPTS_LOCKED_MESSAGE =
+  "New scripts open once market research is approved. You can paste a script you already have.";
+
 export function canApproveMarket(client: JourneyClient): boolean {
   return client.kb_status === "ready" && marketPending(client);
 }

@@ -30,3 +30,7 @@ export function frameFor(pathname: string, slug: string): Frame {
   const panel = tab.stage && rest.length === 0 ? (tab.id as PanelSection) : null;
   return { tabs: true, tab: tab.id, panel };
 }
+
+/** Where the guide's folded state is remembered (use-copilot-collapsed), one per client. The frame
+ *  and the panel both read it, so the column and the panel fold together. */
+export const journeyFoldKey = (slug: string) => `journey.${slug}`;

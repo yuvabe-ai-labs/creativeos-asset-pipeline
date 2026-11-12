@@ -145,7 +145,15 @@ export function questionFor(piece: "format" | "occasion" | "lead", ctx: { format
   }
 }
 
-export function openingMessage(ctx: { clientName: string; formats: string[]; hasKb: boolean }): string {
+export function openingMessage(ctx: { clientName: string; formats: string[]; hasKb: boolean; locked?: boolean }): string {
+  // Copilot journey spec §5.3: while new scripts wait for market research approval, only a pasted
+  // script is taken, so the opening asks for that and not for a format the gate would refuse.
+  if (ctx.locked) {
+    return [
+      `New scripts for ${ctx.clientName} open once market research is approved.`,
+      "If you already have a script, paste the whole of it here, shot table included, and I will bring it in as written.",
+    ].join("\n\n");
+  }
   const source = ctx.hasKb
     ? `Working from ${ctx.clientName}'s brand KB, house rules included.`
     : `${ctx.clientName} has no brand KB yet, so I'm working from what you tell me.`;

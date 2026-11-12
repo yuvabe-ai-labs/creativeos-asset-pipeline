@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Check, CircleDot, Lock } from "lucide-react";
-import { JOURNEY_TABS, type TabId } from "@/lib/journey/frame";
+import { frameFor, JOURNEY_TABS } from "@/lib/journey/frame";
 import type { JourneyState, StageState } from "@/lib/journey/stages";
 import { cn } from "@/lib/utils";
 
@@ -19,12 +22,8 @@ function StageIcon({ state }: { state: StageState }) {
 
 /** The client's sections across the top of every client screen. The three stage tabs show where
  *  the client is (approved, in progress, locked); a locked tab still opens, and its page says why. */
-export function StageTabs({ slug, name, state, active }: {
-  slug: string;
-  name: string;
-  state: JourneyState;
-  active: TabId | null;
-}) {
+export function StageTabs({ slug, name, state }: { slug: string; name: string; state: JourneyState }) {
+  const active = frameFor(usePathname(), slug).tab;
   return (
     <nav
       aria-label="Client sections"

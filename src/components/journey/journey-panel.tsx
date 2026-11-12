@@ -5,6 +5,7 @@ import { Check, PanelLeftClose, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCopilotCollapsed } from "@/hooks/use-copilot-collapsed";
+import { journeyFoldKey } from "@/lib/journey/frame";
 import type { Guide } from "@/lib/journey/guide";
 import { cn } from "@/lib/utils";
 import { JourneyRail } from "./journey-rail";
@@ -13,8 +14,8 @@ import { JourneyRail } from "./journey-rail";
  *  waiting for the person, and the next approval. The shell matches the script copilot
  *  (copilot-chat.tsx) so the two read as one panel; from lg up it folds to a rail, remembered per
  *  client in this browser. Shown from lg only: on a narrow screen the page keeps its full width. */
-export function JourneyPanel({ clientId, guide }: { clientId: string; guide: Guide }) {
-  const [collapsed, setCollapsed] = useCopilotCollapsed(`journey.${clientId}`);
+export function JourneyPanel({ slug, guide }: { slug: string; guide: Guide }) {
+  const [collapsed, setCollapsed] = useCopilotCollapsed(journeyFoldKey(slug));
 
   return (
     <section

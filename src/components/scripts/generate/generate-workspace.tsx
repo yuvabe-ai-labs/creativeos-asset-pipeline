@@ -13,7 +13,9 @@ import { GenerateReviewColumn, GenerateReviewProvider } from "./generate-review"
 import { cn } from "@/lib/utils";
 
 /** Spec 2 §3 — the Generate workspace: the copilot on the left, the script on the right. */
-export function GenerateWorkspace({ clientId, initialState, initialReview }: { clientId: string; initialState: GenerateState; initialReview: TeamScriptReview | null }) {
+/** `locked`: new scripts wait for market research approval (copilot journey spec §5.3), so an
+ *  unwritten script offers no brief chips: the copilot takes only a pasted script. */
+export function GenerateWorkspace({ clientId, initialState, initialReview, locked = false }: { clientId: string; initialState: GenerateState; initialReview: TeamScriptReview | null; locked?: boolean }) {
   const scriptId = initialState.script.id;
   const { data: state } = useGenerateState(clientId, scriptId, initialState);
   // The first draft streams in here while the copilot writes it, and clears once the turn ends.
@@ -37,7 +39,7 @@ export function GenerateWorkspace({ clientId, initialState, initialReview }: { c
 
   const grid = (
     <div className={cn("grid min-h-0 flex-1 items-start gap-6 lg:grid-cols-[auto_minmax(0,1fr)]", doc && initialReview && "xl:grid-cols-[auto_minmax(0,1fr)_20rem]")}>
-      <CopilotChat scriptId={scriptId} messages={state.messages} actions={actions} suggestions={suggestionsFor(state)} avatars={state.avatars} />
+      <CopilotChat scriptId={scriptId} messages={state.messages} actions={actions} suggestions={locked && !doc ? [] : suggestionsFor(state)} avatars={state.avatars} />
       <GenerateScriptPane clientId={clientId} state={state} chatBusy={actions.busy} draft={draft} reviewed={Boolean(doc && initialReview)} />
       {doc && initialReview && <GenerateReviewColumn clientId={clientId} scriptId={scriptId} />}
     </div>

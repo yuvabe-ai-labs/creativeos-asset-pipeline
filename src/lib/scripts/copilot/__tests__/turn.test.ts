@@ -473,3 +473,31 @@ describe("acceptImport", () => {
     expect(acceptImport(script({ doc }), { ...card, status: "rejected" })).toEqual({ error: "That was already settled.", status: 409 });
   });
 });
+
+// Copilot journey spec §5.3: the route refuses short messages up front; a long one reaches here,
+// and only a whole pasted script may go on while new scripts are locked.
+describe("while new scripts wait for market research approval", () => {
+  const GATE = "New scripts open once market research is approved. You can paste a script you already have.";
+  const longBrief = "Notes for the reel.\n".repeat(30);
+
+  it("answers a long message that is not a whole script with the gate, and reads no brief", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: false }] });
+    const apply = await prepareTurn({ script: script(), ctx, text: longBrief, history: [], locked: true }, deps(m.call));
+    expect(apply(script())).toEqual({ patch: null, result: [{ content: GATE, card: null }] });
+    expect(m.calls).toEqual(["script_detect"]);
+  });
+
+  it("still imports a whole pasted script", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
+    const apply = await prepareTurn({ script: script(), ctx, text: REEL_07_PASTE, history: [], locked: true }, deps(m.call));
+    expect(ok(apply(script())).patch?.doc?.shots).toHaveLength(9);
+  });
+
+  it("never blocks an edit to a script that is already written", async () => {
+    const written = script({ doc });
+    const m = fakeModel({ script_edit: [{ reply: "Done.", ops: [], suggestions: [] }] });
+    const apply = await prepareTurn({ script: written, ctx, text: "Shorter hook", history: [], locked: true }, deps(m.call));
+    const out = apply(written);
+    expect("error" in out ? out.error : out.result[0].content).not.toBe(GATE);
+  });
+});

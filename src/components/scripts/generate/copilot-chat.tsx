@@ -35,7 +35,7 @@ export function CopilotChat({ scriptId, messages, actions, suggestions, avatars 
     <section
       aria-label="Copilot"
       className={cn(
-        "flex min-h-[32rem] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card lg:sticky lg:top-6 lg:h-[calc(100vh-9rem)]",
+        "flex min-h-[32rem] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card lg:sticky lg:top-6 lg:h-[calc(100vh-12rem)]",
         "transition-[width] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
         collapsed ? "lg:w-12" : "lg:w-[29rem]",
       )}

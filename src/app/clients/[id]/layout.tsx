@@ -1,25 +1,23 @@
-import type { ReactNode } from "react";
-import { getClientBySlug } from "@/lib/db/clients";
-import { resolveOrgId } from "@/lib/dal";
-import { journeyState } from "@/lib/journey/stages";
+import { Suspense, type ReactNode } from "react";
+import { loadFrameClient } from "@/lib/journey/load";
 import { ClientFrame } from "@/components/journey/client-frame";
+import { FrameTabs } from "@/components/journey/frame-tabs";
+import { FrameGuide } from "@/components/journey/frame-guide";
 
-// The frame around every client screen (copilot journey spec §4.1). The client is read once here
-// and shared with the page (getClientBySlug is cache()d per request). A missing client, or one
-// outside the caller's org, gets no frame: the page decides what to show, and the tabs must never
-// name a client the caller may not see.
-export default async function ClientLayout({ children, params }: {
+// The frame around every client screen (copilot journey spec §4.1, D494). The layout itself does
+// not wait for data: a layout that awaits blocks navigation and hides every loading.tsx under it
+// (node_modules/next/dist/docs/.../file-conventions/layout.md, "Uncached and runtime data"). The
+// tabs and the guide each stream in behind their own Suspense boundary, from one shared read.
+export default function ClientLayout({ children, params }: {
   children: ReactNode;
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params; // `id` is the client slug
-  const [client, effectiveOrgId] = await Promise.all([getClientBySlug(id), resolveOrgId()]);
-  if (!client || client.org_id !== effectiveOrgId) return children;
+  const frame = params.then(({ id }) => loadFrameClient(id)); // `id` is the client slug
 
   return (
     <ClientFrame
-      client={{ id: client.id, slug: client.slug, name: client.name, kbStatus: client.kb_status }}
-      state={journeyState(client)}
+      tabs={<Suspense fallback={null}><FrameTabs frame={frame} /></Suspense>}
+      guide={<Suspense fallback={null}><FrameGuide frame={frame} /></Suspense>}
     >
       {children}
     </ClientFrame>

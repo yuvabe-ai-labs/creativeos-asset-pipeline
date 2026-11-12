@@ -8,6 +8,7 @@ import { fillToFinal } from "./fill-to-final";
 import { MAX_MESSAGE_CHARS } from "./constants";
 import { streamDraftCall } from "./draft-call";
 import { mightBeScript } from "./import";
+import { SCRIPTS_LOCKED_MESSAGE } from "@/lib/journey/stages";
 import { prepareImport } from "./import-turn";
 import { anglesPrompt, cardPrompt, detectPrompt, draftPrompt, editPrompt, extractPrompt, inlinePrompt, type CopilotBase } from "./messages";
 import type { StreamingCall, StructuredCall } from "./model";
@@ -42,7 +43,12 @@ export type TurnDeps = {
 };
 /** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362).
  *  `history`: the messages before this one; the copilot reads the last 10 of them (conversation.ts). */
-export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; history: ScriptMessage[]; leadAvatarId?: string | null };
+export type TurnInput = {
+  script: GenerateScript; ctx: CopilotContext; text: string; history: ScriptMessage[]; leadAvatarId?: string | null;
+  /** New scripts wait for market research approval (copilot journey spec §5.3): only a whole pasted
+   *  script goes on for a script that is not written yet. */
+  locked?: boolean;
+};
 export type Apply = (current: GenerateScript) => Change<Reply[]>;
 
 function baseFor(ctx: CopilotContext, format: string): CopilotBase {
@@ -61,6 +67,11 @@ export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<App
     const quick = deps.quick ?? deps.call;
     const seen = await quick({ name: "script_detect", ...detectPrompt(base, { hasDraft: input.script.doc !== null, text: input.text }), schema: detectOutputSchema });
     if (seen.wholeScript) return prepareImport(input, deps, base);
+  }
+  // The route refuses short messages up front; a long one that is not a whole script stops here,
+  // before any brief is read, so the gate cannot be walked around with a padded message.
+  if (input.locked && input.script.doc === null) {
+    return () => ({ patch: null, result: [{ content: SCRIPTS_LOCKED_MESSAGE, card: null }] });
   }
   // Up to MAX_PASTE_CHARS is let in for a pasted script; anything else keeps the message limit.
   if (input.text.length > MAX_MESSAGE_CHARS) return () => ({ patch: null, result: [{ content: TOO_LONG, card: null }] });

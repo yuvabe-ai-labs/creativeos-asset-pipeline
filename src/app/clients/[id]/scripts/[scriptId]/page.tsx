@@ -7,6 +7,7 @@ import { ScriptCanvasButton } from "@/components/scripts/script-canvas-button";
 import { getGenerateScript, loadGenerateState } from "@/lib/db/script-generate";
 import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
+import { scriptsLocked } from "@/lib/journey/stages";
 import { ScriptView } from "@/components/scripts/script-view";
 import { ScriptBreadcrumb } from "@/components/scripts/script-breadcrumb";
 import { GenerateWorkspace } from "@/components/scripts/generate/generate-workspace";
@@ -44,7 +45,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     return (
       <main className={cn("mx-auto flex w-full flex-1 flex-col px-6 py-8", review ? "max-w-[96rem]" : "max-w-7xl")}>
         <ScriptBreadcrumb client={client} title={title} />
-        <GenerateWorkspace clientId={client.id} initialState={state} initialReview={review} />
+        <GenerateWorkspace clientId={client.id} initialState={state} initialReview={review} locked={scriptsLocked(client)} />
       </main>
     );
   }

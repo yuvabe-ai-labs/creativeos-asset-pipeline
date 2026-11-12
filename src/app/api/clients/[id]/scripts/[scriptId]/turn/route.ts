@@ -10,7 +10,7 @@ import { prepareTurn, type Reply } from "@/lib/scripts/copilot/turn";
 import { MAX_PASTE_CHARS, SCRIPT_QUICK_MODEL, SCRIPT_WRITER_MODEL } from "@/lib/scripts/copilot/constants";
 import { isUuid } from "@/lib/avatars/utils";
 import { mightBeScript } from "@/lib/scripts/copilot/import";
-import { scriptsLocked } from "@/lib/journey/stages";
+import { SCRIPTS_LOCKED_MESSAGE, scriptsLocked } from "@/lib/journey/stages";
 
 // A first draft is one long structured call; give it room (as the avatar generation routes do).
 export const maxDuration = 300;
@@ -39,7 +39,7 @@ export async function POST(req: Request, { params }: Ctx) {
       // Copilot journey spec §5.3: a new script waits for approved market research. A pasted script
       // does not, and a script already written is never stranded. Refused before anything is saved.
       if (scriptsLocked(client) && script.doc === null && !mightBeScript(text)) {
-        return apiError("New scripts open once market research is approved. You can paste a script you already have.", 409);
+        return apiError(SCRIPTS_LOCKED_MESSAGE, 409);
       }
 
       const { userId } = await resolveCallerContext();
@@ -56,7 +56,7 @@ export async function POST(req: Request, { params }: Ctx) {
               // Signals feed the brief (suggestions, angles) only: an edit after the draft never reads them.
               const ctx = await loadCopilotContext(client, { signals: script.doc === null });
               const apply = await prepareTurn(
-                { script, ctx, text, history, leadAvatarId },
+                { script, ctx, text, history, leadAvatarId, locked: scriptsLocked(client) },
                 {
                   call: structuredCaller(SCRIPT_WRITER_MODEL),
                   quick: structuredCaller(SCRIPT_QUICK_MODEL),
