@@ -8809,4 +8809,7 @@ Allowing several agencies later means three things:
 - Arun, 12 Nov: keep CASL for finer access control later.
 - A `$in` list scans every client on each check, which the performance rules forbid for anything a canvas runs per node.
 
-**Rejected.** Dropping CASL for a plain function (finer rules later would mean rebuilding browser gating). CASL `$in` conditions.
+**Rejected.**
+- Dropping CASL for a plain function (finer rules later would mean rebuilding browser gating).
+- CASL `$in` conditions.
+- Keeping area keys (`scripts.approve`) on routes and reducing them to the four permissions in the checker. It would have made area-level access later a data change, but Arun chose plain actions on 12 Nov for simpler names; going granular later means revisiting each route. The granular build is at tag `perm-granular-v1`.

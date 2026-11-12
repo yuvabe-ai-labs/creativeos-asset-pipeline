@@ -398,6 +398,7 @@ update on their next `/api/me` refetch (focus or a 403).
 ## 12. Not in this work
 
 - A per-client permission editor (§8 until then).
+- Area-level permissions. Routes name only the plain actions; going granular later means adding the area to each route again. The granular build of plans 1 and 2 is kept at the local tag `perm-granular-v1` (5b19e86a) for reference.
 - Roles or saved permission sets.
 - Credit limits per person, and anything that happens when the pool runs low.
 - Self sign-up, free trials and payments.
