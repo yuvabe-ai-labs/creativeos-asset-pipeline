@@ -10,13 +10,11 @@ export type CaptionsTab = "text" | "style";
 /** Captions as one layer (D396), as ElevenLabs Studio and Descript show them: Style sets the
  *  reel's look, Text lists every line. Style comes first (D413). */
 export function EditorCaptionsPanel({ tab, onTab }: { tab: CaptionsTab; onTab(t: CaptionsTab): void }) {
+  // The heading is the Inspector task's own (task-menu design); this shows the line count only.
   const count = useEditorStore((s) => s.doc.captions.length);
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="m-0 font-display text-base font-semibold">Captions</h2>
-        <span className="text-xs text-muted-foreground">{count ? `${count} line${count === 1 ? "" : "s"}` : "None yet"}</span>
-      </div>
+      <span className="text-xs text-muted-foreground">{count ? `${count} line${count === 1 ? "" : "s"}` : "No captions yet"}</span>
       <Tabs value={tab} onValueChange={(v) => onTab(v as CaptionsTab)}>
         <TabsList>
           <TabsTrigger value="style">Style</TabsTrigger>

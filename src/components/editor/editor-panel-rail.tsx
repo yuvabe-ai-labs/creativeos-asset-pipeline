@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /** A collapsed side panel (D403): a thin rail, all of it one button that opens the panel again. */
 export function EditorPanelRail({ label, side, shortcut, onExpand }: { label: string; side: "left" | "right"; shortcut: string; onExpand(): void }) {
@@ -25,7 +26,7 @@ export function EditorPanelRail({ label, side, shortcut, onExpand }: { label: st
 
 /** A side panel's header: its name, an optional count, and the chevron. The whole row hides the
  *  panel, not just the chevron. */
-export function EditorPanelHeader({ label, aside, side, shortcut, onCollapse }: { label: string; aside?: ReactNode; side: "left" | "right"; shortcut: string; onCollapse(): void }) {
+export function EditorPanelHeader({ label, aside, side, shortcut, onCollapse, className }: { label: string; aside?: ReactNode; side: "left" | "right"; shortcut: string; onCollapse(): void; className?: string }) {
   const Icon = side === "left" ? ChevronLeft : ChevronRight;
   return (
     <Button
@@ -33,7 +34,7 @@ export function EditorPanelHeader({ label, aside, side, shortcut, onCollapse }: 
       aria-label={`Hide ${label.toLowerCase()}`}
       title={`Hide ${label.toLowerCase()} (${shortcut})`}
       onClick={onCollapse}
-      className="group/header -mx-2 h-8 w-[calc(100%+1rem)] flex-none justify-between gap-2 px-2 font-normal"
+      className={cn("group/header -mx-2 h-8 w-[calc(100%+1rem)] flex-none justify-between gap-2 px-2 font-normal", className)}
     >
       <span className="text-eyebrow-sm">{label}</span>
       <span className="flex items-center gap-1.5">
