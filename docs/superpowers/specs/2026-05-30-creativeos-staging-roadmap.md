@@ -8746,7 +8746,7 @@ Allowing several agencies later means three things:
 **Decision.**
 - **Permissions.** Generate, Approve, Share, Delete, stored as `text[]` with a check constraint. Being on a client gives view, edit, downloads, and deleting parts of an item (node, shot, panel, comment). Delete is for a whole library item.
 - **Where set.** The owner sets them on the person at agency level (`org_memberships.permissions`). Each client assignment (`membership_clients.permissions`) stores the effective copy. A trigger applies each agency-level change (what was added, what was removed) to every one of the person's client rows. V1 screens edit the agency level only; a per-client difference is a database edit for now.
-- **Owner.** Exactly one per agency (`is_owner`, unique partial index). Everything on every client, including future ones, with no rows to manage. Only the owner manages the team, clients, People lists and sees credits. Cannot be removed or demoted; the super admin transfers ownership.
+- **Owner.** Exactly one per agency (`is_owner`, unique partial index). Everything on every client, including future ones, with no rows to manage. Only the owner manages the team, clients, People lists and sees credits. Cannot be removed or demoted; the super admin transfers ownership. Several owners may be needed later, so ownership is a flag on each membership, checks and lists never assume one owner, and the protection rule is "at least one owner remains"; the one-owner limit is only a unique index, dropped when more are allowed.
 - **Day one.** The earliest owner of each agency stays owner. Everyone else gets all four permissions and every existing client.
 - **No credit limit per person.** The agency pool is the only limit.
 

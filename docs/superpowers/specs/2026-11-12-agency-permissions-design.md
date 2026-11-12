@@ -72,6 +72,12 @@ Each agency has exactly one owner.
   (§6.6), which makes another member owner and the previous owner a member with all four
   permissions on every client.
 
+Several owners may be needed later. Nothing below assumes there is only one: ownership is a
+flag on each membership, every check asks "is this membership an owner", lists show owners
+as a group, and the protection rule is "an agency keeps at least one owner". The one-owner
+limit is a single unique index (§3.1); allowing more owners later means dropping that index
+and adding a Make owner action for the owner, with no change to the checker or the data.
+
 ### 2.3 What a member has
 
 - `org_memberships.permissions`: the agency-level set. This is what the owner edits.
@@ -146,11 +152,12 @@ this code (§9).
   one `update membership_clients` for that `(user_id, org_id)` that removes what was removed and
   adds what was added. A row-level override (§8) survives every change except one to the same
   permission.
-- **Owner protection.** Before update or delete on `org_memberships`: refuse deleting the owner
-  and refuse setting `is_owner` false, unless the same transaction makes another member owner
-  (the transfer function sets a transaction-local flag). Messages stay plain: "The agency owner
+- **Owner protection.** After update or delete on `org_memberships` (deferred to the end of the
+  transaction): refuse if the agency is left with no owner. Counting the owners that remain,
+  rather than protecting one named owner, works unchanged when several are allowed, and lets
+  the transfer function demote and promote in either order. Messages stay plain: "The agency owner
   can't be removed."
-- **Owner rows.** Before insert on `membership_clients`: refuse a row for the agency's owner.
+- **Owner rows.** Before insert on `membership_clients`: refuse a row for any owner of the agency.
 - Trigger functions that read across memberships are `security definer` with
   `search_path = public`, as in plan 1.
 
@@ -295,7 +302,8 @@ emails the link through Resend and shows it to copy.
 
 ### 6.2 People list (`/clients/[id]/people`, owner only)
 
-- "On this client": the owner first, then each person with their permission chips and Remove.
+- "On this client": owners first as "Owner · everything", then each person with their permission
+  chips and Remove.
 - **Add people** (dashed primary chip) opens a list of agency members who have been given access
   and are not on this client, with checkboxes, then "Add {n} people". One insert; each row copies
   the person's agency-level set.
