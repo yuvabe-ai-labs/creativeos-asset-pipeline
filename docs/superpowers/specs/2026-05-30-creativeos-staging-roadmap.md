@@ -8787,7 +8787,7 @@ Allowing several agencies later means three things:
 **Decision.**
 - `org_memberships_one_org_per_user` is dropped. Each membership has its own permissions and clients.
 - The selected agency is a `cos_org` cookie, checked against the person's memberships on every request, falling back to their earliest membership. It becomes `effectiveOrgId`, so every query stays scoped as today. Impersonation still overrides it.
-- A header switcher appears when the person has more than one agency. Switching clears the browser query cache.
+- The switcher sits in the profile menu, where the workspace is already shown, and lists the person's agencies. Switching clears the browser query cache.
 - A page link into another of the person's agencies shows "This is in {Agency}" with a switch button; API routes return 404.
 
 **Why.** Arun, 12 Nov: build it in this round (Cyril's page lists one login across agencies as agreed). Scoping by the selected agency keeps every existing query correct; resolving the agency from each resource instead would touch every query and widen the room for cross-agency mistakes.

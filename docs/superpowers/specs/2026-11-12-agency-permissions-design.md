@@ -325,9 +325,12 @@ The copy in §2.4. If the person belongs to other agencies, the switcher is show
 
 ### 6.5 Agency switcher
 
-In the app header, shown only when the person has more than one agency. Lists agency names with
-the selected one ticked. Choosing one calls a server action that checks membership, sets
-`cos_org`, clears the query cache and goes home.
+In the profile menu (`ProfilePopover`), where the workspace is already shown (see
+`2026-08-09-profile-popover-header-design.md`), not in the header. The workspace row becomes a
+list of the person's agencies, each with "Owner" or "Member", the selected one ticked; with one
+agency it reads as today. Choosing another calls a server action that checks membership, sets
+`cos_org`, clears the query cache and goes home. The role label changes from Owner, Senior or
+Designer to Owner or Member, and credits show only to the owner.
 
 ### 6.6 Super admin (`/admin/orgs/[id]`)
 
