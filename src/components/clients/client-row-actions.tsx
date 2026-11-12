@@ -28,7 +28,7 @@ export function ClientRowActions({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // D493: sections the person can't view, and Archive without clients.delete, are not shown. The
+  // D499: sections the person can't view, and Archive without clients.delete, are not shown. The
   // sections are hidden for archived clients: shortcuts into a recovery view would invite work
   // on a client nobody is meant to be working on.
   const unpinned = useClientSections(clientId).filter((s) => !s.pinned);

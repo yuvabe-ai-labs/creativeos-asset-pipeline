@@ -4,7 +4,7 @@ import { buildAbility, buildRules, type AppAbility, type AppRule } from "./abili
 import { isClientScopedKey, splitKey, type PermissionKey } from "./catalogue";
 import type { Access } from "./access";
 
-// D493 §6.3: the server packs the person's rules into the first HTML and /api/me; the browser
+// D499 §6.3: the server packs the person's rules into the first HTML and /api/me; the browser
 // unpacks them into one ability. Rules are only ever built on the server (plan 1); nothing here
 // turns browser input into a rule.
 

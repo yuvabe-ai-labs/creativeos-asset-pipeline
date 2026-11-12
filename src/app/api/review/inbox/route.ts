@@ -8,7 +8,7 @@ import { reviewableNodeTypes } from "@/lib/permissions/node-area";
 // R9.1/R9.5 — "things waiting on you", org-wide.
 //
 // The user id, review types and client scope all come from the session, never from the
-// request (D490), so a caller cannot widen their own list into someone else's. The rule
+// request (D496), so a caller cannot widen their own list into someone else's. The rule
 // itself lives in inboxFilterFor / selectInboxFor (pure, and proven equivalent in queue.test.ts).
 export async function GET(req: Request) {
   const page = parsePageParams(new URL(req.url).searchParams);

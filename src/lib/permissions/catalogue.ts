@@ -1,4 +1,4 @@
-// D489: the areas and levels a permission can name. A tick only means something where the
+// D495: the areas and levels a permission can name. A tick only means something where the
 // server checks it, so this list lives in code; presets, per-person ticks and client lists
 // live in the database. Adding an area here ships with a migration that adds its keys to the
 // presets that should get them.

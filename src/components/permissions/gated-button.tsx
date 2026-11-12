@@ -18,7 +18,7 @@ type Props = ComponentProps<typeof Button> & {
   tooltipSide?: "top" | "bottom";
 };
 
-// D493 §6.4, "one wrapper per pattern": a missing Generate shows the button disabled with the
+// D499 §6.4, "one wrapper per pattern": a missing Generate shows the button disabled with the
 // reason, so people know the feature exists and whom to ask. The reason is also in the markup
 // (sr-only), since a disabled button can't be focused to reach its tooltip.
 export function GatedButton({

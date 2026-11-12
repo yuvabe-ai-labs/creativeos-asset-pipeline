@@ -15,7 +15,7 @@
 - `@casl/ability` 7.0.3
 - Vitest
 
-**Spec:** [docs/superpowers/specs/2026-11-11-permission-based-access-design.md](../specs/2026-11-11-permission-based-access-design.md) (D489–D493).
+**Spec:** [docs/superpowers/specs/2026-11-11-permission-based-access-design.md](../specs/2026-11-11-permission-based-access-design.md) (D495–D499).
 
 **The four plans:**
 1. This one: server-side access.
@@ -229,7 +229,7 @@ Expected: FAIL, `Failed to resolve import "./catalogue"`.
 - [ ] **Step 4: Write `src/lib/permissions/catalogue.ts`**
 
 ```ts
-// D489: the areas and levels a permission can name. A tick only means something where the
+// D495: the areas and levels a permission can name. A tick only means something where the
 // server checks it, so this list lives in code; presets, per-person ticks and client lists
 // live in the database. Adding an area here ships with a migration that adds its keys to the
 // presets that should get them.
@@ -322,7 +322,7 @@ export function areaHasLevel(area: Area, level: Level): boolean {
 ```ts
 import { ALL_PERMISSION_KEYS, type PermissionKey } from "./catalogue";
 
-// D489 §2.2: the presets migration 0062 seeds. Owner is fixed (everything) and has no key
+// D495 §2.2: the presets migration 0062 seeds. Owner is fixed (everything) and has no key
 // list. seed-matches-catalogue.test.ts fails if the migration's lists drift from these.
 
 export const MEDIA_APPROVE_KEYS: readonly PermissionKey[] = [
@@ -356,7 +356,7 @@ Expected: no errors. If `as const satisfies` is rejected, check `typescript` in 
 
 ```bash
 git add src/lib/permissions/catalogue.ts src/lib/permissions/presets.ts src/lib/permissions/catalogue.test.ts
-git commit -m "feat(permissions): area and level catalogue with preset defaults (D489)"
+git commit -m "feat(permissions): area and level catalogue with preset defaults (D495)"
 ```
 
 ---
@@ -408,7 +408,7 @@ import { describe, it, expect } from "vitest";
 import { computeEffective } from "./effective";
 import { ALL_PERMISSION_KEYS } from "./catalogue";
 
-describe("computeEffective (D489 §2.3)", () => {
+describe("computeEffective (D495 §2.3)", () => {
   it("gives an owner every key, whatever the rows say", () => {
     const set = computeEffective({ isOwner: true, presetKeys: [], granted: [], revoked: ["scripts.view"] });
     expect(set.size).toBe(ALL_PERMISSION_KEYS.length);
@@ -564,7 +564,7 @@ export type EffectiveInput = {
   revoked: readonly string[];
 };
 
-// D489 §2.3. Owner → every key. Otherwise the preset's keys, plus the ticks the owner added,
+// D495 §2.3. Owner → every key. Otherwise the preset's keys, plus the ticks the owner added,
 // minus the ones they removed; then any tick in an area turns on that area's view (when the
 // area has one). Keys the catalogue no longer knows are dropped, never trusted.
 export function computeEffective(input: EffectiveInput): Set<PermissionKey> {
@@ -587,7 +587,7 @@ export function computeEffective(input: EffectiveInput): Set<PermissionKey> {
 import { createMongoAbility, type ForcedSubject, type MongoAbility } from "@casl/ability";
 import { isClientScopedKey, splitKey, type Area, type Level, type PermissionKey } from "./catalogue";
 
-// D493. Level = action, area = subject, a picked client list = a clientId condition. Rules are
+// D499. Level = action, area = subject, a picked client list = a clientId condition. Rules are
 // built ONLY from catalogue keys and database ids (never from a request), which is what keeps
 // CASL's 2026 prototype-pollution advisories out of reach.
 
@@ -684,7 +684,7 @@ export function canSeeClient(access: Access, clientId: string): boolean {
 }
 
 // Server checks. A client-scoped key must name the client: asking CASL about a subject TYPE
-// ignores conditions and answers "yes if any rule exists" (D493's sharp edge).
+// ignores conditions and answers "yes if any rule exists" (D499's sharp edge).
 export function can(access: Access, key: ClientScopedKey, clientId: string): boolean;
 export function can(access: Access, key: AgencyKey): boolean;
 export function can(access: Access, key: PermissionKey, clientId?: string): boolean {
@@ -708,7 +708,7 @@ export function canAnywhere(access: Access, key: PermissionKey): boolean {
 export type Denial = "not_found" | "forbidden";
 
 // Out of scope is checked first and answers not_found, so a refusal never confirms that a
-// client the person can't see exists (D490).
+// client the person can't see exists (D496).
 export function denialFor(access: Access, key: PermissionKey, clientId: string | null): Denial | null {
   if (clientId !== null && !canSeeClient(access, clientId)) return "not_found";
   if (!isClientScopedKey(key)) return can(access, key as AgencyKey) ? null : "forbidden";
@@ -724,7 +724,7 @@ import type { PermissionKey } from "./catalogue";
 import { canAnywhere } from "./check";
 import type { Access } from "./access";
 
-// D489: approving a version needs Approve on that node's area.
+// D495: approving a version needs Approve on that node's area.
 const APPROVE_KEY_BY_NODE_TYPE: Readonly<Record<string, PermissionKey>> = {
   "image-gen": "image_generation.approve",
   composite: "image_generation.approve",
@@ -796,7 +796,7 @@ Expected: no errors. The `@ts-expect-error` in check.test.ts must be consumed. I
 
 ```bash
 git add package.json package-lock.json src/lib/permissions
-git commit -m "feat(permissions): effective access, CASL ability and server checks (D489, D493)"
+git commit -m "feat(permissions): effective access, CASL ability and server checks (D495, D499)"
 ```
 
 ---
@@ -851,7 +851,7 @@ Expected: FAIL, `ENOENT ... 0062_permission_based_access.sql`.
 - [ ] **Step 3: Write `supabase/migrations/0062_permission_based_access.sql`**
 
 ```sql
--- D489–D492: presets + per-person ticks + picked clients, invites, and agency-ready keys.
+-- D495–D498: presets + per-person ticks + picked clients, invites, and agency-ready keys.
 -- Apply after the app code that reads it is merged but BEFORE that code is deployed: the new
 -- code reads get_membership_access(); the old code keeps reading org_role, which stays (and is
 -- kept in sync) until a later migration drops it.
@@ -1051,7 +1051,7 @@ $$;
 revoke all on function get_membership_access(uuid) from public, anon, authenticated;
 grant execute on function get_membership_access(uuid) to service_role;
 
--- ── 6. RLS ready for more than one agency per person (D492) ──────────────────
+-- ── 6. RLS ready for more than one agency per person (D498) ──────────────────
 create or replace function auth_org_ids()
 returns setof uuid language sql stable security definer set search_path = public as $$
   select org_id from org_memberships where user_id = auth.uid()
@@ -1101,7 +1101,7 @@ select count(*) from org_memberships where preset_id is null;  -- 0
 Add at the end:
 
 ````markdown
-## Migration 0062 — permission-based access (D489–D492, 2026-11-11)
+## Migration 0062 — permission-based access (D495–D498, 2026-11-11)
 
 `supabase/migrations/0062_permission_based_access.sql`: presets (`role_presets`,
 `role_preset_permissions`), per-person ticks (`membership_permission_changes`), picked clients
@@ -1140,7 +1140,7 @@ select * from get_membership_access('<a member user id>');
 
 ```bash
 git add supabase/migrations/0062_permission_based_access.sql src/lib/permissions/seed-matches-catalogue.test.ts docs/auth-production-migration.md
-git commit -m "feat(db): migration 0062, presets, per-person ticks, picked clients, access read (D489-D492)"
+git commit -m "feat(db): migration 0062, presets, per-person ticks, picked clients, access read (D495-D498)"
 ```
 
 ---
@@ -1235,7 +1235,7 @@ export type CallerContext = {
   /** Derived from the preset key until plan 2 removes it; new code checks access, never this. */
   orgRole: OrgRole;
   mustChangePassword: boolean;
-  /** D489: what this person may do. Read it through accessOf(), never directly. */
+  /** D495: what this person may do. Read it through accessOf(), never directly. */
   access: Access;
 };
 
@@ -1269,7 +1269,7 @@ Add a shared loader and use it in both `resolveCallerContext` and `resolveCaller
 import { accessFromRow, type MembershipAccessRow } from "@/lib/permissions/access";
 import { presetKeyToOrgRole } from "./dal-logic";
 
-// D489/D492: ONE round trip returns the membership and everything access needs. Several rows
+// D495/D498: ONE round trip returns the membership and everything access needs. Several rows
 // = several agencies, which is not allowed yet (the one_org_per_user index); when it is, the
 // agency switcher's choice picks the row here, and nowhere else.
 async function loadMembershipAccess(userId: string): Promise<MembershipAccessRow | null> {
@@ -1348,7 +1348,7 @@ Create `vitest.setup.ts` at the repo root:
 ```ts
 import { vi } from "vitest";
 
-// D489: many tests mock resolveCallerContext with a partial caller and no `access`. Production
+// D495: many tests mock resolveCallerContext with a partial caller and no `access`. Production
 // accessOf() throws on that; in tests it falls back to owner access so those tests keep testing
 // what they were written for. Tests about permissions pass a real `access` (see
 // src/lib/permissions/test-fixtures.ts) or call vi.unmock("@/lib/permissions/server").
@@ -1469,7 +1469,7 @@ Add a `beforeEach(() => { callerHolder.access = null; })` to the top-level descr
 ```ts
 import { testAccess } from "@/lib/permissions/test-fixtures";
 
-describe("withClient guard (D490)", () => {
+describe("withClient guard (D496)", () => {
   it("runs the handler when the caller holds the permission for this client", async () => {
     callerHolder.access = testAccess({ keys: ["scripts.edit"], clientIds: ["client-1"] });
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
@@ -1553,7 +1553,7 @@ import { accessOf, resolveActingCaller } from "@/lib/permissions/server";
 import { denialFor, FORBIDDEN_MESSAGE, type Denial } from "@/lib/permissions/check";
 import type { PermissionKey } from "@/lib/permissions/catalogue";
 
-// D490: every handler names the one permission it needs. Required, so TypeScript forces the
+// D496: every handler names the one permission it needs. Required, so TypeScript forces the
 // decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
 export type Guard = { need: PermissionKey };
 
@@ -1662,7 +1662,7 @@ New `withAccess`:
 ```ts
 // For routes not rooted at one client or resource: the voice library, the moodboard index, the
 // review inbox and counts. A client-scoped key passes when held for at least one client; the
-// handler then filters what it returns with canSeeClient (D490).
+// handler then filters what it returns with canSeeClient (D496).
 export async function withAccess(
   req: Request,
   guard: Guard,
@@ -2228,7 +2228,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { isPermissionKey } from "./catalogue";
 
-// D490: every API handler names its permission through a chokepoint or withAccess, or is on this
+// D496: every API handler names its permission through a chokepoint or withAccess, or is on this
 // list with a reason. Extend the list only with a one-line reason.
 const ALLOWLIST: Record<string, string> = {
   "admin/orgs/[id]/generations": "super admin (requireSuperAdmin)",
@@ -2269,7 +2269,7 @@ function routeKey(file: string): string {
   return relative(API_ROOT, file).split(sep).join("/").replace(/\/route\.ts$/, "").replace(/^route\.ts$/, "");
 }
 
-describe("every API handler declares a permission (D490)", () => {
+describe("every API handler declares a permission (D496)", () => {
   const files = routeFiles(API_ROOT);
 
   it("finds the route files", () => {
@@ -2520,7 +2520,7 @@ export type ActionGuard =
 
 export type ActionContext = { caller: CallerContext; effectiveOrgId: string; target: ResolvedTarget | null };
 
-// D490 for server actions: the same agency + client scope + tick rule as the API chokepoints.
+// D496 for server actions: the same agency + client scope + tick rule as the API chokepoints.
 // Throws (server actions throw on invalid states in this codebase); "Not found." never says
 // whether the row exists in another agency or outside the person's clients.
 export async function checkActionAccess(guard: ActionGuard): Promise<ActionContext> {
@@ -2641,7 +2641,7 @@ In `canvas-lock.test.ts`, add `vi.mock("@/lib/permissions/action-guard", () => (
 In `src/lib/actions/with-action-coverage.test.ts`, where each function body is checked for `withAction(`, also require a guard. Add this assertion next to the existing one:
 
 ```ts
-// D490: the second argument is a guard — { need, on } or { custom: "<reason>" }.
+// D496: the second argument is a guard — { need, on } or { custom: "<reason>" }.
 const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_]+\.[a-z]+)"|custom:\s*")/;
 ```
 
@@ -2827,7 +2827,7 @@ import { scopeIds } from "@/lib/permissions/check";
 import { reviewableNodeTypes } from "@/lib/permissions/node-area";
 
 // R9.1/R9.5 — "things waiting on you". User, review types and client scope all come from the
-// session, never the request (D490).
+// session, never the request (D496).
 export async function GET(req: Request) {
   const page = parsePageParams(new URL(req.url).searchParams);
   return withAccess(req, { need: "internal_review.view" }, (caller, orgId) =>
@@ -2983,7 +2983,7 @@ import { accessOf, resolveActingCaller } from "./server";
 import { denialFor } from "./check";
 import type { ClientScopedKey } from "./catalogue";
 
-// Client pages (D490): another agency's client and a client outside the person's list both
+// Client pages (D496): another agency's client and a client outside the person's list both
 // redirect home, as foreign clients always have; missing the area's view shows the 404 page.
 export async function loadClientPage(
   slug: string,
@@ -3043,7 +3043,7 @@ In `src/lib/db/clients.ts`:
 - Add:
 
 ```ts
-// D490: someone with a picked client list who creates a client gets it on their list in the
+// D496: someone with a picked client list who creates a client gets it on their list in the
 // same request; otherwise they would create a client they cannot open.
 export async function addClientToMembership(userId: string, orgId: string, clientId: string): Promise<void> {
   const { error } = await createServerSupabase()
@@ -3141,7 +3141,7 @@ Do not apply 0062 yourself. Tell the user the branch is ready. To try it end to 
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-11-11-permission-based-access-design.md`
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (D489's table note, D490's limitation)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (D495's table note, D496's limitation)
 
 - [ ] **Step 1: Update the spec**
 
@@ -3153,11 +3153,11 @@ Do not apply 0062 yourself. Tell the user the branch is ready. To try it end to 
 - §5.2 Downloads: files sit in public buckets, so the Downloads ticks hide buttons but cannot stop someone who has a URL. Making buckets private is its own project.
 - §4 RLS: the policies are agency-level. Client scope is enforced on every server read and write, not in RLS, so Realtime can carry rows of other clients in the same agency to the browser.
 
-- [ ] **Step 2: Note the same in D489/D490** (one sentence each, under a "**Refined in plan 1 (2026-11-11).**" line)
+- [ ] **Step 2: Note the same in D495/D496** (one sentence each, under a "**Refined in plan 1 (2026-11-11).**" line)
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add docs/superpowers/specs
-git commit -m "docs: record plan 1 refinements to the permission catalogue and its limits (D489, D490)"
+git commit -m "docs: record plan 1 refinements to the permission catalogue and its limits (D495, D496)"
 ```

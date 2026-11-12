@@ -1,4 +1,4 @@
-// D493 §6.3: a 403 from our API can mean the person's access changed mid-session (their owner
+// D499 §6.3: a 403 from our API can mean the person's access changed mid-session (their owner
 // unticked something). The two fetch funnels report every status here; AccessProvider listens and
 // refreshes /api/me, so the screen catches up without a reload.
 type Listener = () => void;

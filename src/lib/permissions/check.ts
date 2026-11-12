@@ -21,7 +21,7 @@ export function scopeIds(access: Access): string[] | null {
 }
 
 // Server checks. A client-scoped key must name the client: asking CASL about a subject TYPE
-// ignores conditions and answers "yes if any rule exists" (D493's sharp edge).
+// ignores conditions and answers "yes if any rule exists" (D499's sharp edge).
 export function can(access: Access, key: ClientScopedKey, clientId: string): boolean;
 export function can(access: Access, key: AgencyKey): boolean;
 export function can(access: Access, key: PermissionKey, clientId?: string): boolean {
@@ -45,7 +45,7 @@ export function canAnywhere(access: Access, key: PermissionKey): boolean {
 export type Denial = "not_found" | "forbidden";
 
 // Out of scope is checked first and answers not_found, so a refusal never confirms that a
-// client the person can't see exists (D490).
+// client the person can't see exists (D496).
 export function denialFor(access: Access, key: PermissionKey, clientId: string | null): Denial | null {
   if (clientId !== null && !canSeeClient(access, clientId)) return "not_found";
   if (!isClientScopedKey(key)) return can(access, key as AgencyKey) ? null : "forbidden";

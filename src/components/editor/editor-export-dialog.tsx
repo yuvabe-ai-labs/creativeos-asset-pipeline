@@ -21,7 +21,7 @@ export function EditorExportDialog({ canvasId, jobId, title, dubLabel, onClose, 
   onClose(): void;
   onRetry(): void;
 }) {
-  // An editor result is not an approved version, so it downloads under downloads.share (D493).
+  // An editor result is not an approved version, so it downloads under downloads.share (D499).
   const canDownload = useCanDownload(useClientId(), false);
   const { data } = useExportStatus(canvasId, jobId);
   const pieces = useEditorStore((s) => s.doc.pieces.length);

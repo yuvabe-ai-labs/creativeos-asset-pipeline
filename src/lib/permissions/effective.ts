@@ -7,7 +7,7 @@ export type EffectiveInput = {
   revoked: readonly string[];
 };
 
-// D489 §2.3. Owner → every key. Otherwise the preset's keys, plus the ticks the owner added,
+// D495 §2.3. Owner → every key. Otherwise the preset's keys, plus the ticks the owner added,
 // minus the ones they removed; then any tick in an area turns on that area's view (when the
 // area has one). Keys the catalogue no longer knows are dropped, never trusted.
 export function computeEffective(input: EffectiveInput): Set<PermissionKey> {

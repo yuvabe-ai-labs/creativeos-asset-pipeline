@@ -48,7 +48,7 @@ export async function setVersionApprovalAction(
     const refuse = (error: string) => ({ ok: false as const, error });
     const caller = ctx.caller;
 
-    // R2.1/R2.2, D489 — approving needs Approve on the node's area. D166 kept: refuse
+    // R2.1/R2.2, D495 — approving needs Approve on the node's area. D166 kept: refuse
     // before any read when the person can approve nothing, so version ids can't be probed.
     // The UI also hides the control, but that is a courtesy on top of this, never the
     // mechanism (R2.3).
@@ -78,7 +78,7 @@ export async function setVersionApprovalAction(
     // Tenancy, not just role: a senior of org A must not be able to annotate org B's
     // work by guessing a version id. 404-shaped message (never "wrong org"), matching
     // the withClient/withNode 404-not-403 convention in route-helpers.ts. A client outside
-    // the person's list answers the same way (D490). Compared with the agency being acted
+    // the person's list answers the same way (D496). Compared with the agency being acted
     // in, so an elevated impersonator approves in the agency they are viewing.
     const target = await resolveTarget({ versionId });
     if (!target?.clientId || target.orgId !== ctx.effectiveOrgId || !canSeeClient(access, target.clientId)) {

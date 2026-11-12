@@ -11,7 +11,7 @@ export type CallerContext = {
   /** Derived from the preset key until plan 2 removes it; new code checks access, never this. */
   orgRole: OrgRole;
   mustChangePassword: boolean;
-  /** D489: what this person may do. Read it through accessOf(), never directly. */
+  /** D495: what this person may do. Read it through accessOf(), never directly. */
   access: Access;
 };
 

@@ -15,7 +15,7 @@ import { accessFromRow, type MembershipAccessRow } from "@/lib/permissions/acces
 
 export type { CallerContext } from "./dal-logic";
 
-// D489/D492: ONE round trip returns the membership and everything access needs. Several rows
+// D495/D498: ONE round trip returns the membership and everything access needs. Several rows
 // = several agencies, which is not allowed yet (the one_org_per_user index); when it is, the
 // agency switcher's choice picks the row here, and nowhere else.
 // cache() dedupes within one render (so both resolvers share one RPC per user id), not inside

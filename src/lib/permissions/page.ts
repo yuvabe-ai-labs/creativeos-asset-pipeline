@@ -8,7 +8,7 @@ import { denialFor } from "./check";
 import { resolveTarget } from "./targets";
 import type { ClientScopedKey } from "./catalogue";
 
-// Client pages (D490): another agency's client and a client outside the person's list both
+// Client pages (D496): another agency's client and a client outside the person's list both
 // redirect home, as foreign clients always have; missing the area's view shows the 404 page.
 export async function loadClientPage(
   slug: string,

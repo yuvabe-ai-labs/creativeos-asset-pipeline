@@ -18,7 +18,7 @@ import { unwrapEmbed } from "@/lib/db/embed";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyResponse = NextResponse<any>;
 
-// D490: every handler names the one permission it needs. Required, so TypeScript forces the
+// D496: every handler names the one permission it needs. Required, so TypeScript forces the
 // decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
 export type Guard = { need: PermissionKey };
 
@@ -253,7 +253,7 @@ export async function withMoodboard(
 
 // For routes not rooted at one client or resource: the voice library, the moodboard index, the
 // review inbox and counts. A client-scoped key passes when held for at least one client; the
-// handler then filters what it returns with canSeeClient (D490).
+// handler then filters what it returns with canSeeClient (D496).
 export async function withAccess(
   req: Request,
   guard: Guard,

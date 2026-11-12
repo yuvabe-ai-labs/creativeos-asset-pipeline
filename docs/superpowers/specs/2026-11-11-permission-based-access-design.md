@@ -1,6 +1,8 @@
 # Permission-based access: presets, ticks, picked clients, owners invite their team
 
-*Recorded 2026-11-11. Decisions D489–D493 in the ADR log
+> **Superseded on 2026-11-12** by [2026-11-12-agency-permissions-design.md](2026-11-12-agency-permissions-design.md) (D500–D504). Kept for the history of plans 1 and 2.
+
+*Recorded 2026-11-11. Decisions D495–D499 in the ADR log
 ([2026-05-30-creativeos-staging-roadmap.md §7](2026-05-30-creativeos-staging-roadmap.md)).
 Builds on the auth model of D43/D44/D80/D164/D181/D188.*
 

@@ -28,7 +28,7 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
   const font = useEditorStore((s) => s.doc.captionStyle.font);
   const dubLanguage = useEditorStore((s) => s.sources.find((x) => x.language && s.doc.pieces.some((p) => p.sourceNodeId === x.nodeId && p.sound === "dubbed"))?.language ?? null);
 
-  // D493: the MP4 is a render (video_editor.generate); the Premiere package is sharing the edit
+  // D499: the MP4 is a render (video_editor.generate); the Premiere package is sharing the edit
   // (video_editor.share). Without either, Export is not shown.
   const clientId = useClientId();
   const canRender = useCan("video_editor.generate", clientId);

@@ -5,7 +5,7 @@ import { approveKeyForNodeType } from "@/lib/permissions/node-area";
 import { canInBrowser } from "@/lib/permissions/browser";
 import { useAppAbility } from "./use-can";
 
-// D489: Approve / Request changes show only with Approve on the node's area, for the canvas's
+// D495: Approve / Request changes show only with Approve on the node's area, for the canvas's
 // client. For a canvas focus view (it reads the client from the canvas tree).
 export function useCanApproveNode(nodeType: string): boolean {
   const ability = useAppAbility();

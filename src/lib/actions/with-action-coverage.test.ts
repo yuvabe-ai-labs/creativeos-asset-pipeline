@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ALL_PERMISSION_KEYS, isPermissionKey } from "@/lib/permissions/catalogue";
 import { NOT_YET_CHECKED } from "@/lib/permissions/not-yet-checked";
 
-// D490: the second argument is a guard — { need, on } or { custom: "<reason>" }.
+// D496: the second argument is a guard — { need, on } or { custom: "<reason>" }.
 const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_]+\.[a-z]+)"|custom:\s*")/;
 const LOCK_ACTIONS = ["getCanvasLockAction", "acquireCanvasLockAction", "heartbeatCanvasLockAction", "releaseCanvasLockAction"];
 

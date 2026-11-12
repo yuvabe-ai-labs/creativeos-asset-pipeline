@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeEffective } from "./effective";
 import { ALL_PERMISSION_KEYS } from "./catalogue";
 
-describe("computeEffective (D489 §2.3)", () => {
+describe("computeEffective (D495 §2.3)", () => {
   it("gives an owner every key, whatever the rows say", () => {
     const set = computeEffective({ isOwner: true, presetKeys: [], granted: [], revoked: ["scripts.view"] });
     expect(set.size).toBe(ALL_PERMISSION_KEYS.length);

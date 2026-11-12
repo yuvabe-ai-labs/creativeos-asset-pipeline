@@ -11,7 +11,7 @@ type Props = {
   kitsFound: boolean;
   reopening: boolean;
   onReopen: () => void;
-  /** False without scripts.approve: Reopen is not shown (D493). */
+  /** False without scripts.approve: Reopen is not shown (D499). */
   canReopen?: boolean;
   /** Spec 4's review actions (merge point MP4), before Visualise's own. */
   extra?: ReactNode;

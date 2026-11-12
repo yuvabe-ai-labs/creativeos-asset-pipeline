@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 // which is why there is no role prop here to get wrong.
 export function ReviewInbox() {
   const { hydrated } = useIdentity();
-  // D493: no internal_review.view means no inbox, and no request the server would refuse.
+  // D499: no internal_review.view means no inbox, and no request the server would refuse.
   const canReview = useCan("internal_review.view");
   const [open, setOpen] = useState(false);
   // Kept subscribed while closed so the badge count is live — the badge IS the feature

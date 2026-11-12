@@ -951,7 +951,7 @@ select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
 
-## Migration 0062 — permission-based access (D489–D492, 2026-11-11)
+## Migration 0062 — permission-based access (D495–D498, 2026-11-11)
 
 `supabase/migrations/0062_permission_based_access.sql`: presets (`role_presets`,
 `role_preset_permissions`), per-person ticks (`membership_permission_changes`), picked clients

@@ -2,7 +2,7 @@ import type { PermissionKey } from "./catalogue";
 import { canAnywhere } from "./check";
 import type { Access } from "./access";
 
-// D489: approving a version needs Approve on that node's area. A prompt node is approved in the
+// D495: approving a version needs Approve on that node's area. A prompt node is approved in the
 // area it feeds: an image prompt with images, a video or multishot prompt with video.
 // node-area.test.ts lists every component that approves, so a new one cannot go unmapped.
 const APPROVE_KEY_BY_NODE_TYPE: Readonly<Record<string, PermissionKey>> = {

@@ -81,7 +81,7 @@ function FeedbackPanel({
 }) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const editable = useCanvasEditable();
-  // D493: uploading the cut makes the client's review link, so it needs client_review.share.
+  // D499: uploading the cut makes the client's review link, so it needs client_review.share.
   const canShare = useCan("client_review.share", useClientId());
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement | null>(null);

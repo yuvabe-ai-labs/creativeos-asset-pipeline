@@ -1,7 +1,7 @@
 import { createMongoAbility, type ForcedSubject, type MongoAbility } from "@casl/ability";
 import { isClientScopedKey, splitKey, type Area, type Level, type PermissionKey } from "./catalogue";
 
-// D493. Level = action, area = subject, a picked client list = a clientId condition. Rules are
+// D499. Level = action, area = subject, a picked client list = a clientId condition. Rules are
 // built ONLY from catalogue keys and database ids (never from a request), which is what keeps
 // CASL's 2026 prototype-pollution advisories out of reach.
 

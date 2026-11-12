@@ -49,7 +49,7 @@ export default async function RootLayout({
   // banner's own call — it costs nothing, and it keeps the header's offset colocated
   // with the element it offsets against. loadInitialMe resolves the caller once for this render
   // (shared with the page through cache()) and builds the same payload /api/me returns, so the
-  // first HTML already has the right buttons (D493).
+  // first HTML already has the right buttons (D499).
   const [{ isImpersonating }, me] = await Promise.all([resolveImpersonationState(), loadInitialMe()]);
 
   return (

@@ -31,7 +31,7 @@ export function EditorRenderDialog({ canvasId, nodeId, open, onClose, flush }: {
   onClose(): void;
   flush(): Promise<void>;
 }) {
-  // An editor result is not an approved version, so it downloads under downloads.share (D493).
+  // An editor result is not an approved version, so it downloads under downloads.share (D499).
   const canDownload = useCanDownload(useClientId(), false);
   const start = useStartRender(canvasId);
   const [jobId, setJobId] = useState<string | null>(null);

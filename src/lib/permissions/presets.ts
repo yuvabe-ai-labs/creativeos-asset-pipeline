@@ -1,6 +1,6 @@
 import { ALL_PERMISSION_KEYS, type PermissionKey } from "./catalogue";
 
-// D489 §2.2: the presets migration 0062 seeds. Owner is fixed (everything) and has no key
+// D495 §2.2: the presets migration 0062 seeds. Owner is fixed (everything) and has no key
 // list. seed-matches-catalogue.test.ts fails if the migration's lists drift from these.
 
 export const MEDIA_APPROVE_KEYS: readonly PermissionKey[] = [

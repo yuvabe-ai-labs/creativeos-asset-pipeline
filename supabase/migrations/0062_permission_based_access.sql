@@ -1,4 +1,4 @@
--- D489–D492: presets + per-person ticks + picked clients, invites, and agency-ready keys.
+-- D495–D498: presets + per-person ticks + picked clients, invites, and agency-ready keys.
 -- Apply to an environment's database and verify it BEFORE the code that reads it is merged or
 -- deployed there (merging deploys on this repo). The old code keeps working on top of it: it
 -- reads org_role, which stays (and is kept in sync) until a later migration drops it. The new
@@ -209,7 +209,7 @@ $$;
 revoke all on function get_membership_access(uuid) from public, anon, authenticated;
 grant execute on function get_membership_access(uuid) to service_role;
 
--- ── 6. RLS ready for more than one agency per person (D492) ──────────────────
+-- ── 6. RLS ready for more than one agency per person (D498) ──────────────────
 create or replace function auth_org_ids()
 returns setof uuid language sql stable security definer set search_path = public as $$
   select org_id from org_memberships where user_id = auth.uid()

@@ -8,7 +8,7 @@ export type ClientSection = {
   hint: string;
   /** Pinned sections get a labelled action on the home tile; the rest live in its ⋯ menu. */
   pinned?: boolean;
-  /** The view a person needs to see this section's link (D493: no view → not shown). */
+  /** The view a person needs to see this section's link (D499: no view → not shown). */
   need: ClientScopedKey;
 };
 

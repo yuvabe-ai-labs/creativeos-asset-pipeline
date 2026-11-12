@@ -30,7 +30,7 @@ export function GenerateFooter({
   notice,
   className,
 }: {
-  /** The Generate permission this button needs, e.g. "image_generation.generate" (D493). */
+  /** The Generate permission this button needs, e.g. "image_generation.generate" (D499). */
   need: PermissionKey;
   /** "Generate motion prompt" the first time, "Re-generate" once there is an output. */
   label: string;

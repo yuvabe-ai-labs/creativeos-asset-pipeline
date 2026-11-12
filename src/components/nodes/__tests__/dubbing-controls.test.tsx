@@ -8,7 +8,7 @@ import { DubbingDubPanel } from "../dubbing-dub-panel";
 import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
 import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
 
-// Dub and Lip sync are gated on audio.generate (D493); every render gets every key.
+// Dub and Lip sync are gated on audio.generate (D499); every render gets every key.
 const renderGated = (el: ReactElement) => renderToStaticMarkup(
   <TestAbilityProvider><ClientIdProvider value="c1">{el}</ClientIdProvider></TestAbilityProvider>,
 );

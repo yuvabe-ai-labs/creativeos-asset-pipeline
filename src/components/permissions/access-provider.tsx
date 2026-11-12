@@ -9,7 +9,7 @@ import { abilityFromPacked, browserClientScope, rulesFromPacked } from "@/lib/pe
 import { ClientScopeContext } from "./client-scope";
 import type { MePayload } from "@/lib/me/types";
 
-// D493 §6.3. The root layout hands over the payload it built for this request; it seeds the me
+// D499 §6.3. The root layout hands over the payload it built for this request; it seeds the me
 // query (so the first render already shows the right buttons, with no request) and becomes the
 // ONE ability for the whole app. Components read it from context (performance rules 1 and 2).
 export function AccessProvider({ initial, children }: { initial: MePayload | null; children: ReactNode }) {

@@ -5,7 +5,7 @@ import { useMe } from "@/hooks/queries/me";
 import type { Identity } from "@/lib/identity";
 import type { OrgRole, PlatformRole } from "@/lib/dal-logic";
 
-// The signed-in person, read from the one /api/me query (D493). Kept as a hook so its ~20
+// The signed-in person, read from the one /api/me query (D499). Kept as a hook so its ~20
 // consumers don't change. `hydrated` is false until something is known (a seeded payload, a
 // fetch result or a failed fetch); until then the nulls mean "not checked yet".
 export function useIdentity(): {

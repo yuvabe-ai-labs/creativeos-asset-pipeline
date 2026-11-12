@@ -36,7 +36,7 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   const queryClient = useQueryClient();
   const { data: current, isPending: loading, isError, refetch } = useNodeClientReview(id);
   const editable = useCanvasEditable();
-  // D493: uploading the cut makes the client's review link, so it needs client_review.share.
+  // D499: uploading the cut makes the client's review link, so it needs client_review.share.
   const canShare = useCan("client_review.share", useClientId());
 
   // The shared "open this node" signal (generation tray, copilot open_node) opens the

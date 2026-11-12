@@ -2,7 +2,7 @@
 import type { OrgRole, PlatformRole } from "@/lib/dal-logic";
 import type { PackedRules } from "@/lib/permissions/browser";
 
-/** What /api/me returns and the root layout hands the browser (D493 §6.3). */
+/** What /api/me returns and the root layout hands the browser (D499 §6.3). */
 export type MePayload = {
   name: string;
   platformRole: PlatformRole;

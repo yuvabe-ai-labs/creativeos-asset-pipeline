@@ -49,8 +49,8 @@ const QUEUE_COLUMNS =
   "operator_user_id, operator, approved_by_user_id, approved_seen_at, created_at";
 
 // R5.1/R5.2/R5.3: one read, never one query per row (PRD §8: the client list renders for every
-// org member on every visit). Pending counts are of the work the person can approve (D489), in
-// their clients (D490). With every review type that is the org_review_counts RPC, as before.
+// org member on every visit). Pending counts are of the work the person can approve (D495), in
+// their clients (D496). With every review type that is the org_review_counts RPC, as before.
 // With some it is org_review_counts_for_types (grouped in SQL, so no row cap undercounts).
 // With none, there is nothing to count.
 export async function getOrgReviewCounts(orgId: string, access: Access): Promise<ReviewCounts> {

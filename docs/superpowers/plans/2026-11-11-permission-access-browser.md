@@ -16,7 +16,7 @@
 - shadcn on Base UI (`Button`, `Tooltip`), React Flow (`@xyflow/react`)
 - Vitest in the `node` environment; component tests render with `renderToStaticMarkup`
 
-**Spec:** [docs/superpowers/specs/2026-11-11-permission-based-access-design.md](../specs/2026-11-11-permission-based-access-design.md) §6 (D493). Plan 1: [2026-11-11-permission-access-core.md](2026-11-11-permission-access-core.md).
+**Spec:** [docs/superpowers/specs/2026-11-11-permission-based-access-design.md](../specs/2026-11-11-permission-based-access-design.md) §6 (D499). Plan 1: [2026-11-11-permission-access-core.md](2026-11-11-permission-access-core.md).
 
 **The four plans:**
 1. Server-side access (done, `feat/permission-access-core` @ 97e29049).
@@ -56,7 +56,7 @@
 - **No `<Can>` component in our code.** `<Can I="edit" a="scripts">` asks about a subject type and ignores client conditions. Every check goes through `useCan(key, clientId?)`, which names the client when there is one.
 - **Two fetch funnels report a 403**, not one: services parse through `readJson` with a bare `fetch`, and the hand-rolled hooks call `authFetch`. Both call one `reportStatus(status)`; the listener invalidates with `cancelRefetch: false`, so a response that passes through both still causes one refetch, and a 403 on `/api/me` itself (while a password change is owed) cannot loop.
 - **`GenerateFooter` renders `GatedButton`.** Every canvas node's Generate is already `GenerateFooter` (D435), so it gains a required `need` prop and the reason stays in one place. Dub, Lip sync and the canvas copilot's Send use `GatedButton` directly.
-- **The canvas without `canvases.edit` opens without the edit lock.** `useCanvasLock` regains an `acquire` option (D201 removed it because the lock depended on the URL you arrived through; here it depends on a permission shown on screen by a "You can view this canvas" banner). Recorded under D493 in Task 13.
+- **The canvas without `canvases.edit` opens without the edit lock.** `useCanvasLock` regains an `acquire` option (D201 removed it because the lock depended on the URL you arrived through; here it depends on a permission shown on screen by a "You can view this canvas" banner). Recorded under D499 in Task 13.
 - **Review counts follow review types without a migration.** With every review type, counts come from the `org_review_counts` RPC as today. With some, the pending rows of those types are read from the `review_queue_items` view and counted in memory (two columns, pending rows only). With none, nothing is read.
 - **The layout never fails because of the access payload.** If building it throws, the layout passes `null` and the query fetches on mount, as `useIdentity` does today. The server still refuses what it must.
 - **Out of scope here**, server-enforced only until a later change: gating Generate on the script, storyboard, avatar, voice, brand knowledge and market screens (the spec's examples name the canvas media areas), and the editor's "Export SRT" (captions text the person typed, not a stored file).
@@ -176,7 +176,7 @@ import { buildAbility, buildRules, type AppAbility, type AppRule } from "./abili
 import { isClientScopedKey, splitKey, type PermissionKey } from "./catalogue";
 import type { Access } from "./access";
 
-// D493 §6.3: the server packs the person's rules into the first HTML and /api/me; the browser
+// D499 §6.3: the server packs the person's rules into the first HTML and /api/me; the browser
 // unpacks them into one ability. Rules are only ever built on the server (plan 1); nothing here
 // turns browser input into a rule.
 
@@ -343,7 +343,7 @@ Expected: FAIL (the route has no `presetKey`, `permissions` or `clientScope`; `g
 import type { OrgRole, PlatformRole } from "@/lib/dal-logic";
 import type { PackedRules } from "@/lib/permissions/browser";
 
-/** What /api/me returns and the root layout hands the browser (D493 §6.3). */
+/** What /api/me returns and the root layout hands the browser (D499 §6.3). */
 export type MePayload = {
   name: string;
   platformRole: PlatformRole;
@@ -800,7 +800,7 @@ Expected: FAIL (missing modules; `useIdentity` has no `presetName`; `authFetch` 
 
 ```ts
 // src/lib/permissions/access-signal.ts
-// D493 §6.3: a 403 from our API can mean the person's access changed mid-session (their owner
+// D499 §6.3: a 403 from our API can mean the person's access changed mid-session (their owner
 // unticked something). The two fetch funnels report every status here; AccessProvider listens and
 // refreshes /api/me, so the screen catches up without a reload.
 type Listener = () => void;
@@ -851,7 +851,7 @@ export async function authFetch(input: RequestInfo | URL, init?: RequestInit): P
   // report it as its own generic failure. Reads and every other status fall straight
   // through — this only inspects 403s.
   await notifyIfReadOnlyBlocked(res);
-  // Any 403 may mean access changed mid-session (D493); the listener refreshes /api/me.
+  // Any 403 may mean access changed mid-session (D499); the listener refreshes /api/me.
   reportStatus(res.status);
   return res;
 }
@@ -892,7 +892,7 @@ export const meKeys = {
 // Fetching there would only cache a failure; the first real fetch happens once the path changes.
 const NO_FETCH_PATHS = new Set(["/login", "/account/password"]);
 
-// D493 §6.3: refetched on window focus (overriding the app default, D300) once 30 s old, so a
+// D499 §6.3: refetched on window focus (overriding the app default, D300) once 30 s old, so a
 // change made by the person's owner shows up without a reload. The root layout seeds it, so the
 // first render needs no request.
 export function meQueryOptions() {
@@ -928,7 +928,7 @@ import { useMe } from "@/hooks/queries/me";
 import type { Identity } from "@/lib/identity";
 import type { OrgRole, PlatformRole } from "@/lib/dal-logic";
 
-// The signed-in person, read from the one /api/me query (D493). Kept as a hook so its ~20
+// The signed-in person, read from the one /api/me query (D499). Kept as a hook so its ~20
 // consumers don't change. `hydrated` is false until something is known (a seeded payload, a
 // fetch result or a failed fetch); until then the nulls mean "not checked yet".
 export function useIdentity(): {
@@ -1093,7 +1093,7 @@ import { onAccessDenied } from "@/lib/permissions/access-signal";
 import { abilityFromPacked, rulesFromPacked } from "@/lib/permissions/browser";
 import type { MePayload } from "@/lib/me/types";
 
-// D493 §6.3. The root layout hands over the payload it built for this request; it seeds the me
+// D499 §6.3. The root layout hands over the payload it built for this request; it seeds the me
 // query (so the first render already shows the right buttons, with no request) and becomes the
 // ONE ability for the whole app. Components read it from context (performance rules 1 and 2).
 export function AccessProvider({ initial, children }: { initial: MePayload | null; children: ReactNode }) {
@@ -1198,7 +1198,7 @@ Replace the body of `RootLayout` from the comment above `resolveImpersonationSta
   // banner's own call — it costs nothing, and it keeps the header's offset colocated
   // with the element it offsets against. loadInitialMe resolves the caller once for this render
   // (shared with the page through cache()) and builds the same payload /api/me returns, so the
-  // first HTML already has the right buttons (D493).
+  // first HTML already has the right buttons (D499).
   const [{ isImpersonating }, me] = await Promise.all([resolveImpersonationState(), loadInitialMe()]);
 
   return (
@@ -1339,7 +1339,7 @@ type Props = ComponentProps<typeof Button> & {
   tooltipSide?: "top" | "bottom";
 };
 
-// D493 §6.4, "one wrapper per pattern": a missing Generate shows the button disabled with the
+// D499 §6.4, "one wrapper per pattern": a missing Generate shows the button disabled with the
 // reason, so people know the feature exists and whom to ask. The reason is also in the markup
 // (sr-only), since a disabled button can't be focused to reach its tooltip.
 export function GatedButton({
@@ -1381,7 +1381,7 @@ import type { PermissionKey } from "@/lib/permissions/catalogue";
 - Add `need,` as the first destructured prop and, in the props type, as the first field:
 
 ```tsx
-  /** The Generate permission this button needs, e.g. "image_generation.generate" (D493). */
+  /** The Generate permission this button needs, e.g. "image_generation.generate" (D499). */
   need: PermissionKey;
 ```
 
@@ -1515,7 +1515,7 @@ and add a case inside the `describe`:
 `src/components/nodes/__tests__/dubbing-controls.test.tsx`: add `import type { ReactElement } from "react";` and `import { TestAbilityProvider } from "@/components/permissions/test-ability-provider";`, add after the imports:
 
 ```tsx
-// Dub and Lip sync are gated on audio.generate (D493); every render gets every key.
+// Dub and Lip sync are gated on audio.generate (D499); every render gets every key.
 const renderGated = (el: ReactElement) => renderToStaticMarkup(<TestAbilityProvider>{el}</TestAbilityProvider>);
 ```
 
@@ -1644,7 +1644,7 @@ import { approveKeyForNodeType } from "@/lib/permissions/node-area";
 import { canInBrowser } from "@/lib/permissions/browser";
 import { useAppAbility } from "./use-can";
 
-// D489: Approve / Request changes show only with Approve on the node's area, for the canvas's
+// D495: Approve / Request changes show only with Approve on the node's area, for the canvas's
 // client. For a canvas focus view (it reads the client from the canvas tree).
 export function useCanApproveNode(nodeType: string): boolean {
   const ability = useAppAbility();
@@ -1682,8 +1682,8 @@ and replace `getOrgReviewCounts` with:
 
 ```ts
 // R5.1/R5.2/R5.3: one read, never one query per row (PRD §8: the client list renders for every
-// org member on every visit). Pending counts are of the work the person can approve (D489), in
-// their clients (D490). With every review type that is the org_review_counts RPC, as before.
+// org member on every visit). Pending counts are of the work the person can approve (D495), in
+// their clients (D496). With every review type that is the org_review_counts RPC, as before.
 // With some, the RPC can't tell types apart, so the pending rows of those types are read (two
 // columns) and counted here. With none, there is nothing to count.
 export async function getOrgReviewCounts(orgId: string, access: Access): Promise<ReviewCounts> {
@@ -1793,7 +1793,7 @@ import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Shown when this session is read-only: either someone else holds the lock ("Take over" enables
-// once their lock is stale), or the person may only view this canvas (no take-over: D493).
+// once their lock is stale), or the person may only view this canvas (no take-over: D499).
 export function LockBanner({
   heldByName,
   canTakeOver,
@@ -1836,7 +1836,7 @@ Replace the block comment above the function and the signature with:
 // D33: acquires a per-tab lock on the canvas, heartbeats while editing, releases on
 // unload, and polls for take-over while read-only.
 //
-// D493: someone without canvases.edit opens the canvas WITHOUT the lock (`acquire: false`): view
+// D499: someone without canvases.edit opens the canvas WITHOUT the lock (`acquire: false`): view
 // only, no heartbeat, no take-over poll, and they never evict the person editing. D201 removed
 // D161's URL-dependent opt-out because nothing on screen said which mode you were in; this one
 // depends on a permission, and the banner says so. If the permission arrives mid-session the
@@ -1902,7 +1902,7 @@ In `src/components/canvas/canvas.tsx`, add `import { useCan } from "@/components
 with:
 
 ```tsx
-  // D493: without canvases.edit the canvas is view only: no lock, no dragging or connecting, no
+  // D499: without canvases.edit the canvas is view only: no lock, no dragging or connecting, no
   // add menu, fields render plain (everything below reads canEdit).
   const canEditCanvas = useCan("canvases.edit", clientId);
   const { canEdit, viewOnly, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
@@ -1954,7 +1954,7 @@ export function EditorShell(props: Props) {
 
 ```tsx
 function EditorShellBody({ canvasId, clientId, canvasPath, breadcrumb, title, initialState }: Props) {
-  // D493: holding the lock is editing. Without canvases.edit and video_editor.edit the cut opens
+  // D499: holding the lock is editing. Without canvases.edit and video_editor.edit the cut opens
   // view only and never takes the lock from whoever is editing.
   const canEditCanvas = useCan("canvases.edit", clientId);
   const canEditCut = useCan("video_editor.edit", clientId);
@@ -2043,7 +2043,7 @@ Expected: FAIL, `Failed to resolve import "../use-client-sections"`.
 In `src/components/clients/client-sections.ts`, add `import type { ClientScopedKey } from "@/lib/permissions/catalogue";`, add to `ClientSection`:
 
 ```ts
-  /** The view a person needs to see this section's link (D493: no view → not shown). */
+  /** The view a person needs to see this section's link (D499: no view → not shown). */
   need: ClientScopedKey;
 ```
 
@@ -2096,7 +2096,7 @@ import { useClientSections } from "@/components/clients/use-client-sections";
 After `const [pending, startTransition] = useTransition();` add:
 
 ```tsx
-  // D493: sections the person can't view, and Archive without clients.delete, are not shown. The
+  // D499: sections the person can't view, and Archive without clients.delete, are not shown. The
   // sections are hidden for archived clients: shortcuts into a recovery view would invite work
   // on a client nobody is meant to be working on.
   const unpinned = useClientSections(clientId).filter((s) => !s.pinned);
@@ -2205,7 +2205,7 @@ and change:
 `src/components/canvases/canvases-table.tsx`: add `import { useCan } from "@/components/permissions/use-can";`, add `clientId` to the props (`clientId: string;` in the type, `clientId,` in the destructure), add after `const liveCounts = useReviewCounts(reviewCounts);`:
 
 ```tsx
-  // D493: Rename needs canvases.edit, Delete canvases.delete; without either the ⋯ menu is not shown.
+  // D499: Rename needs canvases.edit, Delete canvases.delete; without either the ⋯ menu is not shown.
   const canRename = useCan("canvases.edit", clientId);
   const canDelete = useCan("canvases.delete", clientId);
 ```
@@ -2319,7 +2319,7 @@ Expected: FAIL (Mark final still shown; Share shown without the key).
 `src/components/scripts/generate/mark-final-bar.tsx`: add `canMarkFinal = true` to the destructure and to the props type:
 
 ```tsx
-  /** False without scripts.approve: Mark final and its confirm are not shown (D493). */
+  /** False without scripts.approve: Mark final and its confirm are not shown (D499). */
   canMarkFinal?: boolean;
 ```
 
@@ -2336,7 +2336,7 @@ and pass `canMarkFinal={canMarkFinal}` to `<MarkFinalBar`.
 `src/components/visualise/visualise-readiness.tsx`: add to `Props`:
 
 ```tsx
-  /** False without scripts.approve: Reopen is not shown (D493). */
+  /** False without scripts.approve: Reopen is not shown (D499). */
   canReopen?: boolean;
 ```
 
@@ -2359,7 +2359,7 @@ and pass `canReopen={canReopen}` to `<VisualiseReadiness`.
 `src/components/script-review/team/review-actions.tsx`: add `import { useCan } from "@/components/permissions/use-can";`, add after `const move = useMoveScriptStage(clientId, script.id);`:
 
 ```tsx
-  // D493: sharing needs client_review.share; a stage move needs client_review.edit, and Move to
+  // D499: sharing needs client_review.share; a stage move needs client_review.edit, and Move to
   // In review is the share dialog, so it needs both.
   const canShare = useCan("client_review.share", clientId);
   const canMove = useCan("client_review.edit", clientId);
@@ -2382,7 +2382,7 @@ and replace the three lines that render `ShareDialog`, `CopyLinkButton` and the 
 `src/components/nodes/client-review-node.tsx`: add `import { useCan } from "@/components/permissions/use-can";` and `import { useClientId } from "@/components/canvas/client-id-context";`, add next to the existing `useCanvasEditable()` line:
 
 ```tsx
-  // D493: uploading the cut makes the client's review link, so it needs client_review.share.
+  // D499: uploading the cut makes the client's review link, so it needs client_review.share.
   const canShare = useCan("client_review.share", useClientId());
 ```
 
@@ -2395,7 +2395,7 @@ and change `) : editable ? (` (the branch rendering `ClientReviewUpload`) to `) 
 `src/components/editor/editor-export-button.tsx`: add `import { useCan } from "@/components/permissions/use-can";`, `import { useClientId } from "@/components/canvas/client-id-context";` and `import { GENERATE_OFF_REASON } from "@/components/permissions/gated-button";`. After the `dubLanguage` line add:
 
 ```tsx
-  // D493: the MP4 is a render (video_editor.generate); the Premiere package is sharing the edit
+  // D499: the MP4 is a render (video_editor.generate); the Premiere package is sharing the edit
   // (video_editor.share). Without either, Export is not shown.
   const clientId = useClientId();
   const canRender = useCan("video_editor.generate", clientId);
@@ -2436,7 +2436,7 @@ Replace the two `DropdownMenuItem`s with:
 ```tsx
 export function ReviewInbox() {
   const { hydrated } = useIdentity();
-  // D493: no internal_review.view → no inbox, and no request the server would refuse.
+  // D499: no internal_review.view → no inbox, and no request the server would refuse.
   const canReview = useCan("internal_review.view");
   const [open, setOpen] = useState(false);
   // Kept subscribed while closed so the badge count is live — the badge IS the feature
@@ -2533,7 +2533,7 @@ Expected: FAIL, `Failed to resolve import "./downloads"`.
 import type { AppAbility } from "./ability";
 import { canInBrowser } from "./browser";
 
-// D489 Downloads. UI ONLY: files sit in public storage buckets, so these ticks hide download
+// D495 Downloads. UI ONLY: files sit in public storage buckets, so these ticks hide download
 // buttons but cannot stop someone who has a file's URL. Making the buckets private is its own
 // project (spec §5.2). View = approved finals; Share = anything, drafts included.
 export function canDownload(ability: AppAbility, clientId: string, approved: boolean): boolean {
@@ -2585,7 +2585,7 @@ and wrap the Download button:
 `src/components/editor/editor-export-dialog.tsx` and `src/components/editor/editor-render-dialog.tsx`: add `import { useCanDownload } from "@/components/permissions/use-can";` and `import { useClientId } from "@/components/canvas/client-id-context";`, add as the first line of each component:
 
 ```tsx
-  // An editor result is not an approved version, so it downloads under downloads.share (D493).
+  // An editor result is not an approved version, so it downloads under downloads.share (D499).
   const canDownload = useCanDownload(useClientId(), false);
 ```
 
@@ -2708,7 +2708,7 @@ In `src/components/identity/profile-popover.tsx`:
 
 ```ts
 // The signed-in person's display name, from the session via /api/me (useIdentity()). What they
-// may do is in the ability (D493), never here. Use this to decide what to RENDER, never what to
+// may do is in the ability (D499), never here. Use this to decide what to RENDER, never what to
 // permit: the server checks every route and action.
 export type Identity = { name: string };
 ```
@@ -2768,7 +2768,7 @@ git log -1 --format=%B
 import { describe, it, expect } from "vitest";
 import { ESLint } from "eslint";
 
-// D493 §6.4: check capabilities, never preset names. Lints snippets as if they lived in
+// D499 §6.4: check capabilities, never preset names. Lints snippets as if they lived in
 // src/components, through the repo's own config.
 const eslint = new ESLint({ cwd: process.cwd() });
 
@@ -2808,7 +2808,7 @@ Expected: FAIL (no `no-restricted-syntax` messages).
 In `eslint.config.mjs`, add this entry to the `defineConfig([...])` array after `...nextTs,`:
 
 ```js
-  // D493 §6.4: the browser checks capabilities (useCan("scripts.approve")), never preset names.
+  // D499 §6.4: the browser checks capabilities (useCan("scripts.approve")), never preset names.
   {
     files: ["src/components/**/*.{ts,tsx}", "src/hooks/**/*.{ts,tsx}"],
     rules: {
@@ -2855,7 +2855,7 @@ git log -1 --format=%B
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-11-11-permission-based-access-design.md` (§6.3, §6.4)
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (D493)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (D499)
 
 - [ ] **Step 1: Update the spec**
 
@@ -2864,9 +2864,9 @@ git log -1 --format=%B
 - §6.4 "Coding rules": replace "`<Can>` covers show/hide" with "`useCan(key, clientId?)` covers show/hide: `<Can>` asks about a subject type and would ignore the client". Add: "Without `canvases.edit` the canvas and editor open without the edit lock and say 'You can view this canvas. Editing is turned off for you.'"
 - §6.4: add "Review counts are of the node types the person can approve."
 
-- [ ] **Step 2: Note the same under D493**
+- [ ] **Step 2: Note the same under D499**
 
-Under D493 in the roadmap, add a "**Refined in plan 2 (2026-11-11).**" line followed by one bullet each: `@casl/react` 7.0.1; `useCan` instead of `<Can>`; the view-only canvas opens without the lock (refines D201: the mode now follows a permission the banner names, not the URL you arrived through); review counts follow review types without a migration; downloads stay UI-only.
+Under D499 in the roadmap, add a "**Refined in plan 2 (2026-11-11).**" line followed by one bullet each: `@casl/react` 7.0.1; `useCan` instead of `<Can>`; the view-only canvas opens without the lock (refines D201: the mode now follows a permission the banner names, not the URL you arrived through); review counts follow review types without a migration; downloads stay UI-only.
 
 - [ ] **Step 3: Full verification**
 
@@ -2900,6 +2900,6 @@ Expected: no `/api/me` request on load; the same requests and channels as on `fe
 
 ```bash
 git add docs/superpowers/specs
-git commit -m "docs: record plan 2 refinements to access in the browser (D493)"
+git commit -m "docs: record plan 2 refinements to access in the browser (D499)"
 git log -1 --format=%B
 ```

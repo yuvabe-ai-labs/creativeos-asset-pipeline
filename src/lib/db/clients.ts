@@ -63,7 +63,7 @@ export async function setClientArchived(
   if (error) throw error;
 }
 
-// D490: someone with a picked client list who creates a client gets it on their list in the
+// D496: someone with a picked client list who creates a client gets it on their list in the
 // same request; otherwise they would create a client they cannot open.
 export async function addClientToMembership(userId: string, orgId: string, clientId: string): Promise<void> {
   const { error } = await createServerSupabase()

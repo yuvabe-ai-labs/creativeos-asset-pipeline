@@ -2791,7 +2791,7 @@ editor on the unmerged `feat/video-editor` branch; numbering this work D149 woul
 the moment either branch merged. The gap is deliberate, not lost history — see
 `2026-08-21-internal-approval-workflow-design.md` §2.1.
 
-### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(**SUPERSEDED by D491**; recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(**SUPERSEDED by D497**; recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
 
 **Decision.** `addOrgMember` / `updateMemberRole` extend the `/admin/orgs/[id]` Members
 card with an add-member dialog and a per-row role `Select`. Org owners cannot provision
@@ -8614,7 +8614,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** this session; plan in the "Kling fal Migration Plan" artifact.
 
-### D489 — Access is a preset plus per-person ticks, stored in the database; the list of areas lives in code *(recorded 2026-11-11; refines D43, D188; originated → `2026-11-11-permission-based-access-design.md`)*
+### D495 — Access is a preset plus per-person ticks, stored in the database; the list of areas lives in code *(recorded 2026-11-11; refines D43, D188; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Superseded by D500 (2026-11-12).** No presets and no area catalogue: four permissions set on the person.
 
 **Decision.** A permission is `area.level`:
 - 21 areas
@@ -8645,7 +8647,9 @@ Migration:
 
 **Refined in plan 1 (2026-11-11).** The catalogue is 59 keys: `canvases.generate` was added (AI-written text nodes), and levels that nothing checks were dropped (`client_profile.view`, `scripts.share`, `canvas_copilot.view`, `image_generation.view`, `video_generation.view`, `audio.view`, `internal_review.edit`, `client_review.delete`, `clients.view`). Designer keeps `scripts.approve` and loses only the image, video and audio approvals. `downloads.*` only hides buttons, because files sit in public buckets. Migration 0062's trigger functions run as `security definer` so the last-owner guard cannot pass silently under RLS, the open-invite uniqueness is on `lower(email)`, and the `clients (id, org_id)` unique constraint is added only if missing.
 
-### D490 — Each person sees all clients or a picked list; out of scope is a 404 *(recorded 2026-11-11; extends D44; originated → `2026-11-11-permission-based-access-design.md`)*
+### D496 — Each person sees all clients or a picked list; out of scope is a 404 *(recorded 2026-11-11; extends D44; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Partly superseded by D501 (2026-11-12).** `all_clients` and per-person picked lists are replaced by a People list on each client. The enforcement here (chokepoints, required `need`, coverage test, 404 for a client out of reach) stays.
 
 **Decision.** Scope is `org_memberships.all_clients` (true includes future clients) or a picked list in `membership_clients`. Its composite foreign key `(client_id, org_id)` stops a person being given another agency's client.
 
@@ -8662,7 +8666,9 @@ Enforcement:
 
 **Refined in plan 1 (2026-11-11).** Server actions carry the same permission and target guard as routes. Seven routes (`kb/re-analyze`, `nodes/[id]/file/finalize`, `file/from-url`, `file/sign`, `copilot`, `copilot/actions`, `copilot/references`) and several canvas, node and KB actions had no agency check and now do. If adding a new client to the creator's list fails, the client is removed again. Canvas lock acquire and heartbeat need `canvases.edit`; release and get need `canvases.view`. Known limitation: the RLS policies stay agency-level, so Realtime can carry rows of other clients in the same agency to the browser; all server reads and writes are client-scoped.
 
-### D491 — Owners invite their own team; one invite flow for everyone, emailed through Resend *(recorded 2026-11-11; supersedes D164; refines D181; originated → `2026-11-11-permission-based-access-design.md`)*
+### D497 — Owners invite their own team; one invite flow for everyone, emailed through Resend *(recorded 2026-11-11; supersedes D164; refines D181; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Refined by D502 (2026-11-12).** The invite carries only the email; the owner gives access after the person has entered their details. Resend, the hashed single-use token and the copyable link stay.
 
 **Decision.**
 - **Team page.** An in-app Team page (`team.*`) lists members and pending invites. One dialog invites and edits: who, preset, ticks, clients.
@@ -8683,7 +8689,9 @@ Enforcement:
 - Supabase's built-in mailer (a few emails per hour).
 - Supabase invite links (they can't carry the invite's access or be shown for copying).
 
-### D492 — One agency per person for now; every grant is keyed by person and agency so several can follow *(recorded 2026-11-11; refines D80, D181; originated → `2026-11-11-permission-based-access-design.md`)*
+### D498 — One agency per person for now; every grant is keyed by person and agency so several can follow *(recorded 2026-11-11; refines D80, D181; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Superseded by D503 (2026-11-12).** Several agencies per person are built now, with a switcher.
 
 **Decision.**
 - `org_memberships_one_org_per_user` stays.
@@ -8705,7 +8713,9 @@ Allowing several agencies later means three things:
 - Decisions 3 and 4, after discussion with the lead: per-person usage limits, free trial credits, self sign-up.
 - Later, in separate specs: securing brand-client review links, a Client role.
 
-### D493 — CASL evaluates permissions on server and browser; rules arrive with the first HTML *(recorded 2026-11-11; refines D300; originated → `2026-11-11-permission-based-access-design.md`)*
+### D499 — CASL evaluates permissions on server and browser; rules arrive with the first HTML *(recorded 2026-11-11; refines D300; originated → `2026-11-11-permission-based-access-design.md`)*
+
+**Refined by D504 (2026-11-12).** CASL stays, behind one checker that does Map and Set lookups; no `clientId $in` conditions.
 
 **Decision.**
 - **Library.** `@casl/ability` and `@casl/react`, pinned exactly.
@@ -8730,3 +8740,73 @@ Allowing several agencies later means three things:
 - Cerbos, OpenFGA, SpiceDB, Permit.io (a service and a network call per check, against performance rules 1 and 5).
 - Oso (open-source library deprecated).
 - Permissions in Supabase JWT claims (stale until refresh, and they bloat every token).
+
+### D500 — Four permissions on the person, copied onto each client they are on; one owner with everything *(recorded 2026-11-12; supersedes D495; refines D43, D166, D188; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- **Permissions.** Generate, Approve, Share, Delete, stored as `text[]` with a check constraint. Being on a client gives view, edit, downloads, and deleting parts of an item (node, shot, panel, comment). Delete is for a whole library item.
+- **Where set.** The owner sets them on the person at agency level (`org_memberships.permissions`). Each client assignment (`membership_clients.permissions`) stores the effective copy. A trigger applies each agency-level change (what was added, what was removed) to every one of the person's client rows. V1 screens edit the agency level only; a per-client difference is a database edit for now.
+- **Owner.** Exactly one per agency (`is_owner`, unique partial index). Everything on every client, including future ones, with no rows to manage. Only the owner manages the team, clients, People lists and sees credits. Cannot be removed or demoted; the super admin transfers ownership.
+- **Day one.** The earliest owner of each agency stays owner. Everyone else gets all four permissions and every existing client.
+- **No credit limit per person.** The agency pool is the only limit.
+
+**Why.**
+- Anupama's summary of the 12 Nov meeting: View and Edit are implicit; Generate, Approve, Share, Delete configurable; set at agency level; effective permissions stored on each client assignment; revoking at agency level cascades; V1 UI at agency level only; one owner with full access.
+- Cyril's reply page (12 Nov): no presets until real teams show which combinations recur; six permissions without areas; no per-person credit limit.
+- Arun, 12 Nov: downloads open to anyone on the client; existing people keep their access; earliest owner stays when there are two.
+- Storing the copy per client means a per-client editor later needs no migration and no change to the checker.
+
+**Rejected.**
+- Presets and the 21-area catalogue (D495): 20 ticks per person per client, and roles nobody has validated yet.
+- Edit as a separate permission (Cyril's page proposed it; the meeting made it implicit).
+- Computing per-client permissions from the agency set without storing them (the meeting asked for them stored).
+- Four boolean columns (finer keys later would need a migration each).
+
+### D501 — A client's People list decides who is on it *(recorded 2026-11-12; supersedes the scope half of D496; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.** Each client has a People page (`/clients/[id]/people`, owner only). Adding people inserts `membership_clients` rows in one step, each copying the person's agency-level permissions. Being on the list is the only way a member sees a client; `all_clients` is removed. A client out of reach stays a 404, and the chokepoints, required `need` and coverage tests of D496 stay.
+
+**Why.** Cyril's page: when ten people start on a new client, one list on the client is one action instead of ten setups.
+
+**Rejected.** Picking clients per person at invite (D496). An "all clients" flag for members.
+
+### D502 — The invite is an email; the person enters their details and waits; the owner then gives access *(recorded 2026-11-12; refines D497; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- The owner (or the super admin, for any agency) enters an email. The invite keeps D497's mechanics: Resend, a sha256 of a random token, single use, 7 days, copyable link.
+- Opening the link: a new person sets name and password; an existing account signs in and joins. Either way the membership starts waiting (`access_given_at` null).
+- A waiting person, or one on no client, sees "You're being onboarded. Hang in there."
+- The Team page lists "Waiting for you" cards with the four switches and **Give access**. Giving access does not add clients; that happens on People lists.
+
+**Why.** Cyril's page: permissions are set for someone who has actually joined. Arun, 12 Nov: keep Give access to permissions only, as Cyril drew it.
+
+**Rejected.** Setting permissions and clients before sending (D497). A client picker on the Give access card.
+
+### D503 — Several agencies per person now; the selected agency scopes everything *(recorded 2026-11-12; supersedes D498; refines D80, D81; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- `org_memberships_one_org_per_user` is dropped. Each membership has its own permissions and clients.
+- The selected agency is a `cos_org` cookie, checked against the person's memberships on every request, falling back to their earliest membership. It becomes `effectiveOrgId`, so every query stays scoped as today. Impersonation still overrides it.
+- A header switcher appears when the person has more than one agency. Switching clears the browser query cache.
+- A page link into another of the person's agencies shows "This is in {Agency}" with a switch button; API routes return 404.
+
+**Why.** Arun, 12 Nov: build it in this round (Cyril's page lists one login across agencies as agreed). Scoping by the selected agency keeps every existing query correct; resolving the agency from each resource instead would touch every query and widen the room for cross-agency mistakes.
+
+**Rejected.** Opening another agency's link directly with that membership.
+
+### D504 — One checker decides; CASL stays underneath *(recorded 2026-11-12; refines D499; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- `check(access, action, { orgId, clientId })` is the only function that decides, in a fixed order: super admin, membership, owner, owner-only actions, client row, view and edit, then the four permissions.
+- Every step is a Map or Set lookup on access loaded once per request.
+- Routes still name `view` and `edit`.
+- CASL builds the same rules for the browser and for finer rules later, without `clientId $in` conditions.
+- The canvas works out its permissions once for its client; nodes read the result.
+- `useCanvasEditable()` returns `can("edit")`.
+
+**Why.**
+- Anupama's summary: one central server-side checker taking the user, the action, and the organisation and client, returning allow or deny.
+- Arun, 12 Nov: keep CASL for finer access control later.
+- A `$in` list scans every client on each check, which the performance rules forbid for anything a canvas runs per node.
+
+**Rejected.** Dropping CASL for a plain function (finer rules later would mean rebuilding browser gating). CASL `$in` conditions.
