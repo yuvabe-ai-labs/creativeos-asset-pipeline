@@ -8,7 +8,7 @@
 - **One people resource per agency.** `list_agency_people` (migration 0062) plus the open invitations is the Team page, every client's Members list and the invite popup's "In your agency" list. It is read once (`GET /api/orgs/[orgId]/people`), cached under `peopleKeys.list(orgId)`, and screens filter it.
 - **One set of routes for the owner and the super admin.** Every write goes through `/api/orgs/[orgId]/…` behind a new chokepoint, `withTeam`: the owner passes `check(…, "manage_team")` in the agency they act in (with the usual impersonation write gate); a super admin working from Admin passes for any agency, and each change is written to the audit log as `admin_action`. The business rules (refusals, the daily limit, emails) live once in `src/lib/people/ops.ts`.
 - **Shared screens.** The Team page component (`TeamPeople`) and the client Members component (`ClientMembers`) render on `/team` and `/clients/[id]/members` for the owner, and in Admin's People and Clients tabs with an `orgId` prop and two optional extras (Make owner, reset password).
-- **Invites.** A random token is emailed (only its sha256 is stored). `/invite/[token]` is outside the session proxy; signing up creates the account, then `accept_invitation` marks the invite used and creates the membership and client row in one transaction.
+- **Invites.** A random token is stored as issued and emailed as a link, so Copy link always shows the same link. `/invite/[token]` is outside the session proxy; signing up creates the account, then `accept_invitation` marks the invite used and creates the membership and client row in one transaction.
 - **Email.** `src/lib/email/send.ts` posts to Resend's HTTP API with `fetch` (no new package). Without `RESEND_API_KEY` nothing is sent, the invite still exists, and the link is shown to copy.
 
 **Tech Stack:**
@@ -30,7 +30,7 @@
 - **Statuses, exactly:** `Invited`, `Signed up · Needs permissions`, `Member`, `Owner`.
 - **Copy, exactly (spec §6):** editor note `These apply on every client {name} is on, and on any client they're added to later.`; members heading `{n} people on this client`; invite step 2 note `They get an email to sign up. Once they have, you set their permissions on the Team page.`; refusals `Already in {Agency}. Add them from the list.`, `Already invited to {client}. Once they've signed up, add them from the list.`, `This email already belongs to another agency.`; wrong-email sign-in `This invite is for {email}. Sign in with that email to accept it.`; Add an agency note `The owner gets an email to sign up, and can do everything in this agency.`
 - **Emails (spec §6.7):** `You're invited to {Agency}` (member, invite or resend), `Set up {Agency} on CreativeOS` (owner, created or resend), `{Name} signed up to {Agency}` with body `{Name} signed up to {Agency}. Give them permissions on the Team page.` (owner and inviter), `Your access to {Agency} is ready` (the person, on Give access). At most **50 invites per agency per day**. Without `RESEND_API_KEY` (or `EMAIL_FROM`) the invite is created and the link shown; the result says it was not emailed.
-- **Invites:** token = 32 random bytes, base64url; only `sha256` hex is stored; valid 7 days; single use; Resend issues a new token (the old link stops working).
+- **Invites:** token = 32 random bytes, base64url, stored as issued in `org_invitations.token` (unique; the table is server-only: RLS on, no policies); valid 7 days; single use. Copy link shows the stored link unchanged (no new token, no email, no limit). Only Resend issues a new token (the old link stops working) and emails it; Cancel revokes.
 - **Audit:** every change the super admin makes from Admin is `logImpersonationEvent({ eventType: "admin_action", targetOrgId, detail: { action, …person } })`.
 - **Data fetching:** every new read and write is three layers: `src/services/people.service.ts` → `src/hooks/queries/people.ts` (`peopleKeys` factory) → components. Components never call `fetch`.
 - **Controls:** shadcn primitives from `src/components/ui/*` only; an icon inside a field is `InputGroup` / `InputGroupAddon`. `src/components/<feature>/` holds `.tsx` only; constants, types and helpers live in `src/lib/people/`.
@@ -42,7 +42,7 @@
 ## Decisions this plan makes
 
 - **Routes live under `/api/orgs/[orgId]/…` and serve the owner and the super admin alike** through `withTeam`. A super admin acting from Admin skips the impersonation write gate (D85: Admin is platform administration) and is audit-logged as `admin_action`; while viewing as that same agency, the owner path and its write gate apply instead.
-- **"Copy link" on an open invite issues a new token without emailing it**, because only the hash is stored. The old link stops working, as with Resend.
+- **Invite links are stored as issued so Copy link shows the same one**; acceptable because the table is server-only and links are single-use and expire after 7 days (Arun, 13 Nov). Each open invite in the people list carries its link, so Copy link makes no request.
 - **Remove deletes the person's login**, as the admin removal did (one agency per person: a login without a membership could never sign in again). Their work stays, attributed to "an unknown maker".
 - **Give access needs at least one permission** in the editor (the button is disabled with none); the server accepts any set from the six.
 - **Admin keeps its Generations and Support activity tabs** beside Overview, People and Clients. Reset password stays, shown only in Admin through an optional slot on the shared row.
@@ -53,7 +53,7 @@
 | File | Role |
 |---|---|
 | `src/lib/email/send.ts`, `src/lib/email/templates.ts` | send through Resend over `fetch`; the four emails |
-| `src/lib/invites/token.ts` | token, hash, link |
+| `src/lib/invites/token.ts` | token and link |
 | `src/lib/people/{types,constants,utils,schema}.ts` | people types, labels and refusals, pure helpers, request schemas |
 | `src/lib/db/people.ts` | every people and invitation read and write |
 | `src/lib/people/ops.ts` | the rules: invite, resend, cancel, permissions, remove, add, make owner, create agency, sign-up notices |
@@ -302,12 +302,12 @@ git log -1 --format=%B
 **Interfaces:**
 - Consumes: plan 3's `Permission`, `PERMISSIONS`, `orderedPermissions`, `toPermissionSet`; SQL `list_agency_people`, `find_user_by_email`, `accept_invitation`, `transfer_agency_owner`, `create_agency_with_owner_invite`.
 - Produces:
-  - `token.ts`: `newInviteToken(): { token: string; tokenHash: string }`, `hashInviteToken(token: string): string`, `inviteLink(token: string): string`.
-  - `types.ts`: `type PersonStatus = "owner" | "member" | "signed_up"`; `type AgencyPerson = { userId: string; name: string; email: string; status: PersonStatus; permissions: Permission[]; joinedAt: string; invitedByName: string | null; invitedClient: { id: string; name: string } | null; clientIds: string[] }`; `type OpenInvite = { id: string; email: string; clientId: string | null; clientName: string | null; asOwner: boolean; sentAt: string; expiresAt: string }`; `type AgencyPeople = { people: AgencyPerson[]; invites: OpenInvite[] }`; `type InviteResult = { invite: OpenInvite; link: string; emailed: boolean }`; `type InvitationForSignUp = { id: string; orgId: string; orgName: string; email: string; asOwner: boolean; clientName: string | null; inviterName: string | null; open: boolean }`.
+  - `token.ts`: `newInviteToken(): string`, `inviteLink(token: string): string`.
+  - `types.ts`: `type PersonStatus = "owner" | "member" | "signed_up"`; `type AgencyPerson = { userId: string; name: string; email: string; status: PersonStatus; permissions: Permission[]; joinedAt: string; invitedByName: string | null; invitedClient: { id: string; name: string } | null; clientIds: string[] }`; `type OpenInvite = { id: string; email: string; clientId: string | null; clientName: string | null; asOwner: boolean; sentAt: string; expiresAt: string; link: string }`; `type AgencyPeople = { people: AgencyPerson[]; invites: OpenInvite[] }`; `type InviteResult = { invite: OpenInvite; link: string; emailed: boolean }`; `type InvitationForSignUp = { id: string; orgId: string; orgName: string; email: string; asOwner: boolean; clientName: string | null; inviterName: string | null; open: boolean }`.
   - `constants.ts`: `INVITES_PER_AGENCY_PER_DAY = 50`, `INVITE_TTL_DAYS = 7`, `PERMISSION_LABELS`, `STATUS_LABELS`, `REFUSALS`.
   - `utils.ts`: `isValidEmail(v: string): boolean`, `normaliseEmail(v: string): string`, `peopleOnClient(people, clientId): AgencyPerson[]`, `peopleNotOnClient(people, clientId): AgencyPerson[]`, `signedUpPeople(people): AgencyPerson[]`, `invitesForClient(invites, clientId): OpenInvite[]`, `oneDayAgo(now?: Date): string`.
-  - `schema.ts`: `UpdatePermissionsSchema`, `AddMembersSchema`, `InviteSchema`, `ResendSchema`, `AcceptInviteSchema`, `CreateAgencySchema`.
-  - `db/people.ts`: `toPerson(row: PeopleRow): AgencyPerson`, `toInvite(row: InviteRow): OpenInvite`, `listAgencyPeople(orgId)`, `listOpenInvites(orgId)`, `getMembership(orgId, userId): Promise<{ isOwner: boolean; accessGiven: boolean } | null>`, `getMemberships(orgId, userIds): Promise<{ userId: string; isOwner: boolean }[]>`, `setMemberPermissions(orgId, userId, permissions, giveAccess): Promise<void>`, `addPeopleToClient(orgId, clientId, userIds, by): Promise<void>`, `removePersonFromClient(orgId, clientId, userId): Promise<void>`, `countSignedUp(orgId): Promise<number>`, `ownerIds(orgId): Promise<string[]>`, `loginEmails(userIds): Promise<string[]>`, `findLoginByEmail(email): Promise<{ userId: string; orgId: string | null } | null>`, `createLogin(email, password): Promise<{ ok: true; userId: string } | { ok: false }>`, `deleteLogin(userId): Promise<void>`, `findOpenInviteByEmail(orgId, email): Promise<{ id: string; clientName: string | null } | null>`, `countInvitesSince(orgId, sinceIso): Promise<number>`, `insertInvitation(i: { orgId: string; clientId: string; email: string; tokenHash: string; invitedBy: string }): Promise<OpenInvite>`, `refreshInvitationToken(orgId, inviteId, tokenHash): Promise<OpenInvite | null>`, `revokeInvitation(orgId, inviteId): Promise<boolean>`, `getOpenOwnerInvite(orgId): Promise<OpenInvite | null>`, `getInvitationByTokenHash(hash): Promise<InvitationForSignUp | null>`, `acceptInvitation(hash, userId, name): Promise<{ orgId: string; clientId: string | null; asOwner: boolean; invitedBy: string | null }>`, `transferOwner(orgId, userId): Promise<void>`, `createAgencyWithOwnerInvite(a: { name: string; slug: string; ownerEmail: string; tokenHash: string; by: string }): Promise<string>`, `listOrgSlugs(): Promise<string[]>`.
+  - `schema.ts`: `UpdatePermissionsSchema`, `AddMembersSchema`, `InviteSchema`, `AcceptInviteSchema`, `CreateAgencySchema`.
+  - `db/people.ts`: `toPerson(row: PeopleRow): AgencyPerson`, `toInvite(row: InviteRow): OpenInvite`, `listAgencyPeople(orgId)`, `listOpenInvites(orgId)`, `getMembership(orgId, userId): Promise<{ isOwner: boolean; accessGiven: boolean } | null>`, `getMemberships(orgId, userIds): Promise<{ userId: string; isOwner: boolean }[]>`, `setMemberPermissions(orgId, userId, permissions, giveAccess): Promise<void>`, `addPeopleToClient(orgId, clientId, userIds, by): Promise<void>`, `removePersonFromClient(orgId, clientId, userId): Promise<void>`, `countSignedUp(orgId): Promise<number>`, `ownerIds(orgId): Promise<string[]>`, `loginEmails(userIds): Promise<string[]>`, `findLoginByEmail(email): Promise<{ userId: string; orgId: string | null } | null>`, `createLogin(email, password): Promise<{ ok: true; userId: string } | { ok: false }>`, `deleteLogin(userId): Promise<void>`, `findOpenInviteByEmail(orgId, email): Promise<{ id: string; clientName: string | null } | null>`, `countInvitesSince(orgId, sinceIso): Promise<number>`, `insertInvitation(i: { orgId: string; clientId: string; email: string; token: string; invitedBy: string }): Promise<OpenInvite>`, `replaceInvitationToken(orgId, inviteId, token): Promise<OpenInvite | null>`, `revokeInvitation(orgId, inviteId): Promise<boolean>`, `getOpenOwnerInvite(orgId): Promise<OpenInvite | null>`, `getInvitationByToken(token): Promise<InvitationForSignUp | null>`, `acceptInvitation(token, userId, name): Promise<{ orgId: string; clientId: string | null; asOwner: boolean; invitedBy: string | null }>`, `transferOwner(orgId, userId): Promise<void>`, `createAgencyWithOwnerInvite(a: { name: string; slug: string; ownerEmail: string; token: string; by: string }): Promise<string>`, `listOrgSlugs(): Promise<string[]>`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -315,18 +315,16 @@ git log -1 --format=%B
 // src/lib/invites/token.test.ts
 import { describe, it, expect, beforeEach } from "vitest";
 
-import { hashInviteToken, inviteLink, newInviteToken } from "./token";
+import { inviteLink, newInviteToken } from "./token";
 
 describe("invite tokens", () => {
   beforeEach(() => { process.env.APP_URL = "https://app.example"; });
 
-  it("is 32 random bytes, and only its sha256 is kept", () => {
+  it("is 32 random bytes, base64url, new each time", () => {
     const a = newInviteToken();
     const b = newInviteToken();
-    expect(a.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(a.token).not.toBe(b.token);
-    expect(a.tokenHash).toBe(hashInviteToken(a.token));
-    expect(a.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(a).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(a).not.toBe(b);
   });
 
   it("links to the sign-up page", () => {
@@ -371,7 +369,7 @@ describe("people helpers", () => {
   });
 
   it("keeps a client's open invites", () => {
-    const inv = (id: string, clientId: string | null): OpenInvite => ({ id, email: `${id}@x.com`, clientId, clientName: null, asOwner: clientId === null, sentAt: "t", expiresAt: "t" });
+    const inv = (id: string, clientId: string | null): OpenInvite => ({ id, email: `${id}@x.com`, clientId, clientName: null, asOwner: clientId === null, sentAt: "t", expiresAt: "t", link: `https://app.example/invite/${id}` });
     expect(invitesForClient([inv("i1", "c1"), inv("i2", "c2"), inv("i3", null)], "c1").map((i) => i.id)).toEqual(["i1"]);
   });
 
@@ -406,10 +404,11 @@ describe("people rows", () => {
     expect(toPerson({ ...base, invited_client_id: null, invited_client_name: null, client_ids: null }).invitedClient).toBeNull();
   });
 
-  it("map an invitation row with its client name", () => {
-    expect(toInvite({ id: "i1", email: "p@x.com", client_id: "c1", as_owner: false, created_at: "s", expires_at: "e", clients: { name: "Chupps" } }))
-      .toEqual({ id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "s", expiresAt: "e" });
-    expect(toInvite({ id: "i2", email: "o@x.com", client_id: null, as_owner: true, created_at: "s", expires_at: "e", clients: null }).clientName).toBeNull();
+  it("map an invitation row with its client name and its stored link (the same every time)", () => {
+    process.env.APP_URL = "https://app.example";
+    expect(toInvite({ id: "i1", email: "p@x.com", client_id: "c1", as_owner: false, created_at: "s", expires_at: "e", token: "tok1", clients: { name: "Chupps" } }))
+      .toEqual({ id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "s", expiresAt: "e", link: "https://app.example/invite/tok1" });
+    expect(toInvite({ id: "i2", email: "o@x.com", client_id: null, as_owner: true, created_at: "s", expires_at: "e", token: "tok2", clients: null }).clientName).toBeNull();
   });
 });
 ```
@@ -423,17 +422,12 @@ Expected: FAIL (modules missing).
 
 ```ts
 // src/lib/invites/token.ts
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
-// D502/D506: the link carries a random token; the database keeps only its sha256, so a leaked
-// table can't be turned back into working links.
-export function hashInviteToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-export function newInviteToken(): { token: string; tokenHash: string } {
-  const token = randomBytes(32).toString("base64url");
-  return { token, tokenHash: hashInviteToken(token) };
+// D502/D506: the link carries a random token, stored as issued so Copy link always shows the same
+// link (Arun, 13 Nov). The table is server-only; a link is single use and expires after 7 days.
+export function newInviteToken(): string {
+  return randomBytes(32).toString("base64url");
 }
 
 export function inviteLink(token: string): string {
@@ -473,6 +467,8 @@ export type OpenInvite = {
   asOwner: boolean;
   sentAt: string;
   expiresAt: string;
+  /** The link as issued: Copy link shows it unchanged; only Resend replaces it. */
+  link: string;
 };
 
 /** The one people resource per agency: the Team page, every Members list, the invite popup. */
@@ -591,8 +587,6 @@ export const AddMembersSchema = z.object({ userIds: z.array(z.uuid()).min(1).max
 /** The email's wording is checked in the ops, so the refusal is the spec's sentence. */
 export const InviteSchema = z.object({ email: z.string().max(320) });
 
-export const ResendSchema = z.object({ email: z.boolean().optional() });
-
 export const AcceptInviteSchema = z.object({
   name: z.string().trim().min(2, { error: "Enter your name." }).max(80),
   password: z.string().min(8, { error: "Password must be at least 8 characters." }),
@@ -612,11 +606,14 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { unwrapEmbed, type Embed } from "@/lib/db/embed";
 import { orderedPermissions, toPermissionSet, type Permission } from "@/lib/permissions/model";
+import { inviteLink } from "@/lib/invites/token";
 import { INVITE_TTL_DAYS } from "@/lib/people/constants";
 import type { AgencyPerson, InvitationForSignUp, OpenInvite } from "@/lib/people/types";
 
 // Every read and write of people and invitations (migration 0062). The rules (who may, the
-// refusals, the emails) are in src/lib/people/ops.ts; nothing here decides access.
+// refusals, the emails) are in src/lib/people/ops.ts; nothing here decides access. Invite tokens
+// are stored as issued; they leave the server only to the owner or the super admin (the people
+// routes are manage_team) and in the invited person's email.
 
 type PeopleRow = {
   user_id: string;
@@ -639,10 +636,11 @@ type InviteRow = {
   as_owner: boolean;
   created_at: string;
   expires_at: string;
+  token: string;
   clients: Embed<{ name: string }>;
 };
 
-const INVITE_COLUMNS = "id, email, client_id, as_owner, created_at, expires_at, clients(name)";
+const INVITE_COLUMNS = "id, email, client_id, as_owner, created_at, expires_at, token, clients(name)";
 
 export function toPerson(row: PeopleRow): AgencyPerson {
   return {
@@ -667,6 +665,7 @@ export function toInvite(row: InviteRow): OpenInvite {
     asOwner: row.as_owner,
     sentAt: row.created_at,
     expiresAt: row.expires_at,
+    link: inviteLink(row.token),
   };
 }
 
@@ -828,21 +827,22 @@ export async function countInvitesSince(orgId: string, sinceIso: string): Promis
   return count ?? 0;
 }
 
-export async function insertInvitation(i: { orgId: string; clientId: string; email: string; tokenHash: string; invitedBy: string }): Promise<OpenInvite> {
+export async function insertInvitation(i: { orgId: string; clientId: string; email: string; token: string; invitedBy: string }): Promise<OpenInvite> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
-    .insert({ org_id: i.orgId, client_id: i.clientId, email: i.email, token_hash: i.tokenHash, invited_by: i.invitedBy, expires_at: expiry() })
+    .insert({ org_id: i.orgId, client_id: i.clientId, email: i.email, token: i.token, invited_by: i.invitedBy, expires_at: expiry() })
     .select(INVITE_COLUMNS)
     .single();
   if (error) throw error;
   return toInvite(data as unknown as InviteRow);
 }
 
-/** Resend and Copy link: a new token (the old link stops working), sent now, 7 more days. */
-export async function refreshInvitationToken(orgId: string, inviteId: string, tokenHash: string): Promise<OpenInvite | null> {
+/** Resend only: a new token (the old link stops working), sent now, 7 more days. Copy link never
+ *  calls this; it shows the stored link. */
+export async function replaceInvitationToken(orgId: string, inviteId: string, token: string): Promise<OpenInvite | null> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
-    .update({ token_hash: tokenHash, created_at: new Date().toISOString(), expires_at: expiry() })
+    .update({ token, created_at: new Date().toISOString(), expires_at: expiry() })
     .eq("id", inviteId)
     .eq("org_id", orgId)
     .is("accepted_at", null)
@@ -892,12 +892,12 @@ type SignUpRow = {
   clients: Embed<{ name: string }>;
 };
 
-export async function getInvitationByTokenHash(tokenHash: string): Promise<InvitationForSignUp | null> {
+export async function getInvitationByToken(token: string): Promise<InvitationForSignUp | null> {
   const db = createServerSupabase();
   const { data, error } = await db
     .from("org_invitations")
     .select("id, org_id, email, as_owner, accepted_at, revoked_at, expires_at, invited_by, organizations(name), clients(name)")
-    .eq("token_hash", tokenHash)
+    .eq("token", token)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
@@ -921,12 +921,12 @@ export async function getInvitationByTokenHash(tokenHash: string): Promise<Invit
 }
 
 export async function acceptInvitation(
-  tokenHash: string,
+  token: string,
   userId: string,
   displayName: string,
 ): Promise<{ orgId: string; clientId: string | null; asOwner: boolean; invitedBy: string | null }> {
   const { data, error } = await createServerSupabase().rpc("accept_invitation", {
-    p_token_hash: tokenHash,
+    p_token: token,
     p_user_id: userId,
     p_display_name: displayName,
   });
@@ -941,12 +941,12 @@ export async function transferOwner(orgId: string, userId: string): Promise<void
   if (error) throw error;
 }
 
-export async function createAgencyWithOwnerInvite(a: { name: string; slug: string; ownerEmail: string; tokenHash: string; by: string }): Promise<string> {
+export async function createAgencyWithOwnerInvite(a: { name: string; slug: string; ownerEmail: string; token: string; by: string }): Promise<string> {
   const { data, error } = await createServerSupabase().rpc("create_agency_with_owner_invite", {
     p_name: a.name,
     p_slug: a.slug,
     p_owner_email: a.ownerEmail,
-    p_token_hash: a.tokenHash,
+    p_token: a.token,
     p_by: a.by,
   });
   if (error) throw error;
@@ -984,7 +984,7 @@ git log -1 --format=%B
 
 **Interfaces:**
 - Consumes: Task 1's emails, Task 2's data layer, tokens, constants and helpers; `uniqueSlug` from `src/lib/slug.ts`.
-- Produces: `type OpResult<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409 | 429; error: string }`; `type Agency = { orgId: string; orgName: string }`; `type Actor = { userId: string; name: string }`; `inviteToClient(agency, client: { id: string; name: string }, email: string, by: Actor): Promise<OpResult<InviteResult>>`; `resendInvite(agency, inviteId: string, by: Actor, send: boolean): Promise<OpResult<InviteResult>>`; `cancelInvite(agency, inviteId): Promise<OpResult<null>>`; `updatePermissions(agency, userId, permissions: Permission[], giveAccess: boolean): Promise<OpResult<{ emailed: boolean }>>`; `removePerson(agency, userId): Promise<OpResult<null>>`; `addToClient(agency, clientId, userIds: string[], by: Actor): Promise<OpResult<{ added: number }>>`; `removeFromClient(agency, clientId, userId): Promise<OpResult<null>>`; `makeOwner(agency, userId): Promise<OpResult<null>>`; `createAgency(name: string, ownerEmail: string, by: Actor): Promise<OpResult<{ orgId: string; link: string; emailed: boolean }>>`; `resendOwnerInvite(agency, by: Actor): Promise<OpResult<InviteResult>>`; `notifySignedUp(a: { orgId: string; orgName: string; userId: string; name: string; invitedBy: string | null }): Promise<void>`.
+- Produces: `type OpResult<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409 | 429; error: string }`; `type Agency = { orgId: string; orgName: string }`; `type Actor = { userId: string; name: string }`; `inviteToClient(agency, client: { id: string; name: string }, email: string, by: Actor): Promise<OpResult<InviteResult>>`; `resendInvite(agency, inviteId: string, by: Actor): Promise<OpResult<InviteResult>>` (Resend only: new token, emailed); `cancelInvite(agency, inviteId): Promise<OpResult<null>>`; `updatePermissions(agency, userId, permissions: Permission[], giveAccess: boolean): Promise<OpResult<{ emailed: boolean }>>`; `removePerson(agency, userId): Promise<OpResult<null>>`; `addToClient(agency, clientId, userIds: string[], by: Actor): Promise<OpResult<{ added: number }>>`; `removeFromClient(agency, clientId, userId): Promise<OpResult<null>>`; `makeOwner(agency, userId): Promise<OpResult<null>>`; `createAgency(name: string, ownerEmail: string, by: Actor): Promise<OpResult<{ orgId: string; link: string; emailed: boolean }>>`; `resendOwnerInvite(agency, by: Actor): Promise<OpResult<InviteResult>>`; `notifySignedUp(a: { orgId: string; orgName: string; userId: string; name: string; invitedBy: string | null }): Promise<void>`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -995,7 +995,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 const db = vi.hoisted(() => ({
   findLoginByEmail: vi.fn(), findOpenInviteByEmail: vi.fn(), countInvitesSince: vi.fn(), insertInvitation: vi.fn(),
-  refreshInvitationToken: vi.fn(), revokeInvitation: vi.fn(), getMembership: vi.fn(), getMemberships: vi.fn(),
+  replaceInvitationToken: vi.fn(), revokeInvitation: vi.fn(), getMembership: vi.fn(), getMemberships: vi.fn(),
   setMemberPermissions: vi.fn(), deleteLogin: vi.fn(), addPeopleToClient: vi.fn(), removePersonFromClient: vi.fn(),
   transferOwner: vi.fn(), loginEmails: vi.fn(), ownerIds: vi.fn(), listOrgSlugs: vi.fn(),
   createAgencyWithOwnerInvite: vi.fn(), getOpenOwnerInvite: vi.fn(),
@@ -1012,7 +1012,7 @@ import {
 const agency = { orgId: "org-1", orgName: "Acme" };
 const client = { id: "c1", name: "Chupps" };
 const by = { userId: "owner-1", name: "Asha" };
-const invite = { id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "s", expiresAt: "e" };
+const invite = { id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "s", expiresAt: "e", link: "https://app.example/invite/stored" };
 
 beforeEach(() => {
   for (const fn of Object.values(db)) fn.mockReset();
@@ -1030,8 +1030,9 @@ describe("inviteToClient (spec §6.2)", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(db.insertInvitation).toHaveBeenCalledWith(expect.objectContaining({ orgId: "org-1", clientId: "c1", email: "p@x.com", invitedBy: "owner-1" }));
-    expect(db.insertInvitation.mock.calls[0][0].tokenHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(r.value.link).toMatch(/^https:\/\/app\.example\/invite\/[A-Za-z0-9_-]{43}$/);
+    expect(db.insertInvitation.mock.calls[0][0].token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(r.value.link).toBe("https://app.example/invite/stored");
+    expect(sendEmail.mock.calls[0][0].text).toContain("https://app.example/invite/stored");
     expect(r.value.emailed).toBe(true);
     expect(sendEmail.mock.calls[0][0].subject).toBe("You're invited to Acme");
   });
@@ -1058,24 +1059,24 @@ describe("inviteToClient (spec §6.2)", () => {
 });
 
 describe("resendInvite and cancelInvite", () => {
-  it("issues a new token and emails it", async () => {
-    db.refreshInvitationToken.mockResolvedValue(invite);
-    const r = await resendInvite(agency, "i1", by, true);
-    expect(r.ok && r.value.emailed).toBe(true);
-    expect(db.refreshInvitationToken).toHaveBeenCalledWith("org-1", "i1", expect.stringMatching(/^[0-9a-f]{64}$/));
+  it("Resend replaces the token (the old link stops working) and emails the new link", async () => {
+    const replaced = { ...invite, link: "https://app.example/invite/new" };
+    db.replaceInvitationToken.mockResolvedValue(replaced);
+    const r = await resendInvite(agency, "i1", by);
+    expect(r).toEqual({ ok: true, value: { invite: replaced, link: "https://app.example/invite/new", emailed: true } });
+    expect(db.replaceInvitationToken).toHaveBeenCalledWith("org-1", "i1", expect.stringMatching(/^[A-Za-z0-9_-]{43}$/));
+    expect(sendEmail.mock.calls[0][0].text).toContain("https://app.example/invite/new");
   });
 
-  it("copies a link without emailing or counting towards the limit", async () => {
-    db.refreshInvitationToken.mockResolvedValue(invite);
+  it("Resend counts towards the daily limit", async () => {
     db.countInvitesSince.mockResolvedValue(50);
-    const r = await resendInvite(agency, "i1", by, false);
-    expect(r.ok && r.value.emailed).toBe(false);
-    expect(sendEmail).not.toHaveBeenCalled();
+    expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 429, error: "You've sent 50 invites today. Try again tomorrow." });
+    expect(db.replaceInvitationToken).not.toHaveBeenCalled();
   });
 
   it("refuses an invite that is no longer open", async () => {
-    db.refreshInvitationToken.mockResolvedValue(null);
-    expect(await resendInvite(agency, "i1", by, true)).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
+    db.replaceInvitationToken.mockResolvedValue(null);
+    expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
     db.revokeInvitation.mockResolvedValue(false);
     expect(await cancelInvite(agency, "i1")).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
   });
@@ -1214,23 +1215,21 @@ export async function inviteToClient(agency: Agency, client: { id: string; name:
   if (login) return refuse(409, REFUSALS.otherAgency);
   if (sentToday >= INVITES_PER_AGENCY_PER_DAY) return refuse(429, REFUSALS.dailyLimit);
 
-  const { token, tokenHash } = newInviteToken();
-  const invite = await people.insertInvitation({ orgId: agency.orgId, clientId: client.id, email, tokenHash, invitedBy: by.userId });
-  const link = inviteLink(token);
+  const invite = await people.insertInvitation({ orgId: agency.orgId, clientId: client.id, email, token: newInviteToken(), invitedBy: by.userId });
+  const link = invite.link;
   const mail = await sendEmail(memberInviteEmail({ to: email, agency: agency.orgName, inviter: by.name, client: client.name, link }));
   return ok({ invite, link, emailed: mail.sent });
 }
 
-/** send false = Copy link: a new token shown to copy, nothing emailed, no limit. */
-export async function resendInvite(agency: Agency, inviteId: string, by: Actor, send: boolean): Promise<OpResult<InviteResult>> {
-  if (send && (await people.countInvitesSince(agency.orgId, oneDayAgo())) >= INVITES_PER_AGENCY_PER_DAY) {
+/** Resend: a new token (the old link stops working), emailed, counted towards the daily limit.
+ *  Copy link is not here: it shows the stored link (OpenInvite.link) and makes no request. */
+export async function resendInvite(agency: Agency, inviteId: string, by: Actor): Promise<OpResult<InviteResult>> {
+  if ((await people.countInvitesSince(agency.orgId, oneDayAgo())) >= INVITES_PER_AGENCY_PER_DAY) {
     return refuse(429, REFUSALS.dailyLimit);
   }
-  const { token, tokenHash } = newInviteToken();
-  const invite = await people.refreshInvitationToken(agency.orgId, inviteId, tokenHash);
+  const invite = await people.replaceInvitationToken(agency.orgId, inviteId, newInviteToken());
   if (!invite) return refuse(404, REFUSALS.inviteNotFound);
-  const link = inviteLink(token);
-  if (!send) return ok({ invite, link, emailed: false });
+  const link = invite.link;
   const email = invite.asOwner
     ? ownerInviteEmail({ to: invite.email, agency: agency.orgName, link })
     : memberInviteEmail({ to: invite.email, agency: agency.orgName, inviter: by.name, client: invite.clientName ?? agency.orgName, link });
@@ -1292,8 +1291,8 @@ export async function createAgency(name: string, rawEmail: string, by: Actor): P
   if (!isValidEmail(email)) return refuse(400, REFUSALS.invalidEmail);
   const [login, slugs] = await Promise.all([people.findLoginByEmail(email), people.listOrgSlugs()]);
   if (login) return refuse(409, REFUSALS.otherAgency);
-  const { token, tokenHash } = newInviteToken();
-  const orgId = await people.createAgencyWithOwnerInvite({ name, slug: uniqueSlug(name, slugs), ownerEmail: email, tokenHash, by: by.userId });
+  const token = newInviteToken();
+  const orgId = await people.createAgencyWithOwnerInvite({ name, slug: uniqueSlug(name, slugs), ownerEmail: email, token, by: by.userId });
   const link = inviteLink(token);
   const mail = await sendEmail(ownerInviteEmail({ to: email, agency: name, link }));
   return ok({ orgId, link, emailed: mail.sent });
@@ -1302,7 +1301,7 @@ export async function createAgency(name: string, rawEmail: string, by: Actor): P
 export async function resendOwnerInvite(agency: Agency, by: Actor): Promise<OpResult<InviteResult>> {
   const open = await people.getOpenOwnerInvite(agency.orgId);
   if (!open) return refuse(404, REFUSALS.inviteNotFound);
-  return resendInvite(agency, open.id, by, true);
+  return resendInvite(agency, open.id, by);
 }
 
 /** Spec §6.3: when a member signs up, the owner and whoever invited them are told. Best effort. */
@@ -1346,7 +1345,7 @@ git log -1 --format=%B
 
 **Interfaces:**
 - Consumes: plan 3's `check`, `accessOf`, `resolveActingCaller`; `getOrgById`, `getClientById`, `getDisplayName`; Task 2's `listAgencyPeople`, `listOpenInvites`; Task 3's ops; `logImpersonationEvent`.
-- Produces: `type TeamContext = { orgId: string; orgName: string; caller: CallerContext; actor: Actor; client: ClientRow | null; viaAdmin: boolean; logAdmin(action: string, detail?: Record<string, unknown>): Promise<void> }`; `withTeam(req, params: Promise<{ orgId: string; clientId?: string }>, guard: { need: "manage_team" }, handler: (ctx: TeamContext) => Promise<AnyResponse>)`; `opResponse<T extends Record<string, unknown>>(r: OpResult<T | null>): AnyResponse`. Routes: `GET /api/orgs/:orgId/people` → `AgencyPeople`; `PATCH /api/orgs/:orgId/people/:userId` `{ permissions, giveAccess? }` → `{ emailed }`; `DELETE /api/orgs/:orgId/people/:userId`; `POST /api/orgs/:orgId/people/:userId/owner` (super admin only); `DELETE /api/orgs/:orgId/invites/:inviteId`; `POST /api/orgs/:orgId/invites/:inviteId/resend` `{ email? }` → `InviteResult`; `POST /api/orgs/:orgId/clients/:clientId/members` `{ userIds }` → `{ added }`; `DELETE /api/orgs/:orgId/clients/:clientId/members/:userId`; `POST /api/orgs/:orgId/clients/:clientId/invites` `{ email }` → `InviteResult`.
+- Produces: `type TeamContext = { orgId: string; orgName: string; caller: CallerContext; actor: Actor; client: ClientRow | null; viaAdmin: boolean; logAdmin(action: string, detail?: Record<string, unknown>): Promise<void> }`; `withTeam(req, params: Promise<{ orgId: string; clientId?: string }>, guard: { need: "manage_team" }, handler: (ctx: TeamContext) => Promise<AnyResponse>)`; `opResponse<T extends Record<string, unknown>>(r: OpResult<T | null>): AnyResponse`. Routes: `GET /api/orgs/:orgId/people` → `AgencyPeople`; `PATCH /api/orgs/:orgId/people/:userId` `{ permissions, giveAccess? }` → `{ emailed }`; `DELETE /api/orgs/:orgId/people/:userId`; `POST /api/orgs/:orgId/people/:userId/owner` (super admin only); `DELETE /api/orgs/:orgId/invites/:inviteId`; `POST /api/orgs/:orgId/invites/:inviteId/resend` → `InviteResult` (new token, emailed; Copy link needs no route); `POST /api/orgs/:orgId/clients/:clientId/members` `{ userIds }` → `{ added }`; `DELETE /api/orgs/:orgId/clients/:clientId/members/:userId`; `POST /api/orgs/:orgId/clients/:clientId/invites` `{ email }` → `InviteResult`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1652,23 +1651,19 @@ export async function DELETE(req: Request, { params }: Ctx) {
 
 ```ts
 // src/app/api/orgs/[orgId]/invites/[inviteId]/resend/route.ts
-import { apiError, opResponse, withQuietErrors, withTeam } from "@/lib/api/route-helpers";
+import { opResponse, withQuietErrors, withTeam } from "@/lib/api/route-helpers";
 import { resendInvite } from "@/lib/people/ops";
-import { ResendSchema } from "@/lib/people/schema";
 
 type Ctx = { params: Promise<{ orgId: string; inviteId: string }> };
 
-// POST { email? } — Resend (email, default) or Copy link (email: false). Either way a new token:
-// only its hash is stored, so the old link stops working.
+// POST — Resend: a new token, so the old link stops working, and the new link emailed. (Copy link
+// needs no route: each open invite in the people list carries its stored link.)
 export async function POST(req: Request, { params }: Ctx) {
   const { inviteId } = await params;
   return withTeam(req, params, { need: "manage_team" }, (ctx) =>
     withQuietErrors("Could not send the invite.", async () => {
-      const parsed = ResendSchema.safeParse(await req.json().catch(() => ({})));
-      if (!parsed.success) return apiError("Invalid request.", 400);
-      const send = parsed.data.email ?? true;
-      const result = await resendInvite(ctx, inviteId, ctx.actor, send);
-      if (result.ok) await ctx.logAdmin(send ? "resend_invite" : "copy_invite_link", { inviteId });
+      const result = await resendInvite(ctx, inviteId, ctx.actor);
+      if (result.ok) await ctx.logAdmin("resend_invite", { inviteId });
       return opResponse(result);
     }),
   );
@@ -1774,7 +1769,7 @@ git log -1 --format=%B
 
 **Interfaces:**
 - Consumes: Task 4's routes; `readJson`; plan 3's `invalidateMe`.
-- Produces: `peopleService` with `list(orgId): Promise<AgencyPeople>`, `updatePermissions(orgId, userId, input: { permissions: Permission[]; giveAccess?: boolean }): Promise<{ emailed: boolean }>`, `remove(orgId, userId): Promise<void>`, `makeOwner(orgId, userId): Promise<void>`, `resendInvite(orgId, inviteId, email: boolean): Promise<InviteResult>`, `cancelInvite(orgId, inviteId): Promise<void>`, `addToClient(orgId, clientId, userIds: string[]): Promise<{ added: number }>`, `removeFromClient(orgId, clientId, userId): Promise<void>`, `inviteToClient(orgId, clientId, email: string): Promise<InviteResult>`; `peopleKeys = { all(orgId), list(orgId) }`; `usePeople(orgId, initialData?)`; `useUpdatePermissions(orgId)`, `useRemovePerson(orgId)`, `useMakeOwner(orgId)`, `useResendInvite(orgId)`, `useCancelInvite(orgId)`, `useAddToClient(orgId, clientId)`, `useRemoveFromClient(orgId, clientId)`, `useInviteToClient(orgId, clientId)`.
+- Produces: `peopleService` with `list(orgId): Promise<AgencyPeople>`, `updatePermissions(orgId, userId, input: { permissions: Permission[]; giveAccess?: boolean }): Promise<{ emailed: boolean }>`, `remove(orgId, userId): Promise<void>`, `makeOwner(orgId, userId): Promise<void>`, `resendInvite(orgId, inviteId): Promise<InviteResult>`, `cancelInvite(orgId, inviteId): Promise<void>`, `addToClient(orgId, clientId, userIds: string[]): Promise<{ added: number }>`, `removeFromClient(orgId, clientId, userId): Promise<void>`, `inviteToClient(orgId, clientId, email: string): Promise<InviteResult>`; `peopleKeys = { all(orgId), list(orgId) }`; `usePeople(orgId, initialData?)`; `useUpdatePermissions(orgId)`, `useRemovePerson(orgId)`, `useMakeOwner(orgId)`, `useResendInvite(orgId)`, `useCancelInvite(orgId)`, `useAddToClient(orgId, clientId)`, `useRemoveFromClient(orgId, clientId)`, `useInviteToClient(orgId, clientId)`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1859,8 +1854,9 @@ class PeopleService {
     await readJson(await fetch(`${base(orgId)}/people/${userId}/owner`, { method: "POST" }), "Could not change the owner.");
   }
 
-  async resendInvite(orgId: string, inviteId: string, email: boolean): Promise<InviteResult> {
-    const res = await fetch(`${base(orgId)}/invites/${inviteId}/resend`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ email }) });
+  /** Resend: a new link, emailed. Copy link needs no call (OpenInvite.link). */
+  async resendInvite(orgId: string, inviteId: string): Promise<InviteResult> {
+    const res = await fetch(`${base(orgId)}/invites/${inviteId}/resend`, { method: "POST" });
     return readJson<InviteResult>(res, "Could not send the invite.");
   }
 
@@ -1945,7 +1941,7 @@ export function useMakeOwner(orgId: string) {
 export function useResendInvite(orgId: string) {
   const refresh = useRefreshPeople(orgId);
   return useMutation({
-    mutationFn: (v: { inviteId: string; email: boolean }) => peopleService.resendInvite(orgId, v.inviteId, v.email),
+    mutationFn: (inviteId: string) => peopleService.resendInvite(orgId, inviteId),
     onSuccess: refresh,
   });
 }
@@ -2162,6 +2158,7 @@ git log -1 --format=%B
 ```tsx
 // src/components/team/__tests__/team-people.test.tsx
 import { describe, it, expect, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -2181,7 +2178,7 @@ const data: AgencyPeople = {
     person({ userId: "m", name: "Meera", email: "meera@x.com", permissions: ["view", "edit"], clientIds: ["c1"] }),
     person({ userId: "w", name: "Ravi", email: "ravi@x.com", status: "signed_up", invitedByName: "Asha", invitedClient: { id: "c1", name: "Chupps" }, clientIds: ["c1"] }),
   ],
-  invites: [{ id: "i1", email: "new@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "2026-11-12T00:00:00Z", expiresAt: "2026-11-19T00:00:00Z" }],
+  invites: [{ id: "i1", email: "new@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "2026-11-12T00:00:00Z", expiresAt: "2026-11-19T00:00:00Z", link: "https://app.example/invite/tok1" }],
 };
 const render = (props: Partial<Parameters<typeof TeamPeople>[0]> = {}) =>
   renderToStaticMarkup(
@@ -2204,6 +2201,12 @@ describe("TeamPeople (spec §6.1)", () => {
     expect(t).toMatch(/Signed up .* · invited to Chupps by Asha/);
     expect(t).toContain("Give access");
     expect(t).toContain("Choose a permission");
+  });
+
+  it("copies the stored link without a request: Copy link reads invite.link, only Resend calls the server", () => {
+    const source = readFileSync("src/components/team/team-invited-row.tsx", "utf8");
+    expect(source).toContain("navigator.clipboard.writeText(invite.link)");
+    expect(source).not.toMatch(/mutateAsync\(\{[^}]*email/);
   });
 
   it("lists open invites with their client, Copy link, Resend and Cancel", () => {
@@ -2415,7 +2418,8 @@ import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { OpenInvite } from "@/lib/people/types";
 
 // Spec §6.1 "Invited", and the invite rows of a client's Members list (one look for both). Copy
-// link and Resend both issue a new link (only its hash is kept), so an older link stops working.
+// link copies the stored link: the same link every time, no request. Resend issues a new link
+// (the old one stops working) and emails it; the people list refreshes with the new link.
 export function TeamInvitedRow({
   orgId,
   invite,
@@ -2430,14 +2434,23 @@ export function TeamInvitedRow({
 }) {
   const resend = useResendInvite(orgId);
   const cancel = useCancelInvite(orgId);
-  const [link, setLink] = useState<string | null>(null);
+  const [showLink, setShowLink] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function issue(email: boolean) {
-    const result = await resend.mutateAsync({ inviteId: invite.id, email });
-    setLink(result.link);
-    setNotice(email ? (result.emailed ? "Sent again." : "The email wasn't sent. Copy the link and send it to them.") : null);
-    if (!email) void navigator.clipboard.writeText(result.link);
+  function copyLink() {
+    void navigator.clipboard.writeText(invite.link);
+    setShowLink(true);
+    setNotice("Link copied.");
+  }
+
+  async function resendInvite() {
+    try {
+      const result = await resend.mutateAsync(invite.id);
+      setShowLink(!result.emailed);
+      setNotice(result.emailed ? "Sent again with a new link. The old link no longer works." : "The email wasn't sent. Copy the new link and send it to them.");
+    } catch {
+      // Shown below through resend.error.
+    }
   }
 
   const error = resend.error ?? cancel.error;
@@ -2452,14 +2465,15 @@ export function TeamInvitedRow({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" disabled={resend.isPending} onClick={() => void issue(false)}>Copy link</Button>
-          <Button size="sm" variant="outline" disabled={resend.isPending} onClick={() => void issue(true)}>Resend</Button>
+          <Button size="sm" variant="ghost" onClick={copyLink}>Copy link</Button>
+          <Button size="sm" variant="outline" disabled={resend.isPending} onClick={() => void resendInvite()}>Resend</Button>
           <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={cancel.isPending} onClick={() => cancel.mutate(invite.id)}>
             Cancel
           </Button>
         </div>
       </div>
-      {link && <CopyRow label="Invite link" value={link} />}
+      {/* invite.link follows the people list, so after a Resend this is the new link. */}
+      {showLink && <CopyRow label="Invite link" value={invite.link} />}
       {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
       {error && <p className="text-sm text-destructive">{error.message}</p>}
     </li>
@@ -2871,7 +2885,7 @@ const data: AgencyPeople = {
     person({ userId: "w", name: "Ravi", status: "signed_up", clientIds: ["c1"] }),
     person({ userId: "x", name: "Elsewhere", clientIds: ["c2"] }),
   ],
-  invites: [{ id: "i1", email: "new@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "2026-11-12T00:00:00Z", expiresAt: "2026-11-19T00:00:00Z" }],
+  invites: [{ id: "i1", email: "new@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "2026-11-12T00:00:00Z", expiresAt: "2026-11-19T00:00:00Z", link: "https://app.example/invite/tok1" }],
 };
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const render = () =>
@@ -3399,7 +3413,7 @@ git log -1 --format=%B
 - Modify: `src/proxy.ts` (matcher), `src/lib/actions/with-action-coverage.test.ts` (allowlist)
 
 **Interfaces:**
-- Consumes: Task 2's `hashInviteToken`, `getInvitationByTokenHash`, `createLogin`, `deleteLogin`, `acceptInvitation`, `AcceptInviteSchema`; Task 3's `notifySignedUp`; `createSSRServerClient`, `getUserWithRetry`.
+- Consumes: Task 2's `getInvitationByToken`, `createLogin`, `deleteLogin`, `acceptInvitation`, `AcceptInviteSchema`; Task 3's `notifySignedUp`; `createSSRServerClient`, `getUserWithRetry`.
 - Produces: `type InvitePageState = { kind: "invalid" } | { kind: "wrong_email"; email: string } | { kind: "signed_in" } | { kind: "sign_up"; invitation: InvitationForSignUp }`; `invitePageState(invitation: InvitationForSignUp | null, signedInEmail: string | null): InvitePageState`; `type AcceptInviteState = { error?: string } | undefined`; `acceptInviteAction(token: string, prev: AcceptInviteState, formData: FormData): Promise<AcceptInviteState>`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -3440,11 +3454,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
-  getInvitationByTokenHash: vi.fn(), createLogin: vi.fn(), deleteLogin: vi.fn(), acceptInvitation: vi.fn(),
+  getInvitationByToken: vi.fn(), createLogin: vi.fn(), deleteLogin: vi.fn(), acceptInvitation: vi.fn(),
   notifySignedUp: vi.fn(async () => undefined), signIn: vi.fn(async () => ({ error: null })),
   redirect: vi.fn((to: string) => { throw new Error(`REDIRECT ${to}`); }),
 }));
-vi.mock("@/lib/db/people", () => ({ getInvitationByTokenHash: m.getInvitationByTokenHash, createLogin: m.createLogin, deleteLogin: m.deleteLogin, acceptInvitation: m.acceptInvitation }));
+vi.mock("@/lib/db/people", () => ({ getInvitationByToken: m.getInvitationByToken, createLogin: m.createLogin, deleteLogin: m.deleteLogin, acceptInvitation: m.acceptInvitation }));
 vi.mock("@/lib/people/ops", () => ({ notifySignedUp: m.notifySignedUp }));
 vi.mock("@/lib/supabase/ssr-server", () => ({ createSSRServerClient: vi.fn(async () => ({ auth: { signInWithPassword: m.signIn } })) }));
 vi.mock("next/navigation", () => ({ redirect: m.redirect }));
@@ -3462,7 +3476,7 @@ const invitation = { id: "i1", orgId: "org-1", orgName: "Acme", email: "p@x.com"
 describe("acceptInviteAction (spec §6.3)", () => {
   beforeEach(() => {
     for (const fn of Object.values(m)) if ("mockClear" in fn) fn.mockClear();
-    m.getInvitationByTokenHash.mockResolvedValue(invitation);
+    m.getInvitationByToken.mockResolvedValue(invitation);
     m.createLogin.mockResolvedValue({ ok: true, userId: "u-new" });
     m.acceptInvitation.mockResolvedValue({ orgId: "org-1", clientId: "c1", asOwner: false, invitedBy: "owner-1" });
   });
@@ -3470,7 +3484,8 @@ describe("acceptInviteAction (spec §6.3)", () => {
   it("creates the account, accepts in one step, signs them in, tells the owner and inviter, and goes home", async () => {
     await expect(acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).rejects.toThrow("REDIRECT /");
     expect(m.createLogin).toHaveBeenCalledWith("p@x.com", "longenough");
-    expect(m.acceptInvitation).toHaveBeenCalledWith(expect.stringMatching(/^[0-9a-f]{64}$/), "u-new", "Ravi");
+    expect(m.getInvitationByToken).toHaveBeenCalledWith("tok");
+    expect(m.acceptInvitation).toHaveBeenCalledWith("tok", "u-new", "Ravi");
     expect(m.signIn).toHaveBeenCalledWith({ email: "p@x.com", password: "longenough" });
     expect(m.notifySignedUp).toHaveBeenCalledWith({ orgId: "org-1", orgName: "Acme", userId: "u-new", name: "Ravi", invitedBy: "owner-1" });
   });
@@ -3488,7 +3503,7 @@ describe("acceptInviteAction (spec §6.3)", () => {
   });
 
   it("refuses a link that is no longer valid", async () => {
-    m.getInvitationByTokenHash.mockResolvedValue({ ...invitation, open: false });
+    m.getInvitationByToken.mockResolvedValue({ ...invitation, open: false });
     expect(await acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).toEqual({ error: "This invite link is no longer valid." });
   });
 
@@ -3541,8 +3556,7 @@ export function invitePageState(invitation: InvitationForSignUp | null, signedIn
 
 import { redirect } from "next/navigation";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
-import { acceptInvitation, createLogin, deleteLogin, getInvitationByTokenHash } from "@/lib/db/people";
-import { hashInviteToken } from "@/lib/invites/token";
+import { acceptInvitation, createLogin, deleteLogin, getInvitationByToken } from "@/lib/db/people";
 import { notifySignedUp } from "@/lib/people/ops";
 import { REFUSALS } from "@/lib/people/constants";
 import { AcceptInviteSchema } from "@/lib/people/schema";
@@ -3555,8 +3569,7 @@ export async function acceptInviteAction(token: string, _prev: AcceptInviteState
   const parsed = AcceptInviteSchema.safeParse({ name: formData.get("name") ?? "", password: formData.get("password") ?? "" });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check your name and password." };
 
-  const tokenHash = hashInviteToken(token);
-  const invitation = await getInvitationByTokenHash(tokenHash);
+  const invitation = await getInvitationByToken(token);
   if (!invitation?.open) return { error: REFUSALS.inviteInvalid };
 
   const login = await createLogin(invitation.email, parsed.data.password);
@@ -3565,7 +3578,7 @@ export async function acceptInviteAction(token: string, _prev: AcceptInviteState
   let accepted: Awaited<ReturnType<typeof acceptInvitation>>;
   try {
     // Single use: marks the invite accepted in the same transaction as the membership and row.
-    accepted = await acceptInvitation(tokenHash, login.userId, parsed.data.name);
+    accepted = await acceptInvitation(token, login.userId, parsed.data.name);
   } catch (e) {
     console.error("[invite] accept failed; removing the new login", e);
     await deleteLogin(login.userId);
@@ -3623,8 +3636,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getInvitationByTokenHash } from "@/lib/db/people";
-import { hashInviteToken } from "@/lib/invites/token";
+import { getInvitationByToken } from "@/lib/db/people";
 import { invitePageState } from "@/lib/invites/page-state";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
 import { getUserWithRetry } from "@/lib/supabase/get-user-with-retry";
@@ -3637,7 +3649,7 @@ export const metadata = { title: "Join — CreativeOS" };
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const [invitation, user] = await Promise.all([
-    getInvitationByTokenHash(hashInviteToken(token)),
+    getInvitationByToken(token),
     createSSRServerClient().then(getUserWithRetry),
   ]);
   const state = invitePageState(invitation, user?.email ?? null);
@@ -4209,13 +4221,13 @@ Append after D510 (confirm the number against `staging` before merging):
 - Every people change goes through `/api/orgs/[orgId]/…` behind `withTeam`: the owner passes `manage_team` in the agency they act in, under the impersonation write gate; a super admin working from Admin passes for any agency, skips that gate (D85) and is logged as `admin_action`. While viewing as the same agency, the owner path applies.
 - The rules (refusals, the 50-a-day limit, emails) live once in `src/lib/people/ops.ts`; the Team page (`TeamPeople`) and a client's Members list (`ClientMembers`) render for the owner and in Admin's People and Clients tabs.
 - One people read per agency (`list_agency_people` plus open invites) feeds the Team page, every Members list and the invite popup.
-- Copy link on an open invite issues a new token without emailing it (only the hash is stored), so the old link stops working, like Resend.
+- Invite links are stored as issued so Copy link shows the same one; acceptable because the table is server-only and links are single-use and expire after 7 days (Arun, 13 Nov). Only Resend issues a new link (the old one stops working); Cancel revokes.
 - Remove deletes the person's login (one agency per person), as the old admin removal did.
 - Email goes through Resend's HTTP API with `fetch`; without `RESEND_API_KEY` and `EMAIL_FROM` the link is shown to copy.
 
 **Why.** D509 (one place for permissions), AGENTS.md "share the wiring too", and D85's line between administering the platform and acting as an agency.
 
-**Rejected.** Separate admin routes mirroring the owner's (two copies of every rule). Storing invite tokens to make Copy link repeatable (a leaked table would hand out working links).
+**Rejected.** Separate admin routes mirroring the owner's (two copies of every rule).
 ```
 
 - [ ] **Step 3: Full verification**
@@ -4250,16 +4262,16 @@ git log -1 --format=%B
 
 ## Self-review
 
-- **Spec coverage:** §6.1 Team page (sections, chip editor, Give access, Remove, Invited with Copy link/Resend/Cancel, Members with Edit/Remove, header count) → Tasks 6, 7, 8. §6.2 Members page (button beside Brand Workspace, list, statuses, Set permissions link, Remove off the client, invite rows, two-step popup with search and checkboxes, refusals) → Tasks 3, 9, 10. §6.3 invite email and sign-up (fixed email, member waits, owner gets access, invalid and wrong-email states, single use, signed-up email) → Tasks 1, 3, 11. §6.6 Admin (Add an agency, pending owner with Resend, People and Clients tabs on the owner's components, Make owner, temporary passwords and role select removed, audit log) → Tasks 4, 12, 13. §6.7 emails and the daily limit → Tasks 1, 3. §9 migration doc → plan 3 Task 2 and Task 14. §10 performance (one read per screen, ids checked, one insert to add people) → Tasks 3, 4, 5, 14. §11 server-action tests → Tasks 3, 4, 11, 12.
+- **Spec coverage:** §6.1 Team page (sections, chip editor, Give access, Remove, Invited with Copy link (the stored link)/Resend (a new link)/Cancel, Members with Edit/Remove, header count) → Tasks 6, 7, 8. §6.2 Members page (button beside Brand Workspace, list, statuses, Set permissions link, Remove off the client, invite rows, two-step popup with search and checkboxes, refusals) → Tasks 3, 9, 10. §6.3 invite email and sign-up (fixed email, member waits, owner gets access, invalid and wrong-email states, single use, signed-up email) → Tasks 1, 3, 11. §6.6 Admin (Add an agency, pending owner with Resend, People and Clients tabs on the owner's components, Make owner, temporary passwords and role select removed, audit log) → Tasks 4, 12, 13. §6.7 emails and the daily limit → Tasks 1, 3. §9 migration doc → plan 3 Task 2 and Task 14. §10 performance (one read per screen, ids checked, one insert to add people) → Tasks 3, 4, 5, 14. §11 server-action tests → Tasks 3, 4, 11, 12.
 - **Names across tasks:** `withTeam`, `TeamContext`, `opResponse` (Task 4) are used by every route; `peopleKeys`, `usePeople` and the eight mutation hooks (Task 5) by Tasks 7–10; `TeamInvitedRow` (Task 7) by Task 9; `ClientMembers` and `InviteDialog` (Tasks 9, 10) by Task 13; `RemovePersonDialog` (Task 7) by Tasks 7, 9; `CopyRow` at `src/components/shared/copy-row.tsx` from Task 7 on; `createAgencyAction` / `resendOwnerInviteAction` (Task 12); `REFUSALS`, `STATUS_LABELS`, `PERMISSION_LABELS` (Task 2).
 
 ## Open points
 
 1. **One route set for the owner and Admin.** The spec says Admin's tabs reuse the owner's components; it doesn't say how their writes are authorised. This plan routes both through `/api/orgs/[orgId]/…` with `withTeam` (owner: `manage_team` plus the write gate; super admin from Admin: any agency, `admin_action` logged, no impersonation gate per D85).
-2. **Copy link** can't show the original link because only its hash is stored; it issues a new token without emailing, so the previous link stops working.
+2. **Invite links are stored as issued** (`org_invitations.token`, unique) so Copy link shows the same link; acceptable because the table is server-only and links are single-use and expire after 7 days (Arun, 13 Nov). Each open invite in the people response carries its link, so it reaches only the owner and the super admin.
 3. **Remove deletes the login**, as `removeOrgMember` did, because a login without a membership could never sign in again in a one-agency-per-person version. The spec says "deletes the membership".
 4. **An email with a login but no membership** (rare: only if a login outlived its membership) is refused with "This email already belongs to another agency.", since signing up again with it would fail.
-5. **The daily-limit refusal's wording** is this plan's (`You've sent 50 invites today. Try again tomorrow.`); the spec gives only the limit. Copy link doesn't count towards it; Resend does.
+5. **The daily-limit refusal's wording** is this plan's (`You've sent 50 invites today. Try again tomorrow.`); the spec gives only the limit. Copy link makes no request and doesn't count towards it; Resend does.
 6. **`EMAIL_FROM`** is a new environment variable beside `RESEND_API_KEY`: Resend needs a sender on the verified domain (spec §9 mentions the domain, not the variable).
 7. **Admin tabs:** the spec lists Overview, People and Clients; Generations and Support activity stay. Reset password stays, in People only, through an optional slot. `admin_action` rows outside an impersonation session are not shown in Support activity yet (that view groups by session).
 8. **Give access with no permissions** is disabled in the editor; the spec says the editor starts with none but not whether an empty Give access is allowed.

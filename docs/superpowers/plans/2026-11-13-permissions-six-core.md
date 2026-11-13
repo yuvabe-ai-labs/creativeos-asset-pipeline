@@ -534,7 +534,7 @@ git log -1 --format=%B
 
 **Interfaces:**
 - Consumes: `PERMISSIONS` (Task 1).
-- Produces (SQL, all `security definer`, `search_path = public`, service role only): `get_membership_access(p_user_id uuid)` returning `org_id uuid, org_name text, is_owner boolean, access_given_at timestamptz, permissions text[], clients jsonb` (`[{ client_id, permissions }]`); `transfer_agency_owner(p_org_id uuid, p_new_owner uuid) returns void`; `create_agency_with_owner_invite(p_name text, p_slug text, p_owner_email text, p_token_hash text, p_by uuid) returns uuid`; `accept_invitation(p_token_hash text, p_user_id uuid, p_display_name text)` returning `org_id uuid, client_id uuid, as_owner boolean, invited_by uuid`; `list_agency_people(p_org_id uuid)` returning `user_id uuid, display_name text, email text, is_owner boolean, access_given_at timestamptz, permissions text[], joined_at timestamptz, invited_by_name text, invited_client_id uuid, invited_client_name text, client_ids uuid[]`; `find_user_by_email(p_email text)` returning `user_id uuid, org_id uuid`. Tables `membership_clients`, `org_invitations`; `impersonation_audit_log.event_type` gains `admin_action`. Plan 4 calls the invitation and people functions.
+- Produces (SQL, all `security definer`, `search_path = public`, service role only): `get_membership_access(p_user_id uuid)` returning `org_id uuid, org_name text, is_owner boolean, access_given_at timestamptz, permissions text[], clients jsonb` (`[{ client_id, permissions }]`); `transfer_agency_owner(p_org_id uuid, p_new_owner uuid) returns void`; `create_agency_with_owner_invite(p_name text, p_slug text, p_owner_email text, p_token text, p_by uuid) returns uuid`; `accept_invitation(p_token text, p_user_id uuid, p_display_name text)` returning `org_id uuid, client_id uuid, as_owner boolean, invited_by uuid`; `list_agency_people(p_org_id uuid)` returning `user_id uuid, display_name text, email text, is_owner boolean, access_given_at timestamptz, permissions text[], joined_at timestamptz, invited_by_name text, invited_client_id uuid, invited_client_name text, client_ids uuid[]`; `find_user_by_email(p_email text)` returning `user_id uuid, org_id uuid`. Tables `membership_clients`, `org_invitations`; `impersonation_audit_log.event_type` gains `admin_action`. Plan 4 calls the invitation and people functions.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -597,6 +597,12 @@ describe("migration 0062", () => {
     const pinned = SQL.match(/security definer set search_path = public/g) ?? [];
     expect(definers.length).toBeGreaterThan(0);
     expect(pinned.length).toBe(definers.length);
+  });
+
+  it("stores each invite link's token as issued, unique, with no hash", () => {
+    expect(SQL).toMatch(/^\s+token\s+text not null,$/m);
+    expect(SQL).toContain("create unique index if not exists org_invitations_token_key on org_invitations (token);");
+    expect(SQL).not.toMatch(/token_hash|sha256/);
   });
 
   it("lets the audit log record changes made from Admin", () => {
@@ -679,7 +685,9 @@ create table if not exists org_invitations (
   client_id   uuid,
   email       text not null,
   as_owner    boolean not null default false,
-  token_hash  text not null,
+  -- The link's token as issued (32 random bytes, base64url), so Copy link always shows the same
+  -- link. Server-only like the rest (RLS on, no policies); single use; 7 days.
+  token       text not null,
   invited_by  uuid references auth.users(id) on delete set null,
   created_at  timestamptz not null default now(),
   expires_at  timestamptz not null default now() + interval '7 days',
@@ -688,7 +696,7 @@ create table if not exists org_invitations (
   foreign key (client_id, org_id) references clients (id, org_id) on delete cascade,
   constraint org_invitations_client_unless_owner check ((client_id is null) = as_owner)
 );
-create unique index if not exists org_invitations_token_hash_key on org_invitations (token_hash);
+create unique index if not exists org_invitations_token_key on org_invitations (token);
 -- One open invite per person per agency, and one open owner invite per agency.
 create unique index if not exists org_invitations_one_open_per_email
   on org_invitations (org_id, lower(email)) where accepted_at is null and revoked_at is null;
@@ -852,16 +860,16 @@ revoke all on function transfer_agency_owner(uuid, uuid) from public, anon, auth
 grant execute on function transfer_agency_owner(uuid, uuid) to service_role;
 
 -- Add an agency (spec §6.6): the agency and its owner invitation together. The app makes the slug
--- (uniqueSlug) and the token (only its sha256 is stored).
+-- (uniqueSlug) and the link's token.
 create or replace function create_agency_with_owner_invite(
-  p_name text, p_slug text, p_owner_email text, p_token_hash text, p_by uuid
+  p_name text, p_slug text, p_owner_email text, p_token text, p_by uuid
 ) returns uuid language plpgsql security definer set search_path = public as $$
 declare
   v_org uuid;
 begin
   insert into organizations (name, slug) values (p_name, p_slug) returning id into v_org;
-  insert into org_invitations (org_id, email, as_owner, token_hash, invited_by)
-  values (v_org, lower(p_owner_email), true, p_token_hash, p_by);
+  insert into org_invitations (org_id, email, as_owner, token, invited_by)
+  values (v_org, lower(p_owner_email), true, p_token, p_by);
   return v_org;
 end;
 $$;
@@ -871,7 +879,7 @@ grant execute on function create_agency_with_owner_invite(text, text, text, text
 -- Accepting (spec §6.3) is single use: the invitation is marked accepted in the same transaction
 -- that creates the profile, the membership and, for a member, the invited client's row (with no
 -- permissions until the owner gives access; the cascade then fills it).
-create or replace function accept_invitation(p_token_hash text, p_user_id uuid, p_display_name text)
+create or replace function accept_invitation(p_token text, p_user_id uuid, p_display_name text)
 returns table (org_id uuid, client_id uuid, as_owner boolean, invited_by uuid)
 language plpgsql security definer set search_path = public as $$
 #variable_conflict use_column
@@ -880,7 +888,7 @@ declare
 begin
   update org_invitations i
      set accepted_at = now()
-   where i.token_hash = p_token_hash
+   where i.token = p_token
      and i.accepted_at is null and i.revoked_at is null and i.expires_at > now()
   returning i.* into inv;
   if not found then
@@ -1099,6 +1107,8 @@ What it adds:
 - `membership_clients`: one row per client a person is on, with that client's permissions.
   A new row copies the person's agency set; the owner never has rows.
 - `org_invitations`: member invites carry the client; the owner invite (`as_owner`) has none.
+  The link's token is stored as issued (unique index), so Copy link shows the same link; single
+  use, 7 days, server-only (RLS on, no policies). Resend replaces the token; Cancel revokes.
 - Triggers: `org_memberships_cascade_permissions` (an agency-level change reaches every client
   row as what was added and removed), `org_memberships_keep_owner` (deferred: an agency that has
   an owner always keeps one), `membership_clients_prepare` (no owner rows; copies the set).
@@ -4273,7 +4283,7 @@ git log -1 --format=%B
 ## Open points
 
 1. **`clientId: null` semantics and `anyClient`.** The spec's `check` signature names `{ orgId, clientId }` without saying what a route not rooted at one client passes. This plan reads null as "on at least one client the person can view" and adds a precomputed `anyClient` set to `OrgAccess` (not in the spec's type) so it stays a lookup. A waiting person or someone on no viewable client gets `not_found` (404) there, as step 5 reads.
-2. **Extra SQL functions and parameters.** `create_agency_with_owner_invite` takes `p_slug` and `p_token_hash` besides the spec's three parameters (the slug and the token are made in the app; only the hash is stored). The migration also adds `accept_invitation`, `list_agency_people` and `find_user_by_email`, which plan 4 needs and the spec does not list. They go in 0062 so the schema lands once.
+2. **Extra SQL functions and parameters.** `create_agency_with_owner_invite` takes `p_slug` and `p_token` besides the spec's three parameters (the slug and the link's token are made in the app). The migration also adds `accept_invitation`, `list_agency_people` and `find_user_by_email`, which plan 4 needs and the spec does not list. They go in 0062 so the schema lands once.
 3. **`docs/auth-production-migration.md`.** The brief puts the doc update in plan 4; the spec says it changes "in the same change as the migration". This plan rewrites the 0062 section in Task 2 (schema, backfill, multi-owner query, verify), and plan 4 adds the Resend and invite rollout steps.
 4. **`loadCanvasPage` on not found.** The spec says both page loaders call `notFound()`; this plan keeps `/eval`'s own "Canvas not found" for not-found cases (it is a not-found rendering) and uses `notFound()` for a missing permission.
 5. **Approving by node type.** The node-type-to-area map goes (spec §1), so Approve now applies to a version of any node type, including types that show no approve control. No screen offers it there.
