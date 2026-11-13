@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function EditorPage({ params }: { params: Promise<{ id: string; cid: string }> }) {
   const { id, cid } = await params; // client slug, canvas slug
   const canvasPath = `/clients/${id}/canvases/${cid}`;
-  const { client } = await loadClientPage(id, "video_editor.view");
+  const { client } = await loadClientPage(id, "view");
   const canvas = await getCanvasBySlug(client.id, cid);
 
   // Org isolation, as the canvas page: a foreign canvas reads as not found.

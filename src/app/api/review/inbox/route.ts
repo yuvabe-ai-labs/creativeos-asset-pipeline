@@ -14,7 +14,7 @@ import { clientIdsWith } from "@/lib/permissions/check";
 // The rule itself lives in inboxFilterFor / selectInboxFor (pure, proven equivalent in queue.test.ts).
 export async function GET(req: Request) {
   const page = parsePageParams(new URL(req.url).searchParams);
-  return withAccess(req, { need: "internal_review.view" }, (caller, orgId) =>
+  return withAccess(req, { need: "view" }, (caller, orgId) =>
     withTryCatch("Failed to load review inbox", async () => {
       const access = accessOf(caller);
       // Pending work only on the clients where the person holds Approve: the set the badge counts.

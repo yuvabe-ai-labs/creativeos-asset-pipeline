@@ -11,7 +11,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, { need: "brand_assets.edit" }, async (clientId) => {
+  return withClient(req, params, { need: "edit" }, async (clientId) => {
     const body = (await req.json().catch(() => null)) as {
       filename?: string;
       contentType?: string;

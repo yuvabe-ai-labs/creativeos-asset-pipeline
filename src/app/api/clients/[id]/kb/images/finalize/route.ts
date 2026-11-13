@@ -10,7 +10,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, { need: "brand_knowledge.edit" }, async (clientId) => {
+  return withClient(req, params, { need: "edit" }, async (clientId) => {
     const body = (await req.json().catch(() => null)) as {
       path?: string;
       filename?: string;

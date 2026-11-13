@@ -3,7 +3,7 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { createSignal } from "@/lib/db/signals";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "market.edit" }, async (clientId, _client, caller) => {
+  return withClient(req, params, { need: "edit" }, async (clientId, _client, caller) => {
     let body: { name?: string; tags?: string[]; description?: string; itemIds?: string[] };
     try {
       body = await req.json();

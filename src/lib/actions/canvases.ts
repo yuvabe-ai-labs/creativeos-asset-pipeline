@@ -55,7 +55,7 @@ export async function createCanvasAction(input: {
   clientSlug: string;
   name: string;
 }) {
-  return withAction("createCanvasAction", { need: "canvases.edit", on: { clientId: input.clientId } }, async (ctx) => {
+  return withAction("createCanvasAction", { need: "edit", on: { clientId: input.clientId } }, async (ctx) => {
     const name = input.name?.trim();
     if (!name) throw new Error("Canvas needs a name");
 
@@ -79,7 +79,7 @@ export async function createCanvasFromScriptAction(input: {
   scriptId: string;
   name: string;
 }): Promise<{ canvas: CanvasRow; created: boolean }> {
-  return withAction("createCanvasFromScriptAction", { need: "canvases.edit", on: { clientId: input.clientId } }, async (ctx) => {
+  return withAction("createCanvasFromScriptAction", { need: "edit", on: { clientId: input.clientId } }, async (ctx) => {
     const name = input.name?.trim();
     if (!name) throw new Error("Canvas needs a name");
     // The client id comes from the browser and these reads use the service role (no RLS): a
@@ -112,7 +112,7 @@ export async function renameCanvasAction(input: {
   clientSlug: string;
   name: string;
 }): Promise<void> {
-  return withAction("renameCanvasAction", { need: "canvases.edit", on: { canvasId: input.canvasId } }, async () => {
+  return withAction("renameCanvasAction", { need: "edit", on: { canvasId: input.canvasId } }, async () => {
     const name = input.name?.trim();
     if (!name) throw new Error("Canvas needs a name");
     if (name.length > 100) throw new Error("Canvas name is too long (max 100 characters)");
@@ -125,7 +125,7 @@ export async function deleteCanvasAction(input: {
   canvasId: string;
   clientSlug: string;
 }): Promise<void> {
-  return withAction("deleteCanvasAction", { need: "canvases.delete", on: { canvasId: input.canvasId } }, async () => {
+  return withAction("deleteCanvasAction", { need: "delete", on: { canvasId: input.canvasId } }, async () => {
     await deleteCanvas(input.canvasId);
     revalidatePath(`/clients/${input.clientSlug}`);
   });

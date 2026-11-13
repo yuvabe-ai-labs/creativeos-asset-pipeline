@@ -66,7 +66,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, { need: "brand_knowledge.generate" }, async (clientId) =>
+  return withClient(req, params, { need: "generate" }, async (clientId) =>
     withTryCatch("Re-analysis failed", async () => {
       const { versionId, module, fieldKey, comment } = await req.json() as {
         versionId: string;

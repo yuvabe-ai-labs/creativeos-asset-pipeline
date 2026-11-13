@@ -5,7 +5,7 @@ import { ingestReference } from "@/lib/market/ingest";
 import { MARKET_BUCKETS, type MarketBucket } from "@/lib/market/constants";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "market.edit" }, async (clientId, _client, caller) => {
+  return withClient(req, params, { need: "edit" }, async (clientId, _client, caller) => {
     let body: { url?: string; bucket?: string; note?: string };
     try {
       body = await req.json();

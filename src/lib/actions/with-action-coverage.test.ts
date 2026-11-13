@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { ALL_PERMISSION_KEYS, isPermissionKey } from "@/lib/permissions/catalogue";
+import { ACTIONS, isAction } from "@/lib/permissions/model";
 import { NOT_YET_CHECKED } from "@/lib/permissions/not-yet-checked";
 
 // D496: the second argument is a guard — { need, on } or { custom: "<reason>" }.
-const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_]+\.[a-z]+)"|custom:\s*")/;
+const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_.]+)"|custom:\s*")/;
 const LOCK_ACTIONS = ["getCanvasLockAction", "acquireCanvasLockAction", "heartbeatCanvasLockAction", "releaseCanvasLockAction"];
 
 // Enumerates every exported `*Action` function across src/lib/actions/*.ts and asserts
@@ -111,7 +111,7 @@ describe("every mutating server action is gated by withAction() or explicitly al
         it(`${name} (${file.split(/[\\/]/).pop()}) declares a permission guard`, () => {
           const match = GUARD_RE.exec(body);
           expect(match, `${name} must pass { need, on } or { custom } as withAction's second argument`).not.toBeNull();
-          if (match && match[2]) expect(isPermissionKey(match[2])).toBe(true);
+          if (match && match[2]) expect(isAction(match[2]), `"${match[2]}" is one of the nine actions`).toBe(true);
         });
       }
     }
@@ -138,20 +138,16 @@ function collect(dir: string, suffix: string): string[] {
   });
 }
 
-it("every catalogue key is checked by a route, an action, a page or the approval map", () => {
+it("every action is checked by a route, an action or a page", () => {
   const sources = [
     ...collect("src/app/api", "route.ts"),
     ...collect("src/lib/actions", ".ts"),
     ...collect("src/app/clients", "page.tsx"),
-    "src/lib/permissions/node-area.ts",
-    // credits.view decides whether /api/me and the first render carry credit figures at all.
+    // view_credits decides whether /api/me and the first render carry credit figures at all.
     "src/lib/me/payload.ts",
   ].map((f) => readFileSync(f, "utf8"));
-  const used = new Set(
-    sources
-      .flatMap((s) => [...s.matchAll(/"([a-z_]+\.(?:view|edit|generate|approve|share|delete))"/g)].map((m) => m[1]))
-      .filter(isPermissionKey),
-  );
-  const missing = ALL_PERMISSION_KEYS.filter((k) => !used.has(k) && !(k in NOT_YET_CHECKED));
+  const pattern = new RegExp(`"(${ACTIONS.join("|")})"`, "g");
+  const used = new Set(sources.flatMap((s) => [...s.matchAll(pattern)].map((m) => m[1])));
+  const missing = ACTIONS.filter((a) => !used.has(a) && !(a in NOT_YET_CHECKED));
   expect(missing).toEqual([]);
 });

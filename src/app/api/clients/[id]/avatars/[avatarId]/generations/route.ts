@@ -45,7 +45,7 @@ const GenerateSchema = z.object({
 // avatar's images have cost (the ledger's settled amounts, not an estimate).
 export async function GET(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, { need: "avatars.view" }, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withTryCatch("Could not load the generated images.", async () => {
       const avatar = await getAvatar(clientId, avatarId);
       if (!avatar) return apiError("Avatar not found.", 404);
@@ -62,7 +62,7 @@ export async function GET(req: Request, { params }: Ctx) {
 // a throw, so it never gets a chance to turn that 402 into a 500.
 export async function POST(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, { need: "avatars.generate" }, async (clientId, client, caller) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not generate the image.", async () => {
       const parsed = GenerateSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Describe the character and choose a style and model.", 400);

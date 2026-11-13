@@ -11,7 +11,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // link's code, the latest version, comments, activity, approval and the feedback count (spec 4 §6).
 export async function GET(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, { need: "client_review.view" }, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withTryCatch("Could not load the review.", async () => {
       const script = await getScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);

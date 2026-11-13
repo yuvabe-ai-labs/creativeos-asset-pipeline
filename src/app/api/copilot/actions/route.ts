@@ -209,7 +209,7 @@ export async function POST(req: Request) {
   if (history.length === 0) return apiError("A 'messages' history is required.", 400);
   if (!canvasId) return apiError("A 'canvasId' is required.", 400);
 
-  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "canvas_copilot.generate" }, async () => {
+  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "generate" }, async () => {
     // Same grounding as the other calls (handles + @-referenced nodes spotlighted) — so
     // "add a prompt like @PRM-A3F9" has the exact node in view.
     const canvasContext = await buildCopilotContext(canvasId, body?.mentionedIds ?? []);

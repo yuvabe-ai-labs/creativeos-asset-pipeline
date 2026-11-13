@@ -50,7 +50,7 @@ export default async function CanvasPage({
   // takes the lock again however you arrived.
   const { review } = await searchParams;
   const reviewMode = review === "1";
-  const { client, caller, effectiveOrgId } = await loadClientPage(id, "canvases.view");
+  const { client, caller, effectiveOrgId } = await loadClientPage(id, "view");
   const canvas = await getCanvasBySlug(client.id, cid);
 
   // Org isolation: a canvas outside the caller's org renders as not-found, never

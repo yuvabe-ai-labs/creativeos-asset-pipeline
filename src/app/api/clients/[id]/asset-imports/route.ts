@@ -7,7 +7,7 @@ import { listImportTargets, listLatestAssetImports, startAssetImports } from "@/
 // from, and how many assets there are (D302). Small on purpose: the browser polls it while an import runs. The assets themselves are
 // paged from ./assets.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "brand_assets.view" }, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withQuietErrors("Couldn't load the brand assets. Try again.", async () => {
       const [imports, counts, targets] = await Promise.all([
         listLatestAssetImports(clientId),
@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/clients/:id/asset-imports — start importing. Body `{ sources?: [...] }`; all sources
 // with a saved target when omitted. Returns at once; the scrapes run in the background.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "brand_assets.generate" }, async (clientId, _client, caller) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, _client, caller) =>
     withQuietErrors("Couldn't start the refresh. Try again.", async () => {
       const body = (await req.json().catch(() => ({}))) as { sources?: unknown };
       let sources: ImportSource[] | undefined;

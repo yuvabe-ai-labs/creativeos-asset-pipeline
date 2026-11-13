@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AvatarsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; // `id` is the client slug
-  const { client } = await loadClientPage(id, "avatars.view");
+  const { client } = await loadClientPage(id, "view");
 
   const avatars = await listAvatars(client.id);
 

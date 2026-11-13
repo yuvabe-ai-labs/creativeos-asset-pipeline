@@ -30,7 +30,7 @@ const Body = z.discriminatedUnion("mode", [
 // script's other pictures, then written as the location's image through the one asset write.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, locationId } = await params;
-  return withClient(req, params, { need: "storyboard.generate" }, async (clientId, client, caller) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not draw the location.", async () => {
       // No body is a first Generate: fresh, no note.
       const body = Body.safeParse((await req.json().catch(() => null)) ?? { mode: "fresh" });

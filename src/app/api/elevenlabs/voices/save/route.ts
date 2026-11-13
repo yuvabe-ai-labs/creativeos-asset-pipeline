@@ -14,7 +14,7 @@ const BodySchema = z.object({
 
 // D283 — picking a Library voice saves it to the account; the node then stores the ACCOUNT id.
 export async function POST(req: Request) {
-  return withAccess(req, { need: "voices.edit" }, async () => {
+  return withAccess(req, { need: "edit" }, async () => {
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid request body.", 400);
     const body = parsed.data;

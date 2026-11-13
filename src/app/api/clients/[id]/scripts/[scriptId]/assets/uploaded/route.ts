@@ -20,7 +20,7 @@ const Body = z.object({
 // has it as its plate.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, { need: "scripts.edit" }, async (clientId) =>
+  return withClient(req, params, { need: "edit" }, async (clientId) =>
     withTryCatch("Could not add the picture.", async () => {
       const parsed = Body.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);

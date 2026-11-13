@@ -17,7 +17,7 @@ const BodySchema = z.object({ versionId: z.string().min(1), editorSessionId: z.s
 
 // D375 — lip-sync the active dub. Its result overrides that version's lipSynced stage.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, { need: "audio.generate" }, (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, (nodeId, node, caller, clientId, effectiveOrgId) => {
     return withTryCatch("Couldn't start lip sync. Try again.", async () => {
       if (node.type !== "dubbing") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));

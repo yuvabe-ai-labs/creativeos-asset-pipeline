@@ -13,7 +13,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withCanvas(req, params, { need: "canvases.view" }, async (canvasId) => {
+  return withCanvas(req, params, { need: "view" }, async (canvasId) => {
     const supabase = createServerSupabase();
 
     const { data: nodes, error: nodesErr } = await supabase

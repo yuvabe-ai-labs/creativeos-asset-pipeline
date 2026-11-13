@@ -123,7 +123,7 @@ describe("withClient write-gating", () => {
   it("allows GET when not impersonating", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("GET"), params, { need: "scripts.view" }, handler);
+    const res = await withClient(req("GET"), params, { need: "view" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
   });
@@ -131,7 +131,7 @@ describe("withClient write-gating", () => {
   it("allows POST when not impersonating", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, handler);
+    const res = await withClient(req("POST"), params, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
   });
@@ -141,7 +141,7 @@ describe("withClient write-gating", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, handler);
+    const res = await withClient(req("POST"), params, { need: "edit" }, handler);
     expect(res.status).toBe(403);
     expect(handler).not.toHaveBeenCalled();
   });
@@ -151,7 +151,7 @@ describe("withClient write-gating", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("GET"), params, { need: "scripts.view" }, handler);
+    const res = await withClient(req("GET"), params, { need: "view" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
   });
@@ -161,7 +161,7 @@ describe("withClient write-gating", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: true,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, handler);
+    const res = await withClient(req("POST"), params, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
     expect(logMock).toHaveBeenCalledWith({
@@ -176,7 +176,7 @@ describe("withClient write-gating", () => {
     resolveImpersonationStateMock.mockResolvedValue({
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
-    await withClient(req("POST"), params, { need: "scripts.edit" }, vi.fn(async () => NextResponse.json(null, { status: 200 })));
+    await withClient(req("POST"), params, { need: "edit" }, vi.fn(async () => NextResponse.json(null, { status: 200 })));
     expect(logMock).not.toHaveBeenCalled();
   });
 });
@@ -201,7 +201,7 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
     let release!: () => void;
     nodeQueryGate.wait = new Promise<void>((r) => (release = r));
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const pending = withNode(nodeReq("GET"), nodeParams, { need: "scripts.view" }, handler);
+    const pending = withNode(nodeReq("GET"), nodeParams, { need: "view" }, handler);
     await new Promise((r) => setTimeout(r, 0));
     expect(resolveCallerContext).toHaveBeenCalled();
     release();
@@ -212,13 +212,13 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
     // React's cache() does not dedupe inside route handlers, so going through
     // resolveOrgId() as well would re-run the Auth-server check and membership read.
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    await withNode(nodeReq("GET"), nodeParams, { need: "scripts.view" }, handler);
+    await withNode(nodeReq("GET"), nodeParams, { need: "view" }, handler);
     expect(resolveCallerContext).toHaveBeenCalledTimes(1);
   });
 
   it("not impersonating: effectiveOrgId equals the caller's own org", async () => {
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withNode(nodeReq("POST"), nodeParams, { need: "scripts.edit" }, handler);
+    const res = await withNode(nodeReq("POST"), nodeParams, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalledWith(
       "node-1",
@@ -240,7 +240,7 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-2", elevated: true,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withNode(nodeReq("POST"), nodeParams, { need: "scripts.edit" }, handler);
+    const res = await withNode(nodeReq("POST"), nodeParams, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalledWith(
       "node-1",
@@ -257,7 +257,7 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-2", elevated: false,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withNode(nodeReq("GET"), nodeParams, { need: "scripts.view" }, handler);
+    const res = await withNode(nodeReq("GET"), nodeParams, { need: "view" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalledWith(
       "node-1",
@@ -301,12 +301,6 @@ describe("withClient guard (D504)", () => {
     const res = await withClient(req("POST"), params, { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
-  });
-
-  it("still reads an old area key as its action (until Task 6 renames them)", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
-    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, async () => NextResponse.json({}));
-    expect(res.status).toBe(403);
   });
 
   it("acts as owner while impersonating the client's agency", async () => {

@@ -15,7 +15,7 @@ const BodySchema = z.object({ nodeId: z.uuid(), quality: z.enum(["full", "quick"
 
 export async function POST(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.generate" }, async (canvasId, canvas) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "generate" }, async (canvasId, canvas) =>
     withTryCatch("Couldn't start the video.", async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Choose a quality for the video.", 400);

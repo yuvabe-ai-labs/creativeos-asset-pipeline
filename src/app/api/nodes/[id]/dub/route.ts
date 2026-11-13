@@ -27,7 +27,7 @@ const BodySchema = z.object({
 // D374 — dub the one connected video's current take. A new `dub` generation; its version is
 // written when the task reports back (D375).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, { need: "audio.generate" }, (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, (nodeId, node, caller, clientId, effectiveOrgId) => {
     return withTryCatch("Couldn't start the dub. Try again.", async () => {
       if (node.type !== "dubbing") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));

@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   if (history.length === 0) return apiError("A 'messages' history is required.", 400);
   if (!canvasId) return apiError("A 'canvasId' is required.", 400);
 
-  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "canvas_copilot.generate" }, async () => {
+  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "generate" }, async () => {
     // Grounding (Lesson 2), now with handles + the human's @-referenced nodes spotlighted.
     const canvasContext = await buildCopilotContext(canvasId, body?.mentionedIds ?? []);
 

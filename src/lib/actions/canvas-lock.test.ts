@@ -65,16 +65,16 @@ describe("lock actions declare their permission", () => {
 
   it("acquire and heartbeat need canvases.edit on the canvas", async () => {
     await acquireCanvasLockAction("canvas-1", "s1", "Op");
-    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "canvases.edit", on: { canvasId: "canvas-1" } });
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "edit", on: { canvasId: "canvas-1" } });
     await heartbeatCanvasLockAction("canvas-1", "s1");
-    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "canvases.edit", on: { canvasId: "canvas-1" } });
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "edit", on: { canvasId: "canvas-1" } });
   });
 
   it("release and get need canvases.view on the canvas", async () => {
     await releaseCanvasLockAction("canvas-1", "s1");
-    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "canvases.view", on: { canvasId: "canvas-1" } });
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "view", on: { canvasId: "canvas-1" } });
     await getCanvasLockAction("canvas-1");
-    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "canvases.view", on: { canvasId: "canvas-1" } });
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "view", on: { canvasId: "canvas-1" } });
   });
 
   it("acquire does not write the lock when the guard rejects", async () => {

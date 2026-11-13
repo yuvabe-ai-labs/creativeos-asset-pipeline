@@ -12,7 +12,7 @@ export default async function AvatarPage({
   params: Promise<{ id: string; avatarId: string }>;
 }) {
   const { id, avatarId } = await params; // `id` is the client slug
-  const { client } = await loadClientPage(id, "avatars.view");
+  const { client } = await loadClientPage(id, "view");
 
   // Missing, another client's, or archived: back to the library, never confirming it exists.
   const avatar = await getAvatar(client.id, avatarId);

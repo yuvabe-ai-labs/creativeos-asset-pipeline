@@ -17,7 +17,7 @@ const Body = z.object({
 // the app). The upload is recorded by .../assets/uploaded once it lands.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, { need: "scripts.edit" }, async (clientId) => {
+  return withClient(req, params, { need: "edit" }, async (clientId) => {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid request body.", 400);
     const { filename, contentType, size, kind } = parsed.data;

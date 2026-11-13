@@ -17,7 +17,7 @@ function extFromUrl(url: string): string {
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, { need: "canvases.edit" }, async (nodeId) => {
+  return withNode(req, params, { need: "edit" }, async (nodeId) => {
     let body: { imageUrl?: string; sourceUrl?: string; filename?: string };
     try {
       body = await req.json();

@@ -53,5 +53,5 @@ async function readDrive(
 // Every agency reads Drive through ONE platform-wide token (known limitation, plan 1), so the
 // Drive routes need canvas edit, checked through withAccess.
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  return withAccess(req, { need: "canvases.edit" }, () => readDrive(req, ctx));
+  return withAccess(req, { need: "edit" }, () => readDrive(req, ctx));
 }

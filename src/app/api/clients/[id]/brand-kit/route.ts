@@ -12,7 +12,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, { need: "brand_assets.view" }, async (clientId, client) =>
+  return withClient(req, params, { need: "view" }, async (clientId, client) =>
     withTryCatch("Could not load the brand kit.", async () => {
       const [assets, details, colours] = await Promise.all([
         listBrandAssets(clientId),

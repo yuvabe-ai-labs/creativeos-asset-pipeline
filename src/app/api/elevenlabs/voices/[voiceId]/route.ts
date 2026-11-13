@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 // D283 — the node's selected voice: name, preview and price multiplier, without loading a list.
 export async function GET(req: Request, { params }: { params: Promise<{ voiceId: string }> }) {
-  return withAccess(req, { need: "voices.view" }, async () => {
+  return withAccess(req, { need: "view" }, async () => {
     const { voiceId } = await params;
     try {
       const voice = await getVoiceCached(voiceId);

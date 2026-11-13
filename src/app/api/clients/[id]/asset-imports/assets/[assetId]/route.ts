@@ -8,7 +8,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; assetId: string }> },
 ) {
   const { assetId } = await params;
-  return withClient(req, params, { need: "brand_assets.delete" }, async (clientId) =>
+  return withClient(req, params, { need: "delete" }, async (clientId) =>
     withQuietErrors("Couldn't delete that. Try again.", async () => {
       // False = no such asset, another client's, or an upload. A 404 either way: never confirm
       // that a foreign resource exists.

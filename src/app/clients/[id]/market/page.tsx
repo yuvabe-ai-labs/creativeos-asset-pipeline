@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export default async function MarketPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { client } = await loadClientPage(id, "market.view");
+  const { client } = await loadClientPage(id, "view");
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">

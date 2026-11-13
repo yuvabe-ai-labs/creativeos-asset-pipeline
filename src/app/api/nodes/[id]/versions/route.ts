@@ -14,7 +14,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, { need: "canvases.view" }, async (nodeId, node, _caller, _clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "view" }, async (nodeId, node, _caller, _clientId, effectiveOrgId) => {
     // Three stages, not six: each stage's lookups depend only on the stage before, so the
     // ones within a stage run side by side. Every focus view opens on this route.
     const rows = await listVersions(nodeId);

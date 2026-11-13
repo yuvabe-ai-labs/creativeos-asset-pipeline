@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   const canvasId = body?.canvasId;
   if (!canvasId) return apiError("A 'canvasId' is required.", 400);
 
-  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "canvas_copilot.generate" }, async () => {
+  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "generate" }, async () => {
     const canvasContext = await buildCopilotContext(canvasId);
 
     try {

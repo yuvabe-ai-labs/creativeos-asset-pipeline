@@ -4,7 +4,7 @@ import { deleteMoodboard } from "@/lib/db/moodboards";
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return withMoodboard(req, id, { need: "moodboards.delete" }, async (moodboardId) => {
+  return withMoodboard(req, id, { need: "delete" }, async (moodboardId) => {
     await deleteMoodboard(moodboardId);
     return apiOk({ ok: true });
   });

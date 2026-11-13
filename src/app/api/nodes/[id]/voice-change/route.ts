@@ -22,7 +22,7 @@ const BodySchema = z.object({
 
 // D284 — Change voice on an existing version: a new `voice` generation that appends a version.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, { need: "audio.generate" }, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid voice change settings.", 400);
     const { baseVersionId, voiceId, settings } = parsed.data;

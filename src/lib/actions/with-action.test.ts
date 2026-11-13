@@ -74,7 +74,7 @@ describe("withAction", () => {
   it("stops before the handler when the guard refuses", async () => {
     checkActionAccessMock.mockRejectedValue(new Error("Not found."));
     const handler = vi.fn(async () => "result");
-    await expect(withAction("testAction", { need: "canvases.edit", on: { canvasId: "cv-1" } }, handler)).rejects.toThrow("Not found.");
+    await expect(withAction("testAction", { need: "edit", on: { canvasId: "cv-1" } }, handler)).rejects.toThrow("Not found.");
     expect(handler).not.toHaveBeenCalled();
     expect(logMock).not.toHaveBeenCalled();
   });

@@ -4,12 +4,12 @@ import type { ImpersonationState } from "@/lib/auth/impersonation";
 import { accessOf, resolveActingCaller } from "./server";
 import { resolveTarget, type ActionTarget, type ResolvedTarget } from "./targets";
 import { check, ForbiddenError } from "./check";
-import { actionForNeed, type Need } from "./legacy-need";
+import type { Action } from "./model";
 
 export const NOT_FOUND_MESSAGE = "Not found.";
 
 export type ActionGuard =
-  | { need: Need; on: ActionTarget }
+  | { need: Action; on: ActionTarget }
   /** The action checks permission itself, after reading what it acts on. Say why. */
   | { custom: string };
 
@@ -35,7 +35,7 @@ export async function checkActionAccess(guard: ActionGuard): Promise<ActionConte
   if ("custom" in guard) return { ...base, target: null };
 
   const access = accessOf(acting.caller);
-  const action = actionForNeed(guard.need);
+  const action = guard.need;
   if (guard.on === "agency") {
     if (check(access, action, { orgId: acting.effectiveOrgId, clientId: null }) !== "allow") throw new ForbiddenError();
     return { ...base, target: null };

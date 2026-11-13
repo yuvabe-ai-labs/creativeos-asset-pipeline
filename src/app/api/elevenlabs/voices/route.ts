@@ -10,7 +10,7 @@ const LIBRARY_FILTERS = ["search", "gender", "age", "accent", "language", "useCa
 // D283 — the voice picker's two tabs. `account`: the whole account list (the browser filters it).
 // `library`: one page of the ElevenLabs Voice Library, filtered by ElevenLabs.
 export async function GET(req: Request) {
-  return withAccess(req, { need: "voices.view" }, async () => {
+  return withAccess(req, { need: "view" }, async () => {
 
     const url = new URL(req.url);
     const source = url.searchParams.get("source") ?? "account";

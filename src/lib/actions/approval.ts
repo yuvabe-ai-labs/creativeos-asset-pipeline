@@ -171,7 +171,7 @@ export async function setVersionApprovalAction(
 // this is a read receipt, not a security boundary that should surface failures to a
 // fire-and-forget caller.
 export async function markVersionApprovalSeenAction(versionId: string): Promise<void> {
-  return withAction("markVersionApprovalSeenAction", { need: "internal_review.view", on: { versionId } }, async (ctx) => {
+  return withAction("markVersionApprovalSeenAction", { need: "view", on: { versionId } }, async (ctx) => {
     const caller = ctx.caller;
     const supabase = createServerSupabase();
 

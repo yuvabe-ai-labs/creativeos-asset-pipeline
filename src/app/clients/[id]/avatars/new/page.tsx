@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 // No avatar row exists yet: the Studio creates the draft at the first upload (D287).
 export default async function NewAvatarPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; // `id` is the client slug
-  const { client } = await loadClientPage(id, "avatars.edit");
+  const { client } = await loadClientPage(id, "edit");
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">

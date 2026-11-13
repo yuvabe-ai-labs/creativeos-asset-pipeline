@@ -12,7 +12,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string; commentId: string }
 // or reopens it; the client sees the mark.
 export async function PATCH(req: Request, { params }: Ctx) {
   const { scriptId, commentId } = await params;
-  return withClient(req, params, { need: "client_review.edit" }, async (clientId, _client, caller) =>
+  return withClient(req, params, { need: "edit" }, async (clientId, _client, caller) =>
     withTryCatch("Could not update the thread.", async () => {
       const parsed = parseResolve(await req.json().catch(() => null));
       if (!parsed.ok) return apiError(parsed.error, 400);

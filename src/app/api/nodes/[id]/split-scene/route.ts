@@ -15,7 +15,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, { need: "video_generation.generate" }, async (nodeId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId) => {
     const body = (await req.json().catch(() => null)) as
       | { scene?: unknown; slices?: unknown }
       | null;

@@ -8,7 +8,7 @@ import { publicUrlFor } from "@/lib/storage/gcs";
 // GCS (via a signed URL). Verifies the path belongs to this node, cleans up any
 // previous file, and returns the node data fields the client persists.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, { need: "canvases.edit" }, async (nodeId, node, _caller, clientId) => {
+  return withNode(req, params, { need: "edit" }, async (nodeId, node, _caller, clientId) => {
     const body = (await req.json().catch(() => null)) as {
       path?: string;
       filename?: string;

@@ -9,7 +9,7 @@ import { signClientReviewUpload } from "@/lib/storage";
 // the node's cut (D309). One cut per node: a node that already has one gets 409.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not authorize upload.", () =>
-    logClientReviewErrors("sign", req, () => withNode(req, params, { need: "client_review.edit" }, async (nodeId, node, _caller, clientId) => {
+    logClientReviewErrors("sign", req, () => withNode(req, params, { need: "share" }, async (nodeId, node, _caller, clientId) => {
       const body = (await req.json().catch(() => null)) as {
         filename?: string;
         contentType?: string;

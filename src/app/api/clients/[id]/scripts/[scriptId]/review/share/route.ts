@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // script's one link. Takes no body; a scope an older page still sends is ignored.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, { need: "client_review.share" }, async (clientId, _client, caller) =>
+  return withClient(req, params, { need: "share" }, async (clientId, _client, caller) =>
     withTryCatch("Could not share the script.", async () => {
       const script = await getScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);

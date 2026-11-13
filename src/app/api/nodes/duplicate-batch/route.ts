@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   // canvasId comes from the request body, not a URL param — this route isn't rooted at
   // /api/canvas/[id]/* or /api/nodes/[id]/*, so it never went through an isolation check
   // at all until now. withCanvas takes the same { id } shape everywhere else uses.
-  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "canvases.edit" }, async (_canvasId, _canvas, caller) => {
+  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "edit" }, async (_canvasId, _canvas, caller) => {
     return withTryCatch("Batch duplicate failed", async () => {
     const supabase = createServerSupabase();
     // The duplicated versions are set active and enter the review queue, so each records its

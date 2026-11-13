@@ -8,7 +8,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, { need: "canvases.edit" }, async (nodeId) => {
+  return withNode(req, params, { need: "edit" }, async (nodeId) => {
     const body = (await req.json().catch(() => null)) as
       | { versionId?: unknown; selectedIndex?: unknown; finalDescription?: unknown }
       | null;

@@ -11,7 +11,7 @@ import { decodeAssetCursor, encodeAssetCursor } from "@/lib/asset-import/utils";
 // GET /api/clients/:id/asset-imports/assets?cursor=&limit=&source=&media= — one page of imported
 // assets, newest first (D302). `nextCursor` is null on the last page.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "brand_assets.view" }, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withQuietErrors("Couldn't load the brand assets. Try again.", async () => {
       const q = new URL(req.url).searchParams;
 

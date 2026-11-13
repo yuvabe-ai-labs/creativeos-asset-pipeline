@@ -6,7 +6,7 @@ import type { CallerContext } from "@/lib/dal";
 import { resolveImpersonationState, type ImpersonationState } from "@/lib/auth/impersonation";
 import { accessOf, resolveActingCaller, type ActingCaller } from "@/lib/permissions/server";
 import { check, FORBIDDEN_MESSAGE, type Decision } from "@/lib/permissions/check";
-import { actionForNeed, type Need } from "@/lib/permissions/legacy-need";
+import type { Action } from "@/lib/permissions/model";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
@@ -20,10 +20,10 @@ type AnyResponse = NextResponse<any>;
 
 // D496/D504: every handler names the one action it needs. Required, so TypeScript forces the
 // decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
-export type Guard = { need: Need };
+export type Guard = { need: Action };
 
-function decide(acting: ActingCaller, need: Need, clientId: string | null): Decision {
-  return check(accessOf(acting.caller), actionForNeed(need), { orgId: acting.effectiveOrgId, clientId });
+function decide(acting: ActingCaller, need: Action, clientId: string | null): Decision {
+  return check(accessOf(acting.caller), need, { orgId: acting.effectiveOrgId, clientId });
 }
 
 function denial(decision: Exclude<Decision, "allow">, notFoundMessage: string): AnyResponse {

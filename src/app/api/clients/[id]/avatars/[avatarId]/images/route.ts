@@ -26,7 +26,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string; avatarId: string }> },
 ) {
   const { avatarId } = await params;
-  return withClient(req, params, { need: "avatars.edit" }, async (clientId, _client, caller) =>
+  return withClient(req, params, { need: "edit" }, async (clientId, _client, caller) =>
     withTryCatch("Could not save the image.", async () => {
       const parsed = FinalizeSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);

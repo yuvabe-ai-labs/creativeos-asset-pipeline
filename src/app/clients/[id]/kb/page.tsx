@@ -29,7 +29,7 @@ export default async function KBPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { client } = await loadClientPage(id, "brand_knowledge.view");
+  const { client } = await loadClientPage(id, "view");
 
   const [documents, images, activeKBVersion, latestJob, brandDetails] = await Promise.all([
     listKBDocuments(client.id),

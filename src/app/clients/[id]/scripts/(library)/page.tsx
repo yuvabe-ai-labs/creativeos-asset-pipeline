@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ScriptsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; // `id` is the client slug
-  const { client } = await loadClientPage(id, "scripts.view");
+  const { client } = await loadClientPage(id, "view");
 
   const [scripts, unwritten, feedback, deleteBlocks] = await Promise.all([
     listScripts(client.id), listUnwrittenScripts(client.id), listFeedbackCounts(client.id), listScriptDeleteBlocks(client.id),

@@ -38,7 +38,7 @@ export default async function ClientPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params; // `id` is the client slug
-  const { client, caller, effectiveOrgId } = await loadClientPage(id, "canvases.view");
+  const { client, caller, effectiveOrgId } = await loadClientPage(id, "view");
 
   if (client.kb_status !== "ready") {
     redirect(`/clients/${client.slug}/kb`);

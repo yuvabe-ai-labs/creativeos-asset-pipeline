@@ -44,7 +44,7 @@ describe("drive routes need canvas edit", () => {
     it(`${name}: asks for canvases.edit and stops when refused`, async () => {
       const res = await call();
       expect(res.status).toBe(403);
-      expect(withAccessMock).toHaveBeenCalledWith(expect.any(Request), { need: "canvases.edit" }, expect.any(Function));
+      expect(withAccessMock).toHaveBeenCalledWith(expect.any(Request), { need: "edit" }, expect.any(Function));
       expect(exchangeMock).not.toHaveBeenCalled();
     });
   }

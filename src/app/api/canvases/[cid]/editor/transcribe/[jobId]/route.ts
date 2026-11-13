@@ -10,7 +10,7 @@ import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
 // rebuilt under it, a crash) is settled now: failed and refunded, so the editor stops waiting.
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string; jobId: string }> }) {
   const { cid, jobId } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.view" }, async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "view" }, async (canvasId) =>
     withTryCatch("Couldn't read the captions run.", async () => {
       const job = await getJob<TranscribeJobInput, TranscribeJobResult>(jobId);
       if (!job || job.kind !== "editor-transcribe" || job.input?.canvasId !== canvasId) return apiError("Not found.", 404);

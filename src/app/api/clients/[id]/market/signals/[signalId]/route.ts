@@ -6,7 +6,7 @@ type Params = { params: Promise<{ id: string; signalId: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id, signalId } = await params;
-  return withClient(req, Promise.resolve({ id }), { need: "market.edit" }, async () => {
+  return withClient(req, Promise.resolve({ id }), { need: "edit" }, async () => {
     let body: { name?: string; tags?: string[]; description?: string };
     try {
       body = await req.json();
@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   const { id, signalId } = await params;
-  return withClient(req, Promise.resolve({ id }), { need: "market.delete" }, async () =>
+  return withClient(req, Promise.resolve({ id }), { need: "delete" }, async () =>
     withTryCatch("Could not delete the signal.", async () => {
       await deleteSignal(signalId);
       return apiOk({ ok: true });

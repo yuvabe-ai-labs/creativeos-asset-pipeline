@@ -14,7 +14,7 @@ export async function GET(
   { params }: { params: Promise<{ cid: string }> },
 ) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), { need: "canvases.view" }, async (canvasId, _canvas, _caller, orgId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "view" }, async (canvasId, _canvas, _caller, orgId) =>
     withTryCatch("Failed to load approval statuses", async () => {
       // { statuses, outputs } — outputs keeps the card's media live too (BUG-002).
       return apiOk(await listCanvasApprovalStatuses(orgId, canvasId));

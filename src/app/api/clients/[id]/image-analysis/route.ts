@@ -16,7 +16,7 @@ async function statusWithSection(clientId: string) {
 // GET /api/clients/:id/image-analysis — how many images are read, the latest run, and the
 // Image Analysis section it wrote (D312). Polled while a run is going.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "brand_knowledge.view" }, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withQuietErrors("Couldn't load the image analysis. Try again.", async () => apiOk(await statusWithSection(clientId))),
   );
 }
@@ -24,7 +24,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/clients/:id/image-analysis — read any images without a card and rewrite the section,
 // even if no image changed (the tab's Analyse / Refresh). Returns at once; the run is in the background.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "brand_knowledge.generate" }, async (clientId, _client, caller) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, _client, caller) =>
     withQuietErrors("Couldn't start the image analysis. Try again.", async () => {
       await startImageAnalysis(clientId, caller.userId, { force: true });
       return apiOk(await statusWithSection(clientId));

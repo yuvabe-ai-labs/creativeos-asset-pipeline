@@ -17,7 +17,7 @@ export default async function EvalReviewPage({
   // Another agency's canvas, or one outside the person's clients, renders as not found and
   // never confirms it exists (D496). Checked in the agency being acted in, so an operator
   // using "view as" sees that agency's eval traces. Missing canvas view shows the 404 page.
-  const page = await loadCanvasPage(canvasId, "canvases.view");
+  const page = await loadCanvasPage(canvasId, "view");
   if (!page) {
     return (
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-16 text-center">

@@ -5,7 +5,7 @@ import { ingestReference } from "@/lib/market/ingest";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return withMoodboard(req, id, { need: "moodboards.view" }, async (moodboardId) => {
+  return withMoodboard(req, id, { need: "view" }, async (moodboardId) => {
     const items = await listItems(moodboardId);
     return apiOk({ items });
   });
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return withMoodboard(req, id, { need: "moodboards.edit" }, async (moodboardId, caller) => {
+  return withMoodboard(req, id, { need: "edit" }, async (moodboardId, caller) => {
     let body: { imageUrl?: string; pageUrl?: string; sourceUrl?: string; note?: string };
     try {
       body = await req.json();

@@ -28,7 +28,7 @@ export async function acquireCanvasLockAction(
 ) {
   // Holding the lock is entering edit mode (D161's non-acquiring review mode covers view-only).
   // The guard resolves the impersonation state with the caller, so it is not read again here.
-  const { impersonation } = await checkActionAccess({ need: "canvases.edit", on: { canvasId } });
+  const { impersonation } = await checkActionAccess({ need: "edit", on: { canvasId } });
   if (impersonation.isImpersonating && !impersonation.elevated) {
     // Read-only impersonation: report the current lock state as a "denied" acquire
     // (getCanvasLock's shape differs — heldBy can be null — so map it onto
@@ -49,16 +49,16 @@ export async function acquireCanvasLockAction(
 }
 
 export async function heartbeatCanvasLockAction(canvasId: string, sessionId: string) {
-  await checkActionAccess({ need: "canvases.edit", on: { canvasId } });
+  await checkActionAccess({ need: "edit", on: { canvasId } });
   return heartbeatCanvasLock(canvasId, sessionId);
 }
 
 export async function releaseCanvasLockAction(canvasId: string, sessionId: string) {
-  await checkActionAccess({ need: "canvases.view", on: { canvasId } });
+  await checkActionAccess({ need: "view", on: { canvasId } });
   await releaseCanvasLock(canvasId, sessionId);
 }
 
 export async function getCanvasLockAction(canvasId: string) {
-  await checkActionAccess({ need: "canvases.view", on: { canvasId } });
+  await checkActionAccess({ need: "view", on: { canvasId } });
   return getCanvasLock(canvasId);
 }

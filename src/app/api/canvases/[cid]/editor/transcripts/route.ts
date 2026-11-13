@@ -8,7 +8,7 @@ import { playableSoundUrls } from "@/lib/editor/transcribe-plan";
 // server from the saved edit, never taken from the request (rule 14).
 export async function GET(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), { need: "video_editor.view" }, async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "view" }, async (canvasId) =>
     withTryCatch("Couldn't read the captions.", async () => {
       const state = await loadEditorState(canvasId);
       if (!state) return apiOk({ transcripts: [] });

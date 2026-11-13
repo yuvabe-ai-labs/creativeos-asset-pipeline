@@ -10,7 +10,7 @@ import { clientIdsWith } from "@/lib/permissions/check";
 // impersonation), so a caller cannot ask for another org's counts by editing a query string.
 // Counts are of the work the caller can approve: the clients where they hold Approve.
 export async function GET(req: Request) {
-  return withAccess(req, { need: "internal_review.view" }, (caller, orgId) =>
+  return withAccess(req, { need: "view" }, (caller, orgId) =>
     withTryCatch("Failed to load review counts", async () =>
       apiOk(await getOrgReviewCounts(orgId, clientIdsWith(accessOf(caller), orgId, "approve"))),
     ),

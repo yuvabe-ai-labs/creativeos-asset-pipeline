@@ -11,7 +11,7 @@ import { signNodeFileUpload } from "@/lib/storage";
 // direct browser → GCS upload of an image or document. Text files (.txt) are read
 // server-side and keep using POST /api/nodes/:id/file instead.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, { need: "canvases.edit" }, async (nodeId) => {
+  return withNode(req, params, { need: "edit" }, async (nodeId) => {
     const body = (await req.json().catch(() => null)) as {
       filename?: string;
       contentType?: string;

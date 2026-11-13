@@ -14,7 +14,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, { need: "client_profile.edit" }, async (clientId) => {
+  return withClient(req, params, { need: "edit" }, async (clientId) => {
     return withTryCatch("Failed to save website URL", async () => {
       let body: unknown;
       try {

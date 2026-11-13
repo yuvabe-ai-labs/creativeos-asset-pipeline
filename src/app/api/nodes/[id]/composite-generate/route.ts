@@ -43,7 +43,7 @@ type EditBody = {
 // never run.
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, { need: "image_generation.generate" }, async (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | { instruction?: unknown; modelId?: unknown; params?: unknown; edit?: EditBody }
       | null;

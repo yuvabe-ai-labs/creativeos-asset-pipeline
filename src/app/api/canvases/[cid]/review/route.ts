@@ -14,7 +14,7 @@ export async function GET(
 ) {
   const { cid } = await params;
   const page = parsePageParams(new URL(req.url).searchParams);
-  return withCanvas(req, Promise.resolve({ id: cid }), { need: "internal_review.view" }, async (canvasId, _canvas, _caller, orgId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "view" }, async (canvasId, _canvas, _caller, orgId) =>
     withTryCatch("Failed to load review items", async () => {
       const items = await listCanvasPendingItems(orgId, canvasId, page);
       // `hasMore` from a full page rather than a second count query — one extra fetch at

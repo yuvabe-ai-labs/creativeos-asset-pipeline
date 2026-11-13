@@ -7,7 +7,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, { need: "brand_knowledge.view" }, async (clientId) => {
+  return withClient(req, params, { need: "view" }, async (clientId) => {
     return withTryCatch("Failed to fetch KB data", async () => {
       const [version, documents, images] = await Promise.all([
         getActiveKBVersion(clientId),

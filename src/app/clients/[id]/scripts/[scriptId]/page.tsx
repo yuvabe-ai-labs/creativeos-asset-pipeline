@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ScriptPage({ params }: { params: Promise<{ id: string; scriptId: string }> }) {
   const { id, scriptId } = await params; // `id` is the client slug
-  const { client } = await loadClientPage(id, "scripts.view");
+  const { client } = await loadClientPage(id, "view");
 
   // Spec 2 — at Generate the script opens in the copilot workspace, with or without a draft yet.
   const atGenerate = await getGenerateScript(client.id, scriptId);

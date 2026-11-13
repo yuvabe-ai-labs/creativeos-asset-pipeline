@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { isPermissionKey } from "./catalogue";
+import { isAction } from "./model";
 
-// D496: every API handler names its permission through a chokepoint or withAccess, or is on this
+// D496/D504: every API handler names its action through a chokepoint or withAccess, or is on this
 // list with a reason. Extend the list only with a one-line reason.
 const ALLOWLIST: Record<string, string> = {
   "admin/orgs/[id]/generations": "super admin (requireSuperAdmin)",
@@ -24,7 +24,7 @@ const ALLOWLIST: Record<string, string> = {
 
 const API_ROOT = join(process.cwd(), "src/app/api");
 const HANDLER_RE = /export\s+(?:async\s+)?(?:function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g;
-const GUARDED_RE = /\b(withClient|withCanvas|withNode|withMoodboard|withAccess)\s*\([^]*?need:\s*"([a-z_]+\.[a-z]+)"/;
+const GUARDED_RE = /\b(withClient|withCanvas|withNode|withMoodboard|withAccess)\s*\([^]*?need:\s*"([a-z_.]+)"/;
 
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -38,7 +38,7 @@ function routeKey(file: string): string {
   return relative(API_ROOT, file).split(sep).join("/").replace(/\/route\.ts$/, "").replace(/^route\.ts$/, "");
 }
 
-describe("every API handler declares a permission (D496)", () => {
+describe("every API handler declares an action (D496, D504)", () => {
   const files = routeFiles(API_ROOT);
 
   it("finds the route files", () => {
@@ -56,7 +56,7 @@ describe("every API handler declares a permission (D496)", () => {
       it(`${method} /api/${key}`, () => {
         const m = seg.match(GUARDED_RE);
         expect(m, "calls a chokepoint or withAccess with { need }").not.toBeNull();
-        expect(isPermissionKey(m![2]), `"${m![2]}" is a catalogue key`).toBe(true);
+        expect(isAction(m![2]), `"${m![2]}" is one of the nine actions`).toBe(true);
       });
     }
   }

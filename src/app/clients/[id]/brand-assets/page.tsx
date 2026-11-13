@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 // width and its own scroll, and it is not a KB module to review.
 export default async function BrandAssetsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; // the client slug
-  const { client } = await loadClientPage(id, "brand_assets.view");
+  const { client } = await loadClientPage(id, "view");
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">

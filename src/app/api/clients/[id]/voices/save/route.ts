@@ -19,7 +19,7 @@ const BodySchema = z.object({
 // it to the ElevenLabs account (or reuse the copy already there, as /api/elevenlabs/voices/save
 // does), then record it for the client so it appears under "This client".
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, { need: "voices.edit" }, async (clientId, _client, caller) => {
+  return withClient(req, params, { need: "edit" }, async (clientId, _client, caller) => {
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid request body.", 400);
     const body = parsed.data;
