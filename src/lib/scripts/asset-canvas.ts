@@ -2,6 +2,7 @@ import type { Edge, XYPosition } from "@xyflow/react";
 import type { ReelShot } from "@/lib/nodes/reel-script";
 import type { Product, ScriptDoc, ScriptLocation } from "./schema";
 import { shotLabel } from "./storyboard";
+import { withoutLocationVersions } from "./assets";
 import { ASSET_CARD, ASSET_GAP } from "./storyboard-canvas";
 import type { ScriptPlateRequest } from "./script-composites";
 import {
@@ -38,7 +39,8 @@ export function scriptCanvasAssets(scriptId: string, doc: ScriptDoc): ScriptCanv
   doc.shots.forEach((s, i) => {
     if (s.products.length > 0 || s.location) picks[shotLabel(i)] = { products: s.products, location: s.location };
   });
-  return { scriptId, products: doc.products, locations: doc.locations, picks };
+  // D489 — the canvas freezes the plate each location shows, not its past plates.
+  return { scriptId, products: doc.products, locations: withoutLocationVersions(doc).locations, picks };
 }
 
 const nameKey = (label: string) => label.trim().toUpperCase();

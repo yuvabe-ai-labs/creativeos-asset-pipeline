@@ -8,10 +8,10 @@ import type { ScriptLocation } from "@/lib/scripts/schema";
 const kitchen: ScriptLocation = {
   id: "kitchen", name: "Home kitchen", description: "Teal walls.", image: { url: "https://x/plate.png", source: "plate" },
 };
-const render = (large?: boolean) => renderToStaticMarkup(
+const render = (large?: boolean, location: ScriptLocation = kitchen) => renderToStaticMarkup(
   <QueryClientProvider client={new QueryClient()}>
     <ScriptAssetsProvider clientId="c1" scriptId="s1">
-      <ul><ScriptLocationCard location={kitchen} large={large} /></ul>
+      <ul><ScriptLocationCard location={location} large={large} /></ul>
     </ScriptAssetsProvider>
   </QueryClientProvider>,
 );
@@ -29,5 +29,18 @@ describe("ScriptLocationCard (D465)", () => {
     // The words take the plate's width rather than widening the popup.
     expect(html).toContain("w-0 min-w-full");
     expect(render()).not.toContain("h-[60vh]");
+  });
+
+  // D489 — the switcher shows only once there is more than one plate to step through.
+  it("steps through past plates once there is more than one", () => {
+    expect(render()).not.toContain("Earlier version");
+    const html = render(false, {
+      ...kitchen,
+      versions: [{ url: "https://x/old.png", source: "plate", mode: "fresh" }, { url: "https://x/plate.png", source: "plate", mode: "change", note: "warmer light" }],
+    });
+    expect(html).toContain("v2 of 2");
+    expect(html).toContain("Changed: warmer light");
+    expect(html).toContain("In use");
+    expect(html).not.toContain("Use this version");
   });
 });

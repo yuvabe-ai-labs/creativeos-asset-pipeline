@@ -1,5 +1,6 @@
 "use client";
 
+import { selectedInputPreview } from "@/lib/nodes/canvas-picture";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -192,7 +193,7 @@ export function VideoPromptFocusView({
   // A connected node is selected when `selected` isn't one of the fixed rail keys.
   const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
-    ? preview.connected.find((c) => c.nodeId === selected) ?? null
+    ? selectedInputPreview(preview.connected, upstream, selected)
     : null;
 
   // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — same
@@ -558,6 +559,21 @@ export function VideoPromptFocusView({
       titlePlaceholder="Motion prompt"
       onTitleCommit={(t) => onPatch({ title: t })}
       dirty={dirty}
+      // Cancel, Save, then the guided next step — always shown, the same size, as in Multishot.
+      // Cancel / Save enable only while the prompt has unsaved edits.
+      headerActions={
+        editable && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setDraft(output ?? "")} disabled={!dirty}>
+              Cancel
+            </Button>
+            <Button variant="outline-primary" size="sm" onClick={handleSave} disabled={!dirty}>
+              Save
+            </Button>
+          </>
+        )
+      }
+      guidedInHeader
       lastError={lastError}
       generating={generating}
       versions={versions}
@@ -762,16 +778,6 @@ export function VideoPromptFocusView({
                           className="min-h-[16rem] max-w-[65ch] flex-1 resize-none overflow-y-auto rounded-xl p-4 text-base leading-7 [field-sizing:fixed]"
                         />
                       )}
-                      <div className="flex items-center gap-2 self-start">
-                        <Button variant="outline-primary" onClick={handleSave} disabled={!dirty}>
-                          Save
-                        </Button>
-                        {dirty && (
-                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                            Unsaved changes
-                          </span>
-                        )}
-                      </div>
                     </>
                   )}
                     </>

@@ -8534,6 +8534,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session.
 
+### D489 — A location keeps its past plates in the script doc, and any can be put back *(recorded 2026-11-12; refines D446, D448, D449)*
+
+**Decision.** Each location in the script doc gains an optional `versions` list next to `image`. It holds up to 10 plates the location has had (`{ url, source, mode?, note? }`), oldest first. `image` stays the current plate, so panel prompts, the shot fingerprint, Fan out and shares read it as before. `set_location_image` (the one write, `applyAssetOp`) adds a picture the location never held to the end of the list, dropping the oldest past 10. A picture it already holds, as on a restore, adds nothing. Clear keeps the list. A location stored before versions starts from its current plate, so that plate is not lost. The plate route records Redraw's mode and note on the version. The location card shows "v2 of 3" with previous and next, which only preview, and **Use this version**, which sets `image` back through the same op. Past plates count as the doc's own pictures for the client-picture check (rule 14). They stay out of the copilot's prompt, the share version line and the assets frozen onto the canvas (`withoutLocationVersions`). Products keep no versions.
+
+**Why.** User, 12 Nov 2026: Redraw and "Change this picture" overwrote the plate, so a change that made it worse could not be undone. Storyboard panels already keep every take.
+
+**Rejected.** (1) A takes table like `script_panel_takes`: a migration, two routes and a query for what is at most 10 small entries already loaded with the doc. (2) A separate picks table: the doc's `image` already is the pick. (3) Versions for products: a product is a set of angles, and per-picture history did not make sense to the user. (4) Seeding the canvas Composite with every past plate: versions stay on the script page; Fan out still sends the current plate as v1 (D456).
+
+**Originated →** conversation in this session.
 ### D483 — Video Gen gets an Edit toggle beside Edit voice; an edit is a new version of the whole take *(recorded 2026-11-10; follows D284, D37)*
 
 **Decision.** The Video Gen focus view has two switches beside the VIDEO heading, **Edit voice** (D284) and **Edit**, and only one can be on. Edit shows the connected images as checkable references, an instruction box, a resolution choice (360p to 4k, default 720p) and an Edit video button with its credit estimate. It sends the whole active take (up to 10 seconds) to Gemini Omni with `task: "edit"`, as a `video` generation run by the existing `video-generate` task with an `editVideoUrl`, billed at Omni's rate for the chosen resolution. The result is appended as a new version with `inputs_used.videoEdit` (base and root version, instruction, literal prompt, references, resolution). A refusal or a failure refunds and makes no version.
@@ -8670,3 +8679,33 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Tabs (D492): they made the edits look as important as Generate.
 
 **Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D492 — The @ menu opens where there is room and scrolls inside itself *(recorded 2026-11-11)*
+
+**Decision.** The mention editor's @ menu opens below the caret when there is more room below (or a full menu fits), otherwise above, and its height is capped to that room (at most 320px) so a long list scrolls inside the menu. It never leaves the screen sideways, and arrow keys keep the highlighted item in view. When the caret has no measurable box (start of a line, right after a chip), the menu anchors to the editor instead of not opening.
+
+**Why.** User, 11 Nov 2026: with many references the menu always opened upward with no height limit, ran off the top of the screen, and the first items could only be reached by zooming the browser out; sometimes @ opened nothing at all (the empty caret box).
+
+**Rejected.** Moving the menu onto a Popover primitive (a larger change for a positioning bug; the portal and keyboard handling already work).
+
+**Originated →** this session.
+
+### D493 — A script's Product and Location show their picture in every input preview *(recorded 2026-11-11; refines D450)*
+
+**Decision.** One helper, `canvasPicture` (`src/lib/nodes/canvas-picture.ts`), gives the picture a canvas node shows (upload, generated image, product packshot, location plate), and every node that lists its inputs uses it instead of its own copy. The shared `ConnectedDetailView` shows any input that carries an image, whatever its node type. The Prompt, Motion Prompt and Multishot Prompt views fall back to the canvas picture when the server's preview has no row for the input (`selectedInputPreview`).
+
+**Why.** User, 11 Nov 2026: a background or product from the script read "no preview" in node previews. Four node files each had their own picture lookup covering only files, sketches and generated images, and the detail view only treated a fixed list of types as pictures, so a product with its URL in hand still read "No content yet".
+
+**Rejected.** Adding `product` / `location` to each copy (the next new type would miss them again).
+
+**Originated →** this session.
+
+### D494 — Omni 1.2 takes 24 references alone and 9 images in all with frames, as measured *(recorded 2026-11-11; amends D484, follows D428)*
+
+**Decision.** `GEMINI_OMNI_12_IMAGE_INPUTS` becomes `maxReferenceImages: 24`, `maxImagesWithFrames: 9` (was Google's documented 6, and 1.1's measured 7 with frames). Video edits read the same cap, as before (D483).
+
+**Why.** User, 11 Nov 2026: 1.1 turned out to take more than its documented limit; check 1.2. Probed live against `gemini-omni-1.2-flash` the D428 way (numbered, coloured cards, 360p / 4s, `reference_to_video`, frames read back). References alone: 6, 8, 12, 16 and 24 rendered every card's number and colour; 32 kept the numbers but two cards' colours drifted. With frames: start + 8, start + end + 6 and start + end + 7 held both frames and every card; start + end + 8 misnumbered a card; start + 10 and start + 12 dropped the start frame (it became a card on the table); start + end + 12 turned both frames into cards. One run per case, so the cutoffs are a guide.
+
+**Rejected.** Keeping Google's 6 (well under what renders correctly). 32 (the API accepts it, but colours drift). A separate, lower cap for edits (edits were not probed; they keep reading the generation cap so the two can't drift, and edit references are ticked by hand).
+
+**Originated →** this session; probe script and frames kept outside the repo.

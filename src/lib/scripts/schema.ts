@@ -57,6 +57,16 @@ export const productSchema = z.object({
   images: z.array(scriptImageSchema).max(MAX_PRODUCT_IMAGES),
 });
 
+/** D489 — how many past plates a location keeps (the doc is written whole on every edit). */
+export const MAX_LOCATION_VERSIONS = 10;
+
+/** D489 — a plate a location has held: the picture, and for a drawn one how it was drawn. */
+export const locationVersionSchema = scriptImageSchema.extend({
+  /** Redraw's mode (D449): drawn fresh, or the plate before it changed by `note`. */
+  mode: z.enum(["fresh", "change"]).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
 /** D446 — a place this script's shots happen in. */
 export const locationSchema = z.object({
   id: z.string().min(1).max(64),
@@ -65,6 +75,10 @@ export const locationSchema = z.object({
   description: z.string().trim().max(2000),
   /** The background plate: an empty set, no people. Null until generated or added. */
   image: scriptImageSchema.nullable(),
+  /** D489 — every plate it has held, oldest first, the current one among them. Absent on a
+   *  location stored before versions existed (and on a canvas or share frozen without them), so
+   *  read it through `locationVersions`. */
+  versions: z.array(locationVersionSchema).max(MAX_LOCATION_VERSIONS).optional(),
 });
 
 export const shotSchema = z.object({
@@ -143,6 +157,7 @@ export type Shot = z.infer<typeof shotSchema>;
 export type ScriptImage = z.infer<typeof scriptImageSchema>;
 export type Product = z.infer<typeof productSchema>;
 export type ScriptLocation = z.infer<typeof locationSchema>;
+export type LocationVersion = z.infer<typeof locationVersionSchema>;
 export type ScriptDoc = z.infer<typeof scriptDocSchema>;
 
 export type Script = {

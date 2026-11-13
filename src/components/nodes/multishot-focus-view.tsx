@@ -39,8 +39,11 @@ import {
   MULTISHOT_MODELS,
   multishotCapabilityFor,
   checkLadder,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TEMPORARY: model Select commented out
   describeCapability,
 } from "@/lib/nodes/multishot-models";
+// TEMPORARY: unused while the model Select below is commented out — keep for restoring it.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 type MultishotFocusViewProps = {
@@ -137,6 +140,7 @@ export function MultishotFocusView({
   const addable = canAddCut(draft.cuts, cap);
   // Base UI resolves SelectValue's label from `items`. Without it, a bare <SelectValue /> renders
   // the raw VALUE — which is why this trigger read "gemini:gemini-omni-1.1-flash".
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TEMPORARY: model Select commented out
   const modelItems = Object.fromEntries(MULTISHOT_MODELS.map((m) => [m.id, m.label]));
 
   // Takes a TRANSFORM, not a finished array: the functional form is only protection if the
@@ -171,9 +175,8 @@ export function MultishotFocusView({
       >
         <div className="shrink-0 border-b border-border">
           <div className="mx-auto w-full max-w-7xl px-6 pb-5 pt-3">
-            {/* Navigation row: Back on the left, the guided next step opposite it as a text link —
-                both are ways OUT of this view, so they share a row and leave the header's right
-                slot to the edit controls. */}
+            {/* Navigation row: Back to canvas. The guided next step sits in the header's right
+                slot, after Cancel / Save. */}
             <div className="flex items-center justify-between gap-4">
               <Button
                 type="button"
@@ -183,26 +186,6 @@ export function MultishotFocusView({
               >
                 <ArrowLeft className="size-4" strokeWidth={1.5} /> Back to canvas
               </Button>
-              <GuidedNextButton
-                sourceId={nodeId}
-                variant="link"
-                onNavigate={() => onOpenChange(false)}
-                onBeforeNavigate={
-                  dirty
-                    ? (proceed) =>
-                        setConfirm({
-                          title: "Discard unsaved shot edits?",
-                          description:
-                            "The Multishot Prompt will be written against the shots as they were last saved.",
-                          actionLabel: "Continue",
-                          // Honours the copy: the draft is dropped and the guided step then runs
-                          // against the committed ladder. `proceed` closes this sheet itself via
-                          // GuidedNextButton's own onNavigate, so this must not close it first.
-                          onConfirm: proceed,
-                        })
-                    : undefined
-                }
-              />
             </div>
 
             <header className="mt-4 flex items-start justify-between gap-4">
@@ -234,6 +217,9 @@ export function MultishotFocusView({
                   because it GOVERNS the duration chip beside the title — changing it re-derives
                   the ceiling that chip is measured against — then the draft's Cancel / Save. */}
               <div className="flex shrink-0 items-center gap-2">
+                {/* TEMPORARY: model selection hidden for now — the node keeps using its saved (or default)
+                   model. Restore by uncommenting the Select below.
+
                 <Select
                   items={modelItems}
                   value={cap.id}
@@ -250,8 +236,8 @@ export function MultishotFocusView({
                   }
                   disabled={isReadOnly}
                 >
-                  {/* h-10 matches the lg Cancel / Save beside it. min-w holds the
-                      slot while letting a longer model name grow instead of clipping. */}
+                  h-10 matches the lg Cancel / Save beside it. min-w holds the
+                      slot while letting a longer model name grow instead of clipping.
                   <SelectTrigger className="min-w-[168px] text-sm data-[size=default]:h-10" aria-label="Multishot model">
                     <SelectValue />
                   </SelectTrigger>
@@ -260,8 +246,8 @@ export function MultishotFocusView({
                       <SelectItem key={m.id} value={m.id} className="items-start py-1.5">
                         <div className="flex flex-col items-start gap-0.5">
                           <span>{m.label}</span>
-                          {/* Every model stays selectable. D97 — the app rejects and explains
-                              rather than prevents, and checkLadder already writes that sentence. */}
+                          Every model stays selectable. D97 — the app rejects and explains
+                              rather than prevents, and checkLadder already writes that sentence.
                           <span className="text-xs text-muted-foreground">
                             {describeCapability(m)}
                           </span>
@@ -270,26 +256,44 @@ export function MultishotFocusView({
                     ))}
                   </SelectContent>
                 </Select>
+                */}
 
-                {dirty && (
-                  <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                    Unsaved changes
-                  </span>
-                )}
+                {/* Always shown; disabled until there is something to save or discard. */}
                 {!isReadOnly && (
                   <>
-                    <Button variant="outline" size="lg" onClick={() => setDraft(saved)} disabled={!dirty}>
+                    <Button variant="outline" size="sm" onClick={() => setDraft(saved)} disabled={!dirty}>
                       Cancel
                     </Button>
                     {/* D280 — Save is a synchronous updateNodeData, not a version write: this
                         node has no node_versions row. So no async, no error path, and no
                         "Saved" toast — the durable write is autosave's and has not happened
-                        yet. The pill clearing is the truthful feedback. */}
-                    <Button variant="outline-primary" size="lg" onClick={handleSave} disabled={!dirty}>
+                        yet. The buttons disabling again is the truthful feedback. */}
+                    <Button variant="outline-primary" size="sm" onClick={handleSave} disabled={!dirty}>
                       Save
                     </Button>
                   </>
                 )}
+                {/* The guided next step comes last: Cancel, Save, then on to the Multishot Prompt. */}
+                <GuidedNextButton
+                  sourceId={nodeId}
+                  variant="button"
+                  onNavigate={() => onOpenChange(false)}
+                  onBeforeNavigate={
+                    dirty
+                      ? (proceed) =>
+                          setConfirm({
+                            title: "Discard unsaved shot edits?",
+                            description:
+                              "The Multishot Prompt will be written against the shots as they were last saved.",
+                            actionLabel: "Continue",
+                            // Honours the copy: the draft is dropped and the guided step then runs
+                            // against the committed ladder. `proceed` closes this sheet itself via
+                            // GuidedNextButton's own onNavigate, so this must not close it first.
+                            onConfirm: proceed,
+                          })
+                      : undefined
+                  }
+                />
               </div>
             </header>
           </div>

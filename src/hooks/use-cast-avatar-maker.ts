@@ -17,6 +17,15 @@ import {
 
 export type SlotStep = MakerStep | "upload" | "consent" | "link";
 
+/** Resolves once the image is loaded (or failed: a broken preload must not block the upload). */
+function preloadImage(url: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = img.onerror = () => resolve();
+    img.src = url;
+  });
+}
+
 // D339 — one cast slot's avatar maker. Every call goes through the Avatar Studio's own routes,
 // so what Visualise makes is the same client Avatar the Studio makes (spec §5.1).
 export function useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId }: {
@@ -72,9 +81,11 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId
     } catch (e) {
       toast.error(errorMessage(e, fallback));
     } finally {
+      // Read fresh data BEFORE the step ends: ending it first showed the old data (e.g. the
+      // replaced photo) for the length of the re-read.
+      await refresh();
       running.current = false;
       setStep(null);
-      await refresh();
     }
   }, [refresh]);
 
@@ -92,7 +103,10 @@ export function useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId
         if (invalid) throw new Error(invalid);
         setStep("upload");
         const target = reusableFor("photo", avatar) ?? (await deps.createAndLink(avatarFieldsFor(member)));
-        await avatarsService.uploadImage(clientId, target.id, "front", file);
+        const updated = await avatarsService.uploadImage(clientId, target.id, "front", file);
+        // Have the new photo in the browser before it replaces the placeholder, so the box never
+        // sits empty (or on the old photo) while it downloads.
+        if (updated.front?.url) await preloadImage(updated.front.url);
       }, "Could not upload the photo"),
     confirmConsent: () =>
       avatar?.front
