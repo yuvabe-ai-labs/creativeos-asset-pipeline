@@ -316,7 +316,7 @@ One place for every person in the agency and their permissions. Invites are not 
 
 ### 6.2 Members on a client (`/clients/[id]/members`, owner only)
 
-Who works on this client, and the only place invites are sent from.
+Who works on this client, and the only place invites are sent from. It is reached from the client page's **Brand Workspace** menu, as a sixth entry after Scripts, Brand KB, Brand assets, Market and Avatars (`CLIENT_SECTIONS`), shown only to owners and the super admin.
 - **List.** Owners first as "Owner · everything", then each person with a status: **Member**,
   **Waiting for access** (joined, permissions not set yet) or **Invited** (not joined yet).
   Permissions are not repeated here; they live on the Team page.
