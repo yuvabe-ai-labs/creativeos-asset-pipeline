@@ -951,69 +951,97 @@ select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
 
-## Migration 0062 — permission-based access (D495–D498, 2026-11-11)
+## Migration 0062 — six permissions, one owner, client members (D500–D509, 2026-11-13)
 
-`supabase/migrations/0062_permission_based_access.sql`: presets (`role_presets`,
-`role_preset_permissions`), per-person ticks (`membership_permission_changes`), picked clients
-(`membership_clients`), invitations (`org_invitations`, used from plan 3), the access read
-`get_membership_access(uuid)`, `auth_org_ids()` behind the eight "org isolation" policies, and
-two triggers that keep nodes and edges on their own canvas (below), and
-`org_review_counts_for_types(uuid, text[])` (pending review counts for some review types, grouped
-in SQL like 0031's `org_review_counts`).
+`supabase/migrations/0062_permission_based_access.sql`. Never applied before 13 Nov 2026, so it
+was rewritten in place; the 11 Nov presets version is not applied anywhere and never will be.
 Paste into the Supabase SQL editor → Run.
 
-**Safe to re-run:** every create uses `if not exists` / `create or replace`, the seed uses
-`on conflict do nothing`, and policies and triggers are dropped before they are created.
+What it adds:
+- `org_memberships`: `is_owner` (one per agency, unique index `org_memberships_one_owner`),
+  `permissions text[]` (only `view, edit, generate, approve, share, delete`), `access_given_at`
+  (null = signed up, waiting for the owner), `invited_by`.
+- `membership_clients`: one row per client a person is on, with that client's permissions.
+  A new row copies the person's agency set; the owner never has rows.
+- `org_invitations`: member invites carry the client; the owner invite (`as_owner`) has none.
+  The link's token is stored as issued (unique index), so Copy link shows the same link; single
+  use, 7 days, server-only (RLS on, no policies). Resend replaces the token; Cancel revokes.
+- Triggers: `org_memberships_cascade_permissions` (an agency-level change reaches every client
+  row as what was added and removed), `org_memberships_keep_owner` (deferred: an agency that has
+  an owner always keeps one), `membership_clients_prepare` (no owner rows; copies the set).
+- Functions (service role only): `get_membership_access`, `transfer_agency_owner`,
+  `create_agency_with_owner_invite`, `accept_invitation`, `list_agency_people`,
+  `find_user_by_email`; `auth_org_ids()` behind the eight "org isolation" policies.
+- `nodes_keep_canvas` / `edges_keep_canvas`: a canvas save can't move another canvas's node or
+  join nodes across canvases (a refused row fails the save with `check_violation`).
+- `org_review_counts_for_types(uuid, text[])` and `admin_action` in the audit log's event types.
 
-**Nothing changes for anyone on day one:** each membership gets the preset matching its
-`org_role` and `all_clients = true`. `org_role` stays and is kept in sync by
-`org_memberships_0_sync_preset` until a later migration drops it.
+**Day one (runs once):** in each agency the earliest-joined `org_role = 'owner'` membership becomes
+the owner. Everyone else gets all six permissions, access given, and a row on every existing
+client, so nobody loses access. The backfill is skipped if any membership already has access
+given, so a re-run never hands waiting people all six.
 
-**Nodes and edges stay on their canvas.** Canvas saves upsert nodes and edges by the ids the
-browser sends, and node ids are not secret. Two triggers stop a save from reaching another
-canvas's rows:
+**Before applying, list agencies with more than one owner** (the earliest stays owner; the others
+become members with all six):
 
-- `nodes_keep_canvas` (before update of `canvas_id` on `nodes`): refuses any change to a node's
-  `canvas_id`, so a save carrying another canvas's node id fails instead of moving that node.
-- `edges_keep_canvas` (before insert or update on `edges`): refuses an edge unless both its
-  source and target nodes are on the edge's canvas, and refuses a change to an edge's
-  `canvas_id`.
+```sql
+select o.name, count(*) as owners, array_agg(p.display_name order by m.joined_at) as by_join_date
+  from org_memberships m
+  join organizations o on o.id = m.org_id
+  left join profiles p on p.user_id = m.user_id
+ where m.org_role = 'owner'
+ group by o.name
+having count(*) > 1;
+```
 
-A refused row fails the whole save with a `check_violation` error. The autosave shows its
-usual "could not save" message and retries; no legitimate flow moves nodes or edges between
-canvases (duplicating stays on the same canvas).
-
-**Backward-compatible with the old code:** the old code keeps reading `org_role`, which the sync
-trigger keeps in step with `preset_id`; the last-owner check reads presets the same trigger
-keeps current; the RLS rewrite gives the same answer while each person has one agency. So
-0062 can go in first and the old app keeps running on it.
+**`org_role` stays** and is unread by the new code. New code keeps it in step (`owner` for the
+owner, `designer` for a member who joins; `transfer_agency_owner` swaps them) so 0012's
+`org_memberships_last_owner` trigger agrees. A later migration drops `org_role` and that trigger
+once production runs the new code. Don't create agencies or members with the old admin screens
+between applying 0062 and deploying the code: the old screens don't set `is_owner`.
 
 **Ordering** (merging deploys on this repo: Vercel is git-integrated):
 
-1. Apply 0062 to the environment's database (staging before any staging deploy of this
-   branch, production before the merge to `main`).
-2. Run the checks below and confirm they pass.
-3. Then merge and deploy the code (plan 1). The new code calls `get_membership_access` on every
-   signed-in request. Deployed before 0062, that function is missing, the read throws, and
-   every signed-in request fails: the app is down for everyone until 0062 is applied.
+1. Run the multi-owner query above and note the result.
+2. Apply 0062 (staging before any staging deploy of this branch, production before the merge to
+   `main`).
+3. Run the checks below.
+4. Then deploy the code. Deployed before 0062, `get_membership_access` is missing and every
+   signed-in request fails.
 
 **Verify after running:**
 
 ```sql
--- expect 0: no edge joins nodes on another canvas (such an edge would fail every save of its canvas)
+-- expect one owner per agency that had one
+select org_id, count(*) from org_memberships where is_owner group by org_id having count(*) <> 1;
+-- expect 0: every non-owner has access given and all six permissions
+select count(*) from org_memberships
+ where not is_owner and (access_given_at is null or cardinality(permissions) <> 6);
+-- expect 0: every non-owner is on every client of their agency
+select count(*) from org_memberships m join clients c on c.org_id = m.org_id
+ where not m.is_owner
+   and not exists (select 1 from membership_clients mc
+                    where mc.user_id = m.user_id and mc.org_id = m.org_id and mc.client_id = c.id);
+-- expect 0: no owner has client rows
+select count(*) from membership_clients mc join org_memberships m using (user_id, org_id) where m.is_owner;
+-- expect one row for a member, with a clients array
+select * from get_membership_access('<a member user id>');
+-- expect 0: no edge joins nodes on another canvas
 select count(*) from edges e
   join nodes s on s.id = e.source_node_id
   join nodes t on t.id = e.target_node_id
  where s.canvas_id <> e.canvas_id or t.canvas_id <> e.canvas_id;
--- expect both triggers
-select tgname from pg_trigger where tgname in ('nodes_keep_canvas', 'edges_keep_canvas');
--- expect owner|t|0, senior|f|56, designer|f|53
-select key, is_owner, (select count(*) from role_preset_permissions r where r.preset_id = p.id)
-  from role_presets p order by sort;
--- expect 0
-select count(*) from org_memberships where preset_id is null;
--- expect one row per member, for any member's user id
-select * from get_membership_access('<a member user id>');
--- expect one row
-select proname from pg_proc where proname = 'org_review_counts_for_types';
+```
+
+**Check by hand on staging (spec §11), in a transaction you roll back:**
+
+```sql
+begin;
+-- cascade: remove generate at agency level; every client row of that person loses it
+update org_memberships set permissions = array['view','edit','approve','share','delete']
+ where user_id = '<member>' and org_id = '<agency>';
+select client_id, permissions from membership_clients where user_id = '<member>';
+-- owner protection: refused with "The agency owner can't be removed." at commit
+delete from org_memberships where org_id = '<agency>' and is_owner;
+rollback;
 ```

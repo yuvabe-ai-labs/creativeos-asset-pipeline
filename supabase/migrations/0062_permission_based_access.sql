@@ -1,143 +1,35 @@
--- D495–D498: presets + per-person ticks + picked clients, invites, and agency-ready keys.
--- Apply to an environment's database and verify it BEFORE the code that reads it is merged or
--- deployed there (merging deploys on this repo). The old code keeps working on top of it: it
--- reads org_role, which stays (and is kept in sync) until a later migration drops it. The new
--- code without it fails every signed-in request, because get_membership_access() is missing.
+-- D500–D509: six permissions on the person, copied onto each client they are on; one owner per
+-- agency; invitations sent from inside a client. This file was never applied anywhere before
+-- 13 Nov 2026, so it was rewritten in place (the 11 Nov version, with presets, is at the local
+-- tag perm-granular-v1).
+-- Apply to an environment's database and verify it BEFORE the code that reads it is deployed
+-- there (merging deploys on this repo). The old code keeps working on top of it: it reads
+-- org_role, which stays until a later migration drops it. The new code without it fails every
+-- signed-in request, because get_membership_access() is missing.
 
--- ── 1. Presets ───────────────────────────────────────────────────────────────
-create table if not exists role_presets (
-  id          uuid primary key default gen_random_uuid(),
-  key         text not null unique,
-  name        text not null,
-  description text not null default '',
-  is_owner    boolean not null default false,
-  sort        int not null default 0,
-  archived_at timestamptz,
-  updated_by  uuid references auth.users(id) on delete set null,
-  updated_at  timestamptz not null default now()
-);
-create unique index if not exists role_presets_one_owner on role_presets (is_owner) where is_owner;
-
-create table if not exists role_preset_permissions (
-  preset_id      uuid not null references role_presets(id) on delete cascade,
-  permission_key text not null,
-  primary key (preset_id, permission_key)
-);
-
-insert into role_presets (key, name, description, is_owner, sort) values
-  ('owner',    'Owner',    'Everything, including the team.',                 true,  0),
-  ('senior',   'Senior',   'Everything except the team.',                     false, 1),
-  ('designer', 'Designer', 'Like Senior, without approving images, video or audio.', false, 2)
-on conflict (key) do nothing;
-
-with senior_keys(k) as (values
-  -- seed:senior-keys:start
-  ('client_profile.edit'),
-  ('brand_knowledge.view'), ('brand_knowledge.edit'), ('brand_knowledge.generate'), ('brand_knowledge.delete'),
-  ('brand_assets.view'), ('brand_assets.edit'), ('brand_assets.generate'), ('brand_assets.delete'),
-  ('market.view'), ('market.edit'), ('market.generate'), ('market.delete'),
-  ('moodboards.view'), ('moodboards.edit'), ('moodboards.delete'),
-  ('scripts.view'), ('scripts.edit'), ('scripts.generate'), ('scripts.approve'), ('scripts.delete'),
-  ('storyboard.view'), ('storyboard.edit'), ('storyboard.generate'),
-  ('avatars.view'), ('avatars.edit'), ('avatars.generate'), ('avatars.delete'),
-  ('voices.view'), ('voices.edit'), ('voices.generate'), ('voices.delete'),
-  ('canvases.view'), ('canvases.edit'), ('canvases.generate'), ('canvases.delete'),
-  ('image_generation.generate'), ('image_generation.approve'),
-  ('video_generation.generate'), ('video_generation.approve'),
-  ('audio.generate'), ('audio.approve'),
-  ('canvas_copilot.generate'),
-  ('video_editor.view'), ('video_editor.edit'), ('video_editor.generate'), ('video_editor.share'),
-  ('internal_review.view'),
-  ('client_review.view'), ('client_review.edit'), ('client_review.share'),
-  ('downloads.view'), ('downloads.share'),
-  ('clients.edit'), ('clients.delete'),
-  ('credits.view')
-  -- seed:senior-keys:end
-),
-presets as (select id, key from role_presets where key in ('senior', 'designer'))
-insert into role_preset_permissions (preset_id, permission_key)
-select p.id, s.k
-  from presets p cross join senior_keys s
- where p.key = 'senior'
-    or (p.key = 'designer' and s.k not in (
-      -- seed:designer-drops:start
-      'image_generation.approve', 'video_generation.approve', 'audio.approve'
-      -- seed:designer-drops:end
-    ))
-on conflict do nothing;
-
--- ── 2. Memberships carry a preset and a client scope ─────────────────────────
+-- ── 1. Memberships: owner flag, agency-level permissions, access given ────────
 alter table org_memberships
-  add column if not exists preset_id   uuid references role_presets(id),
-  add column if not exists all_clients boolean not null default true,
-  add column if not exists invited_by  uuid references auth.users(id) on delete set null;
+  add column if not exists is_owner        boolean not null default false,
+  add column if not exists permissions     text[]  not null default '{}',
+  add column if not exists access_given_at timestamptz,
+  add column if not exists invited_by      uuid references auth.users(id) on delete set null;
 
-update org_memberships m set preset_id = p.id
-  from role_presets p
- where p.key = m.org_role and m.preset_id is null;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'org_memberships_permissions_known') then
+    alter table org_memberships add constraint org_memberships_permissions_known
+      check (permissions <@ array['view','edit','generate','approve','share','delete']::text[]);
+  end if;
+end
+$$;
 
-alter table org_memberships alter column preset_id set not null;
-create index if not exists org_memberships_preset_id_idx on org_memberships (preset_id);
+-- One owner per agency (D500). Several owners later = drop this index; no check assumes one.
+create unique index if not exists org_memberships_one_owner
+  on org_memberships (org_id) where is_owner;
 create index if not exists org_memberships_invited_by_idx on org_memberships (invited_by);
+-- org_memberships_one_org_per_user (0012) stays: one agency per person in this version (D508).
 
--- Until plan 3 retires the org_role writers (addOrgMember / updateMemberRole), keep preset_id
--- following org_role. Named with "0_" so it fires BEFORE org_memberships_last_owner (Postgres
--- fires same-event triggers in name order) and the last-owner check sees the new preset.
--- Definer: reads role_presets, which is default-deny under RLS, so it must not depend on the caller's privileges.
-create or replace function sync_preset_from_org_role()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  if (tg_op = 'INSERT' and new.preset_id is null) or (tg_op = 'UPDATE' and new.org_role is distinct from old.org_role) then
-    select id into new.preset_id from role_presets where key = new.org_role;
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists org_memberships_0_sync_preset on org_memberships;
-create trigger org_memberships_0_sync_preset
-  before insert or update of org_role on org_memberships
-  for each row execute function sync_preset_from_org_role();
-
--- Last owner (D80/D181), now on presets. Same messages as 0012: removeOrgMemberAction shows them.
--- Definer: reads role_presets and counts owners across memberships under RLS; without it the guard can silently pass.
-create or replace function enforce_last_owner()
-returns trigger language plpgsql security definer set search_path = public as $$
-declare
-  was_owner   boolean;
-  still_owner boolean;
-  remaining   int;
-begin
-  select is_owner into was_owner from role_presets where id = old.preset_id;
-  if not coalesce(was_owner, false) then return coalesce(new, old); end if;
-  if tg_op = 'UPDATE' then
-    select is_owner into still_owner from role_presets where id = new.preset_id;
-    if coalesce(still_owner, false) then return new; end if;
-  end if;
-  select count(*) into remaining
-    from org_memberships m join role_presets p on p.id = m.preset_id
-   where m.org_id = old.org_id and p.is_owner and m.user_id <> old.user_id;
-  if remaining = 0 then
-    if tg_op = 'DELETE' then
-      raise exception 'Cannot remove the last owner of an organization';
-    end if;
-    raise exception 'Cannot demote the last owner of an organization';
-  end if;
-  return coalesce(new, old);
-end;
-$$;
--- org_memberships_last_owner (0012) keeps calling enforce_last_owner(); no trigger change needed.
-
--- ── 3. Per-person ticks and picked clients ───────────────────────────────────
-create table if not exists membership_permission_changes (
-  user_id        uuid not null,
-  org_id         uuid not null,
-  permission_key text not null,
-  granted        boolean not null,
-  primary key (user_id, org_id, permission_key),
-  foreign key (user_id, org_id) references org_memberships (user_id, org_id) on delete cascade
-);
-
+-- ── 2. A person's clients, each with the effective permissions there ──────────
 do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'clients_id_org_unique') then
@@ -147,69 +39,341 @@ end
 $$;
 
 create table if not exists membership_clients (
-  user_id   uuid not null,
-  org_id    uuid not null,
-  client_id uuid not null,
+  user_id     uuid not null,
+  org_id      uuid not null,
+  client_id   uuid not null,
+  permissions text[] not null default '{}'
+              constraint membership_clients_permissions_known
+              check (permissions <@ array['view','edit','generate','approve','share','delete']::text[]),
+  added_by    uuid references auth.users(id) on delete set null,
+  added_at    timestamptz not null default now(),
   primary key (user_id, org_id, client_id),
+  -- The composite keys stop a person being put on another agency's client.
   foreign key (user_id, org_id) references org_memberships (user_id, org_id) on delete cascade,
   foreign key (client_id, org_id) references clients (id, org_id) on delete cascade
 );
 create index if not exists membership_clients_client_idx on membership_clients (client_id);
+create index if not exists membership_clients_added_by_idx on membership_clients (added_by);
 
--- ── 4. Invitations (used by plan 3; created now so the schema lands once) ────
+-- ── 3. Invitations: sent from inside a client; only the owner's has none ─────
 create table if not exists org_invitations (
-  id           uuid primary key default gen_random_uuid(),
-  org_id       uuid not null references organizations(id) on delete cascade,
-  email        text not null,
-  display_name text,
-  preset_id    uuid not null references role_presets(id),
-  changes      jsonb not null default '{"granted":[],"revoked":[]}',
-  all_clients  boolean not null default true,
-  client_ids   uuid[] not null default '{}',
-  token_hash   text not null unique,
-  invited_by   uuid references auth.users(id) on delete set null,
-  created_at   timestamptz not null default now(),
-  expires_at   timestamptz not null,
-  accepted_at  timestamptz,
-  revoked_at   timestamptz
+  id          uuid primary key default gen_random_uuid(),
+  org_id      uuid not null references organizations(id) on delete cascade,
+  client_id   uuid,
+  email       text not null,
+  as_owner    boolean not null default false,
+  -- The link's token as issued (32 random bytes, base64url), so Copy link always shows the same
+  -- link. Server-only like the rest (RLS on, no policies); single use; 7 days.
+  token       text not null,
+  invited_by  uuid references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  expires_at  timestamptz not null default now() + interval '7 days',
+  accepted_at timestamptz,
+  revoked_at  timestamptz,
+  foreign key (client_id, org_id) references clients (id, org_id) on delete cascade,
+  constraint org_invitations_client_unless_owner check ((client_id is null) = as_owner)
 );
+create unique index if not exists org_invitations_token_key on org_invitations (token);
+-- One open invite per person per agency, and one open owner invite per agency.
 create unique index if not exists org_invitations_one_open_per_email
   on org_invitations (org_id, lower(email)) where accepted_at is null and revoked_at is null;
-create index if not exists org_invitations_org_idx on org_invitations (org_id);
-create index if not exists org_invitations_preset_id_idx on org_invitations (preset_id);
+create unique index if not exists org_invitations_one_open_owner
+  on org_invitations (org_id) where as_owner and accepted_at is null and revoked_at is null;
+-- org_id first: the agency's list and the daily limit (50 sent a day) both read by it.
+create index if not exists org_invitations_org_created_idx on org_invitations (org_id, created_at);
+create index if not exists org_invitations_client_idx on org_invitations (client_id);
 create index if not exists org_invitations_invited_by_idx on org_invitations (invited_by);
 
 -- Default-deny like 0017: only the service-role server path reads or writes these.
-alter table role_presets enable row level security;
-alter table role_preset_permissions enable row level security;
-alter table membership_permission_changes enable row level security;
 alter table membership_clients enable row level security;
 alter table org_invitations enable row level security;
 
--- ── 5. One access read per request ───────────────────────────────────────────
-create or replace function get_membership_access(p_user_id uuid)
+-- ── 4. Triggers ───────────────────────────────────────────────────────────────
+-- Cascade (spec §3.3): an agency-level change reaches every one of the person's client rows as
+-- what was added and what was removed, in one update. A row-level difference (spec §8)
+-- survives every change except one to the same permission.
+create or replace function cascade_membership_permissions()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  added   text[];
+  removed text[];
+begin
+  added   := array(select unnest(new.permissions) except select unnest(old.permissions));
+  removed := array(select unnest(old.permissions) except select unnest(new.permissions));
+  if cardinality(added) = 0 and cardinality(removed) = 0 then
+    return new;
+  end if;
+  update membership_clients mc
+     set permissions = array(
+           select kept.p
+             from ((select unnest(mc.permissions) as p except select unnest(removed))
+                   union
+                   select unnest(added)) kept
+            order by array_position(array['view','edit','generate','approve','share','delete']::text[], kept.p))
+   where mc.user_id = new.user_id and mc.org_id = new.org_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists org_memberships_cascade_permissions on org_memberships;
+create trigger org_memberships_cascade_permissions
+  after update of permissions on org_memberships
+  for each row
+  when (old.permissions is distinct from new.permissions)
+  execute function cascade_membership_permissions();
+
+-- Owner protection (spec §3.3), checked at the end of the transaction so transfer_agency_owner
+-- can demote and promote in one go. An agency has no owner until its invited owner signs up; the
+-- rule applies from then. An agency being deleted takes its memberships with it.
+create or replace function enforce_agency_keeps_owner()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not old.is_owner then
+    return null;
+  end if;
+  if tg_op = 'UPDATE' and new.is_owner then
+    return null;
+  end if;
+  if not exists (select 1 from organizations where id = old.org_id) then
+    return null;
+  end if;
+  if exists (select 1 from org_memberships where org_id = old.org_id and is_owner) then
+    return null;
+  end if;
+  raise exception 'The agency owner can''t be removed.' using errcode = 'check_violation';
+end;
+$$;
+
+drop trigger if exists org_memberships_keep_owner on org_memberships;
+create constraint trigger org_memberships_keep_owner
+  after update or delete on org_memberships
+  deferrable initially deferred
+  for each row execute function enforce_agency_keeps_owner();
+
+-- 0012's org_memberships_last_owner (org_role based) stays until org_role is dropped. The code
+-- that writes memberships keeps org_role in step: 'owner' for the owner, 'designer' for a member
+-- who joins, and transfer_agency_owner swaps them.
+
+-- A client row (spec §2.3): never for an owner (they have everything on every client already), and
+-- it always starts as a copy of the person's agency-level set, whoever inserts it.
+create or replace function prepare_membership_client()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  m_is_owner    boolean;
+  m_permissions text[];
+begin
+  select is_owner, permissions into m_is_owner, m_permissions
+    from org_memberships where user_id = new.user_id and org_id = new.org_id;
+  if not found then
+    return new; -- the foreign key refuses it
+  end if;
+  if m_is_owner then
+    raise exception 'The agency owner is on every client already.' using errcode = 'check_violation';
+  end if;
+  new.permissions := m_permissions;
+  return new;
+end;
+$$;
+
+drop trigger if exists membership_clients_prepare on membership_clients;
+create trigger membership_clients_prepare
+  before insert on membership_clients
+  for each row execute function prepare_membership_client();
+
+-- ── 5. One access read per request ────────────────────────────────────────────
+drop function if exists get_membership_access(uuid);
+create function get_membership_access(p_user_id uuid)
 returns table (
-  org_id uuid, preset_key text, is_owner boolean, all_clients boolean,
-  preset_keys text[], granted text[], revoked text[], client_ids uuid[]
+  org_id uuid, org_name text, is_owner boolean, access_given_at timestamptz,
+  permissions text[], clients jsonb
 )
 language sql stable security definer set search_path = public as $$
-  select m.org_id, p.key, p.is_owner, m.all_clients,
-         coalesce((select array_agg(rpp.permission_key) from role_preset_permissions rpp
-                    where rpp.preset_id = p.id), '{}'),
-         coalesce((select array_agg(c.permission_key) from membership_permission_changes c
-                    where c.user_id = m.user_id and c.org_id = m.org_id and c.granted), '{}'),
-         coalesce((select array_agg(c.permission_key) from membership_permission_changes c
-                    where c.user_id = m.user_id and c.org_id = m.org_id and not c.granted), '{}'),
-         coalesce((select array_agg(mc.client_id) from membership_clients mc
-                    where mc.user_id = m.user_id and mc.org_id = m.org_id), '{}')
+  select m.org_id, o.name, m.is_owner, m.access_given_at, m.permissions,
+         coalesce((select jsonb_agg(jsonb_build_object('client_id', mc.client_id, 'permissions', mc.permissions))
+                     from membership_clients mc
+                    where mc.user_id = m.user_id and mc.org_id = m.org_id), '[]'::jsonb)
     from org_memberships m
-    join role_presets p on p.id = m.preset_id
+    join organizations o on o.id = m.org_id
    where m.user_id = p_user_id;
 $$;
 revoke all on function get_membership_access(uuid) from public, anon, authenticated;
 grant execute on function get_membership_access(uuid) to service_role;
 
--- ── 6. RLS ready for more than one agency per person (D498) ──────────────────
+-- ── 6. Owner, agency and invitation functions (spec §3.4, §6.3, §6.6) ─────────
+-- The previous owner becomes a member with all six on every client; the new one is promoted and
+-- loses their client rows (an owner has none). One transaction; the owner check runs at its end.
+create or replace function transfer_agency_owner(p_org_id uuid, p_new_owner uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_old uuid;
+begin
+  if not exists (select 1 from org_memberships where org_id = p_org_id and user_id = p_new_owner) then
+    raise exception 'That person is not in this agency.' using errcode = 'no_data_found';
+  end if;
+  select user_id into v_old from org_memberships where org_id = p_org_id and is_owner;
+  if v_old = p_new_owner then
+    return;
+  end if;
+  -- org_role first, so 0012's last-owner trigger sees an owner throughout.
+  update org_memberships set org_role = 'owner' where org_id = p_org_id and user_id = p_new_owner;
+  if v_old is not null then
+    update org_memberships
+       set is_owner = false,
+           org_role = 'senior',
+           permissions = array['view','edit','generate','approve','share','delete'],
+           access_given_at = coalesce(access_given_at, now())
+     where org_id = p_org_id and user_id = v_old;
+    insert into membership_clients (user_id, org_id, client_id)
+    select v_old, p_org_id, c.id from clients c where c.org_id = p_org_id
+    on conflict do nothing;
+  end if;
+  delete from membership_clients where org_id = p_org_id and user_id = p_new_owner;
+  update org_memberships
+     set is_owner = true, access_given_at = coalesce(access_given_at, now())
+   where org_id = p_org_id and user_id = p_new_owner;
+end;
+$$;
+revoke all on function transfer_agency_owner(uuid, uuid) from public, anon, authenticated;
+grant execute on function transfer_agency_owner(uuid, uuid) to service_role;
+
+-- Add an agency (spec §6.6): the agency and its owner invitation together. The app makes the slug
+-- (uniqueSlug) and the link's token.
+create or replace function create_agency_with_owner_invite(
+  p_name text, p_slug text, p_owner_email text, p_token text, p_by uuid
+) returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  v_org uuid;
+begin
+  insert into organizations (name, slug) values (p_name, p_slug) returning id into v_org;
+  insert into org_invitations (org_id, email, as_owner, token, invited_by)
+  values (v_org, lower(p_owner_email), true, p_token, p_by);
+  return v_org;
+end;
+$$;
+revoke all on function create_agency_with_owner_invite(text, text, text, text, uuid) from public, anon, authenticated;
+grant execute on function create_agency_with_owner_invite(text, text, text, text, uuid) to service_role;
+
+-- Accepting (spec §6.3) is single use: the invitation is marked accepted in the same transaction
+-- that creates the profile, the membership and, for a member, the invited client's row (with no
+-- permissions until the owner gives access; the cascade then fills it).
+create or replace function accept_invitation(p_token text, p_user_id uuid, p_display_name text)
+returns table (org_id uuid, client_id uuid, as_owner boolean, invited_by uuid)
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_column
+declare
+  inv org_invitations%rowtype;
+begin
+  update org_invitations i
+     set accepted_at = now()
+   where i.token = p_token
+     and i.accepted_at is null and i.revoked_at is null and i.expires_at > now()
+  returning i.* into inv;
+  if not found then
+    raise exception 'This invite link is no longer valid.' using errcode = 'no_data_found';
+  end if;
+  insert into profiles (user_id, display_name) values (p_user_id, p_display_name)
+  on conflict (user_id) do update set display_name = excluded.display_name;
+  insert into org_memberships (user_id, org_id, org_role, is_owner, access_given_at, invited_by)
+  values (p_user_id, inv.org_id,
+          case when inv.as_owner then 'owner' else 'designer' end,
+          inv.as_owner,
+          case when inv.as_owner then now() end,
+          inv.invited_by);
+  if not inv.as_owner then
+    insert into membership_clients (user_id, org_id, client_id, added_by)
+    values (p_user_id, inv.org_id, inv.client_id, inv.invited_by);
+  end if;
+  return query select inv.org_id, inv.client_id, inv.as_owner, inv.invited_by;
+end;
+$$;
+revoke all on function accept_invitation(text, uuid, text) from public, anon, authenticated;
+grant execute on function accept_invitation(text, uuid, text) to service_role;
+
+-- The Team page and every Members list read this one call (spec §10): name, email (auth.users),
+-- status, permissions, the client they were invited to and by whom, and their client ids.
+create or replace function list_agency_people(p_org_id uuid)
+returns table (
+  user_id uuid, display_name text, email text, is_owner boolean, access_given_at timestamptz,
+  permissions text[], joined_at timestamptz, invited_by_name text,
+  invited_client_id uuid, invited_client_name text, client_ids uuid[]
+)
+language sql stable security definer set search_path = public as $$
+  select m.user_id,
+         coalesce(p.display_name, 'Unknown'),
+         u.email::text,
+         m.is_owner,
+         m.access_given_at,
+         m.permissions,
+         m.joined_at,
+         ip.display_name,
+         inv.client_id,
+         ic.name,
+         coalesce((select array_agg(mc.client_id order by mc.added_at)
+                     from membership_clients mc
+                    where mc.user_id = m.user_id and mc.org_id = m.org_id), '{}')
+    from org_memberships m
+    join auth.users u on u.id = m.user_id
+    left join profiles p on p.user_id = m.user_id
+    left join profiles ip on ip.user_id = m.invited_by
+    left join lateral (
+      select i.client_id from org_invitations i
+       where i.org_id = m.org_id and i.accepted_at is not null and lower(i.email) = lower(u.email)
+       order by i.accepted_at desc
+       limit 1
+    ) inv on true
+    left join clients ic on ic.id = inv.client_id
+   where m.org_id = p_org_id
+   order by m.is_owner desc, m.joined_at;
+$$;
+revoke all on function list_agency_people(uuid) from public, anon, authenticated;
+grant execute on function list_agency_people(uuid) to service_role;
+
+-- Before inviting (spec §6.2): does this email already have a login, and in which agency?
+create or replace function find_user_by_email(p_email text)
+returns table (user_id uuid, org_id uuid)
+language sql stable security definer set search_path = public as $$
+  select u.id, m.org_id
+    from auth.users u
+    left join org_memberships m on m.user_id = u.id
+   where lower(u.email) = lower(p_email);
+$$;
+revoke all on function find_user_by_email(text) from public, anon, authenticated;
+grant execute on function find_user_by_email(text) to service_role;
+
+-- ── 7. Day one (spec §3.2): the earliest owner stays owner; everyone else keeps today's access ──
+-- Runs once: only while no membership has access given yet. A re-run after people have signed up
+-- and are waiting must never hand them all six.
+do $$
+begin
+  if exists (select 1 from org_memberships where access_given_at is not null) then
+    return;
+  end if;
+
+  update org_memberships m
+     set is_owner = true
+    from (select distinct on (org_id) org_id, user_id
+            from org_memberships
+           where org_role = 'owner'
+           order by org_id, joined_at, user_id) first_owner
+   where m.org_id = first_owner.org_id and m.user_id = first_owner.user_id;
+
+  update org_memberships
+     set permissions = array['view','edit','generate','approve','share','delete'],
+         access_given_at = now()
+   where not is_owner;
+
+  update org_memberships set access_given_at = now() where is_owner;
+
+  insert into membership_clients (user_id, org_id, client_id)
+  select m.user_id, m.org_id, c.id
+    from org_memberships m
+    join clients c on c.org_id = m.org_id
+   where not m.is_owner
+  on conflict do nothing;
+end
+$$;
+
+-- ── 8. RLS ready for more than one agency per person (D508) ───────────────────
 create or replace function auth_org_ids()
 returns setof uuid language sql stable security definer set search_path = public as $$
   select org_id from org_memberships where user_id = auth.uid()
@@ -234,7 +398,7 @@ create policy "org isolation" on node_versions for select using (org_id in (sele
 drop policy if exists "org isolation" on node_version_decisions;
 create policy "org isolation" on node_version_decisions for select using (org_id in (select auth_org_ids()));
 
--- ── 7. Nodes and edges stay on their own canvas ──────────────────────────────
+-- ── 9. Nodes and edges stay on their own canvas ───────────────────────────────
 -- Canvas saves upsert nodes and edges by the ids the browser sends. Ids are not secret, so
 -- without these a save carrying another canvas's node id would move that node onto the caller's
 -- canvas, and an edge from another canvas's node would feed its output into the caller's
@@ -275,8 +439,8 @@ create trigger edges_keep_canvas
   before insert or update on edges
   for each row execute function keep_edge_on_its_canvas();
 
--- Pending review counts for some review types only (a person who can approve images but not
--- video). Same shape as 0031's org_review_counts, grouped in SQL so no row cap undercounts.
+-- Pending review counts for some review types only. Same shape as 0031's org_review_counts,
+-- grouped in SQL so no row cap undercounts.
 create or replace function org_review_counts_for_types(p_org_id uuid, p_node_types text[])
 returns table (client_id uuid, canvas_id uuid, pending int)
 language sql
@@ -289,5 +453,10 @@ as $$
      and node_type = any(p_node_types)
    group by client_id, canvas_id;
 $$;
+
+-- ── 10. The audit log records changes made from Admin (spec §6.6) ─────────────
+alter table impersonation_audit_log drop constraint if exists impersonation_audit_log_event_type_check;
+alter table impersonation_audit_log add constraint impersonation_audit_log_event_type_check
+  check (event_type in ('session_started', 'elevated_mode_entered', 'write_action', 'session_ended', 'admin_action'));
 
 notify pgrst, 'reload schema';
