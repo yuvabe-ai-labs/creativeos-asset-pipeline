@@ -75,7 +75,7 @@ export async function setVersionApprovalAction(
     // work by guessing a version id. 404-shaped message (never "wrong org"), matching
     // the withClient/withNode 404-not-403 convention in route-helpers.ts. Compared with the
     // agency being acted in, so an elevated impersonator approves in the agency they are
-    // viewing. A client the person can't view answers the same way.
+    // viewing. A client the person is not on answers the same way.
     const target = await resolveTarget({ versionId });
     if (!target?.clientId || target.orgId !== ctx.effectiveOrgId) {
       return refuse("Version not found.");

@@ -95,7 +95,7 @@ describe("caller context membership read", () => {
 
   it("builds the caller's access from a member row", async () => {
     rpcMock.mockResolvedValue({
-      data: [testMembershipRow({ org_id: "org-7", is_owner: false, permissions: ["view"], clients: [{ client_id: "c1", permissions: ["view"] }] })],
+      data: [testMembershipRow({ org_id: "org-7", is_owner: false, permissions: [], clients: [{ client_id: "c1", permissions: [] }] })],
       error: null,
     });
     const { resolveCallerContext } = await import("@/lib/dal");
@@ -103,7 +103,7 @@ describe("caller context membership read", () => {
     expect(caller.orgId).toBe("org-7");
     const org = caller.access.orgs.get("org-7");
     expect(org?.isOwner).toBe(false);
-    expect(org?.clients.get("c1")?.has("view")).toBe(true);
+    expect(org?.clients.has("c1")).toBe(true);
     // The mocked session is a super admin's (app_metadata.platform_role).
     expect(caller.access.isSuperAdmin).toBe(true);
   });

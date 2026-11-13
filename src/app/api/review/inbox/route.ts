@@ -10,7 +10,7 @@ import { clientIdsWith } from "@/lib/permissions/check";
 // The user id, review types and clients all come from the session, never from the request, so a
 // caller cannot widen their own list into someone else's. Pending work is listed only on the
 // clients where the person holds Approve (the same set the counts use);
-// everyone sees their own rejected work, on the clients they can view.
+// everyone sees their own rejected work, on every client they are on.
 // The rule itself lives in inboxFilterFor / selectInboxFor (pure, proven equivalent in queue.test.ts).
 export async function GET(req: Request) {
   const page = parsePageParams(new URL(req.url).searchParams);

@@ -27,14 +27,14 @@ describe("PATCH /api/clients/[id]", () => {
   });
 
   it("answers 404, not 403, to a member who is not on that client", async () => {
-    as(testAccess({ permissions: ["view", "edit", "delete"], clientIds: ["client-9"] }));
+    as(testAccess({ permissions: ["generate", "delete"], clientIds: ["client-9"] }));
     const res = await patch();
     expect(res.status).toBe(404);
     expect(setClientArchived).not.toHaveBeenCalled();
   });
 
-  it("answers 403 to a member who can view the client (archiving is the owner's)", async () => {
-    as(testAccess({ permissions: ["view", "edit", "delete"], clientIds: ["client-1"] }));
+  it("answers 403 to a member on the client (archiving is the owner's)", async () => {
+    as(testAccess({ permissions: ["generate", "delete"], clientIds: ["client-1"] }));
     expect((await patch()).status).toBe(403);
     expect(setClientArchived).not.toHaveBeenCalled();
   });

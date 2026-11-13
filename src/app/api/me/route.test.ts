@@ -64,7 +64,7 @@ describe("GET /api/me", () => {
   });
 
   it("sends no credit figures, and reads none, to a member", async () => {
-    m.access = testAccess({ permissions: ["view"], clientIds: ["c1"] });
+    m.access = testAccess({ permissions: [], clientIds: ["c1"] });
     const me = await body();
     expect(me.creditsUsed).toBeNull();
     expect(me.monthlyCreditLimit).toBeNull();
@@ -72,13 +72,13 @@ describe("GET /api/me", () => {
   });
 
   it("sends each client with its permissions, sorted, and the browser decides the same", async () => {
-    m.access = testAccess({ permissions: ["view", "edit"], clientIds: ["c2", "c1"] });
+    m.access = testAccess({ permissions: ["generate"], clientIds: ["c2", "c1"] });
     const me = await body();
     expect(me.isOwner).toBe(false);
-    expect(me.permissions).toEqual(["view", "edit"]);
+    expect(me.permissions).toEqual(["generate"]);
     expect(me.clients).toEqual([
-      { clientId: "c1", permissions: ["view", "edit"] },
-      { clientId: "c2", permissions: ["view", "edit"] },
+      { clientId: "c1", permissions: ["generate"] },
+      { clientId: "c2", permissions: ["generate"] },
     ]);
     const browser = accessFromMe(me);
     expect(check(browser, "edit", { orgId: "org-1", clientId: "c1" })).toBe("allow");

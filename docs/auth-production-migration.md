@@ -951,7 +951,7 @@ select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
 
-## Migration 0062 — six permissions, one owner, client members (D500–D509, 2026-11-13)
+## Migration 0062 — five permissions, one owner, client members (D500–D509, 2026-11-13)
 
 `supabase/migrations/0062_permission_based_access.sql`. Never applied before 13 Nov 2026, so it
 was rewritten in place; the 11 Nov presets version is not applied anywhere and never will be.
@@ -959,9 +959,10 @@ Paste into the Supabase SQL editor → Run.
 
 What it adds:
 - `org_memberships`: `is_owner` (one per agency, unique index `org_memberships_one_owner`),
-  `permissions text[]` (only `view, edit, generate, approve, share, delete`), `access_given_at`
-  (null = signed up, waiting for the owner), `invited_by`.
+  `permissions text[]` (only `generate, approve, share, delete, invite`), `access_given_at`
+  (null = signed up, waiting for the owner), `invited_by`. There is no View or Edit permission.
 - `membership_clients`: one row per client a person is on, with that client's permissions.
+  Having the row is what lets the person see the client; an empty set means they can only look.
   A new row copies the person's agency set; the owner never has rows.
 - `org_invitations`: member invites carry the client; the owner invite (`as_owner`) has none.
   The link's token is stored as issued (unique index), so Copy link shows the same link; single
@@ -977,12 +978,13 @@ What it adds:
 - `org_review_counts_for_types(uuid, text[])` and `admin_action` in the audit log's event types.
 
 **Day one (runs once):** in each agency the earliest-joined `org_role = 'owner'` membership becomes
-the owner. Everyone else gets all six permissions, access given, and a row on every existing
-client, so nobody loses access. The backfill is skipped if any membership already has access
-given, so a re-run never hands waiting people all six.
+the owner. Everyone else gets Generate, Approve, Share and Delete, access given, and a row with
+those four on every existing client, so nobody loses access. Nobody gets Invite (only Yuvabe adds
+people today). The backfill is skipped if any membership already has access given, so a re-run
+never hands waiting people those four.
 
 **Before applying, list agencies with more than one owner** (the earliest stays owner; the others
-become members with all six):
+become members with Generate, Approve, Share and Delete):
 
 ```sql
 select o.name, count(*) as owners, array_agg(p.display_name order by m.joined_at) as by_join_date
@@ -1014,9 +1016,10 @@ between applying 0062 and deploying the code: the old screens don't set `is_owne
 ```sql
 -- expect one owner per agency that had one
 select org_id, count(*) from org_memberships where is_owner group by org_id having count(*) <> 1;
--- expect 0: every non-owner has access given and all six permissions
+-- expect 0: every non-owner has access given and exactly generate, approve, share, delete
 select count(*) from org_memberships
- where not is_owner and (access_given_at is null or cardinality(permissions) <> 6);
+ where not is_owner
+   and (access_given_at is null or permissions <> array['generate','approve','share','delete']);
 -- expect 0: every non-owner is on every client of their agency
 select count(*) from org_memberships m join clients c on c.org_id = m.org_id
  where not m.is_owner
@@ -1038,7 +1041,7 @@ select count(*) from edges e
 ```sql
 begin;
 -- cascade: remove generate at agency level; every client row of that person loses it
-update org_memberships set permissions = array['view','edit','approve','share','delete']
+update org_memberships set permissions = array['approve','share','delete']
  where user_id = '<member>' and org_id = '<agency>';
 select client_id, permissions from membership_clients where user_id = '<member>';
 -- owner protection: refused with "The agency owner can't be removed." at commit

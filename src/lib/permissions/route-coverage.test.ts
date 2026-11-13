@@ -56,7 +56,7 @@ describe("every API handler declares an action (D496, D504)", () => {
       it(`${method} /api/${key}`, () => {
         const m = seg.match(GUARDED_RE);
         expect(m, "calls a chokepoint or withAccess with { need }").not.toBeNull();
-        expect(isAction(m![2]), `"${m![2]}" is one of the nine actions`).toBe(true);
+        expect(isAction(m![2]), `"${m![2]}" is one of the ten actions`).toBe(true);
       });
     }
   }

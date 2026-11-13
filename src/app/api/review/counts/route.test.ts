@@ -24,13 +24,13 @@ describe("GET /api/review/counts", () => {
   beforeEach(() => vi.mocked(getOrgReviewCounts).mockClear());
 
   it("counts no client for someone who can approve nothing", async () => {
-    as(testAccess({ permissions: ["view", "edit"], clientIds: ["c-1"] }));
+    as(testAccess({ permissions: ["generate"], clientIds: ["c-1"] }));
     expect((await get()).status).toBe(200);
     expect(getOrgReviewCounts).toHaveBeenCalledWith("org-1", []);
   });
 
   it("counts only the clients where the person approves", async () => {
-    as(testAccess({ permissions: [], clientIds: [], clients: { "c-a": ["view", "approve"], "c-b": ["view"] } }));
+    as(testAccess({ permissions: [], clientIds: [], clients: { "c-a": ["approve"], "c-b": [] } }));
     await get();
     expect(getOrgReviewCounts).toHaveBeenCalledWith("org-1", ["c-a"]);
   });

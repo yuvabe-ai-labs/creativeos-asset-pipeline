@@ -276,7 +276,7 @@ describe("withClient guard (D504)", () => {
   });
 
   it("runs the handler when the caller holds the permission on this client", async () => {
-    callerHolder.access = testAccess({ permissions: ["view", "edit"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["client-1"] });
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
     const res = await withClient(req("POST"), params, { need: "edit" }, handler);
     expect(res.status).toBe(200);
@@ -284,20 +284,20 @@ describe("withClient guard (D504)", () => {
   });
 
   it("answers 404 for a client the caller is not on, exactly like a foreign agency", async () => {
-    callerHolder.access = testAccess({ permissions: ["view", "edit"], clientIds: ["other-client"] });
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["other-client"] });
     const res = await withClient(req("POST"), params, { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Client not found." });
   });
 
-  it("answers 404 without View on the client", async () => {
-    callerHolder.access = testAccess({ permissions: ["edit"], clientIds: ["client-1"] });
+  it("answers 404 on a client the caller is on before access is given", async () => {
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["client-1"], accessGiven: false });
     const res = await withClient(req("GET"), params, { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
   });
 
   it("answers 403 with the agreed copy when the permission is missing", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
     const res = await withClient(req("POST"), params, { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
@@ -320,13 +320,13 @@ describe("withNode guard", () => {
   });
 
   it("answers 404 for a node on a client the caller is not on", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["someone-else"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["someone-else"] });
     const res = await withNode(req("GET"), Promise.resolve({ id: "node-1" }), { need: "view" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
   });
 
   it("refuses a missing Generate with 403", async () => {
-    callerHolder.access = testAccess({ permissions: ["view", "edit"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: ["approve", "share", "delete"], clientIds: ["client-1"] });
     const res = await withNode(req("POST"), Promise.resolve({ id: "node-1" }), { need: "generate" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
   });
@@ -341,7 +341,7 @@ describe("withCanvas guard", () => {
   });
 
   it("hands the handler the canvas, the caller and the agency acted in", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
     const res = await withCanvas(req("GET"), canvasParams(), { need: "view" }, handler);
     expect(res.status).toBe(200);
@@ -349,7 +349,7 @@ describe("withCanvas guard", () => {
   });
 
   it("answers 404 for a canvas on a client the caller is not on", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["other-client"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["other-client"] });
     const handler = vi.fn(async () => NextResponse.json({}));
     const res = await withCanvas(req("GET"), canvasParams(), { need: "view" }, handler);
     expect(res.status).toBe(404);
@@ -364,7 +364,7 @@ describe("withCanvas guard", () => {
   });
 
   it("answers 403 with the agreed copy when Edit is missing", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
     const res = await withCanvas(req("POST"), canvasParams(), { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
@@ -387,7 +387,7 @@ describe("withMoodboard guard", () => {
   });
 
   it("reads the board's client and hands the handler the caller and the agency acted in", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
     const res = await withMoodboard(req("GET"), "board-1", { need: "view" }, handler);
     expect(res.status).toBe(200);
@@ -396,14 +396,14 @@ describe("withMoodboard guard", () => {
   });
 
   it("answers 404 for a board on a client the caller is not on", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["other-client"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["other-client"] });
     const res = await withMoodboard(req("GET"), "board-1", { need: "view" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Moodboard not found." });
   });
 
   it("answers 403 with the agreed copy when Edit is missing", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
     const res = await withMoodboard(req("POST"), "board-1", { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
@@ -423,24 +423,24 @@ describe("withAccess", () => {
   });
 
   it("refuses an owner-only action to a member with 403", async () => {
-    callerHolder.access = testAccess({ permissions: ["view", "edit"], clientIds: ["c-1"] });
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["c-1"] });
     const res = await withAccess(req("POST"), { need: "manage_clients" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
   });
 
-  it("allows a client action held on at least one client the caller can view", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["c-1"] });
+  it("allows a client action held on at least one client the caller is on", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["c-1"] });
     const res = await withAccess(req("GET"), { need: "view" }, async () => NextResponse.json({ ok: true }));
     expect(res.status).toBe(200);
   });
 
   it("refuses a client action held nowhere with 403", async () => {
-    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["c-1"] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["c-1"] });
     const res = await withAccess(req("POST"), { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
   });
 
-  it("answers 404 for someone on no client they can view", async () => {
+  it("answers 404 for someone on no client", async () => {
     callerHolder.access = testAccess({ permissions: [], clientIds: [] });
     const res = await withAccess(req("GET"), { need: "view" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);

@@ -28,7 +28,7 @@ describe("/onboarding", () => {
 
   it("sends anyone with access home", async () => {
     actingMock.mockResolvedValue({
-      caller: { userId: "u1", orgId: "org-1", access: testAccess({ permissions: ["view"], clientIds: ["c1"] }) },
+      caller: { userId: "u1", orgId: "org-1", access: testAccess({ permissions: [], clientIds: ["c1"] }) },
       effectiveOrgId: "org-1",
       impersonation: { isImpersonating: false },
     });

@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 
-// D507: View covers downloads. A person who can see a file can see its client, so no download
+// D507: being on a client covers downloads. A person who can see a file is on its client, so no download
 // button has a permission of its own.
 const SURFACES = [
   "src/components/nodes/image-gen-focus-view.tsx",
@@ -11,7 +11,7 @@ const SURFACES = [
   "src/components/editor/editor-render-dialog.tsx",
 ];
 
-describe("downloads come with View", () => {
+describe("downloads come with being on the client", () => {
   it.each(SURFACES)("%s shows its download without a separate check", (file) => {
     expect(readFileSync(file, "utf8")).not.toMatch(/useCanDownload|Downloading is turned off/);
   });

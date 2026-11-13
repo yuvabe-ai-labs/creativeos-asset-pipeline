@@ -5,7 +5,7 @@ import { clientPermissionsFor } from "@/lib/permissions/check";
 import { NO_CLIENT_PERMISSIONS, type ClientPermissions } from "@/lib/permissions/model";
 import { AccessContext } from "./access-context";
 
-// Spec §5: the canvas (and the editor) works out its client's six answers once, beside
+// Spec §5: the canvas (and the editor) works out its client's answers (view, edit and the five permissions) once, beside
 // ClientIdProvider; nodes read them from here and never run their own checks (performance rules
 // 1 and 2). They change only when /api/me does, so a drag never re-renders a gated control.
 
@@ -21,7 +21,7 @@ export function ClientPermissionsProvider({ value, children }: { value: ClientPe
   return <ClientPermissionsContext.Provider value={value}>{children}</ClientPermissionsContext.Provider>;
 }
 
-/** Inside a canvas or the editor: the client's six answers. Outside one: all false. */
+/** Inside a canvas or the editor: the client's answers. Outside one: all false. */
 export function useCanvasPermissions(): ClientPermissions {
   return useContext(ClientPermissionsContext);
 }

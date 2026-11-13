@@ -15,7 +15,7 @@ import { testAccess } from "./test-fixtures";
 
 describe("accessOf", () => {
   it("returns the caller's access", () => {
-    const access = testAccess({ permissions: ["view"], clientIds: ["c1"] });
+    const access = testAccess({ permissions: [], clientIds: ["c1"] });
     expect(accessOf({ access })).toBe(access);
   });
 
@@ -28,7 +28,7 @@ describe("resolveActingCaller", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("uses the caller's own agency and access when not impersonating", async () => {
-    const access = testAccess({ permissions: ["view"], clientIds: ["c1"] });
+    const access = testAccess({ permissions: [], clientIds: ["c1"] });
     callerMock.mockResolvedValue({ userId: "u1", orgId: "org-1", access });
     impersonationMock.mockResolvedValue({ isImpersonating: false });
     const acting = await resolveActingCaller();

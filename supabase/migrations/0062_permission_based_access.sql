@@ -1,4 +1,6 @@
--- D500–D509: six permissions on the person, copied onto each client they are on; one owner per
+-- D500–D509: five permissions on the person (generate, approve, share, delete, invite), copied
+-- onto each client they are on; having a client's row is what lets a person see it, and an empty
+-- set there means look only (view and edit are actions in the code, not stored). One owner per
 -- agency; invitations sent from inside a client. This file was never applied anywhere before
 -- 13 Nov 2026, so it was rewritten in place (the 11 Nov version, with presets, is at the local
 -- tag perm-granular-v1).
@@ -18,7 +20,7 @@ do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'org_memberships_permissions_known') then
     alter table org_memberships add constraint org_memberships_permissions_known
-      check (permissions <@ array['view','edit','generate','approve','share','delete']::text[]);
+      check (permissions <@ array['generate','approve','share','delete','invite']::text[]);
   end if;
 end
 $$;
@@ -44,7 +46,7 @@ create table if not exists membership_clients (
   client_id   uuid not null,
   permissions text[] not null default '{}'
               constraint membership_clients_permissions_known
-              check (permissions <@ array['view','edit','generate','approve','share','delete']::text[]),
+              check (permissions <@ array['generate','approve','share','delete','invite']::text[]),
   added_by    uuid references auth.users(id) on delete set null,
   added_at    timestamptz not null default now(),
   primary key (user_id, org_id, client_id),
@@ -109,7 +111,7 @@ begin
              from ((select unnest(mc.permissions) as p except select unnest(removed))
                    union
                    select unnest(added)) kept
-            order by array_position(array['view','edit','generate','approve','share','delete']::text[], kept.p))
+            order by array_position(array['generate','approve','share','delete','invite']::text[], kept.p))
    where mc.user_id = new.user_id and mc.org_id = new.org_id;
   return new;
 end;
@@ -200,7 +202,7 @@ revoke all on function get_membership_access(uuid) from public, anon, authentica
 grant execute on function get_membership_access(uuid) to service_role;
 
 -- ── 6. Owner, agency and invitation functions (spec §3.4, §6.3, §6.6) ─────────
--- The previous owner becomes a member with all six on every client; the new one is promoted and
+-- The previous owner becomes a member with all five on every client; the new one is promoted and
 -- loses their client rows (an owner has none). One transaction; the owner check runs at its end.
 create or replace function transfer_agency_owner(p_org_id uuid, p_new_owner uuid)
 returns void language plpgsql security definer set search_path = public as $$
@@ -220,7 +222,7 @@ begin
     update org_memberships
        set is_owner = false,
            org_role = 'senior',
-           permissions = array['view','edit','generate','approve','share','delete'],
+           permissions = array['generate','approve','share','delete','invite'],
            access_given_at = coalesce(access_given_at, now())
      where org_id = p_org_id and user_id = v_old;
     insert into membership_clients (user_id, org_id, client_id)
@@ -341,8 +343,10 @@ revoke all on function find_user_by_email(text) from public, anon, authenticated
 grant execute on function find_user_by_email(text) to service_role;
 
 -- ── 7. Day one (spec §3.2): the earliest owner stays owner; everyone else keeps today's access ──
+-- Every member gets Generate, Approve, Share and Delete and a row on every client of their agency,
+-- so nobody loses what they can do today. Nobody gets Invite: only Yuvabe adds people today.
 -- Runs once: only while no membership has access given yet. A re-run after people have signed up
--- and are waiting must never hand them all six.
+-- and are waiting must never hand them those four.
 do $$
 begin
   if exists (select 1 from org_memberships where access_given_at is not null) then
@@ -358,7 +362,7 @@ begin
    where m.org_id = first_owner.org_id and m.user_id = first_owner.user_id;
 
   update org_memberships
-     set permissions = array['view','edit','generate','approve','share','delete'],
+     set permissions = array['generate','approve','share','delete'],
          access_given_at = now()
    where not is_owner;
 

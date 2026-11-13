@@ -24,20 +24,20 @@ describe("checkActionAccess", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("passes for a client the person is on, with the permission", async () => {
-    actingMock.mockResolvedValue(member(["view", "edit"]));
+    actingMock.mockResolvedValue(member(["generate"]));
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
     const ctx = await checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } });
     expect(ctx.target).toEqual({ clientId: "c-1", orgId: "org-1" });
   });
 
   it("says not found for another agency's row", async () => {
-    actingMock.mockResolvedValue(member(["view", "edit"]));
+    actingMock.mockResolvedValue(member(["generate"]));
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-2" });
     await expect(checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
   });
 
   it("says not found for a missing row", async () => {
-    actingMock.mockResolvedValue(member(["view", "edit"]));
+    actingMock.mockResolvedValue(member(["generate"]));
     targetMock.mockResolvedValue(null);
     await expect(checkActionAccess({ need: "edit", on: { nodeId: "n-1" } })).rejects.toThrow("Not found.");
   });
@@ -48,16 +48,16 @@ describe("checkActionAccess", () => {
     await expect(checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
   });
 
-  it("says not found for a client the person is not on, or can't view", async () => {
+  it("says not found for a client the person is not on, or before access is given", async () => {
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
-    actingMock.mockResolvedValue(member(["view", "edit"], ["c-9"]));
+    actingMock.mockResolvedValue(member(["generate"], ["c-9"]));
     await expect(checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
-    actingMock.mockResolvedValue(member(["edit"]));
+    actingMock.mockResolvedValue(acting(testAccess({ permissions: ["generate"], clientIds: ["c-1"], accessGiven: false })));
     await expect(checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
   });
 
   it("refuses a missing permission with the agreed copy", async () => {
-    actingMock.mockResolvedValue(member(["view"]));
+    actingMock.mockResolvedValue(member([]));
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
     await expect(checkActionAccess({ need: "delete", on: { canvasId: "cv-1" } })).rejects.toThrow(
       "You don't have access to this. Ask your agency owner.",
@@ -72,7 +72,7 @@ describe("checkActionAccess", () => {
   });
 
   it("refuses an owner-only action to a member", async () => {
-    actingMock.mockResolvedValue(member(["view", "edit", "generate", "approve", "share", "delete"]));
+    actingMock.mockResolvedValue(member(["generate", "approve", "share", "delete"]));
     await expect(checkActionAccess({ need: "manage_clients", on: "agency" })).rejects.toThrow(
       "You don't have access to this. Ask your agency owner.",
     );
@@ -93,7 +93,7 @@ describe("checkActionAccess", () => {
     const pending = checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } });
     await Promise.resolve();
     expect(targetMock).toHaveBeenCalledWith({ canvasId: "cv-1" });
-    release(member(["view", "edit"]));
+    release(member(["generate"]));
     await expect(pending).resolves.toMatchObject({ target: { clientId: "c-1" } });
   });
 

@@ -117,7 +117,7 @@ beforeEach(() => {
 
 describe("setVersionApprovalAction", () => {
   it("refuses before any read when the person can approve nothing", async () => {
-    setAccess(testAccess({ permissions: ["view"], clientIds: ["c1"] }));
+    setAccess(testAccess({ permissions: [], clientIds: ["c1"] }));
     stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
       ok: false,
@@ -134,7 +134,7 @@ describe("setVersionApprovalAction", () => {
   });
 
   it("approves any node type with Approve on its client (D507: no areas)", async () => {
-    setAccess(testAccess({ permissions: ["view", "approve"], clientIds: ["c1"] }));
+    setAccess(testAccess({ permissions: ["approve"], clientIds: ["c1"] }));
     for (const nodeType of ["image-gen", "prompt", "video-gen", "video-prompt", "multishot-prompt", "dubbing"]) {
       stubDb("org-1", { nodeType });
       await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({ ok: true });
@@ -151,7 +151,7 @@ describe("setVersionApprovalAction", () => {
   });
 
   it("refuses on a client whose own set lacks Approve (spec §8)", async () => {
-    setAccess(testAccess({ permissions: ["view", "approve"], clientIds: [], clients: { c9: ["view", "approve"], c1: ["view"] } }));
+    setAccess(testAccess({ permissions: ["approve"], clientIds: [], clients: { c9: ["approve"], c1: [] } }));
     stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
       ok: false,
@@ -161,7 +161,7 @@ describe("setVersionApprovalAction", () => {
 
   // Outside the person's clients answers like another agency: never confirms the version exists.
   it("refuses an image outside the person's clients as not found", async () => {
-    setAccess(testAccess({ permissions: ["view", "approve"], clientIds: ["other-client"] }));
+    setAccess(testAccess({ permissions: ["approve"], clientIds: ["other-client"] }));
     const captured = stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
       ok: false,
@@ -171,7 +171,7 @@ describe("setVersionApprovalAction", () => {
   });
 
   it("approves for a person with Approve on the client", async () => {
-    setAccess(testAccess({ permissions: ["view", "approve"], clientIds: ["c1"] }));
+    setAccess(testAccess({ permissions: ["approve"], clientIds: ["c1"] }));
     const captured = stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({ ok: true });
     expect(captured.update).toMatchObject({ approval_status: "approved" });
@@ -380,7 +380,7 @@ describe("setVersionApprovalAction with annotations", () => {
 
   it("still enforces the approve gate", async () => {
     stubDb();
-    setAccess(testAccess({ permissions: ["view"], clientIds: ["c1"] }), "u2");
+    setAccess(testAccess({ permissions: [], clientIds: ["c1"] }), "u2");
     await expect(
       setVersionApprovalAction("v1", { status: "approved" }),
     ).resolves.toEqual({ ok: false, error: expect.stringMatching(/not permitted/i) });

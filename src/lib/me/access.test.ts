@@ -8,8 +8,8 @@ import { testMePayload } from "./test-fixtures";
 describe("accessFromMe", () => {
   it("answers each client the way its row says", () => {
     const access = accessFromMe(testMePayload({
-      permissions: ["view", "edit"],
-      clients: [{ clientId: "c1", permissions: ["view", "edit"] }, { clientId: "c2", permissions: ["view"] }],
+      permissions: ["generate"],
+      clients: [{ clientId: "c1", permissions: ["generate"] }, { clientId: "c2", permissions: [] }],
     }));
     expect(check(access, "edit", { orgId: "org-1", clientId: "c1" })).toBe("allow");
     expect(check(access, "edit", { orgId: "org-1", clientId: "c2" })).toBe("forbidden");

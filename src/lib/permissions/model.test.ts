@@ -8,6 +8,7 @@ import {
   isAction,
   isPermission,
   orderedPermissions,
+  permissionFor,
   toPermissionSet,
   type MembershipAccessRow,
 } from "./model";
@@ -22,49 +23,69 @@ const row = (over: Partial<MembershipAccessRow> = {}): MembershipAccessRow => ({
   ...over,
 });
 
-describe("the six permissions", () => {
-  it("are view, edit, generate, approve, share, delete, in that order", () => {
-    expect(PERMISSIONS).toEqual(["view", "edit", "generate", "approve", "share", "delete"]);
+describe("the five permissions", () => {
+  it("are generate, approve, share, delete, invite, in that order", () => {
+    expect(PERMISSIONS).toEqual(["generate", "approve", "share", "delete", "invite"]);
   });
 
-  it("plus three owner-only actions make the nine actions", () => {
-    expect(ACTIONS).toEqual([...PERMISSIONS, "manage_team", "manage_clients", "view_credits"]);
+  it("plus view, edit and three owner-only actions make the ten actions", () => {
+    expect(ACTIONS).toEqual([...PERMISSIONS, "view", "edit", "manage_team", "manage_clients", "view_credits"]);
     expect(isAction("manage_team")).toBe(true);
+    expect(isAction("view")).toBe(true);
+    expect(isAction("edit")).toBe(true);
+    expect(isAction("invite")).toBe(true);
     expect(isPermission("manage_team")).toBe(false);
+    expect(isPermission("view")).toBe(false);
+    expect(isPermission("edit")).toBe(false);
     expect(isAction("scripts.view")).toBe(false);
   });
 
-  it("drops anything that is not one of the six", () => {
-    expect([...toPermissionSet(["view", "scripts.approve", 7, null, "share"])]).toEqual(["view", "share"]);
+  it("maps each client action to the permission it needs: view none, edit Generate", () => {
+    expect(permissionFor("view")).toBeNull();
+    expect(permissionFor("edit")).toBe("generate");
+    for (const p of PERMISSIONS) expect(permissionFor(p)).toBe(p);
+  });
+
+  it("drops anything that is not one of the five, including the old view and edit", () => {
+    expect([...toPermissionSet(["view", "edit", "scripts.approve", 7, null, "share", "invite"])]).toEqual(["share", "invite"]);
     expect(toPermissionSet(null).size).toBe(0);
   });
 
   it("orders a set the canonical way", () => {
-    expect(orderedPermissions(new Set(["delete", "view", "approve"] as const))).toEqual(["view", "approve", "delete"]);
+    expect(orderedPermissions(new Set(["invite", "delete", "generate"] as const))).toEqual(["generate", "delete", "invite"]);
   });
 });
 
 describe("accessFromRows", () => {
   it("builds one OrgAccess per row, keyed by agency", () => {
     const access = accessFromRows("u1", false, [
-      row({ permissions: ["view", "edit"], clients: [{ client_id: "c1", permissions: ["view", "edit"] }] }),
+      row({ permissions: ["generate", "approve"], clients: [{ client_id: "c1", permissions: ["generate"] }] }),
     ]);
     const org = access.orgs.get("org-1")!;
     expect(access.userId).toBe("u1");
     expect(access.isSuperAdmin).toBe(false);
     expect(org.orgName).toBe("Acme Agency");
     expect(org.accessGiven).toBe(true);
-    expect([...org.permissions]).toEqual(["view", "edit"]);
-    expect([...org.clients.get("c1")!]).toEqual(["view", "edit"]);
+    expect([...org.permissions]).toEqual(["generate", "approve"]);
+    expect([...org.clients.get("c1")!]).toEqual(["generate"]);
   });
 
-  it("counts only viewable rows of someone with access given towards anyClient", () => {
-    const given = accessFromRows("u1", false, [
-      row({ clients: [{ client_id: "c1", permissions: ["view", "approve"] }, { client_id: "c2", permissions: ["delete"] }] }),
+  it("drops view and edit coming from the database", () => {
+    const org = accessFromRows("u1", false, [
+      row({ permissions: ["view", "edit", "approve"], clients: [{ client_id: "c1", permissions: ["view", "edit"] }] }),
     ]).orgs.get("org-1")!;
-    expect([...given.anyClient].sort()).toEqual(["approve", "view"]);
+    expect([...org.permissions]).toEqual(["approve"]);
+    expect(org.clients.get("c1")!.size).toBe(0);
+    expect(org.anyClient.size).toBe(0);
+  });
+
+  it("counts every row of someone with access given towards anyClient, none while waiting", () => {
+    const given = accessFromRows("u1", false, [
+      row({ clients: [{ client_id: "c1", permissions: ["approve"] }, { client_id: "c2", permissions: ["delete"] }, { client_id: "c3", permissions: [] }] }),
+    ]).orgs.get("org-1")!;
+    expect([...given.anyClient].sort()).toEqual(["approve", "delete"]);
     const waiting = accessFromRows("u1", false, [
-      row({ access_given_at: null, clients: [{ client_id: "c1", permissions: ["view"] }] }),
+      row({ access_given_at: null, clients: [{ client_id: "c1", permissions: ["generate"] }] }),
     ]).orgs.get("org-1")!;
     expect(waiting.accessGiven).toBe(false);
     expect(waiting.anyClient.size).toBe(0);

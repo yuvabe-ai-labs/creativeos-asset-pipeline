@@ -15,12 +15,12 @@ describe("sendWaitingToOnboarding (spec §2.4)", () => {
     expect(() => sendWaitingToOnboarding(acting(testAccess({ permissions: [], clientIds: ["c1"], accessGiven: false })) as never)).toThrow("REDIRECT /onboarding");
   });
 
-  it("sends someone on no client they can view to /onboarding", () => {
-    expect(() => sendWaitingToOnboarding(acting(testAccess({ permissions: ["view"], clientIds: [] })) as never)).toThrow("REDIRECT /onboarding");
+  it("sends a member on no client to /onboarding", () => {
+    expect(() => sendWaitingToOnboarding(acting(testAccess({ permissions: [], clientIds: [] })) as never)).toThrow("REDIRECT /onboarding");
   });
 
   it("lets a member with a client, and the owner with none, through", () => {
-    expect(() => sendWaitingToOnboarding(acting(testAccess({ permissions: ["view"], clientIds: ["c1"] })) as never)).not.toThrow();
+    expect(() => sendWaitingToOnboarding(acting(testAccess({ permissions: [], clientIds: ["c1"] })) as never)).not.toThrow();
     expect(() => sendWaitingToOnboarding(acting(testOwnerAccess()) as never)).not.toThrow();
   });
 });

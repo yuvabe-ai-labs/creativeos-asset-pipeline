@@ -67,7 +67,7 @@ export function EditorShell(props: Props) {
 }
 
 function EditorShellBody({ canvasId, clientId, canvasPath, breadcrumb, title, initialState }: Props) {
-  // Spec §5: holding the lock is editing. Without Edit the cut opens view only and never takes
+  // Spec §5: holding the lock is editing. Without Generate (the edit action) the cut opens view only and never takes
   // the lock from whoever is editing.
   const { edit } = useCanvasPermissions();
   const lock = useCanvasLock(canvasId, { acquire: edit });

@@ -9,12 +9,32 @@ import { PERMISSIONS } from "./model";
 const SQL = readFileSync(join(process.cwd(), "supabase/migrations/0062_permission_based_access.sql"), "utf8");
 
 describe("migration 0062", () => {
-  it("allows exactly the six permissions, in the code's order, wherever permissions are stored", () => {
-    const lists = [...SQL.matchAll(/permissions <@ array\[([^\]]+)\]::text\[\]/g)].map((m) =>
-      m[1].split(",").map((s) => s.trim().replace(/'/g, "")),
-    );
+  const list = (s: string) => s.split(",").map((v) => v.trim().replace(/'/g, ""));
+
+  it("allows exactly the five permissions, in the code's order, wherever permissions are stored", () => {
+    const lists = [...SQL.matchAll(/permissions <@ array\[([^\]]+)\]::text\[\]/g)].map((m) => list(m[1]));
     expect(lists).toHaveLength(2);
-    for (const list of lists) expect(list).toEqual([...PERMISSIONS]);
+    for (const l of lists) expect(l).toEqual([...PERMISSIONS]);
+  });
+
+  it("keeps the cascade's order the code's order", () => {
+    const m = SQL.match(/array_position\(array\[([^\]]+)\]::text\[\]/);
+    expect(m && list(m[1])).toEqual([...PERMISSIONS]);
+  });
+
+  it("never stores view or edit: they are actions, not permissions", () => {
+    expect(SQL).not.toMatch(/'view'|'edit'/);
+  });
+
+  it("gives existing members Generate, Approve, Share and Delete on day one, and no Invite", () => {
+    expect(SQL).toMatch(
+      /set permissions = array\['generate','approve','share','delete'\],\s+access_given_at = now\(\)\s+where not is_owner;/,
+    );
+  });
+
+  it("leaves a previous owner with all five on every client", () => {
+    const fn = SQL.slice(SQL.indexOf("create or replace function transfer_agency_owner"));
+    expect(fn.slice(0, fn.indexOf("$$;"))).toContain(`permissions = array[${PERMISSIONS.map((p) => `'${p}'`).join(",")}],`);
   });
 
   it("has no presets, per-person ticks or all-clients flag", () => {

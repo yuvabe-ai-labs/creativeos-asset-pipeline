@@ -1,7 +1,7 @@
 // src/lib/me/test-fixtures.ts
 import type { MePayload } from "./types";
 
-/** A member of org-1 with View on c1, unless `over` says otherwise. */
+/** A member of org-1 on c1 with no permissions (look only), unless `over` says otherwise. */
 export function testMePayload(over: Partial<MePayload> = {}): MePayload {
   return {
     name: "Arun",
@@ -10,8 +10,8 @@ export function testMePayload(over: Partial<MePayload> = {}): MePayload {
     orgName: "Yuvabe Studios",
     isOwner: false,
     accessGiven: true,
-    permissions: ["view"],
-    clients: [{ clientId: "c1", permissions: ["view"] }],
+    permissions: [],
+    clients: [{ clientId: "c1", permissions: [] }],
     creditsUsed: null,
     monthlyCreditLimit: null,
     ...over,

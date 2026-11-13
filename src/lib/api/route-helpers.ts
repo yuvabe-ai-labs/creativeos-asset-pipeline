@@ -256,8 +256,8 @@ export async function withMoodboard(
 }
 
 // For routes not rooted at one client or resource: the voice library, the moodboard index, the
-// review inbox and counts. A client action passes when held on at least one client the person
-// can view; the handler then keeps what it returns to those clients (clientIdsWith).
+// review inbox and counts. A client action passes when held on at least one client the person is
+// on; the handler then keeps what it returns to those clients (clientIdsWith).
 export async function withAccess(
   req: Request,
   guard: Guard,

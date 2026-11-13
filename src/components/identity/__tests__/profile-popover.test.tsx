@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
 // The popover's content is portaled and unmounted while closed, so static markup can't show it;
-// this pins the facts in its source (plan 2 Task 11's test, for the six-permission model).
+// this pins the facts in its source (plan 2 Task 11's test, now for the five-permission model).
 describe("ProfilePopover", () => {
   const source = readFileSync("src/components/identity/profile-popover.tsx", "utf8");
 

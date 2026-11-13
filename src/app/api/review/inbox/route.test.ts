@@ -23,7 +23,7 @@ describe("GET /api/review/inbox", () => {
   beforeEach(() => vi.mocked(listOrgReviewInbox).mockClear());
 
   it("lists no pending work for someone who can approve nothing", async () => {
-    as(testAccess({ permissions: ["view", "edit"], clientIds: ["c-1"] }));
+    as(testAccess({ permissions: ["generate"], clientIds: ["c-1"] }));
     const res = await get();
     expect(res.status).toBe(200);
     expect(scopeOf().reviewTypes).toEqual([]);
@@ -31,14 +31,14 @@ describe("GET /api/review/inbox", () => {
   });
 
   it("lists pending work for an approver, on the clients where they approve", async () => {
-    as(testAccess({ permissions: ["view", "approve"], clientIds: ["c-1"] }));
+    as(testAccess({ permissions: ["approve"], clientIds: ["c-1"] }));
     await get();
     expect(scopeOf().reviewTypes).toEqual(["image-gen", "video-gen"]);
     expect(scopeOf().pendingClientIds).toEqual(["c-1"]);
   });
 
   it("keeps pending work to the clients where the person approves, not every client they view", async () => {
-    as(testAccess({ permissions: [], clientIds: [], clients: { "c-a": ["view", "approve"], "c-b": ["view"] } }));
+    as(testAccess({ permissions: [], clientIds: [], clients: { "c-a": ["approve"], "c-b": [] } }));
     await get();
     expect(scopeOf().pendingClientIds).toEqual(["c-a"]);
     expect(scopeOf().clientIds).toEqual(["c-a", "c-b"]);

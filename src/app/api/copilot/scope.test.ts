@@ -13,7 +13,7 @@ vi.mock("@/lib/dal", async () => {
     resolveCallerContext: vi.fn(async () => ({
       userId: "u1",
       orgId: "org-1",
-      access: testAccess({ permissions: ["view", "generate"], clientIds: ["other-client"] }),
+      access: testAccess({ permissions: ["generate"], clientIds: ["other-client"] }),
     })),
   };
 });

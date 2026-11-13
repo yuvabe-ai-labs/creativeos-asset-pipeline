@@ -176,7 +176,7 @@ export function Canvas({
   // included) keep firing behind it unless we explicitly stand down.
   const anyFocusViewOpen = useAnyFocusViewOpen();
 
-  // Spec §5: without Edit the canvas is view only: no lock, no dragging or connecting, no add menu, fields render plain (everything below reads canEdit). The six answers are worked out here once; nodes read them from ClientPermissionsProvider.
+  // Spec §5: without Generate (the edit action) the canvas is view only: no lock, no dragging or connecting, no add menu, fields render plain (everything below reads canEdit). The answers are worked out here once; nodes read them from ClientPermissionsProvider.
   const permissions = useClientPermissions(clientId);
   const { canEdit, viewOnly, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
     useCanvasLock(canvasId, { acquire: permissions.edit });

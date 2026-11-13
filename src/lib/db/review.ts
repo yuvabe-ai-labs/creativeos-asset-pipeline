@@ -172,7 +172,7 @@ export async function listOrgReviewInbox(
   userId: string,
   scope: {
     reviewTypes: readonly string[];
-    /** Clients the person can view (their own rejected work shows on these); null = all. */
+    /** Clients the person is on (their own rejected work shows on these); null = all. */
     clientIds: readonly string[] | null;
     /** Clients where pending work is listed (those with Approve); null = all. */
     pendingClientIds: readonly string[] | null;

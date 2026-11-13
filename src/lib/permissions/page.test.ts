@@ -30,33 +30,37 @@ describe("loadClientPage", () => {
     clientMock.mockResolvedValue({ id: "c-1", slug: "acme", org_id: "org-1" });
   });
 
-  it("returns the client for a person who can view it", async () => {
-    actingMock.mockResolvedValue(acting(["view"]));
+  it("returns the client for a person on it, with no permissions", async () => {
+    actingMock.mockResolvedValue(acting([]));
     await expect(loadClientPage("acme", "view")).resolves.toMatchObject({ client: { id: "c-1" }, effectiveOrgId: "org-1" });
   });
 
   it("shows the 404 page for another agency's client", async () => {
-    actingMock.mockResolvedValue({ ...acting(["view"]), effectiveOrgId: "org-2" });
+    actingMock.mockResolvedValue({ ...acting([]), effectiveOrgId: "org-2" });
     await expect(loadClientPage("acme", "view")).rejects.toThrow("NOT_FOUND");
   });
 
   it("shows the 404 page for a client the person is not on", async () => {
-    actingMock.mockResolvedValue(acting(["view"], ["c-9"]));
+    actingMock.mockResolvedValue(acting([], ["c-9"]));
     await expect(loadClientPage("acme", "view")).rejects.toThrow("NOT_FOUND");
   });
 
-  it("shows the 404 page without View on the client", async () => {
-    actingMock.mockResolvedValue(acting(["edit"]));
+  it("shows the 404 page on a client the person is on before access is given", async () => {
+    const waiting = acting(["generate"]);
+    actingMock.mockResolvedValue({
+      ...waiting,
+      caller: { ...waiting.caller, access: testAccess({ permissions: ["generate"], clientIds: ["c-1"], accessGiven: false }) },
+    });
     await expect(loadClientPage("acme", "view")).rejects.toThrow("NOT_FOUND");
   });
 
   it("shows the 404 page without the permission the page needs", async () => {
-    actingMock.mockResolvedValue(acting(["view"]));
+    actingMock.mockResolvedValue(acting([]));
     await expect(loadClientPage("acme", "edit")).rejects.toThrow("NOT_FOUND");
   });
 
   it("shows the 404 page for a slug that does not exist", async () => {
-    actingMock.mockResolvedValue(acting(["view"]));
+    actingMock.mockResolvedValue(acting([]));
     clientMock.mockResolvedValue(null);
     await expect(loadClientPage("nope", "view")).rejects.toThrow("NOT_FOUND");
   });
@@ -70,30 +74,30 @@ describe("loadCanvasPage", () => {
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
   });
 
-  it("returns the canvas's client for a person who can view it", async () => {
-    actingMock.mockResolvedValue(acting(["view"]));
+  it("returns the canvas's client for a person on it, with no permissions", async () => {
+    actingMock.mockResolvedValue(acting([]));
     await expect(loadCanvasPage("cv-1", "view")).resolves.toMatchObject({ clientId: "c-1", effectiveOrgId: "org-1" });
     expect(targetMock).toHaveBeenCalledWith({ canvasId: "cv-1" });
   });
 
   it("answers null for a canvas that does not exist", async () => {
-    actingMock.mockResolvedValue(acting(["view"]));
+    actingMock.mockResolvedValue(acting([]));
     targetMock.mockResolvedValue(null);
     await expect(loadCanvasPage("cv-1", "view")).resolves.toBeNull();
   });
 
   it("answers null for another agency's canvas", async () => {
-    actingMock.mockResolvedValue({ ...acting(["view"]), effectiveOrgId: "org-2" });
+    actingMock.mockResolvedValue({ ...acting([]), effectiveOrgId: "org-2" });
     await expect(loadCanvasPage("cv-1", "view")).resolves.toBeNull();
   });
 
-  it("answers null for a canvas on a client the person can't view", async () => {
-    actingMock.mockResolvedValue(acting(["view"], ["c-9"]));
+  it("answers null for a canvas on a client the person is not on", async () => {
+    actingMock.mockResolvedValue(acting([], ["c-9"]));
     await expect(loadCanvasPage("cv-1", "view")).resolves.toBeNull();
   });
 
   it("shows the 404 page without the permission the page needs", async () => {
-    actingMock.mockResolvedValue(acting(["view"]));
+    actingMock.mockResolvedValue(acting([]));
     await expect(loadCanvasPage("cv-1", "edit")).rejects.toThrow("NOT_FOUND");
   });
 });

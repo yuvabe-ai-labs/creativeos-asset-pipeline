@@ -35,7 +35,7 @@ export function ReviewActions({ clientId, script, review, commentCount, canvasAc
   const stage = review?.stage ?? script.stage;
   const latest = review?.latest ?? null;
   const move = useMoveScriptStage(clientId, script.id);
-  // Spec §5: sharing needs Share; a stage move needs Edit, and Move to
+  // Spec §5: sharing needs Share; a stage move is the edit action (needs Generate), and Move to
   // In review is the share dialog, so it needs both.
   const canShare = useCan("share", clientId);
   const canMove = useCan("edit", clientId);

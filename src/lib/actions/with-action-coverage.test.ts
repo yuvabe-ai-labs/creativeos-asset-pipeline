@@ -111,7 +111,7 @@ describe("every mutating server action is gated by withAction() or explicitly al
         it(`${name} (${file.split(/[\\/]/).pop()}) declares a permission guard`, () => {
           const match = GUARD_RE.exec(body);
           expect(match, `${name} must pass { need, on } or { custom } as withAction's second argument`).not.toBeNull();
-          if (match && match[2]) expect(isAction(match[2]), `"${match[2]}" is one of the nine actions`).toBe(true);
+          if (match && match[2]) expect(isAction(match[2]), `"${match[2]}" is one of the ten actions`).toBe(true);
         });
       }
     }

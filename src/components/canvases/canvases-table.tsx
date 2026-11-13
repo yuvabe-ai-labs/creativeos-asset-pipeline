@@ -54,7 +54,7 @@ export function CanvasesTable({
   const router = useRouter();
   // R8.1: one subscription for the table, seeded from the server-rendered counts.
   const liveCounts = useReviewCounts(reviewCounts);
-  // Spec §5: Rename needs Edit, Delete needs Delete; without either the ⋯ menu is not shown.
+  // Spec §5: Rename is the edit action (needs Generate), Delete needs Delete; without either the ⋯ menu is not shown.
   const canRename = useCan("edit", clientId);
   const canDelete = useCan("delete", clientId);
   const [query, setQuery] = useState("");
