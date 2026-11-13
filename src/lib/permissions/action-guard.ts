@@ -41,7 +41,7 @@ export async function checkActionAccess(guard: ActionGuard): Promise<ActionConte
     return { ...base, target: null };
   }
 
-  if (!target || target.orgId !== acting.effectiveOrgId) throw new Error(NOT_FOUND_MESSAGE);
+  if (!target?.clientId || target.orgId !== acting.effectiveOrgId) throw new Error(NOT_FOUND_MESSAGE);
   const decision = check(access, action, { orgId: target.orgId, clientId: target.clientId });
   if (decision === "not_found") throw new Error(NOT_FOUND_MESSAGE);
   if (decision === "forbidden") throw new ForbiddenError();

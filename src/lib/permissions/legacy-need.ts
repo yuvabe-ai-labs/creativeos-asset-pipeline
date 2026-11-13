@@ -13,6 +13,7 @@ const AGENCY_KEYS: Partial<Record<PermissionKey, Action>> = {
   "team.view": "manage_team",
   "team.edit": "manage_team",
   "team.delete": "manage_team",
+  "downloads.share": "view",
 };
 
 export function actionForNeed(need: Need): Action {

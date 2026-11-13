@@ -121,6 +121,15 @@ describe("selectInboxFor", () => {
     );
   });
 
+  it("keeps pending work to the clients where the person holds Approve", () => {
+    expect(inboxFilterFor(["image-gen"], "u1", ["c1", "c2"])).toBe(
+      "and(approval_status.eq.pending,node_type.in.(image-gen),client_id.in.(c1,c2))," +
+        "and(approval_status.eq.changes_requested,operator_user_id.eq.u1)," +
+        "and(approval_status.eq.approved,operator_user_id.eq.u1,approved_by_user_id.neq.u1,approved_seen_at.is.null)",
+    );
+    expect(inboxFilterFor(["image-gen"], "u1", [])).toBe(inboxFilterFor([], "u1"));
+  });
+
   it("never includes approved work for anyone", () => {
     for (const types of [[], BOTH]) {
       expect(

@@ -170,7 +170,13 @@ export async function listCanvasApprovalStatuses(
 export async function listOrgReviewInbox(
   orgId: string,
   userId: string,
-  scope: { reviewTypes: readonly string[]; clientIds: readonly string[] | null },
+  scope: {
+    reviewTypes: readonly string[];
+    /** Clients the person can view (their own rejected work shows on these); null = all. */
+    clientIds: readonly string[] | null;
+    /** Clients where pending work is listed (those with Approve); null = all. */
+    pendingClientIds: readonly string[] | null;
+  },
   page: { limit: number; offset: number } = { limit: DEFAULT_PAGE_SIZE, offset: 0 },
 ): Promise<InboxItem[]> {
   const supabase = createServerSupabase();
@@ -181,7 +187,7 @@ export async function listOrgReviewInbox(
     // The review-type rule runs in SQL, not in JS after the fetch — otherwise every page comes
     // back the wrong size (ask for 25, get 9). inboxFilterFor is proven equivalent to
     // selectInboxFor by queue.test.ts.
-    .or(inboxFilterFor(scope.reviewTypes, userId));
+    .or(inboxFilterFor(scope.reviewTypes, userId, scope.pendingClientIds));
   // null = all clients; otherwise only the person's own clients.
   if (scope.clientIds !== null) query = query.in("client_id", [...scope.clientIds]);
   const { data, error } = await query

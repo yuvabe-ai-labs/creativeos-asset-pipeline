@@ -42,6 +42,12 @@ describe("checkActionAccess", () => {
     await expect(checkActionAccess({ need: "edit", on: { nodeId: "n-1" } })).rejects.toThrow("Not found.");
   });
 
+  it("says not found when the target has no client to check against", async () => {
+    actingMock.mockResolvedValue(acting(testOwnerAccess()));
+    targetMock.mockResolvedValue({ clientId: null, orgId: "org-1" });
+    await expect(checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
+  });
+
   it("says not found for a client the person is not on, or can't view", async () => {
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
     actingMock.mockResolvedValue(member(["view", "edit"], ["c-9"]));

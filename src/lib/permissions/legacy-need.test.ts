@@ -16,7 +16,7 @@ describe("actionForNeed", () => {
     expect(actionForNeed("scripts.approve")).toBe("approve");
     expect(actionForNeed("client_review.share")).toBe("share");
     expect(actionForNeed("canvases.delete")).toBe("delete");
-    expect(actionForNeed("downloads.share")).toBe("share");
+    expect(actionForNeed("downloads.share")).toBe("view");
   });
 
   it("reads the agency areas as the owner-only actions", () => {

@@ -25,15 +25,17 @@ export function check(access: Access, action: Action, { orgId, clientId }: Check
   const org = access.orgs.get(orgId);
   if (!org) return "not_found";
   if (org.isOwner) return "allow";
-  if (!isPermission(action)) return "forbidden";
-  if (!org.accessGiven) return "not_found";
-  if (clientId === null) {
-    if (!org.anyClient.has("view")) return "not_found";
-    return org.anyClient.has(action) ? "allow" : "forbidden";
+  // A refusal never confirms that a client the person is not on exists: for a real client the
+  // visibility step comes before the owner-only one.
+  if (clientId !== null) {
+    const row = org.accessGiven ? org.clients.get(clientId) : undefined;
+    if (!row || !row.has("view")) return "not_found";
+    if (!isPermission(action)) return "forbidden";
+    return row.has(action) ? "allow" : "forbidden";
   }
-  const row = org.clients.get(clientId);
-  if (!row || !row.has("view")) return "not_found";
-  return row.has(action) ? "allow" : "forbidden";
+  if (!isPermission(action)) return "forbidden";
+  if (!org.accessGiven || !org.anyClient.has("view")) return "not_found";
+  return org.anyClient.has(action) ? "allow" : "forbidden";
 }
 
 /** The clients a list keeps to: those the person can view that hold `action`. null = every

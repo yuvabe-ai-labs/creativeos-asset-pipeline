@@ -42,20 +42,25 @@ describe("check, in the order of spec §4.2", () => {
     expect(check(owner(), "manage_team", on(null))).toBe("allow");
   });
 
-  it("4. forbids the owner-only actions to a member holding all six", () => {
+  it("4. answers not found for a client the person is not on, before any owner-only refusal", () => {
+    for (const action of ["manage_team", "manage_clients", "view_credits"] as const) {
+      expect(check(member({ c1: ALL }), action, on("c2"))).toBe("not_found");
+      expect(check(member({ c1: ["edit"] }), action, on("c1"))).toBe("not_found");
+      expect(check(member({ c1: ALL }, { access_given_at: null }), action, on("c1"))).toBe("not_found");
+      expect(check(member({}, { access_given_at: null }), action, on("c1"))).toBe("not_found");
+    }
+  });
+
+  it("5. forbids the owner-only actions on a client the person can view, and without a client", () => {
     const m = member({ c1: ALL });
     expect(check(m, "manage_team", on("c1"))).toBe("forbidden");
+    expect(check(m, "manage_clients", on("c1"))).toBe("forbidden");
     expect(check(m, "manage_clients", on(null))).toBe("forbidden");
     expect(check(m, "view_credits", on(null))).toBe("forbidden");
+    expect(check(member({ c1: ["view"] }), "manage_team", on("c1"))).toBe("forbidden");
   });
 
-  it("5. answers not found before access is given, off the client, or without View on it", () => {
-    expect(check(member({ c1: ALL }, { access_given_at: null }), "view", on("c1"))).toBe("not_found");
-    expect(check(member({ c1: ALL }), "view", on("c2"))).toBe("not_found");
-    expect(check(member({ c1: ["edit", "generate"] }), "edit", on("c1"))).toBe("not_found");
-  });
-
-  it("6. allows what the client row holds and forbids the rest", () => {
+  it("7. allows what the client row holds and forbids the rest", () => {
     const m = member({ c1: ["view", "edit"] });
     expect(check(m, "view", on("c1"))).toBe("allow");
     expect(check(m, "edit", on("c1"))).toBe("allow");

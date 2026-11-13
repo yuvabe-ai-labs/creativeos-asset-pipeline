@@ -89,14 +89,20 @@ export function selectInboxFor(
 //
 // Two expressions of one rule is a real risk, so queue.test.ts asserts they agree over a
 // fixture set. If you change one, the test fails until you change the other.
-export function inboxFilterFor(reviewTypes: readonly string[], userId: string): string {
+export function inboxFilterFor(
+  reviewTypes: readonly string[],
+  userId: string,
+  // Pending work only on these clients (those where the person holds Approve); null = every client.
+  pendingClientIds: readonly string[] | null = null,
+): string {
   const mineRejected = `and(approval_status.eq.changes_requested,operator_user_id.eq.${userId})`;
   const mineApprovedUnseen =
     `and(approval_status.eq.approved,operator_user_id.eq.${userId},` +
     `approved_by_user_id.neq.${userId},approved_seen_at.is.null)`;
   const parts = [mineRejected, mineApprovedUnseen];
-  if (reviewTypes.length > 0) {
-    parts.unshift(`and(approval_status.eq.pending,node_type.in.(${reviewTypes.join(",")}))`);
+  if (reviewTypes.length > 0 && (pendingClientIds === null || pendingClientIds.length > 0)) {
+    const onClients = pendingClientIds === null ? "" : `,client_id.in.(${pendingClientIds.join(",")})`;
+    parts.unshift(`and(approval_status.eq.pending,node_type.in.(${reviewTypes.join(",")})${onClients})`);
   }
   return parts.join(",");
 }
