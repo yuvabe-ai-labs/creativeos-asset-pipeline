@@ -32,6 +32,6 @@ describe("/onboarding", () => {
       effectiveOrgId: "org-1",
       impersonation: { isImpersonating: false },
     });
-    await expect(OnboardingPage()).rejects.toThrow("REDIRECT /");
+    await expect(OnboardingPage()).rejects.toThrow(/^REDIRECT \/$/);
   });
 });
