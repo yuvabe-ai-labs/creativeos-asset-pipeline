@@ -8534,6 +8534,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session.
 
+### D489 — A location keeps its past plates in the script doc, and any can be put back *(recorded 2026-11-12; refines D446, D448, D449)*
+
+**Decision.** Each location in the script doc gains an optional `versions` list next to `image`. It holds up to 10 plates the location has had (`{ url, source, mode?, note? }`), oldest first. `image` stays the current plate, so panel prompts, the shot fingerprint, Fan out and shares read it as before. `set_location_image` (the one write, `applyAssetOp`) adds a picture the location never held to the end of the list, dropping the oldest past 10. A picture it already holds, as on a restore, adds nothing. Clear keeps the list. A location stored before versions starts from its current plate, so that plate is not lost. The plate route records Redraw's mode and note on the version. The location card shows "v2 of 3" with previous and next, which only preview, and **Use this version**, which sets `image` back through the same op. Past plates count as the doc's own pictures for the client-picture check (rule 14). They stay out of the copilot's prompt, the share version line and the assets frozen onto the canvas (`withoutLocationVersions`). Products keep no versions.
+
+**Why.** User, 12 Nov 2026: Redraw and "Change this picture" overwrote the plate, so a change that made it worse could not be undone. Storyboard panels already keep every take.
+
+**Rejected.** (1) A takes table like `script_panel_takes`: a migration, two routes and a query for what is at most 10 small entries already loaded with the doc. (2) A separate picks table: the doc's `image` already is the pick. (3) Versions for products: a product is a set of angles, and per-picture history did not make sense to the user. (4) Seeding the canvas Composite with every past plate: versions stay on the script page; Fan out still sends the current plate as v1 (D456).
+
+**Originated →** conversation in this session.
 ### D483 — Video Gen gets an Edit toggle beside Edit voice; an edit is a new version of the whole take *(recorded 2026-11-10; follows D284, D37)*
 
 **Decision.** The Video Gen focus view has two switches beside the VIDEO heading, **Edit voice** (D284) and **Edit**, and only one can be on. Edit shows the connected images as checkable references, an instruction box, a resolution choice (360p to 4k, default 720p) and an Edit video button with its credit estimate. It sends the whole active take (up to 10 seconds) to Gemini Omni with `task: "edit"`, as a `video` generation run by the existing `video-generate` task with an `editVideoUrl`, billed at Omni's rate for the chosen resolution. The result is appended as a new version with `inputs_used.videoEdit` (base and root version, instruction, literal prompt, references, resolution). A refusal or a failure refunds and makes no version.

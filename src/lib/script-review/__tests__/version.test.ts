@@ -33,6 +33,19 @@ describe("diffVersions", () => {
     expect(diffVersions(legacy, content())).toEqual([]);
   });
 
+  // D489 — a location's past plates are history: only the plate it shows is a change.
+  it("counts a location's plate, not its past plates", () => {
+    const plate = (n: number) => ({ url: `https://x/plate-${n}.png`, source: "plate" as const });
+    const prev = content();
+    prev.doc.locations = [{ id: "kitchen", name: "Kitchen", description: "", image: plate(1) }];
+    const more = content();
+    more.doc.locations = [{ id: "kitchen", name: "Kitchen", description: "", image: plate(1), versions: [plate(2), plate(1)] }];
+    expect(diffVersions(prev, more)).toEqual([]);
+    const moved = content();
+    moved.doc.locations = [{ id: "kitchen", name: "Kitchen", description: "", image: plate(2), versions: [plate(1), plate(2)] }];
+    expect(diffVersions(prev, moved).map((c) => c.part.kind)).toEqual(["context"]);
+  });
+
   it("names edited shots in script order", () => {
     const next = content();
     next.doc.shots[3].vo = "A new line";

@@ -59,7 +59,9 @@ describe("POST …/locations/:locationId/plate", () => {
     expect(run.prompt).toContain("Kitchen. Teal walls.");
     expect(run.prompt).toMatch(/no people/);
     const build = vi.mocked(changeScriptAssets).mock.calls[0][2] as AssetOpBuilder;
-    expect(build(script().doc)).toEqual({ op: "set_location_image", locationId: "kitchen", image: { url: "https://x/plate.png", source: "plate" } });
+    expect(build(script().doc)).toEqual({
+      op: "set_location_image", locationId: "kitchen", image: { url: "https://x/plate.png", source: "plate" }, mode: "fresh",
+    });
   });
 
   // D449 — Redraw: a change edits the current plate (its one reference); with none there is nothing to change.
@@ -72,6 +74,9 @@ describe("POST …/locations/:locationId/plate", () => {
     const run = vi.mocked(runBilledImageGeneration).mock.calls[0][0];
     expect(run.referenceUrls).toEqual(["https://x/old.png"]);
     expect(run.prompt).toContain("Redraw it with one change: fewer props.");
+    // D489 — the new plate is kept among the versions with how it was drawn.
+    const build = vi.mocked(changeScriptAssets).mock.calls[0][2] as AssetOpBuilder;
+    expect(build(withPlate.doc)).toMatchObject({ mode: "change", note: "fewer props" });
   });
 
   it("refuses a change with no plate yet, and draws fresh with the note added", async () => {
