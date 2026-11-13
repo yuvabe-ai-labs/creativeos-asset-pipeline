@@ -2,11 +2,10 @@ import { logClientReviewErrors } from "@/lib/client-review/log";
 import { apiError, apiOk, withNode, withTryCatch, validateFileSize } from "@/lib/api/route-helpers";
 import { CUT_EXTENSIONS, CUT_MAX_BYTES } from "@/lib/client-review/constants";
 import { cutExtension } from "@/lib/client-review/validate";
-import { getReviewByNodeId } from "@/lib/db/client-reviews";
 import { signClientReviewUpload } from "@/lib/storage";
 
 // POST /api/nodes/:id/client-review/sign — authorize a direct browser → GCS upload of
-// the node's cut (D309). One cut per node: a node that already has one gets 409.
+// a cut into the node (D309). Every upload is a new version (D495); each gets its own object path.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not authorize upload.", () =>
     logClientReviewErrors("sign", req, () => withNode(req, params, async (nodeId, node, _caller, clientId) => {
@@ -33,9 +32,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
       const sizeError = validateFileSize(body.size, 0, CUT_MAX_BYTES, "500 MB");
       if (sizeError) return sizeError;
-      if (await getReviewByNodeId(nodeId)) {
-        return apiError("This node already has a cut. Add a new Client review node for a new cut.", 409);
-      }
       const signed = await signClientReviewUpload({
         clientId,
         canvasId: node.canvas_id,

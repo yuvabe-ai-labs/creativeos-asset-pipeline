@@ -1,3 +1,4 @@
+import { ONE_CLIENT_REVIEW_PER_CANVAS } from "@/lib/client-review/rules";
 import { describe, expect, it } from "vitest";
 import { canDuplicateNode } from "@/lib/canvas-nodes";
 import {
@@ -11,6 +12,9 @@ describe("one Editor per canvas", () => {
     expect(addNodeRefusal("editor", [{ type: "editor" }])).toBe(ONE_EDITOR_PER_CANVAS);
     expect(addNodeRefusal("editor", [{ type: "prompt" }])).toBeNull();
     expect(addNodeRefusal("prompt", [{ type: "editor" }])).toBeNull();
+    // D495 — one Client review node per canvas, too.
+    expect(addNodeRefusal("client-review", [{ type: "client-review" }])).toBe(ONE_CLIENT_REVIEW_PER_CANVAS);
+    expect(addNodeRefusal("client-review", [{ type: "prompt" }])).toBeNull();
   });
 
   it("never duplicates an Editor or the KB", () => {

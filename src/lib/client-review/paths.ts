@@ -24,9 +24,15 @@ export function linkSlug(title: string, fallback = "cut"): string {
   return slug || fallback;
 }
 
-/** The client-facing link for a review: `/r/<title-slug>-<code>` (D311). Links minted before
- *  D311 carry a 43-character token and stay exactly as they were. */
-export function sharePathFor(token: string, title: string): string {
-  if (LEGACY_TOKEN.test(token) && token.length === 43) return `/r/${token}`;
-  return `/r/${linkSlug(title)}-${token}`;
+/** The client-facing link for one version of a review: `/r/<title-slug>-<code>-v<n>` (D311, D496).
+ *  A v1 moved from a pre-version review (`legacyLink`) keeps the exact link the client already
+ *  has: no suffix, and a 43-character token from before D311 stays bare. */
+export function sharePathFor(
+  token: string,
+  title: string,
+  version: { versionNo: number; legacyLink: boolean },
+): string {
+  const isLegacyToken = LEGACY_TOKEN.test(token) && token.length === 43;
+  const base = isLegacyToken ? `/r/${token}` : `/r/${linkSlug(title)}-${token}`;
+  return version.legacyLink && version.versionNo === 1 ? base : `${base}-v${version.versionNo}`;
 }

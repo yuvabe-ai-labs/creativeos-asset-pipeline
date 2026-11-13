@@ -66,7 +66,11 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
 
       <div className="hidden flex-1 flex-col group-data-[reviewer=known]/review:flex lg:mx-auto lg:w-full lg:max-w-6xl lg:px-6 lg:py-6">
         <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 pt-4 pb-3 lg:flex-nowrap lg:items-center lg:px-0">
-          <h1 className="font-display text-xl font-semibold tracking-tight lg:text-2xl">{review.title || "Your cut"}</h1>
+          <div className="min-w-0">
+            <h1 className="font-display text-xl font-semibold tracking-tight lg:text-2xl">{review.title || "Your cut"}</h1>
+            {/* D496 — only this version; nothing says whether newer ones exist. */}
+            <p className="text-sm text-muted-foreground">{`Version ${review.versionNo}`}</p>
+          </div>
           <div className="flex shrink-0 items-center gap-4">
             <p className="text-sm text-muted-foreground">
               {name && <>{name}{" · "}</>}
@@ -78,8 +82,9 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
                 change
               </Button>
             </p>
-            {/* Beside the title on a wide screen: under a tall reel it would fall below the fold. */}
-            <ReviewDownloadButton token={token} className="hidden lg:inline-flex" />
+            {/* Beside the title on a wide screen: under a tall reel it would fall below the fold.
+                D497 — only when this version allows downloads. */}
+            {review.allowDownload && <ReviewDownloadButton token={token} className="hidden lg:inline-flex" />}
           </div>
         </header>
 
@@ -89,9 +94,11 @@ export function ClientReviewPage({ token, initial }: { token: string; initial: P
           </div>
           {/* On a phone: full width under the video, outside its sticky block so it scrolls away
               and leaves the video and comments the room. */}
-          <div className="px-4 pb-3 lg:hidden">
-            <ReviewDownloadButton token={token} className="w-full" />
-          </div>
+          {review.allowDownload && (
+            <div className="px-4 pb-3 lg:hidden">
+              <ReviewDownloadButton token={token} className="w-full" />
+            </div>
+          )}
           <section className="flex flex-1 flex-col lg:max-h-[80dvh] lg:rounded-xl lg:border lg:border-border lg:shadow-card">
             <p className="text-eyebrow px-4 pt-3 text-muted-foreground">
               {review.comments.length} {review.comments.length === 1 ? "comment" : "comments"}

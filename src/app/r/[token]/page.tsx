@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getReviewByToken } from "@/lib/db/client-reviews";
-import { toCanonicalShareToken } from "@/lib/client-review/token";
+import { getReviewVersionByLink } from "@/lib/db/client-reviews";
+import { parseReviewLink } from "@/lib/client-review/token";
 import { buildPublicReview } from "@/lib/client-review/load";
 import { ClientReviewPage } from "@/components/client-review/client-review-page";
 
@@ -17,10 +17,10 @@ export const metadata: Metadata = {
 
 export default async function Page({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  // D311: the title in the link is decoration; only the code at its end finds the review.
-  const code = toCanonicalShareToken(token);
-  const review = code ? await getReviewByToken(code) : null;
-  if (!review) notFound();
-  const initial = await buildPublicReview(review);
+  // D311 + D496: the title in the link is decoration; the code and the version find the cut.
+  const link = parseReviewLink(token);
+  const found = link ? await getReviewVersionByLink(link.token, link.versionNo) : null;
+  if (!found) notFound();
+  const initial = await buildPublicReview(found.review, found.version);
   return <ClientReviewPage token={token} initial={initial} />;
 }

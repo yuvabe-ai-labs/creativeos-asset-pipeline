@@ -36,7 +36,8 @@ import { ShotNode } from "@/components/nodes/shot-node";
 import { MultishotNode } from "@/components/nodes/multishot-node";
 import { MultishotPromptNode } from "@/components/nodes/multishot-prompt-node";
 import { ClientReviewNode } from "@/components/nodes/client-review-node";
-import { ClientFeedbackDrawer } from "@/components/canvas/client-feedback-drawer/client-feedback-drawer";
+import { useClientFeedback } from "@/components/canvas/client-feedback-drawer/client-feedback-context";
+import { soleClientReviewId } from "@/lib/client-review/rules";
 import { DrawNode } from "@/components/nodes/draw-node";
 import { ImageGenNode } from "@/components/nodes/image-gen-node";
 import { CompositeNode } from "@/components/nodes/composite-node";
@@ -278,9 +279,17 @@ export function Canvas({
     quickAddOpenRef.current = quickAdd !== null;
   }, [quickAdd]);
 
+  const { openFeedback } = useClientFeedback();
   const handleAddNode = useCallback(
     (type: string, position: XYPosition) => {
-      // D388 — one Editor per canvas, from the palette and the bare key alike.
+      // D495 — "Open Client review": the canvas's one review node opens instead of a second.
+      const existingReview = type === "client-review" ? soleClientReviewId(nodesRef.current) : null;
+      if (existingReview) {
+        openFeedback(existingReview, { fly: true });
+        return;
+      }
+      // D388 / D495 — one Editor and one Client review node per canvas, from the palette and the
+      // bare key alike.
       const refusal = addNodeRefusal(type, nodesRef.current);
       if (refusal) {
         toast.error(refusal);
@@ -293,7 +302,7 @@ export function Canvas({
         if (kbNode) connectNodes(kbNode.id, newNodeId);
       }
     },
-    [addNode, connectNodes],
+    [addNode, connectNodes, openFeedback],
   );
 
   // Paste an image from the clipboard as a new File node at the cursor. Persist the
@@ -522,7 +531,6 @@ export function Canvas({
 
       {/* D309: client feedback drawer — opened by clicking a Client review node. Non-modal
           and right-side like the review drawer, so feedback and the canvas share the screen. */}
-      <ClientFeedbackDrawer />
 
       {!canEdit && (
         <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />

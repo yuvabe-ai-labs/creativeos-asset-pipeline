@@ -7,28 +7,32 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/storage", () => ({ publicUrlFor: (p: string) => `https://cdn/${p}` }));
 vi.mock("@/lib/db/client-reviews", () => ({
-  getReviewByToken: vi.fn(),
+  getReviewVersionByLink: vi.fn(),
   listComments: vi.fn(),
   insertComment: vi.fn(),
   updateComment: vi.fn(),
 }));
-import { getReviewByToken, listComments } from "@/lib/db/client-reviews";
+import { getReviewVersionByLink, listComments } from "@/lib/db/client-reviews";
 const TOKEN = "a".repeat(43);
 const review = {
   id: "r1", canvas_id: "cv-secret", node_id: "n-secret", org_id: "org-secret",
-  video_path: "clients/c/canvases/cv/nodes/n/client-review/cut.mp4",
   share_token: TOKEN, created_by: "u", created_at: "t", title: "Dosa film",
 };
+const version = {
+  id: "v-secret", review_id: "r1", version_no: 2, title: null, allow_download: false, legacy_link: false,
+  video_path: "clients/c/canvases/cv/nodes/n/client-review/cut.mp4",
+  created_by: "u-secret", created_at: "t",
+};
 const commentRow = {
-  id: "c1", review_id: "r1", author_name: "Priya", body: "Logo too small",
+  id: "c1", review_id: "r1", version_id: "v-secret", author_name: "Priya", body: "Logo too small",
   timecode_ms: 4000, edited_by_name: null, created_at: "t1", updated_at: "t1",
 };
 
 describe("GET /api/r/[token]", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("returns title, video URL and comments — and no internal ids", async () => {
-    vi.mocked(getReviewByToken).mockResolvedValue(review);
+  it("returns the version's title, number, video, download flag and comments — no internal ids", async () => {
+    vi.mocked(getReviewVersionByLink).mockResolvedValue({ review, version });
     vi.mocked(listComments).mockResolvedValue([commentRow]);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest(`http://localhost/api/r/${TOKEN}`), {
@@ -37,16 +41,29 @@ describe("GET /api/r/[token]", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.title).toBe("Dosa film");
-    expect(body.videoUrl).toBe(`https://cdn/${review.video_path}`);
+    expect(body.versionNo).toBe(2);
+    expect(body.allowDownload).toBe(false);
+    expect(body.videoUrl).toBe(`https://cdn/${version.video_path}`);
     expect(body.comments).toHaveLength(1);
+    expect(vi.mocked(listComments)).toHaveBeenCalledWith("v-secret");
     const raw = JSON.stringify(body);
-    for (const secret of ["org-secret", "cv-secret", "n-secret", "r1"]) {
+    for (const secret of ["org-secret", "cv-secret", "n-secret", "r1", "u-secret"]) {
       expect(raw).not.toContain(secret);
     }
   });
 
+  it("names the page after the version when it has its own title", async () => {
+    vi.mocked(getReviewVersionByLink).mockResolvedValue({ review, version: { ...version, title: "Dosa film v2 warmer" } });
+    vi.mocked(listComments).mockResolvedValue([]);
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest(`http://localhost/api/r/${TOKEN}`), {
+      params: Promise.resolve({ token: TOKEN }),
+    });
+    expect((await res.json()).title).toBe("Dosa film v2 warmer");
+  });
+
   it("404s an unknown token", async () => {
-    vi.mocked(getReviewByToken).mockResolvedValue(null);
+    vi.mocked(getReviewVersionByLink).mockResolvedValue(null);
     const { GET } = await import("./route");
     const res = await GET(new NextRequest(`http://localhost/api/r/${TOKEN}`), {
       params: Promise.resolve({ token: TOKEN }),
@@ -55,7 +72,7 @@ describe("GET /api/r/[token]", () => {
   });
 
   it("500s a database failure without leaking its message", async () => {
-    vi.mocked(getReviewByToken).mockResolvedValue(review);
+    vi.mocked(getReviewVersionByLink).mockResolvedValue({ review, version });
     vi.mocked(listComments).mockRejectedValue(new Error("pg secret detail"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { GET } = await import("./route");

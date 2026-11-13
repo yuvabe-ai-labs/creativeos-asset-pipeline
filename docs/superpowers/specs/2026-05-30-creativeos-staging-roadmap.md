@@ -8709,3 +8709,63 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping Google's 6 (well under what renders correctly). 32 (the API accepts it, but colours drift). A separate, lower cap for edits (edits were not probed; they keep reading the generation cap so the two can't drift, and edit references are ticked by hand).
 
 **Originated →** this session; probe script and frames kept outside the repo.
+
+### D495 — One Client review node per canvas; a new cut is a new version *(recorded 2026-11-12; supersedes D309's "a new cut is a new node")*
+
+**Decision.** A canvas has at most one Client review node. Uploading a cut into it adds the next version (v1, v2, …) in `canvas_review_versions`; versions are never removed. Comments belong to a version (`canvas_review_comments.version_id`) and stay there: no Done marks, no client approval for now. The limit is enforced in the add menu, `addNode`, duplicate (like `kb`), the copilot's `add_node` (opens the existing node), the canvas save (a new second node is dropped and the client removes it) and a `before insert` trigger on `nodes`.
+
+**Why.** User, 11–12 Nov 2026: every feedback round meant a new node, upload and link, and the canvas filled with review nodes.
+
+**Rejected.** A unique index on (canvas, type) (older canvases already have several). Combining older nodes into one (the user asked for no combine logic; D499).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D496 — Each version has its own link; a link without a suffix means v1 *(recorded 2026-11-12; refines D311)*
+
+**Decision.** A version's link is `/r/<title-slug>-<code>-v<n>` (`parseReviewLink`). The client sees only that version and its comments, with no mention of newer versions, and comments on it. A link with no suffix resolves to v1, so links sent before versions keep working; a migrated v1 (`legacy_link`) is shown to the team with its original link.
+
+**Why.** User, 11 Nov 2026: a client should review exactly the cut they were sent.
+
+**Rejected.** One rolling link that always shows the latest (a client mid-review would see the cut change under them). An old link pointing to the newer version.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D497 — Allow download is per version, on by default, enforced on the server *(recorded 2026-11-12; refines D478)*
+
+**Decision.** Each version has `allow_download` (default on, for new uploads and migrated versions alike), set in the upload dialog and by a download toggle in the focus view's header, beside the link's Copy and Open buttons (moved from under the video, 13 Nov 2026). Off: the client page has no Download button and `/api/r/:token/download` answers 404. A page already open keeps its button until it reloads; a click on it is refused.
+
+**Why.** User, 11–12 Nov 2026: the team decides per cut whether the client may download it.
+
+**Rejected.** Off by default (old links would lose their button; the user chose on). Updating open pages live (costs more to build; reload is fine).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D498 — The Client review node opens as a focus view, not the side drawer *(recorded 2026-11-12; supersedes D309/D310's feedback drawer)*
+
+**Decision.** Clicking the node (or the header's Client feedback chip) opens a focus view like other nodes: Upload first/new version in the header; the shared `VersionList` on the left; the link row (link, Copy vN link, Open vN as client) above the video in the centre, then "vN · uploaded <date>" and the Allow download switch; the version's comments on the right.
+
+**Why.** User, 11 Nov 2026: versions need room, and the node should open like every other node.
+
+**Rejected.** Keeping the right-side drawer (no room for a version list and comments side by side).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D499 — Older canvases keep every review node, each as a single-version node *(recorded 2026-11-12; follows D495)*
+
+**Decision.** Migration 0062 turns each existing review into v1 (its cut, download on, all its comments, `legacy_link`). Every node stays, works like a new review node and can take new versions. A canvas with any review node can't get another: the add menu greys Client review out with a note when there are several.
+
+**Why.** User, 11 Nov 2026: handle existing canvases without deleting nodes, and without combine logic.
+
+**Rejected.** Merging a canvas's review nodes into one (combine logic). Deleting or hiding the extra nodes.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D500 — The Client feedback chip lists versions; a row opens that version *(recorded 2026-11-13; refines D310, D495)*
+
+**Decision.** The header's Client feedback chip always opens a list. It shows each version newest first, with its name and its own comment count. Older canvases with several review nodes (D499) group the versions under each node's name. A row opens the review's focus view on that version. The chip's one canvas query returns the per-version counts: comments are embedded under each version.
+
+**Why.** User, 13 Nov 2026: client feedback should be listed by version, since comments stay on their version (D495).
+
+**Rejected.** Opening the newest version straight from the chip when there is only one node, as before. A request per node or per version.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
