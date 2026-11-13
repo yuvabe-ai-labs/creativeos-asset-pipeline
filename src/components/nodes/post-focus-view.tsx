@@ -37,7 +37,6 @@ import { PostToolRail, type PostTool } from "./post-tool-rail";
 import { PostToolPanel } from "./post-tool-panel";
 import { PostPanelSizes } from "./post-panel-sizes";
 import { PostPanelTemplates } from "./post-panel-templates";
-import { useCanDownload } from "@/components/permissions/use-can";
 import { PostPanelElements } from "./post-panel-elements";
 import { PostPanelText } from "./post-panel-text";
 import { PostPanelConnected } from "./post-panel-connected";
@@ -106,8 +105,6 @@ export function PostFocusView({
   );
 
   const clientId = useClientId();
-  // A post has no approval status, so its PNG downloads under downloads.share.
-  const canDownloadPost = useCanDownload(clientId, false);
 
   const formatSpec = POST_FORMATS[editorFormat];
 
@@ -530,11 +527,9 @@ export function PostFocusView({
                 <Button variant="outline" size="sm" disabled title="Publishing is coming soon">
                   Publish <span className="ml-1 text-[0.6rem] opacity-70">soon</span>
                 </Button>
-                {canDownloadPost && (
-                  <Button size="sm" onClick={downloadPng} disabled={isExporting}>
-                    {isExporting ? "Exporting…" : "Download"}
-                  </Button>
-                )}
+                <Button size="sm" onClick={downloadPng} disabled={isExporting}>
+                  {isExporting ? "Exporting…" : "Download"}
+                </Button>
               </div>
               )}
             </header>

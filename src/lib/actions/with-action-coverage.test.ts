@@ -146,8 +146,6 @@ it("every catalogue key is checked by a route, an action, a page or the approval
     "src/lib/permissions/node-area.ts",
     // credits.view decides whether /api/me and the first render carry credit figures at all.
     "src/lib/me/payload.ts",
-    // downloads.* are checked in the browser only (files sit in public buckets); this is where.
-    "src/lib/permissions/downloads.ts",
   ].map((f) => readFileSync(f, "utf8"));
   const used = new Set(
     sources

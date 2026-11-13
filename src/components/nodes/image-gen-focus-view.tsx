@@ -77,8 +77,6 @@ import {
   markVersionApprovalSeenAction,
 } from "@/lib/actions/approval";
 import { useCanApproveNode } from "@/components/permissions/use-can-approve-node";
-import { useCanDownload } from "@/components/permissions/use-can";
-import { useClientId } from "@/components/canvas/client-id-context";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -328,7 +326,6 @@ export function ImageGenFocusView({
   const [approvedByName, setApprovedByName] = useState<string | null>(null);
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
-  const canDownloadImage = useCanDownload(useClientId(), approvalStatus === "approved");
   const canApprove = useCanApproveNode("image-gen");
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   // The connected Prompt node's active output — the text this image is generated from. Read
@@ -1668,17 +1665,15 @@ export function ImageGenFocusView({
                           />
                         )}
                         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          {canDownloadImage && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              onClick={handleDownload}
-                              className="h-auto gap-1 rounded-md border-0 bg-background/80 px-2 py-1 text-xs text-foreground backdrop-blur hover:bg-background/80 hover:text-foreground"
-                              aria-label="Download image"
-                            >
-                              <Download className="size-3.5" strokeWidth={1.5} />
-                            </Button>
-                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={handleDownload}
+                            className="h-auto gap-1 rounded-md border-0 bg-background/80 px-2 py-1 text-xs text-foreground backdrop-blur hover:bg-background/80 hover:text-foreground"
+                            aria-label="Download image"
+                          >
+                            <Download className="size-3.5" strokeWidth={1.5} />
+                          </Button>
                           <Button
                             type="button"
                             variant="ghost"
@@ -1705,7 +1700,7 @@ export function ImageGenFocusView({
             imageUrl={imageUrl}
             title={title}
             onClose={() => setZoomOpen(false)}
-            onDownload={canDownloadImage ? handleDownload : undefined}
+            onDownload={handleDownload}
           />
         )}
       </SheetContent>
