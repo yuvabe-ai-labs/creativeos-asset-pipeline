@@ -37,7 +37,7 @@ import { ActiveOnlyNotice } from "./active-only-notice";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import type { ApprovalStatus } from "@/lib/approval";
-import { useCanApproveNode } from "@/components/permissions/use-can-approve-node";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
@@ -180,7 +180,7 @@ export function PromptFocusShell({
   headerActions,
   children,
 }: PromptFocusShellProps) {
-  const canApprove = useCanApproveNode(targetType); // "video-prompt" or "multishot-prompt"
+  const { approve: canApprove } = useCanvasPermissions(); // "video-prompt" or "multishot-prompt"
   // A pending destructive action awaiting confirmation. Replaces window.confirm so the
   // prompt stays inside the design system instead of native OS chrome.
   const [confirm, setConfirm] = useState<{

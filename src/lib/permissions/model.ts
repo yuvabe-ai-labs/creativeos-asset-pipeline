@@ -128,3 +128,14 @@ export function impersonatedAccess(userId: string, orgId: string): Access {
 
 /** Nothing known yet (the browser before /api/me answers): every check fails closed. */
 export const NO_ACCESS: Access = { userId: "", isSuperAdmin: false, orgs: new Map() };
+
+/** The six answers for one client: what the canvas works out once and its nodes read. */
+export type ClientPermissions = Readonly<Record<Permission, boolean>>;
+
+export const NO_CLIENT_PERMISSIONS: ClientPermissions = {
+  view: false, edit: false, generate: false, approve: false, share: false, delete: false,
+};
+
+export const ALL_CLIENT_PERMISSIONS: ClientPermissions = {
+  view: true, edit: true, generate: true, approve: true, share: true, delete: true,
+};

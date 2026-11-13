@@ -74,7 +74,7 @@ import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
-import { useCanApproveNode } from "@/components/permissions/use-can-approve-node";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -737,7 +737,7 @@ export function VideoGenFocusView({
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const generationLock = useGenerationLock(nodeId);
   const lockReason = generationLock ? GENERATION_LOCK_COPY[generationLock].short : null;
-  const canApprove = useCanApproveNode("video-gen");
+  const { approve: canApprove } = useCanvasPermissions();
   const flushAutosave = useFlushAutosave();
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
@@ -2014,7 +2014,6 @@ export function VideoGenFocusView({
                       decide what it will cost and whether it is even legal to run.
                       D435 — the same pinned GenerateFooter every node has. */}
                   <GenerateFooter
-                    need="generate"
                     className="-mx-6 -mb-5"
                     label={videoUrl ? "Re-generate" : "Generate video"}
                     busy={isGenerating}

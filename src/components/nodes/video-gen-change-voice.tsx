@@ -120,7 +120,6 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
 
       {/* D487 — the same pinned footer as Generate and Edit video. */}
       <GenerateFooter
-        need="generate"
         className="-mx-6 -mb-5"
         label="Change voice"
         busy={busy}

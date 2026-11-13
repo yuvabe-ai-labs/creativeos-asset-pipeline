@@ -7,7 +7,6 @@ import { lipSyncBlockedReason } from "@/lib/dubbing/blocked-reasons";
 import { FieldLabel } from "./field-label";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { GatedButton } from "@/components/permissions/gated-button";
-import { useClientId } from "@/components/canvas/client-id-context";
 
 type Props = {
   /** The dub being viewed. The tab is disabled until there is one. */
@@ -22,7 +21,6 @@ type Props = {
 
 // D378 — the Lip sync tab: runs on the dub being viewed. A disabled button says why on hover.
 export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, editable, locked = null, onLipSync }: Props) {
-  const clientId = useClientId();
   const blocked = lipSyncBlockedReason({ editable, running, hasDub: true, dubSeconds: activeDubSeconds, locked });
   return (
     <div className="flex flex-col gap-6">
@@ -34,8 +32,6 @@ export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, edit
       </div>
       <div className="flex flex-col gap-2">
         <GatedButton
-          need="generate"
-          clientId={clientId}
           onClick={onLipSync}
           disabled={Boolean(blocked)}
           disabledReason={blocked}

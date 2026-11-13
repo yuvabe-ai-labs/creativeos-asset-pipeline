@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { ClientIdProvider } from "@/components/canvas/client-id-context";
 import { LockBanner } from "@/components/canvas/lock-banner";
-import { useCan } from "@/components/permissions/use-can";
+import { ClientPermissionsProvider, useCanvasPermissions, useClientPermissions } from "@/components/permissions/client-permissions";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
 import { useEditorAutosave } from "@/hooks/use-editor-autosave";
 import { useEditorLayout } from "@/hooks/use-editor-layout";
@@ -48,17 +48,20 @@ const SIDE_RAIL = "40px";
 // rails, a divider resizes the timeline, and the timeline scrolls on its own. It holds the canvas
 // lock (D391): read-only without it.
 export function EditorShell(props: Props) {
+  const permissions = useClientPermissions(props.clientId);
   return (
     <ClientIdProvider value={props.clientId}>
-      <EditorStoreProvider doc={props.initialState.doc} sources={props.initialState.sources}>
-        <EditorPlaybackProvider>
-          <AutoCaptionsProvider canvasId={props.canvasId} nodeId={props.initialState.editorNodeId}>
-            <EditorViewProvider>
-              <EditorShellBody {...props} />
-            </EditorViewProvider>
-          </AutoCaptionsProvider>
-        </EditorPlaybackProvider>
-      </EditorStoreProvider>
+      <ClientPermissionsProvider value={permissions}>
+        <EditorStoreProvider doc={props.initialState.doc} sources={props.initialState.sources}>
+          <EditorPlaybackProvider>
+            <AutoCaptionsProvider canvasId={props.canvasId} nodeId={props.initialState.editorNodeId}>
+              <EditorViewProvider>
+                <EditorShellBody {...props} />
+              </EditorViewProvider>
+            </AutoCaptionsProvider>
+          </EditorPlaybackProvider>
+        </EditorStoreProvider>
+      </ClientPermissionsProvider>
     </ClientIdProvider>
   );
 }
@@ -66,8 +69,8 @@ export function EditorShell(props: Props) {
 function EditorShellBody({ canvasId, clientId, canvasPath, breadcrumb, title, initialState }: Props) {
   // Spec §5: holding the lock is editing. Without Edit the cut opens view only and never takes
   // the lock from whoever is editing.
-  const canEdit = useCan("edit", clientId);
-  const lock = useCanvasLock(canvasId, { acquire: canEdit });
+  const { edit } = useCanvasPermissions();
+  const lock = useCanvasLock(canvasId, { acquire: edit });
   const setEditable = useEditorStore((s) => s.setEditable);
   const select = useEditorStore((s) => s.select);
   useEffect(() => setEditable(lock.canEdit), [lock.canEdit, setEditable]);

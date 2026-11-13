@@ -215,7 +215,6 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                   {/* D435 — the same pinned Generate every node has; the Composite's Edit runs
                       from it too. */}
                   <GenerateFooter
-                    need="generate"
                     className="-mx-6 -mb-5"
                     label={editing ? "Edit image" : imageUrl ? "Re-generate" : "Generate composite"}
                     busy={generating}

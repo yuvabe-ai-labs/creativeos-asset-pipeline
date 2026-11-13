@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ClientIdProvider } from "@/components/canvas/client-id-context";
-import { TestAccessProvider } from "@/components/permissions/test-access-provider";
+import { ClientPermissionsProvider } from "@/components/permissions/client-permissions";
+import { ALL_CLIENT_PERMISSIONS } from "@/lib/permissions/model";
 import { DubbingControls } from "../dubbing-controls";
 import { DubbingDubPanel } from "../dubbing-dub-panel";
 import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
@@ -10,7 +11,7 @@ import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
 
 // Dub and Lip sync are gated on Generate (spec §5); every render is the owner's.
 const renderGated = (el: ReactElement) => renderToStaticMarkup(
-  <TestAccessProvider><ClientIdProvider value="c1">{el}</ClientIdProvider></TestAccessProvider>,
+  <ClientPermissionsProvider value={ALL_CLIENT_PERMISSIONS}><ClientIdProvider value="c1">{el}</ClientIdProvider></ClientPermissionsProvider>,
 );
 
 const base = {

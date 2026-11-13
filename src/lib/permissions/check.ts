@@ -1,5 +1,5 @@
 // src/lib/permissions/check.ts
-import { isPermission, type Access, type Action, type Permission } from "./model";
+import { isPermission, NO_CLIENT_PERMISSIONS, PERMISSIONS, type Access, type Action, type ClientPermissions, type Permission } from "./model";
 
 export const FORBIDDEN_MESSAGE = "You don't have access to this. Ask your agency owner.";
 
@@ -57,4 +57,12 @@ export function isWaiting(access: Access, orgId: string): boolean {
   const org = access.orgs.get(orgId);
   if (!org || org.isOwner) return false;
   return !org.accessGiven || !org.anyClient.has("view");
+}
+
+/** The six answers for one client. An empty client id (outside a canvas) answers none. */
+export function clientPermissionsFor(access: Access, orgId: string, clientId: string): ClientPermissions {
+  if (clientId === "") return NO_CLIENT_PERMISSIONS;
+  const out = { ...NO_CLIENT_PERMISSIONS };
+  for (const p of PERMISSIONS) out[p] = check(access, p, { orgId, clientId }) === "allow";
+  return out;
 }

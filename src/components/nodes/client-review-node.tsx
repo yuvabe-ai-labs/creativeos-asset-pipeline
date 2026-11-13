@@ -19,8 +19,7 @@ import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
 import { NodeMedia } from "./node-media";
 import { useClientFeedback } from "@/components/canvas/client-feedback-drawer/client-feedback-context";
-import { useCan } from "@/components/permissions/use-can";
-import { useClientId } from "@/components/canvas/client-id-context";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 
 // D309: terminal node (no handles) — the cut a client reviews by public link. Clicking the
 // card opens the client feedback drawer (right side, non-modal) for this node; there is no
@@ -37,7 +36,7 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   const { data: current, isPending: loading, isError, refetch } = useNodeClientReview(id);
   const editable = useCanvasEditable();
   // Spec §5: uploading the cut makes the client's review link, so it needs Share.
-  const canShare = useCan("share", useClientId());
+  const { share: canShare } = useCanvasPermissions();
 
   // The shared "open this node" signal (generation tray, copilot open_node) opens the
   // drawer here, since this node has no focus view. Consume it so it doesn't re-fire.

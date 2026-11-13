@@ -57,7 +57,7 @@ import { useShotCollapse } from "./use-shot-collapse";
 import { ShotHiddenCountProvider } from "./shot-collapse-context";
 import { CollapseShotsPanel } from "./collapse-shots-panel";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
-import { useCan } from "@/components/permissions/use-can";
+import { ClientPermissionsProvider, useClientPermissions } from "@/components/permissions/client-permissions";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
 import { usePrefetchNodeVersions, useNodeVersionsLiveSync } from "@/hooks/queries/node-versions";
@@ -176,11 +176,10 @@ export function Canvas({
   // included) keep firing behind it unless we explicitly stand down.
   const anyFocusViewOpen = useAnyFocusViewOpen();
 
-  // Spec §5: without Edit the canvas is view only: no lock, no dragging or connecting, no
-  // add menu, fields render plain (everything below reads canEdit).
-  const canEditCanvas = useCan("edit", clientId);
+  // Spec §5: without Edit the canvas is view only: no lock, no dragging or connecting, no add menu, fields render plain (everything below reads canEdit). The six answers are worked out here once; nodes read them from ClientPermissionsProvider.
+  const permissions = useClientPermissions(clientId);
   const { canEdit, viewOnly, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
-    useCanvasLock(canvasId, { acquire: canEditCanvas });
+    useCanvasLock(canvasId, { acquire: permissions.edit });
 
   // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a senior's
   // decision made elsewhere lands here without a reload.
@@ -485,6 +484,7 @@ export function Canvas({
   return (
     <ReactFlowProvider>
     <ClientIdProvider value={clientId}>
+    <ClientPermissionsProvider value={permissions}>
     <ClientSlugProvider value={clientSlug}>
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
@@ -644,6 +644,7 @@ export function Canvas({
     </CanvasEditableProvider>
     </CanvasIdProvider>
     </ClientSlugProvider>
+    </ClientPermissionsProvider>
     </ClientIdProvider>
     </ReactFlowProvider>
   );

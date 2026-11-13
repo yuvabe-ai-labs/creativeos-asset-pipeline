@@ -76,7 +76,7 @@ import {
   setVersionApprovalAction,
   markVersionApprovalSeenAction,
 } from "@/lib/actions/approval";
-import { useCanApproveNode } from "@/components/permissions/use-can-approve-node";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -326,7 +326,7 @@ export function ImageGenFocusView({
   const [approvedByName, setApprovedByName] = useState<string | null>(null);
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
-  const canApprove = useCanApproveNode("image-gen");
+  const { approve: canApprove } = useCanvasPermissions();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   // The connected Prompt node's active output — the text this image is generated from. Read
   // through the same versions cache as the Prompt node's own focus view, so a prompt just
@@ -1261,7 +1261,6 @@ export function ImageGenFocusView({
                       action from the edit panel. */}
                   {activeTab !== "edit" && (
                     <GenerateFooter
-                      need="generate"
                       className="-mx-6 -mb-5"
                       label={imageUrl ? "Re-generate" : "Generate image"}
                       busy={generating}

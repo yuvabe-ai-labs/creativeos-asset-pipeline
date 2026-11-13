@@ -3,8 +3,6 @@
 import type { ReactNode } from "react";
 import { Loader2, Sparkles, type LucideIcon } from "lucide-react";
 import { GatedButton } from "@/components/permissions/gated-button";
-import { useClientId } from "@/components/canvas/client-id-context";
-import type { Action } from "@/lib/permissions/model";
 import { cn } from "@/lib/utils";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 
@@ -17,7 +15,6 @@ import { EstimatedCreditsLabel } from "./estimated-credits-label";
  * "-mx-6 -mb-5" inside "px-6 py-5"). Or place it under a scrolling area, outside it.
  */
 export function GenerateFooter({
-  need,
   label,
   busy,
   busyLabel = "Generating…",
@@ -30,8 +27,6 @@ export function GenerateFooter({
   notice,
   className,
 }: {
-  /** The permission this button needs: Generate (spec §5). */
-  need: Action;
   /** "Generate motion prompt" the first time, "Re-generate" once there is an output. */
   label: string;
   busy: boolean;
@@ -47,13 +42,10 @@ export function GenerateFooter({
   notice?: ReactNode;
   className?: string;
 }) {
-  const clientId = useClientId();
   return (
     <div className={cn("sticky bottom-0 z-10 mt-auto flex flex-col gap-2 border-t border-border bg-card px-6 py-3", className)}>
       {notice}
       <GatedButton
-        need={need}
-        clientId={clientId}
         size="lg"
         className="w-full"
         triggerClassName="block w-full"

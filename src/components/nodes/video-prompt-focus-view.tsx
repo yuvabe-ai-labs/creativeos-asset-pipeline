@@ -665,7 +665,6 @@ export function VideoPromptFocusView({
                   {/* D435 — the same Generate every node has, at the column's foot under the
                       scrolling settings, so it never needs scrolling to reach. */}
                   <GenerateFooter
-                    need="generate"
                     className="shrink-0"
                     icon={Clapperboard}
                     label={output ? "Re-generate" : "Generate motion prompt"}

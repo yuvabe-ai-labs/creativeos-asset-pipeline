@@ -9,7 +9,6 @@ import { DUB_NO_LENGTH_MESSAGE } from "@/lib/dubbing/copy";
 import { FieldLabel } from "./field-label";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 import { GatedButton } from "@/components/permissions/gated-button";
-import { useClientId } from "@/components/canvas/client-id-context";
 import { DubbingAdvanced } from "./dubbing-advanced";
 import { dubBlockedReason } from "@/lib/dubbing/blocked-reasons";
 
@@ -38,7 +37,6 @@ type Props = {
 
 // D378 — the Dub tab: a language, a translation style, and Dub (each run is a new version).
 export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onStyleChange, voice, onVoiceChange, pace, onPaceChange, sourceSeconds, sourceLoading, hasSource, hasDub, running, editable, locked = null, onDub }: Props) {
-  const clientId = useClientId();
   const busy = running !== null;
   const blocked = dubBlockedReason({ editable, running, hasSource, sourceLoading, sourceSeconds, locked });
   const canDub = editable && hasSource && sourceSeconds > 0 && !busy;
@@ -95,8 +93,6 @@ export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onS
 
       <div className="flex flex-col gap-2">
         <GatedButton
-          need="generate"
-          clientId={clientId}
           onClick={onDub}
           disabled={!canDub}
           disabledReason={blocked}

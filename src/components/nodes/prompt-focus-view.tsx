@@ -64,7 +64,7 @@ import { InlineApprovalBar } from "./inline-approval-bar";
 import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
-import { useCanApproveNode } from "@/components/permissions/use-can-approve-node";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -193,7 +193,7 @@ export function PromptFocusView({
   const [approvedByName, setApprovedByName] = useState<string | null>(null);
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
-  const canApprove = useCanApproveNode("prompt");
+  const { approve: canApprove } = useCanvasPermissions();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   // The rail's hover control (✕ / link icon) — see useRailDisconnect. A disconnected row that
   // was selected falls back to this node's own tab.
@@ -764,7 +764,6 @@ export function PromptFocusView({
                   {/* D435 — the same Generate every node has, at the column's foot under the
                       scrolling settings, so it never needs scrolling to reach. */}
                   <GenerateFooter
-                    need="generate"
                     className="shrink-0"
                     label={output ? "Re-generate" : "Generate prompt"}
                     busy={generating}
