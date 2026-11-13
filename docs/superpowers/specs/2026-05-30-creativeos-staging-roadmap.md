@@ -8743,6 +8743,8 @@ Allowing several agencies later means three things:
 
 ### D500 — Four permissions on the person, copied onto each client they are on; one owner with everything *(recorded 2026-11-12; supersedes D495; refines D43, D166, D188; originated → `2026-11-12-agency-permissions-design.md`)*
 
+**Refined by D507 (2026-11-13).** View and Edit are permissions too: six in all.
+
 **Decision.**
 - **Permissions.** Generate, Approve, Share, Delete, stored as `text[]` with a check constraint. Being on a client gives view, edit, downloads, and deleting parts of an item (node, shot, panel, comment). Delete is for a whole library item.
 - **Where set.** The owner sets them on the person at agency level (`org_memberships.permissions`). Each client assignment (`membership_clients.permissions`) stores the effective copy. A trigger applies each agency-level change (what was added, what was removed) to every one of the person's client rows. V1 screens edit the agency level only; a per-client difference is a database edit for now.
@@ -8788,6 +8790,8 @@ Allowing several agencies later means three things:
 
 ### D503 — Several agencies per person now; the selected agency scopes everything *(recorded 2026-11-12; supersedes D498; refines D80, D81; originated → `2026-11-12-agency-permissions-design.md`)*
 
+**Superseded by D508 (2026-11-13).** One agency per person in this version.
+
 **Decision.**
 - `org_memberships_one_org_per_user` is dropped. Each membership has its own permissions and clients.
 - The selected agency is a `cos_org` cookie, checked against the person's memberships on every request, falling back to their earliest membership. It becomes `effectiveOrgId`, so every query stays scoped as today. Impersonation still overrides it.
@@ -8821,6 +8825,8 @@ Allowing several agencies later means three things:
 
 ### D505 — Yuvabe manages any agency's people from Admin; only Yuvabe invites an owner *(recorded 2026-11-13; refines D497, D502; originated → `2026-11-12-agency-permissions-design.md`)*
 
+**Refined by D509 (2026-11-13).** One popup creates the agency and invites its owner; Admin's Team tab is called People and shows statuses.
+
 **Decision.**
 - **Admin.** The admin agency page has Overview, Team and Clients tabs. Team and Clients render the owner's Team page and People list components, with the owner's powers, plus Make owner. View-as stays as it is (read-only, or elevated and audit-logged). Changes made from Admin go to the same audit log (`admin_action`).
 - **Owner invites.** An invitation carries `as_owner`. Only the super admin sends one, and only while the agency has no owner and no open owner invite. Accepting makes the person owner with access given at once. A new agency has no owner until then, so the owner-protection rule applies only once an owner exists.
@@ -8840,6 +8846,8 @@ Allowing several agencies later means three things:
 
 ### D506 — Invites are sent from inside a client; giving access puts the person on that client *(recorded 2026-11-13; refines D501, D502, D505; originated → `2026-11-12-agency-permissions-design.md`)*
 
+**Refined by D509 (2026-11-13).** A Members button beside Brand Workspace; statuses Invited, Signed up, Member, Owner; a two-step invite popup. Permissions are still set only on the Team page.
+
 **Decision.**
 - **Where.** A member is invited from a client's Members list (`/clients/[id]/members`), never from the Team page. The invitation carries the client. The only invite without a client is the super admin's owner invite.
 - **Joining.** Accepting creates the membership (waiting) and the client row with no permissions. Giving access on the Team page sets the permissions and the cascade fills that row, so the person can start at once; they are emailed that their access is ready. No live update: they open the app again.
@@ -8856,3 +8864,32 @@ Allowing several agencies later means three things:
 - Invites from the Team page (D502): the owner then had to add the person to a client in a second step.
 - A live update to the waiting screen (an email is enough, and avoids a channel per person).
 - Several open invites for one person (the second client is added from the list once they've joined).
+
+### D507 — View and Edit are permissions: six in all *(recorded 2026-11-13; refines D500, D504; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.** The permissions are View, Edit, Generate, Approve, Share and Delete. View is needed to see a client at all (downloads come with it); without it the client is not found. Edit covers changing work by hand and removing parts of an item; without it the canvas is read-only, using the view-only canvas built in plan 2. The checker's step for view and edit now reads the client row like the other four.
+
+**Why.** Cyril's revised page (13 Nov) keeps View and Edit separate so an owner can let someone edit without spending credits, or give view-only access. Arun chose it over Anupama's 12 Nov summary, which had made them implicit.
+
+**Rejected.** View and Edit implicit for anyone on a client (D500). An Invite permission for people other than the owner, also in Cyril's page: not in this version (Arun, 13 Nov).
+
+### D508 — One agency per person in this version *(recorded 2026-11-13; supersedes D503; restores D498's position)*
+
+**Decision.** A login belongs to one agency. `org_memberships_one_org_per_user` stays. An email with a login in another agency can't be invited ("This email already belongs to another agency."). No switcher, no cross-agency page, no join-with-existing-login. Grants stay keyed by person and agency, `get_membership_access` returns a set and `auth_org_ids()` every agency, so allowing several later is: drop the index, add a switcher, let an existing login join.
+
+**Why.** Cyril's revised page calls an existing login from another agency "not a valid scenario" and asks whether multi-agency drops out of the first version; Arun, 13 Nov: drop it from v1.
+
+**Rejected.** Building agency switching now (D503).
+
+### D509 — Permissions are set only on the Team page; a client's Members list invites, adds and removes *(recorded 2026-11-13; refines D505, D506)*
+
+**Decision.**
+- **Team page** is the only place permissions are set: Waiting for you (Signed up people, Give access), Invited, Members. The editor is chips with ×, then "Choose a permission" and Add.
+- **Client Members list** (a Members button beside Brand Workspace): Name, Status, Actions. Statuses Invited, Signed up ("Needs permissions", with a link to Team), Member, Owner. Remove takes someone off that client only.
+- **Invite popup**: step 1 lists people in the agency with a search and checkboxes ("Add n people"); "Invite someone new" opens step 2 with the email.
+- **Super admin**: one popup creates the agency with the owner's email; the agency page's People tab shows statuses.
+- Emails: "{Name} signed up… Give them permissions on the Team page", and "Your access is ready".
+
+**Why.** Cyril's revised page draws the Members button, statuses, the invite popup and the one-popup agency setup. Arun, 13 Nov: permissions are edited only agency-wide on Team; per client the owner only invites, assigns and removes.
+
+**Rejected.** Editing permissions by opening a person on a client's Members list (Cyril's page): permissions are per person, so one place avoids the impression they differ per client.
