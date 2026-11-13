@@ -1,14 +1,16 @@
-# Permissions, plan 3 of 4: six permissions in the core Implementation Plan
+# Permissions, plan 3 of 4: five permissions in the core Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The server and the browser decide with six permissions (`view, edit, generate, approve, share, delete`) stored on the person and copied onto each client they are on, one owner per agency, with CASL, the 59-key catalogue and presets gone, and people waiting for access shown the onboarding screen.
+Tasks 1 to 10 were built with six permissions; Task 11 moves the code to five.
+
+**Goal:** The server and the browser decide with five permissions (`generate, approve, share, delete, invite`) stored on the person and copied onto each client they are on, one owner per agency, with CASL, the 59-key catalogue and presets gone, and people waiting for access shown the onboarding screen. Being on a client (its `membership_clients` row, with access given) is what lets a person see it; a row with no permissions means they can look only. `view` and `edit` are actions, not permissions: `view` needs only the client row, `edit` needs Generate.
 
 **Architecture:**
 - **Data:** migration 0062 is rewritten (never applied anywhere): `org_memberships` gains `is_owner`, `permissions text[]`, `access_given_at`, `invited_by`; `membership_clients` holds each client row with its own `permissions`; a cascade trigger applies agency-level changes to every row; a deferred trigger keeps an owner; `org_invitations` carries `client_id` / `as_owner`. One RPC, `get_membership_access`, returns everything a request needs.
 - **Checker:** `src/lib/permissions/model.ts` builds one `Access` (Maps and Sets) from the RPC rows; `check(access, action, { orgId, clientId })` in `src/lib/permissions/check.ts` is the only function that decides, on the server and in the browser. It has no server-only imports.
-- **Enforcement:** the chokepoints (`withClient`, `withCanvas`, `withNode`, `withMoodboard`, `withAccess`, `withAction`, `loadClientPage`, `loadCanvasPage`) keep their required `need`, now one of nine plain actions. The coverage tests keep failing any route or action without one.
-- **Browser:** `/api/me` sends the person's agency, owner flag, whether access is given, their permissions and each client's permissions. `AccessProvider` builds the same `Access` once per payload and puts it in context; `useCan(action, clientId?)` calls `check`. The canvas works out its six booleans once and nodes read them from context.
+- **Enforcement:** the chokepoints (`withClient`, `withCanvas`, `withNode`, `withMoodboard`, `withAccess`, `withAction`, `loadClientPage`, `loadCanvasPage`) keep their required `need`, now one of ten plain actions (the five permissions, `view`, `edit`, and the three owner-only actions). The coverage tests keep failing any route or action without one.
+- **Browser:** `/api/me` sends the person's agency, owner flag, whether access is given, their permissions and each client's permissions. `AccessProvider` builds the same `Access` once per payload and puts it in context; `useCan(action, clientId?)` calls `check`. The canvas works out its permissions for its client once and nodes read them from context.
 
 **Tech Stack:**
 - Next.js 16.2.6 App Router (Server Components, route handlers, server actions)
@@ -26,10 +28,17 @@
 - **Never** run SQL against any database, apply a migration, or push.
 - **Packages:** `node_modules` is a junction into the other checkout. Never run `npm install <pkg>` or `npm uninstall`. Removing a dependency (Task 9) edits `package.json` and runs `npm install --package-lock-only --ignore-scripts`, which rewrites only `package-lock.json`.
 - **SQL and anything containing `$`** is written with the Write/Edit tools, never a shell heredoc or `echo`. Functions use `$$` quoting.
-- **The six permissions, exactly and in this order:** `view, edit, generate, approve, share, delete`. Actions add `manage_team, manage_clients, view_credits` (owner only).
-- **Check order (spec §4.2, revised 13 Nov):** super admin allow; no membership in `orgId` → `not_found`; owner allow; a named client with access not given, no row or no `view` → `not_found` (before the owner-only step, so a refusal never confirms a client exists); owner-only action → `forbidden`; no client named and nothing viewable → `not_found`; the action in the row → allow, else `forbidden`.
+- **The five permissions, exactly and in this order:** `generate, approve, share, delete, invite`. There is no View or Edit permission: being on a client (its row, with access given) lets a person see it, and a row with no permissions means they can look only. Actions add `view` and `edit` (not permissions: `view` needs only the client row, `edit` needs `generate`) and `manage_team, manage_clients, view_credits` (owner only). Inviting to a client and adding people already in the agency to it need `invite` on that client; removing people, giving access, editing permissions, resend and cancel stay `manage_team`.
+- **Check order (spec §4.2):**
+  1. Super admin: allow.
+  2. No membership in `orgId`: `not_found`.
+  3. Owner of `orgId`: allow.
+  4. A named client (`clientId` set) with access not given or no row for it: `not_found`. This comes before step 5 so that refusing an owner-only action never confirms that a client the person is not on exists.
+  5. `manage_team`, `manage_clients`, `view_credits`: `forbidden`.
+  6. No client named, and access not given or no client rows: `not_found`.
+  7. `view`: allow. Otherwise the permission the action needs (`edit` needs `generate`; every other action needs itself) is in the client row (or, with no client named, in any of the person's rows): allow; otherwise `forbidden`.
 - **Refusals:** `not_found` → 404 (routes), `notFound()` (pages); `forbidden` → 403 with exactly `You don't have access to this. Ask your agency owner.` A refusal never confirms that another agency's row, or a client the person is not on, exists.
-- **Browser rules (spec §5):** missing Generate shows the button disabled with exactly `Generating is turned off for you. Ask your agency owner.`; missing Edit, Approve, Share or Delete hides the control; without Edit the canvas is read-only through `useCanvasEditable()`.
+- **Browser rules (spec §5):** missing Generate shows the button disabled with exactly `Generating is turned off for you. Ask your agency owner.`; without Generate the controls for changing work by hand are hidden; missing Approve, Share, Delete or Invite hides the control; without Generate the canvas is read-only through `useCanvasEditable()` (`can("edit")`).
 - **Onboarding copy, exactly:** `You're being onboarded. Hang in there.` / `{Agency} is setting up your access. Your clients will appear here once it's ready.`
 - **Performance (AGENTS.md):** one `get_membership_access` per request; every check is a Map or Set lookup; nothing per node, card or row makes a call or opens a channel; the canvas computes its permissions once; independent reads in one `Promise.all`.
 - **Data fetching:** `/api/me` stays on the three layers (`src/services/me.service.ts` → `src/hooks/queries/me.ts` with `meKeys` → consumers). One owner: `useIdentity()` selects from `useMe()`.
@@ -39,14 +48,14 @@
 
 ## Decisions this plan makes
 
-- **`clientId: null` means "on at least one client the person can view".** Routes not rooted at one client (`withAccess`: the voice library, the moodboard index, the review inbox and counts) and nav items use it. `OrgAccess.anyClient` is precomputed when the access is built, so this is one Set lookup, not a scan.
+- **`clientId: null` means "on at least one client the person is on".** Routes not rooted at one client (`withAccess`: the voice library, the moodboard index, the review inbox and counts) and nav items use it. `OrgAccess.anyClient` is precomputed when the access is built, so this is one Set lookup, not a scan.
 - **One bridge commit each way, then gone.** Task 5 switches the server to the new `Access` while routes still name the old keys: `src/lib/permissions/legacy-need.ts` maps an old key to its action (spec §4.3), and Task 6 renames every `need` and deletes the file. Task 5 also turns the new access back into CASL rules for the browser (`packAccessRules`), deleted in Task 7. Each task stays reviewable on its own and every commit compiles.
 - **Page denials are all the 404 page** (`notFound()`), including another agency's client, which used to redirect home (spec §4.4). `loadCanvasPage` keeps answering `null` for "not found" so `/eval` keeps its own "Canvas not found".
 - **A new client row always starts as a copy of the person's agency set**, set by the `before insert` trigger that also refuses owner rows, so no insert path can forget it (spec §2.3).
-- **Downloads come with View** (D507): the download gates from plan 2 Task 10 (`5b19e86a`, committed, never reviewed) are reverted in Task 3, and its review is this plan's Task 3.
-- **Review counts are of the clients where the person has Approve; the inbox lists the clients they can view**, with pending work only when they hold Approve somewhere. The per-type count path (`org_review_counts_for_types`) is no longer called; the SQL function stays (spec §3).
-- **`useCanvasEditable()` stays the lock's answer**, and the lock is only requested with Edit (plan 2 Task 7), so it is `can("edit")` and the edit lock held. Nothing about the D33 lock changes.
-- **Plan 2 Task 11** (profile shows the role; `orgRole` and `Identity.role` go) is folded into Tasks 5 and 7. **Task 12** (a lint rule against comparing preset names) is dropped: there are no presets left to compare. **Task 13's** verification is Task 11 here.
+- **Downloads come with being on the client** (D507): the download gates from plan 2 Task 10 (`5b19e86a`, committed, never reviewed) are reverted in Task 3, and its review is this plan's Task 3.
+- **Review counts are of the clients where the person has Approve; the inbox lists the clients they are on**, with pending work only when they hold Approve somewhere. The per-type count path (`org_review_counts_for_types`) is no longer called; the SQL function stays (spec §3).
+- **`useCanvasEditable()` stays the lock's answer**, and the lock is only requested by someone who can edit (plan 2 Task 7), so it is `can("edit")` (Generate) and the edit lock held. Nothing about the D33 lock changes.
+- **Plan 2 Task 11** (profile shows the role; `orgRole` and `Identity.role` go) is folded into Tasks 5 and 7. **Task 12** (a lint rule against comparing preset names) is dropped: there are no presets left to compare. **Task 13's** verification is Task 12 here.
 
 ## File structure
 
@@ -58,7 +67,7 @@
 | `src/lib/permissions/onboarding.ts` (new) | `sendWaitingToOnboarding` for the home page |
 | `src/lib/me/access.ts` (new) | `accessFromMe`: the browser's `Access` from the payload |
 | `src/components/permissions/access-context.tsx` (new) | the one `Access` in context |
-| `src/components/permissions/client-permissions.tsx` (new) | the canvas's six booleans, computed once |
+| `src/components/permissions/client-permissions.tsx` (new) | the canvas's permission booleans, computed once |
 | `src/components/permissions/test-access-provider.tsx` (new) | component tests' provider |
 | `src/app/onboarding/page.tsx` (new), `src/components/onboarding/onboarding-notice.tsx` (new) | the onboarding screen |
 | `supabase/migrations/0062_permission_based_access.sql` | rewritten |
@@ -4208,25 +4217,108 @@ git log -1 --format=%B
 
 ---
 
-### Task 11: Verify everything and record the plan's decisions
+### Task 11: Five permissions
+
+The stored permissions become the five of the Global Constraints: `generate, approve, share, delete, invite`. Being on a client (its row, with access given) is what lets a person see it, and an empty set means they can look only. `view` and `edit` stay as actions (routes keep `need: "view"` / `need: "edit"`): `view` needs only the row, `edit` needs `generate`. `invite` is a new permission and action, checked on the named client like the others; nothing in the app uses it yet (plan 4 builds the invite routes), so this task only makes the model, checker, `/api/me`, migration and coverage lists accept it.
+
+**Files:**
+- Modify: `src/lib/permissions/model.ts`, `src/lib/permissions/check.ts`
+- Modify (comments only, if they say "client they can view" or "no row with View"): `src/lib/permissions/onboarding.ts`, `src/app/onboarding/page.tsx`
+- Modify (whatever the type change needs): `src/components/permissions/client-permissions.tsx`, `src/components/permissions/access-context.tsx`, `src/lib/me/access.ts`, `src/app/api/me/route.ts`
+- Modify: `supabase/migrations/0062_permission_based_access.sql` (never applied; rewritten in place with the Write/Edit tools), `src/lib/permissions/migration-0062.test.ts`
+- Modify: `docs/auth-production-migration.md` (the 0062 permissions and backfill)
+- Modify (if the coverage test needs an entry for an action no route uses yet): `src/lib/permissions/not-yet-checked.ts`, adding `invite` the way `manage_team` is ("Client Members invite, plan 4")
+- Test: `src/lib/permissions/check.test.ts`, `model.test.ts`, `onboarding.test.ts`, `test-fixtures.ts`, `src/lib/me/access.test.ts`, `src/components/permissions/__tests__/*`, `src/app/onboarding/page.test.tsx`, `src/app/api/me/route.test.ts`, and any other fixture `grep -rn "\"view\"\|'view'\|\"edit\"" src` finds in a permission set, row fixture or `/api/me` payload
+
+- [ ] **Step 1: Write the failing checker tests**
+
+In `check.test.ts` (table test), add:
+- on a client with an empty set: `view` allow, `edit` forbidden, `generate` forbidden, `manage_team` forbidden; another client: `not_found` for every action;
+- with `generate`: `edit` allow;
+- `invite` on client A but not B: A allow, B forbidden;
+- access not given, with a row: `not_found` for `view`;
+- no client named: a member with one empty row gets `view` allow and `generate` forbidden; a member with no rows gets `not_found`;
+- `isWaiting`: access given with one empty row → false; access given with no rows → true;
+- `clientPermissionsFor` returns the seven keys (`view`, `edit` and the five permissions);
+- `buildOrgAccess` drops `"view"` and `"edit"` values coming from the database (they are no longer permissions).
+
+Run: `npx vitest run src/lib/permissions/check.test.ts`
+Expected: FAIL.
+
+- [ ] **Step 2: Change the model** (`model.ts`)
+- `PERMISSIONS = ["generate", "approve", "share", "delete", "invite"] as const`.
+- `CLIENT_ACTIONS = ["view", "edit"] as const` (actions that are not permissions). `Action = Permission | ClientAction | OwnerAction`; `ACTIONS` lists all of them; `isAction` accepts them.
+- An exported `permissionFor(action: Permission | ClientAction): Permission | null`: `view` → `null` (the row is enough), `edit` → `"generate"`, a permission → itself. `check.ts` and anything else share it.
+- `anyClient` is built from every client row once access is given (no `view` requirement); "has at least one client" stays O(1) (`clients.size > 0`, no new field).
+- `ClientPermissions` becomes `Readonly<Record<Permission | ClientAction, boolean>>`; update `NO_CLIENT_PERMISSIONS` and `ALL_CLIENT_PERMISSIONS`.
+- Header comment: five permissions, view and edit are actions (D500, D504, D507). The `OWNER_ACTIONS` comment: inviting is the `invite` permission; removing people, giving access, editing permissions, resend and cancel stay `manage_team`.
+
+- [ ] **Step 3: Change the checker** (`check.ts`)
+- `check` follows the check order in the Global Constraints exactly, using `permissionFor` in step 7 (with no client named, the needed permission in `anyClient`).
+- `clientIdsWith(access, orgId, action)` accepts `Permission | ClientAction`: `view` keeps every client the person is on (access given); other actions keep the rows holding the needed permission. Callers pass sensible actions (the client list uses `view`).
+- `isWaiting`: not owner or super admin, and access not given or no client rows.
+- `clientPermissionsFor` loops over `view`, `edit` and the five permissions.
+- Comments that say "can view" or "View" are updated.
+
+- [ ] **Step 4: Browser and `/api/me`**
+
+Make `client-permissions.tsx`, `access-context.tsx`, `src/lib/me/access.ts` and `/api/me` follow the type change. `/api/me` sends the five permissions (it serialises the sets).
+
+- [ ] **Step 5: Migration 0062** (Write/Edit tools only)
+- Check constraints on both tables: `permissions <@ array['generate','approve','share','delete','invite']::text[]`, and the same array for `array_position` ordering in the cascade.
+- Backfill (spec §3.2): non-owner memberships and their client rows get `array['generate','approve','share','delete']` (no invite).
+- `transfer_agency_owner`: the previous owner gets all five, `array['generate','approve','share','delete','invite']`.
+- Comments that say six, View or Edit.
+- `migration-0062.test.ts` (it reads the file text): expectations to match.
+
+- [ ] **Step 6: Migration doc**
+
+`docs/auth-production-migration.md`: wherever it describes 0062's permissions or backfill, it says five permissions and that existing members get Generate, Approve, Share and Delete.
+
+- [ ] **Step 7: Fixtures and copy**
+
+Every test and fixture using `"view"` or `"edit"` as a stored permission: a row that held View only becomes an empty set; a row that needed Edit gets `generate`. `need: "view"` / `need: "edit"` in routes and their tests are actions and stay. Search the rest of `src` for UI copy or comments that list the six permissions or mention a View or Edit permission ("needs Edit", "View only") and fix them; "Generating is turned off" stays.
+
+- [ ] **Step 8: Run the tests**
+
+Run: `npx vitest run src/lib/permissions src/lib/me src/components/permissions src/app/onboarding src/app/api/me`
+Expected: PASS.
+
+Run: `npx vitest run src/app`, `npx vitest run src/lib`, `npx vitest run src/components` (per directory; known flakes in the Global Constraints).
+
+Run: `npx tsc --noEmit` (only the known TS2304) and `npx eslint <changed files>`.
+
+- [ ] **Step 9: Commit**
+
+Stage only the files this task changed.
+
+```bash
+git commit -m "refactor(permissions): five permissions; seeing comes from being on a client, editing from Generate (D507)"
+git log -1 --format=%B
+```
+
+---
+
+### Task 12: Verify everything and record the plan's decisions
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, a new ADR after D509)
 
 - [ ] **Step 1: Record the decisions**
 
-Append after D509 (use the next free number; confirm against `staging`'s roadmap before merging, since `staging` has used numbers this branch picked before):
+Append after the last ADR in the roadmap. Check the roadmap for the next free number rather than assuming it: D510 was free on 13 Nov; if a D510 exists by now, use the next free number and change the heading and commit message to match. Confirm against `staging`'s roadmap before merging, since `staging` has used numbers this branch picked before:
 
 ```markdown
-### D510 — How the six-permission checker is built *(recorded 2026-11-13; refines D500, D504, D507; originated → `2026-11-13-permissions-six-core.md`)*
+### D510 — How the permission checker is built *(recorded 2026-11-13; refines D500, D504, D507; originated → `2026-11-13-permissions-core.md`)*
 
 **Decision.**
-- `check(access, action, { orgId, clientId })` takes `clientId: null` for "on at least one client the person can view": routes and nav items not rooted at one client use it. Each agency's access carries `anyClient`, built once per request, so it is one Set lookup.
+- `check(access, action, { orgId, clientId })` takes `clientId: null` for "on at least one client the person is on": routes and nav items not rooted at one client use it. Each agency's access carries `anyClient`, built once per request, so it is one Set lookup.
 - Every page denial is the 404 page, another agency's client included; `/eval` keeps answering its own "Canvas not found".
 - A new `membership_clients` row always starts as a copy of the person's agency set, set by the same `before insert` trigger that refuses owner rows.
-- The 0062 backfill runs only while no membership has access given, so a re-run never hands people who are waiting all six.
+- The 0062 backfill runs only while no membership has access given, so a re-run never hands people who are waiting Generate, Approve, Share and Delete.
+- `view` and `edit` are actions worked out by one helper, `permissionFor` (`view` needs only the client row, `edit` needs Generate), shared by `check` and anything else that needs it.
 - `org_role` is kept in step by every writer (`owner` / `designer`, swapped by `transfer_agency_owner`) until it is dropped, so 0012's last-owner trigger never disagrees with `is_owner`.
-- Review counts are of the clients where the person holds Approve; the inbox lists the clients they can view, with pending work only for someone holding Approve.
+- Review counts are of the clients where the person holds Approve; the inbox lists the clients they are on, with pending work only for someone holding Approve.
 - Downloads have no gate of their own (plan 2 Task 10 reverted).
 
 **Why.** Spec §4.2–§4.4 and §10 (performance), and keeping each step of the switch a commit that compiles and can be reviewed on its own.
@@ -4268,7 +4360,7 @@ Expected: no `/api/me` request on load; the same requests and channels as before
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "docs(permissions): record how the six-permission checker is built (D510)"
+git commit -m "docs(permissions): record how the permission checker is built (D510)"
 git log -1 --format=%B
 ```
 
@@ -4276,13 +4368,13 @@ git log -1 --format=%B
 
 ## Self-review
 
-- **Spec coverage:** §3 schema, backfill, triggers, functions → Task 2. §4.1 load once and error page on failure → Task 5 (`dal.ts` throws; `loadInitialMe` stays null-on-failure for the layout only). §4.2 checker → Task 1. §4.3 chokepoints and mapping → Tasks 5, 6. §4.4 lists and pages → Tasks 5, 10. §5 browser → Tasks 7, 8. §6.4 onboarding → Task 10. §6.5 profile menu → Task 7. §1 "Removed" → Tasks 3, 4, 7, 8, 9. §9 migration doc → Task 2. §10 performance → Tasks 1, 5, 8, 11. §11 tests → every task. §6.1–§6.3, §6.6, §6.7 → plan 4.
-- **Plan 2 carry-overs:** Task 10 reviewed and reverted (Task 3); Task 11 folded into Tasks 5 and 7; Task 12 dropped (no presets); Task 13's verification is Task 11. Ledger minors: `/api/me` `withQuietErrors`, me `retry` skips 4xx, empty client id fails closed (Task 7); review drawer gating resolved by `view` (Task 8). The playbook-in-flight minor and untested hiding remain as they were.
-- **Names used across tasks:** `check`, `clientIdsWith`, `isWaiting`, `clientPermissionsFor` (check.ts); `accessFromRows`, `buildOrgAccess`, `impersonatedAccess`, `NO_ACCESS`, `orderedPermissions`, `ClientPermissions`, `NO_CLIENT_PERMISSIONS`, `ALL_CLIENT_PERMISSIONS` (model.ts); `testAllowAllAccess`, `testOwnerAccess`, `testAccess`, `testMembershipRow` (test-fixtures.ts); `accessFromMe`, `testMePayload(over)`; `AccessContext`, `useCan`, `TestAccessProvider`, `useClientPermissions`, `ClientPermissionsProvider`, `useCanvasPermissions`; `sendWaitingToOnboarding`. Plan 4 consumes `NOT_YET_CHECKED`, `check`, `isAction`, `PERMISSIONS`, `orderedPermissions`, `toPermissionSet`, `MePayload`, `buildMePayload` and the SQL functions of Task 2.
+- **Spec coverage:** §3 schema, backfill, triggers, functions → Task 2. §4.1 load once and error page on failure → Task 5 (`dal.ts` throws; `loadInitialMe` stays null-on-failure for the layout only). §4.2 checker → Task 1. §4.3 chokepoints and mapping → Tasks 5, 6. §4.4 lists and pages → Tasks 5, 10. §5 browser → Tasks 7, 8. §6.4 onboarding → Task 10. §6.5 profile menu → Task 7. §1 "Removed" → Tasks 3, 4, 7, 8, 9. §2.1 five permissions, §3.1 and §3.2 checks and backfill, §3.4 transfer, §4.2 `view`/`edit` as actions → Task 11. §9 migration doc → Tasks 2, 11. §10 performance → Tasks 1, 5, 8, 12. §11 tests → every task. §6.1–§6.3, §6.6, §6.7 → plan 4.
+- **Plan 2 carry-overs:** Task 10 reviewed and reverted (Task 3); Task 11 folded into Tasks 5 and 7; Task 12 dropped (no presets); Task 13's verification is Task 12. Ledger minors: `/api/me` `withQuietErrors`, me `retry` skips 4xx, empty client id fails closed (Task 7); review drawer gating resolved by `view` (Task 8). The playbook-in-flight minor and untested hiding remain as they were.
+- **Names used across tasks:** `check`, `clientIdsWith`, `isWaiting`, `clientPermissionsFor` (check.ts); `accessFromRows`, `buildOrgAccess`, `impersonatedAccess`, `NO_ACCESS`, `orderedPermissions`, `ClientPermissions`, `NO_CLIENT_PERMISSIONS`, `ALL_CLIENT_PERMISSIONS`, `CLIENT_ACTIONS`, `permissionFor` (model.ts); `testAllowAllAccess`, `testOwnerAccess`, `testAccess`, `testMembershipRow` (test-fixtures.ts); `accessFromMe`, `testMePayload(over)`; `AccessContext`, `useCan`, `TestAccessProvider`, `useClientPermissions`, `ClientPermissionsProvider`, `useCanvasPermissions`; `sendWaitingToOnboarding`. Plan 4 consumes `NOT_YET_CHECKED`, `check`, `isAction`, `PERMISSIONS`, `orderedPermissions`, `toPermissionSet`, `MePayload`, `buildMePayload` and the SQL functions of Task 2.
 
 ## Open points
 
-1. **`clientId: null` semantics and `anyClient`.** The spec's `check` signature names `{ orgId, clientId }` without saying what a route not rooted at one client passes. This plan reads null as "on at least one client the person can view" and adds a precomputed `anyClient` set to `OrgAccess` (not in the spec's type) so it stays a lookup. A waiting person or someone on no viewable client gets `not_found` (404) there, as step 5 reads.
+1. **`clientId: null` semantics and `anyClient`.** The spec's `check` signature names `{ orgId, clientId }` without saying what a route not rooted at one client passes. This plan reads null as "on at least one client the person is on" and adds a precomputed `anyClient` set to `OrgAccess` (not in the spec's type) so it stays a lookup. A waiting person or someone on no client gets `not_found` (404) there, as step 6 reads.
 2. **Extra SQL functions and parameters.** `create_agency_with_owner_invite` takes `p_slug` and `p_token` besides the spec's three parameters (the slug and the link's token are made in the app). The migration also adds `accept_invitation`, `list_agency_people` and `find_user_by_email`, which plan 4 needs and the spec does not list. They go in 0062 so the schema lands once.
 3. **`docs/auth-production-migration.md`.** The brief puts the doc update in plan 4; the spec says it changes "in the same change as the migration". This plan rewrites the 0062 section in Task 2 (schema, backfill, multi-owner query, verify), and plan 4 adds the Resend and invite rollout steps.
 4. **`loadCanvasPage` on not found.** The spec says both page loaders call `notFound()`; this plan keeps `/eval`'s own "Canvas not found" for not-found cases (it is a not-found rendering) and uses `notFound()` for a missing permission.

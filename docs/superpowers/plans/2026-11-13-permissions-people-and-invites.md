@@ -2,12 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The owner sets permissions on a Team page, invites people from inside a client and manages each client's Members list; invited people sign up from an emailed link and wait for access; the super admin creates an agency with its owner invite and manages any agency's people from Admin, every change audit-logged.
+**Goal:** The owner sets permissions on a Team page (Generate, Approve, Share, Delete, Invite, or none for someone who only looks) and manages each client's Members list; the owner and anyone with Invite on a client invite people from inside that client and add people already in the agency to it; invited people sign up from an emailed link and wait for access; the super admin creates an agency with its owner invite and manages any agency's people from Admin, every change audit-logged.
 
 **Architecture:**
 - **One people resource per agency.** `list_agency_people` (migration 0062) plus the open invitations is the Team page, every client's Members list and the invite popup's "In your agency" list. It is read once (`GET /api/orgs/[orgId]/people`), cached under `peopleKeys.list(orgId)`, and screens filter it.
-- **One set of routes for the owner and the super admin.** Every write goes through `/api/orgs/[orgId]/…` behind a new chokepoint, `withTeam`: the owner passes `check(…, "manage_team")` in the agency they act in (with the usual impersonation write gate); a super admin working from Admin passes for any agency, and each change is written to the audit log as `admin_action`. The business rules (refusals, the daily limit, emails) live once in `src/lib/people/ops.ts`.
-- **Shared screens.** The Team page component (`TeamPeople`) and the client Members component (`ClientMembers`) render on `/team` and `/clients/[id]/members` for the owner, and in Admin's People and Clients tabs with an `orgId` prop and two optional extras (Make owner, reset password).
+- **One set of routes for the owner, Invite holders and the super admin.** Every write goes through `/api/orgs/[orgId]/…` behind a new chokepoint, `withTeam`, with the usual impersonation write gate. Inviting someone new to a client and adding people already in the agency to it need `invite` on that client, which the owner always has; the people read needs `invite` on any client. Everything else (the Team page, give access, edit permissions, remove from the agency or a client, resend, cancel) needs `manage_team`, owner only. A super admin working from Admin passes for any agency, and each change is written to the audit log as `admin_action`. The business rules (refusals, the daily limit, emails) live once in `src/lib/people/ops.ts`.
+- **Shared screens.** The Team page component (`TeamPeople`) renders on `/team` for the owner. The client Members component (`ClientMembers`) renders on `/clients/[id]/members` for the owner and for anyone with Invite on that client, with a `canManage` flag that shows Remove, Resend, Cancel and Set permissions to the owner only. Both render in Admin's People and Clients tabs with an `orgId` prop and two optional extras (Make owner, reset password).
 - **Invites.** A random token is stored as issued and emailed as a link, so Copy link always shows the same link. `/invite/[token]` is outside the session proxy; signing up creates the account, then `accept_invitation` marks the invite used and creates the membership and client row in one transaction.
 - **Email.** `src/lib/email/send.ts` posts to Resend's HTTP API with `fetch` (no new package). Without `RESEND_API_KEY` nothing is sent, the invite still exists, and the link is shown to copy.
 
@@ -19,17 +19,19 @@
 - Resend HTTP API (`POST https://api.resend.com/emails`)
 - Vitest in the `node` environment; components render with `renderToStaticMarkup`
 
-**Spec:** [docs/superpowers/specs/2026-11-12-agency-permissions-design.md](../specs/2026-11-12-agency-permissions-design.md) §6, §9 (D505, D506, D508, D509). **Depends on plan 3:** [2026-11-13-permissions-six-core.md](2026-11-13-permissions-six-core.md) (the checker, `useCan`, the payload, migration 0062 with `accept_invitation`, `list_agency_people`, `find_user_by_email`, `transfer_agency_owner`, `create_agency_with_owner_invite`, and `admin_action`).
+**Spec:** [docs/superpowers/specs/2026-11-12-agency-permissions-design.md](../specs/2026-11-12-agency-permissions-design.md) §2.1, §6, §9 (D503, D505, D506, D508, D509). **Depends on plan 3:** [2026-11-13-permissions-core.md](2026-11-13-permissions-core.md) (the five permissions and the checker, `useCan`, the payload, migration 0062 with `accept_invitation`, `list_agency_people`, `find_user_by_email`, `transfer_agency_owner`, `create_agency_with_owner_invite`, and `admin_action`).
 
 ## Global Constraints
 
 - **Worktree:** work only in `C:/Users/yuvab/OneDrive/Desktop/codes/creativeos-perm` on `feat/permission-access-browser`, after plan 3's last commit. Never touch `C:/Users/yuvab/OneDrive/Desktop/codes/creativeos-asset-pipeline`. Never use bare `git stash`.
 - **Commits:** one per task, exact message given, no Claude/AI attribution of any kind (no `Co-Authored-By` line, no "Generated with" line). Check with `git log -1 --format=%B`; amend with the exact message if a trailer slipped in.
 - **Never** run SQL against any database, apply a migration, push, or install a package (`node_modules` is a junction into the other checkout). Resend is called with `fetch`.
-- **Owner only:** the Team page, the Members page, inviting, adding and removing people on a client, and setting permissions are `manage_team` (spec §2.2). Permissions are edited only on the Team page (D509).
-- **Statuses, exactly:** `Invited`, `Signed up · Needs permissions`, `Member`, `Owner`.
-- **Copy, exactly (spec §6):** editor note `These apply on every client {name} is on, and on any client they're added to later.`; members heading `{n} people on this client`; invite step 2 note `They get an email to sign up. Once they have, you set their permissions on the Team page.`; refusals `Already in {Agency}. Add them from the list.`, `Already invited to {client}. Once they've signed up, add them from the list.`, `This email already belongs to another agency.`; wrong-email sign-in `This invite is for {email}. Sign in with that email to accept it.`; Add an agency note `The owner gets an email to sign up, and can do everything in this agency.`
-- **Emails (spec §6.7):** `You're invited to {Agency}` (member, invite or resend), `Set up {Agency} on CreativeOS` (owner, created or resend), `{Name} signed up to {Agency}` with body `{Name} signed up to {Agency}. Give them permissions on the Team page.` (owner and inviter), `Your access to {Agency} is ready` (the person, on Give access). At most **50 invites per agency per day**. Without `RESEND_API_KEY` (or `EMAIL_FROM`) the invite is created and the link shown; the result says it was not emailed.
+- **The five permissions, in this order:** `generate, approve, share, delete, invite` (plan 3's `PERMISSIONS`), labelled `Generate`, `Approve`, `Share`, `Delete`, `Invite`. There is no View or Edit permission: being on a client lets a person see it, and a member with no permissions can look only.
+- **Who does what (spec §2.2, §4.3, §6.2):** inviting someone new to a client and adding people already in the agency to it need `invite` on that client (the owner has it on every client). The client's Members page and its Members button are shown to the owner and to anyone with Invite on that client; anyone else gets the 404 page and no button. The Team page, give access, edit permissions, remove from the agency, remove from a client, resend and cancel are `manage_team`, owner only. Permissions are edited only on the Team page (D509). Someone invited by an Invite holder waits as Signed up until the owner gives access on the Team page.
+- **Give access works with no permissions picked** (a member who only looks); the server accepts any set of the five, empty included.
+- **Statuses, exactly:** `Invited`, `Signed up · Needs permissions`, `Member`, `Owner`. A member with no permissions shows `Can look` where their permission chips would be.
+- **Copy, exactly (spec §6):** editor note `These apply on every client {name} is on, and on any client they're added to later. With none, {name} can look but not change anything.`; members heading `{n} people on this client`; invite step 2 note, to the owner `They get an email to sign up. Once they have, you set their permissions on the Team page.` and to an Invite holder `They get an email to sign up. Once they have, the owner sets their permissions on the Team page.`; refusals `Already in {Agency}. Add them from the list.`, `Already invited to {client}. Once they've signed up, add them from the list.`, `This email already belongs to another agency.`; wrong-email sign-in `This invite is for {email}. Sign in with that email to accept it.`; Add an agency note `The owner gets an email to sign up, and can do everything in this agency.`
+- **Emails (spec §6.7):** `You're invited to {Agency}` (member, invite or resend), `Set up {Agency} on CreativeOS` (owner, created or resend), `{Name} signed up to {Agency}` to the owner and to whoever sent the invite (`invited_by`, the actual caller), one email each and only one when the owner sent it; the owner's body is `{Name} signed up to {Agency}. Give them permissions on the Team page.`, the inviter's `{Name} signed up to {Agency}.`; `Your access to {Agency} is ready` (the person, on Give access). At most **50 invites per agency per day**, counting everyone in the agency who invites. Without `RESEND_API_KEY` (or `EMAIL_FROM`) the invite is created and the link shown; the result says it was not emailed.
 - **Invites:** token = 32 random bytes, base64url, stored as issued in `org_invitations.token` (unique; the table is server-only: RLS on, no policies); valid 7 days; single use. Copy link shows the stored link unchanged (no new token, no email, no limit). Only Resend issues a new token (the old link stops working) and emails it; Cancel revokes.
 - **Audit:** every change the super admin makes from Admin is `logImpersonationEvent({ eventType: "admin_action", targetOrgId, detail: { action, …person } })`.
 - **Data fetching:** every new read and write is three layers: `src/services/people.service.ts` → `src/hooks/queries/people.ts` (`peopleKeys` factory) → components. Components never call `fetch`.
@@ -41,10 +43,10 @@
 
 ## Decisions this plan makes
 
-- **Routes live under `/api/orgs/[orgId]/…` and serve the owner and the super admin alike** through `withTeam`. A super admin acting from Admin skips the impersonation write gate (D85: Admin is platform administration) and is audit-logged as `admin_action`; while viewing as that same agency, the owner path and its write gate apply instead.
+- **Routes live under `/api/orgs/[orgId]/…` and serve the owner, Invite holders and the super admin alike** through `withTeam`, whose guard is `manage_team` or `invite` (checked on the route's client, or on any client when the route names none). A super admin acting from Admin skips the impersonation write gate (D85: Admin is platform administration) and is audit-logged as `admin_action`; while viewing as that same agency, the owner path and its write gate apply instead.
 - **Invite links are stored as issued so Copy link shows the same one**; acceptable because the table is server-only and links are single-use and expire after 7 days (Arun, 13 Nov). Each open invite in the people list carries its link, so Copy link makes no request.
 - **Remove deletes the person's login**, as the admin removal did (one agency per person: a login without a membership could never sign in again). Their work stays, attributed to "an unknown maker".
-- **Give access needs at least one permission** in the editor (the button is disabled with none); the server accepts any set from the six.
+- **Invite links reach only the owner and the super admin.** The people read is open to Invite holders (they need the agency's people for the popup and the client's statuses), so for a caller without `manage_team` it answers each open invite with `link: null` (`hideInviteLinks`). An Invite holder sees the link of an invite they just sent, in the popup's result.
 - **Admin keeps its Generations and Support activity tabs** beside Overview, People and Clients. Reset password stays, shown only in Admin through an optional slot on the shared row.
 - **The daily limit's refusal reads** `You've sent 50 invites today. Try again tomorrow.` (the spec gives the limit, not the words).
 
@@ -54,7 +56,7 @@
 |---|---|
 | `src/lib/email/send.ts`, `src/lib/email/templates.ts` | send through Resend over `fetch`; the four emails |
 | `src/lib/invites/token.ts` | token and link |
-| `src/lib/people/{types,constants,utils,schema}.ts` | people types, labels and refusals, pure helpers, request schemas |
+| `src/lib/people/{types,constants,utils,schema}.ts` | people types, labels, refusals and copy, pure helpers (including `hideInviteLinks`), request schemas |
 | `src/lib/db/people.ts` | every people and invitation read and write |
 | `src/lib/people/ops.ts` | the rules: invite, resend, cancel, permissions, remove, add, make owner, create agency, sign-up notices |
 | `src/lib/api/route-helpers.ts` | `withTeam` |
@@ -64,7 +66,7 @@
 | `src/app/team/page.tsx`, `src/app/clients/[id]/members/page.tsx`, `src/app/invite/[token]/page.tsx` | pages |
 | `src/components/identity/team-nav-link.tsx`, `src/components/clients/client-members-button.tsx` | entry points |
 | `src/components/admin/add-agency-dialog.tsx`, `resend-owner-invite-button.tsx`, `src/app/admin/orgs/[id]/admin-clients-tab.tsx` | Admin |
-| Deleted | `src/components/admin/new-org-dialog.tsx`, `src/app/admin/orgs/[id]/{add-member-dialog,member-role-select,remove-member-dialog}.tsx`, `createOrgWithOwner`, `addOrgMember`, `updateMemberRole`, `removeOrgMember`, `listOrgMembers`, `AddMemberSchema`, `ORG_ROLES`, `OrgRole`, `NOT_YET_CHECKED` |
+| Deleted | `src/components/admin/new-org-dialog.tsx`, `src/app/admin/orgs/[id]/{add-member-dialog,member-role-select,remove-member-dialog}.tsx`, `createOrgWithOwner`, `addOrgMember`, `updateMemberRole`, `removeOrgMember`, `listOrgMembers`, `AddMemberSchema`, `ORG_ROLES`, `OrgRole`, `NOT_YET_CHECKED` (its last entries, `manage_team` and `invite`, are checked from Task 4) |
 
 ---
 
@@ -76,7 +78,7 @@
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `type Email = { to: string[]; subject: string; text: string; html: string }`; `type EmailResult = { sent: true } | { sent: false; reason: "not_configured" | "failed" }`; `sendEmail(email: Email): Promise<EmailResult>`; `memberInviteEmail(a: { to: string; agency: string; inviter: string; client: string; link: string }): Email`; `ownerInviteEmail(a: { to: string; agency: string; link: string }): Email`; `signedUpEmail(a: { to: string[]; name: string; agency: string; link: string }): Email`; `accessReadyEmail(a: { to: string; agency: string; link: string }): Email`; `appLink(path: string): string`.
+- Produces: `type Email = { to: string[]; subject: string; text: string; html: string }`; `type EmailResult = { sent: true } | { sent: false; reason: "not_configured" | "failed" }`; `sendEmail(email: Email): Promise<EmailResult>`; `memberInviteEmail(a: { to: string; agency: string; inviter: string; client: string; link: string }): Email`; `ownerInviteEmail(a: { to: string; agency: string; link: string }): Email`; `signedUpEmail(a: { to: string[]; name: string; agency: string; link: string; forOwner: boolean }): Email`; `accessReadyEmail(a: { to: string; agency: string; link: string }): Email`; `appLink(path: string): string`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -155,10 +157,17 @@ describe("emails (spec §6.3, §6.7)", () => {
     expect(e.subject).toBe("Set up Acme on CreativeOS");
   });
 
-  it("tells the owner and inviter someone signed up", () => {
-    const e = signedUpEmail({ to: ["o@x.com", "i@x.com"], name: "Ravi", agency: "Acme", link: "https://app.example/team" });
+  it("tells the owner someone signed up, with the Team page line", () => {
+    const e = signedUpEmail({ to: ["o@x.com"], name: "Ravi", agency: "Acme", link: "https://app.example/team", forOwner: true });
     expect(e.subject).toBe("Ravi signed up to Acme");
     expect(e.text).toContain("Ravi signed up to Acme. Give them permissions on the Team page.");
+  });
+
+  it("tells the inviter someone signed up, without the Team page line", () => {
+    const e = signedUpEmail({ to: ["i@x.com"], name: "Ravi", agency: "Acme", link: "https://app.example/", forOwner: false });
+    expect(e.subject).toBe("Ravi signed up to Acme");
+    expect(e.text).toContain("Ravi signed up to Acme.");
+    expect(e.text).not.toContain("Team page");
   });
 
   it("tells the person their access is ready", () => {
@@ -255,10 +264,12 @@ export function ownerInviteEmail(a: { to: string; agency: string; link: string }
   ], { label: `Set up ${a.agency}`, link: a.link });
 }
 
-export function signedUpEmail(a: { to: string[]; name: string; agency: string; link: string }): Email {
-  return compose(a.to, `${a.name} signed up to ${a.agency}`, [
-    `${a.name} signed up to ${a.agency}. Give them permissions on the Team page.`,
-  ], { label: "Open the Team page", link: a.link });
+/** To the owner (with the Team page line and button) or to whoever sent the invite (spec §6.3). */
+export function signedUpEmail(a: { to: string[]; name: string; agency: string; link: string; forOwner: boolean }): Email {
+  const line = `${a.name} signed up to ${a.agency}.`;
+  return a.forOwner
+    ? compose(a.to, `${a.name} signed up to ${a.agency}`, [`${line} Give them permissions on the Team page.`], { label: "Open the Team page", link: a.link })
+    : compose(a.to, `${a.name} signed up to ${a.agency}`, [line], { label: "Open CreativeOS", link: a.link });
 }
 
 export function accessReadyEmail(a: { to: string; agency: string; link: string }): Email {
@@ -303,11 +314,11 @@ git log -1 --format=%B
 - Consumes: plan 3's `Permission`, `PERMISSIONS`, `orderedPermissions`, `toPermissionSet`; SQL `list_agency_people`, `find_user_by_email`, `accept_invitation`, `transfer_agency_owner`, `create_agency_with_owner_invite`.
 - Produces:
   - `token.ts`: `newInviteToken(): string`, `inviteLink(token: string): string`.
-  - `types.ts`: `type PersonStatus = "owner" | "member" | "signed_up"`; `type AgencyPerson = { userId: string; name: string; email: string; status: PersonStatus; permissions: Permission[]; joinedAt: string; invitedByName: string | null; invitedClient: { id: string; name: string } | null; clientIds: string[] }`; `type OpenInvite = { id: string; email: string; clientId: string | null; clientName: string | null; asOwner: boolean; sentAt: string; expiresAt: string; link: string }`; `type AgencyPeople = { people: AgencyPerson[]; invites: OpenInvite[] }`; `type InviteResult = { invite: OpenInvite; link: string; emailed: boolean }`; `type InvitationForSignUp = { id: string; orgId: string; orgName: string; email: string; asOwner: boolean; clientName: string | null; inviterName: string | null; open: boolean }`.
-  - `constants.ts`: `INVITES_PER_AGENCY_PER_DAY = 50`, `INVITE_TTL_DAYS = 7`, `PERMISSION_LABELS`, `STATUS_LABELS`, `REFUSALS`.
-  - `utils.ts`: `isValidEmail(v: string): boolean`, `normaliseEmail(v: string): string`, `peopleOnClient(people, clientId): AgencyPerson[]`, `peopleNotOnClient(people, clientId): AgencyPerson[]`, `signedUpPeople(people): AgencyPerson[]`, `invitesForClient(invites, clientId): OpenInvite[]`, `oneDayAgo(now?: Date): string`.
+  - `types.ts`: `type PersonStatus = "owner" | "member" | "signed_up"`; `type AgencyPerson = { userId: string; name: string; email: string; status: PersonStatus; permissions: Permission[]; joinedAt: string; invitedByName: string | null; invitedClient: { id: string; name: string } | null; clientIds: string[] }`; `type OpenInvite = { id: string; email: string; clientId: string | null; clientName: string | null; asOwner: boolean; sentAt: string; expiresAt: string; link: string | null }`; `type StoredInvite = OpenInvite & { link: string }`; `type AgencyPeople = { people: AgencyPerson[]; invites: OpenInvite[] }`; `type InviteResult = { invite: StoredInvite; link: string; emailed: boolean }`; `type InvitationForSignUp = { id: string; orgId: string; orgName: string; email: string; asOwner: boolean; clientName: string | null; inviterName: string | null; open: boolean }`.
+  - `constants.ts`: `INVITES_PER_AGENCY_PER_DAY = 50`, `INVITE_TTL_DAYS = 7`, `PERMISSION_LABELS` (the five), `NO_PERMISSIONS_LABEL`, `INVITE_NEXT_STEP`, `STATUS_LABELS`, `REFUSALS`.
+  - `utils.ts`: `isValidEmail(v: string): boolean`, `normaliseEmail(v: string): string`, `peopleOnClient(people, clientId): AgencyPerson[]`, `peopleNotOnClient(people, clientId): AgencyPerson[]`, `signedUpPeople(people): AgencyPerson[]`, `invitesForClient(invites, clientId): OpenInvite[]`, `hideInviteLinks(invites): OpenInvite[]`, `oneDayAgo(now?: Date): string`.
   - `schema.ts`: `UpdatePermissionsSchema`, `AddMembersSchema`, `InviteSchema`, `AcceptInviteSchema`, `CreateAgencySchema`.
-  - `db/people.ts`: `toPerson(row: PeopleRow): AgencyPerson`, `toInvite(row: InviteRow): OpenInvite`, `listAgencyPeople(orgId)`, `listOpenInvites(orgId)`, `getMembership(orgId, userId): Promise<{ isOwner: boolean; accessGiven: boolean } | null>`, `getMemberships(orgId, userIds): Promise<{ userId: string; isOwner: boolean }[]>`, `setMemberPermissions(orgId, userId, permissions, giveAccess): Promise<void>`, `addPeopleToClient(orgId, clientId, userIds, by): Promise<void>`, `removePersonFromClient(orgId, clientId, userId): Promise<void>`, `countSignedUp(orgId): Promise<number>`, `ownerIds(orgId): Promise<string[]>`, `loginEmails(userIds): Promise<string[]>`, `findLoginByEmail(email): Promise<{ userId: string; orgId: string | null } | null>`, `createLogin(email, password): Promise<{ ok: true; userId: string } | { ok: false }>`, `deleteLogin(userId): Promise<void>`, `findOpenInviteByEmail(orgId, email): Promise<{ id: string; clientName: string | null } | null>`, `countInvitesSince(orgId, sinceIso): Promise<number>`, `insertInvitation(i: { orgId: string; clientId: string; email: string; token: string; invitedBy: string }): Promise<OpenInvite>`, `replaceInvitationToken(orgId, inviteId, token): Promise<OpenInvite | null>`, `revokeInvitation(orgId, inviteId): Promise<boolean>`, `getOpenOwnerInvite(orgId): Promise<OpenInvite | null>`, `getInvitationByToken(token): Promise<InvitationForSignUp | null>`, `acceptInvitation(token, userId, name): Promise<{ orgId: string; clientId: string | null; asOwner: boolean; invitedBy: string | null }>`, `transferOwner(orgId, userId): Promise<void>`, `createAgencyWithOwnerInvite(a: { name: string; slug: string; ownerEmail: string; token: string; by: string }): Promise<string>`, `listOrgSlugs(): Promise<string[]>`.
+  - `db/people.ts`: `toPerson(row: PeopleRow): AgencyPerson`, `toInvite(row: InviteRow): StoredInvite`, `listAgencyPeople(orgId)`, `listOpenInvites(orgId)`, `getMembership(orgId, userId): Promise<{ isOwner: boolean; accessGiven: boolean } | null>`, `getMemberships(orgId, userIds): Promise<{ userId: string; isOwner: boolean }[]>`, `setMemberPermissions(orgId, userId, permissions, giveAccess): Promise<void>`, `addPeopleToClient(orgId, clientId, userIds, by): Promise<void>`, `removePersonFromClient(orgId, clientId, userId): Promise<void>`, `countSignedUp(orgId): Promise<number>`, `ownerIds(orgId): Promise<string[]>`, `loginEmails(userIds): Promise<string[]>`, `findLoginByEmail(email): Promise<{ userId: string; orgId: string | null } | null>`, `createLogin(email, password): Promise<{ ok: true; userId: string } | { ok: false }>`, `deleteLogin(userId): Promise<void>`, `findOpenInviteByEmail(orgId, email): Promise<{ id: string; clientName: string | null } | null>`, `countInvitesSince(orgId, sinceIso): Promise<number>`, `insertInvitation(i: { orgId: string; clientId: string; email: string; token: string; invitedBy: string }): Promise<StoredInvite>`, `replaceInvitationToken(orgId, inviteId, token): Promise<StoredInvite | null>`, `revokeInvitation(orgId, inviteId): Promise<boolean>`, `getOpenOwnerInvite(orgId): Promise<StoredInvite | null>`, `getInvitationByToken(token): Promise<InvitationForSignUp | null>`, `acceptInvitation(token, userId, name): Promise<{ orgId: string; clientId: string | null; asOwner: boolean; invitedBy: string | null }>`, `transferOwner(orgId, userId): Promise<void>`, `createAgencyWithOwnerInvite(a: { name: string; slug: string; ownerEmail: string; token: string; by: string }): Promise<string>`, `listOrgSlugs(): Promise<string[]>`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -336,11 +347,11 @@ describe("invite tokens", () => {
 ```ts
 // src/lib/people/utils.test.ts
 import { describe, it, expect } from "vitest";
-import { invitesForClient, isValidEmail, normaliseEmail, oneDayAgo, peopleNotOnClient, peopleOnClient, signedUpPeople } from "./utils";
+import { hideInviteLinks, invitesForClient, isValidEmail, normaliseEmail, oneDayAgo, peopleNotOnClient, peopleOnClient, signedUpPeople } from "./utils";
 import type { AgencyPerson, OpenInvite } from "./types";
 
 const person = (over: Partial<AgencyPerson>): AgencyPerson => ({
-  userId: "u", name: "N", email: "n@x.com", status: "member", permissions: ["view"], joinedAt: "2026-11-01T00:00:00Z",
+  userId: "u", name: "N", email: "n@x.com", status: "member", permissions: ["generate"], joinedAt: "2026-11-01T00:00:00Z",
   invitedByName: null, invitedClient: null, clientIds: [], ...over,
 });
 const owner = person({ userId: "o", status: "owner", clientIds: [] });
@@ -373,6 +384,11 @@ describe("people helpers", () => {
     expect(invitesForClient([inv("i1", "c1"), inv("i2", "c2"), inv("i3", null)], "c1").map((i) => i.id)).toEqual(["i1"]);
   });
 
+  it("withholds invite links from anyone who can't manage the team", () => {
+    const inv: OpenInvite = { id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "t", expiresAt: "t", link: "https://app.example/invite/i1" };
+    expect(hideInviteLinks([inv])).toEqual([{ ...inv, link: null }]);
+  });
+
   it("is a day before now", () => {
     expect(oneDayAgo(new Date("2026-11-13T12:00:00.000Z"))).toBe("2026-11-12T12:00:00.000Z");
   });
@@ -392,14 +408,17 @@ describe("people rows", () => {
   it("map a list_agency_people row to a person with a status", () => {
     const base = {
       user_id: "u1", display_name: "Ravi", email: "r@x.com", is_owner: false, access_given_at: null,
-      permissions: ["share", "view", "nonsense"], joined_at: "2026-11-12T10:00:00Z", invited_by_name: "Asha",
+      permissions: ["share", "generate", "view", "nonsense"], joined_at: "2026-11-12T10:00:00Z", invited_by_name: "Asha",
       invited_client_id: "c1", invited_client_name: "Chupps", client_ids: ["c1"],
     };
+    // "view" is not a permission any more (plan 3 Task 11): dropped like any unknown value.
     expect(toPerson(base)).toEqual({
-      userId: "u1", name: "Ravi", email: "r@x.com", status: "signed_up", permissions: ["view", "share"],
+      userId: "u1", name: "Ravi", email: "r@x.com", status: "signed_up", permissions: ["generate", "share"],
       joinedAt: "2026-11-12T10:00:00Z", invitedByName: "Asha", invitedClient: { id: "c1", name: "Chupps" }, clientIds: ["c1"],
     });
     expect(toPerson({ ...base, access_given_at: "2026-11-13T00:00:00Z" }).status).toBe("member");
+    // Access given with no permissions: a member who can look.
+    expect(toPerson({ ...base, access_given_at: "2026-11-13T00:00:00Z", permissions: [] })).toMatchObject({ status: "member", permissions: [] });
     expect(toPerson({ ...base, is_owner: true }).status).toBe("owner");
     expect(toPerson({ ...base, invited_client_id: null, invited_client_name: null, client_ids: null }).invitedClient).toBeNull();
   });
@@ -467,15 +486,19 @@ export type OpenInvite = {
   asOwner: boolean;
   sentAt: string;
   expiresAt: string;
-  /** The link as issued: Copy link shows it unchanged; only Resend replaces it. */
-  link: string;
+  /** The link as issued: Copy link shows it unchanged; only Resend replaces it. Null for a
+   *  caller without manage_team (an Invite holder): links reach only the owner and Admin. */
+  link: string | null;
 };
+
+/** An invite as the data layer reads it, always with its link (src/lib/db/people.ts). */
+export type StoredInvite = OpenInvite & { link: string };
 
 /** The one people resource per agency: the Team page, every Members list, the invite popup. */
 export type AgencyPeople = { people: AgencyPerson[]; invites: OpenInvite[] };
 
 /** `emailed` false: email is not set up or the send failed; show the link to copy. */
-export type InviteResult = { invite: OpenInvite; link: string; emailed: boolean };
+export type InviteResult = { invite: StoredInvite; link: string; emailed: boolean };
 
 export type InvitationForSignUp = {
   id: string;
@@ -500,13 +523,21 @@ export const INVITES_PER_AGENCY_PER_DAY = 50;
 export const INVITE_TTL_DAYS = 7;
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
-  view: "View",
-  edit: "Edit",
   generate: "Generate",
   approve: "Approve",
   share: "Share",
   delete: "Delete",
+  invite: "Invite",
 };
+
+/** Spec §6.1: shown in place of the chips for a member with no permissions. */
+export const NO_PERMISSIONS_LABEL = "Can look";
+
+/** Spec §6.2, invite step 2: who sets the new person's permissions. */
+export const INVITE_NEXT_STEP = {
+  owner: "They get an email to sign up. Once they have, you set their permissions on the Team page.",
+  inviter: "They get an email to sign up. Once they have, the owner sets their permissions on the Team page.",
+} as const;
 
 export const STATUS_LABELS: Record<PersonStatus | "invited", string> = {
   owner: "Owner",
@@ -566,6 +597,11 @@ export function invitesForClient(invites: readonly OpenInvite[], clientId: strin
   return invites.filter((i) => i.clientId === clientId);
 }
 
+/** The people read for a caller without manage_team (an Invite holder): no invite links. */
+export function hideInviteLinks(invites: readonly OpenInvite[]): OpenInvite[] {
+  return invites.map((i) => ({ ...i, link: null }));
+}
+
 export function oneDayAgo(now: Date = new Date()): string {
   return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 }
@@ -608,12 +644,13 @@ import { unwrapEmbed, type Embed } from "@/lib/db/embed";
 import { orderedPermissions, toPermissionSet, type Permission } from "@/lib/permissions/model";
 import { inviteLink } from "@/lib/invites/token";
 import { INVITE_TTL_DAYS } from "@/lib/people/constants";
-import type { AgencyPerson, InvitationForSignUp, OpenInvite } from "@/lib/people/types";
+import type { AgencyPerson, InvitationForSignUp, StoredInvite } from "@/lib/people/types";
 
 // Every read and write of people and invitations (migration 0062). The rules (who may, the
 // refusals, the emails) are in src/lib/people/ops.ts; nothing here decides access. Invite tokens
 // are stored as issued; they leave the server only to the owner or the super admin (the people
-// routes are manage_team) and in the invited person's email.
+// read passes invites through hideInviteLinks for anyone without manage_team), to the person who
+// just sent that invite, and in the invited person's email.
 
 type PeopleRow = {
   user_id: string;
@@ -656,7 +693,7 @@ export function toPerson(row: PeopleRow): AgencyPerson {
   };
 }
 
-export function toInvite(row: InviteRow): OpenInvite {
+export function toInvite(row: InviteRow): StoredInvite {
   return {
     id: row.id,
     email: row.email,
@@ -679,7 +716,7 @@ export async function listAgencyPeople(orgId: string): Promise<AgencyPerson[]> {
   return ((data ?? []) as PeopleRow[]).map(toPerson);
 }
 
-export async function listOpenInvites(orgId: string): Promise<OpenInvite[]> {
+export async function listOpenInvites(orgId: string): Promise<StoredInvite[]> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
     .select(INVITE_COLUMNS)
@@ -827,7 +864,7 @@ export async function countInvitesSince(orgId: string, sinceIso: string): Promis
   return count ?? 0;
 }
 
-export async function insertInvitation(i: { orgId: string; clientId: string; email: string; token: string; invitedBy: string }): Promise<OpenInvite> {
+export async function insertInvitation(i: { orgId: string; clientId: string; email: string; token: string; invitedBy: string }): Promise<StoredInvite> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
     .insert({ org_id: i.orgId, client_id: i.clientId, email: i.email, token: i.token, invited_by: i.invitedBy, expires_at: expiry() })
@@ -839,7 +876,7 @@ export async function insertInvitation(i: { orgId: string; clientId: string; ema
 
 /** Resend only: a new token (the old link stops working), sent now, 7 more days. Copy link never
  *  calls this; it shows the stored link. */
-export async function replaceInvitationToken(orgId: string, inviteId: string, token: string): Promise<OpenInvite | null> {
+export async function replaceInvitationToken(orgId: string, inviteId: string, token: string): Promise<StoredInvite | null> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
     .update({ token, created_at: new Date().toISOString(), expires_at: expiry() })
@@ -866,7 +903,7 @@ export async function revokeInvitation(orgId: string, inviteId: string): Promise
   return (data ?? []).length > 0;
 }
 
-export async function getOpenOwnerInvite(orgId: string): Promise<OpenInvite | null> {
+export async function getOpenOwnerInvite(orgId: string): Promise<StoredInvite | null> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
     .select(INVITE_COLUMNS)
@@ -1044,6 +1081,18 @@ describe("inviteToClient (spec §6.2)", () => {
     expect(db.insertInvitation).toHaveBeenCalled();
   });
 
+  it("records an Invite holder as the inviter, and names them in the email", async () => {
+    const holder = { userId: "holder-1", name: "Meera" };
+    await inviteToClient(agency, client, "p@x.com", holder);
+    expect(db.insertInvitation).toHaveBeenCalledWith(expect.objectContaining({ invitedBy: "holder-1" }));
+    expect(sendEmail.mock.calls[0][0].text).toContain("Meera has invited you to join Acme on CreativeOS, to work on Chupps.");
+  });
+
+  it("counts every invite sent in the agency today towards the limit, whoever sent it", async () => {
+    await inviteToClient(agency, client, "p@x.com", { userId: "holder-1", name: "Meera" });
+    expect(db.countInvitesSince).toHaveBeenCalledWith("org-1", expect.any(String));
+  });
+
   it.each([
     ["an invalid email", () => {}, "nope", 400, "Enter a valid email."],
     ["someone already in the agency", () => db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: "org-1" }), "p@x.com", 409, "Already in Acme. Add them from the list."],
@@ -1086,24 +1135,32 @@ describe("updatePermissions (spec §6.1)", () => {
   it("gives access: saves the set, sets access given and emails the person", async () => {
     db.getMembership.mockResolvedValue({ isOwner: false, accessGiven: false });
     db.loginEmails.mockResolvedValue(["p@x.com"]);
-    const r = await updatePermissions(agency, "u1", ["share", "view"], true);
+    const r = await updatePermissions(agency, "u1", ["share", "generate"], true);
     expect(r).toEqual({ ok: true, value: { emailed: true } });
-    expect(db.setMemberPermissions).toHaveBeenCalledWith("org-1", "u1", ["view", "share"], true);
+    expect(db.setMemberPermissions).toHaveBeenCalledWith("org-1", "u1", ["generate", "share"], true);
+    expect(sendEmail.mock.calls[0][0].subject).toBe("Your access to Acme is ready");
+  });
+
+  it("gives access with no permissions: a member who can look", async () => {
+    db.getMembership.mockResolvedValue({ isOwner: false, accessGiven: false });
+    db.loginEmails.mockResolvedValue(["p@x.com"]);
+    expect(await updatePermissions(agency, "u1", [], true)).toEqual({ ok: true, value: { emailed: true } });
+    expect(db.setMemberPermissions).toHaveBeenCalledWith("org-1", "u1", [], true);
     expect(sendEmail.mock.calls[0][0].subject).toBe("Your access to Acme is ready");
   });
 
   it("edits a member's set without a second ready email", async () => {
     db.getMembership.mockResolvedValue({ isOwner: false, accessGiven: true });
-    await updatePermissions(agency, "u1", ["view"], true);
-    expect(db.setMemberPermissions).toHaveBeenCalledWith("org-1", "u1", ["view"], false);
+    await updatePermissions(agency, "u1", ["invite"], true);
+    expect(db.setMemberPermissions).toHaveBeenCalledWith("org-1", "u1", ["invite"], false);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("refuses the owner and someone not in the agency", async () => {
     db.getMembership.mockResolvedValue({ isOwner: true, accessGiven: true });
-    expect(await updatePermissions(agency, "o1", ["view"], false)).toEqual({ ok: false, status: 409, error: "The agency owner has every permission already." });
+    expect(await updatePermissions(agency, "o1", ["generate"], false)).toEqual({ ok: false, status: 409, error: "The agency owner has every permission already." });
     db.getMembership.mockResolvedValue(null);
-    expect(await updatePermissions(agency, "x", ["view"], false)).toEqual({ ok: false, status: 404, error: "That person isn't in this agency." });
+    expect(await updatePermissions(agency, "x", ["generate"], false)).toEqual({ ok: false, status: 404, error: "That person isn't in this agency." });
   });
 });
 
@@ -1159,13 +1216,27 @@ describe("createAgency (spec §6.6)", () => {
   });
 });
 
-describe("notifySignedUp", () => {
-  it("emails the owner and the inviter once each", async () => {
+describe("notifySignedUp (spec §6.3, §6.7)", () => {
+  it("emails the owner with the Team page line, and the inviter without it", async () => {
     db.ownerIds.mockResolvedValue(["o1"]);
-    db.loginEmails.mockResolvedValue(["o@x.com", "i@x.com"]);
-    await notifySignedUp({ orgId: "org-1", orgName: "Acme", userId: "u1", name: "Ravi", invitedBy: "i1" });
-    expect(db.loginEmails).toHaveBeenCalledWith(["o1", "i1"]);
-    expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: ["o@x.com", "i@x.com"], subject: "Ravi signed up to Acme" });
+    db.loginEmails.mockImplementation(async (ids: string[]) => (ids[0] === "o1" ? ["o@x.com"] : ["i@x.com"]));
+    await notifySignedUp({ orgId: "org-1", orgName: "Acme", userId: "u1", name: "Ravi", invitedBy: "holder-1" });
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+    const toOwner = sendEmail.mock.calls.find((c) => c[0].to[0] === "o@x.com")![0];
+    const toInviter = sendEmail.mock.calls.find((c) => c[0].to[0] === "i@x.com")![0];
+    expect(toOwner).toMatchObject({ subject: "Ravi signed up to Acme" });
+    expect(toOwner.text).toContain("Give them permissions on the Team page.");
+    expect(toInviter.text).toContain("Ravi signed up to Acme.");
+    expect(toInviter.text).not.toContain("Team page");
+  });
+
+  it("sends one email when the owner sent the invite", async () => {
+    db.ownerIds.mockResolvedValue(["o1"]);
+    db.loginEmails.mockResolvedValue(["o@x.com"]);
+    await notifySignedUp({ orgId: "org-1", orgName: "Acme", userId: "u1", name: "Ravi", invitedBy: "o1" });
+    expect(db.loginEmails).toHaveBeenCalledTimes(1);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail.mock.calls[0][0].text).toContain("Give them permissions on the Team page.");
   });
 });
 ```
@@ -1190,8 +1261,10 @@ import { INVITES_PER_AGENCY_PER_DAY, REFUSALS } from "./constants";
 import type { InviteResult } from "./types";
 import { isValidEmail, normaliseEmail, oneDayAgo } from "./utils";
 
-// The people rules (spec §6.1–§6.3, §6.6), once for the owner's screens and Admin. Callers have
-// already checked manage_team (withTeam) or the super admin (requireSuperAdmin). Refusals are
+// The people rules (spec §6.1–§6.3, §6.6), once for the owner's screens, Invite holders and
+// Admin. Callers have already checked, in withTeam, invite on the client (inviteToClient,
+// addToClient) or manage_team (everything else), or the super admin (requireSuperAdmin). The
+// inviter recorded and named is always the actual caller (`by`). Refusals are
 // returned with the spec's words; database faults throw and the route answers plainly.
 
 export type OpResult<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409 | 429; error: string };
@@ -1304,14 +1377,21 @@ export async function resendOwnerInvite(agency: Agency, by: Actor): Promise<OpRe
   return resendInvite(agency, open.id, by);
 }
 
-/** Spec §6.3: when a member signs up, the owner and whoever invited them are told. Best effort. */
+/** Spec §6.3: when a member signs up, the owner and whoever invited them are told, one email
+ *  each (one only when the owner invited them). The owner's adds the Team page line. Best effort. */
 export async function notifySignedUp(a: { orgId: string; orgName: string; userId: string; name: string; invitedBy: string | null }): Promise<void> {
   try {
     const owners = await people.ownerIds(a.orgId);
-    const ids = [...new Set([...owners, ...(a.invitedBy ? [a.invitedBy] : [])])];
-    const to = await people.loginEmails(ids);
-    if (to.length === 0) return;
-    await sendEmail(signedUpEmail({ to, name: a.name, agency: a.orgName, link: appLink(`/team?person=${a.userId}`) }));
+    const inviter = a.invitedBy && !owners.includes(a.invitedBy) ? a.invitedBy : null;
+    const [ownerTo, inviterTo] = await Promise.all([
+      people.loginEmails(owners),
+      inviter ? people.loginEmails([inviter]) : Promise.resolve([] as string[]),
+    ]);
+    const base = { name: a.name, agency: a.orgName };
+    await Promise.all([
+      ownerTo.length > 0 ? sendEmail(signedUpEmail({ ...base, to: ownerTo, link: appLink(`/team?person=${a.userId}`), forOwner: true })) : null,
+      inviterTo.length > 0 ? sendEmail(signedUpEmail({ ...base, to: inviterTo, link: appLink("/"), forOwner: false })) : null,
+    ]);
   } catch (e) {
     console.error("[invite] could not send the signed-up notice", e);
   }
@@ -1339,13 +1419,13 @@ git log -1 --format=%B
 
 **Files:**
 - Modify: `src/lib/api/route-helpers.ts` (add `withTeam`), `src/lib/db/impersonation-audit.ts` (`admin_action`), `src/lib/auth/impersonation-audit-view.ts` (`AuditEventType`), `src/lib/permissions/route-coverage.test.ts` (recognise `withTeam`), `src/lib/actions/with-action-coverage.test.ts` (drop `NOT_YET_CHECKED`)
-- Delete: `src/lib/permissions/not-yet-checked.ts` (its last entry, `manage_team`, is now checked)
+- Delete: `src/lib/permissions/not-yet-checked.ts` (its last entries, `manage_team` and `invite`, are now checked)
 - Create (routes): `src/app/api/orgs/[orgId]/people/route.ts`, `src/app/api/orgs/[orgId]/people/[userId]/route.ts`, `src/app/api/orgs/[orgId]/people/[userId]/owner/route.ts`, `src/app/api/orgs/[orgId]/invites/[inviteId]/route.ts`, `src/app/api/orgs/[orgId]/invites/[inviteId]/resend/route.ts`, `src/app/api/orgs/[orgId]/clients/[clientId]/members/route.ts`, `src/app/api/orgs/[orgId]/clients/[clientId]/members/[userId]/route.ts`, `src/app/api/orgs/[orgId]/clients/[clientId]/invites/route.ts`
 - Test: `src/lib/api/with-team.test.ts`, `src/app/api/orgs/[orgId]/people/route.test.ts`
 
 **Interfaces:**
 - Consumes: plan 3's `check`, `accessOf`, `resolveActingCaller`; `getOrgById`, `getClientById`, `getDisplayName`; Task 2's `listAgencyPeople`, `listOpenInvites`; Task 3's ops; `logImpersonationEvent`.
-- Produces: `type TeamContext = { orgId: string; orgName: string; caller: CallerContext; actor: Actor; client: ClientRow | null; viaAdmin: boolean; logAdmin(action: string, detail?: Record<string, unknown>): Promise<void> }`; `withTeam(req, params: Promise<{ orgId: string; clientId?: string }>, guard: { need: "manage_team" }, handler: (ctx: TeamContext) => Promise<AnyResponse>)`; `opResponse<T extends Record<string, unknown>>(r: OpResult<T | null>): AnyResponse`. Routes: `GET /api/orgs/:orgId/people` → `AgencyPeople`; `PATCH /api/orgs/:orgId/people/:userId` `{ permissions, giveAccess? }` → `{ emailed }`; `DELETE /api/orgs/:orgId/people/:userId`; `POST /api/orgs/:orgId/people/:userId/owner` (super admin only); `DELETE /api/orgs/:orgId/invites/:inviteId`; `POST /api/orgs/:orgId/invites/:inviteId/resend` → `InviteResult` (new token, emailed; Copy link needs no route); `POST /api/orgs/:orgId/clients/:clientId/members` `{ userIds }` → `{ added }`; `DELETE /api/orgs/:orgId/clients/:clientId/members/:userId`; `POST /api/orgs/:orgId/clients/:clientId/invites` `{ email }` → `InviteResult`.
+- Produces: `type TeamContext = { orgId: string; orgName: string; caller: CallerContext; actor: Actor; client: ClientRow | null; viaAdmin: boolean; canManage: boolean; logAdmin(action: string, detail?: Record<string, unknown>): Promise<void> }`; `withTeam(req, params: Promise<{ orgId: string; clientId?: string }>, guard: { need: "manage_team" | "invite" }, handler: (ctx: TeamContext) => Promise<AnyResponse>)`; `opResponse<T extends Record<string, unknown>>(r: OpResult<T | null>): AnyResponse`. Routes (guard in brackets): `GET /api/orgs/:orgId/people` [invite, on any client] → `AgencyPeople` (invite links withheld without `manage_team`); `PATCH /api/orgs/:orgId/people/:userId` [manage_team] `{ permissions, giveAccess? }` → `{ emailed }`; `DELETE /api/orgs/:orgId/people/:userId` [manage_team]; `POST /api/orgs/:orgId/people/:userId/owner` [manage_team, then super admin only]; `DELETE /api/orgs/:orgId/invites/:inviteId` [manage_team]; `POST /api/orgs/:orgId/invites/:inviteId/resend` [manage_team] → `InviteResult` (new token, emailed; Copy link needs no route); `POST /api/orgs/:orgId/clients/:clientId/members` [invite on that client] `{ userIds }` → `{ added }`; `DELETE /api/orgs/:orgId/clients/:clientId/members/:userId` [manage_team]; `POST /api/orgs/:orgId/clients/:clientId/invites` [invite on that client] `{ email }` → `InviteResult`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1397,11 +1477,43 @@ describe("withTeam (spec §6.1, §6.6)", () => {
   });
 
   it("refuses a member with 403, and another agency with 404", async () => {
-    m.caller = caller(testAccess({ permissions: ["view", "edit"], clientIds: ["c1"] }));
+    m.caller = caller(testAccess({ permissions: ["generate", "share"], clientIds: ["c1"] }));
     expect((await withTeam(req("POST"), Promise.resolve({ orgId: "org-1" }), { need: "manage_team" }, ok)).status).toBe(403);
     m.caller = caller(testOwnerAccess("org-2"), "member", "org-2");
     expect((await withTeam(req("GET"), Promise.resolve({ orgId: "org-1" }), { need: "manage_team" }, ok)).status).toBe(404);
     expect(ok).not.toHaveBeenCalled();
+  });
+
+  it("lets an Invite holder invite on their client, not on another, and never manage the team", async () => {
+    m.caller = caller(testAccess({ permissions: [], clientIds: [], clients: { c1: ["invite"], c2: [] } }));
+    await withTeam(req("POST"), Promise.resolve({ orgId: "org-1", clientId: "c1" }), { need: "invite" }, ok);
+    expect(ok).toHaveBeenCalledWith(expect.objectContaining({ canManage: false, viaAdmin: false }));
+    ok.mockClear();
+    m.client = { id: "c2", org_id: "org-1", name: "Bata" };
+    expect((await withTeam(req("POST"), Promise.resolve({ orgId: "org-1", clientId: "c2" }), { need: "invite" }, ok)).status).toBe(403);
+    m.client = { id: "c3", org_id: "org-1", name: "Not theirs" };
+    expect((await withTeam(req("POST"), Promise.resolve({ orgId: "org-1", clientId: "c3" }), { need: "invite" }, ok)).status).toBe(404);
+    m.client = { id: "c1", org_id: "org-1", name: "Chupps" };
+    // Remove from a client, resend, cancel: manage_team, owner only.
+    expect((await withTeam(req("DELETE"), Promise.resolve({ orgId: "org-1", clientId: "c1" }), { need: "manage_team" }, ok)).status).toBe(403);
+    expect((await withTeam(req("POST"), Promise.resolve({ orgId: "org-1" }), { need: "manage_team" }, ok)).status).toBe(403);
+    expect(ok).not.toHaveBeenCalled();
+  });
+
+  it("refuses inviting without Invite", async () => {
+    m.caller = caller(testAccess({ permissions: ["generate", "approve", "share", "delete"], clientIds: ["c1"] }));
+    expect((await withTeam(req("POST"), Promise.resolve({ orgId: "org-1", clientId: "c1" }), { need: "invite" }, ok)).status).toBe(403);
+    expect((await withTeam(req("GET"), Promise.resolve({ orgId: "org-1" }), { need: "invite" }, ok)).status).toBe(403);
+    expect(ok).not.toHaveBeenCalled();
+  });
+
+  it("lets an Invite holder read the people list with no client named, and tells the handler they can't manage", async () => {
+    m.caller = caller(testAccess({ permissions: ["invite"], clientIds: ["c1"] }));
+    await withTeam(req("GET"), Promise.resolve({ orgId: "org-1" }), { need: "invite" }, ok);
+    expect(ok).toHaveBeenCalledWith(expect.objectContaining({ canManage: false }));
+    m.caller = caller(testOwnerAccess());
+    await withTeam(req("GET"), Promise.resolve({ orgId: "org-1" }), { need: "invite" }, ok);
+    expect(ok).toHaveBeenLastCalledWith(expect.objectContaining({ canManage: true }));
   });
 
   it("lets a super admin manage any agency from Admin, writing each change to the audit log", async () => {
@@ -1445,22 +1557,33 @@ import { NextResponse } from "next/server";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: vi.fn() }));
+const t = vi.hoisted(() => ({ canManage: true, guard: null as unknown }));
 vi.mock("@/lib/api/route-helpers", async (orig) => ({
   ...(await orig<typeof import("@/lib/api/route-helpers")>()),
-  withTeam: vi.fn(async (_req: Request, _p: unknown, _g: unknown, handler: (ctx: unknown) => Promise<NextResponse>) =>
-    handler({ orgId: "org-1", orgName: "Acme", viaAdmin: false, logAdmin: vi.fn() })),
+  withTeam: vi.fn(async (_req: Request, _p: unknown, guard: unknown, handler: (ctx: unknown) => Promise<NextResponse>) => {
+    t.guard = guard;
+    return handler({ orgId: "org-1", orgName: "Acme", viaAdmin: false, canManage: t.canManage, logAdmin: vi.fn() });
+  }),
 }));
 vi.mock("@/lib/db/people", () => ({
   listAgencyPeople: vi.fn(async () => [{ userId: "u1", status: "owner" }]),
-  listOpenInvites: vi.fn(async () => [{ id: "i1" }]),
+  listOpenInvites: vi.fn(async () => [{ id: "i1", link: "https://app.example/invite/tok" }]),
 }));
 
 import { GET } from "./route";
 
 describe("GET /api/orgs/:orgId/people", () => {
-  it("answers the agency's people and open invites in one response", async () => {
+  it("answers the agency's people and open invites in one response, for anyone with Invite", async () => {
+    t.canManage = true;
     const res = await GET(new Request("http://x"), { params: Promise.resolve({ orgId: "org-1" }) });
-    expect(await res.json()).toEqual({ people: [{ userId: "u1", status: "owner" }], invites: [{ id: "i1" }] });
+    expect(t.guard).toEqual({ need: "invite" });
+    expect(await res.json()).toEqual({ people: [{ userId: "u1", status: "owner" }], invites: [{ id: "i1", link: "https://app.example/invite/tok" }] });
+  });
+
+  it("withholds invite links from an Invite holder", async () => {
+    t.canManage = false;
+    const res = await GET(new Request("http://x"), { params: Promise.resolve({ orgId: "org-1" }) });
+    expect((await res.json()).invites).toEqual([{ id: "i1", link: null }]);
   });
 });
 ```
@@ -1497,20 +1620,25 @@ export type TeamContext = {
   client: ClientRow | null;
   /** A super admin working on the agency from Admin (not while viewing as it). */
   viaAdmin: boolean;
+  /** The caller holds manage_team (the owner, or Admin). False for an Invite holder: the people
+   *  read then withholds invite links. */
+  canManage: boolean;
   /** Writes made from Admin go to the audit log as admin_action; a no-op for the owner. */
   logAdmin: (action: string, detail?: Record<string, unknown>) => Promise<void>;
 };
 
-// One chokepoint for the owner's Team and Members screens and Admin's People and Clients tabs.
-// The owner passes manage_team in the agency they act in, under the usual impersonation write
-// gate. A super admin working from Admin passes for any agency (D85: Admin is platform
-// administration, not acting as the agency) and each change is audit-logged; while they view as
-// this same agency, the owner path and its write gate apply. The agency, the client and the
-// caller are read side by side.
+// One chokepoint for the owner's Team and Members screens, Invite holders' Members screens and
+// Admin's People and Clients tabs. need "manage_team" is owner only. need "invite" is checked on
+// the route's client (a client the caller is not on is a 404, one where they lack Invite a 403),
+// or on any client when the route names none (the people read); the owner always passes. Both
+// run under the usual impersonation write gate. A super admin working from Admin passes for any
+// agency (D85: Admin is platform administration, not acting as the agency) and each change is
+// audit-logged; while they view as this same agency, the agency path and its write gate apply.
+// The agency, the client and the caller are read side by side.
 export async function withTeam(
   req: Request,
   params: Promise<{ orgId: string; clientId?: string }>,
-  guard: { need: "manage_team" },
+  guard: { need: "manage_team" | "invite" },
   handler: (ctx: TeamContext) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { orgId, clientId } = await params;
@@ -1525,12 +1653,15 @@ export async function withTeam(
   const { caller, impersonation } = acting;
   const viewingThisAgency = impersonation.isImpersonating && impersonation.targetOrgId === orgId;
   const viaAdmin = caller.platformRole === "super_admin" && !viewingThisAgency;
+  const access = accessOf(caller);
+  let canManage = viaAdmin;
   if (!viaAdmin) {
     if (orgId !== acting.effectiveOrgId) return apiError("Not found.", 404);
-    const decision = check(accessOf(caller), guard.need, { orgId, clientId: null });
+    const decision = check(access, guard.need, { orgId, clientId: guard.need === "invite" ? (clientId ?? null) : null });
     if (decision !== "allow") return denial(decision, "Not found.");
     const blocked = await writeGate(req, impersonation);
     if (blocked) return blocked;
+    canManage = check(access, "manage_team", { orgId, clientId: null }) === "allow";
   }
 
   const name = await getDisplayName(caller.userId);
@@ -1538,7 +1669,7 @@ export async function withTeam(
     if (!viaAdmin) return;
     await logImpersonationEvent({ operatorId: caller.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action, ...detail } });
   };
-  return handler({ orgId, orgName: org.name, caller, actor: { userId: caller.userId, name: name ?? "Your agency owner" }, client, viaAdmin, logAdmin });
+  return handler({ orgId, orgName: org.name, caller, actor: { userId: caller.userId, name: name ?? `Someone at ${org.name}` }, client, viaAdmin, canManage, logAdmin });
 }
 
 /** A people rule's answer as a response: refusals with their status and words. */
@@ -1556,16 +1687,18 @@ export function opResponse<T extends Record<string, unknown>>(result: OpResult<T
 // src/app/api/orgs/[orgId]/people/route.ts
 import { apiOk, withQuietErrors, withTeam } from "@/lib/api/route-helpers";
 import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
+import { hideInviteLinks } from "@/lib/people/utils";
 
 type Ctx = { params: Promise<{ orgId: string }> };
 
 // GET — the agency's people and open invites: the Team page, every Members list and the invite
-// popup read this one response (spec §10).
+// popup read this one response (spec §10). Open to the owner and to anyone with Invite on a
+// client (their Members page and popup); without manage_team the invite links are withheld.
 export async function GET(req: Request, { params }: Ctx) {
-  return withTeam(req, params, { need: "manage_team" }, ({ orgId }) =>
+  return withTeam(req, params, { need: "invite" }, ({ orgId, canManage }) =>
     withQuietErrors("Could not load the team.", async () => {
       const [people, invites] = await Promise.all([listAgencyPeople(orgId), listOpenInvites(orgId)]);
-      return apiOk({ people, invites });
+      return apiOk({ people, invites: canManage ? invites : hideInviteLinks(invites) });
     }),
   );
 }
@@ -1615,7 +1748,7 @@ import { makeOwner } from "@/lib/people/ops";
 type Ctx = { params: Promise<{ orgId: string; userId: string }> };
 
 // POST — Make owner (spec §6.6): only the super admin moves ownership; the previous owner becomes
-// a member with all six on every client.
+// a member with all five permissions on every client.
 export async function POST(req: Request, { params }: Ctx) {
   const { userId } = await params;
   return withTeam(req, params, { need: "manage_team" }, (ctx) =>
@@ -1678,10 +1811,10 @@ import { AddMembersSchema } from "@/lib/people/schema";
 
 type Ctx = { params: Promise<{ orgId: string; clientId: string }> };
 
-// POST { userIds } — "Add n people" in the invite popup's first step (spec §6.2). One insert; each
-// row copies the person's agency set.
+// POST { userIds } — "Add n people" in the invite popup's first step (spec §6.2), by the owner or
+// anyone with Invite on this client. One insert; each row copies the person's agency set.
 export async function POST(req: Request, { params }: Ctx) {
-  return withTeam(req, params, { need: "manage_team" }, (ctx) =>
+  return withTeam(req, params, { need: "invite" }, (ctx) =>
     withQuietErrors("Could not add them.", async () => {
       const parsed = AddMembersSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Choose people from the list.", 400);
@@ -1701,6 +1834,7 @@ import { removeFromClient } from "@/lib/people/ops";
 type Ctx = { params: Promise<{ orgId: string; clientId: string; userId: string }> };
 
 // DELETE — off this client only; they keep the agency, their other clients and their permissions.
+// Owner only (manage_team), not Invite holders.
 export async function DELETE(req: Request, { params }: Ctx) {
   const { userId } = await params;
   return withTeam(req, params, { need: "manage_team" }, (ctx) =>
@@ -1721,9 +1855,11 @@ import { InviteSchema } from "@/lib/people/schema";
 
 type Ctx = { params: Promise<{ orgId: string; clientId: string }> };
 
-// POST { email } — "Invite someone new" (spec §6.2): the invite is always for this client.
+// POST { email } — "Invite someone new" (spec §6.2), by the owner or anyone with Invite on this
+// client: the invite is always for this client, and invited_by is the caller. The new person
+// signs up and waits as Signed up until the owner gives access.
 export async function POST(req: Request, { params }: Ctx) {
-  return withTeam(req, params, { need: "manage_team" }, (ctx) =>
+  return withTeam(req, params, { need: "invite" }, (ctx) =>
     withQuietErrors("Could not send the invite.", async () => {
       const parsed = InviteSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Enter a valid email.", 400);
@@ -1736,11 +1872,11 @@ export async function POST(req: Request, { params }: Ctx) {
 }
 ```
 
-- [ ] **Step 5: Coverage knows `withTeam`, and `manage_team` is checked**
+- [ ] **Step 5: Coverage knows `withTeam`, and `manage_team` and `invite` are checked**
 
 `src/lib/permissions/route-coverage.test.ts`: in `GUARDED_RE` change `(withClient|withCanvas|withNode|withMoodboard|withAccess)` to `(withClient|withCanvas|withNode|withMoodboard|withAccess|withTeam)`.
 
-`git rm src/lib/permissions/not-yet-checked.ts`, and in `src/lib/actions/with-action-coverage.test.ts` delete the `NOT_YET_CHECKED` import and change the filter to `const missing = ACTIONS.filter((a) => !used.has(a));` (the new routes under `src/app/api/orgs` are already in its `collect("src/app/api", "route.ts")` and name `"manage_team"`).
+`git rm src/lib/permissions/not-yet-checked.ts` (plan 3 left two entries there, `manage_team` and `invite`; if it holds any other entry by now, keep the file and remove only those two), and in `src/lib/actions/with-action-coverage.test.ts` delete the `NOT_YET_CHECKED` import and change the filter to `const missing = ACTIONS.filter((a) => !used.has(a));` (the new routes under `src/app/api/orgs` are already in its `collect("src/app/api", "route.ts")` and name `"manage_team"` and `"invite"`).
 
 - [ ] **Step 6: Run the tests**
 
@@ -2000,15 +2136,21 @@ git log -1 --format=%B
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PermissionEditor } from "../permission-editor";
+import { PERMISSION_LABELS } from "@/lib/people/constants";
 
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
 describe("PermissionEditor (D509)", () => {
   it("shows a chip with a remove button for each permission, in order", () => {
-    const html = renderToStaticMarkup(<PermissionEditor value={["share", "view"]} onChange={vi.fn()} personName="Ravi" />);
-    expect(text(html)).toMatch(/View .*Share/);
-    expect(html).toContain('aria-label="Remove View"');
-    expect(html).toContain('aria-label="Remove Share"');
+    const html = renderToStaticMarkup(<PermissionEditor value={["invite", "generate"]} onChange={vi.fn()} personName="Ravi" />);
+    expect(text(html)).toMatch(/Generate .*Invite/);
+    expect(html).toContain('aria-label="Remove Generate"');
+    expect(html).toContain('aria-label="Remove Invite"');
+  });
+
+  it("offers the five permissions and nothing else (no View, no Edit)", () => {
+    const labels = Object.values(PERMISSION_LABELS);
+    expect(labels).toEqual(["Generate", "Approve", "Share", "Delete", "Invite"]);
   });
 
   it("starts with none, then Choose a permission and Add", () => {
@@ -2020,12 +2162,12 @@ describe("PermissionEditor (D509)", () => {
 
   it("says where the permissions apply", () => {
     const html = renderToStaticMarkup(<PermissionEditor value={[]} onChange={vi.fn()} personName="Ravi" />);
-    expect(text(html)).toContain("These apply on every client Ravi is on, and on any client they're added to later.");
+    expect(text(html)).toContain("These apply on every client Ravi is on, and on any client they're added to later. With none, Ravi can look but not change anything.");
   });
 
-  it("hides the picker once all six are chosen", () => {
+  it("hides the picker once all five are chosen", () => {
     const html = renderToStaticMarkup(
-      <PermissionEditor value={["view", "edit", "generate", "approve", "share", "delete"]} onChange={vi.fn()} personName="Ravi" />,
+      <PermissionEditor value={["generate", "approve", "share", "delete", "invite"]} onChange={vi.fn()} personName="Ravi" />,
     );
     expect(text(html)).not.toContain("Choose a permission");
   });
@@ -2051,7 +2193,8 @@ import { PERMISSIONS, orderedPermissions, type Permission } from "@/lib/permissi
 import { PERMISSION_LABELS } from "@/lib/people/constants";
 
 // D509: the only place permissions are set. Chips with ×, then "Choose a permission" and Add;
-// none to start. The parent saves (Give access, or Save on a member).
+// none to start, and none is a valid answer (a member who only looks). The options are the five
+// permissions in PERMISSIONS order. The parent saves (Give access, or Save on a member).
 export function PermissionEditor({
   value,
   onChange,
@@ -2119,7 +2262,7 @@ export function PermissionEditor({
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        These apply on every client {personName} is on, and on any client they&apos;re added to later.
+        These apply on every client {personName} is on, and on any client they&apos;re added to later. With none, {personName} can look but not change anything.
       </p>
     </div>
   );
@@ -2151,7 +2294,7 @@ git log -1 --format=%B
 
 **Interfaces:**
 - Consumes: Task 5's hooks; Task 6's editor; `peopleOnClient`, `signedUpPeople`; `STATUS_LABELS`; `formatRelativeTime`; plan 3's `check`, `accessOf`, `resolveActingCaller`; `listAgencyPeople`, `listOpenInvites`, `listClients`.
-- Produces: `TeamPeople({ orgId: string; clients: { id: string; name: string }[]; initial?: AgencyPeople; focusUserId?: string | null; canMakeOwner?: boolean; extraMemberActions?: (person: AgencyPerson) => ReactNode })`; `RemovePersonDialog({ name: string; detail: string; onConfirm: () => Promise<void>; label?: string })`; the `/team` page (owner only, 404 otherwise; `?person=<userId>` highlights that person).
+- Produces: `TeamPeople({ orgId: string; clients: { id: string; name: string }[]; initial?: AgencyPeople; focusUserId?: string | null; canMakeOwner?: boolean; extraMemberActions?: (person: AgencyPerson) => ReactNode })`; `TeamInvitedRow({ orgId; invite; showClient?; status?; canManage? })` (Copy link, Resend and Cancel only with `canManage`, default true); `RemovePersonDialog({ name: string; detail: string; onConfirm: () => Promise<void>; label?: string })`; the `/team` page (owner only, 404 otherwise; `?person=<userId>` highlights that person).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2175,7 +2318,8 @@ const person = (over: Partial<AgencyPerson>): AgencyPerson => ({
 const data: AgencyPeople = {
   people: [
     person({ userId: "o", name: "Asha", email: "asha@x.com", status: "owner" }),
-    person({ userId: "m", name: "Meera", email: "meera@x.com", permissions: ["view", "edit"], clientIds: ["c1"] }),
+    person({ userId: "m", name: "Meera", email: "meera@x.com", permissions: ["generate", "invite"], clientIds: ["c1"] }),
+    person({ userId: "k", name: "Kiran", email: "kiran@x.com", permissions: [], clientIds: ["c1"] }),
     person({ userId: "w", name: "Ravi", email: "ravi@x.com", status: "signed_up", invitedByName: "Asha", invitedClient: { id: "c1", name: "Chupps" }, clientIds: ["c1"] }),
   ],
   invites: [{ id: "i1", email: "new@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "2026-11-12T00:00:00Z", expiresAt: "2026-11-19T00:00:00Z", link: "https://app.example/invite/tok1" }],
@@ -2203,9 +2347,16 @@ describe("TeamPeople (spec §6.1)", () => {
     expect(t).toContain("Choose a permission");
   });
 
+  it("lets the owner give access with no permissions picked (a member who only looks)", () => {
+    const html = render();
+    expect(html).toMatch(/Give access/);
+    expect(html).not.toMatch(/<button[^>]*disabled[^>]*>[^<]*Give access/);
+  });
+
   it("copies the stored link without a request: Copy link reads invite.link, only Resend calls the server", () => {
     const source = readFileSync("src/components/team/team-invited-row.tsx", "utf8");
-    expect(source).toContain("navigator.clipboard.writeText(invite.link)");
+    expect(source).toContain("const link = invite.link;");
+    expect(source).toContain("navigator.clipboard.writeText(link)");
     expect(source).not.toMatch(/mutateAsync\(\{[^}]*email/);
   });
 
@@ -2220,8 +2371,12 @@ describe("TeamPeople (spec §6.1)", () => {
   it("lists the owner first with no actions, then members with their chips, clients, Edit and Remove", () => {
     const t = text(render());
     expect(t.indexOf("Asha")).toBeLessThan(t.indexOf("Meera"));
-    expect(t).toMatch(/Meera .*View .*Edit .*Chupps/);
+    expect(t).toMatch(/Meera .*Generate .*Invite .*Chupps/);
     expect(t).toContain("Remove");
+  });
+
+  it("shows Can look for a member with no permissions", () => {
+    expect(text(render())).toMatch(/Kiran kiran@x\.com Can look/);
   });
 
   it("offers Make owner only where asked (Admin)", () => {
@@ -2367,7 +2522,8 @@ import { PermissionEditor } from "./permission-editor";
 import { RemovePersonDialog } from "./remove-person-dialog";
 
 // Spec §6.1 "Waiting for you": someone who signed up. Give access saves the permissions and lets
-// them in; the cascade fills the client rows they already have, and they are emailed.
+// them in; the cascade fills the client rows they already have, and they are emailed. Give access
+// works with none picked: they can then look but not change anything.
 export function TeamWaitingCard({ orgId, person, clientNames, focused }: { orgId: string; person: AgencyPerson; clientNames: ReadonlyMap<string, string>; focused: boolean }) {
   const [draft, setDraft] = useState<Permission[]>([]);
   const update = useUpdatePermissions(orgId);
@@ -2397,7 +2553,7 @@ export function TeamWaitingCard({ orgId, person, clientNames, focused }: { orgId
       <PermissionEditor value={draft} onChange={setDraft} personName={person.name} disabled={update.isPending} />
       {update.error && <p className="text-sm text-destructive">{update.error.message}</p>}
       <div>
-        <Button disabled={draft.length === 0 || update.isPending} onClick={() => update.mutate({ userId: person.userId, permissions: draft, giveAccess: true })}>
+        <Button disabled={update.isPending} onClick={() => update.mutate({ userId: person.userId, permissions: draft, giveAccess: true })}>
           {update.isPending ? "Giving access…" : "Give access"}
         </Button>
       </div>
@@ -2420,25 +2576,31 @@ import type { OpenInvite } from "@/lib/people/types";
 // Spec §6.1 "Invited", and the invite rows of a client's Members list (one look for both). Copy
 // link copies the stored link: the same link every time, no request. Resend issues a new link
 // (the old one stops working) and emails it; the people list refreshes with the new link.
+// Copy link, Resend and Cancel are the owner's (canManage); an Invite holder sees the row only,
+// and the people read gives them no link (spec §6.2).
 export function TeamInvitedRow({
   orgId,
   invite,
   showClient = true,
   status,
+  canManage = true,
 }: {
   orgId: string;
   invite: OpenInvite;
   showClient?: boolean;
   /** The Members list shows the status ("Invited") beside the email. */
   status?: string;
+  canManage?: boolean;
 }) {
   const resend = useResendInvite(orgId);
   const cancel = useCancelInvite(orgId);
   const [showLink, setShowLink] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const link = invite.link;
 
   function copyLink() {
-    void navigator.clipboard.writeText(invite.link);
+    if (!link) return;
+    void navigator.clipboard.writeText(link);
     setShowLink(true);
     setNotice("Link copied.");
   }
@@ -2464,16 +2626,18 @@ export function TeamInvitedRow({
             {showClient && invite.clientName ? `${invite.clientName} · ` : ""}Sent {formatRelativeTime(invite.sentAt)} · Expires {formatRelativeTime(invite.expiresAt)}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={copyLink}>Copy link</Button>
-          <Button size="sm" variant="outline" disabled={resend.isPending} onClick={() => void resendInvite()}>Resend</Button>
-          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={cancel.isPending} onClick={() => cancel.mutate(invite.id)}>
-            Cancel
-          </Button>
-        </div>
+        {canManage && (
+          <div className="flex items-center gap-2">
+            {link && <Button size="sm" variant="ghost" onClick={copyLink}>Copy link</Button>}
+            <Button size="sm" variant="outline" disabled={resend.isPending} onClick={() => void resendInvite()}>Resend</Button>
+            <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={cancel.isPending} onClick={() => cancel.mutate(invite.id)}>
+              Cancel
+            </Button>
+          </div>
+        )}
       </div>
       {/* invite.link follows the people list, so after a Resend this is the new link. */}
-      {showLink && <CopyRow label="Invite link" value={invite.link} />}
+      {showLink && link && <CopyRow label="Invite link" value={link} />}
       {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
       {error && <p className="text-sm text-destructive">{error.message}</p>}
     </li>
@@ -2505,14 +2669,15 @@ export function TeamInvitedList({ orgId, invites }: { orgId: string; invites: Op
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useMakeOwner, useRemovePerson, useUpdatePermissions } from "@/hooks/queries/people";
-import { PERMISSION_LABELS, STATUS_LABELS } from "@/lib/people/constants";
+import { NO_PERMISSIONS_LABEL, PERMISSION_LABELS, STATUS_LABELS } from "@/lib/people/constants";
 import type { Permission } from "@/lib/permissions/model";
 import type { AgencyPerson } from "@/lib/people/types";
 import { PermissionEditor } from "./permission-editor";
 import { RemovePersonDialog } from "./remove-person-dialog";
 
 // Spec §6.1 "Members". The owner has no actions. Edit opens the same editor; saving changes the
-// agency level and the cascade applies it to every client they are on.
+// agency level and the cascade applies it to every client they are on. A member with no
+// permissions shows "Can look".
 export function TeamMemberRow({
   orgId,
   person,
@@ -2553,9 +2718,13 @@ export function TeamMemberRow({
           ) : (
             <>
               <span className="flex flex-wrap gap-1">
-                {person.permissions.map((p) => (
-                  <span key={p} className="rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-xs">{PERMISSION_LABELS[p]}</span>
-                ))}
+                {person.permissions.length === 0 ? (
+                  <span className="rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground">{NO_PERMISSIONS_LABEL}</span>
+                ) : (
+                  person.permissions.map((p) => (
+                    <span key={p} className="rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-xs">{PERMISSION_LABELS[p]}</span>
+                  ))
+                )}
               </span>
               {clients && <span className="text-xs text-muted-foreground">Clients: {clients}</span>}
             </>
@@ -2859,7 +3028,7 @@ git log -1 --format=%B
 
 **Interfaces:**
 - Consumes: Task 5's hooks; `peopleOnClient`, `invitesForClient`; `STATUS_LABELS`; Task 7's `TeamInvitedRow`; plan 3's `loadClientPage`, `check`, `useCan`.
-- Produces: `ClientMembers({ orgId: string; client: { id: string; name: string }; initial?: AgencyPeople; teamHref: (userId: string) => string; inviteSlot?: ReactNode })`; `ClientMembersButton({ slug: string })` (owner only); the `/clients/[id]/members` page (owner only, 404 otherwise). Task 10 adds the invite popup through `inviteSlot`.
+- Produces: `ClientMembers({ orgId: string; client: { id: string; name: string }; initial?: AgencyPeople; teamHref: (userId: string) => string; canManage: boolean; inviteSlot?: ReactNode })` (Remove, Resend, Cancel and Set permissions only with `canManage`); `ClientMembersButton({ slug: string; clientId: string })` (shown with `useCan("invite", clientId)`: the owner and Invite holders on that client); the `/clients/[id]/members` page (the owner and Invite holders on that client, through `loadClientPage(id, "invite")`; 404 for anyone else). Task 10 adds the invite popup through `inviteSlot`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2888,12 +3057,14 @@ const data: AgencyPeople = {
   invites: [{ id: "i1", email: "new@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "2026-11-12T00:00:00Z", expiresAt: "2026-11-19T00:00:00Z", link: "https://app.example/invite/tok1" }],
 };
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-const render = () =>
+const render = (canManage = true, initial: AgencyPeople = data) =>
   renderToStaticMarkup(
     <QueryClientProvider client={new QueryClient()}>
-      <ClientMembers orgId="org-1" client={{ id: "c1", name: "Chupps" }} initial={data} teamHref={(id) => `/team?person=${id}`} />
+      <ClientMembers orgId="org-1" client={{ id: "c1", name: "Chupps" }} initial={initial} teamHref={(id) => `/team?person=${id}`} canManage={canManage} inviteSlot={<span>Invite</span>} />
     </QueryClientProvider>,
   );
+// What an Invite holder receives: the same people, invite links withheld (hideInviteLinks).
+const forHolder: AgencyPeople = { ...data, invites: data.invites.map((i) => ({ ...i, link: null })) };
 
 describe("ClientMembers (spec §6.2)", () => {
   it("counts the people on this client: the owner, members, people waiting and open invites", () => {
@@ -2920,6 +3091,14 @@ describe("ClientMembers (spec §6.2)", () => {
   it("never edits permissions here", () => {
     expect(text(render())).not.toContain("Choose a permission");
   });
+
+  it("shows an Invite holder the list and the Invite button, but no Remove, Resend, Cancel, Copy link or Set permissions", () => {
+    const t = text(render(false, forHolder));
+    expect(t).toContain("4 people on this client");
+    expect(t).toMatch(/Ravi n@x\.com Signed up · Needs permissions/);
+    expect(t).toContain("Invite");
+    for (const owners of ["Remove", "Resend", "Cancel", "Copy link", "Set permissions"]) expect(t).not.toContain(owners);
+  });
 });
 ```
 
@@ -2942,13 +3121,15 @@ import type { AgencyPerson } from "@/lib/people/types";
 import { RemovePersonDialog } from "./remove-person-dialog";
 
 // One person on a client's Members list: Name, Status, Actions (spec §6.2). Remove takes them off
-// this client only; permissions are set on the Team page.
-export function ClientMemberRow({ orgId, clientId, clientName, person, teamHref }: {
+// this client only; permissions are set on the Team page. Set permissions and Remove are the
+// owner's (canManage); an Invite holder sees the status only.
+export function ClientMemberRow({ orgId, clientId, clientName, person, teamHref, canManage }: {
   orgId: string;
   clientId: string;
   clientName: string;
   person: AgencyPerson;
   teamHref: (userId: string) => string;
+  canManage: boolean;
 }) {
   const remove = useRemoveFromClient(orgId, clientId);
   return (
@@ -2959,12 +3140,12 @@ export function ClientMemberRow({ orgId, clientId, clientName, person, teamHref 
       </div>
       <span className="text-muted-foreground">{STATUS_LABELS[person.status]}</span>
       <div className="flex items-center justify-end gap-2">
-        {person.status === "signed_up" && (
+        {canManage && person.status === "signed_up" && (
           <Button size="sm" variant="outline" nativeButton={false} render={<Link href={teamHref(person.userId)} />}>
             Set permissions
           </Button>
         )}
-        {person.status !== "owner" && (
+        {canManage && person.status !== "owner" && (
           <RemovePersonDialog
             name={person.name}
             detail={`They come off ${clientName} only. They stay in the agency with their other clients and permissions.`}
@@ -2991,18 +3172,22 @@ import { ClientMemberRow } from "./client-member-row";
 import { TeamInvitedRow } from "./team-invited-row";
 
 // Spec §6.2: who works on this client. Invite, add and remove; permissions are not edited here
-// (D509). Rendered on /clients/[id]/members for the owner and in Admin's Clients tab.
+// (D509). Rendered on /clients/[id]/members for the owner and Invite holders on this client, and
+// in Admin's Clients tab. Remove, Resend, Cancel and Set permissions are the owner's.
 export function ClientMembers({
   orgId,
   client,
   initial,
   teamHref,
+  canManage,
   inviteSlot,
 }: {
   orgId: string;
   client: { id: string; name: string };
   initial?: AgencyPeople;
   teamHref: (userId: string) => string;
+  /** The owner or Admin (manage_team). False for an Invite holder. */
+  canManage: boolean;
   /** The Invite popup (Task 10), placed in the header. */
   inviteSlot?: ReactNode;
 }) {
@@ -3025,10 +3210,10 @@ export function ClientMembers({
         </div>
         <ul className="flex flex-col">
           {people.map((p) => (
-            <ClientMemberRow key={p.userId} orgId={orgId} clientId={client.id} clientName={client.name} person={p} teamHref={teamHref} />
+            <ClientMemberRow key={p.userId} orgId={orgId} clientId={client.id} clientName={client.name} person={p} teamHref={teamHref} canManage={canManage} />
           ))}
           {invites.map((i) => (
-            <TeamInvitedRow key={i.id} orgId={orgId} invite={i} showClient={false} status={STATUS_LABELS.invited} />
+            <TeamInvitedRow key={i.id} orgId={orgId} invite={i} showClient={false} status={STATUS_LABELS.invited} canManage={canManage} />
           ))}
         </ul>
       </Card>
@@ -3046,9 +3231,10 @@ import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCan } from "@/components/permissions/use-can";
 
-// Spec §6.2: the Members button sits beside Brand Workspace, for the owner only.
-export function ClientMembersButton({ slug }: { slug: string }) {
-  if (!useCan("manage_team")) return null;
+// Spec §6.2: the Members button sits beside Brand Workspace, for the owner and anyone with Invite
+// on this client (the same people the page lets in).
+export function ClientMembersButton({ slug, clientId }: { slug: string; clientId: string }) {
+  if (!useCan("invite", clientId)) return null;
   return (
     <Button variant="outline" nativeButton={false} render={<Link href={`/clients/${slug}/members`} />}>
       <Users className="size-4" strokeWidth={1.5} />
@@ -3061,11 +3247,11 @@ export function ClientMembersButton({ slug }: { slug: string }) {
 ```tsx
 // src/app/clients/[id]/members/page.tsx
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { loadClientPage } from "@/lib/permissions/page";
 import { check } from "@/lib/permissions/check";
 import { accessOf } from "@/lib/permissions/server";
 import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
+import { hideInviteLinks } from "@/lib/people/utils";
 import { ClientMembers } from "@/components/team/client-members";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -3073,11 +3259,13 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// Spec §6.2, owner only: a member who opens the address gets the 404 page.
+// Spec §6.2: the owner and anyone with Invite on this client. loadClientPage answers the 404 page
+// to anyone else (not on the client, or on it without Invite). Owner-only actions follow
+// manage_team, and without it the invite links are withheld, as in the people route.
 export default async function ClientMembersPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { client, caller, effectiveOrgId } = await loadClientPage(id, "view");
-  if (check(accessOf(caller), "manage_team", { orgId: effectiveOrgId, clientId: null }) !== "allow") notFound();
+  const { client, caller, effectiveOrgId } = await loadClientPage(id, "invite");
+  const canManage = check(accessOf(caller), "manage_team", { orgId: effectiveOrgId, clientId: null }) === "allow";
   const [people, invites] = await Promise.all([listAgencyPeople(effectiveOrgId), listOpenInvites(effectiveOrgId)]);
   const ref = { id: client.id, name: client.name };
   return (
@@ -3095,8 +3283,9 @@ export default async function ClientMembersPage({ params }: { params: Promise<{ 
       <ClientMembers
         orgId={effectiveOrgId}
         client={ref}
-        initial={{ people, invites }}
+        initial={{ people, invites: canManage ? invites : hideInviteLinks(invites) }}
         teamHref={(userId) => `/team?person=${userId}`}
+        canManage={canManage}
       />
     </main>
   );
@@ -3105,7 +3294,9 @@ export default async function ClientMembersPage({ params }: { params: Promise<{ 
 
 (Task 10 adds the Invite popup through `inviteSlot`.)
 
-`src/app/clients/[id]/(canvases)/page.tsx`: add `import { ClientMembersButton } from "@/components/clients/client-members-button";` and render `<ClientMembersButton slug={client.slug} />` right after `<ClientSettingsMenu slug={client.slug} />`.
+`src/app/clients/[id]/(canvases)/page.tsx`: add `import { ClientMembersButton } from "@/components/clients/client-members-button";` and render `<ClientMembersButton slug={client.slug} clientId={client.id} />` right after `<ClientSettingsMenu slug={client.slug} />`.
+
+Add to `src/components/team/__tests__/client-members.test.tsx` a test for the button: inside `TestAccessProvider` (plan 3), an owner sees `Members` linking to `/clients/chupps/members`; a member with Invite on `c1` sees it for `c1` and not for `c2`; a member without Invite does not see it.
 
 - [ ] **Step 4: Run the tests**
 
@@ -3132,7 +3323,7 @@ git log -1 --format=%B
 
 **Interfaces:**
 - Consumes: `usePeople`, `useAddToClient`, `useInviteToClient`; `peopleNotOnClient`; `STATUS_LABELS`; `CopyRow`.
-- Produces: `InviteDialog({ orgId: string; client: { id: string; name: string } })`; `InviteDialogAddStep({ orgId, client, onInviteNew, onDone })`; `InviteDialogEmailStep({ orgId, client, onBack })`.
+- Produces: `InviteDialog({ orgId: string; client: { id: string; name: string }; canManage: boolean })` (one popup for the owner, Invite holders and Admin; `canManage` only picks the step 2 note); `InviteDialogAddStep({ orgId, client, onInviteNew, onDone })`; `InviteDialogEmailStep({ orgId, client, canManage, onBack })`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3188,10 +3379,21 @@ describe("invite popup (spec §6.2)", () => {
   });
 
   it("step 2 asks for an email, with Back and Send invite and what happens next", () => {
-    const t = text(withPeople(<InviteDialogEmailStep orgId="org-1" client={client} onBack={vi.fn()} />));
+    const t = text(withPeople(<InviteDialogEmailStep orgId="org-1" client={client} canManage onBack={vi.fn()} />));
     expect(t).toContain("Back");
     expect(t).toContain("Send invite");
     expect(t).toContain("They get an email to sign up. Once they have, you set their permissions on the Team page.");
+  });
+
+  it("step 2 tells an Invite holder that the owner sets the permissions", () => {
+    const t = text(withPeople(<InviteDialogEmailStep orgId="org-1" client={client} canManage={false} onBack={vi.fn()} />));
+    expect(t).toContain("They get an email to sign up. Once they have, the owner sets their permissions on the Team page.");
+  });
+
+  it("step 1 is the same for an Invite holder: the agency's people with their statuses, no permissions", () => {
+    const t = text(withPeople(<InviteDialogAddStep orgId="org-1" client={client} onInviteNew={vi.fn()} onDone={vi.fn()} />));
+    expect(t).toContain("Signed up · Needs permissions");
+    expect(t).not.toContain("Choose a permission");
   });
 });
 ```
@@ -3293,14 +3495,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CopyRow } from "@/components/shared/copy-row";
 import { useInviteToClient } from "@/hooks/queries/people";
+import { INVITE_NEXT_STEP } from "@/lib/people/constants";
 import type { InviteResult } from "@/lib/people/types";
 
 // Step 2, "Invite someone new": the invitation is for this client; the link is emailed and shown
-// to copy. Refusals come back from the server in the spec's words.
-export function InviteDialogEmailStep({ orgId, client, onBack }: { orgId: string; client: { id: string; name: string }; onBack: () => void }) {
+// to copy (to whoever sent it, owner or Invite holder). Refusals come back from the server in the
+// spec's words. The new person waits as Signed up until the owner gives access.
+export function InviteDialogEmailStep({ orgId, client, canManage, onBack }: { orgId: string; client: { id: string; name: string }; canManage: boolean; onBack: () => void }) {
   const invite = useInviteToClient(orgId, client.id);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState<InviteResult | null>(null);
+  const nextStep = canManage ? INVITE_NEXT_STEP.owner : INVITE_NEXT_STEP.inviter;
 
   if (sent) {
     return (
@@ -3309,7 +3514,7 @@ export function InviteDialogEmailStep({ orgId, client, onBack }: { orgId: string
           {sent.emailed ? `Invite sent to ${sent.invite.email}.` : `The email wasn't sent. Copy the link and send it to ${sent.invite.email}.`}
         </p>
         <CopyRow label="Invite link" value={sent.link} />
-        <p className="text-xs text-muted-foreground">They get an email to sign up. Once they have, you set their permissions on the Team page.</p>
+        <p className="text-xs text-muted-foreground">{nextStep}</p>
         <div><Button variant="outline" onClick={onBack}>Back</Button></div>
       </div>
     );
@@ -3331,7 +3536,7 @@ export function InviteDialogEmailStep({ orgId, client, onBack }: { orgId: string
         <Label htmlFor="invite-email">Email</Label>
         <Input id="invite-email" type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
       </div>
-      <p className="text-xs text-muted-foreground">They get an email to sign up. Once they have, you set their permissions on the Team page.</p>
+      <p className="text-xs text-muted-foreground">{nextStep}</p>
       {invite.error && <p className="text-sm text-destructive">{invite.error.message}</p>}
       <div className="flex justify-between gap-3">
         <Button type="button" variant="outline" onClick={onBack}>Back</Button>
@@ -3353,9 +3558,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { InviteDialogAddStep } from "./invite-dialog-add-step";
 import { InviteDialogEmailStep } from "./invite-dialog-email-step";
 
-// Spec §6.2: Invite opens a popup. Step 1 adds people already in the agency; "Invite someone new"
-// opens step 2. Each opening starts at step 1 (the body remounts on its key).
-export function InviteDialog({ orgId, client }: { orgId: string; client: { id: string; name: string } }) {
+// Spec §6.2: Invite opens a popup, the same one for the owner, Invite holders and Admin. Step 1
+// adds people already in the agency; "Invite someone new" opens step 2. Each opening starts at
+// step 1 (the body remounts on its key). canManage only picks who step 2 says sets permissions.
+export function InviteDialog({ orgId, client, canManage }: { orgId: string; client: { id: string; name: string }; canManage: boolean }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"add" | "email">("add");
   const [opening, setOpening] = useState(0);
@@ -3379,7 +3585,7 @@ export function InviteDialog({ orgId, client }: { orgId: string; client: { id: s
         {step === "add" ? (
           <InviteDialogAddStep key={opening} orgId={orgId} client={client} onInviteNew={() => setStep("email")} onDone={() => setOpen(false)} />
         ) : (
-          <InviteDialogEmailStep key={`email-${opening}`} orgId={orgId} client={client} onBack={() => setStep("add")} />
+          <InviteDialogEmailStep key={`email-${opening}`} orgId={orgId} client={client} canManage={canManage} onBack={() => setStep("add")} />
         )}
       </DialogContent>
     </Dialog>
@@ -3387,7 +3593,7 @@ export function InviteDialog({ orgId, client }: { orgId: string; client: { id: s
 }
 ```
 
-`src/app/clients/[id]/members/page.tsx`: add `import { InviteDialog } from "@/components/team/invite-dialog";` and the prop `inviteSlot={<InviteDialog orgId={effectiveOrgId} client={ref} />}` on `ClientMembers`.
+`src/app/clients/[id]/members/page.tsx`: add `import { InviteDialog } from "@/components/team/invite-dialog";` and the prop `inviteSlot={<InviteDialog orgId={effectiveOrgId} client={ref} canManage={canManage} />}` on `ClientMembers` (everyone the page lets in may invite: the owner and Invite holders on this client).
 
 - [ ] **Step 4: Run the tests**
 
@@ -3488,6 +3694,14 @@ describe("acceptInviteAction (spec §6.3)", () => {
     expect(m.acceptInvitation).toHaveBeenCalledWith("tok", "u-new", "Ravi");
     expect(m.signIn).toHaveBeenCalledWith({ email: "p@x.com", password: "longenough" });
     expect(m.notifySignedUp).toHaveBeenCalledWith({ orgId: "org-1", orgName: "Acme", userId: "u-new", name: "Ravi", invitedBy: "owner-1" });
+  });
+
+  it("someone invited by an Invite holder signs up the same way and waits; the holder is the inviter told", async () => {
+    // accept_invitation (plan 3) creates every member invite's membership Signed up, with a client
+    // row and no permissions, whoever sent it; the owner gives access on the Team page.
+    m.acceptInvitation.mockResolvedValue({ orgId: "org-1", clientId: "c1", asOwner: false, invitedBy: "holder-1" });
+    await expect(acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).rejects.toThrow("REDIRECT /");
+    expect(m.notifySignedUp).toHaveBeenCalledWith(expect.objectContaining({ invitedBy: "holder-1" }));
   });
 
   it("sends no signed-up notice for the owner's own invite", async () => {
@@ -3591,7 +3805,8 @@ export async function acceptInviteAction(token: string, _prev: AcceptInviteState
   if (!accepted.asOwner) {
     await notifySignedUp({ orgId: accepted.orgId, orgName: invitation.orgName, userId: login.userId, name: parsed.data.name, invitedBy: accepted.invitedBy });
   }
-  // A member lands on the onboarding screen (they wait for access); the owner on an empty client list.
+  // A member lands on the onboarding screen (they wait for access, whoever invited them); the
+  // owner on an empty client list.
   redirect(error ? "/login" : "/");
 }
 ```
@@ -4007,7 +4222,7 @@ git log -1 --format=%B
 **Files:**
 - Create: `src/app/admin/orgs/[id]/admin-clients-tab.tsx`, `src/app/admin/orgs/[id]/__tests__/org-detail-tabs.test.tsx`
 - Modify: `src/app/admin/orgs/[id]/page.tsx`, `src/app/admin/orgs/[id]/org-detail-tabs.tsx`, `src/app/admin/orgs/[id]/reset-password-dialog.tsx` (unchanged API; rendered through the People tab's slot), `src/lib/actions/admin.ts`, `src/lib/db/organizations.ts`, `src/lib/orgs/org-schema.ts`, `src/lib/dal-logic.ts`, `src/lib/actions/with-action-coverage.test.ts`
-- Delete: `src/app/admin/orgs/[id]/add-member-dialog.tsx`, `src/app/admin/orgs/[id]/member-role-select.tsx` (the temporary-password and role paths, D497/D505)
+- Delete: `src/app/admin/orgs/[id]/add-member-dialog.tsx`, `src/app/admin/orgs/[id]/member-role-select.tsx` (the temporary-password and role paths, D505)
 
 **Interfaces:**
 - Consumes: Task 7's `TeamPeople`; Task 9's `ClientMembers`; Task 10's `InviteDialog`; `listAgencyPeople`, `listOpenInvites`, `listClients`; `ResetPasswordDialog`.
@@ -4078,7 +4293,8 @@ export function AdminClientsTab({ orgId, clients, initial }: { orgId: string; cl
           client={open}
           initial={initial}
           teamHref={(userId) => `/admin/orgs/${orgId}?tab=people&person=${userId}`}
-          inviteSlot={<InviteDialog orgId={orgId} client={open} />}
+          canManage
+          inviteSlot={<InviteDialog orgId={orgId} client={open} canManage />}
         />
       )}
     </div>
@@ -4195,11 +4411,19 @@ managed on the agency page's People and Clients tabs, and every change there is 
    list as owner.
 2. As that owner, create a client, open Members, Invite someone new; sign up from that link in a
    private window; you see "You're being onboarded".
-3. The owner gets the signed-up email; the header shows Team 1. Give access with View and Edit;
-   the person reloads and sees the client, canvas editable, Generate disabled with the reason.
-4. Remove Generate on Team for someone who had it: their next request is refused; their buttons
-   follow on focus.
-5. In `impersonation_audit_log`, the agency's `admin_action` rows list each change from Admin.
+3. The owner gets the signed-up email (with "Give them permissions on the Team page."); the header
+   shows Team 1. Give access with no permissions picked; the person reloads and sees the client
+   and its work, the canvas read-only, AI buttons disabled with the reason; Team shows them as
+   "Can look".
+4. Edit them on Team to Generate, Approve, Share, Delete and Invite: on their next request the
+   canvas is editable and Generate works. Remove Generate again: their next request is refused;
+   their buttons follow on focus.
+5. With Invite, that person opens the client's Members page from the Members button: they see the
+   list with no Remove, Resend, Cancel or Set permissions. They invite someone new; that person
+   signs up and sees "You're being onboarded" (Signed up on Team). The owner and the inviter each
+   get the signed-up email; only the owner's has the Team page line. The Members page of a client
+   they are on without Invite, or not on, is the 404 page.
+6. In `impersonation_audit_log`, the agency's `admin_action` rows list each change from Admin.
 
 ```sql
 -- expect the admin actions from step 1 and any Admin changes
@@ -4212,15 +4436,15 @@ select count(*) from org_invitations where accepted_at is null and revoked_at is
 
 - [ ] **Step 2: Record the decisions**
 
-Append after D510 (confirm the number against `staging` before merging):
+Append after the last ADR in the roadmap (plan 3 records D510). Check the roadmap for the next free number rather than assuming D511, change the heading and commit message to match if it is taken, and confirm the number against `staging` before merging:
 
 ```markdown
 ### D511 — People, invites and Admin share one API and one set of screens *(recorded 2026-11-13; refines D505, D506, D509; originated → `2026-11-13-permissions-people-and-invites.md`)*
 
 **Decision.**
-- Every people change goes through `/api/orgs/[orgId]/…` behind `withTeam`: the owner passes `manage_team` in the agency they act in, under the impersonation write gate; a super admin working from Admin passes for any agency, skips that gate (D85) and is logged as `admin_action`. While viewing as the same agency, the owner path applies.
-- The rules (refusals, the 50-a-day limit, emails) live once in `src/lib/people/ops.ts`; the Team page (`TeamPeople`) and a client's Members list (`ClientMembers`) render for the owner and in Admin's People and Clients tabs.
-- One people read per agency (`list_agency_people` plus open invites) feeds the Team page, every Members list and the invite popup.
+- Every people change goes through `/api/orgs/[orgId]/…` behind `withTeam`, under the impersonation write gate: inviting to a client and adding people already in the agency to it need `invite` on that client; everything else needs `manage_team` (owner only). A super admin working from Admin passes for any agency, skips that gate (D85) and is logged as `admin_action`. While viewing as the same agency, the agency path applies.
+- The rules (refusals, the 50-a-day limit across all inviters, emails) live once in `src/lib/people/ops.ts`; the Team page (`TeamPeople`) renders for the owner, and a client's Members list (`ClientMembers`) and invite popup for the owner and Invite holders on that client (owner-only actions behind `canManage`), and both in Admin's People and Clients tabs.
+- One people read per agency (`list_agency_people` plus open invites) feeds the Team page, every Members list and the invite popup. Invite holders may read it; it withholds invite links from anyone without `manage_team`.
 - Invite links are stored as issued so Copy link shows the same one; acceptable because the table is server-only and links are single-use and expire after 7 days (Arun, 13 Nov). Only Resend issues a new link (the old one stops working); Cancel revokes.
 - Remove deletes the person's login (one agency per person), as the old admin removal did.
 - Email goes through Resend's HTTP API with `fetch`; without `RESEND_API_KEY` and `EMAIL_FROM` the link is shown to copy.
@@ -4247,7 +4471,7 @@ Run: `npx tsc --noEmit` (only the known line), `npx eslint src`, `npm run build`
 
 - [ ] **Step 4: Count the calls** (AGENTS.md performance rules)
 
-With the dev server on a local copy: open `/team`, a client's Members page and the invite popup with the Network panel filtered to `/api/`.
+With the dev server on a local copy: open `/team`, a client's Members page and the invite popup with the Network panel filtered to `/api/`, as the owner and as an Invite holder.
 Expected: one `/api/orgs/<id>/people` per screen visit (none on the first paint, which is seeded), nothing per row; opening the invite popup makes no request; the header makes no request for the Team count.
 
 - [ ] **Step 5: Commit**
@@ -4262,17 +4486,21 @@ git log -1 --format=%B
 
 ## Self-review
 
-- **Spec coverage:** §6.1 Team page (sections, chip editor, Give access, Remove, Invited with Copy link (the stored link)/Resend (a new link)/Cancel, Members with Edit/Remove, header count) → Tasks 6, 7, 8. §6.2 Members page (button beside Brand Workspace, list, statuses, Set permissions link, Remove off the client, invite rows, two-step popup with search and checkboxes, refusals) → Tasks 3, 9, 10. §6.3 invite email and sign-up (fixed email, member waits, owner gets access, invalid and wrong-email states, single use, signed-up email) → Tasks 1, 3, 11. §6.6 Admin (Add an agency, pending owner with Resend, People and Clients tabs on the owner's components, Make owner, temporary passwords and role select removed, audit log) → Tasks 4, 12, 13. §6.7 emails and the daily limit → Tasks 1, 3. §9 migration doc → plan 3 Task 2 and Task 14. §10 performance (one read per screen, ids checked, one insert to add people) → Tasks 3, 4, 5, 14. §11 server-action tests → Tasks 3, 4, 11, 12.
-- **Names across tasks:** `withTeam`, `TeamContext`, `opResponse` (Task 4) are used by every route; `peopleKeys`, `usePeople` and the eight mutation hooks (Task 5) by Tasks 7–10; `TeamInvitedRow` (Task 7) by Task 9; `ClientMembers` and `InviteDialog` (Tasks 9, 10) by Task 13; `RemovePersonDialog` (Task 7) by Tasks 7, 9; `CopyRow` at `src/components/shared/copy-row.tsx` from Task 7 on; `createAgencyAction` / `resendOwnerInviteAction` (Task 12); `REFUSALS`, `STATUS_LABELS`, `PERMISSION_LABELS` (Task 2).
+- **Spec coverage:** §2.1 the five permissions in the editor, Invite on a client → Tasks 2, 4, 6. §4.3 `invite` for inviting and adding to a client, `manage_team` for the rest → Task 4. §6.1 Team page (sections, chip editor with the five, Give access with or without permissions, "Can look", Remove, Invited with Copy link (the stored link)/Resend (a new link)/Cancel, Members with Edit/Remove, header count) → Tasks 6, 7, 8. §6.2 Members page (for the owner and Invite holders on the client, 404 for anyone else; button beside Brand Workspace shown the same way; list, statuses, owner-only Set permissions link, Remove off the client, Resend and Cancel; invite rows; one two-step popup for both with search and checkboxes; refusals; the Invite holder's invitee waits as Signed up) → Tasks 3, 4, 9, 10, 11. §6.3 invite email and sign-up (fixed email, member waits, owner gets access, invalid and wrong-email states, single use, signed-up email to the owner and the inviter) → Tasks 1, 3, 11. §6.6 Admin (Add an agency, pending owner with Resend, People and Clients tabs on the owner's components, Make owner, temporary passwords and role select removed, audit log) → Tasks 4, 12, 13. §6.7 emails and the daily limit → Tasks 1, 3. §9 migration doc → plan 3 Task 2 and Task 14. §10 performance (one read per screen, ids checked, one insert to add people) → Tasks 3, 4, 5, 14. §11 server-action tests → Tasks 3, 4, 11, 12.
+- **Names across tasks:** `withTeam`, `TeamContext`, `opResponse` (Task 4) are used by every route; `peopleKeys`, `usePeople` and the eight mutation hooks (Task 5) by Tasks 7–10; `TeamInvitedRow` (Task 7) by Task 9; `ClientMembers` and `InviteDialog` (Tasks 9, 10) by Task 13; `RemovePersonDialog` (Task 7) by Tasks 7, 9; `CopyRow` at `src/components/shared/copy-row.tsx` from Task 7 on; `createAgencyAction` / `resendOwnerInviteAction` (Task 12); `REFUSALS`, `STATUS_LABELS`, `PERMISSION_LABELS`, `NO_PERMISSIONS_LABEL`, `INVITE_NEXT_STEP`, `hideInviteLinks`, `StoredInvite` (Task 2) by Tasks 4, 7, 9, 10; `canManage` from `withTeam` (Task 4) and on `ClientMembers`, `TeamInvitedRow`, `InviteDialog` (Tasks 7, 9, 10, 13).
 
 ## Open points
 
-1. **One route set for the owner and Admin.** The spec says Admin's tabs reuse the owner's components; it doesn't say how their writes are authorised. This plan routes both through `/api/orgs/[orgId]/…` with `withTeam` (owner: `manage_team` plus the write gate; super admin from Admin: any agency, `admin_action` logged, no impersonation gate per D85).
-2. **Invite links are stored as issued** (`org_invitations.token`, unique) so Copy link shows the same link; acceptable because the table is server-only and links are single-use and expire after 7 days (Arun, 13 Nov). Each open invite in the people response carries its link, so it reaches only the owner and the super admin.
+1. **One route set for the owner, Invite holders and Admin.** The spec says Admin's tabs reuse the owner's components; it doesn't say how their writes are authorised. This plan routes all of them through `/api/orgs/[orgId]/…` with `withTeam` (owner and Invite holders: `invite` on the client or `manage_team`, plus the write gate; super admin from Admin: any agency, `admin_action` logged, no impersonation gate per D85).
+2. **Invite links are stored as issued** (`org_invitations.token`, unique) so Copy link shows the same link; acceptable because the table is server-only and links are single-use and expire after 7 days (Arun, 13 Nov). Each open invite in the people response carries its link only for a caller with `manage_team`; an Invite holder gets `link: null` and sees only the link of an invite they just sent.
 3. **Remove deletes the login**, as `removeOrgMember` did, because a login without a membership could never sign in again in a one-agency-per-person version. The spec says "deletes the membership".
 4. **An email with a login but no membership** (rare: only if a login outlived its membership) is refused with "This email already belongs to another agency.", since signing up again with it would fail.
 5. **The daily-limit refusal's wording** is this plan's (`You've sent 50 invites today. Try again tomorrow.`); the spec gives only the limit. Copy link makes no request and doesn't count towards it; Resend does.
 6. **`EMAIL_FROM`** is a new environment variable beside `RESEND_API_KEY`: Resend needs a sender on the verified domain (spec §9 mentions the domain, not the variable).
 7. **Admin tabs:** the spec lists Overview, People and Clients; Generations and Support activity stay. Reset password stays, in People only, through an optional slot. `admin_action` rows outside an impersonation session are not shown in Support activity yet (that view groups by session).
-8. **Give access with no permissions** is disabled in the editor; the spec says the editor starts with none but not whether an empty Give access is allowed.
-9. **ADR number D511** must be checked against `staging` before merging.
+8. **What an Invite holder's people read contains.** The popup's "In your agency" list and the client's statuses need the agency's people, so the read is open to Invite holders and returns the same rows the owner gets (names, emails, statuses, every person's permission set and clients) with invite links withheld. The spec doesn't say how much an Invite holder may see; withholding more (permission sets, other clients, emails of people not on the client) would need a narrower response.
+9. **Open invites on the Members list for an Invite holder.** The spec lists Invited as a status on the list and makes Resend and Cancel owner only; it doesn't say whether an Invite holder sees Copy link. This plan shows them the row and status only (no link), apart from the result of their own Send invite.
+10. **The inviter's signed-up email.** The spec gives the shared sentence and the owner's extra line. This plan gives the inviter "{Name} signed up to {Agency}." with an "Open CreativeOS" button to the home page, since an Invite holder can't open the Team page.
+11. **Step 2 note for an Invite holder.** The spec writes "Once they have, {the owner / you} set their permissions"; this plan reads the owner's version as "you set" and the Invite holder's as "the owner sets", so the sentence agrees with its subject.
+12. **The inviter's name when their profile has none** falls back to `Someone at {Agency}` in the invite email (it was `Your agency owner`, which is wrong for an Invite holder).
+13. **ADR number D511** must be checked against `staging` before merging.
