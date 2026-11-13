@@ -132,6 +132,7 @@ This is too large for one plan. Proposed as six pieces, each with its own plan, 
 
 1. **The shell:** shared frame, stage tabs, the foldable guide panel (no chat yet) and the approval gates.
 2. **Brand audit agent** in the onboarding thread, with saved threads, the five message kinds and attachments in the chat.
+   - **2b. Image Analysis through a change card:** a re-study of the images is proposed as a before and after, not written. Split from piece 2 on 2026-11-13.
 3. **Market research agent** and the market research approval.
 4. **Scripting** moved into the panel, starting from the approved brand KB and research.
 5. **Visualise and review** guidance in the script's thread.

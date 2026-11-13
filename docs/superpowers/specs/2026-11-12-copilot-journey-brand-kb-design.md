@@ -66,7 +66,7 @@ This is section 4.5 of the parent spec, applied to the brand KB.
 
 - **"Save & Re-analyze" in Source files** no longer rebuilds the KB. It saves the added and removed files, and the copilot answers in the panel with a change card. No review is wiped and the KB stays approved.
 - **Removing a source** works the same way: the copilot re-reads what is left and shows a card of the fields the remaining sources no longer support, before and after, to accept or reject.
-- **Image Analysis** follows the rule too. When the images are studied again, after a chat attachment, an upload or a refresh from the site and socials, the result is held back and shown as a change card. The section does not change until the person approves. On a KB nobody has reviewed yet, the first study fills the section directly.
+- **Image Analysis is the one exception in piece 2.** Cyril decided it must go through a change card too, and that it is built as its own piece straight after this one. Until then it updates itself as today whenever the images are studied again, and the copilot says in the chat that it re-studied them and which fields changed. Nothing in piece 2 may make that later piece harder.
 - **The "Refine with AI" sparkle button on each field is removed.** A field is changed by typing in it, or by asking in the chat, and a chat change comes back as a change card.
 - **Every copilot change gets a card, even to one field.** This differs from the script copilot, which applies a change to a single shot at once.
 
@@ -119,6 +119,7 @@ The five message kinds from the parent spec, section 4.3, all used here: status 
 
 - Market research, scripting, visualise and canvas guidance (pieces 3 to 6).
 - Suggesting avatars from the audience section.
+- Image Analysis through a change card (the piece straight after this one).
 - A history of KB versions, or rolling back to one.
 - Any change to what the website reader or the image collectors can reach.
 - Retiring the old canvas copilot.
@@ -129,7 +130,7 @@ No open questions remain for piece 2.
 
 1. An approved change card updates the live KB like a hand edit. Existing scripts are not rewritten and are not frozen on an old KB; their next turn reads the new one.
 2. "Save & Re-analyze" answers with a change card and wipes nothing.
-3. Image Analysis goes through a change card too.
+3. Image Analysis goes through a change card too. It is built as its own piece straight after this one (decided 2026-11-13), not inside piece 2.
 4. A discarded card leaves the document in Source files, and what was refused is remembered and not proposed again.
 5. After a build the copilot asks about the few fields that matter most, not all of them.
 6. The "Refine with AI" button is removed. Refinement happens in the chat or by a direct edit.
