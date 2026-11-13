@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { TeamScriptReview } from "@/lib/script-review/assemble";
 import { makeScript } from "@/lib/scripts/visualise/__tests__/fixtures";
-import { TestAbilityProvider } from "@/components/permissions/test-ability-provider";
+import { TestAccessProvider } from "@/components/permissions/test-access-provider";
 import { TeamReviewBoard } from "../team/team-review-board";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
@@ -16,7 +16,7 @@ const review = (over: Partial<TeamScriptReview>): TeamScriptReview => ({
 const render = (initialReview: TeamScriptReview) => {
   const script = makeScript(undefined, initialReview.stage);
   return renderToStaticMarkup(
-    <TestAbilityProvider>
+    <TestAccessProvider>
       <QueryClientProvider client={new QueryClient()}>
         <TeamReviewBoard
           clientId="c1"
@@ -24,7 +24,7 @@ const render = (initialReview: TeamScriptReview) => {
           initialReview={initialReview}
         />
       </QueryClientProvider>
-    </TestAbilityProvider>,
+    </TestAccessProvider>,
   );
 };
 

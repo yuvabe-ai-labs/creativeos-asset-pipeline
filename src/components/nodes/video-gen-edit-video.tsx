@@ -172,7 +172,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
       </div>
 
       <GenerateFooter
-        need="video_generation.generate"
+        need="generate"
         className="-mx-6 -mb-5"
         label="Edit video"
         busy={busy}

@@ -54,9 +54,9 @@ export function CanvasesTable({
   const router = useRouter();
   // R8.1: one subscription for the table, seeded from the server-rendered counts.
   const liveCounts = useReviewCounts(reviewCounts);
-  // D499: Rename needs canvases.edit, Delete canvases.delete; without either the ⋯ menu is not shown.
-  const canRename = useCan("canvases.edit", clientId);
-  const canDelete = useCan("canvases.delete", clientId);
+  // Spec §5: Rename needs Edit, Delete needs Delete; without either the ⋯ menu is not shown.
+  const canRename = useCan("edit", clientId);
+  const canDelete = useCan("delete", clientId);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
   const [renamingCanvas, setRenamingCanvas] = useState<CanvasRow | null>(null);

@@ -35,10 +35,10 @@ export function ReviewActions({ clientId, script, review, commentCount, canvasAc
   const stage = review?.stage ?? script.stage;
   const latest = review?.latest ?? null;
   const move = useMoveScriptStage(clientId, script.id);
-  // D499: sharing needs client_review.share; a stage move needs client_review.edit, and Move to
+  // Spec §5: sharing needs Share; a stage move needs Edit, and Move to
   // In review is the share dialog, so it needs both.
-  const canShare = useCan("client_review.share", clientId);
-  const canMove = useCan("client_review.edit", clientId);
+  const canShare = useCan("share", clientId);
+  const canMove = useCan("edit", clientId);
   const path = review?.shareToken && latest ? scriptSharePathFor(review.shareToken, script.doc.header.title) : null;
 
   async function run(m: TeamStageMove) {

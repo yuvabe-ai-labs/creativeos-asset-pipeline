@@ -3,6 +3,7 @@
 import { queryOptions, useQuery, type QueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { fetchMe } from "@/services/me.service";
+import { ApiError } from "@/services/read-json";
 import type { MePayload } from "@/lib/me/types";
 
 export const meKeys = {
@@ -23,6 +24,10 @@ export function meQueryOptions() {
     queryFn: fetchMe,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    // A 4xx (a password change owed, a signed-out session) won't pass on a second try; anything
+    // else gets the app's one retry.
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && error.status >= 400 && error.status < 500) && failureCount < 1,
   });
 }
 

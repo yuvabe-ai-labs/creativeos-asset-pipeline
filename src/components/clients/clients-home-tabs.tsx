@@ -38,7 +38,7 @@ export function ClientsHomeTabs({
   // R8.1/R8.2: ONE subscription for the whole page, not one per row. Seeded from the
   // server value so the first paint is already correct.
   const liveCounts = useReviewCounts(reviewCounts);
-  const canCreateClients = useCan("clients.edit");
+  const canCreateClients = useCan("manage_clients");
 
   return (
     <Tabs value={tab} onValueChange={setTab}>

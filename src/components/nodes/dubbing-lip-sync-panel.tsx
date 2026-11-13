@@ -34,7 +34,7 @@ export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, edit
       </div>
       <div className="flex flex-col gap-2">
         <GatedButton
-          need="audio.generate"
+          need="generate"
           clientId={clientId}
           onClick={onLipSync}
           disabled={Boolean(blocked)}

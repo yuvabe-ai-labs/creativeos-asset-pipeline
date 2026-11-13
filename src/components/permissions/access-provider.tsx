@@ -1,32 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AbilityProvider } from "@casl/react";
 import { invalidateMe, meKeys, useMe } from "@/hooks/queries/me";
 import { onAccessDenied } from "@/lib/permissions/access-signal";
-import { abilityFromPacked, browserClientScope, rulesFromPacked } from "@/lib/permissions/browser";
-import { ClientScopeContext } from "./client-scope";
+import { accessFromMe } from "@/lib/me/access";
+import { NO_ACCESS } from "@/lib/permissions/model";
 import type { MePayload } from "@/lib/me/types";
+import { AccessContext, type BrowserAccess } from "./access-context";
 
-// D499 §6.3. The root layout hands over the payload it built for this request; it seeds the me
-// query (so the first render already shows the right buttons, with no request) and becomes the
-// ONE ability for the whole app. Components read it from context (performance rules 1 and 2).
+// D504. The root layout hands over the payload it built for this request; it seeds the me query
+// (so the first render already shows the right buttons, with no request) and becomes the ONE
+// Access for the whole app. Components read it from context (performance rules 1 and 2).
 export function AccessProvider({ initial, children }: { initial: MePayload | null; children: ReactNode }) {
   const queryClient = useQueryClient();
   const { data } = useMe(initial ?? undefined);
-  const [ability] = useState(() => abilityFromPacked(data?.permissions ?? []));
 
-  // New rules (a refetch after a 403 or on focus) update the same ability in place; useAbility()
-  // re-renders its readers. Structural sharing keeps `permissions` the same array when nothing
-  // changed, so an unchanged refetch updates nothing.
-  const applied = useRef(data?.permissions);
-  useEffect(() => {
-    const next = data?.permissions;
-    if (next === applied.current) return;
-    applied.current = next;
-    ability.update(rulesFromPacked(next ?? []));
-  }, [data?.permissions, ability]);
+  // Structural sharing keeps `data` the same object until /api/me really changes, so an unchanged
+  // refetch builds nothing and re-renders no reader.
+  const value = useMemo<BrowserAccess>(
+    () => (data ? { access: accessFromMe(data), orgId: data.orgId } : { access: NO_ACCESS, orgId: "" }),
+    [data],
+  );
 
   // A newer server payload (router.refresh(), a soft navigation after signing in) wins.
   const seeded = useRef(initial);
@@ -38,12 +33,5 @@ export function AccessProvider({ initial, children }: { initial: MePayload | nul
 
   useEffect(() => onAccessDenied(() => void invalidateMe(queryClient)), [queryClient]);
 
-  // Structural sharing keeps `clientScope` the same reference until it really changes.
-  const scope = useMemo(() => browserClientScope(data?.clientScope), [data?.clientScope]);
-
-  return (
-    <AbilityProvider value={ability}>
-      <ClientScopeContext.Provider value={scope}>{children}</ClientScopeContext.Provider>
-    </AbilityProvider>
-  );
+  return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>;
 }

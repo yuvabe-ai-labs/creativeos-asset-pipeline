@@ -1,5 +1,5 @@
 // src/app/api/me/route.ts
-import { apiOk, withTryCatch } from "@/lib/api/route-helpers";
+import { apiOk, withQuietErrors } from "@/lib/api/route-helpers";
 import { resolveActingCaller } from "@/lib/permissions/server";
 import { buildMePayload } from "@/lib/me/payload";
 
@@ -12,5 +12,6 @@ export const dynamic = "force-dynamic";
 // same one the root layout seeds the first render with.
 export async function GET() {
   const acting = await resolveActingCaller();
-  return withTryCatch("Failed to load profile.", async () => apiOk(await buildMePayload(acting)));
+  // A failure is shown as plain copy, never a database message (AGENTS.md: plain user-facing copy).
+  return withQuietErrors("Could not load your account.", async () => apiOk(await buildMePayload(acting)));
 }

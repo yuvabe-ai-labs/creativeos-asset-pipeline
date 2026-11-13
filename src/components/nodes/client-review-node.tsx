@@ -36,8 +36,8 @@ export function ClientReviewNode({ id, data, selected }: NodeProps) {
   const queryClient = useQueryClient();
   const { data: current, isPending: loading, isError, refetch } = useNodeClientReview(id);
   const editable = useCanvasEditable();
-  // D499: uploading the cut makes the client's review link, so it needs client_review.share.
-  const canShare = useCan("client_review.share", useClientId());
+  // Spec §5: uploading the cut makes the client's review link, so it needs Share.
+  const canShare = useCan("share", useClientId());
 
   // The shared "open this node" signal (generation tray, copilot open_node) opens the
   // drawer here, since this node has no focus view. Consume it so it doesn't re-fire.

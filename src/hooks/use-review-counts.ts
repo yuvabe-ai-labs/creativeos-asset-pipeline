@@ -21,8 +21,8 @@ const REFETCH_DEBOUNCE_MS = 400;
 export function useReviewCounts(initial: ReviewCounts): ReviewCounts {
   const [counts, setCounts] = useState<ReviewCounts>(initial);
   const { orgId } = useIdentity();
-  // No internal_review.view: keep the server's counts and don't ask for a refresh it would refuse.
-  const canReview = useCan("internal_review.view");
+  // No client to view: keep the server's counts and don't ask for a refresh it would refuse.
+  const canReview = useCan("view");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Re-seed when the server sends a newer value (a navigation, or router.refresh()).

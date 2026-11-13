@@ -64,11 +64,10 @@ export function EditorShell(props: Props) {
 }
 
 function EditorShellBody({ canvasId, clientId, canvasPath, breadcrumb, title, initialState }: Props) {
-  // D499: holding the lock is editing. Without canvases.edit and video_editor.edit the cut opens
-  // view only and never takes the lock from whoever is editing.
-  const canEditCanvas = useCan("canvases.edit", clientId);
-  const canEditCut = useCan("video_editor.edit", clientId);
-  const lock = useCanvasLock(canvasId, { acquire: canEditCanvas && canEditCut });
+  // Spec §5: holding the lock is editing. Without Edit the cut opens view only and never takes
+  // the lock from whoever is editing.
+  const canEdit = useCan("edit", clientId);
+  const lock = useCanvasLock(canvasId, { acquire: canEdit });
   const setEditable = useEditorStore((s) => s.setEditable);
   const select = useEditorStore((s) => s.select);
   useEffect(() => setEditable(lock.canEdit), [lock.canEdit, setEditable]);

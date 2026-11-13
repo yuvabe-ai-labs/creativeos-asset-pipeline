@@ -3,13 +3,13 @@
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { PermissionKey } from "@/lib/permissions/catalogue";
+import type { Action } from "@/lib/permissions/model";
 import { useCan } from "./use-can";
 
 export const GENERATE_OFF_REASON = "Generating is turned off for you. Ask your agency owner.";
 
 type Props = ComponentProps<typeof Button> & {
-  need: PermissionKey;
+  need: Action;
   clientId?: string;
   /** Why the button is disabled for some other reason. The permission reason wins over it. */
   disabledReason?: string | null;
@@ -18,7 +18,7 @@ type Props = ComponentProps<typeof Button> & {
   tooltipSide?: "top" | "bottom";
 };
 
-// D499 §6.4, "one wrapper per pattern": a missing Generate shows the button disabled with the
+// Spec §5, "one wrapper per pattern": a missing Generate shows the button disabled with the
 // reason, so people know the feature exists and whom to ask. The reason is also in the markup
 // (sr-only), since a disabled button can't be focused to reach its tooltip.
 export function GatedButton({

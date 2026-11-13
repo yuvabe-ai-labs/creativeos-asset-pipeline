@@ -1,30 +1,28 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { PermissionKey } from "@/lib/permissions/catalogue";
+import type { Permission } from "@/lib/permissions/model";
 import { ClientIdProvider } from "@/components/canvas/client-id-context";
-import { TestAbilityProvider } from "../test-ability-provider";
+import { TestAccessProvider } from "../test-access-provider";
 import { useCanApproveNode } from "../use-can-approve-node";
 
-function Probe({ type }: { type: string }) {
-  return <p>{String(useCanApproveNode(type))}</p>;
+function Probe() {
+  return <p>{String(useCanApproveNode("image-gen"))}</p>;
 }
-const can = (keys: readonly PermissionKey[], type: string, clientId = "c1") =>
+const can = (permissions: readonly Permission[], clientId = "c1") =>
   renderToStaticMarkup(
-    <TestAbilityProvider keys={keys} clientIds={["c1"]}>
-      <ClientIdProvider value={clientId}><Probe type={type} /></ClientIdProvider>
-    </TestAbilityProvider>,
+    <TestAccessProvider permissions={permissions} clientIds={["c1"]}>
+      <ClientIdProvider value={clientId}><Probe /></ClientIdProvider>
+    </TestAccessProvider>,
   ).includes("true");
 
 describe("useCanApproveNode", () => {
-  it("asks the node type's area", () => {
-    expect(can(["image_generation.approve"], "image-gen")).toBe(true);
-    expect(can(["image_generation.approve"], "prompt")).toBe(true);
-    expect(can(["image_generation.approve"], "video-gen")).toBe(false);
-    expect(can(["video_generation.approve"], "multishot-prompt")).toBe(true);
+  it("needs Approve on the canvas's client", () => {
+    expect(can(["view", "approve"])).toBe(true);
+    expect(can(["view"])).toBe(false);
   });
 
-  it("is false for a node type nobody approves, and for a client outside the list", () => {
-    expect(can(["image_generation.approve"], "text")).toBe(false);
-    expect(can(["image_generation.approve"], "image-gen", "c2")).toBe(false);
+  it("is false on a client the person is not on, and outside a canvas", () => {
+    expect(can(["view", "approve"], "c2")).toBe(false);
+    expect(can(["view", "approve"], "")).toBe(false);
   });
 });

@@ -289,7 +289,7 @@ export function CopilotComposer({
           <span />
         )}
         <GatedButton
-          need="canvas_copilot.generate"
+          need="generate"
           clientId={clientId}
           onClick={() => submit()}
           disabled={thinking || (input.trim().length === 0 && !attachment)}

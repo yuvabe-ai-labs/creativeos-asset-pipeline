@@ -31,7 +31,7 @@ export function ClientRowActions({
   // Archive without permission is not shown. The sections are hidden for archived clients:
   // shortcuts into a recovery view would invite work on a client nobody is meant to be working on.
   const unpinned = CLIENT_SECTIONS.filter((s) => !s.pinned);
-  const canArchive = useCan("clients.delete");
+  const canArchive = useCan("manage_clients");
   const showSections = !archived && unpinned.length > 0;
 
   async function toggle() {

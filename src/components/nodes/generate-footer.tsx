@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Loader2, Sparkles, type LucideIcon } from "lucide-react";
 import { GatedButton } from "@/components/permissions/gated-button";
 import { useClientId } from "@/components/canvas/client-id-context";
-import type { PermissionKey } from "@/lib/permissions/catalogue";
+import type { Action } from "@/lib/permissions/model";
 import { cn } from "@/lib/utils";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 
@@ -30,8 +30,8 @@ export function GenerateFooter({
   notice,
   className,
 }: {
-  /** The Generate permission this button needs, e.g. "image_generation.generate" (D499). */
-  need: PermissionKey;
+  /** The permission this button needs: Generate (spec §5). */
+  need: Action;
   /** "Generate motion prompt" the first time, "Re-generate" once there is an output. */
   label: string;
   busy: boolean;

@@ -1,9 +1,9 @@
 // src/components/script-review/__tests__/review-actions.test.tsx
 import { describe, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { PermissionKey } from "@/lib/permissions/catalogue";
-import { ALL_PERMISSION_KEYS } from "@/lib/permissions/catalogue";
-import { TestAbilityProvider } from "@/components/permissions/test-ability-provider";
+import type { Permission } from "@/lib/permissions/model";
+import { PERMISSIONS } from "@/lib/permissions/model";
+import { TestAccessProvider } from "@/components/permissions/test-access-provider";
 import type { TeamScriptReview } from "@/lib/script-review/assemble";
 import type { Script } from "@/lib/scripts/schema";
 import { reelDoc } from "@/lib/script-review/__tests__/fixtures";
@@ -17,14 +17,14 @@ const review = (over: Partial<TeamScriptReview>): TeamScriptReview => ({
   stage: "in_review", shareToken: "6f1c", latest: { number: 2, scope: "avatars", sharedAt: "2026-10-10T09:00:00.000Z" },
   comments: [], removedShots: {}, activity: [], approval: null, commentsOpen: true, feedbackCount: 3, ...over,
 });
-const render = (s: Script, r: TeamScriptReview | undefined, keys: readonly PermissionKey[] = ALL_PERMISSION_KEYS) =>
+const render = (s: Script, r: TeamScriptReview | undefined, permissions: readonly Permission[] = PERMISSIONS) =>
   renderInSurface(
     testSurface({ mode: "team" }),
-    <TestAbilityProvider keys={keys}>
+    <TestAccessProvider permissions={permissions}>
       <QueryClientProvider client={new QueryClient()}>
         <ReviewActions clientId="c1" script={s} review={r} commentCount={2} />
       </QueryClientProvider>
-    </TestAbilityProvider>,
+    </TestAccessProvider>,
   );
 
 describe("ReviewActions (review board)", () => {
@@ -51,8 +51,8 @@ describe("ReviewActions (review board)", () => {
     expect(html).toContain("Comments · 2");
   });
 
-  it("hides Share and Copy link without client_review.share", () => {
-    const html = render(script("in_review"), review({}), ALL_PERMISSION_KEYS.filter((k) => k !== "client_review.share"));
+  it("hides Share and Copy link without Share", () => {
+    const html = render(script("in_review"), review({}), PERMISSIONS.filter((p) => p !== "share"));
     expect(html).not.toContain("Share");
     expect(html).not.toContain("Copy link");
   });

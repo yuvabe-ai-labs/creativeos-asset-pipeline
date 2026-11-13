@@ -176,9 +176,9 @@ export function Canvas({
   // included) keep firing behind it unless we explicitly stand down.
   const anyFocusViewOpen = useAnyFocusViewOpen();
 
-  // D499: without canvases.edit the canvas is view only: no lock, no dragging or connecting, no
+  // Spec §5: without Edit the canvas is view only: no lock, no dragging or connecting, no
   // add menu, fields render plain (everything below reads canEdit).
-  const canEditCanvas = useCan("canvases.edit", clientId);
+  const canEditCanvas = useCan("edit", clientId);
   const { canEdit, viewOnly, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
     useCanvasLock(canvasId, { acquire: canEditCanvas });
 

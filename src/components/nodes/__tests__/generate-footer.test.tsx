@@ -1,14 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GenerateFooter } from "../generate-footer";
-import { TestAbilityProvider } from "@/components/permissions/test-ability-provider";
+import { TestAccessProvider } from "@/components/permissions/test-access-provider";
 import { GENERATE_OFF_REASON } from "@/components/permissions/gated-button";
+import { ClientIdProvider } from "@/components/canvas/client-id-context";
+import type { Permission } from "@/lib/permissions/model";
 
-const render = (over: Partial<Parameters<typeof GenerateFooter>[0]> = {}, keys?: Parameters<typeof TestAbilityProvider>[0]["keys"]) =>
+const render = (over: Partial<Parameters<typeof GenerateFooter>[0]> = {}, permissions?: readonly Permission[]) =>
   renderToStaticMarkup(
-    <TestAbilityProvider keys={keys}>
-      <GenerateFooter need="video_generation.generate" label="Re-generate" busy={false} onClick={vi.fn()} disabled={false} credits={605} {...over} />
-    </TestAbilityProvider>,
+    <TestAccessProvider permissions={permissions}>
+      <ClientIdProvider value="c1">
+        <GenerateFooter need="generate" label="Re-generate" busy={false} onClick={vi.fn()} disabled={false} credits={605} {...over} />
+      </ClientIdProvider>
+    </TestAccessProvider>,
   );
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -30,7 +34,7 @@ describe("GenerateFooter", () => {
   });
 
   it("is disabled with the reason when generating is turned off for the person", () => {
-    const html = render({}, []);
+    const html = render({}, ["view"]);
     expect(html).toMatch(/<button[^>]*disabled=""/);
     expect(text(html)).toContain(GENERATE_OFF_REASON);
   });

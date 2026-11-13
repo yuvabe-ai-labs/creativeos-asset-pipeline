@@ -95,7 +95,7 @@ export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onS
 
       <div className="flex flex-col gap-2">
         <GatedButton
-          need="audio.generate"
+          need="generate"
           clientId={clientId}
           onClick={onDub}
           disabled={!canDub}

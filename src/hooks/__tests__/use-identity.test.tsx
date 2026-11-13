@@ -8,11 +8,10 @@ vi.mock("@/services/me.service", () => ({ fetchMe: vi.fn() }));
 import { useIdentity } from "../use-identity";
 import { meKeys } from "@/hooks/queries/me";
 import { testMePayload } from "@/lib/me/test-fixtures";
-import { testAccess } from "@/lib/permissions/test-fixtures";
 
 function Probe() {
-  const { identity, hydrated, orgName, presetName, creditsUsed } = useIdentity();
-  return <p>{[identity?.name, hydrated, orgName, presetName, creditsUsed].join("|")}</p>;
+  const { identity, hydrated, orgName, isOwner, creditsUsed } = useIdentity();
+  return <p>{[identity?.name, hydrated, orgName, isOwner, creditsUsed].join("|")}</p>;
 }
 
 const render = (client: QueryClient) =>
@@ -21,8 +20,8 @@ const render = (client: QueryClient) =>
 describe("useIdentity", () => {
   it("selects from the me query: no second cache", () => {
     const client = new QueryClient();
-    client.setQueryData(meKeys.current(), testMePayload(testAccess({ permissions: [], clientIds: [] }), { creditsUsed: null }));
-    expect(render(client)).toContain("Arun|true|Yuvabe Studios|Designer|");
+    client.setQueryData(meKeys.current(), testMePayload({ creditsUsed: null }));
+    expect(render(client)).toContain("Arun|true|Yuvabe Studios|false|");
   });
 
   it("is not hydrated before anything is known", () => {

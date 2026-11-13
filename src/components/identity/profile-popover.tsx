@@ -10,24 +10,20 @@ import { createBrowserSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProfileCredits } from "./profile-credits";
-import type { OrgRole } from "@/lib/dal-logic";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type CreditTransactionRow = { amount: number };
 
-const ROLE_LABELS: Record<OrgRole, string> = {
-  owner: "Owner",
-  senior: "Senior",
-  designer: "Designer",
-};
-
 // Replaces IdentityChip's always-visible name pill + adjacent sign-out button, and the
-// header's standalone credits pill (HeaderCredits) — name, real role, credits, workspace and
-// sign out all live in one avatar-triggered popover now. See
+// header's standalone credits pill (HeaderCredits) — name, credits, the workspace with Owner or
+// Member, and sign out all live in one avatar-triggered popover now. See
 // docs/superpowers/specs/2026-08-09-profile-popover-header-design.md.
 export function ProfilePopover() {
-  const { hydrated, identity, orgId, orgName, orgRole, creditsUsed, monthlyCreditLimit } =
+  const { hydrated, identity, orgId, orgName, isOwner, creditsUsed, monthlyCreditLimit } =
     useIdentity();
+  // Null without view_credits: the server sends no figures to anyone but the owner, and nothing
+  // listens for them.
+  const showCredits = creditsUsed !== null;
   const queryClient = useQueryClient();
   const [liveDelta, setLiveDelta] = useState(0);
 
@@ -40,7 +36,7 @@ export function ProfilePopover() {
   // close — the figure sat at its page-load value until a manual refresh. Keep it mounted at
   // this level; ProfileCredits renders what it's handed.
   useEffect(() => {
-    if (!hydrated || !orgId) return;
+    if (!hydrated || !orgId || !showCredits) return;
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
     const supabase = createBrowserSupabase();
@@ -79,7 +75,7 @@ export function ProfilePopover() {
       cancelled = true;
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [hydrated, orgId]);
+  }, [hydrated, orgId, showCredits]);
 
   // Incrementing locally by each row's `amount` avoids a refetch per event. Settlement
   // writes two rows (refund of the reservation, then actual consumption), and
@@ -131,9 +127,6 @@ export function ProfilePopover() {
                 <span className="truncate text-base font-semibold text-foreground">
                   {identity.name}
                 </span>
-                {orgRole && (
-                  <span className="text-sm text-muted-foreground">{ROLE_LABELS[orgRole]}</span>
-                )}
               </div>
             </div>
             <div className="h-px bg-border" aria-hidden="true" />
@@ -152,7 +145,12 @@ export function ProfilePopover() {
               Workspace
             </span>
           </div>
-          <span className="text-base font-medium text-foreground">{orgName ?? "—"}</span>
+          <div className="flex flex-col">
+            <span className="text-base font-medium text-foreground">{orgName ?? "Your agency"}</span>
+            {isOwner !== null && (
+              <span className="text-sm text-muted-foreground">{isOwner ? "Owner" : "Member"}</span>
+            )}
+          </div>
         </div>
         <div className="h-px bg-border" aria-hidden="true" />
         <form onSubmit={handleSignOut}>

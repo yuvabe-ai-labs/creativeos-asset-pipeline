@@ -1,25 +1,18 @@
 "use client";
 
 import { useContext } from "react";
-import { useAbility } from "@casl/react";
-import type { AppAbility } from "@/lib/permissions/ability";
-import type { PermissionKey } from "@/lib/permissions/catalogue";
-import { canInBrowser, canSeeClientInScope } from "@/lib/permissions/browser";
-import { ClientScopeContext } from "./client-scope";
+import { check } from "@/lib/permissions/check";
+import type { Action } from "@/lib/permissions/model";
+import { AccessContext } from "./access-context";
 
-// Every browser check goes through these: what to SHOW, never what to permit (the server decides).
-// In-memory, from the one ability and scope AccessProvider holds; they only change when the rules
-// do, so a canvas drag never re-renders a gated component.
+// Every browser check: what to SHOW, never what to permit (the server runs the same check()).
+// One Access in context; a check is a Map lookup, so a canvas drag never re-renders a gated
+// component.
 
-export function useAppAbility(): AppAbility {
-  return useAbility<AppAbility>();
-}
-
-/** With a client: that client. Without: whether the person has the key for any client. */
-export function useCan(key: PermissionKey, clientId?: string): boolean {
-  return canInBrowser(useAppAbility(), key, clientId);
-}
-
-export function useCanSeeClient(clientId: string): boolean {
-  return canSeeClientInScope(useContext(ClientScopeContext), clientId);
+/** With a client: that client. Without: on at least one client (nav, tabs), or an owner-only
+ *  action. An empty client id is what useClientId() returns outside a canvas: it fails closed. */
+export function useCan(action: Action, clientId?: string): boolean {
+  const { access, orgId } = useContext(AccessContext);
+  if (clientId === "") return false;
+  return check(access, action, { orgId, clientId: clientId ?? null }) === "allow";
 }

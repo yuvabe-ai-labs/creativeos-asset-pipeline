@@ -28,11 +28,11 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
   const font = useEditorStore((s) => s.doc.captionStyle.font);
   const dubLanguage = useEditorStore((s) => s.sources.find((x) => x.language && s.doc.pieces.some((p) => p.sourceNodeId === x.nodeId && p.sound === "dubbed"))?.language ?? null);
 
-  // D499: the MP4 is a render (video_editor.generate); the Premiere package is sharing the edit
-  // (video_editor.share). Without either, Export is not shown.
+  // Spec §5: the MP4 is a render (Generate); the Premiere package is sharing the edit
+  // (Share). Without either, Export is not shown.
   const clientId = useClientId();
-  const canRender = useCan("video_editor.generate", clientId);
-  const canPackage = useCan("video_editor.share", clientId);
+  const canRender = useCan("generate", clientId);
+  const canPackage = useCan("share", clientId);
 
   const run = async () => {
     // D393 — a caption whose font lacks some of its letters arrives in a substitute font.

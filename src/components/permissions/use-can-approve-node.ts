@@ -1,15 +1,10 @@
 "use client";
 
 import { useClientId } from "@/components/canvas/client-id-context";
-import { approveKeyForNodeType } from "@/lib/permissions/node-area";
-import { canInBrowser } from "@/lib/permissions/browser";
-import { useAppAbility } from "./use-can";
+import { useCan } from "./use-can";
 
-// D495: Approve / Request changes show only with Approve on the node's area, for the canvas's
-// client. For a canvas focus view (it reads the client from the canvas tree).
+// D507: Approve / Request changes show with Approve on the canvas's client, for every node type.
 export function useCanApproveNode(nodeType: string): boolean {
-  const ability = useAppAbility();
-  const clientId = useClientId();
-  const key = approveKeyForNodeType(nodeType);
-  return key !== null && canInBrowser(ability, key, clientId);
+  void nodeType; // one Approve for every node type now; the argument goes in Task 8
+  return useCan("approve", useClientId());
 }

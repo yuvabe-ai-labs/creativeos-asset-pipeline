@@ -1261,7 +1261,7 @@ export function ImageGenFocusView({
                       action from the edit panel. */}
                   {activeTab !== "edit" && (
                     <GenerateFooter
-                      need="image_generation.generate"
+                      need="generate"
                       className="-mx-6 -mb-5"
                       label={imageUrl ? "Re-generate" : "Generate image"}
                       busy={generating}

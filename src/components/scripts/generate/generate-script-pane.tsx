@@ -29,7 +29,7 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft }: { clien
   const inline = useInlineEdit(clientId, script.id);
   const link = useLinkCastAvatar(clientId, script.id);
   const markFinal = useMarkFinal(clientId, script.id);
-  const canMarkFinal = useCan("scripts.approve", clientId);
+  const canMarkFinal = useCan("approve", clientId);
   const [undos, setUndos] = useState<Undo[]>([]);
   const pane = useRef<HTMLDivElement>(null);
   const { selection, clear } = useScriptSelection(pane, script.doc !== null);

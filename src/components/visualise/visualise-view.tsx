@@ -46,7 +46,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   const draws = usePanelDraws(clientId, script.id, panelModelId);
   const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const reopen = useReopenScript(clientId, script.id);
-  const canReopen = useCan("scripts.approve", clientId);
+  const canReopen = useCan("approve", clientId);
   const pick = usePickTake(clientId, script.id);
   const [openShot, setOpenShot] = useState<string | null>(null);
   const timed = useMemo(() => timeShots(script.doc.shots), [script.doc.shots]);
