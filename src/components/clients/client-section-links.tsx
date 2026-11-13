@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useClientSections } from "@/components/clients/use-client-sections";
+import { CLIENT_SECTIONS } from "@/components/clients/client-sections";
 
 /**
  * A tile's action row: the pinned sections (Scripts, Avatars) as labelled links, so the
  * client's two working surfaces are one click from home. The other sections sit in the
  * tile's ⋯ menu. Each action takes an equal share of the row, split by a hairline.
  */
-export function ClientSectionLinks({ clientId, slug, clientName }: { clientId: string; slug: string; clientName: string }) {
-  const pinned = useClientSections(clientId).filter((s) => s.pinned);
+export function ClientSectionLinks({ slug, clientName }: { slug: string; clientName: string }) {
+  const pinned = CLIENT_SECTIONS.filter((s) => s.pinned);
   if (pinned.length === 0) return null;
   return (
     <nav

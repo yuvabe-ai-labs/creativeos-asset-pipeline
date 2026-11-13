@@ -73,7 +73,7 @@ export function ClientTile({
         <ClientRowActions clientId={client.id} slug={client.slug} archived={archived} />
       </div>
 
-      {!archived && <ClientSectionLinks clientId={client.id} slug={client.slug} clientName={client.name} />}
+      {!archived && <ClientSectionLinks slug={client.slug} clientName={client.name} />}
     </li>
   );
 }

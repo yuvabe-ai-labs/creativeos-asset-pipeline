@@ -71,7 +71,7 @@ export default async function ClientPage({
         <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} />
 
         <div className="flex shrink-0 items-end gap-2">
-          <ClientSettingsMenu clientId={client.id} slug={client.slug} />
+          <ClientSettingsMenu slug={client.slug} />
           {canAddCanvas && <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />}
         </div>
       </header>
