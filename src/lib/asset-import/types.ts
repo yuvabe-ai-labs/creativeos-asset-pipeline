@@ -36,7 +36,18 @@ export type AssetImportResult = {
   since?: string | null;
   /** True when nothing was posted in the window and the page's latest posts were taken instead. */
   latest?: boolean;
+  /** Files that could not be kept, named up to IMPORT_SKIPPED_LIST_MAX; `failed` counts them all. */
+  skipped?: SkippedAsset[];
 };
+
+/** A file an import found but did not keep, and why (D483). */
+export type SkippedAsset = { ref: string; sourceUrl: string | null; reason: string };
+
+/**
+ * How far a running import got (D483): the Apify runs it started. A retry after a crash reads
+ * these runs' results again instead of paying for a new scrape.
+ */
+export type ImportCheckpoint = { windowRunId?: string; latestRunId?: string };
 
 /** One source's latest import, as the browser sees it. */
 export type AssetImport = {

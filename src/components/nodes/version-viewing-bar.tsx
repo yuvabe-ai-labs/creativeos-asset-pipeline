@@ -14,6 +14,7 @@ export function VersionViewingBar({
   restoring,
   onBack,
   onRestore,
+  subject = "node",
 }: {
   viewedLabel: string;
   viewedCreatedAt: string;
@@ -22,11 +23,13 @@ export function VersionViewingBar({
   restoring: boolean;
   onBack: () => void;
   onRestore: () => void;
+  /** What uses the active version, in "The node still uses v3" (D489: "panel" on the storyboard). */
+  subject?: string;
 }) {
   // One string, so the message is one text node (and one sentence for screen readers).
   const message =
     `Viewing ${viewedLabel}, made ${formatRelativeTime(viewedCreatedAt)}.` +
-    (activeLabel ? ` The node still uses ${activeLabel}.` : "");
+    (activeLabel ? ` The ${subject} still uses ${activeLabel}.` : "");
   return (
     <div role="status" className="flex shrink-0 flex-wrap items-center gap-2.5 rounded-lg border border-primary/30 bg-primary/5 py-2 pl-3 pr-2 text-sm">
       <p className="flex min-w-0 flex-1 basis-56 items-center gap-2 text-foreground/80">

@@ -22,7 +22,7 @@ import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { PresenterFace } from "./presenter-face";
 import { useShotPresenter } from "@/hooks/use-shot-presenter";
 import { withAvatarAsSpeaker } from "@/lib/avatars/presenter";
-import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { canvasNodeName, canvasPicture } from "@/lib/nodes/canvas-picture";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
@@ -86,25 +86,12 @@ export function MultishotPromptNode({ id, data, selected, positionAbsoluteX, pos
     const directNodes = nodes.filter((n) => sourceIds.includes(n.id));
     return directNodes.map((n) => {
       const nd = n.data as Record<string, unknown>;
-      const fileUrl =
-        n.type === "file" || n.type === "draw"
-          ? (nd.fileUrl as string | undefined)
-          : isGeneratedImageType(n.type)
-            ? (typeof nd.parsed === "string" ? (nd.parsed as string) : undefined)
-            : undefined;
-      const fileKind =
-        n.type === "file" || n.type === "draw"
-          ? (nd.fileKind as string | undefined)
-          : isGeneratedImageType(n.type)
-            ? "image"
-            : undefined;
       const typeLabel = TYPE_LABEL[n.type ?? ""] ?? String(n.type);
       return {
         id: n.id,
-        label: (nd.title as string | undefined)?.trim() || typeLabel,
+        label: canvasNodeName(nd) || typeLabel,
         type: n.type ?? "",
-        fileUrl,
-        fileKind,
+        ...canvasPicture(n.type, nd),
         useLlm: n.type === "file" ? (nd.useLlm as boolean | undefined) : undefined,
         avatarId: n.type === "avatar" && typeof nd.avatarId === "string" ? nd.avatarId : undefined,
       };

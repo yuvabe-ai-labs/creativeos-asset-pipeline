@@ -785,14 +785,14 @@ describe("setGenerationMode under groupingVersion 2", () => {
     expect(data.groupModes).toEqual({});
   });
 
-  // D261 — fan-out creates the Multishot node on the model that fits it. 14s is past Omni's 10,
-  // inside Kling's 15, so it must not arrive on the Omni default already failing.
+  // D261 — fan-out creates the Multishot node on the model that fits it. 14s is past Omni 1.1's
+  // 10 but inside Omni 1.2's 15 (D484), which wins the tie with Kling as the first listed.
   it("fans out a multishot generation on the model that fits it", () => {
     const store = createCanvasStore([v2Node({ "0-1-2": true })], []);
     store.getState().fanOutShots("sc", "canvas-1");
 
     const ms = store.getState().nodes.find((n) => n.type === "multishot");
-    expect((ms?.data as { targetModel?: string }).targetModel).toBe(KLING_OMNI_MODEL_ID);
+    expect((ms?.data as { targetModel?: string }).targetModel).toBe(OMNI_MODEL_ID);
   });
 
   // The common flow: fan out with the switch off, THEN flip it. The conversion picks too.
@@ -802,7 +802,7 @@ describe("setGenerationMode under groupingVersion 2", () => {
     store.getState().setGenerationMode("sc", "0-1-2", true);
 
     const ms = store.getState().nodes.find((n) => n.type === "multishot");
-    expect((ms?.data as { targetModel?: string }).targetModel).toBe(KLING_OMNI_MODEL_ID);
+    expect((ms?.data as { targetModel?: string }).targetModel).toBe(OMNI_MODEL_ID);
   });
 });
 
@@ -1416,8 +1416,8 @@ describe("deprecated video models on load (D461)", () => {
   it("opens a saved Veo node on Omni with Omni's defaults, keeping its video", () => {
     const node = createCanvasStore([veoNode]).getState().nodes[0];
     const data = node.data as Record<string, unknown>;
-    expect(data.modelId).toBe("gemini:gemini-omni-1.1-flash");
-    expect(data.params).toEqual(defaultsForVideoModel("gemini:gemini-omni-1.1-flash"));
+    expect(data.modelId).toBe(OMNI_MODEL_ID);
+    expect(data.params).toEqual(defaultsForVideoModel(OMNI_MODEL_ID));
     expect(data.parsed).toBe("https://x/clip.mp4");
   });
 

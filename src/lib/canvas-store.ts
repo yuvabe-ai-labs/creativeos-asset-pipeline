@@ -42,7 +42,7 @@ import {
   type GroupingVersion,
 } from "@/lib/nodes/group-shots";
 import { cutsFromShots, totalOf } from "@/lib/nodes/multishot-cuts";
-import { multishotCapabilityFor, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
+import { multishotCapabilityFor, multishotModelsSharingPlan, bestFitMultishotModel } from "@/lib/nodes/multishot-models";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { shotDataToMultishot, multishotDataToShot } from "@/lib/nodes/multishot-convert";
 import {
@@ -331,8 +331,11 @@ export function createCanvasStore(
         // a value — `updateNodeData` shallow-merges top-level keys, so a bare object would replace
         // `params` wholesale and wipe every other param already set.
         const existingParams = (targetNode.data as { params?: Record<string, unknown> }).params ?? {};
+        // D486 — a node already on a model that reads this plan as written (Omni 1.1 ↔ 1.2) keeps it.
+        const currentModelId = (targetNode.data as { modelId?: string }).modelId;
+        const keepsModel = currentModelId !== undefined && multishotModelsSharingPlan(cap.id).includes(currentModelId);
         get().updateNodeData(targetNode.id, {
-          modelId: cap.id,
+          modelId: keepsModel ? currentModelId : cap.id,
           params: {
             aspect_ratio: "9:16",
             resolution: "720p",

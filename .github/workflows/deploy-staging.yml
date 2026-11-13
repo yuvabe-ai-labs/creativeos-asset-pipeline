@@ -1,0 +1,26 @@
+# Every push to staging deploys the Trigger.dev workers to the staging Trigger project (D489).
+# Settings live on the "staging" GitHub Environment; see trigger-deploy.yml.
+name: Deploy staging
+
+on:
+  push:
+    branches: [staging]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+# Only the newest staging push matters; a newer one cancels the deploy in flight.
+concurrency:
+  group: deploy-staging-trigger
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    uses: ./.github/workflows/trigger-deploy.yml
+    with:
+      environment: staging
+    secrets: inherit

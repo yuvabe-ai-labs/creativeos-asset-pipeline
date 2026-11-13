@@ -195,10 +195,13 @@ describe("kling30.generate — poll flow", () => {
     vi.resetAllMocks();
     vi.useFakeTimers();
     process.env.KLING_API_KEY = "test-key";
+    // D484 — these cover the native fallback; fal is the default (kling-fal.test.ts).
+    process.env.KLING_TRANSPORT = "native";
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    delete process.env.KLING_TRANSPORT;
   });
 
   it("posts to the correct endpoint, polls until succeeded, returns video result", async () => {
@@ -306,10 +309,13 @@ describe("reference images are omni-only", () => {
     vi.resetAllMocks();
     vi.useFakeTimers();
     process.env.KLING_API_KEY = "test-key";
+    // D484 — these cover the native fallback; fal is the default (kling-fal.test.ts).
+    process.env.KLING_TRANSPORT = "native";
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    delete process.env.KLING_TRANSPORT;
   });
 
   /** Drives one generate() to a failed poll (so nothing hangs) and returns the create payload. */

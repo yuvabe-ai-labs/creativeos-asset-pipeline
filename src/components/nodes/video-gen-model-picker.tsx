@@ -27,20 +27,21 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 export function VideoGenModelPicker({
   modelId,
   onModelChange,
-  lockedToModelId,
+  lockedToModelIds,
   restrictionReason,
   loading = false,
   unavailable,
+  offeredModelIds,
   children,
 }: {
   modelId: string;
   onModelChange: (modelId: string) => void;
   /**
-   * D216/D232 — when set, ONLY this model is offered; every other chip is removed from the list.
+   * D216/D232 — when set, ONLY these models are offered; every other chip is removed from the list.
    *
-   * A multishot plan can only generate on the model it was WRITTEN for (D236/D239) — the others
-   * are not choices, because the plan's beats carry that model's reference tokens and its ladder
-   * was built against that model's window. They were briefly rendered-but-disabled so the lock
+   * A multishot plan can only generate on a model that reads it as written (D236/D239, D486): the
+   * model it was written for, plus any sharing its shot format and reference tokens (Omni 1.1 and
+   * 1.2). The others are not choices, because the plan's beats carry that format's tokens. They were briefly rendered-but-disabled so the lock
    * would be visible, but a row of dead chips is clutter on a decision already made;
    * `restrictionReason` carries the explanation instead, which is what keeps the restriction from
    * being silent.
@@ -49,12 +50,12 @@ export function VideoGenModelPicker({
    * on connect (canvas-store's onConnect); filtering a picker is not enforcing anything, and a
    * previous version of this restriction shipped exactly that mistake.
    */
-  lockedToModelId?: string;
+  lockedToModelIds?: readonly string[];
   restrictionReason?: string;
   /**
    * True while the connected upstream is still being resolved.
    *
-   * Until that lands, `lockedToModelId` is `undefined` because the caller cannot yet know what is
+   * Until that lands, `lockedToModelIds` is `undefined` because the caller cannot yet know what is
    * connected — so the picker would render EVERY model, and a multishot node then watched the
    * list collapse to a single chip a second later. Chips appearing and then vanishing reads as a
    * bug whichever way round it happens, so the list is withheld until it is known to be right.
@@ -66,17 +67,21 @@ export function VideoGenModelPicker({
    * presenter is what rules them out, not wonder where Seedance went.
    */
   unavailable?: Record<string, string>;
+  /** D483 — when set, only these models are offered (Edit runs on Omni only). */
+  offeredModelIds?: readonly string[];
   /** Settings that belong to the chosen model (resolution, duration) and share its card. */
   children?: ReactNode;
 }) {
   const editable = useCanvasEditable(); // D33: false when this session is read-only
 
   // Drop the models this node cannot use, and any provider group left with none.
+  const offered = (id: string) =>
+    (!lockedToModelIds || lockedToModelIds.includes(id)) && (!offeredModelIds || offeredModelIds.includes(id));
   const shownGroups =
-    lockedToModelId === undefined
+    !lockedToModelIds && !offeredModelIds
       ? videoGenClientModelGroups
       : videoGenClientModelGroups
-          .map((g) => ({ ...g, models: g.models.filter((m) => m.id === lockedToModelId) }))
+          .map((g) => ({ ...g, models: g.models.filter((m) => offered(m.id)) }))
           .filter((g) => g.models.length > 0);
 
   return (

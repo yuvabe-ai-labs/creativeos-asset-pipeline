@@ -183,6 +183,10 @@ function toUpstreamCard(u: {
       ? "Image file"
       : u.type === "avatar"
       ? u.label ?? "Avatar"
+      : u.type === "product"
+      ? u.label ?? "Product"
+      : u.type === "location"
+      ? u.label ?? "Location"
       : u.type;
   return {
     id: u.id,

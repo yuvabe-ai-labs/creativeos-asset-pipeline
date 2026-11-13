@@ -13,6 +13,7 @@ import { withField } from "@/lib/scripts/copilot/fields";
 import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 import { DraftPreview } from "./draft-preview";
 import { CastAvatarLink } from "./cast-avatar-link";
+import { GenerateCommentsButton } from "./generate-review";
 import { InlineEditPrompt } from "./inline-edit-prompt";
 import { MarkFinalBar } from "./mark-final-bar";
 import { ScriptNotesPanel } from "./script-notes-panel";
@@ -21,7 +22,14 @@ import { ScriptAssetsProvider } from "../script-assets-context";
 type Undo = { path: string; before: string };
 
 /** The right pane (spec 2 §3): Mark final above, the editable script, the reel's notes beneath. */
-export function GenerateScriptPane({ clientId, state, chatBusy, draft }: { clientId: string; state: GenerateState; chatBusy: boolean; draft: PartialDraft | null }) {
+export function GenerateScriptPane({ clientId, state, chatBusy, draft, reviewed }: {
+  clientId: string;
+  state: GenerateState;
+  chatBusy: boolean;
+  draft: PartialDraft | null;
+  /** D489 — the client commented on this script: below `xl` the Comments button opens its column. */
+  reviewed: boolean;
+}) {
   const { script } = state;
   const router = useRouter();
   const setField = useSetScriptField(clientId, script.id);
@@ -94,6 +102,7 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft }: { clien
   return (
     <div ref={pane} className="relative flex min-w-0 flex-col gap-6">
       <MarkFinalBar
+        leading={reviewed ? <GenerateCommentsButton /> : null}
         openItems={state.openItems}
         canUndo={undos.length > 0}
         onUndo={() => { const last = undos.at(-1); if (last) restore(last); }}

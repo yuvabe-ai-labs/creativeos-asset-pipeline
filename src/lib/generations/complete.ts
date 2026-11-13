@@ -8,6 +8,7 @@ import { usdToFinalCredits } from "@/lib/credits/units";
 import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
+import { readVideoEdit, plainVideoEditFailure } from "@/lib/video-edit/record";
 import { readVoiceChange } from "@/lib/voice-change/source";
 import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
 import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
@@ -26,6 +27,13 @@ async function failAndRefund(
 ): Promise<void> {
   await failGeneration({ generationId, error });
   await refundReservation({ orgId, generationId });
+}
+
+// D483 — a failed video edit shows plain words; the raw reason (a vendor message, a URL) stays in the log.
+function videoFailureText(generation: GenerationRow, generationId: string, raw: string): string {
+  if (!readVideoEdit(generation.inputs_snapshot?.videoEdit)) return raw;
+  console.error("[completeGeneration] video edit failed", { generationId, error: raw });
+  return plainVideoEditFailure(raw);
 }
 
 // D366 — an image arrives already stored (the task uploaded it through a signed URL).
@@ -210,7 +218,7 @@ export async function completeGeneration(
       await failAndRefund(input.generationId, generation.org_id, userError);
       return;
     }
-    await failAndRefund(input.generationId, generation.org_id, input.error);
+    await failAndRefund(input.generationId, generation.org_id, videoFailureText(generation, input.generationId, input.error));
     return;
   }
 
@@ -243,7 +251,7 @@ export async function completeGeneration(
       await failAndRefund(
         input.generationId,
         generation.org_id,
-        "Stored video URL is outside this app's bucket",
+        videoFailureText(generation, input.generationId, "Stored video URL is outside this app's bucket"),
       );
       return;
     }
@@ -256,7 +264,7 @@ export async function completeGeneration(
       await failAndRefund(
         input.generationId,
         generation.org_id,
-        `Failed to download video from provider: ${videoResponse.status}`,
+        videoFailureText(generation, input.generationId, `Failed to download video from provider: ${videoResponse.status}`),
       );
       return;
     }
@@ -272,7 +280,7 @@ export async function completeGeneration(
       await failAndRefund(
         input.generationId,
         generation.org_id,
-        `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`,
+        videoFailureText(generation, input.generationId, `Storage upload failed: ${e instanceof Error ? e.message : "unknown"}`),
       );
       return;
     }

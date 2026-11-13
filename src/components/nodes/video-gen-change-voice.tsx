@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { Film, Mic } from "lucide-react";
+import { AudioLines, Film, Mic } from "lucide-react";
 import { DEFAULT_VOICE_CHANGE_SETTINGS, type VoiceChangeSettings } from "@/lib/elevenlabs/voice-settings";
 import { voiceChangeEstimateCredits, canApplyVoiceChange } from "@/lib/voice-change/workspace";
 import { durationOfParams } from "@/lib/voice-change/record";
@@ -14,6 +14,7 @@ import type { VideoGenVersionSummary } from "./video-gen-version-history";
 import { LeftSection } from "./focus-left-section";
 import { VideoGenChangeVoicePicker } from "./video-gen-change-voice-picker";
 import { VideoGenChangeVoiceSettings } from "./video-gen-change-voice-settings";
+import { GenerateFooter } from "./generate-footer";
 
 export type VoiceChangeNodeState = { voiceId: string | null; settings: VoiceChangeSettings };
 
@@ -78,6 +79,8 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
     }
   }
 
+  const busy = submitting || changing;
+
   return (
     <div className="flex flex-col gap-8">
       <LeftSection icon={Film} label="Take">
@@ -110,15 +113,22 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
       </LeftSection>
 
       <VideoGenChangeVoiceSettings
-        sourceId={sourceId}
         settings={state.settings}
         onSettings={(patch) => onChange({ ...state, settings: { ...state.settings, ...patch } })}
-        estimatedCredits={estimatedCredits}
-        applyBlockedReason={gate.ok ? null : gate.reason ?? null}
-        submitting={submitting}
-        changing={changing}
-        onApply={() => void onApply()}
-      />
+      >
+        {/* D492 — Generate's own button, inside the card as on Edit video. */}
+        <GenerateFooter
+        className="static mt-0 border-t-0 bg-transparent p-0"
+        label="Change voice"
+        busy={busy}
+        busyLabel="Changing voice…"
+        icon={AudioLines}
+        onClick={() => void onApply()}
+        disabled={busy || !gate.ok}
+        disabledReason={gate.ok ? null : gate.reason ?? null}
+        credits={estimatedCredits}
+        />
+      </VideoGenChangeVoiceSettings>
     </div>
   );
 }

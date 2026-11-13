@@ -21,7 +21,7 @@ import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { PresenterFace } from "./presenter-face";
-import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { canvasNodeName, canvasPicture } from "@/lib/nodes/canvas-picture";
 
 const TYPE_LABEL: Record<string, string> = { script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB", file: "File", shot: "Shot", draw: "Sketch", "image-gen": "Image", composite: "Composite" };
 
@@ -54,23 +54,11 @@ export function PromptNode({ id, data, selected, positionAbsoluteX, positionAbso
     return directNodes.map((n) => {
       const d = n.data as Record<string, unknown>;
       const typeLabel = TYPE_LABEL[n.type ?? ""] ?? String(n.type);
-      const fileUrl =
-        n.type === "file" || n.type === "draw"
-          ? (d.fileUrl as string | undefined)
-          : isGeneratedImageType(n.type)
-            ? (typeof d.parsed === "string" ? d.parsed : undefined)
-            : undefined;
       return {
         id: n.id,
-        label: (d.title as string | undefined)?.trim() || typeLabel,
+        label: canvasNodeName(d) || typeLabel,
         type: n.type ?? "",
-        fileUrl,
-        fileKind:
-          n.type === "file" || n.type === "draw"
-            ? (d.fileKind as string | undefined)
-            : isGeneratedImageType(n.type)
-              ? "image"
-              : undefined,
+        ...canvasPicture(n.type, d),
         useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
         avatarId: n.type === "avatar" && typeof d.avatarId === "string" ? d.avatarId : undefined,
         role: n.type === "shot" ? (d.role as string | undefined) : undefined,

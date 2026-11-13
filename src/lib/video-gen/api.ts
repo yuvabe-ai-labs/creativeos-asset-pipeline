@@ -74,7 +74,7 @@ export const videoGenApi = {
   async restoreVersion(
     nodeId: string,
     versionId: string,
-  ): Promise<{ output: string; modelUsed: string | null; paramsUsed: Record<string, unknown> }> {
+  ): Promise<{ output: string; modelUsed: string | null; paramsUsed: Record<string, unknown>; edited: boolean }> {
     const res = await fetch(`/api/nodes/${nodeId}/restore-version`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -85,12 +85,14 @@ export const videoGenApi = {
       output: string | null;
       modelUsed?: string | null;
       paramsUsed?: Record<string, unknown>;
+      edited?: boolean;
     };
     if (typeof json.output !== "string") throw new Error("No output returned from restore");
     return {
       output: json.output,
       modelUsed: json.modelUsed ?? null,
       paramsUsed: json.paramsUsed ?? {},
+      edited: json.edited === true,
     };
   },
 };
