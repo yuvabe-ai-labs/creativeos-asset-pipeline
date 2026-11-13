@@ -8883,6 +8883,8 @@ Allowing several agencies later means three things:
 
 ### D509 — Permissions are set only on the Team page; a client's Members list invites, adds and removes *(recorded 2026-11-13; refines D505, D506)*
 
+**Refined (2026-11-13).** Invite links are stored as issued, not as a sha256, so Copy link shows the same link any time; only Resend issues a new one. Acceptable because the table is server-only and a link is single use and expires after 7 days (Arun, 13 Nov: a new link on every copy is overkill). Supersedes D497's hashed token.
+
 **Decision.**
 - **Team page** is the only place permissions are set: Waiting for you (Signed up people, Give access), Invited, Members. The editor is chips with ×, then "Choose a permission" and Add.
 - **Client Members list** (a Members button beside Brand Workspace): Name, Status, Actions. Statuses Invited, Signed up ("Needs permissions", with a link to Team), Member, Owner. Remove takes someone off that client only.

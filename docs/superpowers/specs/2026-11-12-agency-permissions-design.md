@@ -136,13 +136,15 @@ rather than followed by a corrective migration. Sections 7 (node and edge trigge
 - index on `client_id` (Members list)
 
 `org_invitations` (new):
-- `id`, `org_id`, `client_id`, `email`, `as_owner boolean not null default false`, `token_hash`
-  (sha256 of a random token), `invited_by`, `created_at`, `expires_at` (7 days), `accepted_at`,
-  `revoked_at`
+- `id`, `org_id`, `client_id`, `email`, `as_owner boolean not null default false`, `token`
+  (32 random bytes, base64url), `invited_by`, `created_at`, `expires_at` (7 days), `accepted_at`,
+  `revoked_at`. The token is stored as issued so Copy link can show the same link any time; the
+  table is server-only, and a link works once and expires after 7 days. Resend issues a new token
+  (the old link stops working); Cancel revokes.
 - foreign key `(client_id, org_id) → clients (id, org_id) on delete cascade`; check: `client_id`
   is set exactly when `as_owner` is false (a member is always invited into a client; an owner
   invite has none)
-- unique index on `token_hash`
+- unique index on `token`
 - unique partial index on `(org_id, lower(email))` where not accepted and not revoked (one open
   invite per person per agency)
 - unique partial index on `(org_id)` where `as_owner` and not accepted and not revoked (one open
