@@ -41,13 +41,13 @@ describe("GET /api/canvases/[cid]/client-feedback", () => {
 
   it("returns each review node's comment count and the total", async () => {
     vi.mocked(listCanvasClientFeedback).mockResolvedValue({
-      nodes: [{ nodeId: "n1", title: "Dosa film", count: 3 }],
+      nodes: [{ nodeId: "n1", title: "Dosa film", count: 3, versions: [{ versionNo: 1, title: null, count: 3 }] }],
       total: 3,
     });
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/canvases/cv1/client-feedback"), { params });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ nodes: [{ nodeId: "n1", title: "Dosa film", count: 3 }], total: 3 });
+    expect(await res.json()).toEqual({ nodes: [{ nodeId: "n1", title: "Dosa film", count: 3, versions: [{ versionNo: 1, title: null, count: 3 }] }], total: 3 });
     expect(vi.mocked(listCanvasClientFeedback)).toHaveBeenCalledWith("cv1");
   });
 

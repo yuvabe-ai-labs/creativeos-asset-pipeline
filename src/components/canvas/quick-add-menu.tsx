@@ -33,6 +33,8 @@ import {
   type AddNodeType,
 } from "@/lib/canvas-node-options";
 import { useGalleryDrawer } from "./gallery-drawer-context";
+import { useCanvasStore } from "./canvas-store-provider";
+import { CLIENT_REVIEWS_BLOCKED_NOTE, clientReviewAddState } from "@/lib/client-review/rules";
 
 // Icon per type. Record<AddNodeType, …> forces TS to flag any type missing an
 // icon, so this can never silently drift from ADD_NODE_OPTIONS.
@@ -107,6 +109,9 @@ export function QuickAddMenu({
 }: QuickAddMenuProps) {
   const gallery = useGalleryDrawer();
   const ref = useRef<HTMLDivElement>(null);
+  // D495/D499 — a string, so the menu re-renders only when the answer changes. The menu is
+  // mounted only while open, so this scan never runs per frame on a closed menu.
+  const reviewState = useCanvasStore((s) => clientReviewAddState(s.nodes));
 
   // When "Paste image" row is present the panel is taller by 44px — account for it.
   const menuH = canPasteImage ? MENU_H + 44 : MENU_H;
@@ -176,13 +181,17 @@ export function QuickAddMenu({
             </CommandItem>
           </CommandGroup>
           <CommandGroup heading="Add node">
-            {ADD_NODE_OPTIONS.map(({ type, label, mnemonic }) => {
+            {ADD_NODE_OPTIONS.map(({ type, label: baseLabel, mnemonic }) => {
               const Icon = ICONS[type];
+              const isReview = type === "client-review";
+              const label = isReview && reviewState === "open" ? `Open ${baseLabel}` : baseLabel;
+              const blocked = isReview && reviewState === "blocked";
               return (
                 <CommandItem
                   key={type}
                   value={label}
-                  className={ROW}
+                  className={blocked ? `${ROW} flex-wrap` : ROW}
+                  disabled={blocked}
                   onSelect={() => {
                     onSelect(type);
                     onClose();
@@ -198,7 +207,12 @@ export function QuickAddMenu({
                     than a raw <kbd> — it carries the correct slot attribute
                     that suppresses the CheckIcon in CommandItem.
                   */}
-                  <CommandShortcut>{mnemonic}</CommandShortcut>
+                  {!blocked && <CommandShortcut>{mnemonic}</CommandShortcut>}
+                  {blocked && (
+                    <span className="basis-full pl-5 text-[0.7rem] leading-snug text-muted-foreground">
+                      {CLIENT_REVIEWS_BLOCKED_NOTE}
+                    </span>
+                  )}
                 </CommandItem>
               );
             })}

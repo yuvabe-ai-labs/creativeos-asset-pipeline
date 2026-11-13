@@ -5,7 +5,7 @@ import "server-only";
 // a plain object) reaches the browser as the generic fallback. This logs the real
 // error — code, message, details — to the server console, then rethrows unchanged.
 export async function logClientReviewErrors<T>(
-  step: "sign" | "finalize" | "read",
+  step: "sign" | "finalize" | "read" | "version-update",
   req: Request,
   run: () => Promise<T>,
 ): Promise<T> {

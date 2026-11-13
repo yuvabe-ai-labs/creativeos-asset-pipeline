@@ -2,45 +2,40 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
-// D309: which Client review node's feedback the right-side drawer shows. Page-level — like
+// D309 / D498: a request to open a Client review node's focus view. Page-level — like
 // ReviewDrawerProvider — because the header's "Client feedback" chip sits OUTSIDE the canvas
-// store, while the node and the drawer sit inside it.
+// store, while the node sits inside it. The node consumes the request (closeFeedback) once it
+// has opened.
 //
-// `fly` asks the drawer (which lives inside React Flow) to bring the node into view: the
-// header chip sets it, a click on the node itself does not (the node is already on screen).
+// `fly` asks the node (inside React Flow) to bring itself into view first: the header chip and
+// the add menu's "Open Client review" set it. `versionNo` (D500) opens the focus view on that
+// version; without it the view shows the one it showed last (newest at first).
+export type FeedbackRequest = { nodeId: string; fly: boolean; versionNo: number | null };
+
 type Ctx = {
-  nodeId: string | null;
-  fly: boolean;
-  openFeedback: (nodeId: string, opts?: { fly?: boolean }) => void;
+  /** A new object per call, so asking for the same node twice is still a new request. */
+  request: FeedbackRequest | null;
+  openFeedback: (nodeId: string, opts?: { fly?: boolean; versionNo?: number }) => void;
   closeFeedback: () => void;
-  consumeFly: () => void;
 };
 
 const NOOP: Ctx = {
-  nodeId: null,
-  fly: false,
+  request: null,
   openFeedback: () => {},
   closeFeedback: () => {},
-  consumeFly: () => {},
 };
 
 const ClientFeedbackContext = createContext<Ctx | null>(null);
 
 export function ClientFeedbackProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<{ nodeId: string | null; fly: boolean }>({
-    nodeId: null,
-    fly: false,
-  });
+  const [request, setRequest] = useState<FeedbackRequest | null>(null);
   const openFeedback = useCallback(
-    (nodeId: string, opts?: { fly?: boolean }) => setState({ nodeId, fly: !!opts?.fly }),
+    (nodeId: string, opts?: { fly?: boolean; versionNo?: number }) =>
+      setRequest({ nodeId, fly: !!opts?.fly, versionNo: opts?.versionNo ?? null }),
     [],
   );
-  const closeFeedback = useCallback(() => setState({ nodeId: null, fly: false }), []);
-  const consumeFly = useCallback(() => setState((s) => (s.fly ? { ...s, fly: false } : s)), []);
-  const value = useMemo(
-    () => ({ ...state, openFeedback, closeFeedback, consumeFly }),
-    [state, openFeedback, closeFeedback, consumeFly],
-  );
+  const closeFeedback = useCallback(() => setRequest(null), []);
+  const value = useMemo(() => ({ request, openFeedback, closeFeedback }), [request, openFeedback, closeFeedback]);
   return <ClientFeedbackContext.Provider value={value}>{children}</ClientFeedbackContext.Provider>;
 }
 

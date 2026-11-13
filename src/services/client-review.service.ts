@@ -4,6 +4,7 @@ import type {
   NodeClientReview,
   PublicReview,
   ReviewComment,
+  ReviewVersion,
 } from "@/lib/client-review/wire";
 import { isNotFound, readJson } from "./read-json";
 
@@ -24,6 +25,20 @@ class ClientReviewService {
       if (isNotFound(e)) return EMPTY;
       throw e;
     }
+  }
+
+  /** A version's Allow download switch (D497) and/or its title. */
+  async updateVersion(
+    nodeId: string,
+    versionNo: number,
+    patch: { allowDownload?: boolean; title?: string },
+  ): Promise<ReviewVersion> {
+    const res = await authFetch(`/api/nodes/${nodeId}/client-review/versions/${versionNo}`, {
+      method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify(patch),
+    });
+    const { version } = await readJson<{ version?: ReviewVersion }>(res, "Couldn't change the version.");
+    if (!version) throw new Error("Couldn't change the version.");
+    return version;
   }
 
   /** Every Client review node on a canvas with its comment count (header chip). */
