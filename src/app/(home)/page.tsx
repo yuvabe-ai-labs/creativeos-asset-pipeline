@@ -4,11 +4,14 @@ import { getOrgReviewCounts } from "@/lib/db/review";
 import { ClientsHomeTabs } from "@/components/clients/clients-home-tabs";
 import { resolveActingCaller, accessOf } from "@/lib/permissions/server";
 import { clientIdsWith } from "@/lib/permissions/check";
+import { sendWaitingToOnboarding } from "@/lib/permissions/onboarding";
 
 export const dynamic = "force-dynamic"; // always read fresh from the DB
 
 export default async function ClientsPage() {
-  const { caller, effectiveOrgId } = await resolveActingCaller();
+  const acting = await resolveActingCaller();
+  sendWaitingToOnboarding(acting);
+  const { caller, effectiveOrgId } = acting;
   const access = accessOf(caller);
   const clientIds = clientIdsWith(access, effectiveOrgId, "view");
   // R5.1: counts are seeded server-side so the first paint is already correct — no flash
