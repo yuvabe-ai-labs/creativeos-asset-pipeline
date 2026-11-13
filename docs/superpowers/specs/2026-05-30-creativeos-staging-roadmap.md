@@ -2791,7 +2791,7 @@ editor on the unmerged `feat/video-editor` branch; numbering this work D149 woul
 the moment either branch merged. The gap is deliberate, not lost history — see
 `2026-08-21-internal-approval-workflow-design.md` §2.1.
 
-### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(**SUPERSEDED by D497**; recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(**SUPERSEDED by D502**; recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
 
 **Decision.** `addOrgMember` / `updateMemberRole` extend the `/admin/orgs/[id]` Members
 card with an add-member dialog and a per-row role `Select`. Org owners cannot provision
@@ -8614,284 +8614,159 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** this session; plan in the "Kling fal Migration Plan" artifact.
 
-### D495 — Access is a preset plus per-person ticks, stored in the database; the list of areas lives in code *(recorded 2026-11-11; refines D43, D188; originated → `2026-11-11-permission-based-access-design.md`)*
-
-**Superseded by D500 (2026-11-12).** No presets and no area catalogue: four permissions set on the person.
-
-**Decision.** A permission is `area.level`:
-- 21 areas
-- levels view, edit, generate, approve, share, delete; each area offers only the levels that apply
-
-Presets (`role_presets`, `role_preset_permissions`) are one platform-wide set, edited by the super admin: Owner (fixed, everything), Senior, Designer.
-
-A membership stores its preset plus the ticks its owner added or removed (`membership_permission_changes`). People follow their preset: preset edits and new areas reach them, and the owner's changes stay on top. Any tick in an area grants that area's view.
-
-The catalogue of areas and levels is code (`src/lib/permissions/catalogue.ts`). A new area ships with a migration that adds it to the right presets.
-
-Migration:
-- `org_role` is replaced by `preset_id`, and dropped once nothing reads it.
-- The last-owner trigger counts `is_owner` presets.
-- On day one, Senior and Designer keep exactly today's access, including creating clients and seeing credit usage. Owner gains `team.*`.
-
-**Why.**
-- User, 6–11 Nov 2026 (access proposal for the lead): tick permissions per person, presets fill the ticks, no custom roles, presets set up by us, permissions configurable in the database.
-- A tick only means something where the server checks it, so an area that exists only in the database would be a tick that does nothing. Everything an admin changes lives in the database.
-- Following the preset (user's choice, 11 Nov) means a new feature's area doesn't need a per-person decision.
-
-**Rejected.**
-- Ticks copied once at invite (every new area would need a manual backfill).
-- Per-agency presets and owner-made presets (user: one platform-wide set).
-- New fixed roles.
-- An area catalogue in the database (it can't add a check).
-- Approve on `internal_review` as well as on each production area (two ticks deciding one action). Approving a version needs Approve on the node's area.
-
-**Refined in plan 1 (2026-11-11).** The catalogue is 59 keys: `canvases.generate` was added (AI-written text nodes), and levels that nothing checks were dropped (`client_profile.view`, `scripts.share`, `canvas_copilot.view`, `image_generation.view`, `video_generation.view`, `audio.view`, `internal_review.edit`, `client_review.delete`, `clients.view`). Designer keeps `scripts.approve` and loses only the image, video and audio approvals. `downloads.*` only hides buttons, because files sit in public buckets. Migration 0062's trigger functions run as `security definer` so the last-owner guard cannot pass silently under RLS, the open-invite uniqueness is on `lower(email)`, and the `clients (id, org_id)` unique constraint is added only if missing.
-
-### D496 — Each person sees all clients or a picked list; out of scope is a 404 *(recorded 2026-11-11; extends D44; originated → `2026-11-11-permission-based-access-design.md`)*
-
-**Partly superseded by D501 (2026-11-12).** `all_clients` and per-person picked lists are replaced by a People list on each client. The enforcement here (chokepoints, required `need`, coverage test, 404 for a client out of reach) stays.
-
-**Decision.** Scope is `org_memberships.all_clients` (true includes future clients) or a picked list in `membership_clients`. Its composite foreign key `(client_id, org_id)` stops a person being given another agency's client.
-
-Enforcement:
-- `withClient`, `withCanvas`, `withNode` and `withMoodboard` add the scope check after the org check and return 404, exactly like a foreign org.
-- Every handler and server action names its permission through a required `need` argument.
-- A coverage test fails on any route or action that neither declares a permission nor sits on a reasoned allowlist, and on any catalogue key that no check uses.
-- Lists (clients, review inbox) filter by scope.
-- A person with a picked list who creates a client gets it added to their list.
-
-**Why.** The lead's hierarchy (proposal §01): a designer works on Jackfruit only. Today every member sees every client, and the only role gate is approval (D166), so scope has to be enforced where the client is already resolved. 404 keeps D44's rule of never confirming a foreign resource exists.
-
-**Rejected.** 403 for out-of-scope clients. Checks only in the UI. Ad-hoc checks per route without a coverage test.
-
-**Refined in plan 1 (2026-11-11).** Server actions carry the same permission and target guard as routes. Seven routes (`kb/re-analyze`, `nodes/[id]/file/finalize`, `file/from-url`, `file/sign`, `copilot`, `copilot/actions`, `copilot/references`) and several canvas, node and KB actions had no agency check and now do. If adding a new client to the creator's list fails, the client is removed again. Canvas lock acquire and heartbeat need `canvases.edit`; release and get need `canvases.view`. Known limitation: the RLS policies stay agency-level, so Realtime can carry rows of other clients in the same agency to the browser; all server reads and writes are client-scoped.
-
-### D497 — Owners invite their own team; one invite flow for everyone, emailed through Resend *(recorded 2026-11-11; supersedes D164; refines D181; originated → `2026-11-11-permission-based-access-design.md`)*
-
-**Refined by D502 (2026-11-12).** The invite carries only the email; the owner gives access after the person has entered their details. Resend, the hashed single-use token and the copyable link stay.
+### D500 — Five permissions on the person, copied onto each client they are on; one owner with everything *(recorded 2026-11-13; refines D43, D166, D188; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- **Team page.** An in-app Team page (`team.*`) lists members and pending invites. One dialog invites and edits: who, preset, ticks, clients.
-- **No escalation.** No one grants a tick or client they don't have, so only an Owner makes an Owner. No one edits their own access.
-- **Invites.** An invite (`org_invitations`) holds the intended access and a sha256 of a random token. The link `/invite/[token]` is emailed through Resend and can also be copied. It is single use and lasts 7 days; resending or revoking invalidates it.
-- **Accepting** creates the account with the invited email, the profile and the membership, and signs the person in.
-- **Super admin.** Onboarding an agency works the same way (create it, invite its owner). The temporary-password `addOrgMember` path is retired.
-- **Removing** a person deletes the membership. The account is deleted only when no other membership remains.
-
-**Why.**
-- User, 11 Nov 2026, on decision 2 of the access proposal: yes, owners invite their own team, with email plus a copyable link, and Resend as the sender.
-- D164 deferred self-serve invites "not rejected on the merits" because the pilot needed two seats. Agencies now need to staff themselves.
-- Our own token, rather than Supabase's invite email, lets the same link be emailed and copied, and keeps the invite's access with it.
-
-**Rejected.**
-- Temporary passwords shared by hand.
-- Copy-link only.
-- Supabase's built-in mailer (a few emails per hour).
-- Supabase invite links (they can't carry the invite's access or be shown for copying).
-
-### D498 — One agency per person for now; every grant is keyed by person and agency so several can follow *(recorded 2026-11-11; refines D80, D181; originated → `2026-11-11-permission-based-access-design.md`)*
-
-**Superseded by D503 (2026-11-12).** Several agencies per person are built now, with a switcher.
-
-**Decision.**
-- `org_memberships_one_org_per_user` stays.
-- Every grant, change and client list is keyed by `(user_id, org_id)`.
-- Only `resolveCallerContext` turns a user into a membership.
-- The five RLS policies that use `org_id = (select … limit 1)` move to `org_id in (select auth_org_ids())` now.
-- Inviting an email that already belongs to another agency is refused with a plain message.
-
-Allowing several agencies later means three things:
-1. drop the index
-2. add an agency switcher read by `resolveCallerContext`
-3. turn that refusal into "add a membership"
-
-**Why.**
-- User, 11 Nov 2026, on decision 1: a member can belong to several agencies in future. One for now, with a flexible schema, to be confirmed with the lead.
-- With two memberships, `limit 1` would pick an arbitrary agency. Fixing it now costs one function and removes a silent cross-agency bug later.
-
-**Deferred.**
-- Decisions 3 and 4, after discussion with the lead: per-person usage limits, free trial credits, self sign-up.
-- Later, in separate specs: securing brand-client review links, a Client role.
-
-### D499 — CASL evaluates permissions on server and browser; rules arrive with the first HTML *(recorded 2026-11-11; refines D300; originated → `2026-11-11-permission-based-access-design.md`)*
-
-**Superseded by D504 (2026-11-12).** CASL is removed; one checker does Map and Set lookups on server and browser.
-
-**Decision.**
-- **Library.** `@casl/ability` and `@casl/react`, pinned exactly.
-- **Rules.** The server builds them from the access read, only from catalogue keys and client ids in our database: level = action, area = subject, picked clients = a `clientId $in` condition.
-- **Server helpers** require `clientId` for client-scoped areas, because CASL ignores conditions when asked about a subject type.
-- **First render.** The root layout passes the packed rules into an `AccessProvider`, which seeds the `/api/me` TanStack query (replacing the hand-rolled `useIdentity` cache). The first render therefore has the right buttons. The query refetches on focus and on any 403.
-- **Rendering:**
-  - no view → hidden, and the page calls `notFound()`
-  - view only → read-only content and a non-editable canvas
-  - missing generate → a disabled `GatedButton` with the reason
-  - other missing actions → not shown
-  - checks name capabilities, never presets
-
-**Why.**
-- User, 11 Nov 2026: use a library if one handles permissions well, including conditional rendering, researched rather than guessed.
-- CASL fits the model directly, runs on server and browser with plain-JSON rules, and makes the likely next step (a different preset per client) a rule condition.
-- Its 2026 advisories (CVE-2026-1774, and a `rulesToFields` issue fixed in 7.0.2) need attacker-controlled conditions, which this design never builds.
-
-**Rejected.**
-- Hand-rolled `can()` (we'd own React gating, rule transfer and conditions).
-- Casbin (configuration overhead, no React).
-- Cerbos, OpenFGA, SpiceDB, Permit.io (a service and a network call per check, against performance rules 1 and 5).
-- Oso (open-source library deprecated).
-- Permissions in Supabase JWT claims (stale until refresh, and they bloat every token).
-
-### D500 — Four permissions on the person, copied onto each client they are on; one owner with everything *(recorded 2026-11-12; supersedes D495; refines D43, D166, D188; originated → `2026-11-12-agency-permissions-design.md`)*
-
-**Refined by D507 (2026-11-13).** View and Edit are permissions too: six in all.
-
-**Decision.**
-- **Permissions.** Generate, Approve, Share, Delete, stored as `text[]` with a check constraint. Being on a client gives view, edit, downloads, and deleting parts of an item (node, shot, panel, comment). Delete is for a whole library item.
-- **Where set.** The owner sets them on the person at agency level (`org_memberships.permissions`). Each client assignment (`membership_clients.permissions`) stores the effective copy. A trigger applies each agency-level change (what was added, what was removed) to every one of the person's client rows. V1 screens edit the agency level only; a per-client difference is a database edit for now.
-- **Owner.** Exactly one per agency (`is_owner`, unique partial index). Everything on every client, including future ones, with no rows to manage. Only the owner manages the team, clients, People lists and sees credits. Cannot be removed or demoted; the super admin transfers ownership. Several owners may be needed later, so ownership is a flag on each membership, checks and lists never assume one owner, and the protection rule is "at least one owner remains"; the one-owner limit is only a unique index, dropped when more are allowed.
-- **Day one.** The earliest owner of each agency stays owner. Everyone else gets all four permissions and every existing client.
+- **Permissions.** Generate, Approve, Share, Delete and Invite, stored as `text[]` with a check constraint. Generate covers changing work by hand as well as every AI run that spends credits. Delete is for a whole library item; removing a part of one (node, shot, panel, comment) comes under Generate. Invite lets a person invite to the clients they are on (D506).
+- **Being on a client** lets a person see it, read comments and download its files. There is no View or Edit permission (D507).
+- **Where set.** The owner sets them on the person at agency level (`org_memberships.permissions`), on the Team page only (D509). Each client assignment (`membership_clients.permissions`) stores the effective copy. A trigger applies each agency-level change (what was added, what was removed) to every one of the person's client rows. A per-client difference is a database edit for now.
+- **Owner.** Exactly one per agency (`is_owner`, unique partial index). Everything on every client, including future ones, with no rows to manage. Only the owner manages the team, gives access, changes permissions, removes people, creates and archives clients and sees credits. Cannot be removed or demoted; the super admin transfers ownership, and the previous owner keeps all five permissions on every client. Several owners may be needed later, so ownership is a flag on each membership, checks and lists never assume one owner, and the protection rule is "at least one owner remains"; the one-owner limit is only a unique index, dropped when more are allowed.
+- **Day one.** The earliest owner of each agency stays owner. Everyone else gets Generate, Approve, Share and Delete on every existing client. Nobody gets Invite, since only Yuvabe adds people today.
 - **No credit limit per person.** The agency pool is the only limit.
+- Trigger functions that read across memberships run as `security definer` with `search_path = public`, so the owner guard cannot pass silently under RLS.
 
 **Why.**
-- Anupama's summary of the 12 Nov meeting: View and Edit are implicit; Generate, Approve, Share, Delete configurable; set at agency level; effective permissions stored on each client assignment; revoking at agency level cascades; V1 UI at agency level only; one owner with full access.
-- Cyril's reply page (12 Nov): no presets until real teams show which combinations recur; six permissions without areas; no per-person credit limit.
-- Arun, 12 Nov: downloads open to anyone on the client; existing people keep their access; earliest owner stays when there are two.
+- Anupama's summary of the 12 Nov meeting: seeing and editing come with being on a client; the rest configurable; set at agency level; effective permissions stored on each client assignment; revoking at agency level cascades; screens at agency level only; one owner with full access.
+- Cyril's page (13 Nov): five permissions without areas, no presets until real teams show which combinations recur, no per-person credit limit. Changing work by hand comes under Generate, as in Anupama's summary.
+- Arun, 12 and 13 Nov: downloads open to anyone on the client; existing people keep their access; earliest owner stays when there are two; Invite in this version.
 - Storing the copy per client means a per-client editor later needs no migration and no change to the checker.
 
 **Rejected.**
-- Presets and the 21-area catalogue (D495): 20 ticks per person per client, and roles nobody has validated yet.
-- Edit as a separate permission (Cyril's page proposed it; the meeting made it implicit).
+- Presets with a catalogue of 21 areas and 59 `area.level` ticks (the 11 Nov design, built in plans 1 and 2, kept at the local tag `perm-granular-v1`): 20 ticks per person per client, and roles nobody has validated yet.
+- View and Edit as permissions (D507).
 - Computing per-client permissions from the agency set without storing them (the meeting asked for them stored).
-- Four boolean columns (finer keys later would need a migration each).
+- Five boolean columns (finer keys later would need a migration each).
 
-### D501 — A client's People list decides who is on it *(recorded 2026-11-12; supersedes the scope half of D496; originated → `2026-11-12-agency-permissions-design.md`)*
-
-**Refined by D506 (2026-11-13).** The client's list is called Members and is also where invites are sent.
-
-**Decision.** Each client has a People page (`/clients/[id]/people`, owner only). Adding people inserts `membership_clients` rows in one step, each copying the person's agency-level permissions. Being on the list is the only way a member sees a client; `all_clients` is removed. A client out of reach stays a 404, and the chokepoints, required `need` and coverage tests of D496 stay.
-
-**Why.** Cyril's page: when ten people start on a new client, one list on the client is one action instead of ten setups.
-
-**Rejected.** Picking clients per person at invite (D496). An "all clients" flag for members.
-
-### D502 — The invite is an email; the person enters their details and waits; the owner then gives access *(recorded 2026-11-12; refines D497; originated → `2026-11-12-agency-permissions-design.md`)*
-
-**Refined by D506 (2026-11-13).** Invites are sent from inside a client, and giving access puts the person on that client.
+### D501 — A client's Members list decides who is on it; a client out of reach is a 404 *(recorded 2026-11-13; extends D44; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- The owner (or the super admin, for any agency) enters an email. The invite keeps D497's mechanics: Resend, a sha256 of a random token, single use, 7 days, copyable link.
-- Opening the link: a new person sets name and password; an existing account signs in and joins. Either way the membership starts waiting (`access_given_at` null).
-- A waiting person, or one on no client, sees "You're being onboarded. Hang in there."
-- The Team page lists "Waiting for you" cards with the four switches and **Give access**. Giving access does not add clients; that happens on People lists.
+- Each client has a Members page (`/clients/[id]/members`). Adding people inserts `membership_clients` rows in one step, each copying the person's agency-level permissions. Being on the list is the only way a member sees a client; there is no "all clients" flag. The composite foreign key `(client_id, org_id)` stops a person being put on another agency's client.
+- `withClient`, `withCanvas`, `withNode` and `withMoodboard` check the client after the agency and return 404 for a client the person is not on, exactly like another agency's. Every route handler and server action names what it does through a required `need` argument, and a coverage test fails on any that doesn't. Lists (clients, review inbox, recent canvases) filter by the person's clients.
+- Routes and server actions that had no agency check now have one: `kb/re-analyze`, `nodes/[id]/file/finalize`, `file/from-url`, `file/sign`, `copilot`, `copilot/actions`, `copilot/references`, and several canvas, node and brand actions.
+- Downloads only hide buttons, because files sit in public buckets.
+- Known limitation: RLS policies stay agency-level, so Realtime can carry rows of other clients in the same agency to the browser; every server read and write is client-scoped.
 
-**Why.** Cyril's page: permissions are set for someone who has actually joined. Arun, 12 Nov: keep Give access to permissions only, as Cyril drew it.
+**Why.**
+- Cyril's page: when ten people start on a new client, one list on the client is one action instead of ten setups.
+- The lead's hierarchy: a designer works on one client only. The check sits where the client is already resolved, and 404 keeps D44's rule of never confirming a resource the person can't reach.
 
-**Rejected.** Setting permissions and clients before sending (D497). A client picker on the Give access card.
+**Rejected.** Picking clients per person on the person. An "all clients" flag for members. 403 for a client the person is not on. Checks only in the UI. Checks per route without a coverage test.
 
-### D503 — Several agencies per person now; the selected agency scopes everything *(recorded 2026-11-12; supersedes D498; refines D80, D81; originated → `2026-11-12-agency-permissions-design.md`)*
-
-**Superseded by D508 (2026-11-13).** One agency per person in this version.
-
-**Decision.**
-- `org_memberships_one_org_per_user` is dropped. Each membership has its own permissions and clients.
-- The selected agency is a `cos_org` cookie, checked against the person's memberships on every request, falling back to their earliest membership. It becomes `effectiveOrgId`, so every query stays scoped as today. Impersonation still overrides it.
-- The switcher sits in the profile menu, where the workspace is already shown, and lists the person's agencies. Switching clears the browser query cache.
-- A page link into another of the person's agencies shows "This is in {Agency}" with a switch button; API routes return 404.
-
-**Why.** Arun, 12 Nov: build it in this round (Cyril's page lists one login across agencies as agreed). Scoping by the selected agency keeps every existing query correct; resolving the agency from each resource instead would touch every query and widen the room for cross-agency mistakes.
-
-**Rejected.** Opening another agency's link directly with that membership.
-
-### D504 — One checker decides, on server and browser; CASL is removed *(recorded 2026-11-12; supersedes D499; originated → `2026-11-12-agency-permissions-design.md`)*
+### D502 — An invite is an email with a link stored as issued, single use, valid for 7 days *(recorded 2026-11-13; refines D181; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- `check(access, action, { orgId, clientId })` is the only function that decides, in a fixed order: super admin, membership, owner, owner-only actions, client row, view and edit, then the four permissions.
-- Every step is a Map or Set lookup on access loaded once per request.
-- Routes still name `view` and `edit`.
-- The browser runs the same `check` on the access data from `/api/me`; `useCan` wraps it.
-- CASL (`@casl/ability`, `@casl/react`) is removed. Rules that depend on the resource itself ("only what they created") can be added later behind `check` and `useCan`, with CASL if it helps, without touching routes or screens.
-- The canvas works out its permissions once for its client; nodes read the result.
-- `useCanvasEditable()` returns `can("edit")`.
+- An invitation (`org_invitations`) carries the email, the client (D506) and whether it is an owner invite (D505). Its token is 32 random bytes, stored as issued, so Copy link shows the same link any time. The link `/invite/[token]` is emailed through Resend (over `fetch`). It works once and expires after 7 days; Resend issues a new token and the old link stops working; Cancel revokes it.
+- One open invite per email per agency. At most 50 invites per agency per day, counting everyone who invites.
+- Without `RESEND_API_KEY` the invite is still created and the link shown to copy.
+- The temporary-password path (`addOrgMember`) is removed. Removing a person deletes the membership.
+
+**Why.**
+- Arun, 11 Nov: people are invited by email, with a link that can also be copied, sent through Resend.
+- Arun, 13 Nov: a new link on every copy is overkill. Storing the token is acceptable because the table is server-only and a link is single use and short-lived.
+- Our own token, rather than Supabase's invite email, lets the same link be emailed and copied and carries the client with it.
+
+**Rejected.** Temporary passwords shared by hand. Copy link only. Supabase's built-in mailer (a few emails per hour). Supabase invite links (they can't carry the client or be shown for copying). Storing a sha256 of the token (Copy link would then need a new link each time).
+
+### D503 — The person signs up and waits; the owner gives access, with permissions or without *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- Opening the link: sign-up with the email fixed (name and password). The membership starts Signed up (`access_given_at` null), and the person sees "You're being onboarded. Hang in there." until the owner gives access. A member on no client sees the same screen.
+- Statuses: Invited, Signed up ("Needs permissions"), Member, Owner.
+- The owner and the inviter are emailed when the person signs up, and the header's Team link counts people waiting.
+- The owner gives access on the Team page (D509). Give access works with no permissions picked: the person becomes a Member who can look at their clients, read comments and download, with a read-only canvas. They are emailed that their access is ready; no live update.
+- A waiting person can be removed.
+
+**Why.**
+- Cyril's page: permissions are set for someone who has actually joined.
+- Arun, 13 Nov: an owner can put someone on a client only to look, and they show as Member, answering the question on Cyril's page.
+
+**Rejected.** Setting permissions and clients before sending the invite (the owner sets up someone who may never join). Requiring at least one permission to give access (no way to add someone who only looks). A live update to the waiting screen (an email is enough, and avoids a channel per person).
+
+### D504 — One checker decides, on server and browser; no permission library *(recorded 2026-11-13; refines D300; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- `check(access, action, { orgId, clientId })` is the only function that decides, in a fixed order: super admin, membership, owner, the client row (missing is not found, so an owner-only refusal never confirms a client exists), owner-only actions, then the permission the action needs.
+- Actions are the five permissions plus `view` (needs only the client row), `edit` (needs Generate), `manage_team`, `manage_clients` and `view_credits`. Routes name these plain actions, not areas.
+- Every step is a Map or Set lookup on access loaded once per request (`get_membership_access`).
+- The browser runs the same `check` on the access data from `/api/me`, which the root layout seeds so the first render has the right buttons; it refetches on focus and on any 403. `useCan` and `GatedButton` wrap it. Missing Generate shows AI buttons disabled with the reason; other missing actions hide the control.
+- The canvas works out its permissions once for its client; nodes read the result. `useCanvasEditable()` returns `can("edit")`.
+- Rules that depend on the resource itself ("only what they created") can be added later behind `check` and `useCan`, without touching routes or screens.
 
 **Why.**
 - Anupama's summary: one central server-side checker taking the user, the action, and the organisation and client, returning allow or deny.
-- Arun, 12 Nov: first kept CASL for finer access later, then removed it once routes were to name plain actions. With four actions, no areas and Map lookups for speed, CASL would build and ship rules that never decide anything.
-- A `$in` list scans every client on each check, which the performance rules forbid for anything a canvas runs per node.
+- With five permissions, no areas and Map lookups for speed, a library would build and ship rules that never decide anything. A `$in` list of clients scans every client on each check, which the performance rules forbid for anything a canvas runs per node.
+- Keeping `view` and `edit` as actions lets each route still say what it does, while the permissions stay five.
 
 **Rejected.**
-- Keeping CASL as a wrapper (a dependency and its advisories for a layer that decides nothing).
-- CASL `$in` conditions per client (scans every client on each check).
-- Keeping area keys (`scripts.approve`) on routes and reducing them to the four permissions in the checker. It would have made area-level access later a data change, but Arun chose plain actions on 12 Nov for simpler names; going granular later means revisiting each route. The granular build is at tag `perm-granular-v1`.
+- CASL (`@casl/ability`, `@casl/react`), first chosen on 11 Nov and removed: a dependency and its advisories for a layer that decides nothing.
+- Casbin, Cerbos, OpenFGA, SpiceDB, Permit.io, Oso (configuration overhead, a network call per check, or deprecated).
+- Permissions in Supabase JWT claims (stale until refresh, and they bloat every token).
+- Area keys (`scripts.approve`) on routes, reduced to the permissions in the checker. It would have made area-level access later a data change, but Arun chose plain actions on 12 Nov for simpler names; going granular later means revisiting each route.
+- Renaming every `edit` route to `generate` (the route would no longer say what it does).
 
-### D505 — Yuvabe manages any agency's people from Admin; only Yuvabe invites an owner *(recorded 2026-11-13; refines D497, D502; originated → `2026-11-12-agency-permissions-design.md`)*
-
-**Refined by D509 (2026-11-13).** One popup creates the agency and invites its owner; Admin's Team tab is called People and shows statuses.
+### D505 — Yuvabe manages any agency's people from Admin; only Yuvabe invites an owner *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- **Admin.** The admin agency page has Overview, Team and Clients tabs. Team and Clients render the owner's Team page and People list components, with the owner's powers, plus Make owner. View-as stays as it is (read-only, or elevated and audit-logged). Changes made from Admin go to the same audit log (`admin_action`).
+- **Add an agency.** One popup takes the agency's name and the owner's email, creates the agency and sends the owner invite (`create_agency_with_owner_invite`). The agencies list marks agencies whose owner hasn't signed up, with Resend.
+- **Agency page.** Overview, People and Clients tabs. People renders the owner's Team page component with statuses (Invited, Signed up, Member, Owner), the owner's powers, and Make owner (`transfer_agency_owner`). Clients opens each client's Members component with the owner's powers. View-as stays as it is (read-only, or elevated and audit-logged). Changes made from Admin go to the same audit log (`admin_action`).
 - **Owner invites.** An invitation carries `as_owner`. Only the super admin sends one, and only while the agency has no owner and no open owner invite. Accepting makes the person owner with access given at once. A new agency has no owner until then, so the owner-protection rule applies only once an owner exists.
-- **Joining.** When a member accepts, the owner and the inviter are emailed, and the Team link shows how many are waiting. A waiting person can be removed.
-- **Existing logins.** Inviting an email that already has a login adds a membership after the person signs in and presses Join; no second account.
-- **Limit.** 50 invites per agency per day.
 
 **Why.**
-- Arun, 13 Nov: the super admin must be able to set permissions; chose Team and People inside Admin over working through elevated view-as.
+- Arun, 13 Nov: the super admin must be able to set permissions; chose People and Clients inside Admin over working through elevated view-as.
+- Cyril's page draws the one-popup agency setup.
 - Elevated view-as already audit-logs its changes; logging Admin changes to the same place keeps that accountability.
-- Without an owner invite a new agency could never get its first owner through the invite flow, and without a join email a new person could wait unnoticed.
+- Without an owner invite a new agency could never get its first owner through the invite flow.
 
-**Rejected.**
-- Managing people only through elevated view-as (fewer screens, less convenient when setting agencies up).
-- Owners inviting other owners (one owner per agency, D500).
-- Temporary passwords for a new agency's owner (D497 retired them).
+**Rejected.** Managing people only through elevated view-as (fewer screens, less convenient when setting agencies up). Owners inviting other owners (one owner per agency, D500). Temporary passwords for a new agency's owner (D502).
 
-### D506 — Invites are sent from inside a client; giving access puts the person on that client *(recorded 2026-11-13; refines D501, D502, D505; originated → `2026-11-12-agency-permissions-design.md`)*
-
-**Refined by D509 (2026-11-13).** A Members button beside Brand Workspace; statuses Invited, Signed up, Member, Owner; a two-step invite popup. Permissions are still set only on the Team page.
+### D506 — Invites are sent from inside a client, by the owner or anyone with Invite on it; joining puts the person on that client *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- **Where.** A member is invited from a client's Members list (`/clients/[id]/members`), never from the Team page. The invitation carries the client. The only invite without a client is the super admin's owner invite.
-- **Joining.** Accepting creates the membership (waiting) and the client row with no permissions. Giving access on the Team page sets the permissions and the cascade fills that row, so the person can start at once; they are emailed that their access is ready. No live update: they open the app again.
-- **Existing members.** On a client's Members list, people already in the agency are added from a list, including people still waiting for access, without an invite.
-- **Members list.** Shows status (Member, Waiting for access, Invited) rather than permissions. Permissions are edited only on the Team page, the agency's master list. Removing a person, or cancelling an invite, works from both places.
+- **Where.** A member is invited from a client's Members page, reached from a Members button beside Brand Workspace, never from the Team page. The invitation carries the client. The only invite without a client is the super admin's owner invite.
+- **Who.** The owner, and anyone with Invite on that client. The Members page and its button are shown only to them; for anyone else the page is not found.
+- **Invite popup.** Step 1 lists people in the agency not on this client (Members and Signed up), with a search and checkboxes ("Add n people"), in one insert. "Invite someone new" opens step 2 with the email.
+- **What an Invite holder can't do.** Set or change permissions (the person they invite waits as Signed up until the owner gives access), remove people, or resend and cancel invites. Those stay with the owner.
+- **Joining.** Accepting creates the membership (Signed up) and the client row with no permissions. Giving access on the Team page sets the permissions and the cascade fills that row, so the person can start at once.
 - **One open invite per person per agency.** A second invite from another client is refused; once the person has joined, they're added to other clients from the list.
+- **Refusals** in plain words: invalid email, already in the agency, already invited, an email with a login in another agency.
 
 **Why.**
-- 13 Nov flow review (Cyril presenting, Anupama and Arun): owners invite from inside a client; permissions are managed centrally; setting them should put the person on the client without a separate step; an email instead of a live update.
-- Arun, 13 Nov: invites only inside a client, as agreed on the call.
+- 13 Nov flow review (Cyril presenting, Anupama and Arun): owners invite from inside a client; permissions are managed centrally; setting them should put the person on the client without a separate step.
+- Cyril's page (13 Nov) adds Invite so an owner can hand inviting to someone else. Arun, 13 Nov: an Invite holder can add people already in the agency and invite new emails, but permissions stay with the owner.
 - Inserting the client row at accept, with no permissions, lets the existing cascade fill it on Give access; nothing new decides access.
 
 **Rejected.**
-- Invites from the Team page (D502): the owner then had to add the person to a client in a second step.
-- A live update to the waiting screen (an email is enough, and avoids a channel per person).
-- Several open invites for one person (the second client is added from the list once they've joined).
+- Invites from the Team page: the owner then had to add the person to a client in a second step.
+- Invite holders limited to people already in the agency (inviting new emails is the common case).
+- Invite holders removing people too (taking someone off a client is the owner's call).
+- Several open invites for one person.
 
-### D507 — View and Edit are permissions: six in all *(recorded 2026-11-13; refines D500, D504; originated → `2026-11-12-agency-permissions-design.md`)*
+### D507 — Seeing a client comes from being on it; changing work by hand comes under Generate *(recorded 2026-11-13; refines D166; originated → `2026-11-12-agency-permissions-design.md`)*
 
-**Decision.** The permissions are View, Edit, Generate, Approve, Share and Delete. View is needed to see a client at all (downloads come with it); without it the client is not found. Edit covers changing work by hand and removing parts of an item; without it the canvas is read-only, using the view-only canvas built in plan 2. The checker's step for view and edit now reads the client row like the other four.
+**Decision.** There is no View or Edit permission. A person on a client sees it, reads comments and downloads files. Creating and changing work by hand needs Generate, the same as AI runs. A person with no permissions on a client looks only: the canvas is read-only (the view-only canvas built in plan 2), and controls for changing work are hidden.
 
-**Why.** Cyril's revised page (13 Nov) keeps View and Edit separate so an owner can let someone edit without spending credits, or give view-only access. Arun chose it over Anupama's 12 Nov summary, which had made them implicit.
+**Why.** Cyril's page (13 Nov) removes View and Edit, following Anupama's summary of the 12 Nov meeting, and asks whether someone can be on a client only to look; Arun, 13 Nov: yes, as a Member (D503).
 
-**Rejected.** View and Edit implicit for anyone on a client (D500). An Invite permission for people other than the owner, also in Cyril's page: not in this version (Arun, 13 Nov).
+**Rejected.** View and Edit as permissions (six in all), which would let an owner allow editing without spending credits: Cyril's later revision of the same page removes them, and being on the Members list already decides who sees a client.
 
-### D508 — One agency per person in this version *(recorded 2026-11-13; supersedes D503; restores D498's position)*
-
-**Decision.** A login belongs to one agency. `org_memberships_one_org_per_user` stays. An email with a login in another agency can't be invited ("This email already belongs to another agency."). No switcher, no cross-agency page, no join-with-existing-login. Grants stay keyed by person and agency, `get_membership_access` returns a set and `auth_org_ids()` every agency, so allowing several later is: drop the index, add a switcher, let an existing login join.
-
-**Why.** Cyril's revised page calls an existing login from another agency "not a valid scenario" and asks whether multi-agency drops out of the first version; Arun, 13 Nov: drop it from v1.
-
-**Rejected.** Building agency switching now (D503).
-
-### D509 — Permissions are set only on the Team page; a client's Members list invites, adds and removes *(recorded 2026-11-13; refines D505, D506)*
-
-**Refined (2026-11-13).** Invite links are stored as issued, not as a sha256, so Copy link shows the same link any time; only Resend issues a new one. Acceptable because the table is server-only and a link is single use and expires after 7 days (Arun, 13 Nov: a new link on every copy is overkill). Supersedes D497's hashed token.
+### D508 — One agency per person in this version; every grant is keyed by person and agency *(recorded 2026-11-13; refines D80, D181)*
 
 **Decision.**
-- **Team page** is the only place permissions are set: Waiting for you (Signed up people, Give access), Invited, Members. The editor is chips with ×, then "Choose a permission" and Add.
-- **Client Members list** (a Members button beside Brand Workspace): Name, Status, Actions. Statuses Invited, Signed up ("Needs permissions", with a link to Team), Member, Owner. Remove takes someone off that client only.
-- **Invite popup**: step 1 lists people in the agency with a search and checkboxes ("Add n people"); "Invite someone new" opens step 2 with the email.
-- **Super admin**: one popup creates the agency with the owner's email; the agency page's People tab shows statuses.
-- Emails: "{Name} signed up… Give them permissions on the Team page", and "Your access is ready".
+- A login belongs to one agency. `org_memberships_one_org_per_user` stays. An email with a login in another agency can't be invited ("This email already belongs to another agency.").
+- Every grant and client row is keyed by `(user_id, org_id)`. Only `resolveCallerContext` turns a user into a membership. `get_membership_access` returns a set, and the RLS policies that used `org_id = (select … limit 1)` use `org_id in (select auth_org_ids())`.
+- Allowing several agencies later is: drop the index, add a switcher in the profile menu read by `resolveCallerContext`, and let an existing login join from the invite link.
 
-**Why.** Cyril's revised page draws the Members button, statuses, the invite popup and the one-popup agency setup. Arun, 13 Nov: permissions are edited only agency-wide on Team; per client the owner only invites, assigns and removes.
+**Why.** Cyril's page calls an existing login from another agency "not a valid scenario"; Arun, 13 Nov: not in v1. With two memberships, `limit 1` would pick an arbitrary agency, so fixing it now costs one function and removes a silent cross-agency bug later.
+
+**Rejected.** Building agency switching now (a `cos_org` cookie, a switcher and a "This is in {Agency}" page), designed on 12 Nov and dropped on 13 Nov.
+
+### D509 — Permissions are set only on the Team page; a client's Members list invites, adds and removes *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- **Team page** (owner only) is the only place permissions are set: Waiting for you (Signed up people, Give access), Invited (Copy link, Resend, Cancel), Members (Edit, Remove). The editor is chips with ×, then "Choose a permission" and Add. A member with none shows "Can look".
+- **Client Members list**: Name, Status, Actions. Statuses Invited, Signed up ("Needs permissions", with a Set permissions link to Team for the owner), Member, Owner. Remove takes someone off that client only.
+- Emails: "{Name} signed up to {Agency}" to the owner and the inviter, and "Your access to {Agency} is ready" to the person.
+
+**Why.** Cyril's page draws the Members button, statuses and the invite popup. Arun, 13 Nov: permissions are edited only agency-wide on Team; per client, people are only invited, added and removed.
 
 **Rejected.** Editing permissions by opening a person on a client's Members list (Cyril's page): permissions are per person, so one place avoids the impression they differ per client.
