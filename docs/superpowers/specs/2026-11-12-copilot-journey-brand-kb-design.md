@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Parent spec:** [2026-11-12-copilot-journey-design.md](2026-11-12-copilot-journey-design.md) (sections 4.2, 4.3, 4.5, 5.1 and build order item 2)
 **Mockups:** the "Brand audit" artboard in the Design artifact, https://claude.ai/artifact/VP7fUPMcBEbvyt1mKHwe4C
-**Status:** draft for Cyril's review. Lines marked *(my call)* were not decided by Cyril and can be overruled.
+**Status:** questions answered 2026-11-13; awaiting Cyril's approval of the whole document. Lines marked *(my call)* were not decided by Cyril and can be overruled.
 
 This spec says what piece 2 does and why. It names no tables, routes or libraries; those belong to the plan.
 
@@ -33,15 +33,18 @@ On the Brand KB page, the panel becomes a chat with the brand KB copilot. It doe
 - During the build the panel shows real status lines for what is actually running: reading the website, reading the documents, collecting images and video from the site and socials, studying the images.
 - Each line turns into a done line when that step finishes. A step that fails says so, says what the person can do, and never reads as "nothing found".
 - Collecting images takes longer than the KB text. The copilot says the KB is ready to review while images are still coming in, as today.
+- The copilot asks nothing while the build runs. What it needs is asked before the build starts; questions about the result start once the KB has landed.
 
 ### 2.3 Walks the review
 
 - When the build lands, the copilot gives a short account of what it found and where it was unsure.
 - It asks about what it could not settle, one question at a time, with likely answers as buttons and free text always allowed. Example: the audience age range was inferred, not stated; is 25 to 40 right?
+- It asks about the few that matter most: up to five of the inferred or empty fields that scripts rely on hardest, such as audience, tone of voice and compliance rules. *(My call: the number five and which fields rank highest.)* A "keep asking" reply continues through the rest; otherwise they are left to the review on screen.
 - An answer fills or corrects the field. The value is marked as coming from the person.
 - It tells the person what is left: which sections still have fields to review. It links to them; it does not review them.
 - The person reviews on the screen as today. The panel keeps up with what was done by hand and does not ask about a field the person has already settled.
 - When every field is reviewed, the copilot shows the gate card: approve the brand KB, which opens market research. The approval is the person's action. *(My call: the gate card carries the same "Mark KB ready" action the page header has, so the person can approve from either place.)*
+- Any teammate who can open the client can approve, as today. The thread records who approved the KB and who approved each change card.
 
 ### 2.4 Takes additions without wrecking what is approved
 
@@ -52,10 +55,20 @@ This is section 4.5 of the parent spec, applied to the brand KB.
 - The copilot reads the new material against the current KB and answers with a **change card**: each field it would change, shown before and after, with where the new value came from.
 - Each field on the card can be kept or dropped. Approving the card applies the kept ones. Discarding it applies nothing.
 - Applied fields count as approved by the person. Fields the card did not name are untouched, with their reviews and hand edits intact.
-- The KB stays approved throughout. Nothing locks. Scripts keep working from the approved KB, and scripts started after the card is approved use the new one.
+- The KB stays approved throughout. Nothing locks.
+- An approved card changes the client's one live KB, exactly as a hand edit does today. What is already written in an existing script is not rewritten. The next copilot turn on that script, and anything drawn for it afterwards, reads the new KB. Scripts are not frozen on the KB they started with.
+- **A refused change is remembered.** When the person discards a card or drops a field on it, the attached document stays in Source files, and the copilot does not propose that change from that document again unless the document changes.
 - If the new material changes nothing, the copilot says so and shows no card.
 - If a field on a pending card was edited by hand in the meantime, the card says it is out of date for that field and does not overwrite the hand edit. This is how the script copilot's before-and-after card already behaves.
 - A hand edit on the screen applies at once and needs no approval, as today.
+
+### 2.5 Every other way the model changes the KB follows the same rule
+
+- **"Save & Re-analyze" in Source files** no longer rebuilds the KB. It saves the added and removed files, and the copilot answers in the panel with a change card. No review is wiped and the KB stays approved.
+- **Removing a source** works the same way: the copilot re-reads what is left and shows a card of the fields the remaining sources no longer support, before and after, to accept or reject.
+- **Image Analysis** follows the rule too. When the images are studied again, after a chat attachment, an upload or a refresh from the site and socials, the result is held back and shown as a change card. The section does not change until the person approves. On a KB nobody has reviewed yet, the first study fills the section directly.
+- **The "Refine with AI" sparkle button on each field is removed.** A field is changed by typing in it, or by asking in the chat, and a chat change comes back as a change card.
+- **Every copilot change gets a card, even to one field.** This differs from the script copilot, which applies a change to a single shot at once.
 
 **The rule behind it:** the copilot never overwrites a field a person has reviewed without a change card. *(My call on the boundary: during the first review, a field nobody has reviewed yet can be updated directly, because there is nothing of the person's to lose. Once a field is approved, edited or rejected, changes to it go through a card, whether or not the whole KB is approved yet.)*
 
@@ -89,8 +102,8 @@ The five message kinds from the parent spec, section 4.3, all used here: status 
 
 ## 7. What stays as it is
 
-- The Brand KB screen on the right: its tabs, fields, review states, inline editing, "Approve all", and "Mark KB ready".
-- How the website is read, how documents are read, how images are collected and studied.
+- The Brand KB screen on the right: its tabs, fields, review states, inline editing, "Approve all", and "Mark KB ready". The one removal is the "Refine with AI" button (section 2.5).
+- How the website is read, how documents are read, how images are collected and studied. What changes is what happens to the result on a reviewed KB: it is proposed, not written.
 - The rule that every field must be reviewed before the KB can be marked ready, with Image Analysis exempt.
 - The Brand assets page and the Source files drawer as places to see and remove sources.
 
@@ -110,16 +123,16 @@ The five message kinds from the parent spec, section 4.3, all used here: status 
 - Any change to what the website reader or the image collectors can reach.
 - Retiring the old canvas copilot.
 
-## 10. Open questions for Cyril
+## 10. Decided by Cyril on 2026-11-13
 
-These change what gets built. They are not decided.
+No open questions remain for piece 2.
 
-1. **"Save & Re-analyze" in the Source files drawer.** It is started by hand but the rebuild is done by the model, and today it wipes reviews. Under "only copilot changes need approval", should it now produce a change card in the chat instead of rebuilding? If not, the destructive path stays one click away.
-2. **"Refine with AI" on a single field.** Today it rewrites the field at once. Should it show a before and after first, or stay as it is because the person asked for that one field?
-3. **Removing a source from an approved KB.** Should the copilot propose removing what came from that source, as a change card, or leave the KB alone?
-4. **Who may approve the brand KB.** Still open from the parent spec (question 2): any teammate, or a named role?
-5. **Mid-build questions.** May the copilot ask a question while the build is still running (for example about socials), or only once the KB has landed?
-6. **What "existing scripts are not touched" means.** Today every script reads the client's one live KB each time the copilot works on it, so a hand edit to the KB already reaches existing scripts on their next turn. Does an approved change card behave the same way (what is already written in a script is not rewritten, but its next turn reads the new KB)? Or must a script stay on the KB as it was when the script started, which hand edits do not do today?
-7. **Image Analysis.** Adding an image today re-studies the images and rewrites the Image Analysis section with no approval, and can put an approved field there back to "needs review". Is Image Analysis exempt from the change-card rule, as it already is from the "every field reviewed" rule, or must it go through a card too?
-8. **A discarded card.** When the person discards a card, does the attached document stay in Source files? If it stays, a later rebuild reads it again.
-9. **How many questions.** The build marks fields as inferred or leaves them empty; a new KB can have a dozen or more. Does the copilot ask about all of them, or only the few that matter most and leave the rest to the review on screen?
+1. An approved change card updates the live KB like a hand edit. Existing scripts are not rewritten and are not frozen on an old KB; their next turn reads the new one.
+2. "Save & Re-analyze" answers with a change card and wipes nothing.
+3. Image Analysis goes through a change card too.
+4. A discarded card leaves the document in Source files, and what was refused is remembered and not proposed again.
+5. After a build the copilot asks about the few fields that matter most, not all of them.
+6. The "Refine with AI" button is removed. Refinement happens in the chat or by a direct edit.
+7. Removing a source produces a change card to accept or reject, like the script copilot's before and after.
+8. Any teammate with access to the client may approve. Who approved is recorded.
+9. The copilot asks nothing while a build is running.

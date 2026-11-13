@@ -144,7 +144,7 @@ The order is a proposal. The first plan would cover piece 1 only.
 These are product decisions. None is assumed in this document. Each belongs to a later piece of the build order and does not block the shell.
 
 1. Is an image attached in the chat saved to the client's brand assets for later scripts, or kept with that one script?
-2. Who may approve the brand KB and market research: any teammate, or a named role?
+2. Who may approve market research: any teammate, or a named role? (Brand KB: any teammate, decided 2026-11-13.)
 3. The market screen has Direct, Adjacent, Signals and Performance tabs. How do the copilot's themes relate to Signals, and do those tabs stay as they are?
 4. The first sketch had a step "what kind of stories". Is that part of market research, part of scripting, or its own step?
 5. Which extra steps would make scripts more consistent, interesting and detailed?
