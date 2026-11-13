@@ -1,6 +1,6 @@
 // src/app/api/me/route.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Access } from "@/lib/permissions/access";
+import type { Access } from "@/lib/permissions/model";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,7 +15,6 @@ vi.mock("@/lib/dal", () => ({
     email: "a@example.com",
     platformRole: "member",
     orgId: "org-1",
-    orgRole: "designer",
     mustChangePassword: false,
     access: m.access,
   })),
@@ -66,7 +65,7 @@ describe("GET /api/me", () => {
   });
 
   it("sends no credit figures, and reads none, without credits.view", async () => {
-    m.access = testAccess({ keys: ["scripts.view"] });
+    m.access = testAccess({ permissions: ["view"], clientIds: ["c1"] });
     const me = await body();
     expect(me.creditsUsed).toBeNull();
     expect(me.monthlyCreditLimit).toBeNull();
@@ -74,10 +73,10 @@ describe("GET /api/me", () => {
   });
 
   it("sends a picked list as ids, with rules that refuse other clients", async () => {
-    m.access = testAccess({ keys: ["scripts.edit"], clientIds: ["c2", "c1"], presetKey: "designer" });
+    m.access = testAccess({ permissions: ["view", "edit"], clientIds: ["c2", "c1"] });
     const me = await body();
     expect(me.clientScope).toEqual(["c1", "c2"]);
-    expect(me.presetName).toBe("Designer");
+    expect(me.presetName).toBe("Member");
     const ability = abilityFromPacked(me.permissions);
     expect(canInBrowser(ability, "scripts.edit", "c1")).toBe(true);
     expect(canInBrowser(ability, "scripts.edit", "c3")).toBe(false);

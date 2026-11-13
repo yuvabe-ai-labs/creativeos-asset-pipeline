@@ -32,14 +32,12 @@ vi.mock("@/lib/dal", () => ({
     userId: "op-1",
     platformRole: "super_admin",
     orgId: "yuvabe-org",
-    orgRole: "owner",
     mustChangePassword: false,
   })),
   resolveCallerContextOrNull: vi.fn(async () => ({
     userId: "op-1",
     platformRole: "super_admin",
     orgId: "yuvabe-org",
-    orgRole: "owner",
     mustChangePassword: false,
   })),
 }));
@@ -105,7 +103,6 @@ describe("resolveImpersonationState", () => {
       email: "op-1@yuvabe.com",
       platformRole: "member",
       orgId: "yuvabe-org",
-      orgRole: "owner",
       mustChangePassword: false,
       access: testOwnerAccess(),
     });

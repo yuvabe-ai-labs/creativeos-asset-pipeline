@@ -2,15 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { resolveImpersonationStateMock, resolveOrgIdMock, resolveActingCallerMock, logMock, createClientMock, addMemberMock, deleteClientMock } = vi.hoisted(() => ({
+const { resolveImpersonationStateMock, resolveOrgIdMock, resolveActingCallerMock, logMock, createClientMock } = vi.hoisted(() => ({
   resolveImpersonationStateMock: vi.fn(async (): Promise<
     { isImpersonating: false } | { isImpersonating: true; operatorId: string; targetOrgId: string; elevated: boolean }
   > => ({ isImpersonating: false })),
   resolveOrgIdMock: vi.fn(async () => "yuvabe-org"),
   resolveActingCallerMock: vi.fn(async (): Promise<unknown> => null),
   logMock: vi.fn(async () => undefined),
-  addMemberMock: vi.fn(async () => undefined),
-  deleteClientMock: vi.fn(async () => undefined),
   createClientMock: vi.fn(async (args: { name: string; orgId: string }) => ({
     id: "client-1",
     slug: "acme",
@@ -25,14 +23,15 @@ vi.mock("@/lib/permissions/server", async (importOriginal) => ({
   resolveActingCaller: resolveActingCallerMock,
 }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: logMock }));
-vi.mock("@/lib/db/clients", () => ({ createClient: createClientMock, addClientToMembership: addMemberMock, deleteClient: deleteClientMock }));
+vi.mock("@/lib/db/clients", () => ({ createClient: createClientMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
+import { testAccess, testAllowAllAccess } from "@/lib/permissions/test-fixtures";
+import { PERMISSIONS } from "@/lib/permissions/model";
 import { createClientAction } from "./clients";
 
 // effectiveOrgId follows resolveOrgIdMock, as resolveActingCaller's would.
-function wireGuard(access = testOwnerAccess()) {
+function wireGuard(access = testAllowAllAccess()) {
   resolveActingCallerMock.mockImplementation(async () => ({
     caller: { userId: "u1", orgId: "own-org", access },
     effectiveOrgId: await resolveOrgIdMock(),
@@ -73,47 +72,11 @@ describe("createClientAction", () => {
     expect(logMock).toHaveBeenCalledWith(expect.objectContaining({ eventType: "write_action" }));
   });
 
-  it("rejects when the caller lacks clients.edit", async () => {
+  it("rejects a member: creating clients is the owner's (manage_clients)", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
-    wireGuard(testAccess({ keys: [] }));
+    resolveOrgIdMock.mockResolvedValue("target-org");
+    wireGuard(testAccess({ permissions: [...PERMISSIONS], clientIds: ["c1"], orgId: "target-org" }));
     await expect(createClientAction({ name: "Acme" })).rejects.toThrow("You don't have access to this. Ask your agency owner.");
     expect(createClientMock).not.toHaveBeenCalled();
-  });
-  it("adds the new client to a picked-list person's own list", async () => {
-    resolveOrgIdMock.mockResolvedValue("target-org");
-    createClientMock.mockResolvedValue({ id: "client-9", slug: "acme", name: "Acme", org_id: "target-org" });
-    wireGuard(testAccess({ keys: ["clients.edit"], clientIds: [] }));
-    await createClientAction({ name: "Acme" });
-    expect(addMemberMock).toHaveBeenCalledWith("u1", "target-org", "client-9");
-  });
-
-  it("does not touch the list for all-clients access", async () => {
-    resolveOrgIdMock.mockResolvedValue("target-org");
-    createClientMock.mockResolvedValue({ id: "client-9", slug: "acme", name: "Acme", org_id: "target-org" });
-    await createClientAction({ name: "Acme" });
-    expect(addMemberMock).not.toHaveBeenCalled();
-  });
-
-  it("rolls the new client back when adding it to the creator's list fails", async () => {
-    resolveOrgIdMock.mockResolvedValue("target-org");
-    createClientMock.mockResolvedValue({ id: "client-9", slug: "acme", name: "Acme", org_id: "target-org" });
-    wireGuard(testAccess({ keys: ["clients.edit"], clientIds: [] }));
-    const insertErr = new Error("insert failed");
-    addMemberMock.mockRejectedValue(insertErr);
-    await expect(createClientAction({ name: "Acme" })).rejects.toBe(insertErr);
-    expect(deleteClientMock).toHaveBeenCalledWith("client-9");
-  });
-
-  it("surfaces the original error when the rollback delete also fails", async () => {
-    resolveOrgIdMock.mockResolvedValue("target-org");
-    createClientMock.mockResolvedValue({ id: "client-9", slug: "acme", name: "Acme", org_id: "target-org" });
-    wireGuard(testAccess({ keys: ["clients.edit"], clientIds: [] }));
-    const insertErr = new Error("insert failed");
-    addMemberMock.mockRejectedValue(insertErr);
-    deleteClientMock.mockRejectedValue(new Error("delete failed"));
-    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    await expect(createClientAction({ name: "Acme" })).rejects.toBe(insertErr);
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
   });
 });

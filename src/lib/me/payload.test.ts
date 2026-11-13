@@ -23,7 +23,7 @@ vi.mock("@/lib/db/presets", () => ({ getPresetName: vi.fn(async () => "Owner") }
 import { testOwnerAccess } from "@/lib/permissions/test-fixtures";
 import { loadInitialMe } from "./payload";
 
-const signedIn = () => ({ userId: "u1", email: null, platformRole: "member", orgId: "org-1", orgRole: "owner", mustChangePassword: false, access: testOwnerAccess() });
+const signedIn = () => ({ userId: "u1", email: null, platformRole: "member", orgId: "org-1", mustChangePassword: false, access: testOwnerAccess() });
 
 describe("loadInitialMe", () => {
   it("is null with nobody signed in", async () => {

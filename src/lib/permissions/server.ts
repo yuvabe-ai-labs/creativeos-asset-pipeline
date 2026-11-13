@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { resolveCallerContext, resolveCallerContextOrNull, type CallerContext } from "@/lib/dal";
 import { resolveImpersonationState, type ImpersonationState } from "@/lib/auth/impersonation";
-import { ownerAccess, type Access } from "./access";
+import { impersonatedAccess, type Access } from "./model";
 
 // Fails closed: a caller without loaded access can do nothing. Tests that mock the caller get
 // owner access by default through vitest.setup.ts, which replaces this one function.
@@ -19,7 +19,7 @@ export type ActingCaller = {
 
 function actingFrom(caller: CallerContext, impersonation: ImpersonationState): ActingCaller {
   if (impersonation.isImpersonating) {
-    return { caller: { ...caller, access: ownerAccess() }, effectiveOrgId: impersonation.targetOrgId, impersonation };
+    return { caller: { ...caller, access: impersonatedAccess(caller.userId, impersonation.targetOrgId) }, effectiveOrgId: impersonation.targetOrgId, impersonation };
   }
   return { caller, effectiveOrgId: caller.orgId, impersonation };
 }

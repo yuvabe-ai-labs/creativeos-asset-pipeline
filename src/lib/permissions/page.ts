@@ -1,38 +1,37 @@
 import "server-only";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import type { ClientRow } from "@/lib/db/types";
 import type { CallerContext } from "@/lib/dal";
 import { accessOf, resolveActingCaller } from "./server";
-import { denialFor } from "./check";
+import { check } from "./check";
+import { actionForNeed, type Need } from "./legacy-need";
 import { resolveTarget } from "./targets";
-import type { ClientScopedKey } from "./catalogue";
 
-// Client pages (D496): another agency's client and a client outside the person's list both
-// redirect home, as foreign clients always have; missing the area's view shows the 404 page.
+// Client pages (spec §4.4): another agency's client, a client the person is not on or can't
+// view, and a missing permission all show the 404 page, which never confirms the client exists.
 export async function loadClientPage(
   slug: string,
-  need: ClientScopedKey,
+  need: Need,
 ): Promise<{ client: ClientRow; caller: CallerContext; effectiveOrgId: string }> {
   const [client, acting] = await Promise.all([getClientBySlug(slug), resolveActingCaller()]);
-  if (!client || client.org_id !== acting.effectiveOrgId) redirect("/");
-  const denied = denialFor(accessOf(acting.caller), need, client.id);
-  if (denied === "not_found") redirect("/");
-  if (denied === "forbidden") notFound();
+  if (!client || client.org_id !== acting.effectiveOrgId) notFound();
+  const decision = check(accessOf(acting.caller), actionForNeed(need), { orgId: acting.effectiveOrgId, clientId: client.id });
+  if (decision !== "allow") notFound();
   return { client, caller: acting.caller, effectiveOrgId: acting.effectiveOrgId };
 }
 
-// Canvas pages outside the client tree (/eval/[canvasId]): another agency's canvas, a canvas
-// outside the person's clients and a missing canvas all answer null, so the page shows its
-// "Canvas not found"; missing the view shows the 404 page. One target read, beside the caller.
+// Canvas pages outside the client tree (/eval/[canvasId]): another agency's canvas, a canvas on a
+// client the person can't view and a missing canvas answer null, so the page shows its own
+// "Canvas not found"; a missing permission shows the 404 page. One target read, beside the caller.
 export async function loadCanvasPage(
   canvasId: string,
-  need: ClientScopedKey,
+  need: Need,
 ): Promise<{ clientId: string; caller: CallerContext; effectiveOrgId: string } | null> {
   const [target, acting] = await Promise.all([resolveTarget({ canvasId }), resolveActingCaller()]);
   if (!target?.clientId || target.orgId !== acting.effectiveOrgId) return null;
-  const denied = denialFor(accessOf(acting.caller), need, target.clientId);
-  if (denied === "not_found") return null;
-  if (denied === "forbidden") notFound();
+  const decision = check(accessOf(acting.caller), actionForNeed(need), { orgId: acting.effectiveOrgId, clientId: target.clientId });
+  if (decision === "not_found") return null;
+  if (decision === "forbidden") notFound();
   return { clientId: target.clientId, caller: acting.caller, effectiveOrgId: acting.effectiveOrgId };
 }

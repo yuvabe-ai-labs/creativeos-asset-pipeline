@@ -63,21 +63,6 @@ export async function setClientArchived(
   if (error) throw error;
 }
 
-// D496: someone with a picked client list who creates a client gets it on their list in the
-// same request; otherwise they would create a client they cannot open.
-export async function addClientToMembership(userId: string, orgId: string, clientId: string): Promise<void> {
-  const { error } = await createServerSupabase()
-    .from("membership_clients")
-    .insert({ user_id: userId, org_id: orgId, client_id: clientId });
-  if (error) throw error;
-}
-
-/** Removes a client. Used only to roll back a just-created one, which has no child rows. */
-export async function deleteClient(clientId: string): Promise<void> {
-  const { error } = await createServerSupabase().from("clients").delete().eq("id", clientId);
-  if (error) throw error;
-}
-
 export async function getClientById(id: string): Promise<ClientRow | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase

@@ -14,7 +14,6 @@ vi.mock("@/lib/dal", async () => {
       email: "user-1@yuvabe.com",
       platformRole: "member",
       orgId: "org-1",
-      orgRole: "owner",
       mustChangePassword: false,
       access: callerHolder.access ?? testOwnerAccess(),
     })),
@@ -102,7 +101,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { resolveCallerContext } from "@/lib/dal";
-import { testAccess } from "@/lib/permissions/test-fixtures";
+import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
 import { withCanvas, withClient, withMoodboard, withNode, withAccess } from "./route-helpers";
 
 const params = Promise.resolve({ id: "client-1" });
@@ -270,38 +269,50 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
   });
 });
 
-describe("withClient guard (D496)", () => {
+describe("withClient guard (D504)", () => {
   beforeEach(() => {
     callerHolder.access = null;
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
   });
 
-  it("runs the handler when the caller holds the permission for this client", async () => {
-    callerHolder.access = testAccess({ keys: ["scripts.edit"], clientIds: ["client-1"] });
+  it("runs the handler when the caller holds the permission on this client", async () => {
+    callerHolder.access = testAccess({ permissions: ["view", "edit"], clientIds: ["client-1"] });
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
-    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, handler);
+    const res = await withClient(req("POST"), params, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalledWith("client-1", expect.objectContaining({ id: "client-1" }), expect.objectContaining({ userId: "user-1" }), "org-1");
   });
 
-  it("answers 404 for a client outside the caller's list, exactly like a foreign agency", async () => {
-    callerHolder.access = testAccess({ keys: ["scripts.edit"], clientIds: ["other-client"] });
-    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, async () => NextResponse.json({}));
+  it("answers 404 for a client the caller is not on, exactly like a foreign agency", async () => {
+    callerHolder.access = testAccess({ permissions: ["view", "edit"], clientIds: ["other-client"] });
+    const res = await withClient(req("POST"), params, { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Client not found." });
   });
 
-  it("answers 403 with the agreed copy when the tick is missing", async () => {
-    callerHolder.access = testAccess({ keys: ["scripts.view"] });
-    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, async () => NextResponse.json({}));
+  it("answers 404 without View on the client", async () => {
+    callerHolder.access = testAccess({ permissions: ["edit"], clientIds: ["client-1"] });
+    const res = await withClient(req("GET"), params, { need: "edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
+  });
+
+  it("answers 403 with the agreed copy when the permission is missing", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    const res = await withClient(req("POST"), params, { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
   });
 
+  it("still reads an old area key as its action (until Task 6 renames them)", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    const res = await withClient(req("POST"), params, { need: "scripts.edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+  });
+
   it("acts as owner while impersonating the client's agency", async () => {
-    callerHolder.access = testAccess({ keys: [] });
+    callerHolder.access = testAccess({ permissions: [], clientIds: [] });
     resolveImpersonationStateMock.mockResolvedValueOnce({ isImpersonating: true, operatorId: "op", targetOrgId: "org-1", elevated: false });
-    const res = await withClient(req("GET"), params, { need: "scripts.view" }, async () => NextResponse.json({ ok: true }));
+    const res = await withClient(req("GET"), params, { need: "view" }, async () => NextResponse.json({ ok: true }));
     expect(res.status).toBe(200);
   });
 });
@@ -314,15 +325,15 @@ describe("withNode guard", () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
   });
 
-  it("checks the node's client scope", async () => {
-    callerHolder.access = testAccess({ keys: ["canvases.view"], clientIds: ["someone-else"] });
-    const res = await withNode(req("GET"), Promise.resolve({ id: "node-1" }), { need: "canvases.view" }, async () => NextResponse.json({}));
+  it("answers 404 for a node on a client the caller is not on", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["someone-else"] });
+    const res = await withNode(req("GET"), Promise.resolve({ id: "node-1" }), { need: "view" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
   });
 
-  it("refuses a missing generate tick with 403", async () => {
-    callerHolder.access = testAccess({ keys: ["canvases.view"] });
-    const res = await withNode(req("POST"), Promise.resolve({ id: "node-1" }), { need: "video_generation.generate" }, async () => NextResponse.json({}));
+  it("refuses a missing Generate with 403", async () => {
+    callerHolder.access = testAccess({ permissions: ["view", "edit"], clientIds: ["client-1"] });
+    const res = await withNode(req("POST"), Promise.resolve({ id: "node-1" }), { need: "generate" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
   });
 });
@@ -336,17 +347,17 @@ describe("withCanvas guard", () => {
   });
 
   it("hands the handler the canvas, the caller and the agency acted in", async () => {
-    callerHolder.access = testAccess({ keys: ["canvases.view"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
-    const res = await withCanvas(req("GET"), canvasParams(), { need: "canvases.view" }, handler);
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "view" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalledWith("canvas-1", { id: "canvas-1", client_id: "client-1", name: "Reel" }, expect.objectContaining({ userId: "user-1" }), "org-1");
   });
 
-  it("answers 404 for a canvas whose client is outside the caller's list", async () => {
-    callerHolder.access = testAccess({ keys: ["canvases.view"], clientIds: ["other-client"] });
+  it("answers 404 for a canvas on a client the caller is not on", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["other-client"] });
     const handler = vi.fn(async () => NextResponse.json({}));
-    const res = await withCanvas(req("GET"), canvasParams(), { need: "canvases.view" }, handler);
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "view" }, handler);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Canvas not found." });
     expect(handler).not.toHaveBeenCalled();
@@ -354,13 +365,13 @@ describe("withCanvas guard", () => {
 
   it("answers 404 for another agency's canvas", async () => {
     nodeOrgIdHolder.orgId = "org-2";
-    const res = await withCanvas(req("GET"), canvasParams(), { need: "canvases.view" }, async () => NextResponse.json({}));
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "view" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
   });
 
-  it("answers 403 with the agreed copy when the tick is missing", async () => {
-    callerHolder.access = testAccess({ keys: ["canvases.view"] });
-    const res = await withCanvas(req("POST"), canvasParams(), { need: "canvases.edit" }, async () => NextResponse.json({}));
+  it("answers 403 with the agreed copy when Edit is missing", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    const res = await withCanvas(req("POST"), canvasParams(), { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
   });
@@ -369,7 +380,7 @@ describe("withCanvas guard", () => {
     nodeOrgIdHolder.orgId = "target-org";
     resolveImpersonationStateMock.mockResolvedValueOnce({ isImpersonating: true, operatorId: "op", targetOrgId: "target-org", elevated: false });
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
-    await withCanvas(req("GET"), canvasParams(), { need: "canvases.view" }, handler);
+    await withCanvas(req("GET"), canvasParams(), { need: "view" }, handler);
     expect(handler).toHaveBeenCalledWith("canvas-1", expect.anything(), expect.anything(), "target-org");
   });
 });
@@ -382,24 +393,24 @@ describe("withMoodboard guard", () => {
   });
 
   it("reads the board's client and hands the handler the caller and the agency acted in", async () => {
-    callerHolder.access = testAccess({ keys: ["moodboards.view"], clientIds: ["client-1"] });
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
     const handler = vi.fn(async () => NextResponse.json({ ok: true }));
-    const res = await withMoodboard(req("GET"), "board-1", { need: "moodboards.view" }, handler);
+    const res = await withMoodboard(req("GET"), "board-1", { need: "view" }, handler);
     expect(res.status).toBe(200);
     expect(selects.moodboards).toContain("client_id");
     expect(handler).toHaveBeenCalledWith("board-1", expect.objectContaining({ userId: "user-1" }), "org-1");
   });
 
-  it("answers 404 for a board whose client is outside the caller's list", async () => {
-    callerHolder.access = testAccess({ keys: ["moodboards.view"], clientIds: ["other-client"] });
-    const res = await withMoodboard(req("GET"), "board-1", { need: "moodboards.view" }, async () => NextResponse.json({}));
+  it("answers 404 for a board on a client the caller is not on", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["other-client"] });
+    const res = await withMoodboard(req("GET"), "board-1", { need: "view" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Moodboard not found." });
   });
 
-  it("answers 403 with the agreed copy when the tick is missing", async () => {
-    callerHolder.access = testAccess({ keys: ["moodboards.view"] });
-    const res = await withMoodboard(req("POST"), "board-1", { need: "moodboards.edit" }, async () => NextResponse.json({}));
+  it("answers 403 with the agreed copy when Edit is missing", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["client-1"] });
+    const res = await withMoodboard(req("POST"), "board-1", { need: "edit" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
   });
@@ -411,21 +422,33 @@ describe("withAccess", () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
   });
 
-  it("allows an agency key the caller holds", async () => {
-    callerHolder.access = testAccess({ keys: ["clients.edit"] });
-    const res = await withAccess(req("POST"), { need: "clients.edit" }, async () => NextResponse.json({ ok: true }));
+  it("allows an owner-only action for the owner", async () => {
+    callerHolder.access = testOwnerAccess();
+    const res = await withAccess(req("POST"), { need: "manage_clients" }, async () => NextResponse.json({ ok: true }));
     expect(res.status).toBe(200);
   });
 
-  it("allows a client-scoped key held for at least one client", async () => {
-    callerHolder.access = testAccess({ keys: ["voices.view"], clientIds: ["c-1"] });
-    const res = await withAccess(req("GET"), { need: "voices.view" }, async () => NextResponse.json({ ok: true }));
-    expect(res.status).toBe(200);
-  });
-
-  it("refuses without the key", async () => {
-    callerHolder.access = testAccess({ keys: [] });
-    const res = await withAccess(req("GET"), { need: "voices.view" }, async () => NextResponse.json({}));
+  it("refuses an owner-only action to a member with 403", async () => {
+    callerHolder.access = testAccess({ permissions: ["view", "edit"], clientIds: ["c-1"] });
+    const res = await withAccess(req("POST"), { need: "manage_clients" }, async () => NextResponse.json({}));
     expect(res.status).toBe(403);
+  });
+
+  it("allows a client action held on at least one client the caller can view", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["c-1"] });
+    const res = await withAccess(req("GET"), { need: "view" }, async () => NextResponse.json({ ok: true }));
+    expect(res.status).toBe(200);
+  });
+
+  it("refuses a client action held nowhere with 403", async () => {
+    callerHolder.access = testAccess({ permissions: ["view"], clientIds: ["c-1"] });
+    const res = await withAccess(req("POST"), { need: "edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+  });
+
+  it("answers 404 for someone on no client they can view", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: [] });
+    const res = await withAccess(req("GET"), { need: "view" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
   });
 });

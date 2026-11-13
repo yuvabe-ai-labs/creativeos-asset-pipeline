@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
-  resolveCallerContext: vi.fn(async () => ({ userId: "u1", orgId: "org-1", orgRole: "owner" })),
+  resolveCallerContext: vi.fn(async () => ({ userId: "u1", orgId: "org-1" })),
   resolveOrgId: vi.fn(async () => "org-1"),
 }));
 vi.mock("@/lib/auth/impersonation", () => ({

@@ -12,62 +12,69 @@ vi.mock("@/lib/permissions/server", async (importOriginal) => ({
 vi.mock("@/lib/permissions/targets", () => ({ resolveTarget: targetMock }));
 
 import { checkActionAccess } from "./action-guard";
-import { testAccess } from "./test-fixtures";
+import { testAccess, testOwnerAccess } from "./test-fixtures";
+import type { Access, Permission } from "./model";
 
-function acting(keys: Parameters<typeof testAccess>[0]["keys"], clientIds?: string[]) {
-  return {
-    caller: { userId: "u1", orgId: "org-1", access: testAccess({ keys, clientIds }) },
-    effectiveOrgId: "org-1",
-    impersonation: { isImpersonating: false },
-  };
+function acting(access: Access) {
+  return { caller: { userId: "u1", orgId: "org-1", access }, effectiveOrgId: "org-1", impersonation: { isImpersonating: false } };
 }
+const member = (permissions: Permission[], clientIds: string[] = ["c-1"]) => acting(testAccess({ permissions, clientIds }));
 
 describe("checkActionAccess", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("passes for a target in scope with the tick", async () => {
-    actingMock.mockResolvedValue(acting(["canvases.edit"], ["c-1"]));
+  it("passes for a client the person is on, with the permission", async () => {
+    actingMock.mockResolvedValue(member(["view", "edit"]));
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
-    const ctx = await checkActionAccess({ need: "canvases.edit", on: { canvasId: "cv-1" } });
+    const ctx = await checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } });
     expect(ctx.target).toEqual({ clientId: "c-1", orgId: "org-1" });
   });
 
   it("says not found for another agency's row", async () => {
-    actingMock.mockResolvedValue(acting(["canvases.edit"]));
+    actingMock.mockResolvedValue(member(["view", "edit"]));
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-2" });
-    await expect(checkActionAccess({ need: "canvases.edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
+    await expect(checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
   });
 
   it("says not found for a missing row", async () => {
-    actingMock.mockResolvedValue(acting(["canvases.edit"]));
+    actingMock.mockResolvedValue(member(["view", "edit"]));
     targetMock.mockResolvedValue(null);
-    await expect(checkActionAccess({ need: "canvases.edit", on: { nodeId: "n-1" } })).rejects.toThrow("Not found.");
+    await expect(checkActionAccess({ need: "edit", on: { nodeId: "n-1" } })).rejects.toThrow("Not found.");
   });
 
-  it("says not found for a client outside the list", async () => {
-    actingMock.mockResolvedValue(acting(["canvases.edit"], ["c-9"]));
+  it("says not found for a client the person is not on, or can't view", async () => {
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
-    await expect(checkActionAccess({ need: "canvases.edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
+    actingMock.mockResolvedValue(member(["view", "edit"], ["c-9"]));
+    await expect(checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
+    actingMock.mockResolvedValue(member(["edit"]));
+    await expect(checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } })).rejects.toThrow("Not found.");
   });
 
-  it("refuses a missing tick with the agreed copy", async () => {
-    actingMock.mockResolvedValue(acting(["canvases.view"]));
+  it("refuses a missing permission with the agreed copy", async () => {
+    actingMock.mockResolvedValue(member(["view"]));
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
-    await expect(checkActionAccess({ need: "canvases.delete", on: { canvasId: "cv-1" } })).rejects.toThrow(
+    await expect(checkActionAccess({ need: "delete", on: { canvasId: "cv-1" } })).rejects.toThrow(
       "You don't have access to this. Ask your agency owner.",
     );
   });
 
-  it("checks an agency key without a target lookup", async () => {
-    actingMock.mockResolvedValue(acting(["clients.edit"]));
-    const ctx = await checkActionAccess({ need: "clients.edit", on: "agency" });
+  it("checks an owner-only action without a target lookup", async () => {
+    actingMock.mockResolvedValue(acting(testOwnerAccess()));
+    const ctx = await checkActionAccess({ need: "manage_clients", on: "agency" });
     expect(targetMock).not.toHaveBeenCalled();
     expect(ctx.target).toBeNull();
   });
 
+  it("refuses an owner-only action to a member", async () => {
+    actingMock.mockResolvedValue(member(["view", "edit", "generate", "approve", "share", "delete"]));
+    await expect(checkActionAccess({ need: "manage_clients", on: "agency" })).rejects.toThrow(
+      "You don't have access to this. Ask your agency owner.",
+    );
+  });
+
   it("passes a custom guard through with the acting caller", async () => {
-    actingMock.mockResolvedValue(acting([]));
-    const ctx = await checkActionAccess({ custom: "checks area approve itself" });
+    actingMock.mockResolvedValue(member([]));
+    const ctx = await checkActionAccess({ custom: "checks approve itself" });
     expect(ctx.caller.userId).toBe("u1");
     expect(targetMock).not.toHaveBeenCalled();
   });
@@ -77,17 +84,17 @@ describe("checkActionAccess", () => {
     let release!: (v: unknown) => void;
     actingMock.mockImplementation(() => new Promise((r) => { release = r; }));
     targetMock.mockResolvedValue({ clientId: "c-1", orgId: "org-1" });
-    const pending = checkActionAccess({ need: "canvases.edit", on: { canvasId: "cv-1" } });
+    const pending = checkActionAccess({ need: "edit", on: { canvasId: "cv-1" } });
     await Promise.resolve();
     expect(targetMock).toHaveBeenCalledWith({ canvasId: "cv-1" });
-    release(acting(["canvases.edit"]));
+    release(member(["view", "edit"]));
     await expect(pending).resolves.toMatchObject({ target: { clientId: "c-1" } });
   });
 
   it("hands back the impersonation state it resolved", async () => {
     const impersonation = { isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: true };
-    actingMock.mockResolvedValue({ ...acting(["clients.edit"]), impersonation });
-    const ctx = await checkActionAccess({ need: "clients.edit", on: "agency" });
+    actingMock.mockResolvedValue({ ...acting(testOwnerAccess()), impersonation });
+    const ctx = await checkActionAccess({ need: "manage_clients", on: "agency" });
     expect(ctx.impersonation).toBe(impersonation);
   });
 });

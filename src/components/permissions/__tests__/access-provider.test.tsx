@@ -31,7 +31,7 @@ describe("AccessProvider", () => {
 
   it("renders the right answers on the first render from the server payload, with no request", () => {
     const client = appClient();
-    const payload = testMePayload(testAccess({ keys: ["scripts.view", "scripts.edit"], clientIds: ["c1"] }));
+    const payload = testMePayload(testAccess({ permissions: ["view", "edit"], clientIds: ["c1"] }));
     const html = renderToStaticMarkup(
       <QueryClientProvider client={client}>
         <AccessProvider initial={payload}><Probe /></AccessProvider>

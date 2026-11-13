@@ -7,11 +7,8 @@ import {
   type ApprovalStatus,
 } from "@/lib/approval";
 import { accessOf } from "@/lib/permissions/server";
-import { can, canAnywhere, canSeeClient } from "@/lib/permissions/check";
+import { check } from "@/lib/permissions/check";
 import { resolveTarget } from "@/lib/permissions/targets";
-import type { ClientScopedKey } from "@/lib/permissions/catalogue";
-import { approveKeyForNodeType } from "@/lib/permissions/node-area";
-import { MEDIA_APPROVE_KEYS } from "@/lib/permissions/presets";
 import { withAction } from "@/lib/actions/with-action";
 import { insertDecision } from "@/lib/db/decisions";
 import { randomUUID } from "crypto";
@@ -44,16 +41,15 @@ export async function setVersionApprovalAction(
     annotations?: AnnotationPayload[];
   },
 ): Promise<ApprovalActionResult> {
-  return withAction("setVersionApprovalAction", { custom: "needs Approve on the version's node area; checked after reading the node type (Task 9)" }, async (ctx): Promise<ApprovalActionResult> => {
+  return withAction("setVersionApprovalAction", { custom: "needs Approve on the version's client; checked after reading the version, and refused as a returned message (BUG-003)" }, async (ctx): Promise<ApprovalActionResult> => {
     const refuse = (error: string) => ({ ok: false as const, error });
     const caller = ctx.caller;
 
-    // R2.1/R2.2, D495 — approving needs Approve on the node's area. D166 kept: refuse
-    // before any read when the person can approve nothing, so version ids can't be probed.
-    // The UI also hides the control, but that is a courtesy on top of this, never the
-    // mechanism (R2.3).
+    // R2.1/R2.2, D507 — approving needs Approve on the version's client. D166 kept: refuse before
+    // any read when the person can approve on no client, so version ids can't be probed. The UI
+    // also hides the control, but that is a courtesy on top of this, never the mechanism (R2.3).
     const access = accessOf(caller);
-    if (!MEDIA_APPROVE_KEYS.some((k) => canAnywhere(access, k))) {
+    if (check(access, "approve", { orgId: ctx.effectiveOrgId, clientId: null }) !== "allow") {
       return refuse("You are not permitted to approve or reject work.");
     }
 
@@ -77,20 +73,17 @@ export async function setVersionApprovalAction(
 
     // Tenancy, not just role: a senior of org A must not be able to annotate org B's
     // work by guessing a version id. 404-shaped message (never "wrong org"), matching
-    // the withClient/withNode 404-not-403 convention in route-helpers.ts. A client outside
-    // the person's list answers the same way (D496). Compared with the agency being acted
-    // in, so an elevated impersonator approves in the agency they are viewing.
+    // the withClient/withNode 404-not-403 convention in route-helpers.ts. Compared with the
+    // agency being acted in, so an elevated impersonator approves in the agency they are
+    // viewing. A client the person can't view answers the same way.
     const target = await resolveTarget({ versionId });
-    if (!target?.clientId || target.orgId !== ctx.effectiveOrgId || !canSeeClient(access, target.clientId)) {
+    if (!target?.clientId || target.orgId !== ctx.effectiveOrgId) {
       return refuse("Version not found.");
     }
+    const decision = check(access, "approve", { orgId: target.orgId, clientId: target.clientId });
+    if (decision === "not_found") return refuse("Version not found.");
+    if (decision === "forbidden") return refuse("You are not permitted to approve or reject work.");
     const orgId = target.orgId;
-
-    // Approve on THIS node's area, for THIS node's client.
-    const key = target.nodeType ? approveKeyForNodeType(target.nodeType) : null;
-    if (!key || !can(access, key as ClientScopedKey, target.clientId)) {
-      return refuse("You are not permitted to approve or reject work.");
-    }
 
     const at = new Date().toISOString();
     const update = buildApprovalUpdate({

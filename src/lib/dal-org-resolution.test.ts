@@ -93,16 +93,19 @@ describe("caller context membership read", () => {
     await expect(resolveCallerContextOrNull()).resolves.toBeNull();
   });
 
-  it("builds the caller from a designer membership row", async () => {
+  it("builds the caller's access from a member row", async () => {
     rpcMock.mockResolvedValue({
-      data: [testMembershipRow({ preset_key: "designer", is_owner: false, org_id: "org-7" })],
+      data: [testMembershipRow({ org_id: "org-7", is_owner: false, permissions: ["view"], clients: [{ client_id: "c1", permissions: ["view"] }] })],
       error: null,
     });
     const { resolveCallerContext } = await import("@/lib/dal");
     const caller = await resolveCallerContext();
     expect(caller.orgId).toBe("org-7");
-    expect(caller.orgRole).toBe("designer");
-    expect(caller.access.presetKey).toBe("designer");
+    const org = caller.access.orgs.get("org-7");
+    expect(org?.isOwner).toBe(false);
+    expect(org?.clients.get("c1")?.has("view")).toBe(true);
+    // The mocked session is a super admin's (app_metadata.platform_role).
+    expect(caller.access.isSuperAdmin).toBe(true);
   });
 });
 

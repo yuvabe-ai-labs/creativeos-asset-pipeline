@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { approveKeyForNodeType, reviewableNodeTypes } from "./node-area";
-import { testAccess } from "./test-fixtures";
+import { approveKeyForNodeType } from "./node-area";
 
 // Every component that approves a version, and the node types it is shown for. A new component
 // calling setVersionApprovalAction fails the scan below until it is listed here, and every type
@@ -58,9 +57,4 @@ describe("approval area per node type", () => {
       });
     }
   }
-
-  it("lists the review-queue node types a person can approve somewhere", () => {
-    expect(reviewableNodeTypes(testAccess({ keys: ["image_generation.approve"] }))).toEqual(["image-gen"]);
-    expect(reviewableNodeTypes(testAccess({ keys: [] }))).toEqual([]);
-  });
 });

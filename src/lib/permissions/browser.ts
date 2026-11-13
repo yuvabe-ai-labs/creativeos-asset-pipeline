@@ -1,8 +1,9 @@
 import { subject } from "@casl/ability";
 import { packRules, unpackRules, type PackRule } from "@casl/ability/extra";
 import { buildAbility, buildRules, type AppAbility, type AppRule } from "./ability";
-import { isClientScopedKey, splitKey, type PermissionKey } from "./catalogue";
-import type { Access } from "./access";
+import { ALL_PERMISSION_KEYS, isClientScopedKey, splitKey, type PermissionKey } from "./catalogue";
+import type { Access } from "./model";
+import { clientIdsWith } from "./check";
 
 // D499 §6.3: the server packs the person's rules into the first HTML and /api/me; the browser
 // unpacks them into one ability. Rules are only ever built on the server (plan 1); nothing here
@@ -10,8 +11,16 @@ import type { Access } from "./access";
 
 export type PackedRules = PackRule<AppRule>[];
 
-export function packAccessRules(access: Access): PackedRules {
-  return packRules(buildRules(access.permissions, access.clientScope));
+// Task 5 → Task 7 of plan 3 only: the browser still reads CASL rules, so the six-permission
+// access is turned back into them. A member holds every area's level they hold on any client
+// they can view, on those clients; a per-client difference (spec §8) shows as the union until
+// Task 7 sends the access itself.
+export function packAccessRules(access: Access, orgId: string): PackedRules {
+  const scope = clientIdsWith(access, orgId, "view");
+  if (scope === null) return packRules(buildRules(new Set(ALL_PERMISSION_KEYS), "all"));
+  const anyClient = access.orgs.get(orgId)?.anyClient ?? new Set();
+  const keys = ALL_PERMISSION_KEYS.filter((k) => isClientScopedKey(k) && anyClient.has(splitKey(k).level));
+  return packRules(buildRules(new Set(keys), new Set(scope)));
 }
 
 export function rulesFromPacked(packed: PackedRules): AppRule[] {

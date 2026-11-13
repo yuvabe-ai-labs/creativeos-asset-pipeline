@@ -3,13 +3,13 @@ import type { CallerContext } from "@/lib/dal";
 import type { ImpersonationState } from "@/lib/auth/impersonation";
 import { accessOf, resolveActingCaller } from "./server";
 import { resolveTarget, type ActionTarget, type ResolvedTarget } from "./targets";
-import { denialFor, ForbiddenError } from "./check";
-import type { PermissionKey } from "./catalogue";
+import { check, ForbiddenError } from "./check";
+import { actionForNeed, type Need } from "./legacy-need";
 
 export const NOT_FOUND_MESSAGE = "Not found.";
 
 export type ActionGuard =
-  | { need: PermissionKey; on: ActionTarget }
+  | { need: Need; on: ActionTarget }
   /** The action checks permission itself, after reading what it acts on. Say why. */
   | { custom: string };
 
@@ -21,7 +21,7 @@ export type ActionContext = {
   impersonation: ImpersonationState;
 };
 
-// D496 for server actions: the same agency + client scope + tick rule as the API chokepoints.
+// D496/D504 for server actions: the same agency, client and permission rule as the API chokepoints.
 // Throws (server actions throw on invalid states in this codebase); "Not found." never says
 // whether the row exists in another agency or outside the person's clients. The target row
 // does not depend on the caller, so both are read at once.
@@ -35,14 +35,15 @@ export async function checkActionAccess(guard: ActionGuard): Promise<ActionConte
   if ("custom" in guard) return { ...base, target: null };
 
   const access = accessOf(acting.caller);
+  const action = actionForNeed(guard.need);
   if (guard.on === "agency") {
-    if (denialFor(access, guard.need, null)) throw new ForbiddenError();
+    if (check(access, action, { orgId: acting.effectiveOrgId, clientId: null }) !== "allow") throw new ForbiddenError();
     return { ...base, target: null };
   }
 
   if (!target || target.orgId !== acting.effectiveOrgId) throw new Error(NOT_FOUND_MESSAGE);
-  const denied = denialFor(access, guard.need, target.clientId);
-  if (denied === "not_found") throw new Error(NOT_FOUND_MESSAGE);
-  if (denied === "forbidden") throw new ForbiddenError();
+  const decision = check(access, action, { orgId: target.orgId, clientId: target.clientId });
+  if (decision === "not_found") throw new Error(NOT_FOUND_MESSAGE);
+  if (decision === "forbidden") throw new ForbiddenError();
   return { ...base, target };
 }

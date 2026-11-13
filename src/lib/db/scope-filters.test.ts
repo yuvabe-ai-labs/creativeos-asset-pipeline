@@ -25,7 +25,6 @@ vi.mock("@/lib/supabase/server", () => {
 });
 vi.mock("./profiles", () => ({ resolveDisplayNames: vi.fn(async () => new Map()) }));
 
-import { testAccess } from "@/lib/permissions/test-fixtures";
 import { listRecentCanvases } from "./canvases";
 import { getOrgReviewCounts } from "./review";
 import { listClientsWithMoodboards } from "./moodboards";
@@ -55,49 +54,32 @@ describe("getOrgReviewCounts", () => {
     { client_id: "c1", canvas_id: "cv1", pending: 2 },
     { client_id: "c2", canvas_id: "cv2", pending: 5 },
   ];
-  const approver = (clientIds?: string[]) =>
-    testAccess({ keys: ["image_generation.approve", "video_generation.approve"], clientIds });
 
-  it("counts only the person's clients when they have a list", async () => {
+  it("counts only the clients given (where the person holds Approve)", async () => {
     state.result = { data: rows, error: null };
-    const counts = await getOrgReviewCounts("org-1", approver(["c1"]));
+    const counts = await getOrgReviewCounts("org-1", ["c1"]);
     expect(counts.byClient).toEqual({ c1: 2 });
     expect(counts.byCanvas).toEqual({ cv1: 2 });
   });
 
-  it("counts every client for someone on all clients", async () => {
+  it("counts every client for the owner (null)", async () => {
     state.result = { data: rows, error: null };
-    const counts = await getOrgReviewCounts("org-1", approver());
+    const counts = await getOrgReviewCounts("org-1", null);
     expect(counts.byClient).toEqual({ c1: 2, c2: 5 });
   });
 
-  it("counts only the review types the person can approve, grouped in SQL", async () => {
-    state.result = { data: [{ client_id: "c1", canvas_id: "cv1", pending: 2 }], error: null };
-    const counts = await getOrgReviewCounts("org-1", testAccess({ keys: ["image_generation.approve"] }));
-    expect(calls).toEqual([
-      ["rpc", ["org_review_counts_for_types", { p_org_id: "org-1", p_node_types: ["image-gen"] }]],
-    ]);
-    expect(counts.byCanvas).toEqual({ cv1: 2 });
+  it("reads the counts with one grouped call", async () => {
+    await getOrgReviewCounts("org-1", null);
+    expect(calls).toEqual([["rpc", ["org_review_counts", { p_org_id: "org-1" }]]]);
   });
 
-  it("keeps the client scope on the some-types path", async () => {
-    state.result = { data: rows, error: null };
-    const counts = await getOrgReviewCounts(
-      "org-1",
-      testAccess({ keys: ["image_generation.approve"], clientIds: ["c2"] }),
-    );
-    expect(counts.byClient).toEqual({ c2: 5 });
-  });
-
-  it("throws when the some-types read fails", async () => {
+  it("throws when the read fails", async () => {
     state.result = { data: null, error: new Error("boom") };
-    await expect(
-      getOrgReviewCounts("org-1", testAccess({ keys: ["image_generation.approve"] })),
-    ).rejects.toThrow("boom");
+    await expect(getOrgReviewCounts("org-1", null)).rejects.toThrow("boom");
   });
 
-  it("reads nothing for someone who can approve nothing", async () => {
-    const counts = await getOrgReviewCounts("org-1", testAccess({ keys: ["internal_review.view"] }));
+  it("reads nothing for someone who can approve on no client", async () => {
+    const counts = await getOrgReviewCounts("org-1", []);
     expect(calls).toEqual([]);
     expect(counts.total).toBe(0);
   });

@@ -1,4 +1,4 @@
-import type { Access } from "@/lib/permissions/access";
+import type { Access } from "@/lib/permissions/model";
 
 export type PlatformRole = "super_admin" | "member";
 export type OrgRole = "owner" | "senior" | "designer";
@@ -8,10 +8,8 @@ export type CallerContext = {
   email: string | null;
   platformRole: PlatformRole;
   orgId: string;
-  /** Derived from the preset key until plan 2 removes it; new code checks access, never this. */
-  orgRole: OrgRole;
   mustChangePassword: boolean;
-  /** D495: what this person may do. Read it through accessOf(), never directly. */
+  /** D500: what this person may do. Read it through accessOf(), never directly. */
   access: Access;
 };
 
@@ -38,17 +36,4 @@ export function mapAppMetadataToMustChangePassword(appMetadata: unknown): boolea
     typeof appMetadata === "object" &&
     (appMetadata as Record<string, unknown>).must_change_password === true
   );
-}
-
-// The frozen Identity.role only distinguishes "can approve" (senior) from "cannot"
-// (designer). Owners get full access in the pilot, so they map to senior. (Pilot only
-// ever creates owner memberships — see D80/the Stage 1 index doc.)
-export function orgRoleToIdentityRole(orgRole: OrgRole): "senior" | "designer" {
-  return orgRole === "designer" ? "designer" : "senior";
-}
-
-// The three seeded presets map onto the old roles; any other preset reads as designer, the
-// narrowest, for the few places still reading orgRole until plan 2.
-export function presetKeyToOrgRole(presetKey: string): OrgRole {
-  return presetKey === "owner" || presetKey === "senior" ? presetKey : "designer";
 }

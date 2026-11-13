@@ -4,9 +4,9 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { ClientRow, CanvasRow, NodeRow } from "@/lib/db/types";
 import type { CallerContext } from "@/lib/dal";
 import { resolveImpersonationState, type ImpersonationState } from "@/lib/auth/impersonation";
-import { accessOf, resolveActingCaller } from "@/lib/permissions/server";
-import { denialFor, FORBIDDEN_MESSAGE, type Denial } from "@/lib/permissions/check";
-import type { PermissionKey } from "@/lib/permissions/catalogue";
+import { accessOf, resolveActingCaller, type ActingCaller } from "@/lib/permissions/server";
+import { check, FORBIDDEN_MESSAGE, type Decision } from "@/lib/permissions/check";
+import { actionForNeed, type Need } from "@/lib/permissions/legacy-need";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
@@ -18,12 +18,16 @@ import { unwrapEmbed } from "@/lib/db/embed";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyResponse = NextResponse<any>;
 
-// D496: every handler names the one permission it needs. Required, so TypeScript forces the
+// D496/D504: every handler names the one action it needs. Required, so TypeScript forces the
 // decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
-export type Guard = { need: PermissionKey };
+export type Guard = { need: Need };
 
-function denial(denied: Denial, notFoundMessage: string): AnyResponse {
-  return denied === "not_found" ? apiError(notFoundMessage, 404) : apiError(FORBIDDEN_MESSAGE, 403);
+function decide(acting: ActingCaller, need: Need, clientId: string | null): Decision {
+  return check(accessOf(acting.caller), actionForNeed(need), { orgId: acting.effectiveOrgId, clientId });
+}
+
+function denial(decision: Exclude<Decision, "allow">, notFoundMessage: string): AnyResponse {
+  return decision === "not_found" ? apiError(notFoundMessage, 404) : apiError(FORBIDDEN_MESSAGE, 403);
 }
 
 // The Stage 4 write-gate (D81): while impersonating and not in elevated mode, every
@@ -88,8 +92,8 @@ export async function withClient(
   // Org isolation: 404, never 403 — do not confirm foreign resources exist.
   if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Client not found.", 404);
 
-  const denied = denialFor(accessOf(acting.caller), guard.need, clientId);
-  if (denied) return denial(denied, "Client not found.");
+  const decision = decide(acting, guard.need, clientId);
+  if (decision !== "allow") return denial(decision, "Client not found.");
 
   const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
@@ -125,8 +129,8 @@ export async function withCanvas(
   const client = unwrapEmbed(row.clients);
   if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Canvas not found.", 404);
 
-  const denied = denialFor(accessOf(acting.caller), guard.need, row.client_id);
-  if (denied) return denial(denied, "Canvas not found.");
+  const decision = decide(acting, guard.need, row.client_id);
+  if (decision !== "allow") return denial(decision, "Canvas not found.");
 
   const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
@@ -196,8 +200,8 @@ export async function withNode(
     return apiError("Node not found.", 404);
   }
 
-  const denied = denialFor(accessOf(acting.caller), guard.need, canvas.client_id);
-  if (denied) return denial(denied, "Node not found.");
+  const decision = decide(acting, guard.need, canvas.client_id);
+  if (decision !== "allow") return denial(decision, "Node not found.");
 
   const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
@@ -242,8 +246,8 @@ export async function withMoodboard(
   const client = unwrapEmbed(row.clients);
   if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Moodboard not found.", 404);
 
-  const denied = denialFor(accessOf(acting.caller), guard.need, row.client_id);
-  if (denied) return denial(denied, "Moodboard not found.");
+  const decision = decide(acting, guard.need, row.client_id);
+  if (decision !== "allow") return denial(decision, "Moodboard not found.");
 
   const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
@@ -252,16 +256,16 @@ export async function withMoodboard(
 }
 
 // For routes not rooted at one client or resource: the voice library, the moodboard index, the
-// review inbox and counts. A client-scoped key passes when held for at least one client; the
-// handler then filters what it returns with canSeeClient (D496).
+// review inbox and counts. A client action passes when held on at least one client the person
+// can view; the handler then keeps what it returns to those clients (clientIdsWith).
 export async function withAccess(
   req: Request,
   guard: Guard,
   handler: (caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const acting = await resolveActingCaller();
-  const denied = denialFor(accessOf(acting.caller), guard.need, null);
-  if (denied) return denial(denied, "Not found.");
+  const decision = decide(acting, guard.need, null);
+  if (decision !== "allow") return denial(decision, "Not found.");
   const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
   return handler(acting.caller, acting.effectiveOrgId);

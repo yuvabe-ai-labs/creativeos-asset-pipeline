@@ -21,7 +21,7 @@ const render = (client: QueryClient) =>
 describe("useIdentity", () => {
   it("selects from the me query: no second cache", () => {
     const client = new QueryClient();
-    client.setQueryData(meKeys.current(), testMePayload(testAccess({ keys: [] }), { creditsUsed: null }));
+    client.setQueryData(meKeys.current(), testMePayload(testAccess({ permissions: [], clientIds: [] }), { creditsUsed: null }));
     expect(render(client)).toContain("Arun|true|Yuvabe Studios|Designer|");
   });
 

@@ -42,13 +42,13 @@ vi.mock("@/lib/db/nodes", () => ({ saveCanvasNodes: vi.fn(async () => undefined)
 vi.mock("@/lib/db/edges", () => ({ saveCanvasEdges: vi.fn(async () => undefined) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { testOwnerAccess } from "@/lib/permissions/test-fixtures";
+import { testAllowAllAccess } from "@/lib/permissions/test-fixtures";
 import { createCanvasAction, createCanvasFromScriptAction } from "./canvases";
 
 // effectiveOrgId follows resolveOrgIdMock; the target row sits in `targetOrg` (default: the same org).
 function wireGuard(targetOrg?: string) {
   resolveActingCallerMock.mockImplementation(async () => ({
-    caller: { userId: "u1", orgId: "own-org", access: testOwnerAccess() },
+    caller: { userId: "u1", orgId: "own-org", access: testAllowAllAccess() },
     effectiveOrgId: await resolveOrgIdMock(),
     // As the real resolveActingCaller does: the impersonation state rides with the caller.
     impersonation: (await resolveImpersonationStateMock()) ?? { isImpersonating: false },

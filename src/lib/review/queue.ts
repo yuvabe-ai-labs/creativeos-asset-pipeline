@@ -9,6 +9,9 @@ export type ReviewCounts = {
   total: number;
 };
 
+/** The node types review_queue_items carries (migration 0031). */
+export const REVIEWABLE_NODE_TYPES = ["image-gen", "video-gen"] as const;
+
 // R5.5: the client figure is DERIVED from the canvas figures rather than queried
 // separately, so the two cannot disagree. This is the whole reason both groupings come
 // back from one RPC scan instead of two queries that would each be "obviously correct"

@@ -1,9 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { resolveDisplayNames } from "./profiles";
-import { scopeIds } from "@/lib/permissions/check";
-import { REVIEWABLE_NODE_TYPES, reviewableNodeTypes } from "@/lib/permissions/node-area";
-import type { Access } from "@/lib/permissions/access";
 import {
   summarizeCounts,
   inboxFilterFor,
@@ -49,29 +46,12 @@ const QUEUE_COLUMNS =
   "operator_user_id, operator, approved_by_user_id, approved_seen_at, created_at";
 
 // R5.1/R5.2/R5.3: one read, never one query per row (PRD §8: the client list renders for every
-// org member on every visit). Pending counts are of the work the person can approve (D495), in
-// their clients (D496). With every review type that is the org_review_counts RPC, as before.
-// With some it is org_review_counts_for_types (grouped in SQL, so no row cap undercounts).
-// With none, there is nothing to count.
-export async function getOrgReviewCounts(orgId: string, access: Access): Promise<ReviewCounts> {
-  const types = reviewableNodeTypes(access);
-  if (types.length === 0) return summarizeCounts([]);
-  const clientIds = scopeIds(access);
+// org member on every visit). Pending counts are of the work the person can approve (D507): the
+// clients whose row has Approve, or every client for the owner (null). An empty list reads nothing.
+export async function getOrgReviewCounts(orgId: string, clientIds: readonly string[] | null): Promise<ReviewCounts> {
+  if (clientIds !== null && clientIds.length === 0) return summarizeCounts([]);
   const inScope = clientIds === null ? null : new Set(clientIds);
-  const supabase = createServerSupabase();
-
-  if (types.length === REVIEWABLE_NODE_TYPES.length) {
-    const { data, error } = await supabase.rpc("org_review_counts", { p_org_id: orgId });
-    if (error) throw error;
-    const rows = ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[])
-      .filter((r) => inScope === null || inScope.has(r.client_id));
-    return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending })));
-  }
-
-  const { data, error } = await supabase.rpc("org_review_counts_for_types", {
-    p_org_id: orgId,
-    p_node_types: types,
-  });
+  const { data, error } = await createServerSupabase().rpc("org_review_counts", { p_org_id: orgId });
   if (error) throw error;
   const rows = ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[])
     .filter((r) => inScope === null || inScope.has(r.client_id));

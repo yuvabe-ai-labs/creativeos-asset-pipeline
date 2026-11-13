@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { loadClientPage } from "@/lib/permissions/page";
 import { listCanvases } from "@/lib/db/canvases";
 import { getOrgReviewCounts } from "@/lib/db/review";
-import { can } from "@/lib/permissions/check";
+import { check, clientIdsWith } from "@/lib/permissions/check";
 import { accessOf } from "@/lib/permissions/server";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
@@ -48,10 +48,10 @@ export default async function ClientPage({
   // numbers. Same RPC the client list uses — R5.5 holds at runtime, not just in the schema.
   const [canvases, reviewCounts] = await Promise.all([
     listCanvases(client.id),
-    getOrgReviewCounts(effectiveOrgId, accessOf(caller)),
+    getOrgReviewCounts(effectiveOrgId, clientIdsWith(accessOf(caller), effectiveOrgId, "approve")),
   ]);
 
-  const canAddCanvas = can(accessOf(caller), "canvases.edit", client.id);
+  const canAddCanvas = check(accessOf(caller), "edit", { orgId: effectiveOrgId, clientId: client.id }) === "allow";
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">

@@ -8,25 +8,23 @@ import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import {
   mapAppMetadataToPlatformRole,
   mapAppMetadataToMustChangePassword,
-  presetKeyToOrgRole,
   type CallerContext,
 } from "./dal-logic";
-import { accessFromRow, type MembershipAccessRow } from "@/lib/permissions/access";
+import { accessFromRows, type MembershipAccessRow } from "@/lib/permissions/model";
 
 export type { CallerContext } from "./dal-logic";
 
-// D495/D498: ONE round trip returns the membership and everything access needs. Several rows
-// = several agencies, which is not allowed yet (the one_org_per_user index); when it is, the
-// agency switcher's choice picks the row here, and nowhere else.
+// D500/D508: ONE round trip returns the membership and everything access needs. Several rows
+// = several agencies, which is not allowed yet (the one_org_per_user index).
 // cache() dedupes within one render (so both resolvers share one RPC per user id), not inside
-// route handlers.
-const loadMembershipAccess = cache(async (userId: string): Promise<MembershipAccessRow | null> => {
+// route handlers. A failed read throws: it is an error page, never "no access" (spec §4.1).
+const loadMembershipAccess = cache(async (userId: string): Promise<MembershipAccessRow[]> => {
   const db = createServerSupabase();
   const { data, error } = await db.rpc("get_membership_access", { p_user_id: userId });
   if (error) throw error;
   const rows = (data ?? []) as MembershipAccessRow[];
   if (rows.length > 1) throw new Error("Belonging to more than one agency is not supported yet.");
-  return rows[0] ?? null;
+  return rows;
 });
 
 // One Supabase session read per render, shared by both resolvers (AGENTS.md rule 6).
@@ -36,16 +34,15 @@ function buildCallerContext(
   user: NonNullable<Awaited<ReturnType<typeof getUserWithRetry>>>,
   platformRole: CallerContext["platformRole"],
   mustChangePassword: boolean,
-  row: MembershipAccessRow,
+  rows: MembershipAccessRow[],
 ): CallerContext {
   return {
     userId: user.id,
     email: user.email ?? null,
     platformRole,
-    orgId: row.org_id,
-    orgRole: presetKeyToOrgRole(row.preset_key),
+    orgId: rows[0].org_id,
     mustChangePassword,
-    access: accessFromRow(row),
+    access: accessFromRows(user.id, platformRole === "super_admin", rows),
   };
 }
 
@@ -60,13 +57,13 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
   const mustChangePassword = mapAppMetadataToMustChangePassword(user.app_metadata);
 
-  const row = await loadMembershipAccess(user.id);
-  if (!row) {
+  const rows = await loadMembershipAccess(user.id);
+  if (rows.length === 0) {
     // Authenticated but unprovisioned — treat as no access.
     redirect("/login?error=no-membership");
   }
 
-  return buildCallerContext(user, platformRole, mustChangePassword, row);
+  return buildCallerContext(user, platformRole, mustChangePassword, rows);
 });
 
 // Non-redirecting variant of resolveCallerContext(), for callers that must never trigger a
@@ -81,10 +78,10 @@ export const resolveCallerContextOrNull = cache(async (): Promise<CallerContext 
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
   const mustChangePassword = mapAppMetadataToMustChangePassword(user.app_metadata);
 
-  const row = await loadMembershipAccess(user.id);
-  if (!row) return null;
+  const rows = await loadMembershipAccess(user.id);
+  if (rows.length === 0) return null;
 
-  return buildCallerContext(user, platformRole, mustChangePassword, row);
+  return buildCallerContext(user, platformRole, mustChangePassword, rows);
 });
 
 // The org whose data the caller should see. Defaults to the caller's own org; when a

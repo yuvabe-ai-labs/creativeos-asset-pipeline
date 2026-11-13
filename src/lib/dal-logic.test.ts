@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapAppMetadataToPlatformRole, orgRoleToIdentityRole, mapAppMetadataToMustChangePassword, presetKeyToOrgRole } from "./dal-logic";
+import { mapAppMetadataToPlatformRole, mapAppMetadataToMustChangePassword } from "./dal-logic";
 
 describe("mapAppMetadataToPlatformRole", () => {
   it("reads super_admin from app_metadata", () => {
@@ -15,18 +15,6 @@ describe("mapAppMetadataToPlatformRole", () => {
   });
 });
 
-describe("orgRoleToIdentityRole", () => {
-  it("maps owner to senior (full access, can approve)", () => {
-    expect(orgRoleToIdentityRole("owner")).toBe("senior");
-  });
-  it("maps senior to senior", () => {
-    expect(orgRoleToIdentityRole("senior")).toBe("senior");
-  });
-  it("maps designer to designer", () => {
-    expect(orgRoleToIdentityRole("designer")).toBe("designer");
-  });
-});
-
 describe("mapAppMetadataToMustChangePassword", () => {
   it("reads true from app_metadata", () => {
     expect(mapAppMetadataToMustChangePassword({ must_change_password: true })).toBe(true);
@@ -38,14 +26,5 @@ describe("mapAppMetadataToMustChangePassword", () => {
     expect(mapAppMetadataToMustChangePassword(undefined)).toBe(false);
     expect(mapAppMetadataToMustChangePassword({ must_change_password: "true" })).toBe(false); // wrong type
     expect(mapAppMetadataToMustChangePassword(true)).toBe(false); // wrong shape entirely
-  });
-});
-
-describe("presetKeyToOrgRole", () => {
-  it("maps the seeded presets and treats anything else as designer", () => {
-    expect(presetKeyToOrgRole("owner")).toBe("owner");
-    expect(presetKeyToOrgRole("senior")).toBe("senior");
-    expect(presetKeyToOrgRole("designer")).toBe("designer");
-    expect(presetKeyToOrgRole("editor")).toBe("designer");
   });
 });

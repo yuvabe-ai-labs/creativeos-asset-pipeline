@@ -40,7 +40,7 @@ vi.mock("@/lib/db/annotations", () => ({
 import { setVersionApprovalAction, markVersionApprovalSeenAction } from "./approval";
 import type { AnnotationPayload } from "@/lib/review-annotations/payload";
 import { testAccess } from "@/lib/permissions/test-fixtures";
-import type { Access } from "@/lib/permissions/access";
+import type { Access } from "@/lib/permissions/model";
 
 function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
   return {
@@ -117,7 +117,7 @@ beforeEach(() => {
 
 describe("setVersionApprovalAction", () => {
   it("refuses before any read when the person can approve nothing", async () => {
-    setAccess(testAccess({ keys: ["canvases.view"] }));
+    setAccess(testAccess({ permissions: ["view"], clientIds: ["c1"] }));
     stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
       ok: false,
@@ -133,9 +133,9 @@ describe("setVersionApprovalAction", () => {
     expect(mockResolveTarget).toHaveBeenCalledWith({ versionId: "v1" });
   });
 
-  it("approves a prompt node with image approve, and a video prompt with video approve", async () => {
-    setAccess(testAccess({ keys: ["image_generation.approve", "video_generation.approve"] }));
-    for (const nodeType of ["prompt", "video-prompt", "multishot-prompt"]) {
+  it("approves any node type with Approve on its client (D507: no areas)", async () => {
+    setAccess(testAccess({ permissions: ["view", "approve"], clientIds: ["c1"] }));
+    for (const nodeType of ["image-gen", "prompt", "video-gen", "video-prompt", "multishot-prompt", "dubbing"]) {
       stubDb("org-1", { nodeType });
       await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({ ok: true });
     }
@@ -150,9 +150,9 @@ describe("setVersionApprovalAction", () => {
     expect(mockInsertDecision).toHaveBeenCalledWith(expect.objectContaining({ orgId: "org-1" }));
   });
 
-  it("refuses approving video for a person who may approve only images", async () => {
-    setAccess(testAccess({ keys: ["image_generation.approve"] }));
-    stubDb("org-1", { nodeType: "video-gen" });
+  it("refuses on a client whose own set lacks Approve (spec §8)", async () => {
+    setAccess(testAccess({ permissions: ["view", "approve"], clientIds: [], clients: { c9: ["view", "approve"], c1: ["view"] } }));
+    stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
       ok: false,
       error: "You are not permitted to approve or reject work.",
@@ -161,7 +161,7 @@ describe("setVersionApprovalAction", () => {
 
   // Outside the person's clients answers like another agency: never confirms the version exists.
   it("refuses an image outside the person's clients as not found", async () => {
-    setAccess(testAccess({ keys: ["image_generation.approve"], clientIds: ["other-client"] }));
+    setAccess(testAccess({ permissions: ["view", "approve"], clientIds: ["other-client"] }));
     const captured = stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({
       ok: false,
@@ -170,8 +170,8 @@ describe("setVersionApprovalAction", () => {
     expect(captured.update).toBeUndefined();
   });
 
-  it("approves an image for a person with image approve", async () => {
-    setAccess(testAccess({ keys: ["image_generation.approve"] }));
+  it("approves for a person with Approve on the client", async () => {
+    setAccess(testAccess({ permissions: ["view", "approve"], clientIds: ["c1"] }));
     const captured = stubDb("org-1");
     await expect(setVersionApprovalAction("v1", { status: "approved" })).resolves.toEqual({ ok: true });
     expect(captured.update).toMatchObject({ approval_status: "approved" });
@@ -380,7 +380,7 @@ describe("setVersionApprovalAction with annotations", () => {
 
   it("still enforces the approve gate", async () => {
     stubDb();
-    setAccess(testAccess({ keys: ["canvases.view"] }), "u2");
+    setAccess(testAccess({ permissions: ["view"], clientIds: ["c1"] }), "u2");
     await expect(
       setVersionApprovalAction("v1", { status: "approved" }),
     ).resolves.toEqual({ ok: false, error: expect.stringMatching(/not permitted/i) });

@@ -29,7 +29,6 @@ vi.mock("@/lib/dal", async () => {
     email: "operator@yuvabe.com",
     platformRole: liveRoleBox.current,
     orgId: "yuvabe-org",
-    orgRole: "owner",
     mustChangePassword: false,
   });
   return {

@@ -15,7 +15,7 @@ import { testAccess } from "./test-fixtures";
 
 describe("accessOf", () => {
   it("returns the caller's access", () => {
-    const access = testAccess({ keys: ["scripts.view"] });
+    const access = testAccess({ permissions: ["view"], clientIds: ["c1"] });
     expect(accessOf({ access })).toBe(access);
   });
 
@@ -27,8 +27,8 @@ describe("accessOf", () => {
 describe("resolveActingCaller", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("uses the caller's own org and access when not impersonating", async () => {
-    const access = testAccess({ keys: ["scripts.view"] });
+  it("uses the caller's own agency and access when not impersonating", async () => {
+    const access = testAccess({ permissions: ["view"], clientIds: ["c1"] });
     callerMock.mockResolvedValue({ userId: "u1", orgId: "org-1", access });
     impersonationMock.mockResolvedValue({ isImpersonating: false });
     const acting = await resolveActingCaller();
@@ -36,12 +36,13 @@ describe("resolveActingCaller", () => {
     expect(acting.caller.access).toBe(access);
   });
 
-  it("acts as the target agency's owner while impersonating", async () => {
-    callerMock.mockResolvedValue({ userId: "op", orgId: "yuvabe", access: testAccess({ keys: [] }) });
+  it("acts as the target agency's owner while impersonating, as a super admin", async () => {
+    callerMock.mockResolvedValue({ userId: "op", orgId: "yuvabe", access: testAccess({ permissions: [], clientIds: [], orgId: "yuvabe" }) });
     impersonationMock.mockResolvedValue({ isImpersonating: true, operatorId: "op", targetOrgId: "org-9", elevated: false });
     const acting = await resolveActingCaller();
     expect(acting.effectiveOrgId).toBe("org-9");
-    expect(acting.caller.access.isOwner).toBe(true);
+    expect(acting.caller.access.isSuperAdmin).toBe(true);
+    expect(acting.caller.access.orgs.get("org-9")?.isOwner).toBe(true);
     expect(acting.caller.orgId).toBe("yuvabe");
   });
 });

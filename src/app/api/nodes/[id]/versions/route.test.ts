@@ -8,7 +8,6 @@ vi.mock("@/lib/dal", () => ({
     userId: "user-1",
     platformRole: "member",
     orgId: "org-1",
-    orgRole: "owner",
     mustChangePassword: false,
   })),
   resolveOrgId: vi.fn(async () => "org-1"),
