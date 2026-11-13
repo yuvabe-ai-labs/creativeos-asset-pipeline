@@ -8764,6 +8764,8 @@ Allowing several agencies later means three things:
 
 ### D501 — A client's People list decides who is on it *(recorded 2026-11-12; supersedes the scope half of D496; originated → `2026-11-12-agency-permissions-design.md`)*
 
+**Refined by D506 (2026-11-13).** The client's list is called Members and is also where invites are sent.
+
 **Decision.** Each client has a People page (`/clients/[id]/people`, owner only). Adding people inserts `membership_clients` rows in one step, each copying the person's agency-level permissions. Being on the list is the only way a member sees a client; `all_clients` is removed. A client out of reach stays a 404, and the chokepoints, required `need` and coverage tests of D496 stay.
 
 **Why.** Cyril's page: when ten people start on a new client, one list on the client is one action instead of ten setups.
@@ -8771,6 +8773,8 @@ Allowing several agencies later means three things:
 **Rejected.** Picking clients per person at invite (D496). An "all clients" flag for members.
 
 ### D502 — The invite is an email; the person enters their details and waits; the owner then gives access *(recorded 2026-11-12; refines D497; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Refined by D506 (2026-11-13).** Invites are sent from inside a client, and giving access puts the person on that client.
 
 **Decision.**
 - The owner (or the super admin, for any agency) enters an email. The invite keeps D497's mechanics: Resend, a sha256 of a random token, single use, 7 days, copyable link.
@@ -8833,3 +8837,22 @@ Allowing several agencies later means three things:
 - Managing people only through elevated view-as (fewer screens, less convenient when setting agencies up).
 - Owners inviting other owners (one owner per agency, D500).
 - Temporary passwords for a new agency's owner (D497 retired them).
+
+### D506 — Invites are sent from inside a client; giving access puts the person on that client *(recorded 2026-11-13; refines D501, D502, D505; originated → `2026-11-12-agency-permissions-design.md`)*
+
+**Decision.**
+- **Where.** A member is invited from a client's Members list (`/clients/[id]/members`), never from the Team page. The invitation carries the client. The only invite without a client is the super admin's owner invite.
+- **Joining.** Accepting creates the membership (waiting) and the client row with no permissions. Giving access on the Team page sets the permissions and the cascade fills that row, so the person can start at once; they are emailed that their access is ready. No live update: they open the app again.
+- **Existing members.** On a client's Members list, people already in the agency are added from a list, including people still waiting for access, without an invite.
+- **Members list.** Shows status (Member, Waiting for access, Invited) rather than permissions. Permissions are edited only on the Team page, the agency's master list. Removing a person, or cancelling an invite, works from both places.
+- **One open invite per person per agency.** A second invite from another client is refused; once the person has joined, they're added to other clients from the list.
+
+**Why.**
+- 13 Nov flow review (Cyril presenting, Anupama and Arun): owners invite from inside a client; permissions are managed centrally; setting them should put the person on the client without a separate step; an email instead of a live update.
+- Arun, 13 Nov: invites only inside a client, as agreed on the call.
+- Inserting the client row at accept, with no permissions, lets the existing cascade fill it on Give access; nothing new decides access.
+
+**Rejected.**
+- Invites from the Team page (D502): the owner then had to add the person to a client in a second step.
+- A live update to the waiting screen (an email is enough, and avoids a channel per person).
+- Several open invites for one person (the second client is added from the list once they've joined).

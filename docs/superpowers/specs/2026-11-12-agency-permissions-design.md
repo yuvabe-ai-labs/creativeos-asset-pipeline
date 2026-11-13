@@ -1,4 +1,4 @@
-# Agency permissions: four permissions on the person, one owner, clients by People list
+# Agency permissions: four permissions on the person, one owner, clients by Members list
 
 Date: 12 November 2026. Replaces the model in `2026-11-11-permission-based-access-design.md`
 (presets, 59 area ticks, picked clients per person). The enforcement plumbing built from that
@@ -8,7 +8,10 @@ Sources:
 - Anupama's summary of the 12 November 3 pm meeting (Slack, 3:18 pm).
 - Cyril's reply page "Per-Person Access" (12 November).
 - Arun's answers on 12 November: several agencies per person in this round, downloads open,
-  Give access sets permissions only, existing people keep their access on day one.
+  existing people keep their access on day one.
+- The 13 November flow review (Cyril presenting): invites are sent from inside a client; the
+  owner sets permissions in one master list; setting them puts the person on the client they
+  were invited to; an email tells them their access is ready.
 
 ADRs: D500 to D504 in the roadmap §7. The earlier permission ADRs on this branch were
 numbered D489 to D493, which `staging` has since used for other decisions; they are renumbered
@@ -23,8 +26,8 @@ D495 to D499 and marked where D500 to D504 replace them.
 | Where set | Preset plus per-person changes | On the person, at agency level |
 | Per client | One set for all the person's clients | A stored copy on each client assignment, kept in step by a cascade |
 | Owner | A preset with every tick | One per agency, everything on every client, not editable |
-| Clients | `all_clients` or a picked list, set on the person | A People list on each client; no "all clients" for members |
-| Invite | Owner sets preset, ticks and clients before sending | Email only; the person enters name and password, waits, then the owner gives access |
+| Clients | `all_clients` or a picked list, set on the person | A Members list on each client: invite someone new or add an existing member; no "all clients" for members |
+| Invite | Owner sets preset, ticks and clients before sending | From inside a client, email only; the person joins and waits; the owner sets permissions in the master list, which puts them on that client |
 | Agencies per person | One | Several, with a switcher |
 | Credit limit per person | Optional | None; the agency pool is the only limit |
 | Team, clients, credits | Ticks | Owner only |
@@ -62,10 +65,10 @@ change.
 
 Each agency has exactly one owner.
 - The owner has every permission on every client of the agency, including clients added later.
-  The owner has no `membership_clients` rows and is not stored on People lists; the People list
+  The owner has no `membership_clients` rows and is not stored on Members lists; the Members list
   shows them first as "Owner · everything".
 - Only the owner can: see and use the Team page, invite and remove people, change a person's
-  permissions, create and archive clients, manage People lists, and see credit usage.
+  permissions, create and archive clients, manage Members lists, and see credit usage.
 - A new agency has no owner until the owner the super admin invited accepts (§6.3).
 - The owner cannot be removed or demoted. Ownership moves only through the super admin
   (§6.6), which makes another member owner and the previous owner a member with all four
@@ -89,8 +92,8 @@ and adding a Make owner action for the owner, with no change to the checker or t
 
 ### 2.4 Waiting to be onboarded
 
-A member whose `access_given_at` is null, or who is on no client, sees only the onboarding
-screen: "You're being onboarded. Hang in there. {Agency} is setting up your access. Your
+A member whose `access_given_at` is null (they joined, the owner hasn't set permissions yet), or
+who is on no client, sees only the onboarding screen: "You're being onboarded. Hang in there. {Agency} is setting up your access. Your
 clients will appear here once you've been added." The same screen covers both waits.
 
 ## 3. Schema
@@ -119,11 +122,15 @@ rather than followed by a corrective migration. Sections 7 (node and edge trigge
   `(client_id, org_id) → clients (id, org_id) on delete cascade`. These stop a person being put
   on another agency's client, or a client being given to someone outside its agency, in the
   database.
-- index on `client_id` (People list)
+- index on `client_id` (Members list)
 
 `org_invitations` (new):
-- `id`, `org_id`, `email`, `as_owner boolean not null default false`, `token_hash` (sha256 of a
-  random token), `invited_by`, `created_at`, `expires_at` (7 days), `accepted_at`, `revoked_at`
+- `id`, `org_id`, `client_id`, `email`, `as_owner boolean not null default false`, `token_hash`
+  (sha256 of a random token), `invited_by`, `created_at`, `expires_at` (7 days), `accepted_at`,
+  `revoked_at`
+- foreign key `(client_id, org_id) → clients (id, org_id) on delete cascade`; check: `client_id`
+  is set exactly when `as_owner` is false (a member is always invited into a client; an owner
+  invite has none)
 - unique index on `token_hash`
 - unique partial index on `(org_id, lower(email))` where not accepted and not revoked (one open
   invite per person per agency)
@@ -289,46 +296,59 @@ The coverage test keeps failing any route or action without a `need`, and now ch
 
 All screens use the existing shadcn primitives and follow Cyril's page for layout and copy.
 
-### 6.1 Team page (`/team`, owner only)
+### 6.1 Team page: the master list (`/team`, owner only)
 
-Three sections:
-- **Waiting for you.** People who accepted their invite. Card: name, email, "Joined {date} ·
-  invited by {name}", the four permissions as switches (none on by default), "Generate spends the agency's
-  credits. These apply on every client {name} is added to.", and **Give access**, which saves
-  the permissions and sets `access_given_at`, and **Remove**, which deletes the membership (they
-  can be invited again). After Give access the person appears under Members, still seeing the
-  onboarding screen until added to a client. The header's Team link shows the number waiting.
-- **Invited.** Open invites: email, sent date, expiry, Copy link, Resend (new token, old one
-  stops working), Revoke.
+One place for every person in the agency and their permissions. Invites are not sent from here
+(§6.2). Three sections:
+- **Waiting for you.** People who accepted an invite and have no permissions yet. Card: name,
+  email, "Joined {date} · invited to {client} by {name}", the four permissions as switches (none
+  on by default), "Viewing, editing and downloading come with being on a client. Generate spends
+  the agency's credits.", and **Give access**, which saves the permissions and sets
+  `access_given_at`. Their client rows (the client they were invited to, and any they were added
+  to while waiting) receive the permissions through the cascade, so they can start work at once,
+  and they are emailed that their access is ready. **Remove** deletes the membership. The
+  header's Team link shows the number waiting.
+- **Invited.** Open invites: email, the client they were invited to, sent date, expiry, Copy
+  link, Resend (new token, old one stops working), Cancel.
 - **Members.** Owner first as "Owner · everything". Each member: name, email, permission chips,
-  number of clients. Edit opens the four switches; saving updates the agency level and the
-  cascade applies it to every client. Remove asks for confirmation and deletes the membership.
+  their clients. Edit opens the four switches; saving updates the agency level and the cascade
+  applies it to every client. Remove asks for confirmation and deletes the membership.
 
-Invite: an **Invite** button opens a dialog with one email field. It creates the invitation,
-emails the link through Resend and shows it to copy. Refused with a plain message: an invalid
-email, someone already in the agency, or an email with an open invite ("Resend it from the
-Invited list").
+### 6.2 Members on a client (`/clients/[id]/members`, owner only)
 
-### 6.2 People list (`/clients/[id]/people`, owner only)
-
-- "On this client": owners first as "Owner · everything", then each person with their permission
-  chips and Remove.
-- **Add people** (dashed primary chip) opens a list of agency members who have been given access
-  and are not on this client, with checkboxes, then "Add {n} people". One insert; each row copies
-  the person's agency-level set.
+Who works on this client, and the only place invites are sent from.
+- **List.** Owners first as "Owner · everything", then each person with a status: **Member**,
+  **Waiting for access** (joined, permissions not set yet) or **Invited** (not joined yet).
+  Permissions are not repeated here; they live on the Team page.
+- **Add people** (dashed primary chip) opens one dialog with two parts:
+  - **Already in {Agency}:** agency members not on this client, including people waiting for
+    access, with checkboxes, then "Add {n} people". One insert; each row copies the person's
+    agency-level set, so a member can start at once and a waiting person starts when given
+    access.
+  - **Invite someone new:** an email field. It creates the invitation for this client, emails the
+    link through Resend and shows it to copy.
+- **Row actions.** Remove from this client; for an invite, Resend and Cancel.
+- Refused with a plain message: an invalid email, someone already in the agency ("Add them from
+  the list above"), or an email with an open invite ("Already invited to {client}. Once they've
+  joined, add them from the list above.").
 
 ### 6.3 Invite link (`/invite/[token]`)
 
 - Invalid, used, revoked or expired: a plain message and a link to sign in.
 - No account for the invited email: name and password, then the account, profile and membership
-  are created and the person is signed in. A member invite starts waiting and shows the
-  onboarding screen. An owner invite ("Set up {Agency}") makes them the owner with access given
-  at once; they land on an empty client list with **New client** and **Invite your team**.
+  are created and the person is signed in.
+  - A member invite creates the membership waiting (`access_given_at` null) and the
+    `membership_clients` row for the invited client with no permissions. They see the
+    onboarding screen until the owner gives access.
+  - An owner invite ("Set up {Agency}") makes them the owner with access given at once; they land
+    on an empty client list with **New client**. Their team is invited from inside each client.
 - Account exists (the person is already in another agency): sign in if needed, then
-  "Join {Agency}". No second account; the new agency becomes the selected one. Signed in as a different email: "This
-  invite is for {email}. Sign in with that email to accept it."
+  "Join {Agency}". No second account; the new agency becomes the selected one. The rest is the
+  same as for a new person.
+- Signed in as a different email: "This invite is for {email}. Sign in with that email to accept
+  it."
 - Accepting is single use and marks the invitation accepted in the same step that creates the
-  membership.
+  membership and the client row.
 - When a member accepts, the agency's owner and the person who invited them are emailed: "{Name}
   joined {Agency}. Give them access on the Team page."
 
@@ -353,11 +373,14 @@ page has three tabs:
   read-only, or elevated with its audit log).
 - **Team**: the Team page component of §6.1 itself, with the owner's powers (invite, give access,
   edit, remove), plus **Make owner** on each member (calls `transfer_agency_owner`). The Invite
-  dialog adds an **As: Member | Owner** choice; Owner is offered only while the agency has no
-  owner and no open owner invite.
-- **Clients**: the agency's clients; each opens the People list component of §6.2.
+  dialog adds an **As: Member | Owner** choice; This owner invite is the only invite sent
+  from the Team tab, and is offered only while the agency has no owner and no open owner invite.
+- **Clients**: the agency's clients; each opens the Members component of §6.2, so the super
+  admin invites into a client the same way the owner does.
 
-Onboarding an agency: create it (name), then invite its owner from the Team tab. The admin list
+Onboarding an agency: create it (name), then invite its owner from the Team tab (the one invite
+that has no client). Whether this stays a screen or becomes a backend step was left open on 13
+November; the screen is built unless that changes. The admin list
 marks agencies with no owner yet. The temporary-password path (`addOrgMember`, D497) and
 `member-role-select` are removed.
 
@@ -372,6 +395,7 @@ person affected).
 | "{Inviter} invited you to join {Agency} on CreativeOS" | Invited member | Invite or Resend |
 | "Set up {Agency} on CreativeOS" | Invited owner | Owner invite or Resend |
 | "{Name} joined {Agency}. Give them access on the Team page." | Owner and inviter | A member accepts |
+| "Your access to {Agency} is ready" | The person | The owner gives access |
 
 Invites are limited to 50 per agency per day, so a leaked session can't mass-mail. Without
 `RESEND_API_KEY` the invite is still created and the link shown to copy.
@@ -438,7 +462,8 @@ update on their next `/api/me` refetch (focus or a 403).
 - Chokepoints: 404 for another agency and for a client the person is not on, 403 for a missing
   permission.
 - Server actions: invite (create, resend, revoke, accept for a new and an existing account, wrong
-  email, owner invite only while no owner, daily limit), give access, remove someone waiting,
+  email, invite always tied to a client except the owner's, second invite refused, daily limit),
+  give access (fills the invited client's row and sends the ready email), remove someone waiting,
   edit permissions, add and remove people, switch agency, transfer owner, and the same actions
   from Admin writing the audit log.
 - SQL (cascade, owner protection, backfill) is checked by hand on staging after the migration;
