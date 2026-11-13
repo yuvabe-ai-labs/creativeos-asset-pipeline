@@ -237,10 +237,14 @@ Order:
 1. Super admin: allow.
 2. No membership in `orgId`: `not_found`.
 3. Owner of `orgId`: allow.
-4. `manage_team`, `manage_clients`, `view_credits`: `forbidden`. (Inviting, adding and removing
+4. A named client (`clientId` set) with access not given, no row for it, or a row without
+   `view`: `not_found`. This comes before step 5 so that refusing an owner-only action never
+   confirms that a client the person is not on exists.
+5. `manage_team`, `manage_clients`, `view_credits`: `forbidden`. (Inviting, adding and removing
    people on a client is `manage_team`.)
-5. Access not given, no row for `clientId`, or the row has no `view`: `not_found`.
-6. The action is in the client row: allow; otherwise `forbidden`.
+6. No client named, and access not given or no client the person can view: `not_found`.
+7. The action is in the client row (or, with no client named, on a client the person can view):
+   allow; otherwise `forbidden`.
 
 Every step is a Map or Set lookup. The browser runs the same function on the same data
 (`check.ts` has no server-only imports), so server and browser cannot disagree. Routes and
