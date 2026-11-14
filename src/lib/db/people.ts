@@ -150,14 +150,17 @@ export async function addPeopleToClient(orgId: string, clientId: string, userIds
   if (error) throw error;
 }
 
-export async function removePersonFromClient(orgId: string, clientId: string, userId: string): Promise<void> {
-  const { error } = await createServerSupabase()
+/** True when a row was removed. False: not on this client (the owner never has a row). */
+export async function removePersonFromClient(orgId: string, clientId: string, userId: string): Promise<boolean> {
+  const { data, error } = await createServerSupabase()
     .from("membership_clients")
     .delete()
     .eq("org_id", orgId)
     .eq("client_id", clientId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("user_id");
   if (error) throw error;
+  return ((data ?? []) as unknown[]).length > 0;
 }
 
 /** The header's Team count (spec §6.1). */
@@ -251,6 +254,23 @@ export async function findOpenInviteByEmail(orgId: string, email: string): Promi
   return { id: row.id, clientName: unwrapEmbed(row.clients)?.name ?? null };
 }
 
+/** One agency per person (D508): an open, unexpired invite to this email in another agency
+ *  (any agency when exceptOrgId is null, for a new one). Only whether there is one: the caller
+ *  must not learn which agency. A failed read throws; it is never "none". */
+export async function hasOpenInviteElsewhere(email: string, exceptOrgId: string | null): Promise<boolean> {
+  let query = createServerSupabase()
+    .from("org_invitations")
+    .select("id")
+    .eq("email", email)
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .gt("expires_at", new Date().toISOString());
+  if (exceptOrgId) query = query.neq("org_id", exceptOrgId);
+  const { data, error } = await query.limit(1);
+  if (error) throw error;
+  return ((data ?? []) as unknown[]).length > 0;
+}
+
 export async function countInvitesSince(orgId: string, sinceIso: string): Promise<number> {
   const { count, error } = await createServerSupabase()
     .from("org_invitations")
@@ -298,8 +318,9 @@ async function insertOpenInvite(i: { orgId: string; clientId: string | null; asO
 }
 
 /** Resend only: a new token (the old link stops working), sent now, 7 more days. Copy link never
- *  calls this; it shows the stored link. */
-export async function replaceInvitationToken(orgId: string, inviteId: string, token: string): Promise<StoredInvite | null> {
+ *  calls this; it shows the stored link. Only an invite last sent at or before `sentBefore` is
+ *  replaced, so two quick resends can't both go through; null when none was (see isInviteOpen). */
+export async function replaceInvitationToken(orgId: string, inviteId: string, token: string, sentBefore: string): Promise<StoredInvite | null> {
   const db = createServerSupabase();
   const { data, error } = await db
     .from("org_invitations")
@@ -308,11 +329,27 @@ export async function replaceInvitationToken(orgId: string, inviteId: string, to
     .eq("org_id", orgId)
     .is("accepted_at", null)
     .is("revoked_at", null)
+    .lte("created_at", sentBefore)
     .select(INVITE_COLUMNS_WITH_INVITER)
     .maybeSingle();
   if (error) throw error;
   // Resend keeps the original sender.
   return data ? (await withInviterNames(db, [data as unknown as InviteRow]))[0] : null;
+}
+
+/** Whether the invite is still open in this agency: tells "just sent" from "gone" after a
+ *  Resend replaced nothing. */
+export async function isInviteOpen(orgId: string, inviteId: string): Promise<boolean> {
+  const { data, error } = await createServerSupabase()
+    .from("org_invitations")
+    .select("id")
+    .eq("id", inviteId)
+    .eq("org_id", orgId)
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return data !== null;
 }
 
 /** Revokes an open invite; answers who it was for (the audit log names them), null when none was open. */

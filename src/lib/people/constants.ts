@@ -4,6 +4,9 @@ import type { PersonStatus } from "./types";
 /** Spec §6.7: a leaked session can't mass-mail. */
 export const INVITES_PER_AGENCY_PER_DAY = 50;
 export const INVITE_TTL_DAYS = 7;
+/** Resend moves the invite's sent time to now, so the daily count sees it once however often it
+ *  is resent: one resend a minute keeps a single invite from mailing on a loop. */
+export const RESEND_GAP_MS = 60_000;
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
   generate: "Generate",
@@ -35,6 +38,11 @@ export const REFUSALS = {
   alreadyInAgency: (agency: string) => `Already in ${agency}. Add them from the list.`,
   alreadyInvited: (client: string) => `Already invited to ${client}. Once they've signed up, add them from the list.`,
   otherAgency: "This email already belongs to another agency.",
+  // A login that is in no agency (one login per person, D508): only we can move it.
+  loginWithoutAgency: "This email already has a CreativeOS login. Ask Yuvabe to move it to your agency.",
+  loginWithoutAgencyAdmin: "This email already has a CreativeOS login that isn't in any agency.",
+  inviteJustSent: "That invite was just sent. Try again in a minute.",
+  notOnClient: "That person isn't on this client.",
   dailyLimit: `You've sent ${INVITES_PER_AGENCY_PER_DAY} invites today. Try again tomorrow.`,
   ownerFixed: "The agency owner can't be removed.",
   ownerPermissions: "The agency owner has every permission already.",

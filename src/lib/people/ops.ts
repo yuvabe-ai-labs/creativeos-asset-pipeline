@@ -5,7 +5,7 @@ import { accessReadyEmail, appLink, memberInviteEmail, ownerInviteEmail, signedU
 import { inviteLink, isFullInviteLink, newInviteToken } from "@/lib/invites/token";
 import { orderedPermissions, toPermissionSet, type Permission } from "@/lib/permissions/model";
 import { uniqueSlug } from "@/lib/slug";
-import { INVITES_PER_AGENCY_PER_DAY, REFUSALS } from "./constants";
+import { INVITES_PER_AGENCY_PER_DAY, REFUSALS, RESEND_GAP_MS } from "./constants";
 import type { InviteResult, StoredInvite } from "./types";
 import { isValidEmail, normaliseEmail, oneDayAgo } from "./utils";
 
@@ -42,6 +42,18 @@ async function emailInvite(link: string, build: () => Email): Promise<boolean> {
   return emailGuarded(build);
 }
 
+/** The refusal for an email that already has a login elsewhere or an open invite in another
+ *  agency (one agency per person, D508; the other agency is never named). Null: free to invite. */
+function loginOrInviteElsewhere(
+  login: { orgId: string | null } | null,
+  openElsewhere: boolean,
+  noAgencyMessage: string,
+): OpResult<never> | null {
+  if (login) return refuse(409, login.orgId === null ? noAgencyMessage : REFUSALS.otherAgency);
+  if (openElsewhere) return refuse(409, REFUSALS.otherAgency);
+  return null;
+}
+
 /** Postgres unique violation: here, the one-open-invite-per-email index. */
 function isUniqueViolation(e: unknown): boolean {
   return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "23505";
@@ -50,15 +62,18 @@ function isUniqueViolation(e: unknown): boolean {
 export async function inviteToClient(agency: Agency, client: { id: string; name: string }, rawEmail: string, by: Actor): Promise<OpResult<InviteResult>> {
   const email = normaliseEmail(rawEmail);
   if (!isValidEmail(email)) return refuse(400, REFUSALS.invalidEmail);
-  const [login, open, sentToday] = await Promise.all([
+  const [login, open, openElsewhere, sentToday] = await Promise.all([
     people.findLoginByEmail(email),
     people.findOpenInviteByEmail(agency.orgId, email),
+    people.hasOpenInviteElsewhere(email, agency.orgId),
     people.countInvitesSince(agency.orgId, oneDayAgo()),
   ]);
   if (login?.orgId === agency.orgId) return refuse(409, REFUSALS.alreadyInAgency(agency.orgName));
   if (open) return refuse(409, REFUSALS.alreadyInvited(open.clientName ?? agency.orgName));
-  // One agency per person (D508): any other login can't join from the link.
-  if (login) return refuse(409, REFUSALS.otherAgency);
+  // One agency per person (D508): any other login can't join from the link, and of two open
+  // invites in two agencies the second accepted would fail at sign-up.
+  const elsewhere = loginOrInviteElsewhere(login, openElsewhere, REFUSALS.loginWithoutAgency);
+  if (elsewhere) return elsewhere;
   if (sentToday >= INVITES_PER_AGENCY_PER_DAY) return refuse(429, REFUSALS.dailyLimit);
 
   let stored: StoredInvite;
@@ -76,14 +91,19 @@ export async function inviteToClient(agency: Agency, client: { id: string; name:
   return ok({ invite, link, emailed });
 }
 
-/** Resend: a new token (the old link stops working), emailed, counted towards the daily limit.
- *  Copy link is not here: it shows the stored link (OpenInvite.link) and makes no request. */
+/** Resend: a new token (the old link stops working), emailed, counted towards the daily limit
+ *  (checked before the token is replaced, as for a new invite). Refused within a minute of the
+ *  last send. Copy link is not here: it shows the stored link (OpenInvite.link) and makes no request. */
 export async function resendInvite(agency: Agency, inviteId: string, by: Actor): Promise<OpResult<InviteResult>> {
   if ((await people.countInvitesSince(agency.orgId, oneDayAgo())) >= INVITES_PER_AGENCY_PER_DAY) {
     return refuse(429, REFUSALS.dailyLimit);
   }
-  const invite = await people.replaceInvitationToken(agency.orgId, inviteId, newInviteToken());
-  if (!invite) return refuse(404, REFUSALS.inviteNotFound);
+  const sentBefore = new Date(Date.now() - RESEND_GAP_MS).toISOString();
+  const invite = await people.replaceInvitationToken(agency.orgId, inviteId, newInviteToken(), sentBefore);
+  if (!invite) {
+    // Nothing replaced: either sent less than a minute ago, or not open any more.
+    return (await people.isInviteOpen(agency.orgId, inviteId)) ? refuse(429, REFUSALS.inviteJustSent) : refuse(404, REFUSALS.inviteNotFound);
+  }
   const link = invite.link;
   const emailed = await emailInvite(link, () =>
     invite.asOwner
@@ -132,8 +152,9 @@ export async function addToClient(agency: Agency, clientId: string, userIds: str
 
 /** Off this client only: they stay in the agency with their other clients and permissions. */
 export async function removeFromClient(agency: Agency, clientId: string, userId: string): Promise<OpResult<null>> {
-  await people.removePersonFromClient(agency.orgId, clientId, userId);
-  return ok(null);
+  // Nothing removed: unknown, the owner (never has a row) or not on this client.
+  const removed = await people.removePersonFromClient(agency.orgId, clientId, userId);
+  return removed ? ok(null) : refuse(404, REFUSALS.notOnClient);
 }
 
 export async function makeOwner(agency: Agency, userId: string): Promise<OpResult<null>> {
@@ -146,8 +167,13 @@ export async function makeOwner(agency: Agency, userId: string): Promise<OpResul
 export async function createAgency(name: string, rawEmail: string, by: Actor): Promise<OpResult<{ orgId: string; link: string; emailed: boolean }>> {
   const email = normaliseEmail(rawEmail);
   if (!isValidEmail(email)) return refuse(400, REFUSALS.invalidEmail);
-  const [login, slugs] = await Promise.all([people.findLoginByEmail(email), people.listOrgSlugs()]);
-  if (login) return refuse(409, REFUSALS.otherAgency);
+  const [login, openElsewhere, slugs] = await Promise.all([
+    people.findLoginByEmail(email),
+    people.hasOpenInviteElsewhere(email, null),
+    people.listOrgSlugs(),
+  ]);
+  const elsewhere = loginOrInviteElsewhere(login, openElsewhere, REFUSALS.loginWithoutAgencyAdmin);
+  if (elsewhere) return elsewhere;
   const token = newInviteToken();
   const orgId = await people.createAgencyWithOwnerInvite({ name, slug: uniqueSlug(name, slugs), ownerEmail: email, token, by: by.userId });
   // Without APP_URL the link is its path (shown to copy on this site) and is not emailed.
@@ -168,16 +194,18 @@ export async function resendOwnerInvite(agency: Agency, by: Actor): Promise<OpRe
 export async function inviteOwner(agency: Agency, rawEmail: string, by: Actor): Promise<OpResult<InviteResult>> {
   const email = normaliseEmail(rawEmail);
   if (!isValidEmail(email)) return refuse(400, REFUSALS.invalidEmail);
-  const [login, owners, openOwner, open, sentToday] = await Promise.all([
+  const [login, owners, openOwner, open, openElsewhere, sentToday] = await Promise.all([
     people.findLoginByEmail(email),
     people.ownerIds(agency.orgId),
     people.getOpenOwnerInvite(agency.orgId),
     people.findOpenInviteByEmail(agency.orgId, email),
+    people.hasOpenInviteElsewhere(email, agency.orgId),
     people.countInvitesSince(agency.orgId, oneDayAgo()),
   ]);
   if (owners.length > 0 || openOwner) return refuse(409, REFUSALS.ownerInviteOpen);
   if (login?.orgId === agency.orgId) return refuse(409, REFUSALS.alreadyInAgencyMakeOwner(agency.orgName));
-  if (login) return refuse(409, REFUSALS.otherAgency);
+  const elsewhere = loginOrInviteElsewhere(login, openElsewhere, REFUSALS.loginWithoutAgencyAdmin);
+  if (elsewhere) return elsewhere;
   if (open) return refuse(409, REFUSALS.alreadyInvited(open.clientName ?? agency.orgName));
   if (sentToday >= INVITES_PER_AGENCY_PER_DAY) return refuse(429, REFUSALS.dailyLimit);
 

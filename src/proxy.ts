@@ -7,11 +7,15 @@ import {
   applySessionPersistence,
   shouldPersistSession,
 } from "@/lib/auth/session-persistence";
+import { PATHNAME_HEADER } from "@/lib/permissions/onboarding-route";
 
 // Next.js 16 proxy (renamed from middleware). OPTIMISTIC session check only — no DB
 // queries, no org resolution (that is the DAL's job, per D51). Also refreshes the
 // Supabase auth cookie so sessions stay alive.
 export async function proxy(request: NextRequest) {
+  // The root layout cannot see the path; it reads this to send a waiting person to /onboarding
+  // (spec 4.4). Always overwritten, so a value sent by the browser never gets through.
+  request.headers.set(PATHNAME_HEADER, request.nextUrl.pathname);
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

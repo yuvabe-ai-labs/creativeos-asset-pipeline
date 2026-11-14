@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -9,6 +10,9 @@ import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { headerTopClass } from "@/lib/auth/impersonation-ui";
 import { AccessProvider } from "@/components/permissions/access-provider";
 import { loadInitialMe } from "@/lib/me/payload";
+import { sendWaitingToOnboardingOn } from "@/lib/permissions/onboarding";
+import { PATHNAME_HEADER } from "@/lib/permissions/onboarding-route";
+import { OnboardingGuard } from "@/components/permissions/onboarding-guard";
 
 // Yuvabe brand fonts (ref/Yuvabe Studios Design System). Two families only.
 const clash = localFont({
@@ -49,8 +53,14 @@ export default async function RootLayout({
   // banner's own call — it costs nothing, and it keeps the header's offset colocated
   // with the element it offsets against. loadInitialMe resolves the caller once for this render
   // (shared with the page through cache()) and builds the same payload /api/me returns, so the
-  // first HTML already has the right buttons (D499).
-  const [{ isImpersonating }, me] = await Promise.all([resolveImpersonationState(), loadInitialMe()]);
+  // first HTML already has the right buttons (D499). On a full page load a waiting person is sent
+  // to /onboarding here, from the same cached caller (spec 4.4); OnboardingGuard covers soft
+  // navigations, which never re-render this layout.
+  const [{ isImpersonating }, me] = await Promise.all([
+    resolveImpersonationState(),
+    loadInitialMe(),
+    headers().then((h) => sendWaitingToOnboardingOn(h.get(PATHNAME_HEADER))),
+  ]);
 
   return (
     <html
@@ -60,6 +70,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <QueryProvider>
         <AccessProvider initial={me}>
+        <OnboardingGuard />
         <ImpersonationBanner />
         <AppHeader className={headerTopClass(isImpersonating)} />
         {children}

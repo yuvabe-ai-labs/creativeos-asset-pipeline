@@ -4,7 +4,10 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({ createServerSupabase: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: m.createServerSupabase }));
 
-import { acceptInvitation, createLogin, findOpenInviteByEmail, insertInvitation, insertOwnerInvitation, listOpenInvites, loginEmails, toInvite, toPerson } from "./people";
+import {
+  acceptInvitation, createLogin, findOpenInviteByEmail, hasOpenInviteElsewhere, insertInvitation, insertOwnerInvitation, isInviteOpen,
+  listOpenInvites, loginEmails, removePersonFromClient, replaceInvitationToken, toInvite, toPerson,
+} from "./people";
 
 describe("people rows", () => {
   it("map a list_agency_people row to a person with a status", () => {
@@ -42,7 +45,7 @@ function fakeDb(results: { data?: unknown; error?: unknown }[]) {
       const chain = { table, calls: [] as Call[] };
       chains.push(chain);
       const builder: Record<string, unknown> = {};
-      for (const name of ["select", "insert", "update", "eq", "in", "is", "gt", "lte", "order", "single", "maybeSingle"]) {
+      for (const name of ["select", "insert", "update", "delete", "eq", "neq", "in", "is", "gt", "lte", "order", "limit", "single", "maybeSingle"]) {
         builder[name] = (...args: unknown[]) => { chain.calls.push([name, ...args]); return builder; };
       }
       builder.then = (resolve: (v: unknown) => void) => resolve({ data: null, error: null, ...results.shift() });
@@ -126,6 +129,62 @@ describe("findOpenInviteByEmail", () => {
     m.createServerSupabase.mockReturnValue(db);
     expect(await findOpenInviteByEmail("org-1", "p@x.com")).toEqual({ id: "i1", clientName: "Chupps" });
     expect(chains[0].calls[0]).toEqual(["select", "id, clients(name)"]);
+  });
+});
+
+describe("hasOpenInviteElsewhere (one agency per person)", () => {
+  it("looks for an open, unexpired invite to the email in any other agency, in one query", async () => {
+    const { db, chains } = fakeDb([{ data: [{ id: "i9" }] }]);
+    m.createServerSupabase.mockReturnValue(db);
+    expect(await hasOpenInviteElsewhere("p@x.com", "org-1")).toBe(true);
+    expect(chains).toHaveLength(1);
+    expect(chains[0].table).toBe("org_invitations");
+    expect(chains[0].calls).toEqual(expect.arrayContaining([
+      ["select", "id"], ["eq", "email", "p@x.com"], ["neq", "org_id", "org-1"], ["is", "accepted_at", null], ["is", "revoked_at", null],
+      ["gt", "expires_at", expect.any(String)], ["limit", 1],
+    ]));
+  });
+
+  it("answers false when there is none, and looks in every agency for a new one", async () => {
+    const { db, chains } = fakeDb([{ data: [] }]);
+    m.createServerSupabase.mockReturnValue(db);
+    expect(await hasOpenInviteElsewhere("p@x.com", null)).toBe(false);
+    expect(chains[0].calls.some((c) => c[0] === "neq")).toBe(false);
+  });
+
+  it("throws a failed read rather than answering none", async () => {
+    const { db } = fakeDb([{ error: { message: "boom" } }]);
+    m.createServerSupabase.mockReturnValue(db);
+    await expect(hasOpenInviteElsewhere("p@x.com", "org-1")).rejects.toEqual({ message: "boom" });
+  });
+});
+
+describe("replaceInvitationToken (Resend)", () => {
+  it("replaces only an invite last sent before the given time", async () => {
+    const { db, chains } = fakeDb([{ data: { ...row, invited_by: null } }]);
+    m.createServerSupabase.mockReturnValue(db);
+    await replaceInvitationToken("org-1", "i1", "tok2", "2026-11-14T10:00:00.000Z");
+    expect(chains[0].calls).toContainEqual(["lte", "created_at", "2026-11-14T10:00:00.000Z"]);
+  });
+});
+
+describe("isInviteOpen", () => {
+  it("answers whether the invite is still open in this agency", async () => {
+    const { db, chains } = fakeDb([{ data: { id: "i1" } }, { data: null }]);
+    m.createServerSupabase.mockReturnValue(db);
+    expect(await isInviteOpen("org-1", "i1")).toBe(true);
+    expect(await isInviteOpen("org-1", "i2")).toBe(false);
+    expect(chains[0].calls).toEqual(expect.arrayContaining([["eq", "id", "i1"], ["eq", "org_id", "org-1"], ["is", "accepted_at", null], ["is", "revoked_at", null]]));
+  });
+});
+
+describe("removePersonFromClient", () => {
+  it("answers whether a row was removed", async () => {
+    const { db, chains } = fakeDb([{ data: [{ user_id: "u1" }] }, { data: [] }]);
+    m.createServerSupabase.mockReturnValue(db);
+    expect(await removePersonFromClient("org-1", "c1", "u1")).toBe(true);
+    expect(await removePersonFromClient("org-1", "c1", "owner")).toBe(false);
+    expect(chains[0].calls).toEqual(expect.arrayContaining([["delete"], ["eq", "org_id", "org-1"], ["eq", "client_id", "c1"], ["eq", "user_id", "u1"], ["select", "user_id"]]));
   });
 });
 

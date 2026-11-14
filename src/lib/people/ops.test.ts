@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   setMemberPermissions: vi.fn(), deleteLogin: vi.fn(), addPeopleToClient: vi.fn(), removePersonFromClient: vi.fn(),
   transferOwner: vi.fn(), loginEmails: vi.fn(), ownerIds: vi.fn(), listOrgSlugs: vi.fn(),
   createAgencyWithOwnerInvite: vi.fn(), getOpenOwnerInvite: vi.fn(), insertOwnerInvitation: vi.fn(),
+  hasOpenInviteElsewhere: vi.fn(), isInviteOpen: vi.fn(),
 }));
 vi.mock("@/lib/db/people", () => db);
 const sendEmail = vi.hoisted(() => vi.fn());
@@ -31,7 +32,13 @@ beforeEach(() => {
   db.findOpenInviteByEmail.mockResolvedValue(null);
   db.countInvitesSince.mockResolvedValue(0);
   db.insertInvitation.mockResolvedValue(invite);
+  db.hasOpenInviteElsewhere.mockResolvedValue(false);
+  db.removePersonFromClient.mockResolvedValue(true);
 });
+
+const LOGIN_NO_AGENCY = "This email already has a CreativeOS login. Ask Yuvabe to move it to your agency.";
+const LOGIN_NO_AGENCY_ADMIN = "This email already has a CreativeOS login that isn't in any agency.";
+const OTHER_AGENCY = "This email already belongs to another agency.";
 
 describe("inviteToClient (spec §6.2)", () => {
   it("creates the invite for this client, emails the link and returns it", async () => {
@@ -86,6 +93,11 @@ describe("inviteToClient (spec §6.2)", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
+  it("looks for an open invite to the email in other agencies only", async () => {
+    await inviteToClient(agency, client, "P@x.com", by);
+    expect(db.hasOpenInviteElsewhere).toHaveBeenCalledWith("p@x.com", "org-1");
+  });
+
   it("counts every invite sent in the agency today towards the limit, whoever sent it", async () => {
     await inviteToClient(agency, client, "p@x.com", { userId: "holder-1", name: "Meera" });
     expect(db.countInvitesSince).toHaveBeenCalledWith("org-1", expect.any(String));
@@ -97,6 +109,8 @@ describe("inviteToClient (spec §6.2)", () => {
     ["an email with an open invite", () => db.findOpenInviteByEmail.mockResolvedValue({ id: "i0", clientName: "Bata" }), "p@x.com", 409, "Already invited to Bata. Once they've signed up, add them from the list."],
     ["an email with a login in another agency", () => db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: "org-2" }), "p@x.com", 409, "This email already belongs to another agency."],
     ["the 51st invite today", () => db.countInvitesSince.mockResolvedValue(50), "p@x.com", 429, "You've sent 50 invites today. Try again tomorrow."],
+    ["an email with an open invite in another agency", () => db.hasOpenInviteElsewhere.mockResolvedValue(true), "p@x.com", 409, OTHER_AGENCY],
+    ["an email with a login in no agency", () => db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: null }), "p@x.com", 409, LOGIN_NO_AGENCY],
   ])("refuses %s", async (_what, arrange, email, status, error) => {
     arrange();
     expect(await inviteToClient(agency, client, email, by)).toEqual({ ok: false, status, error });
@@ -111,8 +125,25 @@ describe("resendInvite and cancelInvite", () => {
     db.replaceInvitationToken.mockResolvedValue(replaced);
     const r = await resendInvite(agency, "i1", by);
     expect(r).toEqual({ ok: true, value: { invite: replaced, link: "https://app.example/invite/new", emailed: true } });
-    expect(db.replaceInvitationToken).toHaveBeenCalledWith("org-1", "i1", expect.stringMatching(/^[A-Za-z0-9_-]{43}$/));
+    expect(db.replaceInvitationToken).toHaveBeenCalledWith("org-1", "i1", expect.stringMatching(/^[A-Za-z0-9_-]{43}$/), expect.any(String));
     expect(sendEmail.mock.calls[0][0].text).toContain("https://app.example/invite/new");
+  });
+
+  it("Resend replaces only an invite sent more than a minute ago", async () => {
+    db.replaceInvitationToken.mockResolvedValue(invite);
+    const before = Date.now();
+    await resendInvite(agency, "i1", by);
+    const sentBefore = Date.parse(db.replaceInvitationToken.mock.calls[0][3]);
+    expect(sentBefore).toBeGreaterThanOrEqual(before - 60_000 - 5);
+    expect(sentBefore).toBeLessThanOrEqual(Date.now() - 60_000);
+  });
+
+  it("refuses a Resend within a minute of the last send, and sends nothing", async () => {
+    db.replaceInvitationToken.mockResolvedValue(null);
+    db.isInviteOpen.mockResolvedValue(true);
+    expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 429, error: "That invite was just sent. Try again in a minute." });
+    expect(db.isInviteOpen).toHaveBeenCalledWith("org-1", "i1");
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("Resend on an owner invite sends the Set up email, not the member invite", async () => {
@@ -131,6 +162,7 @@ describe("resendInvite and cancelInvite", () => {
 
   it("refuses an invite that is no longer open", async () => {
     db.replaceInvitationToken.mockResolvedValue(null);
+    db.isInviteOpen.mockResolvedValue(false);
     expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
     db.revokeInvitation.mockResolvedValue(null);
     expect(await cancelInvite(agency, "i1")).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
@@ -233,6 +265,11 @@ describe("removeFromClient", () => {
     expect(db.removePersonFromClient).toHaveBeenCalledWith("org-1", "c1", "u1");
     expect(db.deleteLogin).not.toHaveBeenCalled();
   });
+
+  it("answers not found when nothing was removed (unknown person, the owner, not on the client)", async () => {
+    db.removePersonFromClient.mockResolvedValue(false);
+    expect(await removeFromClient(agency, "c1", "u1")).toEqual({ ok: false, status: 404, error: "That person isn't on this client." });
+  });
 });
 
 describe("resendOwnerInvite", () => {
@@ -243,7 +280,7 @@ describe("resendOwnerInvite", () => {
     db.replaceInvitationToken.mockResolvedValue({ ...ownerInvite, link: "https://app.example/invite/new" });
     const r = await resendOwnerInvite(agency, by);
     expect(r).toMatchObject({ ok: true, value: { link: "https://app.example/invite/new", emailed: true } });
-    expect(db.replaceInvitationToken).toHaveBeenCalledWith("org-1", "oi1", expect.stringMatching(/^[A-Za-z0-9_-]{43}$/));
+    expect(db.replaceInvitationToken).toHaveBeenCalledWith("org-1", "oi1", expect.stringMatching(/^[A-Za-z0-9_-]{43}$/), expect.any(String));
     expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: ["o@x.com"], subject: "Set up Acme on CreativeOS" });
   });
 
@@ -267,6 +304,19 @@ describe("createAgency (spec §6.6)", () => {
   it("refuses an owner email that already has a login", async () => {
     db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: "org-2" });
     expect(await createAgency("Acme", "o@x.com", by)).toEqual({ ok: false, status: 409, error: "This email already belongs to another agency." });
+  });
+
+  it("refuses an owner email with a login in no agency, in words for the admin", async () => {
+    db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: null });
+    expect(await createAgency("Acme", "o@x.com", by)).toEqual({ ok: false, status: 409, error: LOGIN_NO_AGENCY_ADMIN });
+  });
+
+  it("refuses an owner email with an open invite in any agency, without creating the agency", async () => {
+    db.hasOpenInviteElsewhere.mockResolvedValue(true);
+    db.listOrgSlugs.mockResolvedValue([]);
+    expect(await createAgency("Acme", "O@x.com", by)).toEqual({ ok: false, status: 409, error: OTHER_AGENCY });
+    expect(db.hasOpenInviteElsewhere).toHaveBeenCalledWith("o@x.com", null);
+    expect(db.createAgencyWithOwnerInvite).not.toHaveBeenCalled();
   });
 
   it("still creates the agency when the app address is not set, with the link as a path and no email", async () => {
@@ -301,6 +351,18 @@ describe("inviteOwner (spec §6.6, D505: only while the agency has no owner and 
   it("refuses an email with a login in another agency", async () => {
     db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: "org-2" });
     expect(await inviteOwner(agency, "o@x.com", by)).toEqual({ ok: false, status: 409, error: "This email already belongs to another agency." });
+    expect(db.insertOwnerInvitation).not.toHaveBeenCalled();
+  });
+
+  it("refuses an email with a login in no agency, in words for the admin", async () => {
+    db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: null });
+    expect(await inviteOwner(agency, "o@x.com", by)).toEqual({ ok: false, status: 409, error: LOGIN_NO_AGENCY_ADMIN });
+  });
+
+  it("refuses an email with an open invite in another agency", async () => {
+    db.hasOpenInviteElsewhere.mockResolvedValue(true);
+    expect(await inviteOwner(agency, "O@x.com", by)).toEqual({ ok: false, status: 409, error: OTHER_AGENCY });
+    expect(db.hasOpenInviteElsewhere).toHaveBeenCalledWith("o@x.com", "org-1");
     expect(db.insertOwnerInvitation).not.toHaveBeenCalled();
   });
 

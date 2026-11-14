@@ -31,3 +31,14 @@ describe("proxy matcher (D309)", () => {
     expect(runsProxy("/api/orgs/o1/invites")).toBe(true);
   });
 });
+
+describe("proxy passes the path to the root layout (spec 4.4)", () => {
+  it("sets the path request header on a signed-in page request, overwriting any sent one", async () => {
+    const { getUserWithRetry } = await import("@/lib/supabase/get-user-with-retry");
+    vi.mocked(getUserWithRetry).mockResolvedValue({ id: "u1", app_metadata: {} } as never);
+    const { NextRequest } = await import("next/server");
+    const { proxy } = await import("./proxy");
+    const res = await proxy(new NextRequest("http://localhost/team?x=1", { headers: { "x-pathname": "/onboarding" } }));
+    expect(res.headers.get("x-middleware-request-x-pathname")).toBe("/team");
+  });
+});
