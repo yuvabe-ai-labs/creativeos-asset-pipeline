@@ -17,6 +17,7 @@ vi.mock("@/lib/db/organizations", () => ({
   }),
   getOrgCreditUsage: vi.fn(async () => 0),
 }));
+vi.mock("@/lib/db/people", () => ({ countSignedUp: vi.fn(async () => 1) }));
 vi.mock("@/lib/db/profiles", () => ({ getDisplayName: vi.fn(async () => null) }));
 
 import { testOwnerAccess } from "@/lib/permissions/test-fixtures";
@@ -33,7 +34,7 @@ describe("loadInitialMe", () => {
   it("builds the payload for a signed-in owner, naming them User without a profile", async () => {
     m.caller = signedIn();
     m.failOrg = false;
-    expect(await loadInitialMe()).toMatchObject({ name: "User", isOwner: true, accessGiven: true, clients: [], creditsUsed: 0 });
+    expect(await loadInitialMe()).toMatchObject({ name: "User", isOwner: true, accessGiven: true, clients: [], creditsUsed: 0, signedUpCount: 1 });
   });
 
   it("is null, not an error, when a read fails", async () => {

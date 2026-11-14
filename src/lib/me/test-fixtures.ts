@@ -14,6 +14,7 @@ export function testMePayload(over: Partial<MePayload> = {}): MePayload {
     clients: [{ clientId: "c1", permissions: [] }],
     creditsUsed: null,
     monthlyCreditLimit: null,
+    signedUpCount: null,
     ...over,
   };
 }

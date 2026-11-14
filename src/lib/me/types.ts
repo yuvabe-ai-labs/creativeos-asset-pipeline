@@ -19,4 +19,6 @@ export type MePayload = {
   /** Both null without view_credits (only the owner and a super admin see credits). */
   creditsUsed: number | null;
   monthlyCreditLimit: number | null;
+  /** People signed up and waiting for permissions, for the header's Team link. Null unless manage_team. */
+  signedUpCount: number | null;
 };

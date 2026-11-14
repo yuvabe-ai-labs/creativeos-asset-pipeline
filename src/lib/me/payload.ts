@@ -2,6 +2,7 @@
 import "server-only";
 import { unstable_rethrow } from "next/navigation";
 import { getOrgById, getOrgCreditUsage } from "@/lib/db/organizations";
+import { countSignedUp } from "@/lib/db/people";
 import { getDisplayName } from "@/lib/db/profiles";
 import { check } from "@/lib/permissions/check";
 import { orderedPermissions } from "@/lib/permissions/model";
@@ -14,10 +15,12 @@ export async function buildMePayload({ caller, effectiveOrgId }: ActingCaller): 
   const access = accessOf(caller);
   const org = access.orgs.get(effectiveOrgId);
   const showCredits = check(access, "view_credits", { orgId: effectiveOrgId, clientId: null }) === "allow";
-  const [name, orgRow, creditsUsed] = await Promise.all([
+  const showTeam = check(access, "manage_team", { orgId: effectiveOrgId, clientId: null }) === "allow";
+  const [name, orgRow, creditsUsed, signedUpCount] = await Promise.all([
     getDisplayName(caller.userId),
     getOrgById(effectiveOrgId),
     showCredits ? getOrgCreditUsage(effectiveOrgId) : Promise.resolve(null),
+    showTeam ? countSignedUp(effectiveOrgId) : Promise.resolve(null),
   ]);
   return {
     name: name ?? "User",
@@ -34,6 +37,7 @@ export async function buildMePayload({ caller, effectiveOrgId }: ActingCaller): 
       : [],
     creditsUsed,
     monthlyCreditLimit: showCredits ? (orgRow?.monthly_credit_limit ?? null) : null,
+    signedUpCount,
   };
 }
 

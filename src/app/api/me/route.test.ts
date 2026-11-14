@@ -7,6 +7,7 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   access: undefined as Access | undefined,
   getOrgCreditUsage: vi.fn(async () => 42),
+  countSignedUp: vi.fn(async () => 3),
   getOrgById: vi.fn(async () => ({ id: "org-1", name: "Yuvabe Studios", slug: "y", monthly_credit_limit: 1000, created_at: "t" })),
 }));
 
@@ -28,6 +29,7 @@ vi.mock("@/lib/db/organizations", () => ({
   getOrgById: m.getOrgById,
   getOrgCreditUsage: m.getOrgCreditUsage,
 }));
+vi.mock("@/lib/db/people", () => ({ countSignedUp: m.countSignedUp }));
 vi.mock("@/lib/db/profiles", () => ({ getDisplayName: vi.fn(async () => "Arun") }));
 
 import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
@@ -44,6 +46,7 @@ async function body() {
 describe("GET /api/me", () => {
   beforeEach(() => {
     m.getOrgCreditUsage.mockClear();
+    m.countSignedUp.mockClear();
     m.access = undefined;
   });
 
@@ -59,6 +62,7 @@ describe("GET /api/me", () => {
       clients: [],
       creditsUsed: 42,
       monthlyCreditLimit: 1000,
+      signedUpCount: 3,
     });
     expect(check(accessFromMe(me), "manage_team", { orgId: "org-1", clientId: null })).toBe("allow");
   });
@@ -69,6 +73,8 @@ describe("GET /api/me", () => {
     expect(me.creditsUsed).toBeNull();
     expect(me.monthlyCreditLimit).toBeNull();
     expect(m.getOrgCreditUsage).not.toHaveBeenCalled();
+    expect(me.signedUpCount).toBeNull();
+    expect(m.countSignedUp).not.toHaveBeenCalled();
   });
 
   it("sends each client with its permissions, sorted, and the browser decides the same", async () => {

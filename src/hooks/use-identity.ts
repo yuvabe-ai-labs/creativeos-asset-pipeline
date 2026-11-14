@@ -17,6 +17,7 @@ export function useIdentity(): {
   isOwner: boolean | null;
   creditsUsed: number | null;
   monthlyCreditLimit: number | null;
+  signedUpCount: number | null;
 } {
   const { data, status } = useMe();
   return useMemo(
@@ -29,6 +30,7 @@ export function useIdentity(): {
       isOwner: data?.isOwner ?? null,
       creditsUsed: data?.creditsUsed ?? null,
       monthlyCreditLimit: data?.monthlyCreditLimit ?? null,
+      signedUpCount: data?.signedUpCount ?? null,
     }),
     [data, status],
   );
