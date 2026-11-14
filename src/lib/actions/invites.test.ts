@@ -4,11 +4,12 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   getInvitationByToken: vi.fn(), createLogin: vi.fn(), deleteLogin: vi.fn(), acceptInvitation: vi.fn(),
   notifySignedUp: vi.fn(async () => undefined), signIn: vi.fn(async () => ({ error: null })),
+  getUser: vi.fn(async () => ({ data: { user: null as { email: string } | null }, error: null })),
   redirect: vi.fn((to: string) => { throw new Error(`REDIRECT ${to}`); }),
 }));
 vi.mock("@/lib/db/people", () => ({ getInvitationByToken: m.getInvitationByToken, createLogin: m.createLogin, deleteLogin: m.deleteLogin, acceptInvitation: m.acceptInvitation }));
 vi.mock("@/lib/people/ops", () => ({ notifySignedUp: m.notifySignedUp }));
-vi.mock("@/lib/supabase/ssr-server", () => ({ createSSRServerClient: vi.fn(async () => ({ auth: { signInWithPassword: m.signIn } })) }));
+vi.mock("@/lib/supabase/ssr-server", () => ({ createSSRServerClient: vi.fn(async () => ({ auth: { signInWithPassword: m.signIn, getUser: m.getUser } })) }));
 vi.mock("next/navigation", () => ({ redirect: m.redirect }));
 
 import { acceptInviteAction } from "./invites";
@@ -80,10 +81,17 @@ describe("acceptInviteAction (spec §6.3)", () => {
     expect(m.createLogin).not.toHaveBeenCalled();
   });
 
-  it("deletes the new account when accepting fails (used in the meantime), without logging the token", async () => {
-    m.acceptInvitation.mockRejectedValue(new Error("This invite link is no longer valid."));
+  it("deletes the new account when the link was used in the meantime", async () => {
+    m.acceptInvitation.mockResolvedValue(null);
+    expect(await acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).toEqual({ error: "This invite link is no longer valid." });
+    expect(m.deleteLogin).toHaveBeenCalledWith("u-new");
+    expect(m.signIn).not.toHaveBeenCalled();
+  });
+
+  it("a passing failure while accepting asks them to try again, deletes the new account, and never logs the token", async () => {
+    m.acceptInvitation.mockRejectedValue(new Error("connection failure"));
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await acceptInviteAction("secret-tok", undefined, form("Ravi", "longenough"))).toEqual({ error: "This invite link is no longer valid." });
+    expect(await acceptInviteAction("secret-tok", undefined, form("Ravi", "longenough"))).toEqual({ error: "Something went wrong. Try again." });
     expect(m.deleteLogin).toHaveBeenCalledWith("u-new");
     expect(JSON.stringify(err.mock.calls)).not.toContain("secret-tok");
     expect(m.signIn).not.toHaveBeenCalled();
@@ -91,8 +99,36 @@ describe("acceptInviteAction (spec §6.3)", () => {
   });
 
   it("refuses an email that already has a login", async () => {
-    m.createLogin.mockResolvedValue({ ok: false });
+    m.createLogin.mockResolvedValue({ ok: false, reason: "email_exists" });
     expect(await acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).toEqual({ error: "This email already belongs to another agency." });
     expect(m.acceptInvitation).not.toHaveBeenCalled();
+  });
+
+  it("any other failure creating the login asks them to try again, in plain words", async () => {
+    m.createLogin.mockResolvedValue({ ok: false, reason: "failed" });
+    expect(await acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).toEqual({ error: "Something went wrong. Try again." });
+    expect(m.acceptInvitation).not.toHaveBeenCalled();
+  });
+
+  it("a failed invitation read asks them to try again rather than showing the error page", async () => {
+    m.getInvitationByToken.mockRejectedValue(new Error("db down"));
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).toEqual({ error: "Something went wrong. Try again." });
+    expect(m.createLogin).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it("refuses someone signed in as another email, without touching their session", async () => {
+    m.getUser.mockResolvedValueOnce({ data: { user: { email: "other@x.com" } }, error: null });
+    expect(await acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).toEqual({
+      error: "This invite is for p@x.com. Sign out, then create your account with that email.",
+    });
+    expect(m.createLogin).not.toHaveBeenCalled();
+    expect(m.signIn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a password longer than 72 characters", async () => {
+    expect(await acceptInviteAction("tok", undefined, form("Ravi", "a".repeat(73)))).toEqual({ error: "Password must be 72 characters or fewer." });
+    expect(m.createLogin).not.toHaveBeenCalled();
   });
 });

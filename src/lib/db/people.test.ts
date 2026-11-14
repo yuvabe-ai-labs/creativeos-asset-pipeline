@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({ createServerSupabase: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: m.createServerSupabase }));
 
-import { findOpenInviteByEmail, insertInvitation, listOpenInvites, loginEmails, toInvite, toPerson } from "./people";
+import { acceptInvitation, createLogin, findOpenInviteByEmail, insertInvitation, listOpenInvites, loginEmails, toInvite, toPerson } from "./people";
 
 describe("people rows", () => {
   it("map a list_agency_people row to a person with a status", () => {
@@ -130,5 +130,50 @@ describe("loginEmails", () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(spy.mock.calls)).not.toContain("a@x.com");
     spy.mockRestore();
+  });
+});
+
+describe("createLogin (spec §6.3)", () => {
+  const withCreate = (result: { data: unknown; error: unknown }) => {
+    const createUser = vi.fn(async () => result);
+    m.createServerSupabase.mockReturnValue({ auth: { admin: { createUser } } });
+    return createUser;
+  };
+
+  it("returns the new login's id", async () => {
+    withCreate({ data: { user: { id: "u-new" } }, error: null });
+    expect(await createLogin("p@x.com", "longenough")).toEqual({ ok: true, userId: "u-new" });
+  });
+
+  it("tells an email that already has a login apart from any other failure", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    withCreate({ data: { user: null }, error: { code: "email_exists", status: 422, message: "A user with this email address has already been registered" } });
+    expect(await createLogin("p@x.com", "longenough")).toEqual({ ok: false, reason: "email_exists" });
+    withCreate({ data: { user: null }, error: { code: "unexpected_failure", status: 500, message: "boom" } });
+    expect(await createLogin("p@x.com", "longenough")).toEqual({ ok: false, reason: "failed" });
+    withCreate({ data: { user: null }, error: null });
+    expect(await createLogin("p@x.com", "longenough")).toEqual({ ok: false, reason: "failed" });
+    spy.mockRestore();
+  });
+});
+
+describe("acceptInvitation (spec §6.3)", () => {
+  const withRpc = (result: { data: unknown; error: unknown }) => m.createServerSupabase.mockReturnValue({ rpc: vi.fn(async () => result) });
+
+  it("returns the accepted row", async () => {
+    withRpc({ data: [{ org_id: "org-1", client_id: "c1", as_owner: false, invited_by: "owner-1" }], error: null });
+    expect(await acceptInvitation("tok", "u1", "Ravi")).toEqual({ orgId: "org-1", clientId: "c1", asOwner: false, invitedBy: "owner-1" });
+  });
+
+  it("returns null when the link is no longer valid (the function's no_data_found, or no row)", async () => {
+    withRpc({ data: null, error: { code: "P0002", message: "This invite link is no longer valid." } });
+    expect(await acceptInvitation("tok", "u1", "Ravi")).toBeNull();
+    withRpc({ data: [], error: null });
+    expect(await acceptInvitation("tok", "u1", "Ravi")).toBeNull();
+  });
+
+  it("throws any other failure, so a passing outage is not read as a dead link", async () => {
+    withRpc({ data: null, error: { code: "08006", message: "connection failure" } });
+    await expect(acceptInvitation("tok", "u1", "Ravi")).rejects.toMatchObject({ code: "08006" });
   });
 });

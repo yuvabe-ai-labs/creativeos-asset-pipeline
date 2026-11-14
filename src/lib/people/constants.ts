@@ -41,5 +41,9 @@ export const REFUSALS = {
   personNotFound: "That person isn't in this agency.",
   inviteNotFound: "That invite isn't open any more.",
   inviteInvalid: "This invite link is no longer valid.",
+  // One agency per person: someone signed in as another email usually signs out and creates the
+  // invited account, rather than signing in to one they already have.
+  inviteOtherAccount: (email: string) => `This invite is for ${email}. Sign out, then create your account with that email.`,
+  tryAgain: "Something went wrong. Try again.",
   ownerInviteOpen: "This agency already has an owner or an open owner invite.",
 } as const;

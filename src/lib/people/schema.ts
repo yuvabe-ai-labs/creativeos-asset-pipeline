@@ -14,7 +14,8 @@ export const InviteSchema = z.object({ email: z.string().max(320) });
 
 export const AcceptInviteSchema = z.object({
   name: z.string().trim().min(2, { error: "Enter your name." }).max(80),
-  password: z.string().min(8, { error: "Password must be at least 8 characters." }),
+  // 72: the most the sign-in service uses of a password; anything longer would be cut silently.
+  password: z.string().min(8, { error: "Password must be at least 8 characters." }).max(72, { error: "Password must be 72 characters or fewer." }),
 });
 
 export const CreateAgencySchema = z.object({

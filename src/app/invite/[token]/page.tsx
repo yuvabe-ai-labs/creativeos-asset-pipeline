@@ -7,7 +7,9 @@ import { getInvitationByToken } from "@/lib/db/people";
 import { invitePageState } from "@/lib/invites/page-state";
 import { createSSRServerClient } from "@/lib/supabase/ssr-server";
 import { getUserWithRetry } from "@/lib/supabase/get-user-with-retry";
+import { REFUSALS } from "@/lib/people/constants";
 import { InviteSignUpForm } from "./invite-sign-up-form";
+import { InviteSignOutButton } from "./invite-sign-out-button";
 
 export const dynamic = "force-dynamic";
 // no-referrer: the token is in this page's URL and must not travel to anything it links to.
@@ -36,8 +38,8 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         {state.kind === "wrong_email" && (
           <>
             <h1 className="font-display text-2xl font-semibold tracking-tight">Wrong account</h1>
-            <p className="text-sm text-muted-foreground">This invite is for {state.email}. Sign in with that email to accept it.</p>
-            <Button nativeButton={false} render={<Link href="/login">Sign in</Link>} />
+            <p className="text-sm text-muted-foreground">{REFUSALS.inviteOtherAccount(state.email)}</p>
+            <InviteSignOutButton />
           </>
         )}
         {state.kind === "sign_up" && (

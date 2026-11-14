@@ -12,12 +12,17 @@ describe("the invite page (spec §6.3)", () => {
     expect(invitePageState(inv({ open: false }), null)).toEqual({ kind: "invalid" });
   });
 
-  it("asks someone signed in as another email to switch", () => {
+  it("asks someone signed in as another email to sign out", () => {
     expect(invitePageState(inv(), "other@x.com")).toEqual({ kind: "wrong_email", email: "p@x.com" });
   });
 
   it("sends someone already signed in with this email on", () => {
     expect(invitePageState(inv(), "P@X.com")).toEqual({ kind: "signed_in" });
+  });
+
+  it("sends them on when they come back to the link they already used", () => {
+    expect(invitePageState(inv({ open: false }), "p@x.com")).toEqual({ kind: "signed_in" });
+    expect(invitePageState(inv({ open: false }), "other@x.com")).toEqual({ kind: "invalid" });
   });
 
   it("shows the sign-up form otherwise", () => {

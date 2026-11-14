@@ -8,10 +8,10 @@ export type InvitePageState =
 
 /** Spec §6.3: what /invite/[token] shows, from the invitation and who (if anyone) is signed in. */
 export function invitePageState(invitation: InvitationForSignUp | null, signedInEmail: string | null): InvitePageState {
-  if (!invitation || !invitation.open) return { kind: "invalid" };
-  if (signedInEmail && signedInEmail.toLowerCase() !== invitation.email.toLowerCase()) {
-    return { kind: "wrong_email", email: invitation.email };
-  }
-  if (signedInEmail) return { kind: "signed_in" };
+  if (!invitation) return { kind: "invalid" };
+  // Before the open check: coming back to a link they already used, signed in, goes home.
+  if (signedInEmail && signedInEmail.toLowerCase() === invitation.email.toLowerCase()) return { kind: "signed_in" };
+  if (!invitation.open) return { kind: "invalid" };
+  if (signedInEmail) return { kind: "wrong_email", email: invitation.email };
   return { kind: "sign_up", invitation };
 }

@@ -5,6 +5,7 @@ import { acceptInviteAction, type AcceptInviteState } from "@/lib/actions/invite
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export function InviteSignUpForm({ token, email, agency }: { token: string; email: string; agency: string }) {
   const [state, action, pending] = useActionState<AcceptInviteState, FormData>(acceptInviteAction.bind(null, token), undefined);
@@ -20,9 +21,9 @@ export function InviteSignUpForm({ token, email, agency }: { token: string; emai
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">Password</Label>
-        <Input id="password" name="password" type="password" autoComplete="new-password" />
+        <PasswordInput id="password" name="password" autoComplete="new-password" />
       </div>
-      {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
+      {state?.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
       <Button type="submit" disabled={pending}>{pending ? "Creating your account…" : "Create account"}</Button>
       <p className="text-xs text-muted-foreground">You&apos;re joining {agency}.</p>
     </form>

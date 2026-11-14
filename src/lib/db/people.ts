@@ -203,7 +203,10 @@ export async function findLoginByEmail(email: string): Promise<{ userId: string;
   return row ? { userId: row.user_id, orgId: row.org_id } : null;
 }
 
-export async function createLogin(email: string, password: string): Promise<{ ok: true; userId: string } | { ok: false }> {
+export async function createLogin(
+  email: string,
+  password: string,
+): Promise<{ ok: true; userId: string } | { ok: false; reason: "email_exists" | "failed" }> {
   const { data, error } = await createServerSupabase().auth.admin.createUser({
     email,
     password,
@@ -211,8 +214,12 @@ export async function createLogin(email: string, password: string): Promise<{ ok
     app_metadata: { platform_role: "member" },
   });
   if (error || !data.user) {
-    console.error("[invite] could not create the login", error);
-    return { ok: false };
+    // The Auth admin API answers an address that already has a login with code "email_exists"
+    // (422); "user_already_exists" is the same case from older Auth versions.
+    const code = (error as { code?: string } | null)?.code;
+    if (code === "email_exists" || code === "user_already_exists") return { ok: false, reason: "email_exists" };
+    console.error("[invite] could not create the login:", code ?? "no code", error?.message ?? "no user returned");
+    return { ok: false, reason: "failed" };
   }
   return { ok: true, userId: data.user.id };
 }
@@ -369,20 +376,23 @@ export async function getInvitationByToken(token: string): Promise<InvitationFor
 
 /** The caller must have created `userId`'s login with the invitation's own email (the sign-up
  *  action does, from getInvitationByToken, never from the form): accept_invitation does not
- *  compare the two. */
+ *  compare the two. Null when the link is no longer valid; any other failure throws, so a
+ *  passing outage is not mistaken for a dead link. */
 export async function acceptInvitation(
   token: string,
   userId: string,
   displayName: string,
-): Promise<{ orgId: string; clientId: string | null; asOwner: boolean; invitedBy: string | null }> {
+): Promise<{ orgId: string; clientId: string | null; asOwner: boolean; invitedBy: string | null } | null> {
   const { data, error } = await createServerSupabase().rpc("accept_invitation", {
     p_token: token,
     p_user_id: userId,
     p_display_name: displayName,
   });
+  // P0002 (no_data_found): the function's own "no longer valid" (used, revoked or expired).
+  if (error?.code === "P0002") return null;
   if (error) throw error;
   const row = ((data ?? []) as { org_id: string; client_id: string | null; as_owner: boolean; invited_by: string | null }[])[0];
-  if (!row) throw new Error("The invitation was not accepted.");
+  if (!row) return null;
   return { orgId: row.org_id, clientId: row.client_id, asOwner: row.as_owner, invitedBy: row.invited_by };
 }
 
