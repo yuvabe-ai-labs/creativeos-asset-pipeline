@@ -32,12 +32,12 @@ describe("people helpers", () => {
   });
 
   it("keeps a client's open invites", () => {
-    const inv = (id: string, clientId: string | null): OpenInvite => ({ id, email: `${id}@x.com`, clientId, clientName: null, asOwner: clientId === null, sentAt: "t", expiresAt: "t", link: `https://app.example/invite/${id}` });
+    const inv = (id: string, clientId: string | null): OpenInvite => ({ id, email: `${id}@x.com`, clientId, clientName: null, asOwner: clientId === null, sentAt: "t", expiresAt: "t", invitedByName: null, link: `https://app.example/invite/${id}` });
     expect(invitesForClient([inv("i1", "c1"), inv("i2", "c2"), inv("i3", null)], "c1").map((i) => i.id)).toEqual(["i1"]);
   });
 
   it("withholds invite links from anyone who can't manage the team", () => {
-    const inv: OpenInvite = { id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "t", expiresAt: "t", link: "https://app.example/invite/i1" };
+    const inv: OpenInvite = { id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "t", expiresAt: "t", invitedByName: null, link: "https://app.example/invite/i1" };
     expect(hideInviteLinks([inv])).toEqual([{ ...inv, link: null }]);
   });
 

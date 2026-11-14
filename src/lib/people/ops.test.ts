@@ -15,13 +15,13 @@ vi.mock("@/lib/email/send", () => ({ sendEmail }));
 
 import {
   addToClient, cancelInvite, createAgency, inviteToClient, makeOwner, notifySignedUp,
-  removePerson, resendInvite, updatePermissions,
+  removeFromClient, removePerson, resendInvite, resendOwnerInvite, updatePermissions,
 } from "./ops";
 
 const agency = { orgId: "org-1", orgName: "Acme" };
 const client = { id: "c1", name: "Chupps" };
 const by = { userId: "owner-1", name: "Asha" };
-const invite = { id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "s", expiresAt: "e", link: "https://app.example/invite/stored" };
+const invite = { id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "s", expiresAt: "e", invitedByName: null, link: "https://app.example/invite/stored" };
 
 beforeEach(() => {
   for (const fn of Object.values(db)) fn.mockReset();
@@ -60,6 +60,32 @@ describe("inviteToClient (spec §6.2)", () => {
     expect(sendEmail.mock.calls[0][0].text).toContain("Meera has invited you to join Acme on CreativeOS, to work on Chupps.");
   });
 
+  it("names the caller as the inviter on the invite it returns", async () => {
+    const r = await inviteToClient(agency, client, "p@x.com", by);
+    expect(r.ok && r.value.invite.invitedByName).toBe("Asha");
+  });
+
+  it("answers a lost race for the same email (the one-open-invite index) as already invited", async () => {
+    db.insertInvitation.mockRejectedValue({ code: "23505", message: "duplicate key value violates unique constraint" });
+    db.findOpenInviteByEmail.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "i0", clientName: "Bata" });
+    expect(await inviteToClient(agency, client, "p@x.com", by)).toEqual({
+      ok: false, status: 409, error: "Already invited to Bata. Once they've signed up, add them from the list.",
+    });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("still throws any other database fault on insert", async () => {
+    db.insertInvitation.mockRejectedValue({ code: "XX000", message: "boom" });
+    await expect(inviteToClient(agency, client, "p@x.com", by)).rejects.toMatchObject({ code: "XX000" });
+  });
+
+  it("does not email a path-only link (APP_URL not set): it returns it to copy", async () => {
+    db.insertInvitation.mockResolvedValue({ ...invite, link: "/invite/stored" });
+    const r = await inviteToClient(agency, client, "p@x.com", by);
+    expect(r).toMatchObject({ ok: true, value: { link: "/invite/stored", emailed: false } });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
   it("counts every invite sent in the agency today towards the limit, whoever sent it", async () => {
     await inviteToClient(agency, client, "p@x.com", { userId: "holder-1", name: "Meera" });
     expect(db.countInvitesSince).toHaveBeenCalledWith("org-1", expect.any(String));
@@ -86,6 +112,14 @@ describe("resendInvite and cancelInvite", () => {
     const r = await resendInvite(agency, "i1", by);
     expect(r).toEqual({ ok: true, value: { invite: replaced, link: "https://app.example/invite/new", emailed: true } });
     expect(db.replaceInvitationToken).toHaveBeenCalledWith("org-1", "i1", expect.stringMatching(/^[A-Za-z0-9_-]{43}$/));
+    expect(sendEmail.mock.calls[0][0].text).toContain("https://app.example/invite/new");
+  });
+
+  it("Resend on an owner invite sends the Set up email, not the member invite", async () => {
+    db.replaceInvitationToken.mockResolvedValue({ ...invite, email: "o@x.com", clientId: null, clientName: null, asOwner: true, link: "https://app.example/invite/new" });
+    const r = await resendInvite(agency, "oi1", by);
+    expect(r).toMatchObject({ ok: true, value: { emailed: true } });
+    expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: ["o@x.com"], subject: "Set up Acme on CreativeOS" });
     expect(sendEmail.mock.calls[0][0].text).toContain("https://app.example/invite/new");
   });
 
@@ -178,6 +212,39 @@ describe("makeOwner", () => {
     db.getMembership.mockResolvedValue({ isOwner: false, accessGiven: true });
     expect(await makeOwner(agency, "u1")).toEqual({ ok: true, value: null });
     expect(db.transferOwner).toHaveBeenCalledWith("org-1", "u1");
+  });
+
+  it("refuses someone outside the agency, and transfers nothing", async () => {
+    db.getMembership.mockResolvedValue(null);
+    expect(await makeOwner(agency, "stranger")).toEqual({ ok: false, status: 404, error: "That person isn't in this agency." });
+    expect(db.transferOwner).not.toHaveBeenCalled();
+  });
+});
+
+describe("removeFromClient", () => {
+  it("takes the person off this client only", async () => {
+    expect(await removeFromClient(agency, "c1", "u1")).toEqual({ ok: true, value: null });
+    expect(db.removePersonFromClient).toHaveBeenCalledWith("org-1", "c1", "u1");
+    expect(db.deleteLogin).not.toHaveBeenCalled();
+  });
+});
+
+describe("resendOwnerInvite", () => {
+  const ownerInvite = { ...invite, id: "oi1", email: "o@x.com", clientId: null, clientName: null, asOwner: true };
+
+  it("resends the agency's open owner invite with a new token and the Set up email", async () => {
+    db.getOpenOwnerInvite.mockResolvedValue(ownerInvite);
+    db.replaceInvitationToken.mockResolvedValue({ ...ownerInvite, link: "https://app.example/invite/new" });
+    const r = await resendOwnerInvite(agency, by);
+    expect(r).toMatchObject({ ok: true, value: { link: "https://app.example/invite/new", emailed: true } });
+    expect(db.replaceInvitationToken).toHaveBeenCalledWith("org-1", "oi1", expect.stringMatching(/^[A-Za-z0-9_-]{43}$/));
+    expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: ["o@x.com"], subject: "Set up Acme on CreativeOS" });
+  });
+
+  it("refuses when there is no open owner invite", async () => {
+    db.getOpenOwnerInvite.mockResolvedValue(null);
+    expect(await resendOwnerInvite(agency, by)).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
+    expect(db.replaceInvitationToken).not.toHaveBeenCalled();
   });
 });
 

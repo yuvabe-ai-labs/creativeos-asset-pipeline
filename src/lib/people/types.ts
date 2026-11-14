@@ -26,6 +26,8 @@ export type OpenInvite = {
   asOwner: boolean;
   sentAt: string;
   expiresAt: string;
+  /** Who sent it (spec §6.1), by display name. Null when that login is gone. */
+  invitedByName: string | null;
   /** The link as issued: Copy link shows it unchanged; only Resend replaces it. Null for a
    *  caller without manage_team (an Invite holder): links reach only the owner and Admin. */
   link: string | null;

@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({ createServerSupabase: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: m.createServerSupabase }));
 
-import { findOpenInviteByEmail, insertInvitation, toInvite, toPerson } from "./people";
+import { findOpenInviteByEmail, insertInvitation, listOpenInvites, loginEmails, toInvite, toPerson } from "./people";
 
 describe("people rows", () => {
   it("map a list_agency_people row to a person with a status", () => {
@@ -28,7 +28,7 @@ describe("people rows", () => {
   it("map an invitation row with its client name and its stored link (the same every time)", () => {
     process.env.APP_URL = "https://app.example";
     expect(toInvite({ id: "i1", email: "p@x.com", client_id: "c1", as_owner: false, created_at: "s", expires_at: "e", token: "tok1", clients: { name: "Chupps" } }))
-      .toEqual({ id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "s", expiresAt: "e", link: "https://app.example/invite/tok1" });
+      .toEqual({ id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "s", expiresAt: "e", invitedByName: null, link: "https://app.example/invite/tok1" });
     expect(toInvite({ id: "i2", email: "o@x.com", client_id: null, as_owner: true, created_at: "s", expires_at: "e", token: "tok2", clients: null }).clientName).toBeNull();
   });
 });
@@ -42,7 +42,7 @@ function fakeDb(results: { data?: unknown; error?: unknown }[]) {
       const chain = { table, calls: [] as Call[] };
       chains.push(chain);
       const builder: Record<string, unknown> = {};
-      for (const name of ["select", "insert", "update", "eq", "is", "gt", "lte", "order", "single", "maybeSingle"]) {
+      for (const name of ["select", "insert", "update", "eq", "in", "is", "gt", "lte", "order", "single", "maybeSingle"]) {
         builder[name] = (...args: unknown[]) => { chain.calls.push([name, ...args]); return builder; };
       }
       builder.then = (resolve: (v: unknown) => void) => resolve({ data: null, error: null, ...results.shift() });
@@ -76,5 +76,59 @@ describe("an expired open invite (ledger, plan 4 must b)", () => {
       ["eq", "org_id", "org-1"], ["eq", "email", "p@x.com"], ["is", "accepted_at", null], ["is", "revoked_at", null], ["lte", "expires_at", expect.any(String)],
     ]));
     expect(insert.calls[0]).toEqual(["insert", expect.objectContaining({ org_id: "org-1", client_id: "c1", email: "p@x.com", token: "tok", invited_by: "owner-1" })]);
+  });
+});
+
+describe("open invites name who sent them (spec §6.1)", () => {
+  beforeEach(() => { process.env.APP_URL = "https://app.example"; });
+
+  it("reads the inviters' names in one batched profiles read, not one per invite", async () => {
+    const { db, chains } = fakeDb([
+      { data: [{ ...row, id: "i1", invited_by: "u-asha" }, { ...row, id: "i2", invited_by: "u-asha" }, { ...row, id: "i3", invited_by: "u-meera" }, { ...row, id: "i4", invited_by: null }] },
+      { data: [{ user_id: "u-asha", display_name: "Asha" }, { user_id: "u-meera", display_name: "Meera" }] },
+    ]);
+    m.createServerSupabase.mockReturnValue(db);
+    const invites = await listOpenInvites("org-1");
+    expect(invites.map((i) => [i.id, i.invitedByName])).toEqual([["i1", "Asha"], ["i2", "Asha"], ["i3", "Meera"], ["i4", null]]);
+    expect(chains).toHaveLength(2);
+    expect(chains[0].calls[0]).toEqual(["select", expect.stringContaining("invited_by")]);
+    expect(chains[1].table).toBe("profiles");
+    expect(chains[1].calls).toContainEqual(["in", "user_id", ["u-asha", "u-meera"]]);
+  });
+
+  it("makes no profiles read when no invite names an inviter", async () => {
+    const { db, chains } = fakeDb([{ data: [{ ...row, invited_by: null }] }]);
+    m.createServerSupabase.mockReturnValue(db);
+    expect((await listOpenInvites("org-1"))[0].invitedByName).toBeNull();
+    expect(chains).toHaveLength(1);
+  });
+
+  it("throws when the profiles read fails", async () => {
+    const { db } = fakeDb([{ data: [{ ...row, invited_by: "u-asha" }] }, { error: { message: "boom" } }]);
+    m.createServerSupabase.mockReturnValue(db);
+    await expect(listOpenInvites("org-1")).rejects.toEqual({ message: "boom" });
+  });
+});
+
+describe("findOpenInviteByEmail", () => {
+  it("selects only what it returns, never the token", async () => {
+    const { db, chains } = fakeDb([{ data: { id: "i1", clients: { name: "Chupps" } } }]);
+    m.createServerSupabase.mockReturnValue(db);
+    expect(await findOpenInviteByEmail("org-1", "p@x.com")).toEqual({ id: "i1", clientName: "Chupps" });
+    expect(chains[0].calls[0]).toEqual(["select", "id, clients(name)"]);
+  });
+});
+
+describe("loginEmails", () => {
+  it("logs an Auth admin error (without the address) and leaves that person out", async () => {
+    const getUserById = vi.fn()
+      .mockResolvedValueOnce({ data: { user: { email: "a@x.com" } }, error: null })
+      .mockResolvedValueOnce({ data: { user: null }, error: { message: "admin down" } });
+    m.createServerSupabase.mockReturnValue({ auth: { admin: { getUserById } } });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await loginEmails(["u1", "u2"])).toEqual(["a@x.com"]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(spy.mock.calls)).not.toContain("a@x.com");
+    spy.mockRestore();
   });
 });

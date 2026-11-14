@@ -2,11 +2,11 @@ import "server-only";
 import * as people from "@/lib/db/people";
 import { sendEmail, type Email } from "@/lib/email/send";
 import { accessReadyEmail, appLink, memberInviteEmail, ownerInviteEmail, signedUpEmail } from "@/lib/email/templates";
-import { inviteLink, newInviteToken } from "@/lib/invites/token";
+import { inviteLink, isFullInviteLink, newInviteToken } from "@/lib/invites/token";
 import { orderedPermissions, toPermissionSet, type Permission } from "@/lib/permissions/model";
 import { uniqueSlug } from "@/lib/slug";
 import { INVITES_PER_AGENCY_PER_DAY, REFUSALS } from "./constants";
-import type { InviteResult } from "./types";
+import type { InviteResult, StoredInvite } from "./types";
 import { isValidEmail, normaliseEmail, oneDayAgo } from "./utils";
 
 // The people rules (spec §6.1–§6.3, §6.6), once for the owner's screens, Invite holders and
@@ -33,6 +33,20 @@ async function emailGuarded(build: () => Email): Promise<boolean> {
   }
 }
 
+/** An invite email, unless the link is a path only (APP_URL not set): then it is shown to copy. */
+async function emailInvite(link: string, build: () => Email): Promise<boolean> {
+  if (!isFullInviteLink(link)) {
+    console.error("[people] APP_URL is not set; the invite link is a path only and is not emailed");
+    return false;
+  }
+  return emailGuarded(build);
+}
+
+/** Postgres unique violation: here, the one-open-invite-per-email index. */
+function isUniqueViolation(e: unknown): boolean {
+  return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "23505";
+}
+
 export async function inviteToClient(agency: Agency, client: { id: string; name: string }, rawEmail: string, by: Actor): Promise<OpResult<InviteResult>> {
   const email = normaliseEmail(rawEmail);
   if (!isValidEmail(email)) return refuse(400, REFUSALS.invalidEmail);
@@ -47,9 +61,18 @@ export async function inviteToClient(agency: Agency, client: { id: string; name:
   if (login) return refuse(409, REFUSALS.otherAgency);
   if (sentToday >= INVITES_PER_AGENCY_PER_DAY) return refuse(429, REFUSALS.dailyLimit);
 
-  const invite = await people.insertInvitation({ orgId: agency.orgId, clientId: client.id, email, token: newInviteToken(), invitedBy: by.userId });
+  let stored: StoredInvite;
+  try {
+    stored = await people.insertInvitation({ orgId: agency.orgId, clientId: client.id, email, token: newInviteToken(), invitedBy: by.userId });
+  } catch (e) {
+    // Someone else invited this email between the check above and the insert.
+    if (!isUniqueViolation(e)) throw e;
+    const winner = await people.findOpenInviteByEmail(agency.orgId, email);
+    return refuse(409, REFUSALS.alreadyInvited(winner?.clientName ?? agency.orgName));
+  }
+  const invite = { ...stored, invitedByName: by.name };
   const link = invite.link;
-  const emailed = await emailGuarded(() => memberInviteEmail({ to: email, agency: agency.orgName, inviter: by.name, client: client.name, link }));
+  const emailed = await emailInvite(link, () => memberInviteEmail({ to: email, agency: agency.orgName, inviter: by.name, client: client.name, link }));
   return ok({ invite, link, emailed });
 }
 
@@ -62,7 +85,7 @@ export async function resendInvite(agency: Agency, inviteId: string, by: Actor):
   const invite = await people.replaceInvitationToken(agency.orgId, inviteId, newInviteToken());
   if (!invite) return refuse(404, REFUSALS.inviteNotFound);
   const link = invite.link;
-  const emailed = await emailGuarded(() =>
+  const emailed = await emailInvite(link, () =>
     invite.asOwner
       ? ownerInviteEmail({ to: invite.email, agency: agency.orgName, link })
       : memberInviteEmail({ to: invite.email, agency: agency.orgName, inviter: by.name, client: invite.clientName ?? agency.orgName, link }),
@@ -126,16 +149,9 @@ export async function createAgency(name: string, rawEmail: string, by: Actor): P
   if (login) return refuse(409, REFUSALS.otherAgency);
   const token = newInviteToken();
   const orgId = await people.createAgencyWithOwnerInvite({ name, slug: uniqueSlug(name, slugs), ownerEmail: email, token, by: by.userId });
-  // The agency exists now: without APP_URL the link falls back to its path (shown to copy on
-  // this site) and the email is skipped, rather than failing a create that already happened.
-  let link: string;
-  try {
-    link = inviteLink(token);
-  } catch (e) {
-    console.error("[people] APP_URL is not set; the owner invite link is a path only", e);
-    return ok({ orgId, link: `/invite/${token}`, emailed: false });
-  }
-  const emailed = await emailGuarded(() => ownerInviteEmail({ to: email, agency: name, link }));
+  // Without APP_URL the link is its path (shown to copy on this site) and is not emailed.
+  const link = inviteLink(token);
+  const emailed = await emailInvite(link, () => ownerInviteEmail({ to: email, agency: name, link }));
   return ok({ orgId, link, emailed });
 }
 

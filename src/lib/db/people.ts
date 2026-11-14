@@ -34,10 +34,13 @@ type InviteRow = {
   created_at: string;
   expires_at: string;
   token: string;
+  /** Only where the inviter is named (INVITE_COLUMNS_WITH_INVITER). */
+  invited_by?: string | null;
   clients: Embed<{ name: string }>;
 };
 
 const INVITE_COLUMNS = "id, email, client_id, as_owner, created_at, expires_at, token, clients(name)";
+const INVITE_COLUMNS_WITH_INVITER = `${INVITE_COLUMNS}, invited_by`;
 
 export function toPerson(row: PeopleRow): AgencyPerson {
   return {
@@ -53,7 +56,7 @@ export function toPerson(row: PeopleRow): AgencyPerson {
   };
 }
 
-export function toInvite(row: InviteRow): StoredInvite {
+export function toInvite(row: InviteRow, invitedByName: string | null = null): StoredInvite {
   return {
     id: row.id,
     email: row.email,
@@ -62,6 +65,7 @@ export function toInvite(row: InviteRow): StoredInvite {
     asOwner: row.as_owner,
     sentAt: row.created_at,
     expiresAt: row.expires_at,
+    invitedByName,
     link: inviteLink(row.token),
   };
 }
@@ -76,16 +80,32 @@ export async function listAgencyPeople(orgId: string): Promise<AgencyPerson[]> {
   return ((data ?? []) as PeopleRow[]).map(toPerson);
 }
 
+type Db = ReturnType<typeof createServerSupabase>;
+
+/** Maps invites to StoredInvites with who sent each. invited_by references auth.users, so
+ *  PostgREST can't embed the profile: one batched profiles read for the distinct inviters. */
+async function withInviterNames(db: Db, rows: InviteRow[]): Promise<StoredInvite[]> {
+  const ids = [...new Set(rows.flatMap((r) => (r.invited_by ? [r.invited_by] : [])))];
+  const names = new Map<string, string>();
+  if (ids.length > 0) {
+    const { data, error } = await db.from("profiles").select("user_id, display_name").in("user_id", ids);
+    if (error) throw error;
+    for (const p of (data ?? []) as { user_id: string; display_name: string }[]) names.set(p.user_id, p.display_name);
+  }
+  return rows.map((r) => toInvite(r, (r.invited_by && names.get(r.invited_by)) || null));
+}
+
 export async function listOpenInvites(orgId: string): Promise<StoredInvite[]> {
-  const { data, error } = await createServerSupabase()
+  const db = createServerSupabase();
+  const { data, error } = await db
     .from("org_invitations")
-    .select(INVITE_COLUMNS)
+    .select(INVITE_COLUMNS_WITH_INVITER)
     .eq("org_id", orgId)
     .is("accepted_at", null)
     .is("revoked_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return ((data ?? []) as unknown as InviteRow[]).map(toInvite);
+  return withInviterNames(db, (data ?? []) as unknown as InviteRow[]);
 }
 
 export async function getMembership(orgId: string, userId: string): Promise<{ isOwner: boolean; accessGiven: boolean } | null> {
@@ -166,7 +186,14 @@ export async function ownerIds(orgId: string): Promise<string[]> {
 export async function loginEmails(userIds: readonly string[]): Promise<string[]> {
   const db = createServerSupabase();
   const users = await Promise.all(userIds.map((id) => db.auth.admin.getUserById(id)));
-  return users.flatMap(({ data, error }) => (error || !data.user?.email ? [] : [data.user.email]));
+  // Nothing destructive follows (a notice is skipped), so a failed read leaves that person out.
+  return users.flatMap(({ data, error }, i) => {
+    if (error) {
+      console.error("[people] could not read a login's email", userIds[i], error.message);
+      return [];
+    }
+    return data.user?.email ? [data.user.email] : [];
+  });
 }
 
 export async function findLoginByEmail(email: string): Promise<{ userId: string; orgId: string | null } | null> {
@@ -202,7 +229,7 @@ export async function deleteLogin(userId: string): Promise<void> {
 export async function findOpenInviteByEmail(orgId: string, email: string): Promise<{ id: string; clientName: string | null } | null> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
-    .select(INVITE_COLUMNS)
+    .select("id, clients(name)")
     .eq("org_id", orgId)
     // Stored lowercased (normaliseEmail, and lower() in create_agency_with_owner_invite); eq, not
     // ilike, so an underscore in an address is not a wildcard.
@@ -213,8 +240,8 @@ export async function findOpenInviteByEmail(orgId: string, email: string): Promi
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const invite = toInvite(data as unknown as InviteRow);
-  return { id: invite.id, clientName: invite.clientName };
+  const row = data as unknown as { id: string; clients: Embed<{ name: string }> };
+  return { id: row.id, clientName: unwrapEmbed(row.clients)?.name ?? null };
 }
 
 export async function countInvitesSince(orgId: string, sinceIso: string): Promise<number> {
@@ -227,7 +254,10 @@ export async function countInvitesSince(orgId: string, sinceIso: string): Promis
   return count ?? 0;
 }
 
-/** An expired invite still counts as open to the one-open-invite-per-email index (an index can't
+/** The invite comes back with invitedByName null: the caller knows who it is (ops fills it in).
+ *  A unique violation (23505, a concurrent invite to the same email) is thrown as is; the people
+ *  rules turn it into the "already invited" refusal.
+ *  An expired invite still counts as open to the one-open-invite-per-email index (an index can't
  *  use now()), so it is revoked first; otherwise it would block every new invite to that email. */
 export async function insertInvitation(i: { orgId: string; clientId: string; email: string; token: string; invitedBy: string }): Promise<StoredInvite> {
   const db = createServerSupabase();
@@ -253,17 +283,19 @@ export async function insertInvitation(i: { orgId: string; clientId: string; ema
 /** Resend only: a new token (the old link stops working), sent now, 7 more days. Copy link never
  *  calls this; it shows the stored link. */
 export async function replaceInvitationToken(orgId: string, inviteId: string, token: string): Promise<StoredInvite | null> {
-  const { data, error } = await createServerSupabase()
+  const db = createServerSupabase();
+  const { data, error } = await db
     .from("org_invitations")
     .update({ token, created_at: new Date().toISOString(), expires_at: expiry() })
     .eq("id", inviteId)
     .eq("org_id", orgId)
     .is("accepted_at", null)
     .is("revoked_at", null)
-    .select(INVITE_COLUMNS)
+    .select(INVITE_COLUMNS_WITH_INVITER)
     .maybeSingle();
   if (error) throw error;
-  return data ? toInvite(data as unknown as InviteRow) : null;
+  // Resend keeps the original sender.
+  return data ? (await withInviterNames(db, [data as unknown as InviteRow]))[0] : null;
 }
 
 export async function revokeInvitation(orgId: string, inviteId: string): Promise<boolean> {
@@ -279,6 +311,7 @@ export async function revokeInvitation(orgId: string, inviteId: string): Promise
   return (data ?? []).length > 0;
 }
 
+/** Read for its id (resendOwnerInvite); invitedByName is left null. */
 export async function getOpenOwnerInvite(orgId: string): Promise<StoredInvite | null> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")

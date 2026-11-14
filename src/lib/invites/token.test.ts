@@ -1,4 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 
 import { inviteLink, newInviteToken } from "./token";
 
@@ -14,5 +16,10 @@ describe("invite tokens", () => {
 
   it("links to the sign-up page", () => {
     expect(inviteLink("abc")).toBe("https://app.example/invite/abc");
+  });
+
+  it("falls back to the path when APP_URL is not set, so the invite still works on this site", () => {
+    delete process.env.APP_URL;
+    expect(inviteLink("abc")).toBe("/invite/abc");
   });
 });
