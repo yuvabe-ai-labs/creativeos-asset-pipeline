@@ -15,7 +15,7 @@ import {
 import { countGenerationsForOrg, listGenerationsForOrgPage } from "@/lib/db/generations";
 import { listImpersonationSessionPage } from "@/lib/db/impersonation-audit";
 import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
-import { listClients } from "@/lib/db/clients";
+import { listClientNames } from "@/lib/db/clients";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
 import {
@@ -63,7 +63,7 @@ export default async function OrgDetailPage({
   ] = await Promise.all([
     listAgencyPeople(id),
     listOpenInvites(id),
-    listClients(id, null),
+    listClientNames(id),
     countGenerationsForOrg(id),
     listGenerationsForOrgPage(id, { page: 1, pageSize: 20 }),
     getOrgCreditUsage(id),
@@ -108,7 +108,7 @@ export default async function OrgDetailPage({
         org={org}
         people={people}
         invites={invites}
-        clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+        clients={clients}
         generationCount={generationCount}
         generationsPage={generationsPage}
         creditsUsedThisMonth={creditsUsedThisMonth}
