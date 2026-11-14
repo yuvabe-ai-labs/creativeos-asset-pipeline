@@ -1,6 +1,5 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { uniqueSlug } from "@/lib/slug";
 import type { OrgRole } from "@/lib/dal-logic";
 
 export type OrgRow = {
@@ -11,22 +10,27 @@ export type OrgRow = {
   created_at: string;
 };
 
-export type OrgWithCount = OrgRow & { client_count: number };
+export type OrgWithCount = OrgRow & { client_count: number; owner_pending: boolean };
 
+// The agencies list. owner_pending: the agency has no owner yet (its invited owner hasn't signed
+// up, spec §6.6). Owners are read in one query beside the agencies.
 export async function listOrgsWithClientCount(): Promise<OrgWithCount[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("organizations")
-    .select("*, clients(count)")
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as (OrgRow & { clients: { count: number }[] })[]).map((o) => ({
+  const [orgsRes, ownersRes] = await Promise.all([
+    supabase.from("organizations").select("*, clients(count)").order("created_at", { ascending: true }),
+    supabase.from("org_memberships").select("org_id").eq("is_owner", true),
+  ]);
+  if (orgsRes.error) throw orgsRes.error;
+  if (ownersRes.error) throw ownersRes.error;
+  const owned = new Set(((ownersRes.data ?? []) as { org_id: string }[]).map((r) => r.org_id));
+  return ((orgsRes.data ?? []) as (OrgRow & { clients: { count: number }[] })[]).map((o) => ({
     id: o.id,
     name: o.name,
     slug: o.slug,
     monthly_credit_limit: o.monthly_credit_limit,
     created_at: o.created_at,
     client_count: o.clients?.[0]?.count ?? 0,
+    owner_pending: !owned.has(o.id),
   }));
 }
 
@@ -257,66 +261,6 @@ export async function updateOrgCreditLimit(
     .update({ monthly_credit_limit: limit })
     .eq("id", orgId);
   if (error) throw error;
-}
-
-// Creates org + auth user + profile + owner membership in one call. Returns the temp
-// password so the operator can share it out-of-band. Sets must_change_password so the
-// agency owner is forced to pick their own password on first login. Best-effort cleanup
-// if any step fails partway.
-export async function createOrgWithOwner(input: {
-  name: string;
-  email: string;
-  displayName: string;
-  creditLimit: number | null;
-}): Promise<{ orgId: string; userId: string; tempPassword: string }> {
-  const supabase = createServerSupabase();
-
-  const { data: existing, error: readErr } = await supabase
-    .from("organizations")
-    .select("slug");
-  if (readErr) throw readErr;
-  const slug = uniqueSlug(input.name, (existing ?? []).map((r: { slug: string }) => r.slug));
-
-  const { data: org, error: orgErr } = await supabase
-    .from("organizations")
-    .insert({ name: input.name, slug, monthly_credit_limit: input.creditLimit })
-    .select()
-    .single();
-  if (orgErr) throw orgErr;
-  const orgId = (org as OrgRow).id;
-
-  const tempPassword = generateTempPassword();
-  const { data: created, error: userErr } = await supabase.auth.admin.createUser({
-    email: input.email,
-    password: tempPassword,
-    email_confirm: true,
-    app_metadata: { platform_role: "member", must_change_password: true },
-  });
-  if (userErr || !created.user) {
-    await supabase.from("organizations").delete().eq("id", orgId);
-    throw userErr ?? new Error("Failed to create user.");
-  }
-  const userId = created.user.id;
-
-  const { error: profileErr } = await supabase
-    .from("profiles")
-    .insert({ user_id: userId, display_name: input.displayName });
-  if (profileErr) {
-    await supabase.auth.admin.deleteUser(userId);
-    await supabase.from("organizations").delete().eq("id", orgId);
-    throw profileErr;
-  }
-
-  const { error: memberErr } = await supabase
-    .from("org_memberships")
-    .insert({ user_id: userId, org_id: orgId, org_role: "owner" });
-  if (memberErr) {
-    await supabase.auth.admin.deleteUser(userId);
-    await supabase.from("organizations").delete().eq("id", orgId);
-    throw memberErr;
-  }
-
-  return { orgId, userId, tempPassword };
 }
 
 // R1.1/R1.2: add a SECOND (third, fourth…) seat to an existing org. Mirrors

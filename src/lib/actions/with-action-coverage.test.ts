@@ -33,32 +33,34 @@ const ALLOWLIST: Record<string, string> = {
     "category as loginAction/logoutAction. Also unreachable while impersonating: " +
     "proxy.ts forces every route except /account/password to redirect there whenever " +
     "must_change_password is set, before any impersonation-related routing can happen.",
-  createOrgAction:
+  createAgencyAction:
     "admin.ts: /admin platform-administration (requireSuperAdmin()-gated), not " +
     "acting-as-an-org (D85 draws this line explicitly). No target org exists yet. " +
     "Tried gating this in review round 2 and reverted: withAction() has no way to know " +
     "this action's target org differs from whatever org is currently impersonated, so " +
     "gating it both spuriously blocks unrelated /admin work and misattributes the " +
     "audit-log's target_org_id to the wrong org.",
+  resendOwnerInviteAction:
+    "admin.ts: same D85 platform-administration category and same revert rationale as createAgencyAction — orgId is an explicit caller-supplied parameter.",
   updateOrgCreditLimitAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
+    "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
   resetMemberPasswordAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
+    "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
   addOrgMemberAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
+    "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
   updateMemberRoleAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
+    "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
   removeOrgMemberAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
+    "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
 };
 

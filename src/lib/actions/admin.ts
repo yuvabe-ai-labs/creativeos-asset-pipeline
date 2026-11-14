@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import {
-  createOrgWithOwner,
+  getOrgById,
   updateOrgCreditLimit,
   resetMemberPassword,
   generateTempPassword,
@@ -13,19 +13,22 @@ import {
   removeOrgMember,
 } from "@/lib/db/organizations";
 import {
-  CreateOrgSchema,
   AddMemberSchema,
   ORG_ROLES,
   parseCreditLimit,
   parseResetPassword,
 } from "@/lib/orgs/org-schema";
+import { CreateAgencySchema } from "@/lib/people/schema";
+import { createAgency, resendOwnerInvite } from "@/lib/people/ops";
+import { getDisplayName } from "@/lib/db/profiles";
+import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 
 // This file's three actions are deliberately NOT gated by withAction() (Stage 4's
 // impersonation write-gate). They're /admin platform-administration actions
 // (requireSuperAdmin()-gated already) — D85 draws an explicit line between
 // "administering the platform" via /admin and "acting as an org" via impersonation,
 // and these actions' target orgId is an explicit caller-supplied parameter (or, for
-// createOrgAction, doesn't exist yet) that's never correlated with whatever org an
+// createAgencyAction, doesn't exist yet) that's never correlated with whatever org an
 // operator happens to be impersonating elsewhere in the same session. Gating them was
 // tried and reverted (review round 2): it both spuriously blocked unrelated /admin
 // work during an unrelated impersonation session, and made the impersonation_audit_log
@@ -34,44 +37,42 @@ import {
 // See docs/superpowers/plans/2026-08-09-impersonation-stage4-fixes-2.md and the
 // ALLOWLIST entries in src/lib/actions/with-action-coverage.test.ts.
 
-export type CreateOrgState =
-  | { error?: string; result?: { email: string; tempPassword: string; orgId: string } }
+export type CreateAgencyState =
+  | { error?: string; result?: { orgId: string; email: string; link: string; emailed: boolean } }
   | undefined;
 
-export async function createOrgAction(
-  _prev: CreateOrgState,
-  formData: FormData,
-): Promise<CreateOrgState> {
-  await requireSuperAdmin();
-
-  const parsed = CreateOrgSchema.safeParse({
-    name: formData.get("name"),
-    email: formData.get("email"),
-    displayName: formData.get("displayName"),
-    creditLimit: formData.get("creditLimit") ?? "",
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  }
-
-  let creditLimit: number | null;
+// Spec §6.6 "Add an agency": the agency and its owner invite in one step. The owner signs up from
+// the email (or the copied link) and can do everything in the agency. No temporary password.
+export async function createAgencyAction(_prev: CreateAgencyState, formData: FormData): Promise<CreateAgencyState> {
+  const admin = await requireSuperAdmin();
+  const parsed = CreateAgencySchema.safeParse({ name: formData.get("name"), email: formData.get("email") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the name and email." };
+  const name = (await getDisplayName(admin.userId)) ?? "Yuvabe";
   try {
-    creditLimit = parseCreditLimit(parsed.data.creditLimit);
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Invalid credit limit." };
-  }
-
-  try {
-    const { orgId, tempPassword } = await createOrgWithOwner({
-      name: parsed.data.name,
-      email: parsed.data.email,
-      displayName: parsed.data.displayName,
-      creditLimit,
-    });
+    const result = await createAgency(parsed.data.name, parsed.data.email, { userId: admin.userId, name });
+    if (!result.ok) return { error: result.error };
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: result.value.orgId, eventType: "admin_action", detail: { action: "create_agency", email: parsed.data.email } });
     revalidatePath("/admin");
-    return { result: { email: parsed.data.email, tempPassword, orgId } };
+    return { result: { ...result.value, email: parsed.data.email } };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed to create organization." };
+    console.error("[admin] could not create the agency", e);
+    return { error: "Could not create the agency." };
+  }
+}
+
+// The agencies list's Resend for an owner who hasn't signed up: a new link, emailed and shown.
+export async function resendOwnerInviteAction(orgId: string): Promise<{ error?: string; link?: string; emailed?: boolean }> {
+  const admin = await requireSuperAdmin();
+  const [org, name] = await Promise.all([getOrgById(orgId), getDisplayName(admin.userId)]);
+  if (!org) return { error: "Agency not found." };
+  try {
+    const result = await resendOwnerInvite({ orgId, orgName: org.name }, { userId: admin.userId, name: name ?? "Yuvabe" });
+    if (!result.ok) return { error: result.error };
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "resend_owner_invite" } });
+    return { link: result.value.link, emailed: result.value.emailed };
+  } catch (e) {
+    console.error("[admin] could not resend the owner invite", e);
+    return { error: "Could not send the invite." };
   }
 }
 

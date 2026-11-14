@@ -23,15 +23,6 @@ export function parseResetPassword(raw: string): string | null {
   return trimmed;
 }
 
-export const CreateOrgSchema = z.object({
-  name: z.string().min(2, { error: "Organization name is required." }).trim(),
-  email: z.email({ error: "Enter a valid email." }).trim(),
-  displayName: z.string().min(2, { error: "Owner display name is required." }).trim(),
-  creditLimit: z.string(), // parsed by parseCreditLimit; "" = unlimited
-});
-
-export type CreateOrgFields = z.infer<typeof CreateOrgSchema>;
-
 // The three roles the org_memberships check constraint permits (migration 0012). One
 // source for the add-member form, the per-row role Select, and both actions' validation —
 // so a role can never be offered in the UI that the database would reject.
