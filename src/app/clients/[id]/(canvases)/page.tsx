@@ -9,6 +9,7 @@ import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ClientSettingsMenu } from "@/components/clients/client-settings-menu";
+import { ClientMembersButton } from "@/components/clients/client-members-button";
 import { ClientIdentity } from "@/components/clients/client-identity";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,6 +73,7 @@ export default async function ClientPage({
 
         <div className="flex shrink-0 items-end gap-2">
           <ClientSettingsMenu slug={client.slug} />
+          <ClientMembersButton slug={client.slug} clientId={client.id} />
           {canAddCanvas && <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />}
         </div>
       </header>
