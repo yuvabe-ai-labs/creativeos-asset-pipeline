@@ -7,11 +7,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { useAddToClient, usePeople } from "@/hooks/queries/people";
 import { STATUS_LABELS } from "@/lib/people/constants";
-import { peopleNotOnClient } from "@/lib/people/utils";
+import { chosenStillEligible, peopleNotOnClient } from "@/lib/people/utils";
 
 // Step 1, "In your agency": everyone not on this client, members and people still waiting, with a
 // search and checkboxes. One insert; each row copies the person's agency set, so a member sees the
 // client at once and someone waiting sees it when given access.
+// What counts and is sent is the chosen people still offered: someone who has since left the list
+// (added by someone else, or removed) drops out; someone the search hides stays chosen.
 export function InviteDialogAddStep({ orgId, client, onInviteNew, onDone }: {
   orgId: string;
   client: { id: string; name: string };
@@ -22,12 +24,12 @@ export function InviteDialogAddStep({ orgId, client, onInviteNew, onDone }: {
   const add = useAddToClient(orgId, client.id);
   const [query, setQuery] = useState("");
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+  const eligible = useMemo(() => peopleNotOnClient(data?.people ?? [], client.id), [data, client.id]);
   const candidates = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return peopleNotOnClient(data?.people ?? [], client.id).filter(
-      (p) => !q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q),
-    );
-  }, [data, client.id, query]);
+    return eligible.filter((p) => !q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
+  }, [eligible, query]);
+  const toAdd = chosenStillEligible(chosen, eligible);
 
   function toggle(userId: string, on: boolean) {
     setChosen((prev) => {
@@ -38,8 +40,9 @@ export function InviteDialogAddStep({ orgId, client, onInviteNew, onDone }: {
   }
 
   async function submit() {
+    if (toAdd.length === 0) return;
     try {
-      await add.mutateAsync([...chosen]);
+      await add.mutateAsync(toAdd);
       onDone();
     } catch {
       // The refusal is shown below through add.error.
@@ -71,12 +74,12 @@ export function InviteDialogAddStep({ orgId, client, onInviteNew, onDone }: {
         ))}
       </ul>
       {add.error && <p className="text-sm text-destructive">{add.error.message}</p>}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="outline" className="border-dashed border-primary/40 text-primary hover:bg-primary/5" onClick={onInviteNew}>
           Invite someone new
         </Button>
-        <Button disabled={chosen.size === 0 || add.isPending} onClick={() => void submit()}>
-          {add.isPending ? "Adding…" : `Add ${chosen.size} ${chosen.size === 1 ? "person" : "people"}`}
+        <Button disabled={toAdd.length === 0 || add.isPending} onClick={() => void submit()}>
+          {add.isPending ? "Adding…" : `Add ${toAdd.length} ${toAdd.length === 1 ? "person" : "people"}`}
         </Button>
       </div>
     </div>

@@ -12,11 +12,13 @@ import type { InviteResult } from "@/lib/people/types";
 // Step 2, "Invite someone new": the invitation is for this client; the link is emailed and shown
 // to copy (to whoever sent it, owner or Invite holder). Refusals come back from the server in the
 // spec's words. The new person waits as Signed up until the owner gives access.
-export function InviteDialogEmailStep({ orgId, client, canManage, onBack }: {
+export function InviteDialogEmailStep({ orgId, client, canManage, onBack, onDone }: {
   orgId: string;
   client: { id: string; name: string };
   canManage: boolean;
   onBack: () => void;
+  /** Closes the popup from the sent screen. */
+  onDone: () => void;
 }) {
   const invite = useInviteToClient(orgId, client.id);
   const [email, setEmail] = useState("");
@@ -31,7 +33,10 @@ export function InviteDialogEmailStep({ orgId, client, canManage, onBack }: {
         </p>
         <CopyRow label="Invite link" value={sent.link} />
         <p className="text-xs text-muted-foreground">{nextStep}</p>
-        <div><Button variant="outline" onClick={onBack}>Back</Button></div>
+        <div className="flex justify-between gap-3">
+          <Button variant="outline" onClick={onBack}>Back</Button>
+          <Button onClick={onDone}>Done</Button>
+        </div>
       </div>
     );
   }

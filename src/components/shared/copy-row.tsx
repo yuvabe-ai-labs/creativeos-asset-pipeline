@@ -15,8 +15,14 @@ import { Button } from "@/components/ui/button";
 export function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
 
-  function handleCopy() {
-    void navigator.clipboard.writeText(value);
+  // The checkmark only when the copy really happened. If the browser refuses, the value stays on
+  // screen and one click selects all of it (select-all) to copy by hand.
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -25,13 +31,13 @@ export function CopyRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
       <div className="flex min-w-0 flex-col">
         <span className="text-eyebrow text-muted-foreground/80">{label}</span>
-        <span className="truncate font-mono text-sm">{value}</span>
+        <span className="truncate font-mono text-sm select-all">{value}</span>
       </div>
       <Button
         type="button"
         variant="ghost"
         size="icon-sm"
-        onClick={handleCopy}
+        onClick={() => void handleCopy()}
         aria-label={`Copy ${label.toLowerCase()}`}
         className="shrink-0"
       >

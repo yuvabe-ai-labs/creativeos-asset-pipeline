@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { peopleService } from "@/services/people.service";
 import { invalidateMe } from "@/hooks/queries/me";
@@ -14,14 +15,20 @@ export const peopleKeys = {
   list: (orgId: string) => [...peopleKeys.all(orgId), "list"] as const,
 };
 
-/** Seeded by the page's server render; refetched whenever a screen mounts, since another owner
- *  session (or Admin) may have changed it. */
+/** How long a read counts as fresh. Another owner session (or Admin) may change the team, so it
+ *  stays short; our own changes invalidate it at once. */
+const PEOPLE_STALE_MS = 30_000;
+
+/** Seeded by the page's server render. The seed is stamped with when this screen got it, so it
+ *  counts as fresh and the screen doesn't fetch the same people again straight after loading. */
 export function usePeople(orgId: string, initialData?: AgencyPeople) {
+  const [seededAt] = useState(() => Date.now());
   return useQuery({
     queryKey: peopleKeys.list(orgId),
     queryFn: () => peopleService.list(orgId),
     initialData,
-    staleTime: 0,
+    initialDataUpdatedAt: initialData ? seededAt : undefined,
+    staleTime: PEOPLE_STALE_MS,
     // A 403 or 404 won't pass on a second try; anything else gets the app's one retry.
     retry: (failureCount, error) =>
       !(error instanceof ApiError && error.status >= 400 && error.status < 500) && failureCount < 1,

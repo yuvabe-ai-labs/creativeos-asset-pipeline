@@ -1,5 +1,6 @@
 // src/components/team/__tests__/invite-dialog.test.tsx
 import { describe, it, expect, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -49,14 +50,14 @@ describe("invite popup (spec §6.2)", () => {
   });
 
   it("step 2 asks for an email, with Back and Send invite and what happens next", () => {
-    const t = text(withPeople(<InviteDialogEmailStep orgId="org-1" client={client} canManage onBack={vi.fn()} />));
+    const t = text(withPeople(<InviteDialogEmailStep orgId="org-1" client={client} canManage onBack={vi.fn()} onDone={vi.fn()} />));
     expect(t).toContain("Back");
     expect(t).toContain("Send invite");
     expect(t).toContain("They get an email to sign up. Once they have, you set their permissions on the Team page.");
   });
 
   it("step 2 tells an Invite holder that the owner sets the permissions", () => {
-    const t = text(withPeople(<InviteDialogEmailStep orgId="org-1" client={client} canManage={false} onBack={vi.fn()} />));
+    const t = text(withPeople(<InviteDialogEmailStep orgId="org-1" client={client} canManage={false} onBack={vi.fn()} onDone={vi.fn()} />));
     expect(t).toContain("They get an email to sign up. Once they have, the owner sets their permissions on the Team page.");
   });
 
@@ -64,5 +65,19 @@ describe("invite popup (spec §6.2)", () => {
     const t = text(withPeople(<InviteDialogAddStep orgId="org-1" client={client} onInviteNew={vi.fn()} onDone={vi.fn()} />));
     expect(t).toContain("Signed up · Needs permissions");
     expect(t).not.toContain("Choose a permission");
+  });
+});
+
+describe("invite popup reset and close", () => {
+  it("starts step 1 fresh on each opening (the body remounts on its key), and both steps can close it", () => {
+    const source = readFileSync("src/components/team/invite-dialog.tsx", "utf8");
+    expect(source).toContain("key={opening}");
+    expect(source.split("onDone={() => setOpen(false)}").length - 1).toBe(2);
+  });
+
+  it("sends one request with exactly the chosen people still offered", () => {
+    const source = readFileSync("src/components/team/invite-dialog-add-step.tsx", "utf8");
+    expect(source).toContain("const toAdd = chosenStillEligible(chosen, eligible);");
+    expect(source).toContain("add.mutateAsync(toAdd)");
   });
 });

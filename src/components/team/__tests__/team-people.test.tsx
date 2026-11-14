@@ -99,3 +99,35 @@ describe("TeamPeople (spec §6.1)", () => {
     expect(text(render({ canMakeOwner: true }))).toContain("Make owner");
   });
 });
+
+describe("TeamPeople polish", () => {
+  const count = (t: string, word: string) => t.split(word).length - 1;
+
+  it("gives the owner no actions: Remove appears once per other person only", () => {
+    const onlyOwner = { people: [data.people[0]], invites: [] };
+    expect(count(text(render({ initial: onlyOwner })), "Remove")).toBe(0);
+    // Meera, Kiran and Ravi (waiting) each have one.
+    expect(count(text(render()), "Remove")).toBe(3);
+  });
+
+  it("highlights the ?person target with one style, whether waiting or a member", () => {
+    const highlight = "bg-primary/5 ring-1 ring-primary/30";
+    expect(render({ focusUserId: "w" })).toContain(highlight);
+    expect(render({ focusUserId: "m" })).toContain(highlight);
+    expect(render()).not.toContain(highlight);
+  });
+
+  it("tells someone still waiting that removing them leaves no work behind", () => {
+    const source = readFileSync("src/components/team/team-waiting-card.tsx", "utf8");
+    expect(source).toContain("showWorkNote={false}");
+  });
+});
+
+describe("TeamPeople: Admin's extra actions", () => {
+  it("shows them on every person, the owner and people waiting included", () => {
+    const t = text(render({ extraMemberActions: () => <span>Reset password</span> }));
+    expect(t.split("Reset password").length - 1).toBe(4);
+    // The owner still gets no team actions of their own.
+    expect(t.split("Remove").length - 1).toBe(3);
+  });
+});

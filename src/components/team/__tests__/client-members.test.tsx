@@ -44,7 +44,8 @@ describe("ClientMembers (spec §6.2)", () => {
     expect(t).toMatch(/Asha n@x\.com Owner/);
     expect(t).toMatch(/Meera n@x\.com Member/);
     expect(t).toMatch(/Ravi n@x\.com Signed up · Needs permissions/);
-    expect(t).toMatch(/new@x\.com Invited/);
+    // Email and when it was sent in Name, then Invited in Status like the person rows.
+    expect(t).toMatch(/new@x\.com Sent .* Invited/);
     expect(t).not.toContain("Elsewhere");
   });
 
@@ -90,5 +91,20 @@ describe("ClientMembersButton (spec §6.2)", () => {
 
   it("hides it from a member without Invite", () => {
     expect(button("c1", ["generate", "approve"])).toBe("");
+  });
+});
+
+describe("ClientMembers polish", () => {
+  it("offers Set permissions only to someone Signed up", () => {
+    const html = render();
+    expect(text(html).split("Set permissions").length - 1).toBe(1);
+    expect(html).not.toContain('href="/team?person=m"');
+  });
+
+  it("lines up Name, Status and Actions: every row, person or invite, is a row of the shared columns", () => {
+    const html = render();
+    const rows = html.match(/<li[^>]*>/g) ?? [];
+    expect(rows).toHaveLength(4);
+    for (const row of rows) expect(row).toContain("sm:grid-cols-subgrid");
   });
 });

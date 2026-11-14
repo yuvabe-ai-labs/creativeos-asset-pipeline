@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hideInviteLinks, inviteHolderView, invitesForClient, isValidEmail, normaliseEmail, oneDayAgo, peopleNotOnClient, peopleOnClient, signedUpPeople } from "./utils";
+import { chosenStillEligible, hideInviteLinks, inviteHolderView, invitesForClient, isValidEmail, normaliseEmail, oneDayAgo, peopleNotOnClient, peopleOnClient, peopleReadFor, signedUpPeople } from "./utils";
 import type { AgencyPerson, OpenInvite } from "./types";
+import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
 
 const person = (over: Partial<AgencyPerson>): AgencyPerson => ({
   userId: "u", name: "N", email: "n@x.com", status: "member", permissions: ["generate"], joinedAt: "2026-11-01T00:00:00Z",
@@ -62,5 +63,32 @@ describe("people helpers", () => {
 
   it("is a day before now", () => {
     expect(oneDayAgo(new Date("2026-11-13T12:00:00.000Z"))).toBe("2026-11-12T12:00:00.000Z");
+  });
+});
+
+describe("peopleReadFor (the people route and the Members page)", () => {
+  const inv = (id: string, clientId: string): OpenInvite => ({
+    id, email: `${id}@x.com`, clientId, clientName: id, asOwner: false, sentAt: "t", expiresAt: "t", invitedByName: null, link: `https://app.example/invite/${id}`,
+  });
+  const read = { people: [owner, onC1, elsewhere], invites: [inv("i1", "c1"), inv("i2", "c2")] };
+
+  it("gives the owner the whole read", () => {
+    expect(peopleReadFor(read, { canManage: true, access: testOwnerAccess("org-1"), orgId: "org-1" })).toBe(read);
+  });
+
+  it("trims it to the clients where an Invite holder holds Invite", () => {
+    const access = testAccess({ permissions: ["generate"], clientIds: ["c2"], clients: { c1: ["invite"] } });
+    expect(peopleReadFor(read, { canManage: false, access, orgId: "org-1" })).toEqual(inviteHolderView(read, ["c1"]));
+  });
+
+  it("fails closed: without manage_team an all-clients answer still trims to nothing", () => {
+    expect(peopleReadFor(read, { canManage: false, access: testOwnerAccess("org-1"), orgId: "org-1" })).toEqual(inviteHolderView(read, []));
+  });
+});
+
+describe("chosenStillEligible (the invite popup's Add)", () => {
+  it("keeps only chosen people still offered, whatever the search shows, in list order", () => {
+    expect(chosenStillEligible(new Set(["c", "gone", "a"]), [onC1, elsewhere])).toEqual(["a", "c"]);
+    expect(chosenStillEligible(new Set(), [onC1])).toEqual([]);
   });
 });

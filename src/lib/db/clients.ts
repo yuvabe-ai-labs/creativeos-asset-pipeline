@@ -33,6 +33,20 @@ export async function listClients(
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
 
+// The agency's active clients by id and name only, for screens that just name them (the Team
+// page, Admin). listClients also embeds every canvas timestamp, which these never read.
+export async function listClientNames(orgId: string): Promise<{ id: string; name: string }[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("clients")
+    .select("id, name")
+    .eq("org_id", orgId)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as { id: string; name: string }[];
+}
+
 // Archived clients, most-recently-archived first — for the Archived tab. Org-scoped.
 export async function listArchivedClients(
   orgId: string,

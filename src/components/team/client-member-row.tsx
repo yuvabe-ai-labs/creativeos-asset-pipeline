@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useRemoveFromClient } from "@/hooks/queries/people";
 import { STATUS_LABELS } from "@/lib/people/constants";
 import type { AgencyPerson } from "@/lib/people/types";
+import { MEMBERS_ACTIONS, MEMBERS_ROW } from "./person-layout";
 import { RemovePersonDialog } from "./remove-person-dialog";
 
 // One person on a client's Members list: Name, Status, Actions (spec §6.2). Remove takes them off
@@ -20,13 +21,13 @@ export function ClientMemberRow({ orgId, clientId, clientName, person, teamHref,
 }) {
   const remove = useRemoveFromClient(orgId, clientId);
   return (
-    <li className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b py-3 text-sm last:border-b-0">
+    <li className={MEMBERS_ROW}>
       <div className="flex min-w-0 flex-col">
         <span className="font-medium">{person.name}</span>
         <span className="truncate text-xs text-muted-foreground">{person.email}</span>
       </div>
       <span className="text-muted-foreground">{STATUS_LABELS[person.status]}</span>
-      <div className="flex items-center justify-end gap-2">
+      <div className={MEMBERS_ACTIONS}>
         {canManage && person.status === "signed_up" && (
           <Button size="sm" variant="outline" nativeButton={false} render={<Link href={teamHref(person.userId)} />}>
             Set permissions
@@ -36,6 +37,8 @@ export function ClientMemberRow({ orgId, clientId, clientName, person, teamHref,
           <RemovePersonDialog
             name={person.name}
             detail={`They come off ${clientName} only. They stay in the agency with their other clients and permissions.`}
+            // They stay in the agency, so whatever they made keeps their name.
+            showWorkNote={false}
             onConfirm={async () => {
               await remove.mutateAsync(person.userId);
             }}

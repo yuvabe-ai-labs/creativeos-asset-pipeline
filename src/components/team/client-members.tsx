@@ -7,6 +7,7 @@ import { STATUS_LABELS } from "@/lib/people/constants";
 import { invitesForClient, peopleOnClient } from "@/lib/people/utils";
 import type { AgencyPeople } from "@/lib/people/types";
 import { ClientMemberRow } from "./client-member-row";
+import { MEMBERS_GRID } from "./person-layout";
 import { TeamInvitedRow } from "./team-invited-row";
 
 const teamPageHref = (userId: string) => `/team?person=${userId}`;
@@ -25,8 +26,8 @@ export function ClientMembers({
   orgId: string;
   client: { id: string; name: string };
   initial?: AgencyPeople;
-  /** Where Set permissions goes. A Server Component can't pass a function, so /team is the
-   *  default; Admin passes its own. */
+  /** Where Set permissions goes (the Team page's ?person= target). A Server Component can't pass
+   *  a function, so /team is the default; Admin passes its own. */
   teamHref?: (userId: string) => string;
   /** The owner or Admin (manage_team). False for an Invite holder. */
   canManage: boolean;
@@ -34,7 +35,7 @@ export function ClientMembers({
   inviteSlot?: ReactNode;
 }) {
   const { data, error } = usePeople(orgId, initial);
-  if (error && !data) return <p className="text-sm text-destructive">{error.message}</p>;
+  if (error && !data) return <p className="text-sm text-destructive">Couldn&apos;t load the people on this client. Refresh to try again.</p>;
   if (!data) return null;
   const people = peopleOnClient(data.people, client.id);
   const invites = invitesForClient(data.invites, client.id);
@@ -47,17 +48,19 @@ export function ClientMembers({
         {inviteSlot}
       </div>
       <Card className="px-5 py-2 shadow-card">
-        <div className="text-eyebrow grid grid-cols-[1fr_auto_auto] gap-4 border-b py-2 text-muted-foreground">
-          <span>Name</span><span>Status</span><span className="text-right">Actions</span>
+        <div className={MEMBERS_GRID}>
+          <div className="text-eyebrow hidden border-b py-2 text-muted-foreground sm:col-span-3 sm:grid sm:grid-cols-subgrid">
+            <span>Name</span><span>Status</span><span className="text-right">Actions</span>
+          </div>
+          <ul className="flex flex-col sm:col-span-3 sm:grid sm:grid-cols-subgrid">
+            {people.map((p) => (
+              <ClientMemberRow key={p.userId} orgId={orgId} clientId={client.id} clientName={client.name} person={p} teamHref={teamHref} canManage={canManage} />
+            ))}
+            {invites.map((i) => (
+              <TeamInvitedRow key={i.id} orgId={orgId} invite={i} showClient={false} status={STATUS_LABELS.invited} canManage={canManage} />
+            ))}
+          </ul>
         </div>
-        <ul className="flex flex-col">
-          {people.map((p) => (
-            <ClientMemberRow key={p.userId} orgId={orgId} clientId={client.id} clientName={client.name} person={p} teamHref={teamHref} canManage={canManage} />
-          ))}
-          {invites.map((i) => (
-            <TeamInvitedRow key={i.id} orgId={orgId} invite={i} showClient={false} status={STATUS_LABELS.invited} canManage={canManage} />
-          ))}
-        </ul>
       </Card>
     </div>
   );

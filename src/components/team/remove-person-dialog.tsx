@@ -19,12 +19,16 @@ export function RemovePersonDialog({
   detail,
   onConfirm,
   label = "Remove",
+  showWorkNote = true,
 }: {
   name: string;
   /** What removing does here, e.g. "They lose access to Acme and their login is deleted." */
   detail: string;
   onConfirm: () => Promise<void>;
   label?: string;
+  /** The note that their work stays. Off where they made none (still waiting) or keep their name
+   *  on it (taken off one client only). */
+  showWorkNote?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,9 +64,11 @@ export function RemovePersonDialog({
             <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
             <AlertDialogDescription>{detail}</AlertDialogDescription>
           </AlertDialogHeader>
-          <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-            Work they made stays where it is. It will show as made by <span className="font-medium">an unknown maker</span>.
-          </p>
+          {showWorkNote && (
+            <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              Work they made stays where it is. It will show as made by <span className="font-medium">an unknown maker</span>.
+            </p>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <AlertDialogFooter>
             <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>

@@ -38,7 +38,7 @@ export function InviteDialog({ orgId, client, canManage }: {
         {step === "add" ? (
           <InviteDialogAddStep key={opening} orgId={orgId} client={client} onInviteNew={() => setStep("email")} onDone={() => setOpen(false)} />
         ) : (
-          <InviteDialogEmailStep key={`email-${opening}`} orgId={orgId} client={client} canManage={canManage} onBack={() => setStep("add")} />
+          <InviteDialogEmailStep key={`email-${opening}`} orgId={orgId} client={client} canManage={canManage} onBack={() => setStep("add")} onDone={() => setOpen(false)} />
         )}
       </DialogContent>
     </Dialog>

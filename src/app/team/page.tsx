@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { check } from "@/lib/permissions/check";
 import { accessOf, resolveActingCaller } from "@/lib/permissions/server";
 import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
-import { listClients } from "@/lib/db/clients";
+import { listClientNames } from "@/lib/db/clients";
 import { TeamPeople } from "@/components/team/team-people";
 
 export const dynamic = "force-dynamic";
@@ -16,14 +16,14 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const [people, invites, clients] = await Promise.all([
     listAgencyPeople(effectiveOrgId),
     listOpenInvites(effectiveOrgId),
-    listClients(effectiveOrgId, null),
+    listClientNames(effectiveOrgId),
   ]);
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
       <h1 className="font-display mb-8 text-2xl font-semibold tracking-tight">Team</h1>
       <TeamPeople
         orgId={effectiveOrgId}
-        clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+        clients={clients}
         initial={{ people, invites }}
         focusUserId={person ?? null}
       />

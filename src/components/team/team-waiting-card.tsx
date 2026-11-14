@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useRemovePerson, useUpdatePermissions } from "@/hooks/queries/people";
@@ -8,6 +8,7 @@ import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { Permission } from "@/lib/permissions/model";
 import type { AgencyPerson } from "@/lib/people/types";
 import { PermissionEditor } from "./permission-editor";
+import { PERSON_HIGHLIGHT, personAnchorId } from "./person-layout";
 import { RemovePersonDialog } from "./remove-person-dialog";
 
 // Spec §6.1 "Waiting for you": someone who signed up. Give access saves the permissions and lets
@@ -18,11 +19,14 @@ export function TeamWaitingCard({
   person,
   clientNames,
   focused,
+  extraActions,
 }: {
   orgId: string;
   person: AgencyPerson;
   clientNames: ReadonlyMap<string, string>;
   focused: boolean;
+  /** Admin's own actions for this person (reset password), beside Remove. */
+  extraActions?: ReactNode;
 }) {
   const [draft, setDraft] = useState<Permission[]>([]);
   const update = useUpdatePermissions(orgId);
@@ -33,7 +37,7 @@ export function TeamWaitingCard({
     : "";
 
   return (
-    <Card id={`person-${person.userId}`} className={`flex flex-col gap-4 p-5 shadow-card ${focused ? "ring-2 ring-primary/40" : ""}`}>
+    <Card id={personAnchorId(person.userId)} className={`flex flex-col gap-4 p-5 shadow-card ${focused ? PERSON_HIGHLIGHT : ""}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col">
           <span className="font-medium">{person.name}</span>
@@ -43,11 +47,16 @@ export function TeamWaitingCard({
           </span>
           {clients && <span className="mt-1 text-xs text-muted-foreground">Clients: {clients}</span>}
         </div>
-        <RemovePersonDialog
-          name={person.name}
-          detail="They haven't started yet. Their login is deleted and the invite link stops working."
-          onConfirm={() => remove.mutateAsync(person.userId)}
-        />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {extraActions}
+          <RemovePersonDialog
+            name={person.name}
+            detail="They haven't started yet. Their login is deleted and the invite link stops working."
+            // Nothing made yet, so there is no work to speak of.
+            showWorkNote={false}
+            onConfirm={() => remove.mutateAsync(person.userId)}
+          />
+        </div>
       </div>
       <PermissionEditor value={draft} onChange={setDraft} personName={person.name} disabled={update.isPending} />
       {update.error && <p className="text-sm text-destructive">{update.error.message}</p>}

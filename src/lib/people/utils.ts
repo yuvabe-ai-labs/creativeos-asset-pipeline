@@ -1,3 +1,5 @@
+import { clientIdsWith } from "@/lib/permissions/check";
+import type { Access } from "@/lib/permissions/model";
 import type { AgencyPeople, AgencyPerson, OpenInvite } from "./types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,6 +53,23 @@ export function inviteHolderView(read: AgencyPeople, clientIds: readonly string[
     })),
     invites: hideInviteLinks(read.invites.filter((i) => i.clientId !== null && allowed.has(i.clientId))),
   };
+}
+
+/** What a caller may read of the agency's people: the whole read with manage_team, otherwise
+ *  the Invite holder's trimmed view for the clients where they hold Invite. Without manage_team the
+ *  caller is never the owner, so clientIdsWith gives a list; an all-clients answer fails closed. */
+export function peopleReadFor(
+  read: AgencyPeople,
+  { canManage, access, orgId }: { canManage: boolean; access: Access; orgId: string },
+): AgencyPeople {
+  if (canManage) return read;
+  return inviteHolderView(read, clientIdsWith(access, orgId, "invite") ?? []);
+}
+
+/** The invite popup's Add: the chosen people who are still offered (not on the client, still in
+ *  the agency), searched out of view or not, in the list's order. */
+export function chosenStillEligible(chosen: ReadonlySet<string>, eligible: readonly AgencyPerson[]): string[] {
+  return eligible.filter((p) => chosen.has(p.userId)).map((p) => p.userId);
 }
 
 export function oneDayAgo(now: Date = new Date()): string {

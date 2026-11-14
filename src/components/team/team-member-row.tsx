@@ -8,10 +8,11 @@ import { NO_PERMISSIONS_LABEL, PERMISSION_LABELS, STATUS_LABELS } from "@/lib/pe
 import { orderedPermissions, type Permission } from "@/lib/permissions/model";
 import type { AgencyPerson } from "@/lib/people/types";
 import { PermissionEditor } from "./permission-editor";
+import { PERSON_HIGHLIGHT, personAnchorId } from "./person-layout";
 import { MakeOwnerDialog } from "./make-owner-dialog";
 import { RemovePersonDialog } from "./remove-person-dialog";
 
-// Spec §6.1 "Members". The owner has no actions. Edit opens the same editor; saving changes the
+// Spec §6.1 "Members". The owner has no team actions (Admin's extraActions still show). Edit opens the same editor; saving changes the
 // agency level and the cascade applies it to every client they are on. A member with no
 // permissions shows "Can look".
 export function TeamMemberRow({
@@ -47,7 +48,8 @@ export function TeamMemberRow({
   }
 
   return (
-    <li id={`person-${person.userId}`} className={`flex flex-col gap-3 border-b py-3 last:border-b-0 ${focused ? "rounded-lg bg-primary/5 px-2" : ""}`}>
+    // Always the same padding, so the ?person highlight only adds colour and nothing shifts.
+    <li id={personAnchorId(person.userId)} className={`-mx-3 flex flex-col gap-3 rounded-md border-b px-3 py-3 last:border-b-0 ${focused ? PERSON_HIGHLIGHT : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 text-sm">
         <div className="flex min-w-0 flex-col gap-1">
           <span className="font-medium">{person.name}</span>
@@ -69,18 +71,21 @@ export function TeamMemberRow({
             </>
           )}
         </div>
-        {!isOwner && (
-          <div className="flex items-center gap-2">
-            {canMakeOwner && (
+        {/* The owner has no actions of the team's own; Admin's extras (reset password) still apply. */}
+        {(!isOwner || extraActions) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {!isOwner && canMakeOwner && (
               <MakeOwnerDialog name={person.name} onConfirm={() => makeOwner.mutateAsync(person.userId)} />
             )}
             {extraActions}
-            {editing === null && <Button size="sm" variant="outline" onClick={() => setEditing(person.permissions)}>Edit</Button>}
-            <RemovePersonDialog
-              name={person.name}
-              detail="They lose access to every client of this agency at once, and their login is deleted."
-              onConfirm={() => remove.mutateAsync(person.userId)}
-            />
+            {!isOwner && editing === null && <Button size="sm" variant="outline" onClick={() => setEditing(person.permissions)}>Edit</Button>}
+            {!isOwner && (
+              <RemovePersonDialog
+                name={person.name}
+                detail="They lose access to every client of this agency at once, and their login is deleted."
+                onConfirm={() => remove.mutateAsync(person.userId)}
+              />
+            )}
           </div>
         )}
       </div>
