@@ -8770,3 +8770,20 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** Cyril's page draws the Members button, statuses and the invite popup. Arun, 13 Nov: permissions are edited only agency-wide on Team; per client, people are only invited, added and removed.
 
 **Rejected.** Editing permissions by opening a person on a client's Members list (Cyril's page): permissions are per person, so one place avoids the impression they differ per client.
+
+### D510 — How the permission checker is built *(recorded 2026-11-14; refines D500, D504, D507; originated → `2026-11-13-permissions-core.md`)*
+
+**Decision.**
+- `check(access, action, { orgId, clientId })` takes `clientId: null` for "on at least one client the person is on": routes and nav items not rooted at one client use it. Each agency's access carries `anyClient`, built once per request, so it is one Set lookup.
+- `view` and `edit` are actions worked out by one helper, `permissionFor` (`view` needs only the client row, `edit` needs Generate), shared by `check` and anything else that needs it.
+- Every page denial is the 404 page, another agency's client included; `/eval` keeps answering its own "Canvas not found".
+- A person waiting for access is sent to `/onboarding` from every page, not only the home page: the root layout does it on a full page load (the proxy passes the path in a header it always overwrites), and a client guard does it on soft navigations after confirming on a fresh `/api/me` read. Onboarding, invites, sign-in, account, public review pages and APIs stay open.
+- A new `membership_clients` row always starts as a copy of the person's agency set, set by the same `before insert` trigger that refuses owner rows.
+- The 0062 backfill runs only while no membership has access given, so a re-run never hands people who are waiting Generate, Approve, Share and Delete.
+- `org_role` is kept in step by every writer (`owner` for the owner, `designer` for a member who joins; `transfer_agency_owner` sets the new owner to `owner` and the previous one to `senior`) until it is dropped, so 0012's last-owner trigger never disagrees with `is_owner`.
+- Review counts are of the clients where the person holds Approve; the inbox lists the clients they are on, with pending work only for someone holding Approve.
+- Downloads have no gate of their own.
+
+**Why.** Spec §4.2–§4.4 and §10 (performance), and keeping each step of the switch a commit that compiles and can be reviewed on its own. The home page alone missed a waiting person who opened any other URL (they got a 404 or an empty page).
+
+**Rejected.** Scanning the client rows for "anywhere" on each check (performance rule 2). Redirecting a foreign client's page home (it differed from every other denial).
