@@ -9,19 +9,25 @@ export type OrgRow = {
   created_at: string;
 };
 
-export type OrgWithCount = OrgRow & { client_count: number; owner_pending: boolean };
+/** owned: has an owner. invited: no owner, an open owner invite (Resend). none: neither (Invite
+ *  an owner). Spec §6.6, D505. */
+export type OwnerStatus = "owned" | "invited" | "none";
+export type OrgWithCount = OrgRow & { client_count: number; owner_status: OwnerStatus };
 
-// The agencies list. owner_pending: the agency has no owner yet (its invited owner hasn't signed
-// up, spec §6.6). Owners are read in one query beside the agencies.
+// The agencies list. Owners and open owner invites are each read in one query beside the
+// agencies (the open owner invite read uses the one-open-owner-invite partial index).
 export async function listOrgsWithClientCount(): Promise<OrgWithCount[]> {
   const supabase = createServerSupabase();
-  const [orgsRes, ownersRes] = await Promise.all([
+  const [orgsRes, ownersRes, invitesRes] = await Promise.all([
     supabase.from("organizations").select("*, clients(count)").order("created_at", { ascending: true }),
     supabase.from("org_memberships").select("org_id").eq("is_owner", true),
+    supabase.from("org_invitations").select("org_id").eq("as_owner", true).is("accepted_at", null).is("revoked_at", null),
   ]);
   if (orgsRes.error) throw orgsRes.error;
   if (ownersRes.error) throw ownersRes.error;
+  if (invitesRes.error) throw invitesRes.error;
   const owned = new Set(((ownersRes.data ?? []) as { org_id: string }[]).map((r) => r.org_id));
+  const invited = new Set(((invitesRes.data ?? []) as { org_id: string }[]).map((r) => r.org_id));
   return ((orgsRes.data ?? []) as (OrgRow & { clients: { count: number }[] })[]).map((o) => ({
     id: o.id,
     name: o.name,
@@ -29,7 +35,7 @@ export async function listOrgsWithClientCount(): Promise<OrgWithCount[]> {
     monthly_credit_limit: o.monthly_credit_limit,
     created_at: o.created_at,
     client_count: o.clients?.[0]?.count ?? 0,
-    owner_pending: !owned.has(o.id),
+    owner_status: owned.has(o.id) ? "owned" : invited.has(o.id) ? "invited" : "none",
   }));
 }
 

@@ -267,6 +267,16 @@ export async function countInvitesSince(orgId: string, sinceIso: string): Promis
  *  An expired invite still counts as open to the one-open-invite-per-email index (an index can't
  *  use now()), so it is revoked first; otherwise it would block every new invite to that email. */
 export async function insertInvitation(i: { orgId: string; clientId: string; email: string; token: string; invitedBy: string }): Promise<StoredInvite> {
+  return insertOpenInvite({ ...i, asOwner: false });
+}
+
+/** Admin's Invite an owner for an agency that has neither an owner nor an open owner invite
+ *  (spec §6.6). No client; a concurrent one hits the one-open-owner-invite index (23505). */
+export async function insertOwnerInvitation(i: { orgId: string; email: string; token: string; invitedBy: string }): Promise<StoredInvite> {
+  return insertOpenInvite({ ...i, clientId: null, asOwner: true });
+}
+
+async function insertOpenInvite(i: { orgId: string; clientId: string | null; asOwner: boolean; email: string; token: string; invitedBy: string }): Promise<StoredInvite> {
   const db = createServerSupabase();
   const now = new Date().toISOString();
   const { error: revokeError } = await db
@@ -280,7 +290,7 @@ export async function insertInvitation(i: { orgId: string; clientId: string; ema
   if (revokeError) throw revokeError;
   const { data, error } = await db
     .from("org_invitations")
-    .insert({ org_id: i.orgId, client_id: i.clientId, email: i.email, token: i.token, invited_by: i.invitedBy, expires_at: expiry() })
+    .insert({ org_id: i.orgId, client_id: i.clientId, as_owner: i.asOwner, email: i.email, token: i.token, invited_by: i.invitedBy, expires_at: expiry() })
     .select(INVITE_COLUMNS)
     .single();
   if (error) throw error;

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 // be shared without the fiddly drag-select-copy over a border-boxed field.
 //
 // Shared by every place that shows something to hand over: the reset-password dialog's
-// shown-once password and the invite links (Add an agency, Resend, the Team page's Copy link).
+// shown-once password and the invite links (Add an agency, Invite an owner, Resend, the Team page's Copy link).
 // A value you can only select by hand is the one that gets mistyped, and TC-002 caught two
 // dialogs shipping without any copy affordance at all.
 export function CopyRow({ label, value }: { label: string; value: string }) {

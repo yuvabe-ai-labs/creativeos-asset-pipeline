@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { usePeople } from "@/hooks/queries/people";
+import { orgTabFrom } from "./org-tabs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { CreditLimitEditor } from "./credit-limit-editor";
@@ -49,8 +51,6 @@ export function OrgDetailTabs({
   people,
   invites,
   clients,
-  initialTab,
-  focusUserId,
   generationCount,
   generationsPage,
   creditsUsedThisMonth,
@@ -65,8 +65,6 @@ export function OrgDetailTabs({
   people: AgencyPerson[];
   invites: OpenInvite[];
   clients: { id: string; name: string }[];
-  initialTab: string;
-  focusUserId: string | null;
   generationCount: number;
   generationsPage: GenerationsPage;
   creditsUsedThisMonth: number;
@@ -77,10 +75,25 @@ export function OrgDetailTabs({
   breakdownByModel: CreditBreakdownRow[];
   impersonationSessions: ImpersonationSessionPage;
 }) {
-  const [tab, setTab] = useState(initialTab);
+  // The tab and the focused person live in the URL (Set permissions in the Clients tab links to
+  // ?tab=people&person=). Switching tabs rewrites the URL with the History API, which Next keeps in
+  // step with useSearchParams without a server round trip or remounting the tabs.
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const tab = orgTabFrom(searchParams.get("tab"));
+  const focusUserId = searchParams.get("person");
+  // The same people resource the People and Clients tabs use, so the count follows their changes.
+  const { data: team } = usePeople(org.id, { people, invites });
+
+  function selectTab(next: unknown) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", orgTabFrom(String(next)));
+    params.delete("person");
+    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+  }
 
   return (
-    <Tabs value={tab} onValueChange={setTab}>
+    <Tabs value={tab} onValueChange={selectTab}>
       <TabsList variant="line" className="mb-8 h-auto w-auto gap-6 p-0">
         <TabsTrigger value="overview" className={triggerClass}>
           Overview
@@ -102,7 +115,7 @@ export function OrgDetailTabs({
       {/* Overview: agency identity and the credit limit. The roster lives in People. */}
       <TabsContent value="overview" className="animate-rise flex flex-col gap-8">
         <Card className="grid grid-cols-2 gap-6 p-6 shadow-card sm:grid-cols-3">
-          <StatTile label="People" value={String(people.length)} />
+          <StatTile label="People" value={String((team ?? { people }).people.length)} />
           <StatTile label="Total generations" value={String(generationCount)} />
           <StatTile label="Created" value={formatRelativeTime(org.created_at)} />
         </Card>

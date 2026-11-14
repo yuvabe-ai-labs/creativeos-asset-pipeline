@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({ createServerSupabase: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: m.createServerSupabase }));
 
-import { acceptInvitation, createLogin, findOpenInviteByEmail, insertInvitation, listOpenInvites, loginEmails, toInvite, toPerson } from "./people";
+import { acceptInvitation, createLogin, findOpenInviteByEmail, insertInvitation, insertOwnerInvitation, listOpenInvites, loginEmails, toInvite, toPerson } from "./people";
 
 describe("people rows", () => {
   it("map a list_agency_people row to a person with a status", () => {
@@ -76,6 +76,16 @@ describe("an expired open invite (ledger, plan 4 must b)", () => {
       ["eq", "org_id", "org-1"], ["eq", "email", "p@x.com"], ["is", "accepted_at", null], ["is", "revoked_at", null], ["lte", "expires_at", expect.any(String)],
     ]));
     expect(insert.calls[0]).toEqual(["insert", expect.objectContaining({ org_id: "org-1", client_id: "c1", email: "p@x.com", token: "tok", invited_by: "owner-1" })]);
+  });
+
+  it("is revoked the same way before an owner invite, which has no client (spec §6.6)", async () => {
+    const { db, chains } = fakeDb([{ data: [] }, { data: { ...row, client_id: null, as_owner: true, clients: null } }]);
+    m.createServerSupabase.mockReturnValue(db);
+    const invite = await insertOwnerInvitation({ orgId: "org-1", email: "o@x.com", token: "tok", invitedBy: "admin-1" });
+    expect(invite).toMatchObject({ asOwner: true, clientId: null, link: "https://app.example/invite/tok" });
+    const [revoke, insert] = chains;
+    expect(revoke.calls).toEqual(expect.arrayContaining([["eq", "email", "o@x.com"], ["lte", "expires_at", expect.any(String)]]));
+    expect(insert.calls[0]).toEqual(["insert", expect.objectContaining({ org_id: "org-1", client_id: null, as_owner: true, email: "o@x.com", token: "tok", invited_by: "admin-1" })]);
   });
 });
 

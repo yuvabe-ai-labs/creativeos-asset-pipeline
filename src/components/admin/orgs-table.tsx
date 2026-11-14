@@ -8,6 +8,7 @@ import { formatRelativeTime } from "@/lib/format/relative-time";
 import { initials } from "@/lib/format/initials";
 import type { OrgWithCount } from "@/lib/db/organizations";
 import { ResendOwnerInviteButton } from "./resend-owner-invite-button";
+import { InviteOwnerDialog } from "./invite-owner-dialog";
 
 export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
   const [query, setQuery] = useState("");
@@ -55,9 +56,10 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
                     </span>
                     <span className="flex flex-col">
                       <span className="font-medium">{org.name}</span>
-                      {org.owner_pending && (
+                      {org.owner_status === "invited" && (
                         <span className="text-xs text-muted-foreground">Owner hasn&apos;t signed up</span>
                       )}
+                      {org.owner_status === "none" && <span className="text-xs text-muted-foreground">No owner</span>}
                     </span>
                   </span>
                   <span className="flex-1 text-sm text-muted-foreground">
@@ -68,9 +70,14 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
                   </span>
                   <span className="flex-1 text-right text-sm text-muted-foreground">{formatRelativeTime(org.created_at)}</span>
                 </Link>
-                {org.owner_pending && (
+                {org.owner_status === "invited" && (
                   <div className="pr-5">
                     <ResendOwnerInviteButton orgId={org.id} />
+                  </div>
+                )}
+                {org.owner_status === "none" && (
+                  <div className="pr-5">
+                    <InviteOwnerDialog orgId={org.id} orgName={org.name} />
                   </div>
                 )}
               </li>

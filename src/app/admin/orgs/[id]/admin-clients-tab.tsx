@@ -17,20 +17,20 @@ export function AdminClientsTab({ orgId, clients, initial }: { orgId: string; cl
     <div className="flex flex-col gap-6">
       <Card className="flex flex-row flex-wrap gap-2 p-3 shadow-card">
         {clients.map((c) => (
-          <Button key={c.id} size="sm" variant={c.id === openId ? "default" : "outline"} onClick={() => setOpenId(c.id)}>
+          <Button key={c.id} size="sm" variant={c.id === openId ? "secondary" : "ghost"} aria-pressed={c.id === openId} onClick={() => setOpenId(c.id)}>
             {c.name}
           </Button>
         ))}
       </Card>
       {open && (
         <ClientMembers
-          key={open.id}
           orgId={orgId}
           client={open}
           initial={initial}
           teamHref={(userId) => `/admin/orgs/${orgId}?tab=people&person=${userId}`}
           canManage
-          inviteSlot={<InviteDialog orgId={orgId} client={open} canManage />}
+          // Keyed so a half-filled invite never carries over to another client; Members itself stays mounted.
+          inviteSlot={<InviteDialog key={open.id} orgId={orgId} client={open} canManage />}
         />
       )}
     </div>

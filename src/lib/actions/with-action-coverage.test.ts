@@ -42,6 +42,8 @@ const ALLOWLIST: Record<string, string> = {
     "audit-log's target_org_id to the wrong org.",
   resendOwnerInviteAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as createAgencyAction — orgId is an explicit caller-supplied parameter.",
+  inviteOwnerAction:
+    "admin.ts: same D85 platform-administration category and same revert rationale as createAgencyAction — orgId is an explicit caller-supplied parameter.",
   updateOrgCreditLimitAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
     "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +

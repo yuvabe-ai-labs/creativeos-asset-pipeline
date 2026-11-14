@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { resendOwnerInviteAction } from "@/lib/actions/admin";
+import { resendOwnerInviteAction, type OwnerInviteResult } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
 import { CopyRow } from "@/components/shared/copy-row";
 
@@ -9,18 +9,22 @@ import { CopyRow } from "@/components/shared/copy-row";
 // and shown to copy (the old link stops working).
 export function ResendOwnerInviteButton({ orgId }: { orgId: string }) {
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<{ error?: string; link?: string; emailed?: boolean } | null>(null);
+  const [result, setResult] = useState<OwnerInviteResult | null>(null);
   return (
     <div className="flex flex-col items-end gap-2">
       <Button
         size="sm"
         variant="outline"
         disabled={pending}
-        onClick={async (e) => {
-          e.preventDefault();
+        onClick={async () => {
           setPending(true);
-          setResult(await resendOwnerInviteAction(orgId));
-          setPending(false);
+          try {
+            setResult(await resendOwnerInviteAction(orgId));
+          } catch {
+            setResult({ error: "Could not send the invite." });
+          } finally {
+            setPending(false);
+          }
         }}
       >
         {pending ? "Sending…" : "Resend"}

@@ -7,14 +7,14 @@ const db = vi.hoisted(() => ({
   replaceInvitationToken: vi.fn(), revokeInvitation: vi.fn(), getMembership: vi.fn(), getMemberships: vi.fn(),
   setMemberPermissions: vi.fn(), deleteLogin: vi.fn(), addPeopleToClient: vi.fn(), removePersonFromClient: vi.fn(),
   transferOwner: vi.fn(), loginEmails: vi.fn(), ownerIds: vi.fn(), listOrgSlugs: vi.fn(),
-  createAgencyWithOwnerInvite: vi.fn(), getOpenOwnerInvite: vi.fn(),
+  createAgencyWithOwnerInvite: vi.fn(), getOpenOwnerInvite: vi.fn(), insertOwnerInvitation: vi.fn(),
 }));
 vi.mock("@/lib/db/people", () => db);
 const sendEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/email/send", () => ({ sendEmail }));
 
 import {
-  addToClient, cancelInvite, createAgency, inviteToClient, makeOwner, notifySignedUp,
+  addToClient, cancelInvite, createAgency, inviteOwner, inviteToClient, makeOwner, notifySignedUp,
   removeFromClient, removePerson, resendInvite, resendOwnerInvite, updatePermissions,
 } from "./ops";
 
@@ -278,6 +278,69 @@ describe("createAgency (spec §6.6)", () => {
     if (!r.ok) return;
     expect(r.value).toMatchObject({ orgId: "org-9", emailed: false });
     expect(r.value.link).toMatch(/^\/invite\/[A-Za-z0-9_-]{43}$/);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("inviteOwner (spec §6.6, D505: only while the agency has no owner and no open owner invite)", () => {
+  const ownerInvite = { ...invite, id: "oi2", email: "o@x.com", clientId: null, clientName: null, asOwner: true, link: "https://app.example/invite/own" };
+  beforeEach(() => {
+    db.ownerIds.mockResolvedValue([]);
+    db.getOpenOwnerInvite.mockResolvedValue(null);
+    db.insertOwnerInvitation.mockResolvedValue(ownerInvite);
+  });
+
+  it("creates the owner invite for the existing agency and emails the Set up link", async () => {
+    const r = await inviteOwner(agency, "  O@X.com ", by);
+    expect(r).toMatchObject({ ok: true, value: { link: "https://app.example/invite/own", emailed: true } });
+    expect(db.insertOwnerInvitation).toHaveBeenCalledWith(expect.objectContaining({ orgId: "org-1", email: "o@x.com", invitedBy: "owner-1" }));
+    expect(db.insertOwnerInvitation.mock.calls[0][0].token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: ["o@x.com"], subject: "Set up Acme on CreativeOS" });
+  });
+
+  it("refuses an email with a login in another agency", async () => {
+    db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: "org-2" });
+    expect(await inviteOwner(agency, "o@x.com", by)).toEqual({ ok: false, status: 409, error: "This email already belongs to another agency." });
+    expect(db.insertOwnerInvitation).not.toHaveBeenCalled();
+  });
+
+  it("refuses someone already in this agency, who is made owner from the agency's page instead", async () => {
+    db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: "org-1" });
+    expect(await inviteOwner(agency, "o@x.com", by)).toEqual({ ok: false, status: 409, error: "Already in Acme. Make them owner from the agency's People tab." });
+  });
+
+  it("refuses when the agency has an owner or an open owner invite", async () => {
+    db.ownerIds.mockResolvedValue(["o1"]);
+    expect(await inviteOwner(agency, "o@x.com", by)).toEqual({ ok: false, status: 409, error: "This agency already has an owner or an open owner invite." });
+    db.ownerIds.mockResolvedValue([]);
+    db.getOpenOwnerInvite.mockResolvedValue(ownerInvite);
+    expect(await inviteOwner(agency, "o@x.com", by)).toEqual({ ok: false, status: 409, error: "This agency already has an owner or an open owner invite." });
+    expect(db.insertOwnerInvitation).not.toHaveBeenCalled();
+  });
+
+  it("refuses an email already invited in this agency", async () => {
+    db.findOpenInviteByEmail.mockResolvedValue({ id: "i1", clientName: "Chupps" });
+    expect(await inviteOwner(agency, "o@x.com", by)).toMatchObject({ ok: false, status: 409, error: expect.stringContaining("Already invited to Chupps") });
+  });
+
+  it("keeps to the daily limit", async () => {
+    db.countInvitesSince.mockResolvedValue(50);
+    expect(await inviteOwner(agency, "o@x.com", by)).toMatchObject({ ok: false, status: 429 });
+  });
+
+  it("turns a concurrent owner invite (unique violation) into the refusal", async () => {
+    db.insertOwnerInvitation.mockRejectedValue({ code: "23505" });
+    expect(await inviteOwner(agency, "o@x.com", by)).toEqual({ ok: false, status: 409, error: "This agency already has an owner or an open owner invite." });
+  });
+
+  it("refuses an invalid email", async () => {
+    expect(await inviteOwner(agency, "nope", by)).toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("shows the link and sends nothing when the app address is not set", async () => {
+    delete process.env.APP_URL;
+    db.insertOwnerInvitation.mockResolvedValue({ ...ownerInvite, link: "/invite/own" });
+    expect(await inviteOwner(agency, "o@x.com", by)).toMatchObject({ ok: true, value: { link: "/invite/own", emailed: false } });
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });

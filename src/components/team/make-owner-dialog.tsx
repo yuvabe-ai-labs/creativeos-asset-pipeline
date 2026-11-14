@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/services/read-json";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -32,7 +33,8 @@ export function MakeOwnerDialog({ name, onConfirm }: { name: string; onConfirm: 
       await onConfirm();
       setOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not change the owner.");
+      // An API refusal is written for people; anything else (a network fault) is not shown as is.
+      setError(e instanceof ApiError ? e.message : "Could not change the owner.");
     } finally {
       setSaving(false);
     }

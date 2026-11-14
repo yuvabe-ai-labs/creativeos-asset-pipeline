@@ -46,4 +46,5 @@ export const REFUSALS = {
   inviteOtherAccount: (email: string) => `This invite is for ${email}. Sign out, then create your account with that email.`,
   tryAgain: "Something went wrong. Try again.",
   ownerInviteOpen: "This agency already has an owner or an open owner invite.",
+  alreadyInAgencyMakeOwner: (agency: string) => `Already in ${agency}. Make them owner from the agency's People tab.`,
 } as const;

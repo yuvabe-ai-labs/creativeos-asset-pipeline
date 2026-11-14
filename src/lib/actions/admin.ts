@@ -12,8 +12,8 @@ import {
   parseCreditLimit,
   parseResetPassword,
 } from "@/lib/orgs/org-schema";
-import { CreateAgencySchema } from "@/lib/people/schema";
-import { createAgency, resendOwnerInvite } from "@/lib/people/ops";
+import { AgencyIdSchema, CreateAgencySchema } from "@/lib/people/schema";
+import { createAgency, inviteOwner, resendOwnerInvite } from "@/lib/people/ops";
 import { getDisplayName } from "@/lib/db/profiles";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 
@@ -41,8 +41,8 @@ export async function createAgencyAction(_prev: CreateAgencyState, formData: For
   const admin = await requireSuperAdmin();
   const parsed = CreateAgencySchema.safeParse({ name: formData.get("name"), email: formData.get("email") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the name and email." };
-  const name = (await getDisplayName(admin.userId)) ?? "Yuvabe";
   try {
+    const name = (await getDisplayName(admin.userId)) ?? "Yuvabe";
     const result = await createAgency(parsed.data.name, parsed.data.email, { userId: admin.userId, name });
     if (!result.ok) return { error: result.error };
     await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: result.value.orgId, eventType: "admin_action", detail: { action: "create_agency", email: parsed.data.email } });
@@ -54,18 +54,41 @@ export async function createAgencyAction(_prev: CreateAgencyState, formData: For
   }
 }
 
+export type OwnerInviteResult = { error?: string; email?: string; link?: string; emailed?: boolean };
+
 // The agencies list's Resend for an owner who hasn't signed up: a new link, emailed and shown.
-export async function resendOwnerInviteAction(orgId: string): Promise<{ error?: string; link?: string; emailed?: boolean }> {
+export async function resendOwnerInviteAction(orgId: string): Promise<OwnerInviteResult> {
   const admin = await requireSuperAdmin();
-  const [org, name] = await Promise.all([getOrgById(orgId), getDisplayName(admin.userId)]);
-  if (!org) return { error: "Agency not found." };
+  if (!AgencyIdSchema.safeParse(orgId).success) return { error: "Agency not found." };
   try {
+    const [org, name] = await Promise.all([getOrgById(orgId), getDisplayName(admin.userId)]);
+    if (!org) return { error: "Agency not found." };
     const result = await resendOwnerInvite({ orgId, orgName: org.name }, { userId: admin.userId, name: name ?? "Yuvabe" });
     if (!result.ok) return { error: result.error };
-    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "resend_owner_invite" } });
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "resend_owner_invite", email: result.value.invite.email } });
     return { link: result.value.link, emailed: result.value.emailed };
   } catch (e) {
     console.error("[admin] could not resend the owner invite", e);
+    return { error: "Could not send the invite." };
+  }
+}
+
+// The agencies list's Invite an owner, for an agency with no owner and no open owner invite
+// (spec §6.6, D505): a new owner invite, emailed and shown.
+export async function inviteOwnerAction(orgId: string, rawEmail: string): Promise<OwnerInviteResult> {
+  const admin = await requireSuperAdmin();
+  if (!AgencyIdSchema.safeParse(orgId).success) return { error: "Agency not found." };
+  try {
+    const [org, name] = await Promise.all([getOrgById(orgId), getDisplayName(admin.userId)]);
+    if (!org) return { error: "Agency not found." };
+    const result = await inviteOwner({ orgId, orgName: org.name }, rawEmail, { userId: admin.userId, name: name ?? "Yuvabe" });
+    if (!result.ok) return { error: result.error };
+    const email = result.value.invite.email;
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "invite_owner", email } });
+    revalidatePath("/admin");
+    return { email, link: result.value.link, emailed: result.value.emailed };
+  } catch (e) {
+    console.error("[admin] could not invite the owner", e);
     return { error: "Could not send the invite." };
   }
 }
@@ -74,7 +97,7 @@ export async function updateOrgCreditLimitAction(
   orgId: string,
   rawLimit: string,
 ): Promise<{ error?: string }> {
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
   let limit: number | null;
   try {
     limit = parseCreditLimit(rawLimit);
@@ -83,6 +106,7 @@ export async function updateOrgCreditLimitAction(
   }
   try {
     await updateOrgCreditLimit(orgId, limit);
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "credit_limit", limit } });
     revalidatePath(`/admin/orgs/${orgId}`);
     revalidatePath("/admin");
     return {};
@@ -100,7 +124,7 @@ export async function resetMemberPasswordAction(
   userId: string,
   rawPassword: string,
 ): Promise<ResetPasswordState> {
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
 
   let password: string;
   try {
@@ -111,6 +135,7 @@ export async function resetMemberPasswordAction(
 
   try {
     await resetMemberPassword(orgId, userId, password);
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "reset_password", userId } });
     revalidatePath(`/admin/orgs/${orgId}`);
     return { result: { tempPassword: password } };
   } catch {

@@ -162,6 +162,39 @@ export async function resendOwnerInvite(agency: Agency, by: Actor): Promise<OpRe
   return resendInvite(agency, open.id, by);
 }
 
+/** Admin's Invite an owner (spec §6.6, D505): for an existing agency with no owner and no open
+ *  owner invite. The same refusals as Add an agency and an invite (another login, already invited,
+ *  the daily limit); the link is emailed when it can be and always returned to copy. */
+export async function inviteOwner(agency: Agency, rawEmail: string, by: Actor): Promise<OpResult<InviteResult>> {
+  const email = normaliseEmail(rawEmail);
+  if (!isValidEmail(email)) return refuse(400, REFUSALS.invalidEmail);
+  const [login, owners, openOwner, open, sentToday] = await Promise.all([
+    people.findLoginByEmail(email),
+    people.ownerIds(agency.orgId),
+    people.getOpenOwnerInvite(agency.orgId),
+    people.findOpenInviteByEmail(agency.orgId, email),
+    people.countInvitesSince(agency.orgId, oneDayAgo()),
+  ]);
+  if (owners.length > 0 || openOwner) return refuse(409, REFUSALS.ownerInviteOpen);
+  if (login?.orgId === agency.orgId) return refuse(409, REFUSALS.alreadyInAgencyMakeOwner(agency.orgName));
+  if (login) return refuse(409, REFUSALS.otherAgency);
+  if (open) return refuse(409, REFUSALS.alreadyInvited(open.clientName ?? agency.orgName));
+  if (sentToday >= INVITES_PER_AGENCY_PER_DAY) return refuse(429, REFUSALS.dailyLimit);
+
+  let stored: StoredInvite;
+  try {
+    stored = await people.insertOwnerInvitation({ orgId: agency.orgId, email, token: newInviteToken(), invitedBy: by.userId });
+  } catch (e) {
+    // Another owner invite went in between the check above and the insert.
+    if (!isUniqueViolation(e)) throw e;
+    return refuse(409, REFUSALS.ownerInviteOpen);
+  }
+  const invite = { ...stored, invitedByName: by.name };
+  const link = invite.link;
+  const emailed = await emailInvite(link, () => ownerInviteEmail({ to: email, agency: agency.orgName, link }));
+  return ok({ invite, link, emailed });
+}
+
 /** Spec §6.3: when a member signs up, the owner and whoever invited them are told, one email
  *  each (one only when the owner invited them). The owner's adds the Team page line. Best effort. */
 export async function notifySignedUp(a: { orgId: string; orgName: string; userId: string; name: string; invitedBy: string | null }): Promise<void> {

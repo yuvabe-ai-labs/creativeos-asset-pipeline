@@ -31,13 +31,11 @@ export const dynamic = "force-dynamic";
 
 export default async function OrgDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; person?: string }>;
 }) {
   await requireSuperAdmin();
-  const [{ id }, { tab, person }] = await Promise.all([params, searchParams]);
+  const { id } = await params;
   const org = await getOrgById(id);
   if (!org) notFound();
 
@@ -107,14 +105,10 @@ export default async function OrgDetailPage({
         )}
       </div>
       <OrgDetailTabs
-        // Set permissions in the Clients tab links here with ?tab=people&person=; a new key opens that tab.
-        key={`${tab ?? ""}:${person ?? ""}`}
         org={org}
         people={people}
         invites={invites}
         clients={clients.map((c) => ({ id: c.id, name: c.name }))}
-        initialTab={tab ?? "overview"}
-        focusUserId={person ?? null}
         generationCount={generationCount}
         generationsPage={generationsPage}
         creditsUsedThisMonth={creditsUsedThisMonth}
