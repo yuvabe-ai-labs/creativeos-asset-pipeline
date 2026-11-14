@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hideInviteLinks, invitesForClient, isValidEmail, normaliseEmail, oneDayAgo, peopleNotOnClient, peopleOnClient, signedUpPeople } from "./utils";
+import { hideInviteLinks, inviteHolderView, invitesForClient, isValidEmail, normaliseEmail, oneDayAgo, peopleNotOnClient, peopleOnClient, signedUpPeople } from "./utils";
 import type { AgencyPerson, OpenInvite } from "./types";
 
 const person = (over: Partial<AgencyPerson>): AgencyPerson => ({
@@ -39,6 +39,25 @@ describe("people helpers", () => {
   it("withholds invite links from anyone who can't manage the team", () => {
     const inv: OpenInvite = { id: "i1", email: "p@x.com", clientId: "c1", clientName: "Chupps", asOwner: false, sentAt: "t", expiresAt: "t", invitedByName: null, link: "https://app.example/invite/i1" };
     expect(hideInviteLinks([inv])).toEqual([{ ...inv, link: null }]);
+  });
+
+  it("trims the people read to an Invite holder's own clients: no other client's invites, names or members", () => {
+    const inv = (id: string, clientId: string | null, clientName: string | null): OpenInvite => ({
+      id, email: `${id}@x.com`, clientId, clientName, asOwner: clientId === null, sentAt: "t", expiresAt: "t", invitedByName: "Asha", link: `https://app.example/invite/${id}`,
+    });
+    const onBoth = person({ userId: "d", clientIds: ["c1", "c2"], invitedClient: { id: "c2", name: "Bata" }, permissions: ["generate", "invite"] });
+    const invitedToC1 = person({ userId: "e", status: "signed_up", clientIds: ["c1"], invitedClient: { id: "c1", name: "Chupps" } });
+    const view = inviteHolderView(
+      { people: [owner, onBoth, invitedToC1, elsewhere], invites: [inv("i1", "c1", "Chupps"), inv("i2", "c2", "Bata"), inv("i3", null, null)] },
+      ["c1"],
+    );
+    expect(view.invites).toEqual([{ ...inv("i1", "c1", "Chupps"), link: null }]);
+    expect(view.people.map((p) => p.userId)).toEqual(["o", "d", "e", "c"]);
+    expect(view.people.every((p) => p.permissions.length === 0)).toBe(true);
+    expect(view.people.find((p) => p.userId === "d")).toMatchObject({ clientIds: ["c1"], invitedClient: null });
+    expect(view.people.find((p) => p.userId === "e")).toMatchObject({ clientIds: ["c1"], invitedClient: { id: "c1", name: "Chupps" } });
+    expect(view.people.find((p) => p.userId === "c")).toMatchObject({ clientIds: [], invitedClient: null });
+    expect(JSON.stringify(view)).not.toContain("Bata");
   });
 
   it("is a day before now", () => {

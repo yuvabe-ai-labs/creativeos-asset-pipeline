@@ -132,8 +132,14 @@ describe("resendInvite and cancelInvite", () => {
   it("refuses an invite that is no longer open", async () => {
     db.replaceInvitationToken.mockResolvedValue(null);
     expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
-    db.revokeInvitation.mockResolvedValue(false);
+    db.revokeInvitation.mockResolvedValue(null);
     expect(await cancelInvite(agency, "i1")).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
+  });
+
+  it("Cancel answers who the invite was for, for the audit log", async () => {
+    db.revokeInvitation.mockResolvedValue("p@x.com");
+    expect(await cancelInvite(agency, "i1")).toEqual({ ok: true, value: { email: "p@x.com" } });
+    expect(db.revokeInvitation).toHaveBeenCalledWith("org-1", "i1");
   });
 });
 

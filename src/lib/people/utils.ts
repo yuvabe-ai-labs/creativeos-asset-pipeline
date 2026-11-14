@@ -1,4 +1,4 @@
-import type { AgencyPerson, OpenInvite } from "./types";
+import type { AgencyPeople, AgencyPerson, OpenInvite } from "./types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,6 +34,23 @@ export function invitesForClient(invites: readonly OpenInvite[], clientId: strin
 /** The people read for a caller without manage_team (an Invite holder): no invite links. */
 export function hideInviteLinks(invites: readonly OpenInvite[]): OpenInvite[] {
   return invites.map((i) => ({ ...i, link: null }));
+}
+
+/** The people read for an Invite holder (spec §6.2): only what their Members lists and invite
+ *  popup need, for the clients where they hold Invite (`clientIds`). Invites to other clients are
+ *  left out, a client they aren't on is never named, and agency permissions are withheld, so the
+ *  read never confirms another client's name, invitees or members. */
+export function inviteHolderView(read: AgencyPeople, clientIds: readonly string[]): AgencyPeople {
+  const allowed = new Set(clientIds);
+  return {
+    people: read.people.map((p) => ({
+      ...p,
+      permissions: [],
+      invitedClient: p.invitedClient && allowed.has(p.invitedClient.id) ? p.invitedClient : null,
+      clientIds: p.clientIds.filter((id) => allowed.has(id)),
+    })),
+    invites: hideInviteLinks(read.invites.filter((i) => i.clientId !== null && allowed.has(i.clientId))),
+  };
 }
 
 export function oneDayAgo(now: Date = new Date()): string {

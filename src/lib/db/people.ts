@@ -298,7 +298,8 @@ export async function replaceInvitationToken(orgId: string, inviteId: string, to
   return data ? (await withInviterNames(db, [data as unknown as InviteRow]))[0] : null;
 }
 
-export async function revokeInvitation(orgId: string, inviteId: string): Promise<boolean> {
+/** Revokes an open invite; answers who it was for (the audit log names them), null when none was open. */
+export async function revokeInvitation(orgId: string, inviteId: string): Promise<string | null> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
     .update({ revoked_at: new Date().toISOString() })
@@ -306,9 +307,9 @@ export async function revokeInvitation(orgId: string, inviteId: string): Promise
     .eq("org_id", orgId)
     .is("accepted_at", null)
     .is("revoked_at", null)
-    .select("id");
+    .select("email");
   if (error) throw error;
-  return (data ?? []).length > 0;
+  return (data as { email: string }[] | null)?.[0]?.email ?? null;
 }
 
 /** Read for its id (resendOwnerInvite); invitedByName is left null. */

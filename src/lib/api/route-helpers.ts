@@ -287,7 +287,7 @@ export type TeamContext = {
   /** A super admin working on the agency from Admin (not while viewing as it). */
   viaAdmin: boolean;
   /** The caller holds manage_team (the owner, or Admin). False for an Invite holder: the people
-   *  read then withholds invite links. */
+   *  read then keeps to their clients and withholds invite links and permissions. */
   canManage: boolean;
   /** Writes made from Admin go to the audit log as admin_action; a no-op for the owner. */
   logAdmin: (action: string, detail?: Record<string, unknown>) => Promise<void>;
@@ -313,8 +313,9 @@ export async function withTeam(
     getOrgById(orgId),
     clientId ? getClientById(clientId) : Promise.resolve(null),
   ]);
+  // One message for every 404 here, so an outsider can't tell whether a client belongs to an agency.
   if (!org) return apiError("Not found.", 404);
-  if (clientId && (!client || client.org_id !== orgId)) return apiError("Client not found.", 404);
+  if (clientId && (!client || client.org_id !== orgId)) return apiError("Not found.", 404);
 
   const { caller, impersonation } = acting;
   const viewingThisAgency = impersonation.isImpersonating && impersonation.targetOrgId === orgId;

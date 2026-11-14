@@ -110,6 +110,20 @@ describe("withTeam (spec §6.1, §6.6)", () => {
     expect(ok).toHaveBeenCalledWith(expect.objectContaining({ client: expect.objectContaining({ id: "c1" }) }));
   });
 
+  it("answers an outsider the same 404 for a client of another agency as for one they aren't on", async () => {
+    m.caller = caller(testAccess({ permissions: ["invite"], clientIds: ["c1"] }));
+    m.client = { id: "c9", org_id: "org-2", name: "Other" };
+    const otherAgency = await withTeam(req("POST"), Promise.resolve({ orgId: "org-1", clientId: "c9" }), { need: "invite" }, ok);
+    m.client = { id: "c3", org_id: "org-1", name: "Not theirs" };
+    const notOnIt = await withTeam(req("POST"), Promise.resolve({ orgId: "org-1", clientId: "c3" }), { need: "invite" }, ok);
+    m.client = null;
+    const missing = await withTeam(req("POST"), Promise.resolve({ orgId: "org-1", clientId: "nope" }), { need: "invite" }, ok);
+    expect([otherAgency.status, notOnIt.status, missing.status]).toEqual([404, 404, 404]);
+    const bodies = await Promise.all([otherAgency.json(), notOnIt.json(), missing.json()]);
+    expect(bodies[0]).toEqual(bodies[1]);
+    expect(bodies[2]).toEqual(bodies[1]);
+  });
+
   it("answers 404 for an agency that does not exist", async () => {
     m.caller = caller(accessFromRows("u1", true, []), "super_admin", "yuvabe");
     m.org = null;

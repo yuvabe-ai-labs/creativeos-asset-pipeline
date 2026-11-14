@@ -93,8 +93,9 @@ export async function resendInvite(agency: Agency, inviteId: string, by: Actor):
   return ok({ invite, link, emailed });
 }
 
-export async function cancelInvite(agency: Agency, inviteId: string): Promise<OpResult<null>> {
-  return (await people.revokeInvitation(agency.orgId, inviteId)) ? ok(null) : refuse(404, REFUSALS.inviteNotFound);
+export async function cancelInvite(agency: Agency, inviteId: string): Promise<OpResult<{ email: string }>> {
+  const email = await people.revokeInvitation(agency.orgId, inviteId);
+  return email ? ok({ email }) : refuse(404, REFUSALS.inviteNotFound);
 }
 
 /** Give access (first time) or edit. The cascade carries the set onto every client row. */

@@ -10,7 +10,7 @@ export async function POST(req: Request, { params }: Ctx) {
   return withTeam(req, params, { need: "manage_team" }, (ctx) =>
     withQuietErrors("Could not send the invite.", async () => {
       const result = await resendInvite(ctx, inviteId, ctx.actor);
-      if (result.ok) await ctx.logAdmin("resend_invite", { inviteId });
+      if (result.ok) await ctx.logAdmin("resend_invite", { inviteId, email: result.value.invite.email });
       return opResponse(result);
     }),
   );

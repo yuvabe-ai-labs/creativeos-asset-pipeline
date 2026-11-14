@@ -178,7 +178,8 @@ export function groupIntoSessions(
       continue;
     }
 
-    // Admin's people changes are not part of a view-as session (D85); they are listed elsewhere.
+    // Admin's people changes are not part of a view-as session (D85). They are not shown in this
+    // view yet; the rows stay in the audit log.
     if (event.event_type === "admin_action") continue;
 
     const open = openByOperator.get(event.operator_id);

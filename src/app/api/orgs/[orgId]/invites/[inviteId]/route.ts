@@ -9,7 +9,7 @@ export async function DELETE(req: Request, { params }: Ctx) {
   return withTeam(req, params, { need: "manage_team" }, (ctx) =>
     withQuietErrors("Could not cancel the invite.", async () => {
       const result = await cancelInvite(ctx, inviteId);
-      if (result.ok) await ctx.logAdmin("cancel_invite", { inviteId });
+      if (result.ok) await ctx.logAdmin("cancel_invite", { inviteId, email: result.value.email });
       return opResponse(result);
     }),
   );
