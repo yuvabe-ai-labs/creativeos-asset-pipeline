@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ACTIONS, isAction } from "@/lib/permissions/model";
-import { NOT_YET_CHECKED } from "@/lib/permissions/not-yet-checked";
 
 // D496: the second argument is a guard — { need, on } or { custom: "<reason>" }.
 const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_.]+)"|custom:\s*")/;
@@ -148,6 +147,6 @@ it("every action is checked by a route, an action or a page", () => {
   ].map((f) => readFileSync(f, "utf8"));
   const pattern = new RegExp(`"(${ACTIONS.join("|")})"`, "g");
   const used = new Set(sources.flatMap((s) => [...s.matchAll(pattern)].map((m) => m[1])));
-  const missing = ACTIONS.filter((a) => !used.has(a) && !(a in NOT_YET_CHECKED));
+  const missing = ACTIONS.filter((a) => !used.has(a));
   expect(missing).toEqual([]);
 });

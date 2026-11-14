@@ -24,7 +24,7 @@ const ALLOWLIST: Record<string, string> = {
 
 const API_ROOT = join(process.cwd(), "src/app/api");
 const HANDLER_RE = /export\s+(?:async\s+)?(?:function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g;
-const GUARDED_RE = /\b(withClient|withCanvas|withNode|withMoodboard|withAccess)\s*\([^]*?need:\s*"([a-z_.]+)"/;
+const GUARDED_RE = /\b(withClient|withCanvas|withNode|withMoodboard|withAccess|withTeam)\s*\([^]*?need:\s*"([a-z_.]+)"/;
 
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

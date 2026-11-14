@@ -14,6 +14,9 @@ import { toCanonicalShareToken } from "@/lib/client-review/token";
 import { getScriptReviewByToken } from "@/lib/db/script-reviews";
 import type { ScriptReviewByToken } from "@/lib/script-review/wire";
 import { unwrapEmbed } from "@/lib/db/embed";
+import { getOrgById } from "@/lib/db/organizations";
+import { getDisplayName } from "@/lib/db/profiles";
+import type { Actor, OpResult } from "@/lib/people/ops";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyResponse = NextResponse<any>;
@@ -269,6 +272,86 @@ export async function withAccess(
   const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
   return handler(acting.caller, acting.effectiveOrgId);
+}
+
+// ── Team (spec §6.1, §6.2, §6.6) ──────────────────────────────────────────────
+
+export type TeamContext = {
+  orgId: string;
+  orgName: string;
+  caller: CallerContext;
+  /** Who is acting, for invites and emails ("{Inviter} has invited you"). */
+  actor: Actor;
+  /** Set when the route has a clientId: that client, checked to be in this agency. */
+  client: ClientRow | null;
+  /** A super admin working on the agency from Admin (not while viewing as it). */
+  viaAdmin: boolean;
+  /** The caller holds manage_team (the owner, or Admin). False for an Invite holder: the people
+   *  read then withholds invite links. */
+  canManage: boolean;
+  /** Writes made from Admin go to the audit log as admin_action; a no-op for the owner. */
+  logAdmin: (action: string, detail?: Record<string, unknown>) => Promise<void>;
+};
+
+// One chokepoint for the owner's Team and Members screens, Invite holders' Members screens and
+// Admin's People and Clients tabs. need "manage_team" is owner only. need "invite" is checked on
+// the route's client, taken from the URL (a client the caller is not on is a 404, one where they
+// lack Invite a 403), or on any client when the route names none (the people read); the owner
+// always passes. Both run under the usual impersonation write gate. A super admin working from
+// Admin passes for any agency (D85: Admin is platform administration, not acting as the agency)
+// and each change is audit-logged; while they view as this same agency, the agency path and its
+// write gate apply. The agency, the client and the caller are read side by side, once.
+export async function withTeam(
+  req: Request,
+  params: Promise<{ orgId: string; clientId?: string }>,
+  guard: { need: "manage_team" | "invite" },
+  handler: (ctx: TeamContext) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { orgId, clientId } = await params;
+  const [acting, org, client] = await Promise.all([
+    resolveActingCaller(),
+    getOrgById(orgId),
+    clientId ? getClientById(clientId) : Promise.resolve(null),
+  ]);
+  if (!org) return apiError("Not found.", 404);
+  if (clientId && (!client || client.org_id !== orgId)) return apiError("Client not found.", 404);
+
+  const { caller, impersonation } = acting;
+  const viewingThisAgency = impersonation.isImpersonating && impersonation.targetOrgId === orgId;
+  const viaAdmin = caller.platformRole === "super_admin" && !viewingThisAgency;
+  let canManage = viaAdmin;
+  if (!viaAdmin) {
+    if (orgId !== acting.effectiveOrgId) return apiError("Not found.", 404);
+    const access = accessOf(caller);
+    const decision = check(access, guard.need, { orgId, clientId: guard.need === "invite" ? (clientId ?? null) : null });
+    if (decision !== "allow") return denial(decision, "Not found.");
+    const blocked = await writeGate(req, impersonation);
+    if (blocked) return blocked;
+    canManage = check(access, "manage_team", { orgId, clientId: null }) === "allow";
+  }
+
+  // One primary-key read, after the gate so a refused caller costs nothing more.
+  const name = await getDisplayName(caller.userId);
+  const logAdmin = async (action: string, detail: Record<string, unknown> = {}) => {
+    if (!viaAdmin) return;
+    await logImpersonationEvent({ operatorId: caller.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action, ...detail } });
+  };
+  return handler({
+    orgId,
+    orgName: org.name,
+    caller,
+    actor: { userId: caller.userId, name: name ?? `Someone at ${org.name}` },
+    client,
+    viaAdmin,
+    canManage,
+    logAdmin,
+  });
+}
+
+/** A people rule's answer as a response: refusals with their status and words. */
+export function opResponse<T extends Record<string, unknown>>(result: OpResult<T | null>): AnyResponse {
+  if (!result.ok) return apiError(result.error, result.status);
+  return apiOk(result.value ?? {});
 }
 
 // ── Share-token resolution (D309) ─────────────────────────────────────────────
