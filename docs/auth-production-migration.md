@@ -967,6 +967,10 @@ What it adds:
 - `org_invitations`: member invites carry the client; the owner invite (`as_owner`) has none.
   The link's token is stored as issued (unique index), so Copy link shows the same link; single
   use, 7 days, server-only (RLS on, no policies). Resend replaces the token; Cancel revokes.
+  One open invite per email per agency (unique index on `org_id, lower(email)`) and one open
+  owner invite per agency. The app also refuses an email with an open invite in another agency
+  (one agency per person). That lookup, by email across agencies, has no index: the table is
+  small. An index on `lower(email)` where the invite is open can be added in a later migration.
 - Triggers: `org_memberships_cascade_permissions` (an agency-level change reaches every client
   row as what was added and removed), `org_memberships_keep_owner` (deferred: an agency that has
   an owner always keeps one), `membership_clients_prepare` (no owner rows; copies the set).
@@ -992,15 +996,43 @@ select o.name, count(*) as owners, array_agg(p.display_name order by m.joined_at
   join organizations o on o.id = m.org_id
   left join profiles p on p.user_id = m.user_id
  where m.org_role = 'owner'
- group by o.name
+ group by o.id, o.name
 having count(*) > 1;
 ```
 
 **`org_role` stays** and is unread by the new code. New code keeps it in step (`owner` for the
-owner, `designer` for a member who joins; `transfer_agency_owner` swaps them) so 0012's
-`org_memberships_last_owner` trigger agrees. A later migration drops `org_role` and that trigger
-once production runs the new code. Don't create agencies or members with the old admin screens
-between applying 0062 and deploying the code: the old screens don't set `is_owner`.
+owner, `designer` for a member who joins; `transfer_agency_owner` sets the new owner to `owner`
+and the previous one to `senior`) so 0012's `org_memberships_last_owner` trigger agrees. A later
+migration drops `org_role` and that trigger once production runs the new code. Don't create
+agencies, members or clients with the old code between applying 0062 and deploying the new code:
+the old admin screens don't set `is_owner`, and a client the old code creates gets no
+`membership_clients` rows, so only the owner sees it until people are added on its Members page.
+
+**If 0062 was applied before commit `0e63955b`** (13 Nov 2026, the switch from six permissions to
+five): that version stored `view` and `edit`, and its check constraints refuse `invite`. It must be
+re-applied from the current file, which replaces the functions (`transfer_agency_owner`, the
+cascade and the rest). Re-applying alone is not enough: both check constraints are guarded
+(`if not exists`, `create table if not exists`) and the backfill is skipped once anyone has access
+given, so the old constraints and the stored `view` and `edit` would stay. Run this first, then
+re-apply the current file:
+
+```sql
+begin;
+-- the cascade trigger also removes them from each person's client rows; the second update is a backstop
+update org_memberships set permissions = array_remove(array_remove(permissions, 'view'), 'edit')
+ where permissions && array['view','edit'];
+update membership_clients set permissions = array_remove(array_remove(permissions, 'view'), 'edit')
+ where permissions && array['view','edit'];
+alter table org_memberships drop constraint org_memberships_permissions_known;
+alter table membership_clients drop constraint membership_clients_permissions_known;
+alter table membership_clients add constraint membership_clients_permissions_known
+  check (permissions <@ array['generate','approve','share','delete','invite']::text[]);
+commit;
+-- re-applying 0062 then adds org_memberships_permissions_known back with the five.
+-- expect 0 for both afterwards
+select count(*) from org_memberships where permissions && array['view','edit'];
+select count(*) from membership_clients where permissions && array['view','edit'];
+```
 
 **Ordering** (merging deploys on this repo: Vercel is git-integrated):
 
@@ -1010,6 +1042,60 @@ between applying 0062 and deploying the code: the old screens don't set `is_owne
 3. Run the checks below.
 4. Then deploy the code. Deployed before 0062, `get_membership_access` is missing and every
    signed-in request fails.
+
+**Environment, each environment (Vercel), before the people screens are used (spec §6.7, §9):**
+
+- `APP_URL`: the environment's public address. Invite links and every email's button use it.
+  Without it an invite link is the path alone (`/invite/…`): it is shown to copy, works when
+  opened on the same site, and is not emailed. The signed-up and access-ready emails are skipped.
+  Invites and actions still succeed either way.
+- `RESEND_API_KEY` and `EMAIL_FROM`, where `EMAIL_FROM` is an address on a sending domain verified
+  in Resend (each environment's key must be allowed to send from it). Without either, nothing is
+  emailed; invites are still created and the link is shown to copy.
+
+**The invite page is outside the session check.** `src/proxy.ts` excludes `/invite/*`: the token is
+the capability, and someone invited has no account yet. The proxy also sets an `x-pathname` header
+(always overwritten) that the root layout reads to send a person waiting for access to
+`/onboarding` from any page.
+
+**Old admin screens are gone with this code:** no temporary passwords, no role select. A new agency
+is "Add an agency" (name and owner email); the owner signs up from the emailed link. An agency with
+no owner shows Resend while its owner invite is open, otherwise "Invite an owner". People are
+managed on the agency page's People and Clients tabs; Make owner is only there. Every change made
+from Admin is in the audit log as `admin_action`.
+
+**Check by hand in the app on staging after deploying:**
+
+1. Add an agency with an email you can read; open the link and sign up; you land on an empty client
+   list as owner.
+2. As that owner, create a client, open Members, invite someone new; sign up from that link in a
+   private window; you see "You're being onboarded". Type another address (say `/clients`) or
+   click any link: you stay on onboarding.
+3. The owner gets the signed-up email (with "Give them permissions on the Team page."); the header
+   shows Team 1. Give access with no permissions picked; the person gets the access-ready email,
+   reloads and sees the client and its work, the canvas read-only, AI buttons disabled with the
+   reason; Team shows them as "Can look".
+4. Edit them on Team to Generate, Approve, Share, Delete and Invite: on their next request the
+   canvas is editable and Generate works. Remove Generate again: their next request is refused;
+   their buttons follow on focus.
+5. With Invite, that person opens the client's Members page from the Members button: they see the
+   list with no Remove, Resend, Cancel or Set permissions, and no Copy link on open invites. They
+   invite someone new; that person signs up and waits (Signed up on Team). The owner and the
+   inviter each get the signed-up email; only the owner's has the Team page line. The Members page
+   of a client they are on without Invite, or not on, is the 404 page.
+6. Resend an open invite twice within a minute: the second is refused with "That invite was just
+   sent. Try again in a minute."; the first link stops working. Invite, from a second agency, an
+   email that has an open invite in the first: refused with "This email already belongs to another
+   agency."
+7. In `impersonation_audit_log`, the agency's `admin_action` rows list each change from Admin.
+
+```sql
+-- expect the admin actions from step 1 and any Admin changes
+select event_type, detail, occurred_at from impersonation_audit_log
+ where target_org_id = '<agency>' and event_type = 'admin_action' order by occurred_at;
+-- open invites past 7 days that were never used (the app refuses them; informational)
+select count(*) from org_invitations where accepted_at is null and revoked_at is null and expires_at < now();
+```
 
 **Verify after running:**
 

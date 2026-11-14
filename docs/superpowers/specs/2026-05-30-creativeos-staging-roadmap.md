@@ -8656,9 +8656,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Decision.**
 - An invitation (`org_invitations`) carries the email, the client (D506) and whether it is an owner invite (D505). Its token is 32 random bytes, stored as issued, so Copy link shows the same link any time. The link `/invite/[token]` is emailed through Resend (over `fetch`). It works once and expires after 7 days; Resend issues a new token and the old link stops working; Cancel revokes it.
-- One open invite per email per agency. At most 50 invites per agency per day, counting everyone who invites.
-- Without `RESEND_API_KEY` the invite is still created and the link shown to copy.
-- The temporary-password path (`addOrgMember`) is removed. Removing a person deletes the membership.
+- One open invite per email across all agencies (one agency per person, D508): within an agency a unique index holds it; an open invite in another agency is refused in the app with "This email already belongs to another agency.", never naming that agency. At most 50 invites per agency per day, counting everyone who invites and every Resend. Resend is refused within a minute of the last send of that invite.
+- Without `RESEND_API_KEY` and `EMAIL_FROM` the invite is still created and the link shown to copy. Without `APP_URL` the link is the path alone (`/invite/…`), shown to copy and never emailed.
+- The temporary-password path (`addOrgMember`) is removed. Removing a person from the agency deletes their login (a login without a membership could never sign in again); their work stays, attributed to "an unknown maker".
 
 **Why.**
 - Arun, 11 Nov: people are invited by email, with a link that can also be copied, sent through Resend.
@@ -8707,8 +8707,8 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 ### D505 — Yuvabe manages any agency's people from Admin; only Yuvabe invites an owner *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- **Add an agency.** One popup takes the agency's name and the owner's email, creates the agency and sends the owner invite (`create_agency_with_owner_invite`). The agencies list marks agencies whose owner hasn't signed up, with Resend.
-- **Agency page.** Overview, People and Clients tabs. People renders the owner's Team page component with statuses (Invited, Signed up, Member, Owner), the owner's powers, and Make owner (`transfer_agency_owner`). Clients opens each client's Members component with the owner's powers. View-as stays as it is (read-only, or elevated and audit-logged). Changes made from Admin go to the same audit log (`admin_action`).
+- **Add an agency.** One popup takes the agency's name and the owner's email, creates the agency and sends the owner invite (`create_agency_with_owner_invite`). The agencies list marks agencies with no owner: with Resend while an owner invite is open, otherwise with Invite an owner.
+- **Agency page.** Overview, People and Clients tabs, beside the existing Generations and Support activity; the open tab is kept in the URL (`?tab=`), so a link can open one. People renders the owner's Team page component with statuses (Invited, Signed up, Member, Owner), the owner's powers, and Make owner (`transfer_agency_owner`). Make owner exists only here: the owner, or the super admin viewing as the agency, can't move ownership. Clients opens each client's Members component with the owner's powers. View-as stays as it is (read-only, or elevated and audit-logged). Changes made from Admin go to the same audit log (`admin_action`).
 - **Owner invites.** An invitation carries `as_owner`. Only the super admin sends one, and only while the agency has no owner and no open owner invite. Accepting makes the person owner with access given at once. A new agency has no owner until then, so the owner-protection rule applies only once an owner exists.
 
 **Why.**
@@ -8727,7 +8727,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 - **Invite popup.** Step 1 lists people in the agency not on this client (Members and Signed up), with a search and checkboxes ("Add n people"), in one insert. "Invite someone new" opens step 2 with the email.
 - **What an Invite holder can't do.** Set or change permissions (the person they invite waits as Signed up until the owner gives access), remove people, or resend and cancel invites. Those stay with the owner.
 - **Joining.** Accepting creates the membership (Signed up) and the client row with no permissions. Giving access on the Team page sets the permissions and the cascade fills that row, so the person can start at once.
-- **One open invite per person per agency.** A second invite from another client is refused; once the person has joined, they're added to other clients from the list.
+- **One open invite per person.** A second invite from another client is refused; once the person has joined, they're added to other clients from the list. An open invite in another agency refuses it too (D502).
 - **Refusals** in plain words: invalid email, already in the agency, already invited, an email with a login in another agency.
 
 **Why.**
@@ -8787,3 +8787,18 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** Spec §4.2–§4.4 and §10 (performance), and keeping each step of the switch a commit that compiles and can be reviewed on its own. The home page alone missed a waiting person who opened any other URL (they got a 404 or an empty page).
 
 **Rejected.** Scanning the client rows for "anywhere" on each check (performance rule 2). Redirecting a foreign client's page home (it differed from every other denial).
+
+### D511 — People, invites and Admin share one API and one set of screens *(recorded 2026-11-14; refines D502, D505, D506, D509; originated → `2026-11-13-permissions-people-and-invites.md`)*
+
+**Decision.**
+- Every people change goes through `/api/orgs/[orgId]/…` behind `withTeam`, under the impersonation write gate: inviting to a client and adding people already in the agency to it need `invite` on that client; everything else needs `manage_team` (owner only). A super admin working from Admin passes for any agency, skips that gate (D85) and is logged as `admin_action`. While viewing as the same agency, the agency path applies. Make owner answers only a super admin working from Admin.
+- The rules (refusals, the daily limit, emails) live once in `src/lib/people/ops.ts`. The Team page (`TeamPeople`) renders for the owner, a client's Members list (`ClientMembers`) and invite popup for the owner and Invite holders on that client (owner-only actions behind `canManage`), and both in Admin's People and Clients tabs.
+- One people read per agency (`list_agency_people` plus open invites) feeds the Team page, every Members list and the invite popup; each screen makes one read and filters it. The owner gets all of it. An Invite holder gets a trimmed view for the clients where they hold Invite (`peopleReadFor`): no agency permission sets, client ids and invited-to clients limited to those clients, only invites to those clients, and no invite links. They see the link of an invite they just sent, in the popup's result.
+- Resend is counted in the 50-a-day limit and refused within a minute of the last send of that invite (`RESEND_GAP_MS`), checked in the same update that replaces the token, so two quick resends can't both go through.
+- One open invite per email across agencies is checked in the app (`hasOpenInviteElsewhere`) on invite, Invite an owner and Add an agency; the refusal never names the other agency. A login that is in no agency gets its own refusal, since only Yuvabe can move it.
+- Invite links are built in one place (`inviteLink`). Without `APP_URL` the link is the path alone: it is shown to copy and not emailed, and the invite still succeeds. Other emails' buttons need `APP_URL`; without it the email is skipped and the action still succeeds.
+- Email goes through Resend's HTTP API with `fetch`; without `RESEND_API_KEY` and `EMAIL_FROM` nothing is sent and the link is shown to copy.
+
+**Why.** D509 (one place for permissions), AGENTS.md "share the wiring too", and D85's line between administering the platform and acting as an agency. The trimmed read keeps an Invite holder from learning other clients' names, members or invitees. Without the cooldown and the count, Resend could mail one address on a loop. Without the cross-agency check, two agencies could both invite one new email and the second sign-up would fail.
+
+**Rejected.** Separate admin routes mirroring the owner's (two copies of every rule). Giving Invite holders the owner's full read with only links withheld. A database index for the cross-agency check (the per-agency unique index stays; the table is small).
