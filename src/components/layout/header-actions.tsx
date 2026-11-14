@@ -11,9 +11,11 @@ import { HelpMenu } from "@/components/help/help-menu";
 // Hidden on /login — there's no session to reflect on the sign-in form itself, so
 // showing "signed in as X" / an admin link / sign-out there is just confusing chrome,
 // independent of whether a session happens to still be technically live at that moment.
+// The invite sign-up page (/invite/*) is the same: the person has no account yet, and the
+// inbox and profile reads would fail without a session.
 export function HeaderActions() {
   const pathname = usePathname();
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || pathname.startsWith("/invite/")) return null;
 
   return (
     <div className="flex items-center gap-3">

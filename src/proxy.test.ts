@@ -24,4 +24,10 @@ describe("proxy matcher (D309)", () => {
     expect(runsProxy("/login")).toBe(false);
     expect(runsProxy("/api/webhooks/trigger")).toBe(false);
   });
+  it("skips the session check for the invite sign-up page only (spec 6.3)", () => {
+    expect(runsProxy("/invite/abc")).toBe(false);
+    expect(runsProxy("/invite")).toBe(true);
+    expect(runsProxy("/invites")).toBe(true);
+    expect(runsProxy("/api/orgs/o1/invites")).toBe(true);
+  });
 });

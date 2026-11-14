@@ -23,6 +23,7 @@ const ALLOWLIST: Record<string, string> = {
   heartbeatCanvasLockAction: "per-editor-session bookkeeping, not tenant data (D101 amendment)",
   releaseCanvasLockAction: "per-editor-session bookkeeping, not tenant data (D101 amendment)",
   loginAction: "runs before any session/impersonation state exists",
+  acceptInviteAction: "runs before any account exists; the invite token is the capability (spec 6.3)",
   logoutAction: "runs after signOut(); also directly calls endImpersonation() itself",
   enterImpersonationAction: "impersonation session-control, not tenant data",
   enterElevatedModeAction: "impersonation session-control, not tenant data",
