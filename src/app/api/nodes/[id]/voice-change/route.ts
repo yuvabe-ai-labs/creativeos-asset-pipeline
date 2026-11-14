@@ -8,8 +8,10 @@ import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/cr
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { VoiceChangeSettingsSchema } from "@/lib/elevenlabs/voice-settings";
-import { VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
+import { VOICE_CHECK_FAILED_MESSAGE, VOICE_GONE_MESSAGE, VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
+import { isVoiceAvailableToClient } from "@/lib/elevenlabs/client-voices";
+import { listClientVoiceIds } from "@/lib/db/client-voices";
 import { resolveVoiceChangeSource } from "@/lib/voice-change/source";
 import { signRevoicedVideoUrl } from "@/lib/storage";
 import type { VoiceChangeRecord } from "@/lib/voice-change/types";
@@ -38,9 +40,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     try {
       voice = await getVoiceCached(voiceId);
     } catch {
-      return apiError("Could not reach ElevenLabs to check the voice. Try again.", 400);
+      return apiError(VOICE_CHECK_FAILED_MESSAGE, 400);
     }
-    if (!voice) return apiError("That voice is no longer on the ElevenLabs account. Pick another voice.", 400);
+    if (!voice) return apiError(VOICE_GONE_MESSAGE, 400);
+    // The voice id comes from the body: a stock voice or one of this client's own, never another
+    // client's clone (any agency). A 404, as for the avatar voice, never confirming a foreign voice.
+    if (!isVoiceAvailableToClient(voice, await listClientVoiceIds(clientId))) {
+      return apiError("Voice not found.", 404);
+    }
 
     const voiceChange: VoiceChangeRecord = {
       baseVersionId,

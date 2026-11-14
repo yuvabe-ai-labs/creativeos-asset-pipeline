@@ -117,6 +117,27 @@ describe("inviteToClient (spec §6.2)", () => {
     expect(db.insertInvitation).not.toHaveBeenCalled();
     expect(sendEmail).not.toHaveBeenCalled();
   });
+
+  // An Invite holder (no manage_team) passes the clients they are on. The open invite's
+  // client is named only when it is one of them; otherwise the refusal names no client.
+  const NEUTRAL = "Already invited. Once they've signed up, add them from the list.";
+  it("names no client to an Invite holder who isn't on the open invite's client", async () => {
+    db.findOpenInviteByEmail.mockResolvedValue({ id: "i0", clientId: "cB", clientName: "Bata" });
+    expect(await inviteToClient(agency, client, "p@x.com", by, ["c1"])).toEqual({ ok: false, status: 409, error: NEUTRAL });
+  });
+
+  it("names the client to an Invite holder who is on it", async () => {
+    db.findOpenInviteByEmail.mockResolvedValue({ id: "i0", clientId: "c1", clientName: "Chupps" });
+    expect(await inviteToClient(agency, client, "p@x.com", by, ["c1"])).toMatchObject({
+      error: "Already invited to Chupps. Once they've signed up, add them from the list.",
+    });
+  });
+
+  it("names no client on a lost race either", async () => {
+    db.insertInvitation.mockRejectedValue({ code: "23505" });
+    db.findOpenInviteByEmail.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "i0", clientId: "cB", clientName: "Bata" });
+    expect(await inviteToClient(agency, client, "p@x.com", by, ["c1"])).toEqual({ ok: false, status: 409, error: NEUTRAL });
+  });
 });
 
 describe("resendInvite and cancelInvite", () => {

@@ -27,6 +27,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         createdBy: userId,
         itemIds,
       });
+      // An item that isn't on this client's boards: nothing was written.
+      if (!signal) return apiError("Reference not found.", 404);
       return apiOk({ signal }, 201);
     });
   });

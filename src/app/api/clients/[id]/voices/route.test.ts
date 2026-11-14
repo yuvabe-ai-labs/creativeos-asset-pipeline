@@ -94,6 +94,23 @@ describe("POST voices/save", () => {
     expect(addClientVoice).toHaveBeenCalledWith(expect.objectContaining({ clientId: "c1", voiceId: "acct1" }));
   });
 
+  // The voice id comes from the body. Another client's clone (any agency) is never attached
+  // to this client: a 404, nothing recorded, nothing saved.
+  it("404s on another client's cloned voice id and records nothing", async () => {
+    const { POST } = await import("./save/route");
+    const res = await POST(
+      new NextRequest(`${base}/save`, {
+        method: "POST",
+        body: JSON.stringify({ publicOwnerId: "own", voiceId: "theirs", name: "x" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params },
+    );
+    expect(res.status).toBe(404);
+    expect(addClientVoice).not.toHaveBeenCalled();
+    expect(saveLibraryVoice).not.toHaveBeenCalled();
+  });
+
   it("says what to do when the account's voice slots are full", async () => {
     vi.mocked(getAccountVoicesCached).mockResolvedValue([]);
     vi.mocked(saveLibraryVoice).mockRejectedValue(

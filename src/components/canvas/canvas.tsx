@@ -181,7 +181,7 @@ export function Canvas({
   const { canEdit, viewOnly, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
     useCanvasLock(canvasId, { acquire: permissions.edit });
 
-  // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a senior's
+  // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a reviewer's
   // decision made elsewhere lands here without a reload.
   useCanvasApprovalSync(canvasId);
   // Every cost figure on the canvas reads one shared query; this is its one live refresh.

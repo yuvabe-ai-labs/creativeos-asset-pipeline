@@ -1058,6 +1058,11 @@ the capability, and someone invited has no account yet. The proxy also sets an `
 (always overwritten) that the root layout reads to send a person waiting for access to
 `/onboarding` from any page.
 
+**Known limitation: Google Drive is one account for the whole platform.** The Drive picker returns
+that account's read-only access token, and the Drive file, folder and import routes use the same
+login. They need only Generate on any client, so anyone with Generate on one client, in any agency,
+can open every file that account can see, including folders other agencies use (D501).
+
 **Old admin screens are gone with this code:** no temporary passwords, no role select. A new agency
 is "Add an agency" (name and owner email); the owner signs up from the emailed link. An agency with
 no owner shows Resend while its owner invite is open, otherwise "Invite an owner". People are

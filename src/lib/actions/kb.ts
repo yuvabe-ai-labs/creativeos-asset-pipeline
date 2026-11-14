@@ -202,11 +202,10 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
   });
 }
 
-// Being on the client is enough (need: "view"): this recovers a stuck build. It only marks an unfinished job failed so the
-// page stops waiting on it; it starts nothing, spends nothing and changes no brand knowledge,
-// and anyone who can see the page would otherwise be stuck behind a dead build.
+// Needs Generate, like startKBBuildJob: it marks any unfinished job failed with no staleness
+// check, so on a build that is still running it throws away the credits spent on it.
 export async function markStuckJobFailed(jobId: string): Promise<void> {
-  return withAction("markStuckJobFailed", { need: "view", on: { kbJobId: jobId } }, async () => {
+  return withAction("markStuckJobFailed", { need: "generate", on: { kbJobId: jobId } }, async () => {
     const job = await getKBJob(jobId);
     if (!job) throw new Error("Job not found.");
     await markKBJobStuckIfRunning(jobId);

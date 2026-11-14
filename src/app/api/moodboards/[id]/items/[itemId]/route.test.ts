@@ -82,7 +82,7 @@ describe("DELETE /api/moodboards/[id]/items/[itemId]", () => {
     expect(res.status).toBe(200);
     expect(vi.mocked(removeObject)).toHaveBeenCalledWith("https://gcs/m.mp4");
     expect(vi.mocked(removeObject)).toHaveBeenCalledWith("https://gcs/t.jpg");
-    expect(vi.mocked(removeItem)).toHaveBeenCalledWith("item-1");
+    expect(vi.mocked(removeItem)).toHaveBeenCalledWith("board-1", "item-1");
   });
 
   it("skips objects the item never had", async () => {
@@ -92,7 +92,7 @@ describe("DELETE /api/moodboards/[id]/items/[itemId]", () => {
     await DELETE(req(), { params });
 
     expect(vi.mocked(removeObject)).not.toHaveBeenCalled();
-    expect(vi.mocked(removeItem)).toHaveBeenCalledWith("item-1");
+    expect(vi.mocked(removeItem)).toHaveBeenCalledWith("board-1", "item-1");
   });
 
   // An orphaned object is recoverable; a row that refuses to delete is not. Storage
@@ -105,16 +105,29 @@ describe("DELETE /api/moodboards/[id]/items/[itemId]", () => {
     const res = await DELETE(req(), { params });
 
     expect(res.status).toBe(200);
-    expect(vi.mocked(removeItem)).toHaveBeenCalledWith("item-1");
+    expect(vi.mocked(removeItem)).toHaveBeenCalledWith("board-1", "item-1");
   });
 
-  it("still deletes the row when the item can no longer be read", async () => {
+  it("answers 404 when the item is gone, and deletes nothing", async () => {
     vi.mocked(getItem).mockResolvedValue(null);
     const { DELETE } = await import("./route");
 
     const res = await DELETE(req(), { params });
 
-    expect(res.status).toBe(200);
-    expect(vi.mocked(removeItem)).toHaveBeenCalledWith("item-1");
+    expect(res.status).toBe(404);
+    expect(vi.mocked(removeItem)).not.toHaveBeenCalled();
+  });
+
+  // The route checks the board in the URL; an item on another board (another client, any
+  // agency) must not be deleted through it, and neither must its stored files.
+  it("answers 404 for an item on another board, and removes no row or file", async () => {
+    vi.mocked(getItem).mockResolvedValue(item({ moodboard_id: "board-other" }) as never);
+    const { DELETE } = await import("./route");
+
+    const res = await DELETE(req(), { params });
+
+    expect(res.status).toBe(404);
+    expect(vi.mocked(removeObject)).not.toHaveBeenCalled();
+    expect(vi.mocked(removeItem)).not.toHaveBeenCalled();
   });
 });

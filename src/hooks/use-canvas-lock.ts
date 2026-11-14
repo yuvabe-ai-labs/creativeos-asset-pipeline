@@ -23,7 +23,7 @@ const POLL_MS = 10_000;
 // D33: acquires a per-tab lock on the canvas, heartbeats while editing, releases on
 // unload, and polls for take-over while read-only.
 //
-// D499: someone without canvases.edit opens the canvas WITHOUT the lock (`acquire: false`): view
+// D507: someone without Generate on the client opens the canvas WITHOUT the lock (`acquire: false`): view
 // only, no heartbeat, no take-over poll, and they never evict the person editing. D201 removed
 // D161's URL-dependent opt-out because nothing on screen said which mode you were in; this one
 // depends on a permission, and the banner says so. If the permission arrives mid-session the

@@ -53,7 +53,7 @@ export default async function RootLayout({
   // banner's own call — it costs nothing, and it keeps the header's offset colocated
   // with the element it offsets against. loadInitialMe resolves the caller once for this render
   // (shared with the page through cache()) and builds the same payload /api/me returns, so the
-  // first HTML already has the right buttons (D499). On a full page load a waiting person is sent
+  // first HTML already has the right buttons (D504). On a full page load a waiting person is sent
   // to /onboarding here, from the same cached caller (spec 4.4); OnboardingGuard covers soft
   // navigations, which never re-render this layout.
   const [{ isImpersonating }, me] = await Promise.all([

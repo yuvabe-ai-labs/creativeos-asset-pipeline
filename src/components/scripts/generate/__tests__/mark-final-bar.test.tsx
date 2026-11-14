@@ -21,7 +21,7 @@ describe("MarkFinalBar", () => {
     expect(bar({ disabled: true })).toMatch(/<button[^>]*disabled=""[^>]*>(?:(?!<\/button>)[\s\S])*Mark final/);
   });
 
-  it("is not shown without scripts.approve; Undo and the open count stay", () => {
+  it("is not shown without Approve; Undo and the open count stay", () => {
     const html = bar({ canMarkFinal: false });
     expect(html).not.toContain("Mark final");
     expect(html).toContain("Undo");

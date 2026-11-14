@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   refundReservation: vi.fn(async () => undefined),
   sign: vi.fn(async () => ({ putUrl: "https://put/r", url: "https://storage.googleapis.com/b/gen-9-revoiced.mp4" })),
   trigger: vi.fn(async () => ({ id: "run" })),
+  listClientVoiceIds: vi.fn(async (): Promise<string[]> => []),
 }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
@@ -25,6 +26,7 @@ vi.mock("@/lib/elevenlabs/voices-cache", () => ({ getVoiceCached: mocks.getVoice
 vi.mock("@/lib/db/generations", () => ({ insertGeneration: mocks.insertGeneration, failGeneration: mocks.failGeneration }));
 vi.mock("@/lib/db/credit-transactions", () => ({ reserveCredits: mocks.reserveCredits, refundReservation: mocks.refundReservation, CreditLimitError: class extends Error {} }));
 vi.mock("@/lib/db/versions", () => ({ getVersionById: vi.fn() }));
+vi.mock("@/lib/db/client-voices", () => ({ listClientVoiceIds: mocks.listClientVoiceIds }));
 vi.mock("@/lib/storage", () => ({ signRevoicedVideoUrl: mocks.sign }));
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: mocks.trigger } }));
 
@@ -84,6 +86,24 @@ describe("POST /api/nodes/[id]/voice-change", () => {
     expect(res.status).toBe(500);
     expect(mocks.failGeneration).toHaveBeenCalled();
     expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-9" });
+  });
+
+  // The voice id comes from the body. Another client's cloned voice (any agency) is a 404,
+  // and nothing is recorded or billed.
+  it("404s on another client's custom voice and records nothing", async () => {
+    mocks.getVoiceCached.mockResolvedValueOnce({ voiceId: "b-clone", name: "Bata · Ravi", category: "cloned", priceMultiplier: 1 });
+    mocks.listClientVoiceIds.mockResolvedValueOnce(["a-clone"]);
+    const res = await post({ ...BODY, voiceId: "b-clone" });
+    expect(res.status).toBe(404);
+    expect(mocks.listClientVoiceIds).toHaveBeenCalledWith("client-1");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it("allows this client's own custom voice", async () => {
+    mocks.getVoiceCached.mockResolvedValueOnce({ voiceId: "a-clone", name: "Acme · Asha", category: "cloned", priceMultiplier: 1 });
+    mocks.listClientVoiceIds.mockResolvedValueOnce(["a-clone"]);
+    expect((await post({ ...BODY, voiceId: "a-clone" })).status).toBe(202);
   });
 });
 

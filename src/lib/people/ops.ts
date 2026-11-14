@@ -59,7 +59,28 @@ function isUniqueViolation(e: unknown): boolean {
   return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "23505";
 }
 
-export async function inviteToClient(agency: Agency, client: { id: string; name: string }, rawEmail: string, by: Actor): Promise<OpResult<InviteResult>> {
+/** "Already invited", naming the open invite's client only when the caller may see it:
+ *  `namedClientIds` null names any client (the owner, Admin); an Invite holder passes the clients
+ *  they are on, so they never learn another client's name (D511). */
+function alreadyInvited(
+  open: { clientId: string | null; clientName: string | null } | null,
+  agency: Agency,
+  namedClientIds: readonly string[] | null,
+): OpResult<never> {
+  if (namedClientIds === null) return refuse(409, REFUSALS.alreadyInvited(open?.clientName ?? agency.orgName));
+  if (open?.clientId && open.clientName && namedClientIds.includes(open.clientId)) {
+    return refuse(409, REFUSALS.alreadyInvited(open.clientName));
+  }
+  return refuse(409, REFUSALS.alreadyInvitedUnnamed);
+}
+
+export async function inviteToClient(
+  agency: Agency,
+  client: { id: string; name: string },
+  rawEmail: string,
+  by: Actor,
+  namedClientIds: readonly string[] | null = null,
+): Promise<OpResult<InviteResult>> {
   const email = normaliseEmail(rawEmail);
   if (!isValidEmail(email)) return refuse(400, REFUSALS.invalidEmail);
   const [login, open, openElsewhere, sentToday] = await Promise.all([
@@ -69,7 +90,7 @@ export async function inviteToClient(agency: Agency, client: { id: string; name:
     people.countInvitesSince(agency.orgId, oneDayAgo()),
   ]);
   if (login?.orgId === agency.orgId) return refuse(409, REFUSALS.alreadyInAgency(agency.orgName));
-  if (open) return refuse(409, REFUSALS.alreadyInvited(open.clientName ?? agency.orgName));
+  if (open) return alreadyInvited(open, agency, namedClientIds);
   // One agency per person (D508): any other login can't join from the link, and of two open
   // invites in two agencies the second accepted would fail at sign-up.
   const elsewhere = loginOrInviteElsewhere(login, openElsewhere, REFUSALS.loginWithoutAgency);
@@ -83,7 +104,7 @@ export async function inviteToClient(agency: Agency, client: { id: string; name:
     // Someone else invited this email between the check above and the insert.
     if (!isUniqueViolation(e)) throw e;
     const winner = await people.findOpenInviteByEmail(agency.orgId, email);
-    return refuse(409, REFUSALS.alreadyInvited(winner?.clientName ?? agency.orgName));
+    return alreadyInvited(winner, agency, namedClientIds);
   }
   const invite = { ...stored, invitedByName: by.name };
   const link = invite.link;

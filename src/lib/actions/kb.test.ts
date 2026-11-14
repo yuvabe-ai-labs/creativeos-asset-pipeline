@@ -1,15 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
+const { guards } = vi.hoisted(() => ({ guards: new Map<string, unknown>() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: vi.fn() } }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: vi.fn() }));
 vi.mock("@/lib/storage", () => ({ removeObject: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ setKBStatus: vi.fn(), getClientById: vi.fn() }));
-vi.mock("@/lib/db/kb-jobs", () => ({}));
+vi.mock("@/lib/db/kb-jobs", () => ({
+  getKBJob: vi.fn(async () => ({ id: "job-1", client_id: "c1" })),
+  markKBJobStuckIfRunning: vi.fn(),
+}));
 // withAction is the impersonation write-gate; pass it through so these tests exercise the save.
 vi.mock("@/lib/actions/with-action", () => ({
-  withAction: (_name: string, _guard: unknown, fn: (ctx: unknown) => Promise<unknown>) => fn({ target: null }),
+  withAction: (name: string, guard: unknown, fn: (ctx: unknown) => Promise<unknown>) => {
+    guards.set(name, guard);
+    return fn({ target: null });
+  },
 }));
 vi.mock("@/lib/db/kb", () => ({
   getKBImageAnalysis: vi.fn(),
@@ -26,7 +33,8 @@ vi.mock("@/lib/image-analysis/start", () => ({ startImageAnalysisQuietly: vi.fn(
 import { getKBImageAnalysis, saveKBOutputKeepingImageAnalysis } from "@/lib/db/kb";
 import { setKBImageAnalysis } from "@/lib/db/image-cards";
 import { defaultEmptyImageAnalysis, type KBField, type KBFieldStatus, type TraceableBrandKB } from "@/lib/kb/schema";
-import { saveKBOutputAction } from "./kb";
+import { markStuckJobFailed, saveKBOutputAction } from "./kb";
+import { markKBJobStuckIfRunning } from "@/lib/db/kb-jobs";
 
 const field = <T,>(value: T, status: KBFieldStatus = "needs_review"): KBField<T> => ({ value, confidence: "high", evidence_type: "inferred", status });
 const ia = (over: Record<string, KBField<unknown>>) => ({ ...defaultEmptyImageAnalysis(), ...over }) as TraceableBrandKB["image_analysis"];
@@ -52,5 +60,15 @@ describe("saveKBOutputAction", () => {
     expect(saved.aesthetic).toEqual(field("Fresh", "needs_review"));
     expect(saved.visual_mood).toEqual(field("Calm", "approved"));
     expect(saved.subjects).toEqual(field("Our words", "edited"));
+  });
+});
+
+// Clearing a build fails it, and the credits spent on it are lost. It needs what starting
+// the build needs (Generate), not just being on the client.
+describe("markStuckJobFailed", () => {
+  it("needs Generate on the job's client, like the build it fails", async () => {
+    await markStuckJobFailed("job-1");
+    expect(guards.get("markStuckJobFailed")).toEqual({ need: "generate", on: { kbJobId: "job-1" } });
+    expect(markKBJobStuckIfRunning).toHaveBeenCalledWith("job-1");
   });
 });

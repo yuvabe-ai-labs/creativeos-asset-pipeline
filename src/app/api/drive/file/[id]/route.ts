@@ -25,8 +25,8 @@ async function readDrive(
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    return apiError(`Drive API error: ${text}`, 502);
+    console.error("[drive] file download failed", res.status, await res.text().catch(() => ""));
+    return apiError("Could not open that file. Try again.", 502);
   }
 
   const contentType = res.headers.get("content-type") ?? "application/octet-stream";

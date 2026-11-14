@@ -37,6 +37,8 @@ export const REFUSALS = {
   invalidEmail: "Enter a valid email.",
   alreadyInAgency: (agency: string) => `Already in ${agency}. Add them from the list.`,
   alreadyInvited: (client: string) => `Already invited to ${client}. Once they've signed up, add them from the list.`,
+  // For an Invite holder who isn't on the open invite's client: that client is not named.
+  alreadyInvitedUnnamed: "Already invited. Once they've signed up, add them from the list.",
   otherAgency: "This email already belongs to another agency.",
   // A login that is in no agency (one login per person, D508): only we can move it.
   loginWithoutAgency: "This email already has a CreativeOS login. Ask Yuvabe to move it to your agency.",

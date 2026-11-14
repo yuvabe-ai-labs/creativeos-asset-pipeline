@@ -54,7 +54,7 @@ function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
   };
 }
 
-// The acting caller carries the access the action checks (D495); tests without one fall back to
+// The acting caller carries the access the action checks (D504); tests without one fall back to
 // owner access through vitest.setup.ts.
 function setAccess(access: Access, userId = "u1") {
   mockCaller.mockResolvedValue({ ...caller("designer", userId), access });

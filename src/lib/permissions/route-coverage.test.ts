@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { isAction } from "./model";
 
-// D496/D504: every API handler names its action through a chokepoint or withAccess, or is on this
+// D501/D504: every API handler names its action through a chokepoint or withAccess, or is on this
 // list with a reason. Extend the list only with a one-line reason.
 const ALLOWLIST: Record<string, string> = {
   "admin/orgs/[id]/generations": "super admin (requireSuperAdmin)",
@@ -38,7 +38,7 @@ function routeKey(file: string): string {
   return relative(API_ROOT, file).split(sep).join("/").replace(/\/route\.ts$/, "").replace(/^route\.ts$/, "");
 }
 
-describe("every API handler declares an action (D496, D504)", () => {
+describe("every API handler declares an action (D501, D504)", () => {
   const files = routeFiles(API_ROOT);
 
   it("finds the route files", () => {

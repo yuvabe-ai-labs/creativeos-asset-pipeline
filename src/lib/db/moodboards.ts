@@ -326,9 +326,14 @@ export async function releaseStuckArchives(olderThanIso: string): Promise<number
   return ((data ?? []) as unknown[]).length;
 }
 
-export async function removeItem(itemId: string): Promise<void> {
+/** Scoped to the board the route checked: the item id comes from the URL beside it. */
+export async function removeItem(moodboardId: string, itemId: string): Promise<void> {
   const supabase = createServerSupabase();
-  const { error } = await supabase.from("moodboard_items").delete().eq("id", itemId);
+  const { error } = await supabase
+    .from("moodboard_items")
+    .delete()
+    .eq("id", itemId)
+    .eq("moodboard_id", moodboardId);
   if (error) throw error;
 }
 

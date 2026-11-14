@@ -71,7 +71,7 @@ export async function setVersionApprovalAction(
 
     const supabase = createServerSupabase();
 
-    // Tenancy, not just role: a senior of org A must not be able to annotate org B's
+    // Tenancy, not just the permission: a reviewer in agency A must not be able to annotate B's
     // work by guessing a version id. 404-shaped message (never "wrong org"), matching
     // the withClient/withNode 404-not-403 convention in route-helpers.ts. Compared with the
     // agency being acted in, so an elevated impersonator approves in the agency they are

@@ -63,14 +63,14 @@ function guardResolves(impersonation: ImpersonationStateMockResult) {
 describe("lock actions declare their permission", () => {
   beforeEach(resetMocks);
 
-  it("acquire and heartbeat need canvases.edit on the canvas", async () => {
+  it("acquire and heartbeat need edit (Generate) on the canvas", async () => {
     await acquireCanvasLockAction("canvas-1", "s1", "Op");
     expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "edit", on: { canvasId: "canvas-1" } });
     await heartbeatCanvasLockAction("canvas-1", "s1");
     expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "edit", on: { canvasId: "canvas-1" } });
   });
 
-  it("release and get need canvases.view on the canvas", async () => {
+  it("release and get need view on the canvas", async () => {
     await releaseCanvasLockAction("canvas-1", "s1");
     expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "view", on: { canvasId: "canvas-1" } });
     await getCanvasLockAction("canvas-1");

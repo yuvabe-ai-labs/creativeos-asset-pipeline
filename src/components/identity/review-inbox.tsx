@@ -20,10 +20,10 @@ import { cn } from "@/lib/utils";
 // R9.6: lives in the app CHROME, because the work it points at spans canvases and clients.
 // No single canvas could host it.
 //
-// R9.5: one control, one meaning — "things waiting on you." For a designer that is their
-// own rejected work; for a senior/owner it is what is pending review, plus their own
-// rejections. The role split lives server-side, so this component never branches on role —
-// which is why there is no role prop here to get wrong.
+// R9.5: one control, one meaning — "things waiting on you." For someone without Approve that is
+// their own rejected work; for someone with Approve (or the owner) it is what is pending review,
+// plus their own rejections. The split lives server-side, so this component never branches on
+// a permission, which is why there is no such prop here to get wrong.
 export function ReviewInbox() {
   const { hydrated } = useIdentity();
   // Spec §5: no client to view means no inbox, and no request the server would refuse.

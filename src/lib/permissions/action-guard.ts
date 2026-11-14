@@ -21,7 +21,7 @@ export type ActionContext = {
   impersonation: ImpersonationState;
 };
 
-// D496/D504 for server actions: the same agency, client and permission rule as the API chokepoints.
+// D501/D504 for server actions: the same agency, client and permission rule as the API chokepoints.
 // Throws (server actions throw on invalid states in this codebase); "Not found." never says
 // whether the row exists in another agency or outside the person's clients. The target row
 // does not depend on the caller, so both are read at once.

@@ -4,7 +4,7 @@ import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Shown when this session is read-only: either someone else holds the lock ("Take over" enables
-// once their lock is stale), or the person may only view this canvas (no take-over: D499).
+// once their lock is stale), or the person may only view this canvas (no take-over: D507).
 export function LockBanner({
   heldByName,
   canTakeOver,

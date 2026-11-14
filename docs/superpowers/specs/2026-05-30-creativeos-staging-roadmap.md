@@ -8644,7 +8644,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 - `withClient`, `withCanvas`, `withNode` and `withMoodboard` check the client after the agency and return 404 for a client the person is not on, exactly like another agency's. Every route handler and server action names what it does through a required `need` argument, and a coverage test fails on any that doesn't. Lists (clients, review inbox, recent canvases) filter by the person's clients.
 - Routes and server actions that had no agency check now have one: `kb/re-analyze`, `nodes/[id]/file/finalize`, `file/from-url`, `file/sign`, `copilot`, `copilot/actions`, `copilot/references`, and several canvas, node and brand actions.
 - Downloads only hide buttons, because files sit in public buckets.
-- Known limitation: RLS policies stay agency-level, so Realtime can carry rows of other clients in the same agency to the browser; every server read and write is client-scoped.
+- Known limitations: RLS policies stay agency-level, so Realtime can carry rows of other clients in the same agency to the browser; every server read and write is client-scoped. Google Drive is one account for the whole platform: the Drive picker token and the Drive file, folder and import routes need only Generate on any client, so anyone with Generate on one client, in any agency, can open every file that account can see.
 
 **Why.**
 - Cyril's page: when ten people start on a new client, one list on the client is one action instead of ten setups.

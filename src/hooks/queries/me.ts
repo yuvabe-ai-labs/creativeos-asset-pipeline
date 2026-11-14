@@ -15,7 +15,7 @@ export const meKeys = {
 // Fetching there would only cache a failure; the first real fetch happens once the path changes.
 const NO_FETCH_PATHS = new Set(["/login", "/account/password"]);
 
-// D499 §6.3: refetched on window focus (overriding the app default, D300) once 30 s old, so a
+// D504 (spec §5): refetched on window focus (overriding the app default, D300) once 30 s old, so a
 // change made by the person's owner shows up without a reload. The root layout seeds it, so the
 // first render needs no request.
 export function meQueryOptions() {

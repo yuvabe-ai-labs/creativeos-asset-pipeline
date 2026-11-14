@@ -105,7 +105,18 @@ describe("people write routes", () => {
       m.caller = inviteHolderOnA();
       const res = await invitePOST(post({ email: "new@x.com", clientId: "cB" }), { params: Promise.resolve({ orgId: "org-1", clientId: "cA" }) });
       expect(res.status).toBe(200);
-      expect(m.ops.inviteToClient).toHaveBeenCalledWith(expect.anything(), { id: "cA", name: "Chupps" }, "new@x.com", expect.anything());
+      expect(m.ops.inviteToClient).toHaveBeenCalledWith(expect.anything(), { id: "cA", name: "Chupps" }, "new@x.com", expect.anything(), ["cA"]);
+    });
+
+    // An "already invited" refusal may name only clients the caller is on; the owner sees all.
+    it("passes an Invite holder's clients, and null for the owner", async () => {
+      m.caller = caller(testAccess({ permissions: [], clientIds: [], clients: { cA: ["invite"], cC: [] } }));
+      await invitePOST(post({ email: "new@x.com" }), { params: Promise.resolve({ orgId: "org-1", clientId: "cA" }) });
+      expect(vi.mocked(m.ops.inviteToClient).mock.calls[0]).toHaveLength(5);
+      expect((vi.mocked(m.ops.inviteToClient).mock.calls[0] as unknown[])[4]).toEqual(["cA", "cC"]);
+      m.caller = caller(testOwnerAccess());
+      await invitePOST(post({ email: "new@x.com" }), { params: Promise.resolve({ orgId: "org-1", clientId: "cA" }) });
+      expect((vi.mocked(m.ops.inviteToClient).mock.calls[1] as unknown[])[4]).toBeNull();
     });
 
     it("refuses an Invite holder on a client where they lack Invite", async () => {

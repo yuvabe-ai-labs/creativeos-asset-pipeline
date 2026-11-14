@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ACTIONS, isAction } from "@/lib/permissions/model";
 
-// D496: the second argument is a guard — { need, on } or { custom: "<reason>" }.
+// D501/D504: the second argument is a guard — { need, on } or { custom: "<reason>" }.
 const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_.]+)"|custom:\s*")/;
 const LOCK_ACTIONS = ["getCanvasLockAction", "acquireCanvasLockAction", "heartbeatCanvasLockAction", "releaseCanvasLockAction"];
 

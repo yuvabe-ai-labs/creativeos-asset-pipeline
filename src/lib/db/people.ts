@@ -236,10 +236,10 @@ export async function deleteLogin(userId: string): Promise<void> {
 
 /** An unexpired open invite to this email. An expired one is not "already invited": inviting
  *  again replaces it (insertInvitation revokes it first). */
-export async function findOpenInviteByEmail(orgId: string, email: string): Promise<{ id: string; clientName: string | null } | null> {
+export async function findOpenInviteByEmail(orgId: string, email: string): Promise<{ id: string; clientId: string | null; clientName: string | null } | null> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
-    .select("id, clients(name)")
+    .select("id, client_id, clients(name)")
     .eq("org_id", orgId)
     // Stored lowercased (normaliseEmail, and lower() in create_agency_with_owner_invite); eq, not
     // ilike, so an underscore in an address is not a wildcard.
@@ -250,8 +250,8 @@ export async function findOpenInviteByEmail(orgId: string, email: string): Promi
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const row = data as unknown as { id: string; clients: Embed<{ name: string }> };
-  return { id: row.id, clientName: unwrapEmbed(row.clients)?.name ?? null };
+  const row = data as unknown as { id: string; client_id: string | null; clients: Embed<{ name: string }> };
+  return { id: row.id, clientId: row.client_id, clientName: unwrapEmbed(row.clients)?.name ?? null };
 }
 
 /** One agency per person (D508): an open, unexpired invite to this email in another agency

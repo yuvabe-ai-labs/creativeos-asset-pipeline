@@ -15,8 +15,10 @@ vi.mock("@/lib/elevenlabs/voices-cache", () => ({
 // The chokepoint (agency, permission) has its own tests; here it just runs the handler.
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withAccess: (_req: Request, _guard: unknown, fn: () => Promise<Response>) => fn() };
+  return { ...actual, withAccess: (_req: Request, _guard: unknown, fn: (caller: unknown, orgId: string) => Promise<Response>) => fn({ userId: "u1" }, "org-1") };
 });
+const agency = vi.hoisted(() => ({ agencyVoiceIds: vi.fn(async (): Promise<string[]> => []) }));
+vi.mock("@/lib/elevenlabs/agency-voices", () => agency);
 
 import { POST } from "./route";
 import { ElevenLabsHttpError } from "@/lib/elevenlabs/client";
@@ -45,6 +47,16 @@ describe("POST /api/elevenlabs/voices/save", () => {
     mocks.getAccountVoicesCached.mockResolvedValue([SAVED]);
     const res = await post(BODY);
     expect(await res.json()).toEqual({ voice: SAVED });
+    expect(mocks.saveLibraryVoice).not.toHaveBeenCalled();
+  });
+
+  // The same match finds an account voice by its own id: another agency's clone is not returned
+  // (its name carries that agency's client name), and nothing is saved.
+  it("404s on another agency's cloned voice id", async () => {
+    mocks.getAccountVoicesCached.mockResolvedValue([{ ...SAVED, voiceId: "theirs", category: "cloned", originalVoiceId: undefined }]);
+    agency.agencyVoiceIds.mockResolvedValueOnce(["mine"]);
+    const res = await post({ ...BODY, voiceId: "theirs" });
+    expect(res.status).toBe(404);
     expect(mocks.saveLibraryVoice).not.toHaveBeenCalled();
   });
 

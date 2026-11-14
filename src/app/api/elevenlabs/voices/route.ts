@@ -2,23 +2,26 @@ import { apiError, apiOk, withAccess } from "@/lib/api/route-helpers";
 import { getAccountVoicesCached, getLibraryPageCached } from "@/lib/elevenlabs/voices-cache";
 import { elevenLabsRouteError } from "@/lib/elevenlabs/route-errors";
 import type { LibraryQuery } from "@/lib/elevenlabs/voice-catalog";
+import { clientPickerVoices } from "@/lib/elevenlabs/client-voices";
+import { agencyVoiceIds } from "@/lib/elevenlabs/agency-voices";
 
 export const dynamic = "force-dynamic";
 
 const LIBRARY_FILTERS = ["search", "gender", "age", "accent", "language", "useCase", "sort"] as const;
 
-// D283 — the voice picker's two tabs. `account`: the whole account list (the browser filters it).
-// `library`: one page of the ElevenLabs Voice Library, filtered by ElevenLabs.
+// D283 — the voice picker's two tabs. `account`: the account list (the browser filters it), kept
+// to stock voices and the voices of clients the caller can see: one account serves every agency,
+// and a clone is named after its client. `library`: one page of the Voice Library.
 export async function GET(req: Request) {
-  return withAccess(req, { need: "view" }, async () => {
-
+  return withAccess(req, { need: "view" }, async (caller, orgId) => {
     const url = new URL(req.url);
     const source = url.searchParams.get("source") ?? "account";
     if (source !== "account" && source !== "library") return apiError("Unknown voice source.", 400);
 
     try {
       if (source === "account") {
-        return apiOk({ voices: await getAccountVoicesCached(), nextCursor: null });
+        const [account, voiceIds] = await Promise.all([getAccountVoicesCached(), agencyVoiceIds(caller, orgId)]);
+        return apiOk({ voices: clientPickerVoices(account, voiceIds), nextCursor: null });
       }
       const cursor = url.searchParams.get("cursor");
       const page = cursor === null ? 0 : Number(cursor);

@@ -125,10 +125,10 @@ describe("open invites name who sent them (spec §6.1)", () => {
 
 describe("findOpenInviteByEmail", () => {
   it("selects only what it returns, never the token", async () => {
-    const { db, chains } = fakeDb([{ data: { id: "i1", clients: { name: "Chupps" } } }]);
+    const { db, chains } = fakeDb([{ data: { id: "i1", client_id: "c1", clients: { name: "Chupps" } } }]);
     m.createServerSupabase.mockReturnValue(db);
-    expect(await findOpenInviteByEmail("org-1", "p@x.com")).toEqual({ id: "i1", clientName: "Chupps" });
-    expect(chains[0].calls[0]).toEqual(["select", "id, clients(name)"]);
+    expect(await findOpenInviteByEmail("org-1", "p@x.com")).toEqual({ id: "i1", clientId: "c1", clientName: "Chupps" });
+    expect(chains[0].calls[0]).toEqual(["select", "id, client_id, clients(name)"]);
   });
 });
 

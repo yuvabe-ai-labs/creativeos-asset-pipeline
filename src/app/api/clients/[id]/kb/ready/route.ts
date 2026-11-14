@@ -17,14 +17,17 @@ export async function POST(
       const { versionId } = await req.json() as { versionId: string };
       if (!versionId) return apiError("Missing versionId.", 400);
 
+      // The version id comes from the body: it must be this client's version (as markKBReadyAction
+      // checks), or another client's reviewed version would mark this brand kit ready.
       const supabase = createServerSupabase();
       const { data, error } = await supabase
         .from("client_kb_versions")
         .select("output")
         .eq("id", versionId)
+        .eq("client_id", clientId)
         .maybeSingle();
 
-      if (error) return apiError(error.message, 500);
+      if (error) throw error;
       if (!data) return apiError("Version not found.", 404);
 
       if (!computeReadyStatus(data.output as TraceableBrandKB)) {
