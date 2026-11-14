@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { peopleService } from "@/services/people.service";
 import { invalidateMe } from "@/hooks/queries/me";
+import { ApiError } from "@/services/read-json";
 import type { Permission } from "@/lib/permissions/model";
 import type { AgencyPeople } from "@/lib/people/types";
 
@@ -21,6 +22,9 @@ export function usePeople(orgId: string, initialData?: AgencyPeople) {
     queryFn: () => peopleService.list(orgId),
     initialData,
     staleTime: 0,
+    // A 403 or 404 won't pass on a second try; anything else gets the app's one retry.
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && error.status >= 400 && error.status < 500) && failureCount < 1,
   });
 }
 
