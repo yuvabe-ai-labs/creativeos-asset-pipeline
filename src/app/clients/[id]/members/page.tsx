@@ -5,6 +5,7 @@ import { accessOf } from "@/lib/permissions/server";
 import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
 import { inviteHolderView } from "@/lib/people/utils";
 import { ClientMembers } from "@/components/team/client-members";
+import { InviteDialog } from "@/components/team/invite-dialog";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
@@ -43,6 +44,7 @@ export default async function ClientMembersPage({ params }: { params: Promise<{ 
         client={{ id: client.id, name: client.name }}
         initial={initial}
         canManage={canManage}
+        inviteSlot={<InviteDialog orgId={effectiveOrgId} client={{ id: client.id, name: client.name }} canManage={canManage} />}
       />
     </main>
   );
