@@ -8,6 +8,7 @@ import { NO_PERMISSIONS_LABEL, PERMISSION_LABELS, STATUS_LABELS } from "@/lib/pe
 import { orderedPermissions, type Permission } from "@/lib/permissions/model";
 import type { AgencyPerson } from "@/lib/people/types";
 import { PermissionEditor } from "./permission-editor";
+import { MakeOwnerDialog } from "./make-owner-dialog";
 import { RemovePersonDialog } from "./remove-person-dialog";
 
 // Spec §6.1 "Members". The owner has no actions. Edit opens the same editor; saving changes the
@@ -45,7 +46,6 @@ export function TeamMemberRow({
     }
   }
 
-  const error = update.error ?? makeOwner.error;
   return (
     <li id={`person-${person.userId}`} className={`flex flex-col gap-3 border-b py-3 last:border-b-0 ${focused ? "rounded-lg bg-primary/5 px-2" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 text-sm">
@@ -72,7 +72,7 @@ export function TeamMemberRow({
         {!isOwner && (
           <div className="flex items-center gap-2">
             {canMakeOwner && (
-              <Button size="sm" variant="ghost" disabled={makeOwner.isPending} onClick={() => makeOwner.mutate(person.userId)}>Make owner</Button>
+              <MakeOwnerDialog name={person.name} onConfirm={() => makeOwner.mutateAsync(person.userId)} />
             )}
             {extraActions}
             {editing === null && <Button size="sm" variant="outline" onClick={() => setEditing(person.permissions)}>Edit</Button>}
@@ -93,7 +93,7 @@ export function TeamMemberRow({
           </div>
         </div>
       )}
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
+      {update.error && <p className="text-sm text-destructive">{update.error.message}</p>}
     </li>
   );
 }

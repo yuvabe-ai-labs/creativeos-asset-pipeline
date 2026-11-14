@@ -1,7 +1,6 @@
 import type { Access } from "@/lib/permissions/model";
 
 export type PlatformRole = "super_admin" | "member";
-export type OrgRole = "owner" | "senior" | "designer";
 
 export type CallerContext = {
   userId: string;

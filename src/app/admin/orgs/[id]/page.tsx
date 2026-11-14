@@ -5,7 +5,6 @@ import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import {
   getOrgById,
-  listOrgMembers,
   getOrgCreditUsage,
   getOrgDailyCreditHistory,
   getOrgMonthlyCreditHistory,
@@ -15,6 +14,8 @@ import {
 } from "@/lib/db/organizations";
 import { countGenerationsForOrg, listGenerationsForOrgPage } from "@/lib/db/generations";
 import { listImpersonationSessionPage } from "@/lib/db/impersonation-audit";
+import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
+import { listClients } from "@/lib/db/clients";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
 import {
@@ -30,11 +31,13 @@ export const dynamic = "force-dynamic";
 
 export default async function OrgDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; person?: string }>;
 }) {
   await requireSuperAdmin();
-  const { id } = await params;
+  const [{ id }, { tab, person }] = await Promise.all([params, searchParams]);
   const org = await getOrgById(id);
   if (!org) notFound();
 
@@ -47,7 +50,9 @@ export default async function OrgDetailPage({
   const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
 
   const [
-    members,
+    people,
+    invites,
+    clients,
     generationCount,
     generationsPage,
     creditsUsedThisMonth,
@@ -58,7 +63,9 @@ export default async function OrgDetailPage({
     breakdownByModel,
     impersonationSessions,
   ] = await Promise.all([
-    listOrgMembers(id),
+    listAgencyPeople(id),
+    listOpenInvites(id),
+    listClients(id, null),
     countGenerationsForOrg(id),
     listGenerationsForOrgPage(id, { page: 1, pageSize: 20 }),
     getOrgCreditUsage(id),
@@ -100,8 +107,14 @@ export default async function OrgDetailPage({
         )}
       </div>
       <OrgDetailTabs
+        // Set permissions in the Clients tab links here with ?tab=people&person=; a new key opens that tab.
+        key={`${tab ?? ""}:${person ?? ""}`}
         org={org}
-        members={members}
+        people={people}
+        invites={invites}
+        clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+        initialTab={tab ?? "overview"}
+        focusUserId={person ?? null}
         generationCount={generationCount}
         generationsPage={generationsPage}
         creditsUsedThisMonth={creditsUsedThisMonth}

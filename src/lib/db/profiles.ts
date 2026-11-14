@@ -15,7 +15,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 //
 // Two queries plus a JS join, not a PostgREST embed: org_memberships and profiles both
 // reference auth.users but neither has a direct FK to the other, so there is nothing for
-// PostgREST to auto-embed across. Same shape as listOrgMembers and resolveCallerContext.
+// PostgREST to auto-embed across. Same shape as resolveCallerContext.
 export async function resolveDisplayNames(
   orgId: string,
   userIds: string[],

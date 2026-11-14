@@ -1,5 +1,3 @@
-import * as z from "zod";
-
 // "" / whitespace → null (unlimited). "0" is a valid (very restrictive) limit, not
 // unlimited — only blank means unlimited. Otherwise a non-negative finite number, or throw.
 export function parseCreditLimit(raw: string): number | null {
@@ -22,16 +20,3 @@ export function parseResetPassword(raw: string): string | null {
   }
   return trimmed;
 }
-
-// The three roles the org_memberships check constraint permits (migration 0012). One
-// source for the add-member form, the per-row role Select, and both actions' validation —
-// so a role can never be offered in the UI that the database would reject.
-export const ORG_ROLES = ["owner", "senior", "designer"] as const;
-
-export const AddMemberSchema = z.object({
-  email: z.email({ error: "Enter a valid email." }).trim(),
-  displayName: z.string().min(2, { error: "Display name is required." }).trim(),
-  orgRole: z.enum(ORG_ROLES, { error: "Pick a role." }),
-});
-
-export type AddMemberFields = z.infer<typeof AddMemberSchema>;

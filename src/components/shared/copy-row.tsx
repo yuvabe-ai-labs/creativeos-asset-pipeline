@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 // 2s on click — same pattern as file-llm-prompt-panel.tsx's copy button, so credentials can
 // be shared without the fiddly drag-select-copy over a border-boxed field.
 //
-// Extracted from new-org-dialog.tsx once the add-member and reset-password dialogs needed
-// the same thing: all three show a shown-once temp password, and all three MUST offer the
-// same way to take it. A password you can only select by hand is the one that gets
-// mistyped, and TC-002 caught two of the three shipping without any copy affordance at all.
+// Shared by every place that shows something to hand over: the reset-password dialog's
+// shown-once password and the invite links (Add an agency, Resend, the Team page's Copy link).
+// A value you can only select by hand is the one that gets mistyped, and TC-002 caught two
+// dialogs shipping without any copy affordance at all.
 export function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
 
