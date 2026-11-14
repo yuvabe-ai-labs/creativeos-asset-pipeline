@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { createOrgAction, type CreateOrgState } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
-import { CopyRow } from "./copy-row";
+import { CopyRow } from "@/components/shared/copy-row";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {

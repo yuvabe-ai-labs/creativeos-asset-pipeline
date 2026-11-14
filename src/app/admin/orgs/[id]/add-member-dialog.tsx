@@ -4,7 +4,7 @@ import { useState } from "react";
 import { addOrgMemberAction } from "@/lib/actions/admin";
 import { ORG_ROLES } from "@/lib/orgs/org-schema";
 import { Button } from "@/components/ui/button";
-import { CopyRow } from "@/components/admin/copy-row";
+import { CopyRow } from "@/components/shared/copy-row";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {

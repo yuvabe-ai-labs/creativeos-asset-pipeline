@@ -10,7 +10,8 @@ import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 import { AddMemberDialog } from "./add-member-dialog";
 import { MemberRoleSelect } from "./member-role-select";
-import { RemoveMemberDialog } from "./remove-member-dialog";
+import { RemovePersonDialog } from "@/components/team/remove-person-dialog";
+import { removeOrgMemberAction } from "@/lib/actions/admin";
 import { ImpersonationAudit } from "@/components/admin/impersonation-audit/impersonation-audit";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
@@ -123,11 +124,13 @@ export function OrgDetailTabs({
                     userId={m.user_id}
                     displayName={m.display_name}
                   />
-                  <RemoveMemberDialog
-                    orgId={org.id}
-                    userId={m.user_id}
-                    displayName={m.display_name}
-                    email={m.email}
+                  <RemovePersonDialog
+                    name={m.display_name}
+                    detail={`This deletes their account (${m.email}) and they lose access immediately.`}
+                    onConfirm={async () => {
+                      const res = await removeOrgMemberAction(org.id, m.user_id);
+                      if (res?.error) throw new Error(res.error);
+                    }}
                   />
                 </div>
               </li>
