@@ -7,6 +7,7 @@ import { acceptInvitation, createLogin, deleteLogin, getInvitationByToken } from
 import { notifySignedUp } from "@/lib/people/ops";
 import { REFUSALS } from "@/lib/people/constants";
 import { AcceptInviteSchema } from "@/lib/people/schema";
+import { ONBOARDING_PATH } from "@/lib/permissions/onboarding-route";
 
 export type AcceptInviteState = { error?: string } | undefined;
 
@@ -74,6 +75,6 @@ export async function acceptInviteAction(token: string, _prev: AcceptInviteState
     }
   }
   // A member lands on the onboarding screen (they wait for access, whoever invited them); the
-  // owner on an empty client list.
-  redirect(error ? "/login" : "/");
+  // owner on an empty client list. Straight there, not through home's own redirect.
+  redirect(error ? "/login" : accepted.asOwner ? "/" : ONBOARDING_PATH);
 }

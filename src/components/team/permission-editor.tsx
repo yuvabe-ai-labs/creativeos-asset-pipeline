@@ -86,8 +86,7 @@ export function PermissionEditor({
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        These apply on every client {personName} is on, and on any client they&apos;re added to later. With none,{" "}
-        {personName} can look but not change anything.
+        {`These apply on every client ${personName} is on, and on any client they're added to later. With none, ${personName} can look but not change anything.`}
       </p>
     </div>
   );

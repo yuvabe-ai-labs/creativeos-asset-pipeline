@@ -54,8 +54,9 @@ export default async function RootLayout({
   // with the element it offsets against. loadInitialMe resolves the caller once for this render
   // (shared with the page through cache()) and builds the same payload /api/me returns, so the
   // first HTML already has the right buttons (D504). On a full page load a waiting person is sent
-  // to /onboarding here, from the same cached caller (spec 4.4); OnboardingGuard covers soft
-  // navigations, which never re-render this layout.
+  // to /onboarding here, from the same cached caller (spec 4.4). The proxy sends the path only on
+  // a full page load (isPageLoad): a redirect in an RSC render of this layout would stay in the
+  // browser's copy of it and re-fire on every navigation. OnboardingGuard covers soft navigations.
   const [{ isImpersonating }, me] = await Promise.all([
     resolveImpersonationState(),
     loadInitialMe(),

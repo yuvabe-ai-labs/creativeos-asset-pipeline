@@ -15,6 +15,16 @@ function under(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(`${prefix}/`);
 }
 
+/** True when the browser is loading a whole page, the only time the root layout may redirect.
+ *  Any other render of the layout is RSC (a soft navigation, router.refresh(), a server action or
+ *  the page rendered for its redirect), and the browser keeps that root layout and never
+ *  re-renders it on later navigations: a redirect thrown there would re-throw on every one, so
+ *  the browser would re-request the target forever. Next hides its RSC headers from the proxy;
+ *  only a page load asks for HTML. */
+export function isPageLoad(headers: Headers): boolean {
+  return !headers.has("next-action") && (headers.get("accept") ?? "").includes("text/html");
+}
+
 /** True when this page should send the person to onboarding. Super admins are never waiting,
  *  so /admin stays open to them. */
 export function shouldSendToOnboarding(path: string | null, waiting: boolean): boolean {

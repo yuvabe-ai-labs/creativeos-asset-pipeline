@@ -7,7 +7,7 @@ export function OnboardingNotice({ orgName }: { orgName: string }) {
       <Hourglass className="size-6 text-muted-foreground" strokeWidth={1.5} />
       <h1 className="font-display text-2xl font-semibold tracking-tight">You&apos;re being onboarded. Hang in there.</h1>
       <p className="text-sm text-muted-foreground">
-        {orgName} is setting up your access. Your clients will appear here once it&apos;s ready.
+        {`${orgName} is setting up your access. Your clients will appear here once it's ready.`}
       </p>
     </Card>
   );

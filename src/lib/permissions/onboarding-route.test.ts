@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ONBOARDING_PATH, confirmAndSendToOnboarding, shouldSendToOnboarding } from "./onboarding-route";
+import { ONBOARDING_PATH, confirmAndSendToOnboarding, isPageLoad, shouldSendToOnboarding } from "./onboarding-route";
 
 describe("shouldSendToOnboarding (spec 4.4)", () => {
   it("sends a waiting person to onboarding from any app page", () => {
@@ -69,5 +69,20 @@ describe("confirmAndSendToOnboarding (soft navigations)", () => {
     const go = vi.fn();
     await confirmAndSendToOnboarding("/team", true, async () => { throw new Error("offline"); }, go);
     expect(go).not.toHaveBeenCalled();
+  });
+});
+
+describe("isPageLoad (spec 4.4: the layout redirects on a full page load only)", () => {
+  const h = (init: Record<string, string>) => new Headers(init);
+
+  it("is true for a browser loading a page", () => {
+    expect(isPageLoad(h({ accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" }))).toBe(true);
+  });
+
+  it("is false for RSC renders, whose cached root layout would keep a redirect forever", () => {
+    expect(isPageLoad(h({ accept: "*/*" }))).toBe(false); // soft navigation, router.refresh()
+    expect(isPageLoad(h({ accept: "text/x-component" }))).toBe(false); // a server action's redirect
+    expect(isPageLoad(h({ accept: "text/html", "next-action": "abc" }))).toBe(false); // the action
+    expect(isPageLoad(h({}))).toBe(false);
   });
 });

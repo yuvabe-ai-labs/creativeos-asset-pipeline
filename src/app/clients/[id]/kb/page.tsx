@@ -9,6 +9,7 @@ import {
 import { getLatestKBJob } from "@/lib/db/kb-jobs";
 import { getBrandDetails } from "@/lib/db/brand-kit";
 import { ClientIdentity } from "@/components/clients/client-identity";
+import { ClientMembersButton } from "@/components/clients/client-members-button";
 import { KBOnboardingUploadStep } from "@/components/kb/kb-onboarding-upload-step";
 import { KBOnboardingReviewStep } from "@/components/kb/kb-onboarding-review-step";
 import {
@@ -53,25 +54,30 @@ export default async function KBPage({
           : "mx-auto w-full max-w-5xl flex-1 px-6 py-12"
       }
     >
-      <Breadcrumb className="animate-rise shrink-0">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href="/">Clients</Link>} />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              render={
-                <Link href={`/clients/${client.slug}`}>{client.name}</Link>
-              }
-            />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Brand KB</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      {/* Until the brand KB is ready the client page sends everyone here, so the Members button
+          that sits beside Brand Workspace there sits beside the breadcrumb here (spec 6.2). */}
+      <div className="animate-rise flex shrink-0 items-center justify-between gap-4">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink render={<Link href="/">Clients</Link>} />
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink
+                render={
+                  <Link href={`/clients/${client.slug}`}>{client.name}</Link>
+                }
+              />
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Brand KB</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        {!isEditMode && <ClientMembersButton slug={client.slug} clientId={client.id} />}
+      </div>
 
       {isReviewOrEdit ? (
         <KBOnboardingReviewStep

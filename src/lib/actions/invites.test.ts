@@ -60,6 +60,22 @@ describe("acceptInviteAction (spec §6.3)", () => {
     expect(m.notifySignedUp).not.toHaveBeenCalled();
   });
 
+  // A new member is always waiting (accept_invitation gives no access), so they go straight to
+  // onboarding rather than through home's own redirect.
+  it("sends a new member straight to onboarding and the owner home", async () => {
+    await expect(acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).rejects.toThrow();
+    expect(m.redirect).toHaveBeenLastCalledWith("/onboarding");
+    m.acceptInvitation.mockResolvedValue({ orgId: "org-1", clientId: null, asOwner: true, invitedBy: "admin-1" });
+    await expect(acceptInviteAction("tok", undefined, form("Asha", "longenough"))).rejects.toThrow();
+    expect(m.redirect).toHaveBeenLastCalledWith("/");
+  });
+
+  it("goes to sign-in when signing in after the sign-up fails", async () => {
+    m.signIn.mockResolvedValueOnce({ error: { message: "down" } } as never);
+    await expect(acceptInviteAction("tok", undefined, form("Ravi", "longenough"))).rejects.toThrow();
+    expect(m.redirect).toHaveBeenLastCalledWith("/login");
+  });
+
   it("a failed notice never fails the sign-up", async () => {
     m.notifySignedUp.mockRejectedValueOnce(new Error("mail down"));
     const err = vi.spyOn(console, "error").mockImplementation(() => {});

@@ -1,6 +1,6 @@
 // src/components/team/__tests__/client-members.test.tsx
 import { describe, it, expect, vi } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/services/people.service", () => ({ peopleService: { list: vi.fn() } }));
@@ -37,6 +37,20 @@ const forHolder: AgencyPeople = { ...data, invites: data.invites.map((i) => ({ .
 describe("ClientMembers (spec §6.2)", () => {
   it("counts the people on this client: the owner, members, people waiting and open invites", () => {
     expect(text(render())).toContain("4 people on this client");
+  });
+
+  // renderToString marks text-node boundaries with <!-- -->; the heading must be one run, or a
+  // reader of the accessibility tree sees "4PEOPLE ON THIS CLIENT".
+  it("writes the count heading as one run of text, singular for one", () => {
+    const one: AgencyPeople = { people: [person({ userId: "o", name: "Asha", status: "owner" })], invites: [] };
+    const html = (initial: AgencyPeople) =>
+      renderToString(
+        <QueryClientProvider client={new QueryClient()}>
+          <ClientMembers orgId="org-1" client={{ id: "c1", name: "Chupps" }} initial={initial} canManage inviteSlot={null} />
+        </QueryClientProvider>,
+      );
+    expect(html(data)).toContain(">4 people on this client<");
+    expect(html(one)).toContain(">1 person on this client<");
   });
 
   it("shows each status, the owner without actions", () => {

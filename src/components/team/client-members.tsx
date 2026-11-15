@@ -44,7 +44,7 @@ export function ClientMembers({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-eyebrow">{count} {count === 1 ? "person" : "people"} on this client</h2>
+        <h2 className="text-eyebrow">{`${count} ${count === 1 ? "person" : "people"} on this client`}</h2>
         {inviteSlot}
       </div>
       <Card className="px-5 py-2 shadow-card">
