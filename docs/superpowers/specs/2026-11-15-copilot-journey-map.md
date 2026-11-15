@@ -90,7 +90,9 @@ What decision B asks of the shared pieces:
 - The script copilot's tools only bring things in. Anything that changes the script still goes through the steps and the before-and-after card the code already owns.
 - The before-and-after card the script copilot has today and the change card built in piece 2 part 3 should end up as one card.
 
-What decision B leaves open, for piece 4's spec: which tools the script copilot gets, and whether "research is needed" means looking up research that is already approved or starting new research from inside a script.
+**Decided with B:** inside a script, the copilot has a research tool. By default it brings in research the client already has. It searches the internet only when the person says so.
+
+What that leaves open, for piece 4's spec: whether something found on the internet is used for that one script only, or is also offered to the client's market research (which would need a before-and-after card and an approval, by the rule in the parent spec section 4.5).
 
 For the record, the questions as they were asked:
 
@@ -123,7 +125,7 @@ None of these blocks piece 2 or 2b.
 | 3 | Who may approve market research: any teammate, or a named role? (Parent spec, question 2) |
 | 3 | How do the copilot's themes relate to the Signals tab, and do Direct, Adjacent, Signals and Performance stay as they are? (Question 3) |
 | 3 or 4 | Is "what kind of stories" part of market research, part of scripting, or its own step? (Question 4) |
-| 4 | Which tools does the script copilot get, and can it start new research from inside a script or only look up research that is already approved? |
+| 4 | Is research found on the internet from inside a script kept for that script only, or also offered to market research through a change card? |
 | 4 | Which extra steps would make scripts more consistent, interesting and detailed? (Question 5) |
 | 5 | Is an image attached in a script's chat saved to brand assets for later scripts, or kept with that one script? (Question 1) |
 | 5 | Where does the planned internal approval sit in a script's steps? (Question 7) |
