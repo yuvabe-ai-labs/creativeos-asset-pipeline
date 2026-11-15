@@ -8,17 +8,13 @@ import {
   setKBField,
   deleteKBDocument,
   deleteBrandImage,
-  listKBDocuments,
   listBrandImages,
 } from "@/lib/db/kb";
 import { setKBStatus, getClientById } from "@/lib/db/clients";
 import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { removeObject } from "@/lib/storage";
-import { tasks } from "@trigger.dev/sdk/v3";
 import {
-  insertKBJob,
-  setKBJobTriggerRunId,
   markKBJobStuckIfRunning,
   getKBJob,
 } from "@/lib/db/kb-jobs";
@@ -26,6 +22,7 @@ import { withAction } from "@/lib/actions/with-action";
 import { setKBImageAnalysis } from "@/lib/db/image-cards";
 import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
+import { startKBBuild } from "@/lib/kb/start-build";
 
 // ── Field Patch ───────────────────────────────────────────────────────────────
 // Replaces PATCH /api/clients/:id/kb/field
@@ -161,43 +158,8 @@ export async function deleteBrandImageAction(
 // ── KB Build Job ──────────────────────────────────────────────────────────────
 
 export async function startKBBuildJob(clientId: string): Promise<{ jobId: string }> {
-  return withAction("startKBBuildJob", async () => {
-    const client = await getClientById(clientId);
-    if (!client) throw new Error("Client not found.");
-
-    const docs = await listKBDocuments(clientId);
-
-    if (!client.website_url && docs.length === 0) {
-      throw new Error("Add a website URL or upload at least one document.");
-    }
-
-    let job;
-    try {
-      job = await insertKBJob({
-        clientId,
-        orgId: client.org_id,
-        websiteUrl: client.website_url,
-        docIdsUsed: docs.map((d) => d.id),
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : JSON.stringify(e);
-      if (msg.includes("client_kb_jobs_one_running_idx") || msg.includes("23505")) {
-        throw new Error("A KB build is already running for this client.");
-      }
-      throw e;
-    }
-
-    const run = await tasks.trigger("kb-build", {
-      jobId: job.id,
-      clientId,
-      websiteUrl: client.website_url,
-      docIds: docs.map((d) => d.id),
-    });
-
-    await setKBJobTriggerRunId(job.id, run.id);
-    revalidatePath(`/clients/${client.slug}/kb`);
-    return { jobId: job.id };
-  });
+  // The same start the brand KB copilot uses (src/lib/kb/start-build.ts), so both behave alike.
+  return withAction("startKBBuildJob", () => startKBBuild(clientId));
 }
 
 export async function markStuckJobFailed(jobId: string): Promise<void> {
