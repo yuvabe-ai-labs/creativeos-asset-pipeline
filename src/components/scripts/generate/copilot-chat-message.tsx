@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { CopilotAvatar, ScriptMessage } from "@/lib/scripts/copilot/schema";
-import { isLongText, messageParagraphs } from "@/lib/scripts/copilot/message-text";
+import { CopilotText } from "@/components/copilot/copilot-text";
+import { PersonText } from "@/components/copilot/person-text";
 import { CopilotResearchCard, researchRows } from "./copilot-research-card";
 import { CopilotAnglesCard } from "./copilot-angles-card";
 import { CopilotConfirmationCard } from "./copilot-confirmation-card";
@@ -37,40 +38,5 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
       {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
       {card?.kind === "import" && <CopilotImportCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
     </li>
-  );
-}
-
-/** The copilot's words. Its question stands out from the rest of the message (one size up, medium
- *  weight), with the hint after it back at body size. */
-function CopilotText({ content }: { content: string }) {
-  return (
-    <div className="flex max-w-[92%] flex-col gap-3 px-0.5 text-sm leading-relaxed">
-      {messageParagraphs(content).map((p, i) =>
-        p.kind === "question" ? (
-          <div key={i} className="flex flex-col gap-0.5">
-            <p className="text-base font-medium leading-snug text-foreground">{p.question}</p>
-            {p.hint && <p className="whitespace-pre-wrap text-muted-foreground">{p.hint}</p>}
-          </div>
-        ) : (
-          <p key={i} className="whitespace-pre-wrap">{p.text}</p>
-        ),
-      )}
-    </div>
-  );
-}
-
-/** The person's words. A pasted script shows its first lines, fading out, as in the message box. */
-function PersonText({ content }: { content: string }) {
-  const long = isLongText(content);
-  return (
-    <div
-      data-clipped={long}
-      className={cn(
-        "max-w-[92%] whitespace-pre-wrap rounded-2xl bg-muted px-3.5 py-2.5 text-sm leading-relaxed",
-        long && "max-h-40 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_55%,transparent)]",
-      )}
-    >
-      {content}
-    </div>
   );
 }
