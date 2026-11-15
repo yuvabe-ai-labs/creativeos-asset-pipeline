@@ -27,7 +27,7 @@ People who already work fast by hand must lose nothing: the panel folds away and
 3. **Stages are gated by approval.** Market research opens when the brand KB is approved. Scripts open when market research is approved.
 4. **A person always approves.** The copilot never approves a stage, never sends anything to a client, and never presses Generate. Spending credits is treated like an approval.
 5. **Anything missing is asked for in the chat.** The copilot asks in the thread and takes the answer there, including attached images and files. It does not send the person to another screen to supply an input.
-6. **One agent per stage.** Each stage has its own agent with its own tools. The person sees one continuous panel.
+6. **One agent per stage.** Each stage has its own agent with its own tools. The person sees one continuous panel. In scripting the order of steps is decided by code, and a step may call a tool to bring something in.
 7. **The copilot never invents brand facts.** What it shows comes from the site, the research or the person, and each item can be kept, edited or dropped.
 
 ## 4. The shape of the experience
@@ -43,9 +43,9 @@ Every client screen shares one frame:
 
 ### 4.2 Threads
 
-- **The onboarding thread** covers the brand KB, market research and writing the client's first script. It ends once that first script is created.
-- **Every script after the first is its own thread.** A new script starts a new chat, with a link back to the onboarding thread.
-- A script's thread stays with it through visualise, client review and the canvas. The first script carries on in a script thread of its own from visualise onwards.
+- **The onboarding thread** covers the brand KB, market research and the lead-in to the client's first script: what the reel is for, the angle and who leads. It ends once that first script is created.
+- **Every script has its own thread.** A new script starts a new chat, with a link back to the onboarding thread.
+- A script's thread stays with it through visualise, client review and the canvas. The first script is drafted in a script thread of its own, like every later one.
 - Threads are saved. Coming back to a client or a script reopens its thread where it stopped.
 
 ### 4.3 What the panel says
@@ -100,6 +100,7 @@ The panel uses five kinds of message beyond plain conversation, the same in ever
 - **Stays as today:** the script document, formats, the write-with-copilot flow, pasting an existing script.
 - **Changes:** the script copilot starts with the approved brand KB and research already in hand, and moves into the shared panel.
 - **Pasting an existing script skips the gates.** It can be done before the brand KB or market research is approved.
+- **Research inside a script:** the copilot brings in the client's existing research, and searches the internet only when the person says so.
 
 ### 5.4 Visualise and client review
 
@@ -161,6 +162,14 @@ These are product decisions. None is assumed in this document. Each belongs to a
 - An approved stage stays open: the person can add documents or research at any time. Anything new is shown in the chat as a before and after and waits for approval (section 4.5).
 - Only changes the copilot makes need approval. Edits made by hand on the screen apply at once.
 - A change waiting for approval locks nothing. Scripts keep working from the approved version; once the change is approved, new scripts use it and existing scripts are not touched.
+
+### Decided on 2026-11-15 (Cyril)
+
+Recorded with the reasoning in [2026-11-15-copilot-journey-map.md](2026-11-15-copilot-journey-map.md), which also shows how the pieces build on each other.
+
+- The onboarding thread carries only the lead-in to the first script. Every script, the first included, is drafted in its own thread.
+- The script copilot keeps its steps in an order decided by code. A step may call a tool to bring something in.
+- Inside a script the copilot brings in the client's existing research, and searches the internet only when the person says so.
 
 ## 9. Success
 

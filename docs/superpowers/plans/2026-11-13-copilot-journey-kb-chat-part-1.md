@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-12-copilot-journey-brand-kb-design.md` (sections 2.1, 2.2, 3, 4, 5, 6). Parent: `docs/superpowers/specs/2026-11-12-copilot-journey-design.md`.
 
+**Map:** `docs/superpowers/specs/2026-11-15-copilot-journey-map.md` (sections 2, 5 and 6). Everything this plan builds that a later piece reuses is named after the thread or the journey, never after the brand KB: the thread store and its types, the message, status, composer and attachment components, the one thread read, and the agent loop. Only the agent's prompt and tools, `KbContext`, the turn route and `kb-copilot.tsx` are the brand KB's own.
+
 **Piece 2 is three plans, built in order on this branch (`feat/copilot-journey`, one worktree, merged once at the end):**
 
 1. **Part 1 (this plan):** thread, chat, intake, attachments, build start, status lines.
@@ -49,9 +51,9 @@ Until part 3, an attachment on a reviewed KB is saved as a source and the copilo
 
 **Files:**
 - Create: `supabase/migrations/0063_client_copilot_messages.sql`
-- Create: `src/lib/journey/kb-copilot/schema.ts`
-- Create: `src/lib/journey/kb-copilot/rows.ts`
-- Create: `src/lib/journey/kb-copilot/__tests__/rows.test.ts`
+- Create: `src/lib/journey/thread/schema.ts`
+- Create: `src/lib/journey/thread/rows.ts`
+- Create: `src/lib/journey/thread/__tests__/rows.test.ts`
 - Create: `src/lib/db/copilot-messages.ts`
 
 **Interfaces:**
@@ -68,23 +70,23 @@ export const attachmentSchema = z.object({
 export type Attachment = z.infer<typeof attachmentSchema>;
 export const statusLineSchema = z.object({ text: z.string(), state: z.enum(["running", "done", "failed"]) });
 export type StatusLine = z.infer<typeof statusLineSchema>;
-export const kbCardSchema = z.discriminatedUnion("kind", [
+export const threadCardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("status"), lines: z.array(statusLineSchema) }),
 ]);
-export type KbCard = z.infer<typeof kbCardSchema>;
-export type KbMessage = {
+export type ThreadCard = z.infer<typeof threadCardSchema>;
+export type ThreadMessage = {
   id: string; role: "user" | "assistant"; content: string;
-  card: KbCard | null; attachments: Attachment[]; suggestions: string[]; createdAt: string;
+  card: ThreadCard | null; attachments: Attachment[]; suggestions: string[]; createdAt: string;
 };
 export type CopilotThread = "onboarding";
 
 // rows.ts
 export type CopilotMessageRow = { id: string; role: "user" | "assistant"; content: string; card: unknown; attachments: unknown; suggestions: unknown; created_at: string };
-export function rowToKbMessage(row: CopilotMessageRow): KbMessage;
+export function rowToThreadMessage(row: CopilotMessageRow): ThreadMessage;
 
 // db/copilot-messages.ts (server-only; every query filters on client_id AND thread)
-export async function listCopilotMessages(clientId: string, thread: CopilotThread): Promise<KbMessage[]>; // ordered by seq, newest 200
-export type NewCopilotMessage = { role: "user" | "assistant"; content: string; card?: KbCard | null; attachments?: Attachment[]; suggestions?: string[] };
+export async function listCopilotMessages(clientId: string, thread: CopilotThread): Promise<ThreadMessage[]>; // ordered by seq, newest 200
+export type NewCopilotMessage = { role: "user" | "assistant"; content: string; card?: ThreadCard | null; attachments?: Attachment[]; suggestions?: string[] };
 export async function insertCopilotMessages(clientId: string, thread: CopilotThread, userId: string | null, messages: NewCopilotMessage[]): Promise<void>;
 /** Stores the opening only if the thread has no rows. Safe when two turns race. Returns true if it inserted. */
 export async function insertOpeningIfEmpty(clientId: string, thread: CopilotThread, content: string): Promise<boolean>;
@@ -96,18 +98,18 @@ export async function insertOpeningIfEmpty(clientId: string, thread: CopilotThre
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { rowToKbMessage } from "../rows";
+import { rowToThreadMessage } from "../rows";
 
 const base = { id: "m1", role: "assistant" as const, content: "Hi", created_at: "2026-11-13T00:00:00Z" };
 
-describe("rowToKbMessage", () => {
+describe("rowToThreadMessage", () => {
   it("reads a plain row", () => {
-    expect(rowToKbMessage({ ...base, card: null, attachments: [], suggestions: [] })).toEqual({
+    expect(rowToThreadMessage({ ...base, card: null, attachments: [], suggestions: [] })).toEqual({
       id: "m1", role: "assistant", content: "Hi", card: null, attachments: [], suggestions: [], createdAt: "2026-11-13T00:00:00Z",
     });
   });
   it("keeps a valid card, attachments and suggestions", () => {
-    const m = rowToKbMessage({
+    const m = rowToThreadMessage({
       ...base,
       card: { kind: "status", lines: [{ text: "Read the website", state: "done" }] },
       attachments: [{ kind: "document", id: "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11", name: "brand.pdf", url: null }],
@@ -118,7 +120,7 @@ describe("rowToKbMessage", () => {
     expect(m.suggestions).toEqual(["Start the build"]);
   });
   it("drops a card or attachment it cannot read instead of throwing", () => {
-    const m = rowToKbMessage({ ...base, card: { kind: "from-the-future" }, attachments: [{ nope: true }], suggestions: "x" });
+    const m = rowToThreadMessage({ ...base, card: { kind: "from-the-future" }, attachments: [{ nope: true }], suggestions: "x" });
     expect(m.card).toBeNull();
     expect(m.attachments).toEqual([]);
     expect(m.suggestions).toEqual([]);
@@ -126,7 +128,7 @@ describe("rowToKbMessage", () => {
 });
 ```
 
-- [ ] **Step 3: Run it.** `npm test -- kb-copilot/__tests__/rows` Expected: FAIL, cannot find `../rows`.
+- [ ] **Step 3: Run it.** `npm test -- thread/__tests__/rows` Expected: FAIL, cannot find `../rows`.
 - [ ] **Step 4: Implement `schema.ts`, `rows.ts` (safeParse each part), `copilot-messages.ts`.** `insertOpeningIfEmpty` inserts a row with `is_opening: true` only when a `select id ... limit 1` for the thread returns no row; a unique-violation (`23505`) from the partial index means another turn stored it, so return `false`. A failed select throws; it never falls through to the insert.
 - [ ] **Step 5: Run it.** Expected: PASS 3/3.
 - [ ] **Step 6: Commit** `feat(journey): a saved copilot thread per client`.
@@ -204,11 +206,15 @@ export type AgentModel = (input: {
   system: string; messages: AgentMessage[]; tools: Record<string, AgentTool>;
   /** Earlier rounds of this turn: the calls the model made and what each returned. */
   rounds: { calls: ToolCall[]; results: ToolResult[] }[];
-}) => Promise<{ text: string; calls: ToolCall[] }>;
+  /** When set, the final reply must be this structure, not only words. */
+  answer?: z.ZodType;
+}) => Promise<{ text: string; calls: ToolCall[]; answer?: unknown }>;
+export class AgentAnswerError extends Error {}
 export const MAX_AGENT_ROUNDS = 4;
-export async function runAgent(input: {
+export async function runAgent<T = never>(input: {
   model: AgentModel; system: string; messages: AgentMessage[]; tools: Record<string, AgentTool>;
-}): Promise<{ text: string; ran: string[] }>; // ran: names of tools that executed without error
+  answer?: z.ZodType<T>; // a script step passes this (piece 4); the brand KB chat does not
+}): Promise<{ text: string; ran: string[]; answer?: T }>; // ran: names of tools that executed without error
 
 // agent-model.ts
 export function openaiAgentModel(modelId: string): AgentModel;
@@ -216,17 +222,21 @@ export function openaiAgentModel(modelId: string): AgentModel;
 
 Behaviour of `runAgent`: call the model; if it returns no calls, return its text. Otherwise run every call: unknown name -> result `Error: no such tool.`; args failing `schema.safeParse` -> `Error: invalid arguments: {zod message}`; a tool that throws -> `Error: {message}`. Feed the results back as the next round. After `MAX_AGENT_ROUNDS` rounds that still ask for tools, call the model once more with `tools: {}` so it must answer in words. If the final text is empty, return `Done.`.
 
+Two things later pieces rely on (map section 5). **Any provider:** `agent.ts` imports no SDK and knows nothing about OpenAI; a second provider is a second adapter beside `agent-model.ts`, never a change to the loop. **A strict ending:** when `answer` is given, it is passed to the model on every call, and once the model stops calling tools its `answer` must pass `answer.safeParse`; the parsed value is returned as `answer`. If it does not pass, `runAgent` throws `AgentAnswerError` with the zod message and the caller decides whether to retry. Without `answer` the loop behaves exactly as above.
+
 - [ ] **Step 1: Write the failing tests** with a scripted fake model (an array of responses returned in order, recording each input):
   - returns the text when the model calls nothing;
   - runs a tool, feeds its output back in `rounds[0].results`, returns the second response's text, `ran` is `["save_website"]`;
   - unknown tool name -> the result passed back is `Error: no such tool.` and `ran` is `[]`;
   - invalid args -> result starts `Error: invalid arguments`, the tool's `run` is not called;
   - a throwing tool -> result `Error: boom`, the turn still returns text;
-  - a model that always calls a tool: the model is called exactly `MAX_AGENT_ROUNDS + 1` times, the last time with no tools, and the function returns.
+  - a model that always calls a tool: the model is called exactly `MAX_AGENT_ROUNDS + 1` times, the last time with no tools, and the function returns;
+  - with `answer: z.object({ angles: z.array(z.string()).length(3) })`, a model that calls one tool and then returns `answer: { angles: ["a", "b", "c"] }`: the result's `answer` is that object, `ran` has the tool, and every model call received the schema;
+  - with the same `answer`, a model whose final `answer` is `{ angles: ["a"] }`: rejects with `AgentAnswerError`.
 - [ ] **Step 2: Run.** `npm test -- journey/__tests__/agent` Expected: FAIL, module not found.
 - [ ] **Step 3: Implement `agent.ts`.**
-- [ ] **Step 4: Run.** Expected: PASS 6/6.
-- [ ] **Step 5: Implement `agent-model.ts`.** Read the Responses API types in `node_modules/openai/resources/responses/` first; do not write the shapes from memory. Use `createOpenAI().responses.create` with function tools built from each tool's `z.toJSONSchema(schema)`; map `function_call` output items to `ToolCall` (parse `arguments` as JSON, `{}` on a parse failure) and replay earlier rounds as `function_call` + `function_call_output` input items. Follow `src/lib/scripts/copilot/model.ts` for how the client is created.
+- [ ] **Step 4: Run.** Expected: PASS 8/8.
+- [ ] **Step 5: Implement `agent-model.ts`.** Read the Responses API types in `node_modules/openai/resources/responses/` first; do not write the shapes from memory. Use `createOpenAI().responses.create` with function tools built from each tool's `z.toJSONSchema(schema)`; map `function_call` output items to `ToolCall` (parse `arguments` as JSON, `{}` on a parse failure) and replay earlier rounds as `function_call` + `function_call_output` input items. Follow `src/lib/scripts/copilot/model.ts` for how the client is created. When `answer` is given, request it as the response's structured output the way `structuredCaller` in that file does and return the parsed value as `answer`; the brand KB chat never passes one, so this path is first exercised in piece 4 and gets its live check there.
 - [ ] **Step 6: Type-check.** `npx tsc --noEmit -p .` Expected: no new errors (the one existing error is in `src/app/api/nodes/*-generate/route.test.ts`).
 - [ ] **Step 7: Commit** `feat(journey): a small tool-calling agent loop with an injected model`.
 
@@ -243,7 +253,7 @@ Behaviour of `runAgent`: call the model; if it returns no calls, return its text
 - Create: `src/lib/journey/kb-copilot/__tests__/turn.test.ts`
 
 **Interfaces:**
-- Consumes: `runAgent`, `AgentModel` (Task 3); `KbContext`, `canStartBuild`, `isBuilding`, `fallbackSuggestions` (Task 2); `Attachment`, `KbMessage` (Task 1).
+- Consumes: `runAgent`, `AgentModel` (Task 3); `KbContext`, `canStartBuild`, `isBuilding`, `fallbackSuggestions` (Task 2); `Attachment`, `ThreadMessage` (Task 1).
 - Produces:
 
 ```ts
@@ -264,7 +274,7 @@ export type KbActions = {
   startBuild: () => Promise<void>;                    // throws BuildAlreadyRunningError
 };
 export async function runKbTurn(input: {
-  ctx: KbContext; history: KbMessage[]; text: string; attachments: Attachment[];
+  ctx: KbContext; history: ThreadMessage[]; text: string; attachments: Attachment[];
   actions: KbActions; model: AgentModel;
 }): Promise<{ reply: string; suggestions: string[]; changed: boolean }>;
 ```
@@ -300,9 +310,10 @@ The system prompt (`src/prompts/kb-copilot.ts`, exported `kbCopilotSystem(ctx: K
 ### Task 5: The thread's routes
 
 **Files:**
-- Create: `src/lib/journey/kb-copilot/load.ts`
-- Create: `src/app/api/clients/[id]/copilot/kb/route.ts` (GET)
-- Create: `src/app/api/clients/[id]/copilot/kb/route.test.ts`
+- Create: `src/lib/journey/kb-copilot/load.ts` (`loadKbContext`)
+- Create: `src/lib/journey/thread/load.ts` (`loadThread`; `ThreadState` goes in `src/lib/journey/thread/schema.ts`)
+- Create: `src/app/api/clients/[id]/copilot/thread/route.ts` (GET)
+- Create: `src/app/api/clients/[id]/copilot/thread/route.test.ts`
 - Create: `src/app/api/clients/[id]/copilot/kb/turn/route.ts` (POST)
 - Create: `src/app/api/clients/[id]/copilot/kb/turn/route.test.ts`
 
@@ -311,17 +322,17 @@ The system prompt (`src/prompts/kb-copilot.ts`, exported `kbCopilotSystem(ctx: K
 - Produces:
 
 ```ts
-// load.ts (server-only)
-export type KbThreadState = { messages: KbMessage[]; live: StatusLine[]; suggestions: string[]; kbStatus: KbContext["kbStatus"] };
+// thread/schema.ts gains ThreadState; kb-copilot/load.ts holds loadKbContext; thread/load.ts holds loadThread (both server-only)
+export type ThreadState = { messages: ThreadMessage[]; live: StatusLine[]; suggestions: string[] }; // nothing stage-specific in here
 export async function loadKbContext(client: ClientRow): Promise<{ ctx: KbContext; documentIds: Set<string>; imageIds: Set<string> }>;
-export async function loadKbThread(client: ClientRow): Promise<KbThreadState>;
+export async function loadThread(client: ClientRow): Promise<ThreadState>;
 ```
 
 `loadKbContext` reads in one `Promise.all`: `listKBDocuments`, `listBrandImages(clientId, "uploads")`, `getActiveKBVersion`, `getLatestKBJob`, `getBrandDetails`, `listLatestAssetImports`, `getImageAnalysisStatus`. If selecting only an id is possible for the version, do that (rule 8: never download the KB output to learn that it exists).
 
-`loadKbThread`: context and `listCopilotMessages` in parallel. An empty thread returns one virtual message `{ id: "opening", role: "assistant", content: openingMessage(ctx), ... }` and stores nothing. `suggestions` is the newest assistant message's suggestions when it is the last message, else `fallbackSuggestions(ctx)`; empty while `live` is non-empty.
+`loadThread`: context and `listCopilotMessages` in parallel. An empty thread returns one virtual message `{ id: "opening", role: "assistant", content: openingMessage(ctx), ... }` and stores nothing. `suggestions` is the newest assistant message's suggestions when it is the last message, else `fallbackSuggestions(ctx)`; empty while `live` is non-empty.
 
-**GET** `/api/clients/:id/copilot/kb` -> `apiOk(state)`.
+**GET** `/api/clients/:id/copilot/thread` -> `apiOk(state)`. This is the one read of the onboarding thread for every stage page. In part 1 its live status and fallback suggestions come from the brand KB alone; later stages add theirs inside `loadThread`, so the same messages are never cached under a second key. Sending a turn stays per stage (`/copilot/kb/turn`), because each stage has its own agent.
 
 **POST** `/api/clients/:id/copilot/kb/turn`, body `{ text: string, attachments: Attachment[] }`, `export const maxDuration = 120`. Mirror `src/app/api/clients/[id]/scripts/[scriptId]/turn/route.ts` for auth (`resolveCallerContext()` once). Order:
 1. Validate: body parses; `text.trim()` or at least one attachment; `text.length <= KB_TURN_MAX_CHARS`; `attachments.length <= KB_TURN_MAX_ATTACHMENTS` -> else 400.
@@ -331,7 +342,7 @@ export async function loadKbThread(client: ClientRow): Promise<KbThreadState>;
 5. `runKbTurn` with `openaiAgentModel(KB_COPILOT_MODEL)` and actions bound to `updateClientWebsiteUrl` (normalise the URL the way `website-url/route.ts` does; extract `normalizeUrl` to `src/lib/kb/utils.ts` and import it in both), `patchBrandDetails`, `startKBBuild(client)`.
 6. Insert the reply with its suggestions. If the agent throws, insert `Something went wrong on my side. Nothing was changed. Try again.` and return 200 with the state, so the person's message is not lost.
 7. When `changed`, `revalidatePath` for `/clients/{slug}/kb`.
-8. Return `apiOk({ state: await loadKbThread(client), changed })`.
+8. Return `apiOk({ state: await loadThread(client), changed })`.
 
 - [ ] **Step 1: Write the failing route tests**, mocking the db and `runKbTurn` modules the way `src/app/api/clients/[id]/market/approve/route.test.ts` does:
   - GET returns the virtual opening for an empty thread and calls no insert;
@@ -341,8 +352,8 @@ export async function loadKbThread(client: ClientRow): Promise<KbThreadState>;
   - POST when `listCopilotMessages` rejects: 500, `insertOpeningIfEmpty` not called;
   - POST when `runKbTurn` rejects: 200, the stored reply is the "Something went wrong" line;
   - POST with `changed: true` calls `revalidatePath("/clients/acme/kb")`.
-- [ ] **Step 2: Run.** `npm test -- copilot/kb` Expected: FAIL, modules not found.
-- [ ] **Step 3: Implement `load.ts` and both routes.**
+- [ ] **Step 2: Run.** `npm test -- "[id]/copilot"` Expected: FAIL, modules not found.
+- [ ] **Step 3: Implement both load files and both routes.**
 - [ ] **Step 4: Run.** Expected: PASS 8/8.
 - [ ] **Step 5: Commit** `feat(journey): routes for the brand KB thread and its turns`.
 
@@ -380,30 +391,30 @@ Exact copy:
 ### Task 7: Service and query layer
 
 **Files:**
-- Create: `src/services/kb-copilot.service.ts`
-- Create: `src/hooks/queries/kb-copilot.ts`
-- Create: `src/hooks/queries/__tests__/kb-copilot.test.ts`
+- Create: `src/services/copilot-thread.service.ts`
+- Create: `src/hooks/queries/copilot-thread.ts`
+- Create: `src/hooks/queries/__tests__/copilot-thread.test.ts`
 
 **Interfaces:**
 - Produces:
 
 ```ts
 // service (through readJson, like clients.service.ts)
-export const kbCopilotService: {
-  thread(clientId: string): Promise<KbThreadState>;
-  turn(clientId: string, body: { text: string; attachments: Attachment[] }): Promise<{ state: KbThreadState; changed: boolean }>;
+export const copilotThreadService: {
+  thread(clientId: string): Promise<ThreadState>;
+  kbTurn(clientId: string, body: { text: string; attachments: Attachment[] }): Promise<{ state: ThreadState; changed: boolean }>;
 };
 // queries
-export const kbCopilotKeys = { all: (clientId: string) => ["kb-copilot", clientId] as const, thread: (clientId: string) => [...kbCopilotKeys.all(clientId), "thread"] as const };
-export const KB_LIVE_POLL_MS = 3000;
-export function liveRefetchInterval(state: KbThreadState | undefined): number | false; // KB_LIVE_POLL_MS while state.live.length > 0
-export function useKbThread(clientId: string): UseQueryResult<KbThreadState>;
+export const copilotThreadKeys = { all: (clientId: string) => ["copilot-thread", clientId] as const, thread: (clientId: string) => [...copilotThreadKeys.all(clientId), "thread"] as const };
+export const THREAD_LIVE_POLL_MS = 3000;
+export function liveRefetchInterval(state: ThreadState | undefined): number | false; // THREAD_LIVE_POLL_MS while state.live.length > 0
+export function useCopilotThread(clientId: string): UseQueryResult<ThreadState>;
 export function useSendKbTurn(clientId: string): UseMutationResult<...>;
 ```
 
-`useSendKbTurn` shows the person's message at once (optimistic, as `useSendTurn` in `src/hooks/queries/script-generate.ts`), rolls back on error, sets the cache to the returned state, and calls `router.refresh()` when `changed` so the page on the right re-reads the website, handles and job.
+The thread is read by one hook for every stage (`useCopilotThread`); a turn is sent by the stage's own hook, and `useSendKbTurn` is the brand KB's. `useSendKbTurn` shows the person's message at once (optimistic, as `useSendTurn` in `src/hooks/queries/script-generate.ts`), rolls back on error, sets the cache to the returned state, and calls `router.refresh()` when `changed` so the page on the right re-reads the website, handles and job.
 
-- [ ] **Step 1: Write the failing test** for `liveRefetchInterval`: `false` for `undefined`, `false` for `live: []`, `KB_LIVE_POLL_MS` for one running line.
+- [ ] **Step 1: Write the failing test** for `liveRefetchInterval`: `false` for `undefined`, `false` for `live: []`, `THREAD_LIVE_POLL_MS` for one running line.
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement all three files.**
 - [ ] **Step 4: Run.** Expected: PASS.
@@ -453,11 +464,11 @@ The shell owns the `<section>`, the header with the hide button, the fold state 
 - Create: `src/lib/kb/__tests__/upload-source.test.ts`
 - Modify: `src/components/kb/kb-onboarding-upload-step.tsx:127-165` (use `checkSourceFile` and `uploadSourceFile`)
 - Create: `src/components/journey/kb-copilot.tsx`
-- Create: `src/components/journey/kb-copilot-message.tsx`
-- Create: `src/components/journey/kb-status-lines.tsx`
-- Create: `src/components/journey/kb-copilot-composer.tsx`
-- Create: `src/components/journey/kb-attachment-chip.tsx`
-- Create: `src/hooks/use-kb-attachments.ts`
+- Create: `src/components/journey/thread-message.tsx`
+- Create: `src/components/journey/thread-status-lines.tsx`
+- Create: `src/components/journey/thread-composer.tsx`
+- Create: `src/components/journey/thread-attachment-chip.tsx`
+- Create: `src/hooks/use-thread-attachments.ts`
 
 **Interfaces:**
 - Consumes: Tasks 1, 7, 8.
@@ -471,8 +482,8 @@ export function sourceKindOf(filename: string): SourceKind | null;          // b
 export function checkSourceFile(file: { name: string; size: number }, usedBytes: { document: number; image: number }): string | null;
 export async function uploadSourceFile(clientId: string, file: File): Promise<Attachment>; // sign + finalize via uploadViaSignedUrl
 
-// use-kb-attachments.ts
-export function useKbAttachments(clientId: string): {
+// use-thread-attachments.ts
+export function useThreadAttachments(input: { check: (file: File) => string | null; upload: (file: File) => Promise<Attachment> }): {
   items: { key: string; name: string; state: "uploading" | "ready" | "failed"; attachment: Attachment | null; error: string | null }[];
   add: (files: File[]) => void; remove: (key: string) => void; clear: () => void;
   uploading: boolean; ready: Attachment[];
@@ -482,7 +493,7 @@ export function useKbAttachments(clientId: string): {
 Exact copy for `checkSourceFile`: unsupported type -> `.{ext} files are not supported. Documents: PDF, DOCX, PPTX, MD, TXT. Images: JPG, PNG, WEBP.`; over a single-file limit, if `src/lib/kb/constants.ts` has one -> `{name} is over the {limit} limit for one file.`; over the total -> `Adding {name} would pass the {limit} limit for {documents|images}.` Use `formatBytes` from `src/lib/kb/utils.ts`.
 
 The panel body, top to bottom:
-- **Messages** in a `ScrollArea`, following the newest (as `copilot-chat.tsx` does). A person's message shows `PersonText` and its attachment chips; the copilot's shows `CopilotText`, then a status card (`kb-status-lines.tsx`: a tick in `text-success-text` for done, a cross in `text-destructive` for failed).
+- **Messages** in a `ScrollArea`, following the newest (as `copilot-chat.tsx` does). A person's message shows `PersonText` and its attachment chips; the copilot's shows `CopilotText`, then a status card (`thread-status-lines.tsx`: a tick in `text-success-text` for done, a cross in `text-destructive` for failed).
 - **Live status** under the last message while `state.live` is non-empty: one line each with a spinner (`Loader2`, `animate-spin`, `motion-reduce:animate-none`), `aria-live="polite"`.
 - **Reply chips** from `state.suggestions` (dashed primary chips, `REPLY_CHIP_CLASS`); a chip sends its text at once. Hidden while a turn is in flight.
 - **Composer:** `InputGroup` with `InputGroupTextarea` (placeholder `Answer the copilot, or attach brand documents and images…`), a paperclip `InputGroupButton` (`aria-label="Attach files"`) and the send button. The file picker is the shadcn `Input type="file"` with `multiple` and the combined accept list, visually hidden, exactly the pattern `kb-onboarding-upload-step.tsx` uses; no raw `<input>`. Files can also be dropped on the composer or pasted (image paste). Chosen files upload at once and show as chips above the textarea: name, a thumbnail for an image, a spinner while uploading, a remove button. A refused file shows its reason on its chip in `text-destructive`. Send is disabled while a turn is in flight, while any file is uploading, and when there is neither text nor a ready attachment. Enter sends, Shift+Enter is a new line.
@@ -492,7 +503,7 @@ The panel body, top to bottom:
 - [ ] **Step 1: Write the failing tests** for `sourceKindOf` (`a.PDF` -> document, `b.webp` -> image, `c.exe` -> null) and `checkSourceFile` (allowed -> null; `.exe` -> the unsupported string; a document that would pass the document total -> the total string naming documents; an image is checked against the image total, not the document total).
 - [ ] **Step 2: Run.** `npm test -- upload-source` Expected: FAIL.
 - [ ] **Step 3: Implement `upload-source.ts` and switch `kb-onboarding-upload-step.tsx` to it** (its toasts now show `checkSourceFile`'s reason). `npm test -- upload-source` Expected: PASS.
-- [ ] **Step 4: Build the hook and the five components.** Each under about 200 lines.
+- [ ] **Step 4: Build the hook and the five components.** Each under about 200 lines. Only `kb-copilot.tsx` knows about the brand KB: it binds `checkSourceFile` and `uploadSourceFile` into `useThreadAttachments`, and passes the placeholder, the accepted file types and `useSendKbTurn` down. The four `thread-*` components and the hook take those as props and import nothing from `src/lib/kb` or `src/lib/journey/kb-copilot`.
 - [ ] **Step 5: Verify.** `npx tsc --noEmit -p .` and `npx eslint src/components/journey src/hooks src/lib/kb src/components/kb`. Expected: clean.
 - [ ] **Step 6: Commit** `feat(journey): the brand KB chat with attachments in the panel`.
 
@@ -512,8 +523,8 @@ The panel body, top to bottom:
 - [ ] **Step 2: `JourneyGuide` renders `<KbCopilot clientId={client.id} slug={client.slug} />` when `panel === "kb"`, and the guide panel otherwise.**
 - [ ] **Step 3: Both sides show the same sources.** `KBOnboardingUploadStep` gets a `key` made of the website URL, the two handles and the document and image ids, so `router.refresh()` after a chat turn remounts it with the saved values. Check that an upload made in the form does not itself trigger a remount mid-upload.
 - [ ] **Step 4: Append ADRs** in the log's format (Decision / Why / Rejected / Refines / Originated):
-  - **D496: one saved copilot thread per client, in its own table.** Rejected: reusing `client_script_messages` (it requires a script).
-  - **D497: stage agents are a small tool-calling loop with an injected model, run inside the request.** Why: the tools are quick writes; the long work (the build) stays in Trigger.dev and reports into the thread from its webhook. Rejected: Trigger.dev `chat.agent` for this stage (no long-running model work to host); a fixed step machine like the script brief (Cyril decided on tool calling). Refines D336.
+  - **D496: one saved onboarding thread per client, in its own table; a script's thread stays where it is.** Both stores return messages in one shape, so the panel, the cards and the composer do not care which a message came from. Why: a script's messages cannot exist before a script does, and the onboarding thread starts before any script. Rejected: reusing `client_script_messages` (it requires a script); moving every script's conversation into the new table (it would move live data for no change the person can see).
+  - **D497: stage agents share one small tool-calling loop; the model is passed in, and each stage decides where the loop runs and how a turn ends.** The brand KB agent runs inside the request: its tools are quick writes, and the long work (the build) stays in Trigger.dev and reports into the thread from its webhook. A stage whose agent does long or paid work (market research) runs the same loop in a background task. A turn ends in plain words, or in a strict structure when the caller asks for one, which is how a script step will use the loop while the code keeps deciding the order of steps. Rejected: Trigger.dev `chat.agent` for the brand KB (no long-running model work to host); one fixed place for every agent to run; a free tool-calling agent for scripts (Cyril chose code-decided steps with optional tool calls, 2026-11-15). Refines D336.
 - [ ] **Step 5: Whole suite.** `npm test > "$TMP/kb-part1.log" 2>&1; tail -15 "$TMP/kb-part1.log"`. Expected: only the 2 known failures in `src/app/api/nodes/{composite,image}-generate/route.test.ts`; `kling-provider.test.ts` may time out once and passes alone. `npx tsc --noEmit -p .` and `npx eslint .` on changed files: clean.
 - [ ] **Step 6: Commit** `feat(journey): the Brand KB page's panel is the brand KB copilot (D496, D497)`.
 

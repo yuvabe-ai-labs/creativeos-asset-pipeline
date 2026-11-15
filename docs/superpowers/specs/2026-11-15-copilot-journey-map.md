@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-15
 **Parent spec:** [2026-11-12-copilot-journey-design.md](2026-11-12-copilot-journey-design.md)
-**Status:** decisions A and B in section 5 were made by Cyril on 2026-11-15. The rest awaits his review. Lines marked *(my call)* are technical calls I made and can be overruled. Lines marked **Question** are yours to decide; nothing is built on a guess about them.
+**Status:** approved by Cyril on 2026-11-15. Lines marked *(my call)* are technical calls I made and can be overruled. Lines marked **Question** are yours to decide; nothing is built on a guess about them.
 
 The journey is built as six pieces on one branch and merged once. Each piece gets its own spec and its own detailed plan when we reach it. This document is the part that is planned for all of them now: what is built once and shared, what each piece adds, where one piece hands over to the next, and which open questions block which piece.
 
@@ -133,7 +133,7 @@ None of these blocks piece 2 or 2b.
 
 ## 8. What this changes in the piece 2 part 1 plan
 
-Checking the plan against sections 2, 5 and 6 found four things named or shaped for the brand KB that every stage will use. The plan is not changed yet. Once this map is approved, the plan is corrected to match:
+Checking the plan against sections 2, 5 and 6 found four things named or shaped for the brand KB that every stage will use. The plan was corrected to match on 2026-11-15:
 
 1. **The message shape and the thread store's types** were named after the KB. They become the thread's, in their own folder.
 2. **The message, status lines, composer and attachment chip components** were KB components. They become thread components; the KB panel only wires them to the KB agent and the KB upload.
