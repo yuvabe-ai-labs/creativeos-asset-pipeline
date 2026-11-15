@@ -4,9 +4,10 @@ import { resolveOrgId } from "@/lib/dal";
 import type { ClientRow } from "@/lib/db/types";
 import { journeyState, type JourneyState } from "./stages";
 
-/** What the client frame draws: the tabs' name and states, and the guide's status. */
+/** What the client frame draws: the tabs' name and states, the guide's status, and the id the
+ *  copilot's thread is read by. */
 export type FrameClient = {
-  client: { slug: string; name: string; kbStatus: ClientRow["kb_status"] };
+  client: { id: string; slug: string; name: string; kbStatus: ClientRow["kb_status"] };
   state: JourneyState;
 };
 
@@ -17,7 +18,7 @@ export async function loadFrameClient(slug: string): Promise<FrameClient | null>
   const [client, effectiveOrgId] = await Promise.all([getClientBySlug(slug), resolveOrgId()]);
   if (!client || client.org_id !== effectiveOrgId) return null;
   return {
-    client: { slug: client.slug, name: client.name, kbStatus: client.kb_status },
+    client: { id: client.id, slug: client.slug, name: client.name, kbStatus: client.kb_status },
     state: journeyState(client),
   };
 }

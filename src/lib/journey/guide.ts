@@ -1,4 +1,3 @@
-import type { ClientRow } from "@/lib/db/types";
 import type { PanelSection } from "./frame";
 import type { JourneyState } from "./stages";
 
@@ -13,15 +12,10 @@ export type Guide = {
   next: { label: string; href: string } | null;
 };
 
-const KB_GATE = {
-  title: "Next stop: brand KB approval",
-  body: "Review each part of the brand KB and mark it ready. Market research opens after that. I can't approve it for you.",
-};
-
-export function guideFor({ section, state, kbStatus, slug }: {
-  section: PanelSection;
+/** The Brand KB page has the brand KB copilot instead of a guide (kb-copilot.tsx). */
+export function guideFor({ section, state, slug }: {
+  section: Exclude<PanelSection, "kb">;
   state: JourneyState;
-  kbStatus: ClientRow["kb_status"];
   slug: string;
 }): Guide {
   const done = [
@@ -31,16 +25,6 @@ export function guideFor({ section, state, kbStatus, slug }: {
   const toKb = { label: "Go to brand KB", href: `/clients/${slug}/kb` };
   const toMarket = { label: "Go to market research", href: `/clients/${slug}/market` };
   const toScripts = { label: "Go to scripts", href: `/clients/${slug}/scripts` };
-
-  if (section === "kb") {
-    if (state.kb === "approved") {
-      return { done, waiting: null, gate: null, next: state.market === "approved" ? toScripts : toMarket };
-    }
-    const waiting = kbStatus === "in_review"
-      ? "Review the brand KB and mark it ready"
-      : "Add the brand's website or documents to build the brand KB";
-    return { done, waiting, gate: KB_GATE, next: null };
-  }
 
   if (section === "market") {
     if (state.market === "approved") return { done, waiting: null, gate: null, next: toScripts };

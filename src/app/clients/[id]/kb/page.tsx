@@ -106,6 +106,9 @@ export default async function KBPage({
             </p>
           </header>
           <KBOnboardingUploadStep
+            // The copilot beside this form saves the same sources. When it does, the page is re-read
+            // and this key changes, so the form shows what the chat saved.
+            key={[client.website_url ?? "", brandDetails.instagram ?? "", brandDetails.facebook ?? "", ...documents.map((d) => d.id), ...images.map((i) => i.id)].join("|")}
             clientId={client.id}
             clientSlug={client.slug}
             initialDocuments={documents}

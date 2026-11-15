@@ -20,7 +20,7 @@ describe("loadFrameClient", () => {
   it("gives the frame what it draws, and nothing else from the row", async () => {
     vi.mocked(getClientBySlug).mockResolvedValue(row());
     expect(await loadFrameClient("chupps")).toEqual({
-      client: { slug: "chupps", name: "Chupps", kbStatus: "ready" },
+      client: { id: "c1", slug: "chupps", name: "Chupps", kbStatus: "ready" },
       state: { kb: "approved", market: "in_progress", scripts: "locked" },
     });
   });

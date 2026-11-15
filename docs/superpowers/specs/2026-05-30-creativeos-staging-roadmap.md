@@ -8690,3 +8690,23 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Marking existing brand KBs ready to satisfy the gate (it would claim a review nobody did). Blocking the New script button outright (pasting happens inside the script copilot, so the paste would be blocked too). Market Signals V1's "no AI anywhere" is untouched by this piece; the research agent is a later piece and will need its own decision.
 
 **Originated →** `2026-11-12-copilot-journey-design.md`.
+
+### D496 — One saved onboarding thread per client, in its own table; a script's thread stays where it is *(recorded 2026-11-16; follows D494)*
+
+**Decision.** `client_copilot_messages` (migration 0063) holds a client's onboarding thread: the conversation that covers the brand KB, market research and the lead-in to the first script. A script's own conversation stays in `client_script_messages`. Both stores return messages in one shape (`src/lib/journey/thread/schema.ts`: words, an optional card, reply choices, attachments), so the panel, the cards and the composer do not care which store a message came from. The thread has one read for every stage page (`GET /api/clients/:id/copilot/thread`, one query key); a turn is sent to the stage's own agent. The opening line is shown without being stored and is kept on the first message a person sends; a partial unique index lets only one opening in when two turns race.
+
+**Why.** User, 13 and 15 Nov 2026: anything missing is asked for in the chat and the thread is saved; the onboarding thread carries only the lead-in to the first script, and every script, the first included, is drafted in its own thread. A script's messages cannot exist before a script does, and the onboarding thread starts before any script.
+
+**Rejected.** Reusing `client_script_messages` (it requires a script). Moving every script's conversation into the new table (it would move live data for no change a person can see). A read and a cache key per stage (the same messages cached twice).
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §3, `2026-11-15-copilot-journey-map.md` §5.
+
+### D497 — Stage agents share one small tool-calling loop; each stage decides where it runs and how a turn ends *(recorded 2026-11-16; refines D336)*
+
+**Decision.** `src/lib/journey/agent.ts` is the loop: ask the model, run the tools it asks for, report back, repeat until it answers, at most four rounds, after which the tools are taken away. The model is passed in and the loop imports no SDK; the OpenAI adapter sits beside it and a second provider is a second adapter. The model only says what it wants: the loop acts, and each tool's own code decides whether the action is allowed, so the rules that must hold (no second build, no build without a source) live in the tools and not in the prompt. The brand KB agent runs inside the request, because its tools are quick writes and the long work (the build) stays in Trigger.dev and writes into the thread from its webhook. A stage whose agent does long or paid work, market research, runs the same loop in a background task. A turn ends in plain words, or in a strict structure when the caller asks for one, which is how a script step will use the loop while the code keeps deciding the order of steps.
+
+**Why.** User, 13 Nov 2026: one agent per stage with tool calling. User, 15 Nov 2026: in scripting the path is decided by code, with an optional tool call when research or anything else needs to be brought in. Rule 12: long or paid work never runs inside the browser's request.
+
+**Rejected.** Trigger.dev `chat.agent` for the brand KB (no long-running model work to host). One fixed place for every agent to run. A free tool-calling agent for scripts (it would mean re-tuning script quality from scratch). Rules stated only in the prompt.
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.1 and §6, `2026-11-15-copilot-journey-map.md` §5 and §6.
