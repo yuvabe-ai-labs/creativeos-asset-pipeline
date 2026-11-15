@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-15
 **Parent spec:** [2026-11-12-copilot-journey-design.md](2026-11-12-copilot-journey-design.md)
-**Status:** approved by Cyril on 2026-11-15, with decisions A and B in section 5. Lines marked *(my call)* are technical calls I made and can be overruled. Lines marked **Question** are yours to decide; nothing is built on a guess about them.
+**Status:** decisions A and B in section 5 were made by Cyril on 2026-11-15. The rest awaits his review. Lines marked *(my call)* are technical calls I made and can be overruled. Lines marked **Question** are yours to decide; nothing is built on a guess about them.
 
 The journey is built as six pieces on one branch and merged once. Each piece gets its own spec and its own detailed plan when we reach it. This document is the part that is planned for all of them now: what is built once and shared, what each piece adds, where one piece hands over to the next, and which open questions block which piece.
 
