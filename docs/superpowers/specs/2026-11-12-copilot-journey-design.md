@@ -143,15 +143,15 @@ The order is a proposal. The first plan would cover piece 1 only.
 
 ## 8. Open questions
 
-These are product decisions. None is assumed in this document. Each belongs to a later piece of the build order and does not block the shell.
+Cyril answered these on 2026-11-15. Each line now says what was decided, or what is still open. Lines marked *(reading)* record how Claude read a short answer and are to be confirmed.
 
-1. Is an image attached in the chat saved to the client's brand assets for later scripts, or kept with that one script?
-2. Who may approve market research: any teammate, or a named role? (Brand KB: any teammate, decided 2026-11-13.)
-3. The market screen has Direct, Adjacent, Signals and Performance tabs. How do the copilot's themes relate to Signals, and do those tabs stay as they are?
-4. The first sketch had a step "what kind of stories". Is that part of market research, part of scripting, or its own step?
-5. Which extra steps would make scripts more consistent, interesting and detailed?
-6. On the canvas, what does the copilot do beyond references and prompts? What replaces the retired "image for a shot" guided run, and do the existing "next node" buttons stay?
-7. An internal approval before client review is planned separately. Where does it sit in a script's steps?
+1. **Decided** *(reading of "yes")*: an image attached in the chat is saved to the client's brand assets, so later scripts can use it.
+2. **Decided:** any teammate may approve market research, as for the brand KB.
+3. **Decided:** the Direct, Adjacent, Signals and Performance tabs stay as they are. The market research copilot brings in the client's existing market signals through a tool. The person can also ask it to run live web research, as a separate tool: a general web research agent at first, a specialised third-party source later.
+4. **Dropped:** "what kind of stories" is not a step. It comes from the market signals already in the system.
+5. **Open, with a default for now:** Cyril will supply a detailed prompt later. Until then Claude proposes the extra steps from web research and Cyril has asked Claude to decide.
+6. **Open, a placeholder for now** *(reading)*: the new panel carries over what the retired canvas copilot can do, together with the canvas's existing actions, including the "next node" buttons. Nothing new is designed for the canvas yet.
+7. **Decided:** no internal review is needed. A script's steps stay Write, Visualise, Client review, Canvas.
 
 ### Decided on 2026-11-12 (Cyril)
 

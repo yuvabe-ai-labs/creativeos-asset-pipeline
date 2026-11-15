@@ -116,20 +116,25 @@ I recommend option 1. It matches "ends once the first script is created", it lea
 
 So the thread store must accept messages from a background job as well as from a person's turn. The KB build already does this in part 1, which proves the path before piece 3 needs it.
 
-## 7. Open questions, by the piece they block
+## 7. The parent spec's questions, as answered on 2026-11-15
 
-None of these blocks piece 2 or 2b.
+| Piece | Answer |
+|---|---|
+| 3 | Any teammate may approve market research. |
+| 3 | The Direct, Adjacent, Signals and Performance tabs stay as they are. The market research copilot brings in the client's existing signals through a tool. Live web research is a separate tool the person asks for: a general web research agent first, a specialised third-party source later. |
+| 3, 4 | "What kind of stories" is not a step. It comes from the market signals already in the system. |
+| 5 | An image attached in the chat is saved to the client's brand assets *(Claude's reading of "yes", to be confirmed)*. |
+| 5 | No internal review is needed before client review. |
+
+Still open:
 
 | Piece | Question |
 |---|---|
-| 3 | Who may approve market research: any teammate, or a named role? (Parent spec, question 2) |
-| 3 | How do the copilot's themes relate to the Signals tab, and do Direct, Adjacent, Signals and Performance stay as they are? (Question 3) |
-| 3 or 4 | Is "what kind of stories" part of market research, part of scripting, or its own step? (Question 4) |
+| 4 | Which extra steps make scripts more consistent, interesting and detailed? Cyril will supply a detailed prompt later; until then Claude proposes a default from web research. |
 | 4 | Is research found on the internet from inside a script kept for that script only, or also offered to market research through a change card? |
-| 4 | Which extra steps would make scripts more consistent, interesting and detailed? (Question 5) |
-| 5 | Is an image attached in a script's chat saved to brand assets for later scripts, or kept with that one script? (Question 1) |
-| 5 | Where does the planned internal approval sit in a script's steps? (Question 7) |
-| 6 | What does the copilot do on the canvas beyond references and prompts, and do the "next node" buttons stay? (Question 6) |
+| 6 | What the copilot does on the canvas. A placeholder for now: the new panel carries over what the retired canvas copilot can do, with the canvas's existing actions *(Claude's reading, to be confirmed)*. |
+
+What these answers add to the picture: the two research tools are the same in market research and in scripts. One reads what the client already has; the other goes to the web only when the person asks. They are built once, in piece 3, and piece 4 reuses them.
 
 ## 8. What this changes in the piece 2 part 1 plan
 
