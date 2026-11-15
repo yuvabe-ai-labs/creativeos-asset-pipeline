@@ -130,7 +130,7 @@ Still open:
 
 | Piece | Question |
 |---|---|
-| 4 | Which extra steps make scripts more consistent, interesting and detailed? Cyril will supply a detailed prompt later; until then Claude proposes a default from web research. |
+| 4 | Which extra steps make scripts more consistent, interesting and detailed? Cyril will supply a detailed prompt later. Until then the default is four additions: a confirmed one-sentence message, three hook options, an approved outline before the draft, and an automatic check after it (parent spec section 8, item 5). |
 | 4 | Is research found on the internet from inside a script kept for that script only, or also offered to market research through a change card? |
 | 6 | What the copilot does on the canvas. A placeholder for now: the new panel carries over what the retired canvas copilot can do, with the canvas's existing actions *(Claude's reading, to be confirmed)*. |
 
