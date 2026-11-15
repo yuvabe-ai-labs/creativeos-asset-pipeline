@@ -143,14 +143,14 @@ The order is a proposal. The first plan would cover piece 1 only.
 
 ## 8. Open questions
 
-Cyril answered these on 2026-11-15. Each line now says what was decided, or what is still open. Lines marked *(reading)* record how Claude read a short answer and are to be confirmed.
+Cyril answered these on 2026-11-15. Each line now says what was decided, or what is still open.
 
-1. **Decided** *(reading of "yes")*: an image attached in the chat is saved to the client's brand assets, so later scripts can use it.
+1. **Decided:** an image attached in the chat is saved to the client's brand assets, so later scripts can use it.
 2. **Decided:** any teammate may approve market research, as for the brand KB.
 3. **Decided:** the Direct, Adjacent, Signals and Performance tabs stay as they are. The market research copilot brings in the client's existing market signals through a tool. The person can also ask it to run live web research, as a separate tool: a general web research agent at first, a specialised third-party source later.
 4. **Dropped:** "what kind of stories" is not a step. It comes from the market signals already in the system.
 5. **Open, with a default for now:** Cyril will supply a detailed prompt later. Default chosen by Claude on 2026-11-15, from web research, until that prompt arrives: (a) after the angle is picked, the copilot states the one-sentence message and the person confirms it; (b) before the draft, it offers three differently angled opening hooks and the person picks one; (c) before the draft, it shows a short outline (hook, message, proof, call to action, length and platform) for approval; (d) after the draft, it checks by itself the spoken length against the target, whether the first three seconds state the point, and the compliance words. The call to action and the proof point are lines in the outline, not separate questions. Support is strongest for the message, the hook and the call to action (platform guidance from Google, TikTok and Meta); offering three hooks and approving an outline as its own step are common practice, not something a source prescribes. Piece 4 checks this against what the script copilot already does before anything is added.
-6. **Open, a placeholder for now** *(reading)*: the new panel carries over what the retired canvas copilot can do, together with the canvas's existing actions, including the "next node" buttons. Nothing new is designed for the canvas yet.
+6. **Open, a placeholder for now:** the new panel carries over what the retired canvas copilot can do, together with the canvas's existing actions, including the "next node" buttons. Nothing new is designed for the canvas yet.
 7. **Decided:** no internal review is needed. A script's steps stay Write, Visualise, Client review, Canvas.
 
 ### Decided on 2026-11-12 (Cyril)

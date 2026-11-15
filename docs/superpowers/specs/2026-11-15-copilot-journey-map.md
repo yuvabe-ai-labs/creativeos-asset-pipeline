@@ -123,7 +123,7 @@ So the thread store must accept messages from a background job as well as from a
 | 3 | Any teammate may approve market research. |
 | 3 | The Direct, Adjacent, Signals and Performance tabs stay as they are. The market research copilot brings in the client's existing signals through a tool. Live web research is a separate tool the person asks for: a general web research agent first, a specialised third-party source later. |
 | 3, 4 | "What kind of stories" is not a step. It comes from the market signals already in the system. |
-| 5 | An image attached in the chat is saved to the client's brand assets *(Claude's reading of "yes", to be confirmed)*. |
+| 5 | An image attached in the chat is saved to the client's brand assets. |
 | 5 | No internal review is needed before client review. |
 
 Still open:
@@ -132,7 +132,7 @@ Still open:
 |---|---|
 | 4 | Which extra steps make scripts more consistent, interesting and detailed? Cyril will supply a detailed prompt later. Until then the default is four additions: a confirmed one-sentence message, three hook options, an approved outline before the draft, and an automatic check after it (parent spec section 8, item 5). |
 | 4 | Is research found on the internet from inside a script kept for that script only, or also offered to market research through a change card? |
-| 6 | What the copilot does on the canvas. A placeholder for now: the new panel carries over what the retired canvas copilot can do, with the canvas's existing actions *(Claude's reading, to be confirmed)*. |
+| 6 | What the copilot does on the canvas. A placeholder for now: the new panel carries over what the retired canvas copilot can do, with the canvas's existing actions. |
 
 What these answers add to the picture: the two research tools are the same in market research and in scripts. One reads what the client already has; the other goes to the web only when the person asks. They are built once, in piece 3, and piece 4 reuses them.
 
