@@ -33,6 +33,7 @@ export type ThreadMessage = {
 
 /** Which saved thread of a client. Only the onboarding thread lives in this store (D496). */
 export type CopilotThread = "onboarding";
+export const ONBOARDING: CopilotThread = "onboarding";
 
 /** What the panel shows: the saved messages, what is running right now, and the reply choices. */
 export type ThreadState = { messages: ThreadMessage[]; live: StatusLine[]; suggestions: string[] };

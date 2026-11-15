@@ -16,3 +16,5 @@ export const KB_REPLY_CHOICE_MAX_CHARS = 80;
 
 /** What a failed turn says, stored in the thread so the person's message is not left unanswered. */
 export const KB_TURN_FAILED_REPLY = "Something went wrong on my side. Nothing was changed. Try again.";
+/** What a failed turn says when a tool had already saved something before the failure. */
+export const KB_TURN_FAILED_AFTER_SAVE_REPLY = "Something went wrong on my side after I saved what you gave me. Check the page on the right, then try again.";
