@@ -538,3 +538,58 @@ The panel body, top to bottom:
 6. The build lands: the done lines and "ready for your review" appear without a reload.
 7. Fold the panel with a half-typed message, unfold: the text is still there.
 8. An existing approved client: the opening says the KB is approved.
+
+---
+
+## Outcome (2026-11-16): built, reviewed once, fixed
+
+All ten tasks are built on `feat/copilot-journey`. One independent review of the whole part found no critical issue and eleven important ones; one fix pass followed. Whole suite after the fixes: 5,511 passed, 2 failed (the two that were failing before this work, in `src/app/api/nodes/[id]/{composite,image}-generate/route.test.ts`), 3 skipped. Nothing here has been run in a browser, and the OpenAI adapter has never made a live call.
+
+### Where the build departed from this plan
+
+- `startKBBuild` takes the client id, not the row: a website saved earlier in the same turn must count, so it re-reads.
+- The website and handles are saved through the existing `setImportTarget` (what Brand assets uses), not a newly extracted `normalizeUrl`.
+- `save_website` is refused while a build runs, as well as once the KB is built.
+- The build error classes live in `src/lib/kb/build-errors.ts`, shared by the pure turn logic and the server start.
+- The OpenAI adapter carries the model's own output items between rounds instead of rebuilding tool calls from `rounds`: a reasoning model rejects a tool call replayed without its reasoning item.
+- `hasVersion` comes from the client row. No version query.
+- `checkSourceFile`'s `usedBytes` is optional. The chat leaves the per-kind totals to the sign route, which already enforces them.
+- The empty-thread and reply-choice rules are tested on `loadThread`, not through the one-line GET route.
+
+### What the review changed
+
+- **The panel follows the form.** The form tells the copilot to re-read when it uploads, removes, starts a build, or the build moves on; the thread also re-reads every 20 seconds when idle, so a teammate's message arrives.
+- **The form follows the chat without remounting** (`useServerState`). The `key` on the upload step is gone: a chat save no longer wipes other fields or repeats an old failure toast.
+- **The polled read is lean and never writes.** Six small reads; no stale-job updates, no counts, no refresh planning. A job that stopped reporting 45 minutes ago is not shown as running.
+- **The first turn's model call sees the opening** the person is answering.
+- **An attachment is stored from the server's own row**: its name and address are never taken from the browser.
+- **Removing an attachment chip removes the source**; a failed removal says the file is still saved.
+- **A message that could not be sent is put back** in the box, with its attachments, and the thread is re-read.
+- **A failed collection or image study says so** and says where to try again, until the KB is approved.
+- **Every line the build writes is true**: no "start the build" offer the copilot would refuse; no "nothing was changed" when the webhook failed part-way; the document count leaves out skipped files; the collection sentence no longer claims it is still running.
+- **An empty model reply repeats what the tool said**, never a bare "Done." after a refusal.
+- **The collection starts only after the build has started, and only from sources never collected before** (spec section 6).
+- **The adapter** resets when a new turn starts, forces the final answer with `tool_choice: "none"`, and gives each call 20 seconds with no SDK retries so five calls fit in the request.
+- **A paste is attached only when it is a file and nothing else**, so text copied from a document or spreadsheet pastes as text.
+
+### Left for later, on purpose
+
+- Steps do not turn into separate done lines as the build runs; the build shows one line that changes, then a card of done lines when it lands. Per-step done lines for the collection and the image study are not shown.
+- Two turns sent at the same moment are not serialised: each gets its reply, but the replies can land out of order and neither model call sees the other's message.
+- The stored opening is computed at first send, so it can differ from the line shown if the person attached a file first.
+- The rail says "Your reply" whenever the copilot spoke last, including on an approved KB.
+- Enter sends during IME composition. The drop target is only the message box.
+- Tool errors reach the model verbatim and may be repeated to the person.
+- The caller is resolved twice per turn (`withClient`, then `resolveCallerContext`), as the script turn route does.
+- The form's stuck-job path writes nothing to the thread; two simultaneous "failed" deliveries could both write.
+- "Read N documents" on a rebuild can still count the earlier website research.
+- For later pieces: `thread/load.ts` reads the brand KB context, so the market page will pay for it unless split; a message carries no author; only the newest 200 messages are read; there is no card-update function yet.
+- No automated test covers the GET route, the components, the hooks or the adapter.
+
+### Browser check, added by the review
+
+9. With the panel open, press Extract on the form: the panel shows the build and then "built" without a reload.
+10. Attach a file in the chat, remove its chip, then build: the file is not a source.
+11. Send a message with the network off: the text and the chips come back.
+12. Copy a few cells from a spreadsheet and paste: text is pasted, nothing is uploaded.
+13. Type a website in the form without saving, then save a handle in the chat: the typed website is still there.

@@ -61,6 +61,13 @@ export async function uploadSource(clientId: string, file: File): Promise<Upload
   throw new Error(`Failed to upload ${file.name}`);
 }
 
+/** Takes a source back out of the brand KB: what removing it on the form does. */
+export async function deleteSource(clientId: string, source: { kind: SourceKind; id: string; name: string }): Promise<void> {
+  const query = source.kind === "document" ? `documents?docId=${source.id}` : `images?imageId=${source.id}`;
+  const res = await fetch(`/api/clients/${clientId}/kb/${query}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Failed to remove ${source.name}`);
+}
+
 /** The same upload, as what a chat message carries. */
 export async function uploadSourceFile(clientId: string, file: File): Promise<Attachment> {
   const { kind, row } = await uploadSource(clientId, file);

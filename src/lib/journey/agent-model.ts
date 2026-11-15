@@ -18,13 +18,24 @@ function parseArgs(raw: string): unknown {
   }
 }
 
-/** One adapter per turn: it carries the model's own output items (its reasoning and its tool
- *  calls) from round to round, which the API needs back alongside each tool result. */
+/** How long one model call may take. Five of them (four rounds and the forced answer) must fit
+ *  inside the request that hosts the loop. */
+const CALL_TIMEOUT_MS = 20_000;
+
+/** It carries the model's own output items (its reasoning and its tool calls) from round to round,
+ *  which the API needs back alongside each tool result. A call with no rounds starts a new turn,
+ *  so one adapter can be reused, for example to retry after a reply that did not fit. */
 export function openaiAgentModel(modelId: string): AgentModel {
   const carried: ResponseInputItem[] = [];
   let roundsSent = 0;
+  let lastTools: FunctionTool[] = [];
 
   return async ({ system, messages, tools, rounds, answer }) => {
+    if (rounds.length === 0) {
+      carried.length = 0;
+      roundsSent = 0;
+      lastTools = [];
+    }
     for (const round of rounds.slice(roundsSent)) {
       for (const result of round.results) {
         carried.push({ type: "function_call_output", call_id: result.id, output: result.output });
@@ -43,9 +54,12 @@ export function openaiAgentModel(modelId: string): AgentModel {
       model: modelId,
       instructions: system,
       input: [...messages.map((m) => ({ role: m.role, content: m.content })), ...carried],
-      tools: functionTools,
+      // The loop takes the tools away to force an answer. Earlier calls in the input still refer to
+      // them, so they stay declared and the model is told to call none.
+      ...(functionTools.length > 0 ? { tools: functionTools } : lastTools.length > 0 ? { tools: lastTools, tool_choice: "none" as const } : {}),
       ...(answer ? { text: { format: zodTextFormat(answer, "answer") } } : {}),
-    });
+    }, { timeout: CALL_TIMEOUT_MS, maxRetries: 0 });
+    if (functionTools.length > 0) lastTools = functionTools;
 
     // Keep everything the model produced, so the next call can refer back to it.
     carried.push(...(response.output as ResponseInputItem[]));

@@ -9,7 +9,7 @@ export function ThreadAttachmentChip({ name, url, state = "ready", error = null,
   name: string;
   /** An image's thumbnail; null for a document or while it uploads. */
   url: string | null;
-  state?: "uploading" | "ready" | "failed";
+  state?: "uploading" | "ready" | "failed" | "removing";
   error?: string | null;
   onRemove?: () => void;
 }) {
@@ -17,11 +17,11 @@ export function ThreadAttachmentChip({ name, url, state = "ready", error = null,
     <div
       className={cn(
         "flex max-w-full items-center gap-2 rounded-lg border border-border bg-card py-1 pl-1.5 pr-2 text-xs",
-        state === "failed" && "border-destructive/40",
+        (state === "failed" || error) && "border-destructive/40",
       )}
     >
-      {state === "uploading" ? (
-        <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" strokeWidth={1.5} aria-label="Uploading" />
+      {state === "uploading" || state === "removing" ? (
+        <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" strokeWidth={1.5} aria-label={state === "removing" ? "Removing" : "Uploading"} />
       ) : url ? (
         <img src={url} alt="" className="size-6 shrink-0 rounded object-cover" />
       ) : (

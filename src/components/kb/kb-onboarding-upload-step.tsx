@@ -31,6 +31,8 @@ import { startKBBuildJob } from "@/lib/actions/kb";
 import { useKBJobStatus } from "./use-kb-job-status";
 import { brandKitService } from "@/services/brand-kit.service";
 import { useAssetImports, useStartAssetImport } from "@/hooks/queries/asset-imports";
+import { useRefreshCopilotThread } from "@/hooks/queries/copilot-thread";
+import { useServerState } from "@/hooks/use-server-state";
 import { KBSocialHandleFields } from "./kb-social-handle-fields";
 import { AssetImportStatusList } from "./asset-import-status-list";
 
@@ -98,13 +100,17 @@ export function KBOnboardingUploadStep({
   const job = useKBJobStatus(clientId, initialJob);
   const isRunning = job !== null && NON_TERMINAL.has(job.status);
 
-  const [documents, setDocuments] = useState(initialDocuments);
-  const [images, setImages] = useState(initialImages);
+  // The copilot beside this form saves the same sources. When it does the page is re-read, and each
+  // of these takes the server's value again; whatever else is typed here is left alone.
+  const [documents, setDocuments] = useServerState(initialDocuments, initialDocuments.map((d) => d.id).join("|"));
+  const [images, setImages] = useServerState(initialImages, initialImages.map((i) => i.id).join("|"));
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadingImgs, setUploadingImgs] = useState(false);
-  const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? "");
-  const [instagram, setInstagram] = useState(initialInstagram ?? "");
-  const [facebook, setFacebook] = useState(initialFacebook ?? "");
+  const [websiteUrl, setWebsiteUrl] = useServerState(initialWebsiteUrl ?? "", initialWebsiteUrl ?? "");
+  const [instagram, setInstagram] = useServerState(initialInstagram ?? "", initialInstagram ?? "");
+  const [facebook, setFacebook] = useServerState(initialFacebook ?? "", initialFacebook ?? "");
+  // What is done here changes what the copilot beside it should say, so it re-reads its thread.
+  const refreshCopilot = useRefreshCopilotThread(clientId);
   const [starting, startStartTransition] = useTransition();
   const startImport = useStartAssetImport(clientId);
   const { data: importData } = useAssetImports(clientId);
@@ -118,6 +124,11 @@ export function KBOnboardingUploadStep({
       toast.error(job.error ?? "KB build failed");
     }
   }, [job?.status, job?.error, clientSlug, router]);
+
+  // The build moved on (started here or anywhere, a new phase, finished): the copilot shows it too.
+  useEffect(() => {
+    void refreshCopilot();
+  }, [job?.status, refreshCopilot]);
 
   const docTotalBytes = documents.reduce((s, d) => s + (d.size_bytes ?? 0), 0);
   const imgTotalBytes = images.reduce((s, i) => s + (i.size_bytes ?? 0), 0);
@@ -137,6 +148,7 @@ export function KBOnboardingUploadStep({
         if (uploaded.kind === "document") setDocuments((prev) => [...prev, uploaded.row]);
         else setImages((prev) => [...prev, uploaded.row]);
         used[kind] += file.size;
+        void refreshCopilot();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : `Failed to upload ${file.name}`);
       }
@@ -159,6 +171,7 @@ export function KBOnboardingUploadStep({
     );
     if (res.ok) {
       setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      void refreshCopilot();
     } else {
       toast.error("Failed to remove document");
     }
@@ -171,6 +184,7 @@ export function KBOnboardingUploadStep({
     );
     if (res.ok) {
       setImages((prev) => prev.filter((i) => i.id !== imageId));
+      void refreshCopilot();
     } else {
       toast.error("Failed to remove image");
     }
@@ -194,6 +208,7 @@ export function KBOnboardingUploadStep({
           onError: () => toast.error("Couldn't start bringing in the brand assets. You can try again from Brand assets."),
         });
         await startKBBuildJob(clientId);
+        void refreshCopilot();
         // Don't redirect here — the useEffect above will redirect when the
         // Realtime event fires with status 'succeeded'.
       } catch (e) {

@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { KB_DOC_PER_FILE_LIMIT_BYTES, KB_DOC_SIZE_LIMIT_BYTES, KB_IMG_SIZE_LIMIT_BYTES } from "../constants";
 import { formatBytes } from "../utils";
-import { checkSourceFile, sourceKindOf } from "../upload-source";
+import { checkSourceFile, deleteSource, sourceKindOf } from "../upload-source";
 
 const KB = 1024;
 const none = { document: 0, image: 0 };
@@ -49,5 +49,23 @@ describe("checkSourceFile", () => {
 
   it("leaves the totals to the server when it is not told what is already used", () => {
     expect(checkSourceFile({ name: "brand.pdf", size: 200 * KB })).toBeNull();
+  });
+});
+
+describe("deleteSource", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("removes a document and an image through the routes the form uses", async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    await deleteSource("c1", { kind: "document", id: "d1", name: "brand.pdf" });
+    await deleteSource("c1", { kind: "image", id: "i1", name: "hero.png" });
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/clients/c1/kb/documents?docId=d1", { method: "DELETE" });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/clients/c1/kb/images?imageId=i1", { method: "DELETE" });
+  });
+
+  it("fails loudly when the source could not be removed, so the chip can say it is still saved", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false })));
+    await expect(deleteSource("c1", { kind: "document", id: "d1", name: "brand.pdf" })).rejects.toThrow("Failed to remove brand.pdf");
   });
 });

@@ -23,6 +23,12 @@ export type KbContext = {
   /** Collections of images and video running right now. */
   importing: ImportSource[];
   studyingImages: boolean;
+  /** Sources whose latest collection failed. */
+  importFailed: ImportSource[];
+  /** The latest study of the images failed. */
+  studyFailed: boolean;
+  /** Sources that have been collected from at least once, however it ended. */
+  importedBefore: ImportSource[];
 };
 
 const NON_TERMINAL: readonly string[] = KB_JOB_NON_TERMINAL_STATUSES;
@@ -80,12 +86,24 @@ export function fallbackSuggestions(ctx: KbContext): string[] {
 
 const IMPORT_LABEL: Record<ImportSource, string> = { website: "the website", instagram: "Instagram", facebook: "Facebook" };
 
-/** What is running right now, read from the real jobs. Empty when nothing is. */
+/** What is running right now, then what failed, read from the real jobs. Empty when neither. A
+ *  failed step says so and says what the person can do (spec §2.2); it never just disappears.
+ *  Failures stop being repeated once the KB is approved: by then they are old news. */
 export function liveStatus(ctx: KbContext): StatusLine[] {
   const running = (text: string): StatusLine => ({ text, state: "running" });
+  const failed = (text: string): StatusLine => ({ text, state: "failed" });
+  const showFailures = ctx.kbStatus !== "ready";
   return [
     ...(isBuilding(ctx) ? [running(ctx.job?.phaseMessage ?? "Starting the build…")] : []),
     ...ctx.importing.map((source) => running(`Collecting images and video from ${IMPORT_LABEL[source]}…`)),
     ...(ctx.studyingImages ? [running("Studying the images…")] : []),
+    ...(showFailures
+      ? ctx.importFailed
+          .filter((source) => !ctx.importing.includes(source))
+          .map((source) => failed(`Could not collect images and video from ${IMPORT_LABEL[source]}. You can try again from Brand assets.`))
+      : []),
+    ...(showFailures && ctx.studyFailed && !ctx.studyingImages
+      ? [failed("Could not study the images. You can run it again from the Image Analysis tab.")]
+      : []),
   ];
 }

@@ -35,5 +35,8 @@ export type ThreadMessage = {
 export type CopilotThread = "onboarding";
 export const ONBOARDING: CopilotThread = "onboarding";
 
+/** The id of a thread's opening line while it is only shown, not yet stored. */
+export const VIRTUAL_OPENING_ID = "opening";
+
 /** What the panel shows: the saved messages, what is running right now, and the reply choices. */
 export type ThreadState = { messages: ThreadMessage[]; live: StatusLine[]; suggestions: string[] };

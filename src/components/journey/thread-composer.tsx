@@ -5,12 +5,13 @@ import { ArrowUp, Paperclip } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
 import type { ThreadAttachments } from "@/hooks/use-thread-attachments";
-import type { Attachment } from "@/lib/journey/thread/schema";
 import { cn } from "@/lib/utils";
 import { ThreadAttachmentChip } from "./thread-attachment-chip";
 
 /** The message box of a copilot thread, the same in every stage. Files are picked, dropped on the
- *  box or pasted, and upload at once. What it accepts and where a file goes is the stage's. */
+ *  box or pasted, and upload at once. What it accepts and where a file goes is the stage's. The
+ *  text and the attachments are held by the stage's panel, which clears them once a message is
+ *  really sent and puts them back if it was not. */
 export function ThreadComposer({ busy, placeholder, accept, maxChars, text, onTextChange, attachments, onSend }: {
   busy: boolean;
   placeholder: string;
@@ -20,18 +21,15 @@ export function ThreadComposer({ busy, placeholder, accept, maxChars, text, onTe
   text: string;
   onTextChange: (text: string) => void;
   attachments: ThreadAttachments;
-  onSend: (text: string, attachments: Attachment[]) => void;
+  onSend: () => void;
 }) {
   const picker = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const tooLong = text.length > maxChars;
-  const canSend = !busy && !attachments.uploading && !tooLong && (text.trim().length > 0 || attachments.ready.length > 0);
+  const canSend = !busy && !attachments.busy && !tooLong && (text.trim().length > 0 || attachments.ready.length > 0);
 
   const send = () => {
-    if (!canSend) return;
-    onSend(text.trim(), attachments.ready);
-    onTextChange("");
-    attachments.clear();
+    if (canSend) onSend();
   };
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -41,8 +39,9 @@ export function ThreadComposer({ busy, placeholder, accept, maxChars, text, onTe
   };
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(e.clipboardData.files);
-    if (files.length === 0) return;
-    // A pasted image is attached; pasted text goes into the box as usual.
+    // Only a paste that is a file and nothing else is attached. Copying from a document or a
+    // spreadsheet carries a picture of the text as well as the text: that is a paste of text.
+    if (files.length === 0 || e.clipboardData.getData("text/plain")) return;
     e.preventDefault();
     attachments.add(files);
   };
@@ -63,7 +62,7 @@ export function ThreadComposer({ busy, placeholder, accept, maxChars, text, onTe
               url={item.attachment?.url ?? null}
               state={item.state}
               error={item.error}
-              onRemove={() => attachments.remove(item.key)}
+              onRemove={item.state === "uploading" || item.state === "removing" ? undefined : () => attachments.remove(item)}
             />
           ))}
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ThreadState } from "@/lib/journey/thread/schema";
@@ -15,10 +16,14 @@ export const copilotThreadKeys = {
 
 /** How often the panel re-reads the thread while a build, a collection or a study is running. */
 export const THREAD_LIVE_POLL_MS = 3000;
+/** How often it re-reads otherwise. The thread is shared: a teammate's message, or something done
+ *  on the page beside the panel, has to arrive without a reload. */
+export const THREAD_IDLE_POLL_MS = 20_000;
 
-/** Poll only while something is running; stop the moment nothing is. */
+/** Fast while something is running, slow otherwise. A failure that is only being shown is not running. */
 export function liveRefetchInterval(state: ThreadState | undefined): number | false {
-  return state && state.live.length > 0 ? THREAD_LIVE_POLL_MS : false;
+  if (!state) return false;
+  return state.live.some((line) => line.state === "running") ? THREAD_LIVE_POLL_MS : THREAD_IDLE_POLL_MS;
 }
 
 /** The thread with the person's message already in it, shown while the turn is in flight. */
@@ -42,6 +47,16 @@ export function useCopilotThread(clientId: string) {
   });
 }
 
+/** Re-read the thread now. Called by the page beside the panel when it changes something the
+ *  copilot talks about (a file added or removed, a build started), so both sides agree at once. */
+export function useRefreshCopilotThread(clientId: string) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: copilotThreadKeys.thread(clientId) }),
+    [queryClient, clientId],
+  );
+}
+
 /** One message to the brand KB copilot. Shown at once; rolled back if the request fails. When the
  *  turn saved or started something, the page on the right is re-read so both sides agree. */
 export function useSendKbTurn(clientId: string) {
@@ -59,6 +74,8 @@ export function useSendKbTurn(clientId: string) {
     },
     onError: (_error, _body, context) => {
       if (context?.previous) queryClient.setQueryData(key, context.previous);
+      // The server may have stored the message before it failed: read what it really holds.
+      void queryClient.invalidateQueries({ queryKey: key });
     },
     onSuccess: ({ state, changed }) => {
       queryClient.setQueryData(key, state);

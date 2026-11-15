@@ -91,7 +91,10 @@ export async function POST(req: Request) {
     if (body.kind === "failed") {
       await markKBJobFailed({ jobId: body.jobId, error: body.error });
       // Said once: a repeated delivery finds the job already finished.
-      if (NON_TERMINAL.includes(jobForCheck.status)) await tellThread(jobForCheck.client_id, buildFailedMessage(body.error));
+      if (NON_TERMINAL.includes(jobForCheck.status)) {
+        // A failed build writes nothing. The copilot only accepts "start the build" while no KB exists.
+        await tellThread(jobForCheck.client_id, buildFailedMessage(body.error, { canRetry: !clientForCheck.active_kb_version_id, unchanged: true }));
+      }
       return apiOk({ ok: true });
     }
 
@@ -147,7 +150,8 @@ export async function POST(req: Request) {
     // 5. Say so in the copilot thread. The panel picks it up on its next check.
     await tellThread(job.client_id, buildSucceededMessage({
       hadWebsite: job.website_url !== null,
-      documentCount: (job.doc_ids_used ?? []).length,
+      // The ones it read: what it skipped is named in the message instead.
+      documentCount: Math.max(0, (job.doc_ids_used ?? []).length - (body.skippedDocs ?? []).length),
       skipped: body.skippedDocs ?? [],
     }));
 
@@ -156,7 +160,8 @@ export async function POST(req: Request) {
     const error = e instanceof Error ? e.message : "Webhook failed.";
     // Best-effort: mark the job failed so the UI escapes the running state.
     try { await markKBJobFailed({ jobId: body.jobId, error }); } catch {}
-    if (NON_TERMINAL.includes(jobForCheck.status)) await tellThread(jobForCheck.client_id, buildFailedMessage(error));
+    // This failed part-way through the writes above, so it cannot say that nothing changed.
+    if (NON_TERMINAL.includes(jobForCheck.status)) await tellThread(jobForCheck.client_id, buildFailedMessage(error, { canRetry: false, unchanged: false }));
     return apiError(error, 500);
   }
 }

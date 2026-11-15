@@ -26,7 +26,8 @@ export class AgentAnswerError extends Error {}
 /** How many times the model may ask for tools in one turn before it has to answer. */
 export const MAX_AGENT_ROUNDS = 4;
 
-const EMPTY_REPLY = "Done.";
+/** What a turn says when the model ends it with no words of its own. */
+export const EMPTY_AGENT_REPLY = "Done.";
 
 async function runCall(call: ToolCall, tools: Record<string, AgentTool>): Promise<{ output: string; ok: boolean }> {
   const tool = Object.hasOwn(tools, call.name) ? tools[call.name] : undefined;
@@ -66,7 +67,7 @@ export async function runAgent<T = never>(input: {
     reply = await model({ system, messages, tools, rounds, answer });
   }
 
-  const text = reply.text.trim() || EMPTY_REPLY;
+  const text = reply.text.trim() || EMPTY_AGENT_REPLY;
   if (!answer) return { text, ran };
   const parsed = answer.safeParse(reply.answer);
   if (!parsed.success) throw new AgentAnswerError(parsed.error.message);

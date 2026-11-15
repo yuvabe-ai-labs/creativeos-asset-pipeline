@@ -79,6 +79,31 @@ describe("POST /api/webhooks/kb-build, the copilot thread", () => {
     expect(messages[0].suggestions).toEqual(["Start the build"]);
   });
 
+  it("does not offer to start a build the copilot would refuse, on a client that already has a KB", async () => {
+    vi.mocked(getClientById).mockResolvedValue({ id: "c1", org_id: "org-1", active_kb_version_id: "v0" } as never);
+    const { POST } = await import("./route");
+    await POST(post({ jobId: "j1", kind: "failed", error: "The website could not be reached." }));
+    const messages = vi.mocked(insertCopilotMessages).mock.calls[0][3];
+    expect(messages[0].suggestions).toEqual([]);
+    expect(messages[0].content).toContain("The brand KB you already have is unchanged.");
+  });
+
+  it("does not claim nothing changed when the webhook itself fails part-way", async () => {
+    vi.mocked(insertKBVersion).mockRejectedValue(new Error("db down"));
+    const { POST } = await import("./route");
+    const res = await POST(post(succeeded));
+    expect(res.status).toBe(500);
+    const messages = vi.mocked(insertCopilotMessages).mock.calls[0][3];
+    expect(messages[0].content).not.toContain("Nothing was changed");
+  });
+
+  it("counts only the documents it could read", async () => {
+    const { POST } = await import("./route");
+    await POST(post({ ...succeeded, skippedDocs: [{ filename: "b.docx", reason: "unsupported" }] }));
+    const messages = vi.mocked(insertCopilotMessages).mock.calls[0][3];
+    expect((messages[0].card as { lines: { text: string }[] }).lines.map((l) => l.text)).toContain("Read 1 document");
+  });
+
   it("does not repeat the failure for a job that had already finished", async () => {
     vi.mocked(getKBJob).mockResolvedValue(job({ status: "failed" }));
     const { POST } = await import("./route");

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { runAgent, type AgentMessage, type AgentModel, type AgentTool } from "@/lib/journey/agent";
+import { EMPTY_AGENT_REPLY, runAgent, type AgentMessage, type AgentModel, type AgentTool } from "@/lib/journey/agent";
 import type { Attachment, ThreadMessage } from "@/lib/journey/thread/schema";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
 import { kbCopilotSystem } from "@/prompts/kb-copilot";
@@ -40,6 +40,12 @@ export async function runKbTurn(input: {
   let ctx = input.ctx;
   let changed = false;
   let choices: string[] | null = null;
+  // What each tool told the model, in plain sentences, in case the model adds no words of its own.
+  const said: string[] = [];
+  const tell = (sentence: string) => {
+    said.push(sentence);
+    return sentence;
+  };
 
   const tools: Record<string, AgentTool> = {
     save_website: {
@@ -47,12 +53,12 @@ export async function runKbTurn(input: {
       schema: z.object({ url: z.string().min(1).max(500) }),
       run: async (args) => {
         const { url } = args as { url: string };
-        if (ctx.hasVersion) return WEBSITE_LOCKED;
-        if (isBuilding(ctx)) return WEBSITE_LOCKED_BUILDING;
+        if (ctx.hasVersion) return tell(WEBSITE_LOCKED);
+        if (isBuilding(ctx)) return tell(WEBSITE_LOCKED_BUILDING);
         await actions.saveWebsite(url);
         ctx = { ...ctx, websiteUrl: url };
         changed = true;
-        return "Saved the website.";
+        return tell("Saved the website.");
       },
     },
     save_socials: {
@@ -64,25 +70,25 @@ export async function runKbTurn(input: {
         await actions.saveSocials(handles);
         ctx = { ...ctx, instagram: handles.instagram ?? ctx.instagram, facebook: handles.facebook ?? ctx.facebook };
         changed = true;
-        return "Saved the handles.";
+        return tell("Saved the handles.");
       },
     },
     start_build: {
       description: "Start building the brand KB from the saved sources. Only after the person has said to start.",
       schema: z.object({}),
       run: async () => {
-        if (isBuilding(ctx)) return ALREADY_RUNNING;
-        if (ctx.hasVersion) return ALREADY_BUILT;
-        if (!canStartBuild(ctx)) return NOTHING_TO_BUILD_FROM;
+        if (isBuilding(ctx)) return tell(ALREADY_RUNNING);
+        if (ctx.hasVersion) return tell(ALREADY_BUILT);
+        if (!canStartBuild(ctx)) return tell(NOTHING_TO_BUILD_FROM);
         try {
           await actions.startBuild();
         } catch (error) {
-          if (error instanceof BuildAlreadyRunningError) return ALREADY_RUNNING;
+          if (error instanceof BuildAlreadyRunningError) return tell(ALREADY_RUNNING);
           throw error;
         }
         ctx = { ...ctx, job: { status: "queued", phaseMessage: null } };
         changed = true;
-        return "Started the build.";
+        return tell("Started the build.");
       },
     },
     reply_choices: {
@@ -101,5 +107,8 @@ export async function runKbTurn(input: {
   ];
 
   const { text } = await runAgent({ model, system: kbCopilotSystem(input.ctx), messages, tools });
-  return { reply: text, suggestions: choices ?? fallbackSuggestions(ctx), changed };
+  // The model sometimes ends a turn without words. Say what the tools said, never a bare "Done."
+  // that could follow a refusal.
+  const reply = text === EMPTY_AGENT_REPLY && said.length > 0 ? said.join(" ") : text;
+  return { reply, suggestions: choices ?? fallbackSuggestions(ctx), changed };
 }

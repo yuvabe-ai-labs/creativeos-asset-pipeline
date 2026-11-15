@@ -19,7 +19,7 @@ function scripted(responses: ModelOutput[]) {
 
 const empty: KbContext = {
   clientName: "Acme", kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
-  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false,
+  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const actions = (over: Partial<KbActions> = {}): KbActions => ({
   saveWebsite: vi.fn(async () => {}), saveSocials: vi.fn(async () => {}), startBuild: vi.fn(async () => {}), ...over,
@@ -95,6 +95,12 @@ describe("runKbTurn", () => {
     expect(outputs(seen)).toEqual(["A build is already running."]);
     expect(result.reply).toBe("One is running.");
     expect(result.changed).toBe(false);
+  });
+
+  it("says what the tool said when the model adds no words of its own", async () => {
+    const { model } = scripted([{ text: "", calls: [call("start_build", {})] }, say("")]);
+    const result = await turn({ ctx: { ...empty, websiteUrl: "https://acme.com", job: { status: "researching", phaseMessage: null } }, model });
+    expect(result.reply).toBe("A build is already running.");
   });
 
   it("does not change the website once the KB is built", async () => {

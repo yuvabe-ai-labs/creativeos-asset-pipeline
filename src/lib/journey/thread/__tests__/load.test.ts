@@ -13,10 +13,10 @@ import { loadThread } from "../load";
 const client = { id: "c1", slug: "acme", name: "Acme" } as never;
 const empty: KbContext = {
   clientName: "Acme", kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
-  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false,
+  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const withCtx = (ctx: KbContext) =>
-  vi.mocked(loadKbContext).mockResolvedValue({ ctx, documentIds: new Set(), imageIds: new Set() });
+  vi.mocked(loadKbContext).mockResolvedValue({ ctx, sources: new Map() });
 const message = (over: Partial<ThreadMessage>): ThreadMessage =>
   ({ id: "m1", role: "assistant", content: "Hi", card: null, attachments: [], suggestions: [], createdAt: "", ...over });
 
@@ -58,6 +58,13 @@ describe("loadThread", () => {
     const state = await loadThread(client);
     expect(state.live).toEqual([{ text: "Reading the website…", state: "running" }]);
     expect(state.suggestions).toEqual([]);
+  });
+
+  it("still offers the reply choices when the only status is a failure", async () => {
+    withCtx({ ...empty, documentCount: 1, importFailed: ["instagram"] });
+    const state = await loadThread(client);
+    expect(state.live).toHaveLength(1);
+    expect(state.suggestions).toEqual(["Start the build"]);
   });
 
   it("fails when the thread cannot be read, instead of showing an empty one", async () => {
