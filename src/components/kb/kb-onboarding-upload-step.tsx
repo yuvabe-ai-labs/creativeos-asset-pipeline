@@ -24,11 +24,9 @@ import {
   KB_DOC_SIZE_LIMIT_BYTES,
   KB_IMG_SIZE_LIMIT_BYTES,
   KB_JOB_NON_TERMINAL,
-  DOC_EXTENSIONS,
-  IMG_EXTENSIONS,
 } from "@/lib/kb/constants";
 import { formatBytes } from "@/lib/kb/utils";
-import { uploadViaSignedUrl } from "@/lib/uploads/client";
+import { checkSourceFile, sourceKindOf, uploadSource, type SourceKind } from "@/lib/kb/upload-source";
 import { startKBBuildJob } from "@/lib/actions/kb";
 import { useKBJobStatus } from "./use-kb-job-status";
 import { brandKitService } from "@/services/brand-kit.service";
@@ -124,68 +122,34 @@ export function KBOnboardingUploadStep({
   const docTotalBytes = documents.reduce((s, d) => s + (d.size_bytes ?? 0), 0);
   const imgTotalBytes = images.reduce((s, i) => s + (i.size_bytes ?? 0), 0);
 
-  async function uploadFiles(
-    files: File[],
-    endpoint: string,
-    allowedExts: Set<string>,
-    limitBytes: number,
-    currentBytes: number,
-    onAdded: (item: ClientKBDocumentRow | ClientBrandImageRow) => void,
-    setUploading: (v: boolean) => void,
-  ) {
+  // The same check and upload the copilot chat uses (src/lib/kb/upload-source.ts).
+  async function uploadFiles(files: File[], kind: SourceKind, setUploading: (v: boolean) => void) {
     setUploading(true);
+    const used = { document: docTotalBytes, image: imgTotalBytes };
     for (const file of files) {
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-      if (!allowedExts.has(ext)) {
-        toast.error(`Unsupported type: .${ext}`);
-        continue;
-      }
-      if (currentBytes + file.size > limitBytes) {
-        toast.error(`Adding this file would exceed the ${formatBytes(limitBytes)} limit`);
+      const reason = sourceKindOf(file.name) === kind ? checkSourceFile(file, used) : (checkSourceFile(file) ?? `${file.name} is not ${kind === "image" ? "an image" : "a document"}.`);
+      if (reason) {
+        toast.error(reason);
         continue;
       }
       try {
-        const json = await uploadViaSignedUrl<{
-          document?: ClientKBDocumentRow;
-          image?: ClientBrandImageRow;
-        }>(file, {
-          signEndpoint: `${endpoint}/sign`,
-          finalizeEndpoint: `${endpoint}/finalize`,
-        });
-        const item = json.document ?? json.image;
-        if (item) {
-          onAdded(item);
-          currentBytes += file.size;
-        }
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : `Failed to upload ${file.name}`);
+        const uploaded = await uploadSource(clientId, file);
+        if (uploaded.kind === "document") setDocuments((prev) => [...prev, uploaded.row]);
+        else setImages((prev) => [...prev, uploaded.row]);
+        used[kind] += file.size;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : `Failed to upload ${file.name}`);
       }
     }
     setUploading(false);
   }
 
   function handleDocFiles(files: File[]) {
-    uploadFiles(
-      files,
-      `/api/clients/${clientId}/kb/documents`,
-      DOC_EXTENSIONS,
-      DOC_LIMIT_BYTES,
-      docTotalBytes,
-      (item) => setDocuments((prev) => [...prev, item as ClientKBDocumentRow]),
-      setUploadingDocs,
-    );
+    uploadFiles(files, "document", setUploadingDocs);
   }
 
   function handleImgFiles(files: File[]) {
-    uploadFiles(
-      files,
-      `/api/clients/${clientId}/kb/images`,
-      IMG_EXTENSIONS,
-      IMG_LIMIT_BYTES,
-      imgTotalBytes,
-      (item) => setImages((prev) => [...prev, item as ClientBrandImageRow]),
-      setUploadingImgs,
-    );
+    uploadFiles(files, "image", setUploadingImgs);
   }
 
   async function removeDoc(docId: string) {

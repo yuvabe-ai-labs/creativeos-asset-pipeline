@@ -94,7 +94,16 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     expect(inserts[0]).toEqual(["c1", "onboarding", "u1", [{ role: "user", content: "Here you go", attachments: [doc] }]]);
     expect(inserts[1]).toEqual(["c1", "onboarding", "u1", [{ role: "assistant", content: "Got it.", suggestions: ["Start the build"] }]]);
     expect(order(insertOpeningIfEmpty)).toBeLessThan(order(insertCopilotMessages));
+    // The attached file is a new source, so the page on the right is re-read.
+    expect(await res.json()).toEqual({ state: STATE, changed: true });
+    expect(revalidatePath).toHaveBeenCalledWith("/clients/acme/kb");
+  });
+
+  it("reports no change for words alone when no tool ran", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ text: "hello", attachments: [] }), { params });
     expect(await res.json()).toEqual({ state: STATE, changed: false });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("does not store an opening on a thread that already has messages", async () => {

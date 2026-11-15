@@ -90,8 +90,10 @@ export async function POST(req: Request, { params }: Ctx) {
       }
       await insertCopilotMessages(clientId, ONBOARDING, userId, [{ role: "assistant", ...reply }]);
 
-      if (changed) revalidatePath(`/clients/${client.slug}/kb`);
-      return apiOk({ state: await loadThread(client), changed });
+      // An attached file is a new source, so the page on the right has changed even when no tool ran.
+      const refresh = changed || attachments.length > 0;
+      if (refresh) revalidatePath(`/clients/${client.slug}/kb`);
+      return apiOk({ state: await loadThread(client), changed: refresh });
     }),
   );
 }
