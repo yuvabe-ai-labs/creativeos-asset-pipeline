@@ -28,7 +28,7 @@ export function JourneyPanelShell({ slug, waiting, busy = false, children }: {
     <section
       aria-label="Copilot"
       className={cn(
-        "hidden shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card lg:sticky lg:top-20 lg:flex lg:h-[calc(100vh-13rem)]",
+        "hidden shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card lg:sticky lg:top-20 lg:flex lg:h-[calc(100vh-6.5rem)]",
         "transition-[width] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
         collapsed ? "lg:w-12" : "lg:w-[29rem]",
       )}

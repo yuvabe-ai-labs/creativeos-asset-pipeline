@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Check, ChevronRight, CircleDot, Lock } from "lucide-react";
-import { frameFor, JOURNEY_TABS } from "@/lib/journey/frame";
+import { frameFor, JOURNEY_TABS, type Frame } from "@/lib/journey/frame";
 import type { JourneyState, StageState } from "@/lib/journey/stages";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,16 @@ const STATE_WORD: Record<StageState, string> = {
   open: "open",
   locked: "locked",
 };
+
+/** The width of the page under the bar, so the client's name and tabs start at the same left edge
+ *  as the page's own content, wherever that page centres itself. Each matches its page's <main>. */
+function pageWidth(frame: Frame): string {
+  if (frame.tab === null) return "max-w-4xl"; // the client's home
+  if (frame.tab === "kb") return "max-w-5xl";
+  // Inside a script: that page's widest layout. A stage's own page (it has the copilot) and the rest: 6xl.
+  if (frame.tab === "scripts" && frame.panel === null) return "max-w-[96rem]";
+  return "max-w-6xl";
+}
 
 function StageIcon({ state }: { state: StageState }) {
   if (state === "approved") return <Check className="size-4 text-success-text" strokeWidth={1.5} aria-hidden />;
@@ -27,9 +37,11 @@ function StageIcon({ state }: { state: StageState }) {
  *
  *  Two rows of 2.75rem: client-frame.tsx holds that height (h-22) while this streams in. */
 export function StageTabs({ slug, name, state }: { slug: string; name: string; state: JourneyState }) {
-  const active = frameFor(usePathname(), slug).tab;
+  const frame = frameFor(usePathname(), slug);
+  const active = frame.tab;
   return (
-    <nav aria-label="Client sections" className="shrink-0 border-b border-border bg-background px-6">
+    <nav aria-label="Client sections" className="shrink-0 border-b border-border bg-background">
+      <div className={cn("mx-auto w-full px-6", pageWidth(frame))}>
       {/* The way back to every client, then the client: the name leads, the tabs belong to it. */}
       <div className="flex h-11 items-end gap-1.5 pb-1.5">
         <Link href="/" className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground">
@@ -63,6 +75,7 @@ export function StageTabs({ slug, name, state }: { slug: string; name: string; s
           );
         })}
       </ul>
+      </div>
     </nav>
   );
 }

@@ -21,18 +21,19 @@ export function ClientFrame({ tabs, guide, children }: {
   const [collapsed] = useCopilotCollapsed(journeyFoldKey(slug));
   if (!frame.tabs) return <>{children}</>;
 
+  // The client bar sits over the page it belongs to. On a stage's page that is the right-hand
+  // column: the copilot has the left column to itself, from the top.
   return (
     <>
-      <div className="h-22 shrink-0">{tabs}</div>
       <div className={cn("flex flex-1", frame.panel && "mx-auto w-full max-w-[96rem]")}>
         {frame.panel && (
           // Stretched to the page's height, so the guide inside can stick. box-content: the
           // width is the guide's own, with the gutter added around it. Width and left edge match the
-          // script copilot (copilot-chat.tsx inside a max-w-[96rem] px-6 page). Its top is level
-          // with where the page beside it starts (2rem under the client bar).
+          // script copilot (copilot-chat.tsx inside a max-w-[96rem] px-6 page). It starts 1rem
+          // under the app header, which is also where it sticks (journey-panel-shell: top-20).
           <div
             className={cn(
-              "box-content hidden shrink-0 pb-6 pl-6 pt-8 lg:block",
+              "box-content hidden shrink-0 pb-6 pl-6 pt-4 lg:block",
               "transition-[width] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
               collapsed ? "lg:w-12" : "lg:w-[29rem]",
             )}
@@ -40,7 +41,10 @@ export function ClientFrame({ tabs, guide, children }: {
             {guide}
           </div>
         )}
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="h-22 shrink-0">{tabs}</div>
+          {children}
+        </div>
       </div>
     </>
   );
