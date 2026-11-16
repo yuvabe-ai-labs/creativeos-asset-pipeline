@@ -49,14 +49,8 @@ describe("migration 0063", () => {
     expect(SQL).toContain("grant execute on function take_invite_send(uuid, int) to service_role;");
   });
 
-  it("drops the node-files write policies that let the anon key upload and delete, and keeps public read", () => {
-    expect(SQL).toContain(`drop policy if exists "Authenticated insert node-files" on storage.objects;`);
-    expect(SQL).toContain(`drop policy if exists "Authenticated delete node-files" on storage.objects;`);
-    // Every write is the service role's (it bypasses RLS), so no replacement write policy is made.
-    expect(SQL).not.toMatch(/create policy[^;]*on storage\.objects[^;]*for (insert|update|delete|all)/i);
-    // Old rows still show files by their public URL: read stays as 0004 made it.
-    expect(SQL).not.toContain(`drop policy if exists "Public read node-files"`);
-    expect(SQL).not.toMatch(/update storage\.buckets/);
+  it("leaves the node-files bucket to 0064", () => {
+    expect(SQL).not.toContain("storage.objects");
   });
 
   it("indexes the foreign keys that had no index", () => {

@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0063** (`supabase/migrations/0001_init.sql` … `0063_close_views_and_count_resends.sql`).
+Generated from migrations up to **0064** (`supabase/migrations/0001_init.sql` … `0064_lock_node_files_bucket.sql`).
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows.
@@ -391,7 +391,7 @@ Dropped: `org_review_counts_for_types` (created 0062, dropped 0063).
 
 - **Enum** `client_kb_job_status`: queued, researching, extracting, finalizing, succeeded, failed (0008).
 - **Realtime publication** `supabase_realtime`: `client_kb_jobs` (0008), `generations` (0014), `credit_transactions` (0022), `node_versions` (0030), `moodboard_items` (0040). One channel per screen, filtered client-side (performance rule 3).
-- **Storage bucket** `node-files` (public, 0004), legacy: nothing in the app uploads to it any more. Its `storage.objects` policies: `Public read node-files` (select, checks only `bucket_id`) stays, because old rows can still hold its public URLs. The insert and delete policies checked only `bucket_id` with no role, so the anon key could upload and delete; 0063 drops both, so writes are service role only (the one left is `removeObject` deleting an old supabase.co URL, `src/lib/storage/index.ts`). Every other file lives in Google Cloud Storage (`src/lib/storage/gcs.ts`), outside the migrations.
+- **Storage bucket** `node-files` (public, 0004), legacy: nothing in the app uploads to it any more. Its `storage.objects` policies: `Public read node-files` (select, checks only `bucket_id`) stays, because old rows can still hold its public URLs. The insert and delete policies checked only `bucket_id` with no role, so the anon key could upload and delete; 0064 drops both, so writes are service role only (the one left is `removeObject` deleting an old supabase.co URL, `src/lib/storage/index.ts`). Every other file lives in Google Cloud Storage (`src/lib/storage/gcs.ts`), outside the migrations.
 
 ## Known leftovers
 
