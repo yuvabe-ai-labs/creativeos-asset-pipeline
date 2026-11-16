@@ -10,8 +10,9 @@ import {
   deleteBrandImage,
   listBrandImages,
 } from "@/lib/db/kb";
-import { setKBStatus, getClientById } from "@/lib/db/clients";
-import { computeReadyStatus } from "@/lib/kb/fill-rate";
+import { getClientById } from "@/lib/db/clients";
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
+import { approveKB } from "@/lib/kb/approve";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { removeObject } from "@/lib/storage";
 import {
@@ -76,24 +77,11 @@ export async function markKBReadyAction(
   clientSlug: string,
 ): Promise<{ ok: true } | { error: string }> {
   return withAction("markKBReadyAction", async () => {
-    const supabase = createServerSupabase();
-    const { data, error } = await supabase
-      .from("client_kb_versions")
-      .select("output")
-      .eq("id", versionId)
-      .maybeSingle();
-
-    if (error || !data) return { error: "Version not found." };
-
-    if (!computeReadyStatus(data.output as TraceableBrandKB)) {
-      return { error: "All fields must be reviewed before marking KB ready." };
-    }
-
-    await setKBStatus(clientId, "ready");
-    revalidatePath(`/clients/${clientSlug}`);
-    revalidatePath(`/clients/${clientSlug}/kb`);
-
-    return { ok: true };
+    // The client id comes from the browser: it must be one the caller may open.
+    const [client, orgId, { userId }] = await Promise.all([getClientById(clientId), resolveOrgId(), resolveCallerContext()]);
+    if (!client || client.org_id !== orgId || client.slug !== clientSlug) return { error: "Client not found." };
+    // The same approval the copilot's gate card reaches (src/lib/kb/approve.ts).
+    return approveKB({ client, userId, versionId });
   });
 }
 
