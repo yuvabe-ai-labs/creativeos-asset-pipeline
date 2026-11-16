@@ -25,7 +25,9 @@ export function ClientFrame({ tabs, guide, children }: {
   // column: the copilot has the left column to itself, from the top.
   return (
     <>
-      <div className={cn("flex flex-1", frame.panel && "mx-auto w-full max-w-[96rem]")}>
+      {/* data-client-frame: globals.css keeps the scrollbar's space reserved on these screens, so a
+          short page and a long one are the same width and nothing shifts sideways between tabs. */}
+      <div data-client-frame className={cn("flex flex-1", frame.panel && "mx-auto w-full max-w-[96rem]")}>
         {frame.panel && (
           // Stretched to the page's height, so the guide inside can stick. box-content: the
           // width is the guide's own, with the gutter added around it. Width and left edge match the
@@ -41,7 +43,9 @@ export function ClientFrame({ tabs, guide, children }: {
             {guide}
           </div>
         )}
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* Beside the copilot a page is not centred: every tab's page starts at the same left edge,
+            so the copilot and that edge stay put and only what is on the page changes. */}
+        <div className={cn("flex min-w-0 flex-1 flex-col", frame.panel && "[&_main]:mx-0")}>
           <div className="h-22 shrink-0">{tabs}</div>
           {children}
         </div>

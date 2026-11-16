@@ -42,3 +42,16 @@ describe("canApproveMarket", () => {
     expect(canApproveMarket({ kb_status: "ready", market_status: "approved" })).toBe(false);
   });
 });
+
+import { currentStage } from "../stages";
+
+describe("currentStage", () => {
+  const at = (kb_status: "pending" | "in_review" | "ready", market_status: "pending" | "approved") =>
+    currentStage(journeyState({ kb_status, market_status }));
+  it("is the first stage a person has not approved yet, and scripts once both are", () => {
+    expect(at("in_review", "pending")).toBe("kb");
+    expect(at("pending", "approved")).toBe("kb");
+    expect(at("ready", "pending")).toBe("market");
+    expect(at("ready", "approved")).toBe("scripts");
+  });
+});

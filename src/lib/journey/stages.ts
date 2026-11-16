@@ -36,3 +36,12 @@ export function canApproveMarket(client: JourneyClient): boolean {
 function marketPending(client: JourneyClient): boolean {
   return client.market_status === "pending";
 }
+
+/** The stage the client is at: the first one a person has not approved yet, and scripts once both
+ *  are. The copilot panel shows this stage on the screens that are not a stage's own (the client's
+ *  home, Avatars, Brand assets), so the panel stays put whichever tab is open. */
+export function currentStage(state: JourneyState): "kb" | "market" | "scripts" {
+  if (state.kb !== "approved") return "kb";
+  if (state.market !== "approved") return "market";
+  return "scripts";
+}

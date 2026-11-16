@@ -285,6 +285,11 @@
   html {
     @apply font-sans;
   }
+  /* A client's screens (client-frame.tsx): the scrollbar's space is always kept, so switching from
+     a tab that scrolls to one that does not never moves the copilot panel sideways. */
+  html:has([data-client-frame]) {
+    scrollbar-gutter: stable;
+  }
   h1,
   h2,
   h3,

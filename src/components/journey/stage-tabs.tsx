@@ -17,11 +17,10 @@ const STATE_WORD: Record<StageState, string> = {
 /** The width of the page under the bar, so the client's name and tabs start at the same left edge
  *  as the page's own content, wherever that page centres itself. Each matches its page's <main>. */
 function pageWidth(frame: Frame): string {
-  if (frame.tab === null) return "max-w-4xl"; // the client's home
-  if (frame.tab === "kb") return "max-w-5xl";
-  // Inside a script: that page's widest layout. A stage's own page (it has the copilot) and the rest: 6xl.
-  if (frame.tab === "scripts" && frame.panel === null) return "max-w-[96rem]";
-  return "max-w-6xl";
+  // Beside the copilot every page starts at the same left edge (client-frame.tsx), and so does this.
+  if (frame.panel) return "";
+  // A page inside a tab centres itself: a script at its widest layout, the rest at 6xl.
+  return frame.tab === "scripts" ? "mx-auto max-w-[96rem]" : "mx-auto max-w-6xl";
 }
 
 function StageIcon({ state }: { state: StageState }) {
@@ -41,7 +40,7 @@ export function StageTabs({ slug, name, state }: { slug: string; name: string; s
   const active = frame.tab;
   return (
     <nav aria-label="Client sections" className="shrink-0 border-b border-border bg-background">
-      <div className={cn("mx-auto w-full px-6", pageWidth(frame))}>
+      <div className={cn("w-full px-6", pageWidth(frame))}>
       {/* The way back to every client, then the client: the name leads, the tabs belong to it. */}
       <div className="flex h-11 items-end gap-1.5 pb-1.5">
         <Link href="/" className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground">
@@ -52,8 +51,9 @@ export function StageTabs({ slug, name, state }: { slug: string; name: string; s
           {name}
         </Link>
       </div>
-      {/* -mx-3 puts the first tab's label under the row above, so the tabs read as the client's own. */}
-      <ul className="-mx-3 flex h-11 items-stretch gap-1 overflow-x-auto">
+      {/* A tab is as wide as its label, so the first one, and its underline, start exactly under
+          the row above and at the page's own left edge. */}
+      <ul className="flex h-11 items-stretch gap-7 overflow-x-auto">
         {JOURNEY_TABS.map((tab) => {
           const stage = tab.stage ? state[tab.id as keyof JourneyState] : null;
           return (
@@ -63,7 +63,7 @@ export function StageTabs({ slug, name, state }: { slug: string; name: string; s
                 aria-current={active === tab.id ? "page" : undefined}
                 aria-label={stage ? `${tab.label}, ${STATE_WORD[stage]}` : undefined}
                 className={cn(
-                  "flex shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                  "flex shrink-0 items-center gap-2 border-b-2 text-sm font-medium transition-colors duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
                   active === tab.id ? "border-primary" : "border-transparent hover:border-border",
                   stage === "locked" ? "text-muted-foreground" : "text-foreground",
                 )}

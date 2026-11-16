@@ -3,7 +3,9 @@
 
 export type TabId = "kb" | "market" | "scripts" | "avatars" | "brand-assets";
 export type PanelSection = "kb" | "market" | "scripts";
-export type Frame = { tabs: boolean; tab: TabId | null; panel: PanelSection | null };
+/** `panel`: a stage's own page shows that stage's panel; "current" shows the panel of whichever
+ *  stage the client is at (stages.ts currentStage); null is a page with no panel of the frame's. */
+export type Frame = { tabs: boolean; tab: TabId | null; panel: PanelSection | "current" | null };
 
 /** The tabs in display order. `stage` tabs carry an approval state; the others are plain sections. */
 export const JOURNEY_TABS: { id: TabId; label: string; href: (slug: string) => string; stage: boolean }[] = [
@@ -21,13 +23,15 @@ export function frameFor(pathname: string, slug: string): Frame {
   const base = `/clients/${slug}`;
   if (path !== base && !path.startsWith(`${base}/`)) return NO_FRAME;
   const [section, ...rest] = path.slice(base.length).split("/").filter(Boolean);
-  if (section === undefined) return { tabs: true, tab: null, panel: null };
+  // The panel stays in place across the client's home and all five tabs: only the page beside it
+  // changes. Where the page is not a stage's own, it shows the stage the client is at.
+  if (section === undefined) return { tabs: true, tab: null, panel: "current" };
   // The canvas editor takes the whole window; its guidance is a later piece.
   if (section === "canvases") return NO_FRAME;
   const tab = JOURNEY_TABS.find((t) => t.id === section);
   if (!tab) return { tabs: true, tab: null, panel: null };
-  // A stage's own page gets the guide; a script inside Scripts keeps its own copilot.
-  const panel = tab.stage && rest.length === 0 ? (tab.id as PanelSection) : null;
+  // A page inside a tab has the whole width: a script keeps its own copilot, an avatar its studio.
+  const panel = rest.length > 0 ? null : tab.stage ? (tab.id as PanelSection) : "current";
   return { tabs: true, tab: tab.id, panel };
 }
 
