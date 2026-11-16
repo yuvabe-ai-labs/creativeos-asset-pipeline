@@ -330,8 +330,8 @@ header's Team link shows how many people are Signed up.
   line.
 - **Person panel.** Clicking a person (or Set / Edit permissions, or `/team?person=<id>`) opens
   a panel from the right: avatar, name, email, status, "Invited to {client} by {name} · Signed
-  up {when}" when known. Then the permission editor (chips with ×, then "Choose a permission"
-  and Add). For a Signed up person it starts empty with **Give access**, which saves the
+  up {when}" when known. Then the permission editor: the five permissions as toggles, each with a
+  one-line hint, turned on or off with one click. For a Signed up person it starts empty with **Give access**, which saves the
   permissions and sets `access_given_at`; Give access works with no permissions picked, for
   someone who only looks. Their client rows (the client they were invited to, and any they were
   added to while waiting) receive the permissions through the cascade, so they can start at

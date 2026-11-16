@@ -34,14 +34,14 @@ describe("person panel (spec §6.1)", () => {
 
   it("gives someone waiting the editor, starting empty, and Give access", () => {
     const t = text(render(person({ status: "signed_up", permissions: [] })));
-    expect(t).toContain("Choose a permission");
+    expect(t).toMatch(/Permissions Generate .*Approve .*Share .*Delete .*Invite/);
     expect(t).toContain("Give access");
     expect(t).not.toContain("Save");
   });
 
   it("gives a member the editor with their permissions, and Save", () => {
     const t = text(render(person({ permissions: ["generate", "approve"] })));
-    expect(t).toMatch(/Permissions Generate .*Approve .*Choose a permission/);
+    expect(t).toMatch(/Permissions Generate .*Approve .*Share .*Delete .*Invite .*Save Cancel/);
     expect(t).toContain("Save");
   });
 
@@ -61,7 +61,7 @@ describe("person panel (spec §6.1)", () => {
     const t = text(render(person({ status: "owner", permissions: [] })));
     expect(t).toContain("Everything");
     expect(t).toContain("The owner is on every client.");
-    expect(t).not.toContain("Choose a permission");
+    expect(t).not.toContain("Make and change work");
     expect(t).not.toContain("Add to a client");
   });
 
