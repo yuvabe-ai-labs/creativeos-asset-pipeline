@@ -60,7 +60,7 @@ describe("TeamPeople (spec §6.1)", () => {
     const html = render();
     const t = text(html);
     expect(t).toMatch(/Person Status Permissions Clients/);
-    expect(t).toMatch(/Ravi ravi@x\.com Signed up · Needs permissions Can look/);
+    expect(t).toMatch(/Ravi ravi@x\.com Signed up · Needs permissions Not set yet/);
     expect(t).toMatch(/Asha asha@x\.com Owner Everything Every client/);
     expect(t).toMatch(/Meera meera@x\.com Member Generate Invite/);
     expect(t).toMatch(/Kiran kiran@x\.com Member Can look/);

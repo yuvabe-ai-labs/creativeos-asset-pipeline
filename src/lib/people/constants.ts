@@ -18,6 +18,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 
 /** Spec §6.1: shown in place of the chips for a member with no permissions. */
 export const NO_PERMISSIONS_LABEL = "Can look";
+/** Someone signed up and waiting: nothing is set yet, and they can't look either. */
+export const NOT_SET_LABEL = "Not set yet";
 
 /** The owner's permissions, shown in place of the chips: they hold every one on every client. */
 export const EVERY_PERMISSION_LABEL = "Everything";

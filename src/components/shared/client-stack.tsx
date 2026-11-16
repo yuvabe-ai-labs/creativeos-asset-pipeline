@@ -9,7 +9,8 @@ import { ClientMark } from "./client-mark";
 /** How many marks show before the rest fold into "+n". */
 export const CLIENT_STACK_MAX = 3;
 
-// The clients someone is on, as overlapping logos: up to three, then "+n". Hover or click lists
+// The clients someone is on, as overlapping logos: up to three, then "+n"; a single client also
+// shows its name. Hover or click lists
 // each one (mark and name), linking to where its people are managed.
 export function ClientStack({
   clients,
@@ -39,6 +40,7 @@ export function ClientStack({
             <ClientMark key={c.id} name={c.name} logoUrl={c.logo_url} className="ring-2 ring-card" />
           ))}
         </span>
+        {clients.length === 1 && <span className="ml-2 max-w-40 truncate text-sm text-foreground/80">{clients[0].name}</span>}
         {more > 0 && <span className="ml-1.5 text-xs font-medium text-muted-foreground">+{more}</span>}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 gap-0.5 p-1.5">

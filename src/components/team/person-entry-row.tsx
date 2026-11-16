@@ -125,7 +125,7 @@ export function PersonEntryRow({
       detail={person.email}
       owner={isOwner}
       status={<StatusBadge status={person.status} />}
-      permissions={<PermissionSummary permissions={person.permissions} owner={isOwner} />}
+      permissions={<PermissionSummary permissions={person.permissions} owner={isOwner} waiting={person.status === "signed_up"} />}
       clients={clientsCell}
       actions={
         <>

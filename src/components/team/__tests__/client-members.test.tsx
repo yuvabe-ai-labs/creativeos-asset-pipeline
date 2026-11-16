@@ -67,7 +67,7 @@ describe("ClientMembers (spec §6.2)", () => {
     expect(t).toMatch(/Asha n@x\.com Owner Everything/);
     expect(t).toMatch(/Meera n@x\.com Member Generate Approve/);
     expect(t).toMatch(/Kiran n@x\.com Member Can look/);
-    expect(t).toMatch(/Ravi n@x\.com Signed up · Needs permissions Can look/);
+    expect(t).toMatch(/Ravi n@x\.com Signed up · Needs permissions Not set yet/);
     // The email and when it was sent, then Invited in Status like the person rows.
     expect(t).toMatch(/new@x\.com Sent .* Invited/);
     expect(t).not.toContain("Elsewhere");
