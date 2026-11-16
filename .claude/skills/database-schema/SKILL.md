@@ -18,23 +18,25 @@ description: >
    the newest definition wins.
 3. Grep `src/lib/db/` for the table to see how the code reads and writes it.
 
-## 2. Prefer no new table
+## 2. A new table only when it is needed
 
-Before adding a table, write down the answer in the ADR and the PR:
+Pick the structure the data actually has. Don't add a table out of habit, and don't squeeze data
+onto an existing table where it doesn't belong either. Before adding a table, write down in the ADR
+and the PR why existing structure can't hold it:
 
-- Can it be a **column** on an existing table?
-- Can an **existing table** hold it (a new `kind`/`status` value, a jsonb field already meant for it)?
-- Can it be **derived on read** (a query, a view, a SQL function)?
+- Does an existing table already hold this kind of thing?
+- Is it a property of an existing row (one value per row), so a column fits?
+- Can it be derived on read (a query, a view, a SQL function)?
 
-Add a table only for a genuinely new entity, a many-to-many relation, or rows with their own
-lifecycle (created, changed and ended on their own). Not for counters, flags, settings or logs
-that an existing row or `impersonation_audit_log` can hold.
+A table is right for a new entity, a many-to-many relation, rows with their own lifecycle
+(created, changed and ended on their own), or many values per parent row. A column is right for
+one value that belongs to an existing row. Neither is right for history the audit log already keeps.
 
-- **Worked example, no table:** the 50-a-day invite limit (0063) is two columns on
-  `organizations` (`invite_window_start`, `invite_window_count`) and one atomic update in
-  `take_invite_send`. An `invite_sends` log table was rejected: the question is "how many today",
-  one row answers it, and per-send history already lives in the audit log.
-- **Justified tables:** `membership_clients` (0062) is a many-to-many between a membership and a
+- **Example, columns:** the 50-a-day invite limit (0063) is two columns on `organizations`
+  (`invite_window_start`, `invite_window_count`) and one atomic update in `take_invite_send`:
+  one value per agency. A send-log table was rejected because only today's count is needed and
+  Admin's per-send history is in the audit log.
+- **Example, tables:** `membership_clients` (0062) is a many-to-many between a membership and a
   client, with its own permissions per pair. `org_invitations` (0062) rows have their own
   lifecycle (sent, resent, accepted, revoked, expired) and exist before any user does.
 

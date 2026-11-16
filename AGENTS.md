@@ -110,7 +110,8 @@ Helpers live in `src/lib/api/route-helpers.ts`. Key rules:
 
 Before adding or changing a table, column, index, view, RLS policy, SQL function or migration,
 load the **`database-schema`** skill. The schema map is **[docs/database-schema.md](docs/database-schema.md)**.
-Prefer a column on an existing table over a new table. Never run SQL or apply migrations.
+Create a new table only when it is genuinely needed, and put new data where it belongs. Never run
+SQL or apply migrations.
 <!-- END:database -->
 
 <!-- BEGIN:react-flow -->
