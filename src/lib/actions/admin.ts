@@ -32,22 +32,48 @@ import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 // ALLOWLIST entries in src/lib/actions/with-action-coverage.test.ts.
 
 export type CreateAgencyState =
-  | { error?: string; result?: { orgId: string; email: string; link: string; emailed: boolean } }
+  | {
+      error?: string;
+      /** limitNotSaved: the agency and its invite were made but the chosen credit limit wasn't saved. */
+      result?: { orgId: string; email: string; link: string; emailed: boolean; limitNotSaved?: true };
+    }
   | undefined;
 
-// Spec §6.6 "Add an agency": the agency and its owner invite in one step. The owner signs up from
-// the email (or the copied link) and can do everything in the agency. No temporary password.
+// Spec §6.6 "Add an agency": the agency and its owner invite in one step, and its monthly credit
+// limit (Unlimited unless one is set). The owner signs up from the email (or the copied link) and
+// can do everything in the agency. No temporary password.
 export async function createAgencyAction(_prev: CreateAgencyState, formData: FormData): Promise<CreateAgencyState> {
   const admin = await requireSuperAdmin();
   const parsed = CreateAgencySchema.safeParse({ name: formData.get("name"), email: formData.get("email") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the name and email." };
+  // The same parsing as the agency page's credit limit editor; blank (the default) is Unlimited.
+  let limit: number | null;
+  try {
+    limit = parseCreditLimit(String(formData.get("creditLimit") ?? ""));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Invalid credit limit." };
+  }
   try {
     const name = (await getDisplayName(admin.userId)) ?? "Yuvabe";
     const result = await createAgency(parsed.data.name, parsed.data.email, { userId: admin.userId, name });
     if (!result.ok) return { error: result.error };
-    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: result.value.orgId, eventType: "admin_action", detail: { action: "create_agency", email: parsed.data.email } });
+    const orgId = result.value.orgId;
+    // A new agency starts Unlimited, so only a set limit is written. The agency and its invite
+    // exist by now: a failed write is reported beside the owner's link rather than as a failure.
+    let savedLimit: number | null = null;
+    let limitNotSaved = false;
+    if (limit !== null) {
+      try {
+        await updateOrgCreditLimit(orgId, limit);
+        savedLimit = limit;
+      } catch (e) {
+        console.error("[admin] could not save the new agency's credit limit", e);
+        limitNotSaved = true;
+      }
+    }
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "create_agency", email: parsed.data.email, limit: savedLimit } });
     revalidatePath("/admin");
-    return { result: { ...result.value, email: parsed.data.email } };
+    return { result: { ...result.value, email: parsed.data.email, ...(limitNotSaved ? { limitNotSaved: true as const } : {}) } };
   } catch (e) {
     console.error("[admin] could not create the agency", e);
     return { error: "Could not create the agency." };

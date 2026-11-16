@@ -271,14 +271,14 @@ export async function hasOpenInviteElsewhere(email: string, exceptOrgId: string 
   return ((data ?? []) as unknown[]).length > 0;
 }
 
-export async function countInvitesSince(orgId: string, sinceIso: string): Promise<number> {
-  const { count, error } = await createServerSupabase()
-    .from("org_invitations")
-    .select("id", { count: "exact", head: true })
-    .eq("org_id", orgId)
-    .gte("created_at", sinceIso);
+/** Takes one invite send from the agency's daily limit (0063 `take_invite_send`): true when it is
+ *  allowed and counted, false once `limit` sends are used. One atomic update on the agency row, so
+ *  two concurrent sends at the last slot can't both pass. The window is a fixed 24 hours from its
+ *  first send, not a rolling one, which is fine for a limit that only stops abuse. */
+export async function takeInviteSend(orgId: string, limit: number): Promise<boolean> {
+  const { data, error } = await createServerSupabase().rpc("take_invite_send", { p_org_id: orgId, p_limit: limit });
   if (error) throw error;
-  return count ?? 0;
+  return data === true;
 }
 
 /** The invite comes back with invitedByName null: the caller knows who it is (ops fills it in).

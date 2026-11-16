@@ -6,7 +6,7 @@ vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: m.createServerSu
 
 import {
   acceptInvitation, createLogin, findOpenInviteByEmail, hasOpenInviteElsewhere, insertInvitation, insertOwnerInvitation, isInviteOpen,
-  listOpenInvites, loginEmails, removePersonFromClient, replaceInvitationToken, toInvite, toPerson,
+  listOpenInvites, loginEmails, removePersonFromClient, replaceInvitationToken, takeInviteSend, toInvite, toPerson,
 } from "./people";
 
 describe("people rows", () => {
@@ -165,6 +165,27 @@ describe("replaceInvitationToken (Resend)", () => {
     m.createServerSupabase.mockReturnValue(db);
     await replaceInvitationToken("org-1", "i1", "tok2", "2026-11-14T10:00:00.000Z");
     expect(chains[0].calls).toContainEqual(["lte", "created_at", "2026-11-14T10:00:00.000Z"]);
+  });
+});
+
+describe("takeInviteSend (the 50-a-day limit, I4)", () => {
+  it("takes one send from the agency's window through the one atomic function", async () => {
+    const rpc = vi.fn(async () => ({ data: true, error: null }));
+    m.createServerSupabase.mockReturnValue({ rpc });
+    expect(await takeInviteSend("org-1", 50)).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("take_invite_send", { p_org_id: "org-1", p_limit: 50 });
+  });
+
+  it("answers false at the limit, and for anything but true", async () => {
+    for (const data of [false, null]) {
+      m.createServerSupabase.mockReturnValue({ rpc: vi.fn(async () => ({ data, error: null })) });
+      expect(await takeInviteSend("org-1", 50)).toBe(false);
+    }
+  });
+
+  it("throws a failed call rather than letting the send through", async () => {
+    m.createServerSupabase.mockReturnValue({ rpc: vi.fn(async () => ({ data: null, error: { message: "boom" } })) });
+    await expect(takeInviteSend("org-1", 50)).rejects.toEqual({ message: "boom" });
   });
 });
 

@@ -108,6 +108,42 @@ describe("createAgencyAction", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await createAgencyAction(undefined, form("Acme", "o@x.com"))).toEqual({ error: "Could not create the agency." });
   });
+
+  const created = { ok: true, value: { orgId: ORG, link: "https://app.example/invite/tok", emailed: true } };
+  const withLimit = (limit: string) => { const f = form("Acme", "o@x.com"); f.set("creditLimit", limit); return f; };
+
+  it("leaves a new agency unlimited by default, and logs that with the create", async () => {
+    m.createAgency.mockResolvedValue(created);
+    expect(await createAgencyAction(undefined, form("Acme", "o@x.com"))).toEqual({ result: { ...created.value, email: "o@x.com" } });
+    expect(m.updateOrgCreditLimit).not.toHaveBeenCalled();
+    expect(m.logImpersonationEvent).toHaveBeenCalledTimes(1);
+    expect(m.logImpersonationEvent).toHaveBeenCalledWith({ operatorId: "admin-1", targetOrgId: ORG, eventType: "admin_action", detail: { action: "create_agency", email: "o@x.com", limit: null } });
+  });
+
+  it("saves the chosen limit right after the agency is created, in one audit entry", async () => {
+    m.createAgency.mockResolvedValue(created);
+    m.updateOrgCreditLimit.mockResolvedValue(undefined);
+    expect(await createAgencyAction(undefined, withLimit(" 500 "))).toEqual({ result: { ...created.value, email: "o@x.com" } });
+    expect(m.updateOrgCreditLimit).toHaveBeenCalledWith(ORG, 500);
+    expect(m.updateOrgCreditLimit.mock.invocationCallOrder[0]).toBeGreaterThan(m.createAgency.mock.invocationCallOrder[0]);
+    expect(m.logImpersonationEvent).toHaveBeenCalledTimes(1);
+    expect(m.logImpersonationEvent).toHaveBeenCalledWith({ operatorId: "admin-1", targetOrgId: ORG, eventType: "admin_action", detail: { action: "create_agency", email: "o@x.com", limit: 500 } });
+  });
+
+  it("refuses a limit that isn't a number before creating anything", async () => {
+    for (const bad of ["-5", "abc"]) {
+      expect(await createAgencyAction(undefined, withLimit(bad))).toEqual({ error: "Credit limit must be a non-negative number, or blank for unlimited." });
+    }
+    expect(m.createAgency).not.toHaveBeenCalled();
+  });
+
+  it("still shows the owner's link when the limit couldn't be saved, and says so", async () => {
+    m.createAgency.mockResolvedValue(created);
+    m.updateOrgCreditLimit.mockRejectedValue(new Error("connection reset"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await createAgencyAction(undefined, withLimit("500"))).toEqual({ result: { ...created.value, email: "o@x.com", limitNotSaved: true } });
+    expect(m.logImpersonationEvent).toHaveBeenCalledWith({ operatorId: "admin-1", targetOrgId: ORG, eventType: "admin_action", detail: { action: "create_agency", email: "o@x.com", limit: null } });
+  });
 });
 
 describe("the other admin writes are audit-logged", () => {

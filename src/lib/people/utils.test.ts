@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chosenStillEligible, hideInviteLinks, inviteHolderView, invitesForClient, isValidEmail, normaliseEmail, oneDayAgo, peopleNotOnClient, peopleOnClient, peopleReadFor, signedUpPeople } from "./utils";
+import { chosenStillEligible, hideInviteLinks, inviteHolderView, invitesForClient, isValidEmail, normaliseEmail, peopleNotOnClient, peopleOnClient, peopleReadFor, signedUpPeople } from "./utils";
 import type { AgencyPerson, OpenInvite } from "./types";
 import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
 
@@ -59,10 +59,6 @@ describe("people helpers", () => {
     expect(view.people.find((p) => p.userId === "e")).toMatchObject({ clientIds: ["c1"], invitedClient: { id: "c1", name: "Chupps" } });
     expect(view.people.find((p) => p.userId === "c")).toMatchObject({ clientIds: [], invitedClient: null });
     expect(JSON.stringify(view)).not.toContain("Bata");
-  });
-
-  it("is a day before now", () => {
-    expect(oneDayAgo(new Date("2026-11-13T12:00:00.000Z"))).toBe("2026-11-12T12:00:00.000Z");
   });
 });
 

@@ -71,7 +71,3 @@ export function peopleReadFor(
 export function chosenStillEligible(chosen: ReadonlySet<string>, eligible: readonly AgencyPerson[]): string[] {
   return eligible.filter((p) => chosen.has(p.userId)).map((p) => p.userId);
 }
-
-export function oneDayAgo(now: Date = new Date()): string {
-  return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-}

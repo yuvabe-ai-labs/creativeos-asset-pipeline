@@ -4,8 +4,8 @@ import type { PersonStatus } from "./types";
 /** Spec §6.7: a leaked session can't mass-mail. */
 export const INVITES_PER_AGENCY_PER_DAY = 50;
 export const INVITE_TTL_DAYS = 7;
-/** Resend moves the invite's sent time to now, so the daily count sees it once however often it
- *  is resent: one resend a minute keeps a single invite from mailing on a loop. */
+/** At most one Resend of an invite a minute (it reads the invite's last sent time). Every send,
+ *  new or resent, also counts towards the daily limit (the agency's counter, 0063 take_invite_send). */
 export const RESEND_GAP_MS = 60_000;
 
 export const PERMISSION_LABELS: Record<Permission, string> = {

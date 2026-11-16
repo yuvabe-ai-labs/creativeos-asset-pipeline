@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CopyRow } from "@/components/shared/copy-row";
+import { CreditLimitField } from "./credit-limit-field";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 // Remounted (key) on every opening: useActionState has no reset, and a finished create must not
@@ -22,6 +23,9 @@ function AddAgencyBody({ onDone }: { onDone: () => void }) {
           <DialogDescription>
             {created.emailed ? `We emailed ${created.email} a link to sign up.` : `The email wasn't sent. Copy the link and send it to ${created.email}.`}
           </DialogDescription>
+          {created.limitNotSaved && (
+            <p className="text-sm text-destructive">The credit limit wasn&apos;t saved, so the agency is unlimited for now. Set it on the agency&apos;s page.</p>
+          )}
         </DialogHeader>
         <CopyRow label="Owner's sign-up link" value={created.link} />
         <DialogFooter><Button onClick={onDone}>Done</Button></DialogFooter>
@@ -42,6 +46,7 @@ function AddAgencyBody({ onDone }: { onDone: () => void }) {
         <Label htmlFor="email">Owner&apos;s email</Label>
         <Input id="email" name="email" type="email" />
       </div>
+      <CreditLimitField />
       {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
       <DialogFooter>
         <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add agency"}</Button>

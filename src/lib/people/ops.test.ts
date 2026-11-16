@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const db = vi.hoisted(() => ({
-  findLoginByEmail: vi.fn(), findOpenInviteByEmail: vi.fn(), countInvitesSince: vi.fn(), insertInvitation: vi.fn(),
+  findLoginByEmail: vi.fn(), findOpenInviteByEmail: vi.fn(), takeInviteSend: vi.fn(), insertInvitation: vi.fn(),
   replaceInvitationToken: vi.fn(), revokeInvitation: vi.fn(), getMembership: vi.fn(), getMemberships: vi.fn(),
   setMemberPermissions: vi.fn(), deleteLogin: vi.fn(), addPeopleToClient: vi.fn(), removePersonFromClient: vi.fn(),
   transferOwner: vi.fn(), loginEmails: vi.fn(), ownerIds: vi.fn(), listOrgSlugs: vi.fn(),
@@ -30,7 +30,7 @@ beforeEach(() => {
   process.env.APP_URL = "https://app.example";
   db.findLoginByEmail.mockResolvedValue(null);
   db.findOpenInviteByEmail.mockResolvedValue(null);
-  db.countInvitesSince.mockResolvedValue(0);
+  db.takeInviteSend.mockResolvedValue(true);
   db.insertInvitation.mockResolvedValue(invite);
   db.hasOpenInviteElsewhere.mockResolvedValue(false);
   db.removePersonFromClient.mockResolvedValue(true);
@@ -98,9 +98,16 @@ describe("inviteToClient (spec §6.2)", () => {
     expect(db.hasOpenInviteElsewhere).toHaveBeenCalledWith("p@x.com", "org-1");
   });
 
-  it("counts every invite sent in the agency today towards the limit, whoever sent it", async () => {
+  it("takes a send from the agency's daily limit, whoever sent it, before the invite is made", async () => {
     await inviteToClient(agency, client, "p@x.com", { userId: "holder-1", name: "Meera" });
-    expect(db.countInvitesSince).toHaveBeenCalledWith("org-1", expect.any(String));
+    expect(db.takeInviteSend).toHaveBeenCalledWith("org-1", 50);
+    expect(db.takeInviteSend.mock.invocationCallOrder[0]).toBeLessThan(db.insertInvitation.mock.invocationCallOrder[0]);
+  });
+
+  it("takes no send for an invite it refuses", async () => {
+    db.findOpenInviteByEmail.mockResolvedValue({ id: "i0", clientName: "Bata" });
+    await inviteToClient(agency, client, "p@x.com", by);
+    expect(db.takeInviteSend).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -108,7 +115,7 @@ describe("inviteToClient (spec §6.2)", () => {
     ["someone already in the agency", () => db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: "org-1" }), "p@x.com", 409, "Already in Acme. Add them from the list."],
     ["an email with an open invite", () => db.findOpenInviteByEmail.mockResolvedValue({ id: "i0", clientName: "Bata" }), "p@x.com", 409, "Already invited to Bata. Once they've signed up, add them from the list."],
     ["an email with a login in another agency", () => db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: "org-2" }), "p@x.com", 409, "This email already belongs to another agency."],
-    ["the 51st invite today", () => db.countInvitesSince.mockResolvedValue(50), "p@x.com", 429, "You've sent 50 invites today. Try again tomorrow."],
+    ["the 51st invite today", () => db.takeInviteSend.mockResolvedValue(false), "p@x.com", 429, "You've sent 50 invites today. Try again tomorrow."],
     ["an email with an open invite in another agency", () => db.hasOpenInviteElsewhere.mockResolvedValue(true), "p@x.com", 409, OTHER_AGENCY],
     ["an email with a login in no agency", () => db.findLoginByEmail.mockResolvedValue({ userId: "u9", orgId: null }), "p@x.com", 409, LOGIN_NO_AGENCY],
   ])("refuses %s", async (_what, arrange, email, status, error) => {
@@ -175,8 +182,17 @@ describe("resendInvite and cancelInvite", () => {
     expect(sendEmail.mock.calls[0][0].text).toContain("https://app.example/invite/new");
   });
 
+  it("every Resend takes a send from the daily limit, before the new link is issued (I4)", async () => {
+    db.replaceInvitationToken.mockResolvedValue(invite);
+    await resendInvite(agency, "i1", by);
+    await resendInvite(agency, "i1", by);
+    expect(db.takeInviteSend).toHaveBeenCalledTimes(2);
+    expect(db.takeInviteSend).toHaveBeenCalledWith("org-1", 50);
+    expect(db.takeInviteSend.mock.invocationCallOrder[0]).toBeLessThan(db.replaceInvitationToken.mock.invocationCallOrder[0]);
+  });
+
   it("Resend counts towards the daily limit", async () => {
-    db.countInvitesSince.mockResolvedValue(50);
+    db.takeInviteSend.mockResolvedValue(false);
     expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 429, error: "You've sent 50 invites today. Try again tomorrow." });
     expect(db.replaceInvitationToken).not.toHaveBeenCalled();
   });
@@ -320,6 +336,8 @@ describe("createAgency (spec §6.6)", () => {
     expect(r).toMatchObject({ ok: true, value: { orgId: "org-9", emailed: true } });
     expect(db.createAgencyWithOwnerInvite).toHaveBeenCalledWith(expect.objectContaining({ name: "Acme", slug: "acme-2", ownerEmail: "o@x.com", by: "owner-1" }));
     expect(sendEmail.mock.calls[0][0].subject).toBe("Set up Acme on CreativeOS");
+    // A brand new agency's first send: nothing to limit yet.
+    expect(db.takeInviteSend).not.toHaveBeenCalled();
   });
 
   it("refuses an owner email that already has a login", async () => {
@@ -367,6 +385,8 @@ describe("inviteOwner (spec §6.6, D505: only while the agency has no owner and 
     expect(db.insertOwnerInvitation).toHaveBeenCalledWith(expect.objectContaining({ orgId: "org-1", email: "o@x.com", invitedBy: "owner-1" }));
     expect(db.insertOwnerInvitation.mock.calls[0][0].token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: ["o@x.com"], subject: "Set up Acme on CreativeOS" });
+    expect(db.takeInviteSend).toHaveBeenCalledWith("org-1", 50);
+    expect(db.takeInviteSend.mock.invocationCallOrder[0]).toBeLessThan(db.insertOwnerInvitation.mock.invocationCallOrder[0]);
   });
 
   it("refuses an email with a login in another agency", async () => {
@@ -407,7 +427,7 @@ describe("inviteOwner (spec §6.6, D505: only while the agency has no owner and 
   });
 
   it("keeps to the daily limit", async () => {
-    db.countInvitesSince.mockResolvedValue(50);
+    db.takeInviteSend.mockResolvedValue(false);
     expect(await inviteOwner(agency, "o@x.com", by)).toMatchObject({ ok: false, status: 429 });
   });
 

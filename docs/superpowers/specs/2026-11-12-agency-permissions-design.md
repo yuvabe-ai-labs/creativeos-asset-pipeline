@@ -77,7 +77,8 @@ Each agency has exactly one owner, set up by Yuvabe (§6.6).
   The owner has no `membership_clients` rows; Members lists show them as "Owner".
 - Only the owner can: use the Team page, give access and change a person's permissions, remove
   people from a client or the agency, resend or cancel invites, create and archive clients, and
-  see credit usage.
+  see credit usage (the agency's usage and limit). Everyone on a client sees each canvas's cost,
+  and renaming a client needs Generate, like the rest of its profile (D500).
 - A new agency has no owner until the invited owner signs up.
 - The owner cannot be removed or demoted. Ownership moves only through the super admin
   (§6.6), which makes another member owner and the previous owner a member with all five
@@ -409,8 +410,10 @@ Designer). Credits show only to the owner. There is no agency switcher in this v
 
 ### 6.6 Super admin (`/admin`)
 
-- **Add an agency**: one popup with the agency's name and the owner's email. It creates the
-  agency and sends the owner invite (`create_agency_with_owner_invite`). "The owner gets an
+- **Add an agency**: one popup with the agency's name, the owner's email and the monthly credit
+  limit (Unlimited / Set limit, the agency page's control; Unlimited by default). It creates the
+  agency and sends the owner invite (`create_agency_with_owner_invite`), then saves a set limit;
+  the create's audit entry records the limit. "The owner gets an
   email to sign up, and can do everything in this agency." The agencies list marks agencies whose
   owner hasn't signed up yet, with Resend.
 - **Agency page** (`/admin/orgs/[id]`), three tabs:

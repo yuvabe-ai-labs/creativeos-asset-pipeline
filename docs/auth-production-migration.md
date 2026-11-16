@@ -979,7 +979,8 @@ What it adds:
   `find_user_by_email`; `auth_org_ids()` behind the eight "org isolation" policies.
 - `nodes_keep_canvas` / `edges_keep_canvas`: a canvas save can't move another canvas's node or
   join nodes across canvases (a refused row fails the save with `check_violation`).
-- `org_review_counts_for_types(uuid, text[])` and `admin_action` in the audit log's event types.
+- `org_review_counts_for_types(uuid, text[])` (nothing calls it; 0063 drops it) and `admin_action`
+  in the audit log's event types.
 
 **Day one (runs once):** in each agency the earliest-joined `org_role = 'owner'` membership becomes
 the owner. Everyone else gets Generate, Approve, Share and Delete, access given, and a row with
@@ -1064,7 +1065,8 @@ login. They need only Generate on any client, so anyone with Generate on one cli
 can open every file that account can see, including folders other agencies use (D501).
 
 **Old admin screens are gone with this code:** no temporary passwords, no role select. A new agency
-is "Add an agency" (name and owner email); the owner signs up from the emailed link. An agency with
+is "Add an agency" (name, owner email and monthly credit limit, Unlimited unless one is set); the
+owner signs up from the emailed link. An agency with
 no owner shows Resend while its owner invite is open, otherwise "Invite an owner". People are
 managed on the agency page's People and Clients tabs; Make owner is only there. Every change made
 from Admin is in the audit log as `admin_action`.
@@ -1137,5 +1139,89 @@ update org_memberships set permissions = array['approve','share','delete']
 select client_id, permissions from membership_clients where user_id = '<member>';
 -- owner protection: refused with "The agency owner can't be removed." at commit
 delete from org_memberships where org_id = '<agency>' and is_owner;
+rollback;
+```
+
+## Migration 0063 — views off the public API, every invite send counted (D501, D511, 2026-11-16)
+
+`supabase/migrations/0063_close_views_and_count_resends.sql`. Apply after 0062, in the same window
+(staging before the staging deploy of this branch, production before the merge to `main`). Safe to
+re-run. Paste into the Supabase SQL editor → Run.
+
+What it does:
+- `review_queue_items`, `org_credit_usage` and `stuck_reservations` were plain views: anyone with
+  the anon key from the browser bundle could read every agency's review queue (client and canvas
+  names, outputs, notes), credit spend and stuck reservations, because a view runs with its
+  owner's rights. Only the server reads them, with the service role (`src/lib/db/review.ts`,
+  `src/lib/db/organizations.ts` `getOrgCreditUsage`, `trigger/reconcile-stuck-generations.ts`), so
+  0063 revokes them from `anon` and `authenticated` and also sets `security_invoker`, so a later
+  re-grant would read through the tables' own RLS. No read in the app changes.
+- `org_review_counts(uuid)` (0031, the pending counts, called only by the server) is closed to
+  `public`, `anon` and `authenticated` the same way. `org_review_counts_for_types` (0062, never
+  called) is dropped.
+- `organizations.invite_window_start` and `invite_window_count`: each agency's invite counter. No
+  new table. `take_invite_send(p_org_id, p_limit)` (service role only) takes one send in a single
+  update on the agency's row: it starts a new window when there is none or the last one began
+  more than 24 hours ago, otherwise adds one while the count is under the limit, and answers false
+  at the limit. The app calls it right before a new member invite, Admin's Invite an owner and every
+  Resend, so Resend now counts (before, resending an invite didn't add to the count). Add an agency
+  doesn't call it: the agency is new. The window is fixed (24 hours from its first send), not
+  rolling. The one-a-minute Resend gap still reads the invite's own sent time. Counters start at 0,
+  so every agency starts with a fresh window.
+
+**Ordering:** apply 0063, then deploy the code. Deployed before 0063, `take_invite_send` is missing
+and every invite and Resend fails with "Something went wrong". Applied before the code, nothing
+breaks: the old code keeps counting invitation rows.
+
+**Verify after running:**
+
+```sql
+-- expect security_invoker=true on all three
+select relname, reloptions from pg_class
+ where relname in ('review_queue_items', 'org_credit_usage', 'stuck_reservations');
+-- expect no rows: anon and authenticated hold nothing on the views or org_review_counts
+select table_name, grantee, privilege_type from information_schema.role_table_grants
+ where table_name in ('review_queue_items', 'org_credit_usage', 'stuck_reservations')
+   and grantee in ('anon', 'authenticated');
+select has_function_privilege('anon', 'org_review_counts(uuid)', 'execute');  -- expect false
+-- expect 0: the function is gone
+select count(*) from pg_proc where proname = 'org_review_counts_for_types';
+-- expect false for both: the counter function is the service role's only
+select has_function_privilege('anon', 'take_invite_send(uuid, int)', 'execute'),
+       has_function_privilege('authenticated', 'take_invite_send(uuid, int)', 'execute');
+```
+
+**Check from outside, with the anon key** (from `NEXT_PUBLIC_SUPABASE_ANON_KEY`), for each view:
+
+```sh
+curl "<SUPABASE_URL>/rest/v1/review_queue_items?limit=1" -H "apikey: <anon key>"
+curl "<SUPABASE_URL>/rest/v1/org_credit_usage?limit=1" -H "apikey: <anon key>"
+curl "<SUPABASE_URL>/rest/v1/stuck_reservations?limit=1" -H "apikey: <anon key>"
+```
+
+Expect a 401 with `permission denied for view …` (code `42501`) or an empty `[]`. Rows coming back
+means the revoke didn't apply. Then in the app: the client list's review counts, a canvas's review
+drawer and badges, the review inbox and the header's credits still show as before.
+
+**Check resends are counted, on staging,** with an agency you can test on:
+
+```sql
+-- note the count, Resend one open invite in the app (Team or a client's Members page), run again:
+-- it goes up by one. A new invite adds one too.
+select invite_window_start, invite_window_count from organizations where id = '<agency>';
+```
+
+A second Resend within a minute is refused with "That invite was just sent." and still adds one
+(the send is taken before the gap is checked, so no new link is issued past the limit). At 50 sends
+in the window, both a new invite and a Resend are refused with "You've sent 50 invites today. Try
+again tomorrow." To try that without sending 50 emails, in a transaction you roll back:
+
+```sql
+begin;
+update organizations set invite_window_start = now(), invite_window_count = 50 where id = '<agency>';
+select take_invite_send('<agency>', 50);  -- expect false
+update organizations set invite_window_start = now() - interval '25 hours' where id = '<agency>';
+select take_invite_send('<agency>', 50);  -- expect true: a new window, count 1
+select invite_window_count from organizations where id = '<agency>';  -- expect 1
 rollback;
 ```
