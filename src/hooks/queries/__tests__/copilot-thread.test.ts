@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { liveRefetchInterval, THREAD_IDLE_POLL_MS, THREAD_LIVE_POLL_MS, withPendingMessage } from "../copilot-thread";
 import type { ThreadState } from "@/lib/journey/thread/schema";
 
-const state = (over: Partial<ThreadState>): ThreadState => ({ messages: [], live: [], suggestions: ["Start the build"], ...over });
+const state = (over: Partial<ThreadState>): ThreadState => ({ messages: [], live: [], suggestions: ["Start the build"], waiting: null, ...over });
 
 describe("liveRefetchInterval", () => {
   it("does not poll before the thread has loaded", () => {

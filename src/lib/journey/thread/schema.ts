@@ -15,9 +15,16 @@ export type Attachment = z.infer<typeof attachmentSchema>;
 export const statusLineSchema = z.object({ text: z.string(), state: z.enum(["running", "done", "failed"]) });
 export type StatusLine = z.infer<typeof statusLineSchema>;
 
-/** The structured part of an assistant message. Later parts add the gate card and the change card. */
+/** The structured part of an assistant message. A later part adds the change card. The gate card is
+ *  not here: it is worked out on each read, never stored (see `Waiting`). */
 export const threadCardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("status"), lines: z.array(statusLineSchema) }),
+  /** A question about one thing, named by `field`; `label` is shown above the words. */
+  z.object({ kind: z.literal("question"), field: z.string().min(1), label: z.string() }),
+  /** Who approved a stage or a card. The name is kept as it was that day. */
+  z.object({ kind: z.literal("approval"), what: z.string(), by: z.string(), byId: z.string().uuid().nullable() }),
+  /** Something that happened beside the chat, said in one line (a save on the page). */
+  z.object({ kind: z.literal("note") }),
 ]);
 export type ThreadCard = z.infer<typeof threadCardSchema>;
 
@@ -38,5 +45,17 @@ export const ONBOARDING: CopilotThread = "onboarding";
 /** The id of a thread's opening line while it is only shown, not yet stored. */
 export const VIRTUAL_OPENING_ID = "opening";
 
-/** What the panel shows: the saved messages, what is running right now, and the reply choices. */
-export type ThreadState = { messages: ThreadMessage[]; live: StatusLine[]; suggestions: string[] };
+/** The one thing the person has to do next (journey spec §4.3). Worked out on every read from what
+ *  is stored, so it follows what is done by hand. `label` is what the folded rail shows.
+ *  - reply: the copilot asked something; nothing more is drawn in the thread.
+ *  - task: something to do on the page, with links to where.
+ *  - gate: the next approval, what it opens, and why the copilot cannot do it. `action` names the
+ *    approval for the stage's own component, which is the only thing that can carry it out. */
+export type Waiting =
+  | { kind: "reply"; label: string }
+  | { kind: "task"; label: string; text: string; links: { label: string; href: string }[] }
+  | { kind: "gate"; label: string; title: string; opens: string; why: string; action: string };
+
+/** What the panel shows: the saved messages, what is running right now, the reply choices, and
+ *  what the person is waited on. */
+export type ThreadState = { messages: ThreadMessage[]; live: StatusLine[]; suggestions: string[]; waiting: Waiting | null };

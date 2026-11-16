@@ -38,7 +38,7 @@ const ctx: KbContext = {
   clientName: "Acme", kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
   documentCount: 1, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
-const STATE = { messages: [], live: [], suggestions: [] };
+const STATE = { messages: [], live: [], suggestions: [], waiting: null };
 const doc = { kind: "document", id: DOC, name: "brand.pdf", url: null };
 const order = (fn: unknown) => vi.mocked(fn as () => unknown).mock.invocationCallOrder[0];
 

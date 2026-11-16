@@ -22,6 +22,14 @@ describe("rowToThreadMessage", () => {
     expect(m.suggestions).toEqual(["Start the build"]);
   });
 
+  it("reads a question card, an approval card and a note", () => {
+    const read = (card: unknown) => rowToThreadMessage({ ...base, card, attachments: [], suggestions: [] }).card;
+    expect(read({ kind: "question", field: "target_audience.age_range", label: "Audience & Casting · Age Range" }))
+      .toEqual({ kind: "question", field: "target_audience.age_range", label: "Audience & Casting · Age Range" });
+    expect(read({ kind: "approval", what: "the brand KB", by: "Asha", byId: null })).toEqual({ kind: "approval", what: "the brand KB", by: "Asha", byId: null });
+    expect(read({ kind: "note" })).toEqual({ kind: "note" });
+  });
+
   it("drops a card or attachment it cannot read instead of throwing", () => {
     const m = rowToThreadMessage({ ...base, card: { kind: "from-the-future" }, attachments: [{ nope: true }], suggestions: "x" });
     expect(m.card).toBeNull();

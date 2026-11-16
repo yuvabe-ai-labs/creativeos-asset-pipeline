@@ -15,6 +15,9 @@ const COLUMNS = "id, role, content, card, attachments, suggestions, created_at";
 export type NewCopilotMessage = {
   role: "user" | "assistant"; content: string;
   card?: ThreadCard | null; attachments?: Attachment[]; suggestions?: string[];
+  /** The person this message is about (who approved, who saved). A person's own message is always
+   *  stored under the caller; the copilot's is stored under nobody unless this says otherwise. */
+  createdBy?: string | null;
 };
 
 /** The thread in order, oldest first. Throws when the read fails: a failed read is never "empty". */
@@ -35,7 +38,7 @@ function toRow(clientId: string, thread: CopilotThread, userId: string | null, m
     card: m.card ?? null,
     attachments: m.attachments ?? [],
     suggestions: m.suggestions ?? [],
-    created_by: m.role === "user" ? userId : null,
+    created_by: m.role === "user" ? userId : (m.createdBy ?? null),
   };
 }
 

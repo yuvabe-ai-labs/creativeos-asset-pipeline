@@ -20,7 +20,7 @@ export function threadState(ctx: KbContext, stored: ThreadMessage[]): ThreadStat
   // The copilot asks nothing while something runs (spec §2.2), so it offers nothing either. A
   // failure that is only being shown is not something running.
   const running = live.some((line) => line.state === "running");
-  return { messages, live, suggestions: running ? [] : offered };
+  return { messages, live, suggestions: running ? [] : offered, waiting: null };
 }
 
 /** Throws when either read fails: a thread that could not be read is never shown as empty. */
