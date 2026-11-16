@@ -96,11 +96,14 @@ export async function POST(req: Request, { params }: Ctx) {
           if (handles.instagram) await setImportTarget(clientId, "instagram", handles.instagram);
           if (handles.facebook) await setImportTarget(clientId, "facebook", handles.facebook);
         }),
-        setField: done(async (path: string, patch) => {
+        setField: async (path, patch) => {
           if (!version) throw new Error("There is no brand KB in review.");
-          // One field, merged into what is stored: nothing else in the KB is touched.
-          await patchKBFields(version.id, [{ path: path.split("."), patch }]);
-        }),
+          // One field, merged into what is stored, and only if nobody has reviewed it since this
+          // turn began: the database checks that at the moment of the write.
+          const written = (await patchKBFields(version.id, [{ path: path.split("."), patch }], { onlyUnreviewed: true })) > 0;
+          if (written) acted = true;
+          return written;
+        },
         startBuild: done(async () => {
           await startKBBuild(clientId);
           // Only once the build has really started, and only from sources never collected before:

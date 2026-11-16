@@ -382,11 +382,17 @@ export async function getActiveKBVersion(
 type KBFieldPatch = import("@/lib/kb/field-patch").KBFieldPatch;
 
 /** Merges each patch into its own field, all in one statement, and touches nothing else: a review
- *  saved from one place never undoes a field filled from another (migration 0064). */
-export async function patchKBFields(versionId: string, patches: KBFieldPatch[]): Promise<void> {
+ *  saved from one place never undoes a field filled from another (migration 0064).
+ *
+ *  `onlyUnreviewed` is for the copilot: a field somebody has reviewed since is left alone, checked
+ *  in the database at the moment of the write. Returns how many fields were written. */
+export async function patchKBFields(versionId: string, patches: KBFieldPatch[], opts: { onlyUnreviewed?: boolean } = {}): Promise<number> {
   const supabase = createServerSupabase();
-  const { error } = await supabase.rpc("patch_kb_fields", { p_version_id: versionId, p_patches: patches });
+  const { data, error } = await supabase.rpc("patch_kb_fields", {
+    p_version_id: versionId, p_patches: patches, p_only_unreviewed: opts.onlyUnreviewed ?? false,
+  });
   if (error) throw error;
+  return typeof data === "number" ? data : 0;
 }
 
 /** The dotted paths of the fields still to review, Image Analysis left out, without downloading the

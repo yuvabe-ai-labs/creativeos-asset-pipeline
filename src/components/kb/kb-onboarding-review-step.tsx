@@ -186,7 +186,8 @@ export function KBOnboardingReviewStep({
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const isReady = computeReadyStatus(kb);
-  const dirty = JSON.stringify(kb) !== JSON.stringify(savedKB);
+  // Field by field, not the two copies as text: they can hold the same fields in a different order.
+  const dirty = changedFields(kb, savedKB).length > 0;
 
   const staged: StagedChanges = {
     pendingDocRemovals,

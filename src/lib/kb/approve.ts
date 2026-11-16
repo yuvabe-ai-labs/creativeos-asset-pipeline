@@ -6,6 +6,7 @@ import { listUnreviewedFields } from "@/lib/db/kb";
 import { resolveDisplayNames } from "@/lib/db/profiles";
 import type { ClientRow } from "@/lib/db/types";
 import { approvalMessage } from "@/lib/journey/thread/approval";
+import { ensureOpening } from "@/lib/journey/thread/opening";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 
 // Approving a brand KB: the one way it happens, whoever asks (the page header, the copilot's gate
@@ -26,6 +27,13 @@ export async function approveKB(input: { client: ClientRow; userId: string; vers
   if (client.kb_status === "ready") return { ok: true };
   // Paths only: the KB itself is not downloaded to learn that every field is reviewed.
   if ((await listUnreviewedFields(active)).length > 0) return { error: KB_NOT_REVIEWED };
+
+  // Before the status changes, so the opening kept is the one the person was looking at.
+  try {
+    await ensureOpening(client);
+  } catch (e) {
+    console.error("[kb/approve] could not keep the thread's opening", e);
+  }
 
   await setKBStatus(client.id, "ready");
   revalidatePath(`/clients/${client.slug}`);

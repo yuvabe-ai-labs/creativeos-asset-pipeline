@@ -1,7 +1,7 @@
 import "server-only";
 import { listCopilotMessages } from "@/lib/db/copilot-messages";
 import type { ClientRow } from "@/lib/db/types";
-import { fallbackSuggestions, liveStatus, openingMessage, type KbContext } from "@/lib/journey/kb-copilot/context";
+import { fallbackSuggestions, isBuilding, liveStatus, openingMessage, type KbContext } from "@/lib/journey/kb-copilot/context";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
 import { kbWaiting } from "@/lib/journey/kb-copilot/waiting";
 import { ONBOARDING, VIRTUAL_OPENING_ID, type ThreadMessage, type ThreadState } from "./schema";
@@ -22,8 +22,9 @@ export function threadState(ctx: KbContext, stored: ThreadMessage[]): ThreadStat
   const offered = last.role === "assistant" && last.suggestions.length > 0 ? last.suggestions : fallbackSuggestions(ctx);
   // The copilot asks nothing while something runs (spec §2.2), so it offers nothing either. A
   // failure that is only being shown is not something running.
-  const running = live.some((line) => line.state === "running");
-  return { messages, live, suggestions: running ? [] : offered, waiting: kbWaiting(ctx, messages) };
+  // That means the build. Collecting and studying images run on beside the review (spec §2.2), and
+  // a question asked meanwhile keeps its choices.
+  return { messages, live, suggestions: isBuilding(ctx) ? [] : offered, waiting: kbWaiting(ctx, messages) };
 }
 
 /** Throws when either read fails: a thread that could not be read is never shown as empty. */

@@ -73,6 +73,14 @@ describe("loadThread", () => {
     expect(state.suggestions).toEqual([]);
   });
 
+  it("keeps a question's choices on offer while images are collected or studied", async () => {
+    withCtx({ ...empty, kbStatus: "in_review", hasVersion: true, unreviewed: ["a.b"], importing: ["website"], studyingImages: true });
+    vi.mocked(listCopilotMessages).mockResolvedValue([message({ suggestions: ["Yes, that's right", "Skip this one"], card: { kind: "question", field: "a.b", label: "A" } })]);
+    const state = await loadThread(client);
+    expect(state.live.length).toBeGreaterThan(0);
+    expect(state.suggestions).toEqual(["Yes, that's right", "Skip this one"]);
+  });
+
   it("still offers the reply choices when the only status is a failure", async () => {
     withCtx({ ...empty, documentCount: 1, importFailed: ["instagram"] });
     const state = await loadThread(client);

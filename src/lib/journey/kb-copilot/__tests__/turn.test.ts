@@ -22,7 +22,7 @@ const empty: KbContext = {
   documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const actions = (over: Partial<KbActions> = {}): KbActions => ({
-  saveWebsite: vi.fn(async () => {}), saveSocials: vi.fn(async () => {}), startBuild: vi.fn(async () => {}), setField: vi.fn(async () => {}), ...over,
+  saveWebsite: vi.fn(async () => {}), saveSocials: vi.fn(async () => {}), startBuild: vi.fn(async () => {}), setField: vi.fn(async () => true), ...over,
 });
 const call = (name: string, args: unknown, id = "c1") => ({ id, name, args });
 const say = (text: string): ModelOutput => ({ text, calls: [] });
@@ -172,7 +172,7 @@ describe("runKbTurn in review", () => {
   const PAINS = "target_audience.pain_points";
   const reviewOf = (over: Parameters<typeof kbWith>[0] = {}, pending: string | null = AGE) => ({ fields: reviewFields(kbWith(over)), pending });
   const withField = () => {
-    const setField = vi.fn(async () => {});
+    const setField = vi.fn(async () => true);
     return { setField, a: actions({ setField }) };
   };
 
@@ -218,6 +218,16 @@ describe("runKbTurn in review", () => {
     const result = await turn({ ctx: inReview, review: reviewOf({ [AGE]: { status: "approved" } }, null), actions: a, model });
     expect(setField).not.toHaveBeenCalled();
     expect(outputs(seen)).toEqual(Array(2).fill("That field is already reviewed. It can be edited on the right. Proposing changes from the chat comes in a later step."));
+    expect(result.walk.settled).toEqual([]);
+    expect(result.changed).toBe(false);
+  });
+
+  it("refuses when the field was reviewed by someone else while the model was thinking", async () => {
+    // The stored row is what decides: the write reports that it changed nothing.
+    const setField = vi.fn(async () => false);
+    const { model, seen } = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30 to 45" })] }, say("It was just reviewed.")]);
+    const result = await turn({ ctx: inReview, review: reviewOf(), actions: actions({ setField }), model });
+    expect(outputs(seen)).toEqual(["That field is already reviewed. It can be edited on the right. Proposing changes from the chat comes in a later step."]);
     expect(result.walk.settled).toEqual([]);
     expect(result.changed).toBe(false);
   });

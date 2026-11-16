@@ -52,6 +52,17 @@ export async function insertCopilotMessages(
   if (error) throw error;
 }
 
+/** Whether anything has been stored in the thread yet. Throws when the read fails. */
+export async function hasCopilotMessages(clientId: string, thread: CopilotThread): Promise<boolean> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_copilot_messages").select("id")
+    .eq("client_id", clientId).eq("thread", thread)
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
 /** Stores the opening message only when the thread has no rows yet. Safe when two turns race: the
  *  partial unique index lets one opening in, and the loser gets `false`. Returns true if it inserted. */
 export async function insertOpeningIfEmpty(clientId: string, thread: CopilotThread, content: string): Promise<boolean> {

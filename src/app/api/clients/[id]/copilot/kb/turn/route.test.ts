@@ -234,7 +234,8 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       const { review } = vi.mocked(runKbTurn).mock.calls[0][0];
       expect(review?.pending).toBe(AGE);
       expect(review?.fields).toHaveLength(43);
-      expect(patchKBFields).toHaveBeenCalledWith("v1", [{ path: ["target_audience", "age_range"], patch: { status: "approved" } }]);
+      // Only if the stored field is still unreviewed: a teammate's save during the turn is not overwritten.
+      expect(patchKBFields).toHaveBeenCalledWith("v1", [{ path: ["target_audience", "age_range"], patch: { status: "approved" } }], { onlyUnreviewed: true });
     });
 
     it("stores the reply and then the next question in one insert", async () => {

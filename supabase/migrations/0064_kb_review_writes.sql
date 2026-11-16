@@ -12,11 +12,16 @@
 -- filled, so neither writes an older copy of the KB over the other. The app only sends paths its own
 -- schema knows. A field the stored KB does not hold yet (one added to the schema after this KB was
 -- built) is created from the patch, when its section exists; anything else is skipped.
-create or replace function patch_kb_fields(p_version_id uuid, p_patches jsonb)
-returns void
+--
+-- p_only_unreviewed: the copilot's writes. An entry whose stored field is no longer 'needs_review'
+-- is skipped, checked here under the row lock, so a review a person saved a moment ago is never
+-- overwritten by an answer the copilot was still working on. Returns how many entries were written.
+create or replace function patch_kb_fields(p_version_id uuid, p_patches jsonb, p_only_unreviewed boolean default false)
+returns integer
 language plpgsql
 as $$
 declare
+  v_applied integer := 0;
   v_output jsonb;
   v_item jsonb;
   v_path text[];
@@ -29,13 +34,17 @@ begin
   for v_item in select * from jsonb_array_elements(p_patches) loop
     select array_agg(x order by ord) into v_path
       from jsonb_array_elements_text(v_item -> 'path') with ordinality as t(x, ord);
+    continue when v_path is null;
     v_current := v_output #> v_path;
+    continue when p_only_unreviewed and (v_current ->> 'status') is distinct from 'needs_review';
     if jsonb_typeof(v_item -> 'patch') = 'object' and (v_current is null or jsonb_typeof(v_current) = 'object') then
       -- create_missing adds only the last key, so a path whose section is missing changes nothing.
       v_output := jsonb_set(v_output, v_path, coalesce(v_current, '{}'::jsonb) || (v_item -> 'patch'), true);
+      v_applied := v_applied + 1;
     end if;
   end loop;
   update client_kb_versions set output = v_output where id = p_version_id;
+  return v_applied;
 end;
 $$;
 

@@ -6,6 +6,7 @@ vi.mock("@/lib/db/clients", () => ({ setKBStatus: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ listUnreviewedFields: vi.fn() }));
 vi.mock("@/lib/db/profiles", () => ({ resolveDisplayNames: vi.fn() }));
 vi.mock("@/lib/db/copilot-messages", () => ({ insertCopilotMessages: vi.fn() }));
+vi.mock("@/lib/journey/thread/opening", () => ({ ensureOpening: vi.fn() }));
 
 import { setKBStatus } from "@/lib/db/clients";
 import { insertCopilotMessages } from "@/lib/db/copilot-messages";
@@ -33,6 +34,12 @@ describe("approveKB", () => {
       role: "assistant", content: "Asha approved the brand KB. Market research is now open.", suggestions: [],
       card: { kind: "approval", what: "the brand KB", by: "Asha", byId: "u1" }, createdBy: "u1",
     }]);
+  });
+
+  it("makes sure the thread has its opening before the approval line", async () => {
+    const { ensureOpening } = await import("@/lib/journey/thread/opening");
+    await approveKB({ client: client(), userId: "u1" });
+    expect(vi.mocked(ensureOpening).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(insertCopilotMessages).mock.invocationCallOrder[0]);
   });
 
   it("does nothing the second time", async () => {

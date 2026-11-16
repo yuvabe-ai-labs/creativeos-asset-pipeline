@@ -8,12 +8,14 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ patchKBFields: vi.fn() }));
 vi.mock("@/lib/db/copilot-messages", () => ({ insertCopilotMessages: vi.fn() }));
+vi.mock("@/lib/journey/thread/opening", () => ({ ensureOpening: vi.fn() }));
 
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { insertCopilotMessages } from "@/lib/db/copilot-messages";
 import { patchKBFields } from "@/lib/db/kb";
+import { ensureOpening } from "@/lib/journey/thread/opening";
 
 const V1 = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11";
 const V2 = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c99";
@@ -38,6 +40,12 @@ describe("PATCH /api/clients/:id/kb/fields", () => {
     expect(vi.mocked(insertCopilotMessages).mock.calls[0][3]).toEqual([
       { role: "assistant", content: "Manual edits saved: 2 fields.", card: { kind: "note" }, suggestions: [], createdBy: "u1" },
     ]);
+  });
+
+  it("makes sure the thread has its opening before the note, so the note is never its first line", async () => {
+    const { PATCH } = await import("./route");
+    await PATCH(patch({ versionId: V1, patches: [approve] }), { params });
+    expect(vi.mocked(ensureOpening).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(insertCopilotMessages).mock.invocationCallOrder[0]);
   });
 
   it("says one field in the singular", async () => {

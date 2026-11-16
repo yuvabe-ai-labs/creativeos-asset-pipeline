@@ -3,6 +3,7 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { resolveCallerContext } from "@/lib/dal";
 import { insertCopilotMessages } from "@/lib/db/copilot-messages";
 import { patchKBFields } from "@/lib/db/kb";
+import { ensureOpening } from "@/lib/journey/thread/opening";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 import { KB_REBUILT } from "@/lib/kb/approve";
 import { isPatchablePath, KB_FIELD_PATCHES_MAX, kbFieldPatchSchema } from "@/lib/kb/field-patch";
@@ -32,7 +33,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
       // Best effort: the save stands even if the thread cannot be written.
       try {
-        const { userId } = await resolveCallerContext();
+        const [{ userId }] = await Promise.all([resolveCallerContext(), ensureOpening(client)]);
         const n = patches.length;
         await insertCopilotMessages(clientId, ONBOARDING, userId, [
           { role: "assistant", content: `Manual edits saved: ${n} field${n === 1 ? "" : "s"}.`, card: { kind: "note" }, suggestions: [], createdBy: userId },

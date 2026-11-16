@@ -615,3 +615,42 @@ ThreadGateCard({ title, opens, why, busy, onApprove }: { title: string; opens: s
 12. Two browser windows on the same KB in review: approve one field in each and save both. Reload: both fields are approved. Neither save undid the other.
 13. Approve a few fields without saving: "Discard changes" appears. Press it: the fields go back and both buttons give way to "Mark KB Ready".
 14. With an unsaved approval on the right, answer a copilot question about another field: the answer appears on the right and your unsaved approval is still there.
+
+---
+
+## Outcome (2026-11-16): built, reviewed once, fixed
+
+All eleven tasks are built on `feat/copilot-journey`. One independent review found no critical issue and three important ones; one fix pass followed. Whole suite after the fixes: 5,610 passed, 2 failed (the two that were failing before this work), 3 skipped. Nothing here has been run in a browser, and migration 0064 has not been run against a database.
+
+### Where the build departed from this plan
+
+- After a save the thread gets a line, "Manual edits saved: N fields." (Cyril, after the plan). It is a new card kind, `note`; the walk and the reply choices look past it.
+- `approveKB` checks readiness from the list of unreviewed paths, not by downloading the KB.
+- `patch_kb_fields` creates a field an older stored KB lacks (Content Rules), when its section exists.
+- A question still waiting is asked again even when the person also says "keep asking".
+- The unused whole-KB save (`saveKBOutputAction` and its two database helpers) is removed.
+
+### What the review changed
+
+- **A question keeps its reply buttons while images are collected or studied.** Only a running build hides them.
+- **The copilot cannot overwrite a review saved while it was thinking.** The database checks that the field is still unreviewed at the moment of the write (`p_only_unreviewed`), and the tool says the field is already reviewed.
+- **A save or an approval is never a thread's first line.** The opening is stored first (`ensureOpening`).
+- **"Save changes" no longer appears with nothing to save** after a KB that gained a field was refreshed.
+
+### Left for later, on purpose
+
+- A save that lands while an Image Analysis poll or a server refresh arrives can leave untouched fields marked unsaved.
+- An approval of an Image Analysis field carries the value the screen had; a rewrite by a background run in the same few seconds is overwritten.
+- Two teammates approving at the same instant write two "approved" lines.
+- A "what is left" link opens its tab once; after switching tabs by hand the same link does nothing.
+- A question's "Yes, that's right" stays on offer after its field was saved by hand; pressing it gets "already reviewed" and the next question.
+- "Ask me the open questions" is offered whenever any field is unreviewed, even when none is left to ask; a question lost to a failed turn is not asked again.
+- The turn route reads the client row twice; the fields and ready routes resolve the caller twice.
+- No route test for "no question while a build runs".
+
+### For Cyril to decide
+
+- The copilot may fill or approve any unreviewed field the person speaks about, not only the one it asked about. "All good, approve everything" could approve every field. Approving the KB itself is still only a person's click.
+- If a field has an unsaved change on the page and the person also answers it in the chat, the page's value wins at the next save.
+- Every save writes a line in the thread, on approved KBs too.
+- The field's name appears twice on a question: above it and at the start of the sentence.

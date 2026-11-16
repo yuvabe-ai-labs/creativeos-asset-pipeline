@@ -20,8 +20,9 @@ export type KbActions = {
   saveSocials: (handles: { instagram?: string; facebook?: string }) => Promise<void>;
   /** Throws BuildAlreadyRunningError when one is already running. */
   startBuild: () => Promise<void>;
-  /** Merges `patch` into the one field at `path` (dotted) of the KB in review. */
-  setField: (path: string, patch: KBFieldPatch["patch"]) => Promise<void>;
+  /** Merges `patch` into the one field at `path` (dotted) of the KB in review, only if that field
+   *  is still unreviewed as stored. False when it was not written: somebody reviewed it meanwhile. */
+  setField: (path: string, patch: KBFieldPatch["patch"]) => Promise<boolean>;
 };
 
 /** The brand KB in review as this turn sees it: its fields, and the question waiting for an answer. */
@@ -86,11 +87,15 @@ export async function runKbTurn(input: {
     if (!field) return NOT_IN_KB;
     return status.get(path) === "needs_review" ? field : REVIEWED_LOCKED;
   };
-  const settle = async (field: ReviewField, patch: KBFieldPatch["patch"], reviewed: ReviewField["status"]) => {
-    await actions.setField(field.path, patch);
-    status.set(field.path, reviewed);
+  /** False when the stored field turned out to be reviewed already: nothing was written. */
+  const settle = async (field: ReviewField, patch: KBFieldPatch["patch"], reviewed: ReviewField["status"]): Promise<boolean> => {
+    const written = await actions.setField(field.path, patch);
+    // Reviewed either way now, so no second attempt this turn and the walk moves on from it.
+    status.set(field.path, written ? reviewed : "approved");
+    if (!written) return false;
     walk.settled.push(field.path);
     changed = true;
+    return true;
   };
 
   const tools: Record<string, AgentTool> = {
@@ -103,8 +108,8 @@ export async function runKbTurn(input: {
         if (typeof field === "string") return tell(field);
         const next = coerce(field.kind, value);
         if (isEmpty(next)) return tell(EMPTY_ANSWER);
-        await settle(field, { value: next, status: "edited", evidence_type: "explicit", confidence: "high" }, "edited");
-        return tell(`Saved ${field.label}.`);
+        const saved = await settle(field, { value: next, status: "edited", evidence_type: "explicit", confidence: "high" }, "edited");
+        return tell(saved ? `Saved ${field.label}.` : REVIEWED_LOCKED);
       },
     },
     confirm_field: {
@@ -113,8 +118,8 @@ export async function runKbTurn(input: {
       run: async (args) => {
         const field = open((args as { field: string }).field);
         if (typeof field === "string") return tell(field);
-        await settle(field, { status: "approved" }, "approved");
-        return tell(`Marked ${field.label} as right.`);
+        const saved = await settle(field, { status: "approved" }, "approved");
+        return tell(saved ? `Marked ${field.label} as right.` : REVIEWED_LOCKED);
       },
     },
     skip_question: {
