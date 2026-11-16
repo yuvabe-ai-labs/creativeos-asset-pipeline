@@ -8,14 +8,26 @@ import { START_BUILD_CHOICE } from "./context";
 
 const done = (text: string): StatusLine => ({ text, state: "done" });
 
+/** A short account of what it found and where it was unsure (spec §2.3). */
+function accountSentence(a: { total: number; filled: number; inferred: number; empty: number }): string {
+  const unsure = [
+    ...(a.inferred > 0 ? [`${a.inferred} of them I inferred and could not find stated.`] : []),
+    ...(a.empty > 0 ? [`${a.empty} I could not find at all.`] : []),
+  ];
+  return [`I filled ${a.filled} of ${a.total} fields.`, ...(unsure.length > 0 ? unsure : ["All of them were stated in the sources."])].join(" ");
+}
+
 export function buildSucceededMessage(input: {
   hadWebsite: boolean;
   /** Documents the build actually read. */
   documentCount: number;
   skipped: { filename: string; reason: string }[];
+  /** What the build filled, inferred and could not find, counted from the KB it wrote. */
+  account?: { total: number; filled: number; inferred: number; empty: number };
 }): NewCopilotMessage {
   const paragraphs = [
     "The brand KB is built and ready for your review on the right.",
+    ...(input.account && input.account.total > 0 ? [accountSentence(input.account)] : []),
     // The collection runs on its own and usually takes longer than the KB text. Whether it is still
     // running is not known here, so this does not claim that it is.
     ...(input.hadWebsite ? ["Images and video from the site and socials are collected separately and may still be coming in. That does not block the review."] : []),

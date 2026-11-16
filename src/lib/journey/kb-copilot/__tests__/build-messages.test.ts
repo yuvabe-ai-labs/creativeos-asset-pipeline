@@ -60,3 +60,24 @@ describe("buildFailedMessage, when a retry from the chat would be refused", () =
     expect(m.content).not.toContain("Nothing was changed");
   });
 });
+
+describe("buildSucceededMessage, the account of what it found", () => {
+  const built = (account: { total: number; filled: number; inferred: number; empty: number }) =>
+    buildSucceededMessage({ hadWebsite: false, documentCount: 1, skipped: [], account }).content;
+
+  it("says how much it filled, inferred and could not find", () => {
+    expect(built({ total: 43, filled: 36, inferred: 8, empty: 7 })).toBe(
+      `${READY}\n\nI filled 36 of 43 fields. 8 of them I inferred and could not find stated. 7 I could not find at all.`,
+    );
+  });
+  it("says so when everything was stated", () => {
+    expect(built({ total: 43, filled: 43, inferred: 0, empty: 0 })).toContain("I filled 43 of 43 fields. All of them were stated in the sources.");
+  });
+  it("leaves out the half that does not apply", () => {
+    expect(built({ total: 43, filled: 43, inferred: 2, empty: 0 })).toContain("I filled 43 of 43 fields. 2 of them I inferred and could not find stated.");
+    expect(built({ total: 43, filled: 40, inferred: 0, empty: 3 })).toContain("I filled 40 of 43 fields. 3 I could not find at all.");
+  });
+  it("says nothing of it for a KB with no fields to count", () => {
+    expect(built({ total: 0, filled: 0, inferred: 0, empty: 0 })).toBe(READY);
+  });
+});

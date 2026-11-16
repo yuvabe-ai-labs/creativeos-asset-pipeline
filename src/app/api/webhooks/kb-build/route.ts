@@ -14,15 +14,17 @@ import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { KB_JOB_NON_TERMINAL_STATUSES, WEBSITE_RESEARCH_FILENAME } from "@/lib/kb/constants";
 import { insertCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
 import { buildFailedMessage, buildSucceededMessage } from "@/lib/journey/kb-copilot/build-messages";
+import { reviewAccount, reviewFields } from "@/lib/journey/kb-copilot/review";
+import { walkMessages } from "@/lib/journey/kb-copilot/walk";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 
 const NON_TERMINAL = KB_JOB_NON_TERMINAL_STATUSES;
 
 /** The build tells the copilot thread how it ended (copilot journey, brand KB spec §2.2). Best effort:
  *  a thread message that cannot be stored must never fail the webhook or the build. */
-async function tellThread(clientId: string, message: NewCopilotMessage): Promise<void> {
+async function tellThread(clientId: string, messages: NewCopilotMessage[]): Promise<void> {
   try {
-    await insertCopilotMessages(clientId, ONBOARDING, null, [message]);
+    await insertCopilotMessages(clientId, ONBOARDING, null, messages);
   } catch (e) {
     console.error("[webhooks/kb-build] could not write to the copilot thread", e);
   }
@@ -93,7 +95,7 @@ export async function POST(req: Request) {
       // Said once: a repeated delivery finds the job already finished.
       if (NON_TERMINAL.includes(jobForCheck.status)) {
         // A failed build writes nothing. The copilot only accepts "start the build" while no KB exists.
-        await tellThread(jobForCheck.client_id, buildFailedMessage(body.error, { canRetry: !clientForCheck.active_kb_version_id, unchanged: true }));
+        await tellThread(jobForCheck.client_id, [buildFailedMessage(body.error, { canRetry: !clientForCheck.active_kb_version_id, unchanged: true })]);
       }
       return apiOk({ ok: true });
     }
@@ -147,13 +149,28 @@ export async function POST(req: Request) {
     // 4. This run fills Image Analysis from every brand image, or leaves a current one alone (D312).
     await startImageAnalysisQuietly(job.client_id);
 
-    // 5. Say so in the copilot thread. The panel picks it up on its next check.
-    await tellThread(job.client_id, buildSucceededMessage({
+    // 5. Say so in the copilot thread, with what it found, and ask the first question about what it
+    //    could not settle (spec §2.3). Counted from the KB in hand: nothing more is read. The panel
+    //    picks it up on its next check.
+    const built = {
       hadWebsite: job.website_url !== null,
       // The ones it read: what it skipped is named in the message instead.
       documentCount: Math.max(0, (job.doc_ids_used ?? []).length - (body.skippedDocs ?? []).length),
       skipped: body.skippedDocs ?? [],
-    }));
+    };
+    let landed: NewCopilotMessage[];
+    try {
+      const fields = reviewFields(body.kbOutput);
+      landed = [
+        buildSucceededMessage({ ...built, account: reviewAccount(fields) }),
+        ...walkMessages({ fields, walk: { asked: [], pending: null }, turn: null }),
+      ];
+    } catch (e) {
+      // The KB is saved by now. A KB this cannot count must still be announced, never failed.
+      console.error("[webhooks/kb-build] could not count the KB for the copilot thread", e);
+      landed = [buildSucceededMessage(built)];
+    }
+    await tellThread(job.client_id, landed);
 
     return apiOk({ ok: true, versionId: version.id });
   } catch (e) {
@@ -161,7 +178,7 @@ export async function POST(req: Request) {
     // Best-effort: mark the job failed so the UI escapes the running state.
     try { await markKBJobFailed({ jobId: body.jobId, error }); } catch {}
     // This failed part-way through the writes above, so it cannot say that nothing changed.
-    if (NON_TERMINAL.includes(jobForCheck.status)) await tellThread(jobForCheck.client_id, buildFailedMessage(error, { canRetry: false, unchanged: false }));
+    if (NON_TERMINAL.includes(jobForCheck.status)) await tellThread(jobForCheck.client_id, [buildFailedMessage(error, { canRetry: false, unchanged: false })]);
     return apiError(error, 500);
   }
 }

@@ -53,6 +53,24 @@ describe("POST /api/webhooks/kb-build, the copilot thread", () => {
     });
   });
 
+  it("writes the account and the first question together when the build lands", async () => {
+    const { kbWith } = await import("@/lib/kb/__tests__/fixtures");
+    const { POST } = await import("./route");
+    await POST(post({ ...succeeded, kbOutput: kbWith({ "target_audience.age_range": { evidence_type: "inferred", value: "25 to 40" } }) }));
+    expect(insertCopilotMessages).toHaveBeenCalledTimes(1);
+    const messages = vi.mocked(insertCopilotMessages).mock.calls[0][3];
+    expect(messages).toHaveLength(2);
+    expect(messages[0].content).toContain("I filled 43 of 43 fields. 1 of them I inferred and could not find stated.");
+    expect(messages[1].card).toEqual({ kind: "question", field: "target_audience.age_range", label: "Audience & Casting · Age Range" });
+  });
+
+  it("asks nothing when everything was stated", async () => {
+    const { kbWith } = await import("@/lib/kb/__tests__/fixtures");
+    const { POST } = await import("./route");
+    await POST(post({ ...succeeded, kbOutput: kbWith({}) }));
+    expect(vi.mocked(insertCopilotMessages).mock.calls[0][3]).toHaveLength(1);
+  });
+
   it("still succeeds when the thread message cannot be stored", async () => {
     vi.mocked(insertCopilotMessages).mockRejectedValue(new Error("db down"));
     const { POST } = await import("./route");
