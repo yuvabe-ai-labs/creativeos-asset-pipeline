@@ -92,7 +92,7 @@ export async function resendOwnerInviteAction(orgId: string): Promise<OwnerInvit
     const result = await resendOwnerInvite({ orgId, orgName: org.name }, { userId: admin.userId, name: name ?? "Yuvabe" });
     if (!result.ok) return { error: result.error };
     await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "resend_owner_invite", email: result.value.invite.email } });
-    return { link: result.value.link, emailed: result.value.emailed };
+    return { email: result.value.invite.email, link: result.value.link, emailed: result.value.emailed };
   } catch (e) {
     console.error("[admin] could not resend the owner invite", e);
     return { error: "Could not send the invite." };

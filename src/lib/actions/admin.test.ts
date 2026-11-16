@@ -44,7 +44,7 @@ describe("admin actions are the super admin's only (D505)", () => {
 describe("resendOwnerInviteAction", () => {
   it("resends and audits with the person affected", async () => {
     m.resendOwnerInvite.mockResolvedValue({ ok: true, value: { invite: ownerInvite, link: ownerInvite.link, emailed: true } });
-    expect(await resendOwnerInviteAction(ORG)).toEqual({ link: ownerInvite.link, emailed: true });
+    expect(await resendOwnerInviteAction(ORG)).toEqual({ email: ownerInvite.email, link: ownerInvite.link, emailed: true });
     expect(m.resendOwnerInvite).toHaveBeenCalledWith({ orgId: ORG, orgName: "Acme" }, { userId: "admin-1", name: "Yuva" });
     expect(m.logImpersonationEvent).toHaveBeenCalledWith({ operatorId: "admin-1", targetOrgId: ORG, eventType: "admin_action", detail: { action: "resend_owner_invite", email: "o@x.com" } });
   });
