@@ -19,8 +19,9 @@ const STATE_WORD: Record<StageState, string> = {
 function pageWidth(frame: Frame): string {
   // Beside the copilot every page starts at the same left edge (client-frame.tsx), and so does this.
   if (frame.panel) return "";
-  // A page inside a tab (an avatar's studio) centres itself.
-  return "mx-auto max-w-6xl";
+  // With no copilot beside it a page centres itself, and the bar centres at that page's width: the
+  // canvases list is the narrower one, a page inside a tab (an avatar's studio) the wider.
+  return frame.tab === "canvases" ? "mx-auto max-w-4xl" : "mx-auto max-w-6xl";
 }
 
 function StageIcon({ state }: { state: StageState }) {

@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { frameFor } from "../frame";
+import { frameFor, JOURNEY_TABS } from "../frame";
 
 const f = (path: string) => frameFor(path, "chupps");
 
 describe("frameFor", () => {
-  it("client home: tabs, none active, the panel of whichever stage the client is at", () => {
-    expect(f("/clients/chupps")).toEqual({ tabs: true, tab: null, panel: "current" });
+  it("the client's home is the Canvases tab: a list, with no copilot beside it", () => {
+    expect(f("/clients/chupps")).toEqual({ tabs: true, tab: "canvases", panel: null });
+    expect(f("/clients/chupps/")).toEqual({ tabs: true, tab: "canvases", panel: null });
+  });
+  it("lists Canvases after Scripts, pointing at the client's home", () => {
+    expect(JOURNEY_TABS.map((t) => t.id)).toEqual(["kb", "market", "scripts", "canvases", "avatars", "brand-assets"]);
+    expect(JOURNEY_TABS.find((t) => t.id === "canvases")).toMatchObject({ label: "Canvases", stage: false });
+    expect(JOURNEY_TABS.find((t) => t.id === "canvases")?.href("chupps")).toBe("/clients/chupps");
   });
   it("stage pages get their tab and the panel", () => {
     expect(f("/clients/chupps/kb")).toEqual({ tabs: true, tab: "kb", panel: "kb" });
