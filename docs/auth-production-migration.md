@@ -1142,7 +1142,7 @@ delete from org_memberships where org_id = '<agency>' and is_owner;
 rollback;
 ```
 
-## Migration 0063 — views off the public API, every invite send counted (D501, D511, 2026-11-16)
+## Migration 0063 — views off the public API, every invite send counted, node-files writes closed (D501, D511, 2026-11-16)
 
 `supabase/migrations/0063_close_views_and_count_resends.sql`. Apply after 0062, in the same window
 (staging before the staging deploy of this branch, production before the merge to `main`). Safe to
@@ -1168,6 +1168,24 @@ What it does:
   doesn't call it: the agency is new. The window is fixed (24 hours from its first send), not
   rolling. The one-a-minute Resend gap still reads the invite's own sent time. Counters start at 0,
   so every agency starts with a fresh window.
+- The `node-files` storage bucket (0004) had insert and delete policies on `storage.objects` that
+  checked only the bucket, with no role, so the anon key could upload files into it or delete
+  files from it. Nothing in the app writes to that bucket any more (uploads go to Google Cloud
+  Storage through `src/lib/storage/`); the only call left is the server deleting an old
+  supabase.co file in `removeObject`, with the service role, which isn't affected by policies.
+  0063 drops both policies and adds none, so only the service role can write. `Public read
+  node-files` and the bucket's public setting stay as they were: old rows can still show files by
+  their public URL.
+- Indexes for twelve foreign keys that had none: `background_jobs.org_id`,
+  `node_version_decisions.org_id`, `canvas_reviews.canvas_id`, `script_panel_takes.client_id`,
+  `script_panel_picks.take_id`, `script_reviews.client_id`, `script_review_comments.version_id`
+  and `parent_id`, `client_script_messages.client_id`, `client_kb_jobs.version_id`,
+  `nodes.active_version_id`, `editor_edits.org_id`. All small tables, so `create index` (not
+  `concurrently`, which the SQL editor can't run in a transaction) takes a moment.
+
+If `drop policy` on `storage.objects` is refused with "must be owner of table objects", delete the
+two policies by hand instead: Supabase dashboard → Storage → Policies → `node-files` → delete
+"Authenticated insert node-files" and "Authenticated delete node-files". Then run the rest.
 
 **Ordering:** apply 0063, then deploy the code. Deployed before 0063, `take_invite_send` is missing
 and every invite and Resend fails with "Something went wrong". Applied before the code, nothing
@@ -1189,7 +1207,29 @@ select count(*) from pg_proc where proname = 'org_review_counts_for_types';
 -- expect false for both: the counter function is the service role's only
 select has_function_privilege('anon', 'take_invite_send(uuid, int)', 'execute'),
        has_function_privilege('authenticated', 'take_invite_send(uuid, int)', 'execute');
+-- expect one row, "Public read node-files" (SELECT): the insert and delete policies are gone
+select policyname, cmd from pg_policies
+ where schemaname = 'storage' and tablename = 'objects' and policyname like '%node-files%';
+-- expect 12 rows
+select indexname from pg_indexes where indexname in (
+  'background_jobs_org_id_idx', 'node_version_decisions_org_id_idx', 'canvas_reviews_canvas_id_idx',
+  'script_panel_takes_client_id_idx', 'script_panel_picks_take_id_idx', 'script_reviews_client_id_idx',
+  'script_review_comments_version_id_idx', 'script_review_comments_parent_id_idx',
+  'client_script_messages_client_id_idx', 'client_kb_jobs_version_id_idx',
+  'nodes_active_version_id_idx', 'editor_edits_org_id_idx');
 ```
+
+**Check node-files from outside, with the anon key:**
+
+```sh
+curl -X POST "<SUPABASE_URL>/storage/v1/object/node-files/test.txt" \
+  -H "apikey: <anon key>" -H "Authorization: Bearer <anon key>" --data "x"
+```
+
+Expect a 400 or 403 (`new row violates row-level security policy`). A 200 means the insert policy
+is still there; if it does go through, delete `test.txt` in the dashboard. Then in the app, open a
+canvas with File nodes and images made before the move to Google Cloud Storage (if there are any):
+they still display.
 
 **Check from outside, with the anon key** (from `NEXT_PUBLIC_SUPABASE_ANON_KEY`), for each view:
 

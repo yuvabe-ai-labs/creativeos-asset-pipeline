@@ -9,7 +9,7 @@ It shows the state after every migration has run: later `alter`/`drop`/`create o
 - **Keep it current.** A change that adds a migration updates this file in the same commit (and `docs/auth-production-migration.md`). `src/lib/db/schema-map.test.ts` fails when a table or view has no heading here, or when the "up to" number above is not the last migration.
 - Columns list skips `created_at`/`updated_at` unless they mean something. `→` is a foreign key; `cascade` / `set null` is its `on delete`.
 
-Contents: [Agencies & people](#agencies--people) · [Clients & brand KB](#clients--brand-kb) · [Canvases, nodes, versions](#canvases-nodes-versions) · [Scripts](#scripts) · [Generation & credits](#generation--credits) · [Review & sharing](#review--sharing) · [Avatars & voices](#avatars--voices) · [Market](#market) · [Admin & audit](#admin--audit) · [Media caches](#media-caches) · [Views](#views) · [Functions](#functions) · [Types, Realtime, storage](#types-realtime-storage)
+Contents: [Agencies & people](#agencies--people) · [Clients & brand KB](#clients--brand-kb) · [Canvases, nodes, versions](#canvases-nodes-versions) · [Scripts](#scripts) · [Generation & credits](#generation--credits) · [Review & sharing](#review--sharing) · [Avatars & voices](#avatars--voices) · [Market](#market) · [Admin & audit](#admin--audit) · [Media caches](#media-caches) · [Views](#views) · [Functions](#functions) · [Types, Realtime, storage](#types-realtime-storage) · [Known leftovers](#known-leftovers)
 
 ---
 
@@ -77,7 +77,7 @@ Each extracted Brand KB (full JSON). *0002*
 ### client_kb_jobs
 A background KB build (research + extract). *0008* · org_id · *Realtime*
 - `id` uuid PK · `client_id` → clients cascade · `status` client_kb_job_status · `phase_message` · `website_url` · `doc_ids_used` uuid[] · `trigger_run_id` · `version_id` → client_kb_versions set null · `error` · `org_id` → organizations (not null, 0014)
-- Indexes: `(client_id, status)`, `org_id`; unique `(client_id) where status` is live (one running job per client)
+- Indexes: `(client_id, status)`, `org_id`, `version_id` (0063); unique `(client_id) where status` is live (one running job per client)
 - RLS: select `org isolation`.
 
 ### client_brand_images
@@ -112,7 +112,7 @@ A client's node canvas. *0001* · org_id
 ### nodes
 A node on a canvas; `type` is the node kind (`image-gen`, `video-gen`, `editor`, `dubbing`, …). *0001*
 - `id` uuid PK · `canvas_id` → canvases cascade · `type` text · `position` jsonb · `data` jsonb · `active_version_id` → node_versions set null
-- Index: `canvas_id` · RLS: service role only.
+- Indexes: `canvas_id`, `active_version_id` (0063) · RLS: service role only.
 - Triggers: `nodes_touch_canvas` · `nodes_keep_canvas` (a node can't move to another canvas, 0062)
 
 ### node_versions
@@ -134,7 +134,7 @@ A connection between two nodes on the same canvas. *0001*
 ### editor_edits
 The Rough Cut Editor document for an editor node. *0059* · org_id
 - `node_id` uuid PK → nodes cascade · `canvas_id` → canvases cascade · `org_id` → organizations (filled by trigger) · `doc` jsonb
-- Index: `canvas_id` · RLS: service role only. Trigger `editor_edits_set_org_id`.
+- Indexes: `canvas_id`, `org_id` (0063) · RLS: service role only. Trigger `editor_edits_set_org_id`.
 
 ---
 
@@ -148,17 +148,17 @@ A video script moving through generate → visualise → in_review → approved.
 ### client_script_messages
 The script chat (user and assistant turns). *0052, 0061*
 - `id` uuid PK · `seq` bigint identity · `script_id` → client_scripts cascade · `client_id` → clients cascade · `role` check user/assistant · `content` · `card` jsonb · `suggestions` jsonb · `created_by` → auth.users set null
-- Index: `(script_id, seq)` · RLS: service role only.
+- Indexes: `(script_id, seq)`, `client_id` (0063) · RLS: service role only.
 
 ### script_panel_takes
 Each storyboard panel image drawn for a shot. *0053*
 - `id` uuid PK · `client_id` → clients cascade · `script_id` → client_scripts cascade · `shot_id` text · `generation_id` → generations set null · `status` check running/succeeded/failed · `url` · `width`, `height` · `prompt` · `prompt_edited` bool · `shot_key` · `faces` jsonb · `error` · `created_by`
-- Index: `(script_id, shot_id, created_at desc)` · RLS: service role only.
+- Indexes: `(script_id, shot_id, created_at desc)`, `client_id` (0063) · RLS: service role only.
 
 ### script_panel_picks
 The chosen take per shot. *0053*
 - PK `(script_id, shot_id)` · `script_id` → client_scripts cascade · `take_id` → script_panel_takes cascade · `picked_at`
-- RLS: service role only.
+- Index: `take_id` (0063) · RLS: service role only.
 
 ---
 
@@ -182,7 +182,7 @@ The credit ledger: reservation, consumption, refund, adjustment. *0019* · org_i
 ### background_jobs
 Generic background job rows (kind + input/result), one live job per `lock_key`. *0044* · org_id
 - `id` uuid PK · `org_id` → organizations · `client_id` → clients cascade · `kind` · `status` check queued/running/succeeded/failed · `phase_message` · `input`, `result` jsonb · `error` · `lock_key` · `trigger_run_id` · `created_by` → auth.users set null · `started_at` · `finished_at`
-- Indexes: `(client_id, kind, created_at desc)`; unique `(lock_key)` where queued/running
+- Indexes: `(client_id, kind, created_at desc)`, `org_id` (0063); unique `(lock_key)` where queued/running
 - RLS: service role only.
 
 ---
@@ -192,7 +192,7 @@ Generic background job rows (kind + input/result), one live job per `lock_key`. 
 ### node_version_decisions
 Every approve / request-changes decision on a version (history; the version keeps the latest). *0033* · org_id
 - `id` uuid PK · `version_id` → node_versions cascade · `org_id` → organizations · `status` check approved/changes_requested · `note` · `decided_by_user_id` → auth.users set null · `decided_at`
-- Index: `(version_id, decided_at desc)` · RLS: select `org isolation`.
+- Indexes: `(version_id, decided_at desc)`, `org_id` (0063) · RLS: select `org isolation`.
 
 ### node_version_annotations
 Painted marks attached to a decision (image or video frame). *0035–0037* · org_id
@@ -202,7 +202,7 @@ Painted marks attached to a decision (image or video frame). *0035–0037* · or
 ### canvas_reviews
 A share link for one video node, for client comments. *0047* · org_id
 - `id` uuid PK · `canvas_id` → canvases cascade · `node_id` → nodes cascade, unique · `org_id` → organizations (filled by trigger) · `video_path` · `share_token` unique · `created_by` uuid (no FK)
-- RLS: service role only. Trigger `canvas_reviews_set_org_id`.
+- Index: `canvas_id` (0063) · RLS: service role only. Trigger `canvas_reviews_set_org_id`.
 
 ### canvas_review_comments
 Timecoded comments on a canvas review. *0047*
@@ -212,7 +212,7 @@ Timecoded comments on a canvas review. *0047*
 ### script_reviews
 A script's share link (one per script). *0054*
 - `id` uuid PK · `script_id` → client_scripts cascade, unique · `client_id` → clients cascade · `share_token` unique · `created_by` → auth.users set null
-- RLS: service role only.
+- Index: `client_id` (0063) · RLS: service role only.
 
 ### script_review_versions
 Each shared snapshot of a script (numbered). *0054*
@@ -223,7 +223,7 @@ Each shared snapshot of a script (numbered). *0054*
 Threaded comments on a part of a shared script version. *0054*
 - `id` uuid PK · `review_id` → script_reviews cascade · `version_id` → script_review_versions cascade · `part_kind` check context/shot/panel/cast/view · `part_id` · `part_view` front/left/right/back · `parent_id` → self cascade · `author_kind` client/team · `author_name` · `author_user_id` → auth.users set null · `body` · `edited_by_name` · `resolved_at` · `resolved_by_name`
 - Checks tie `part_id` to non-context and `part_view` to `view`
-- Index: `(review_id, created_at)` · RLS: service role only.
+- Indexes: `(review_id, created_at)`, `version_id`, `parent_id` (0063) · RLS: service role only.
 
 ### script_review_events
 The script's review timeline (moved to review, shared, approved, …). *0054*
@@ -391,4 +391,13 @@ Dropped: `org_review_counts_for_types` (created 0062, dropped 0063).
 
 - **Enum** `client_kb_job_status`: queued, researching, extracting, finalizing, succeeded, failed (0008).
 - **Realtime publication** `supabase_realtime`: `client_kb_jobs` (0008), `generations` (0014), `credit_transactions` (0022), `node_versions` (0030), `moodboard_items` (0040). One channel per screen, filtered client-side (performance rule 3).
-- **Storage bucket** `node-files` (public, 0004) with `storage.objects` policies for select, insert and delete that check only `bucket_id` (no role). Other files live in Google Cloud Storage, outside the migrations.
+- **Storage bucket** `node-files` (public, 0004), legacy: nothing in the app uploads to it any more. Its `storage.objects` policies: `Public read node-files` (select, checks only `bucket_id`) stays, because old rows can still hold its public URLs. The insert and delete policies checked only `bucket_id` with no role, so the anon key could upload and delete; 0063 drops both, so writes are service role only (the one left is `removeObject` deleting an old supabase.co URL, `src/lib/storage/index.ts`). Every other file lives in Google Cloud Storage (`src/lib/storage/gcs.ts`), outside the migrations.
+
+## Known leftovers
+
+Kept on purpose for now; don't build on them.
+
+- Legacy columns: `node_versions.approved_by` (never read), `node_versions.operator` (still the fallback maker name) and `decision` (read by eval), `node_version_annotations.frame_path` (always null since D249), `org_memberships.org_role` with its `org_memberships_last_owner` trigger (until the drop in D510).
+- `generations.version_id` → node_versions and `generations.client_id` → clients have no `on delete` action (the default, no action); left as they are. `generations.user_id` and `canvas_reviews.created_by` have no FK.
+- `node_versions.org_id` and `moodboard_items.org_id` are nullable and filled by trigger.
+- `NODE_FILE_BUCKET` (`src/lib/nodes/file-constants.ts`) names the legacy bucket and has no reader.

@@ -49,6 +49,36 @@ describe("migration 0063", () => {
     expect(SQL).toContain("grant execute on function take_invite_send(uuid, int) to service_role;");
   });
 
+  it("drops the node-files write policies that let the anon key upload and delete, and keeps public read", () => {
+    expect(SQL).toContain(`drop policy if exists "Authenticated insert node-files" on storage.objects;`);
+    expect(SQL).toContain(`drop policy if exists "Authenticated delete node-files" on storage.objects;`);
+    // Every write is the service role's (it bypasses RLS), so no replacement write policy is made.
+    expect(SQL).not.toMatch(/create policy[^;]*on storage\.objects[^;]*for (insert|update|delete|all)/i);
+    // Old rows still show files by their public URL: read stays as 0004 made it.
+    expect(SQL).not.toContain(`drop policy if exists "Public read node-files"`);
+    expect(SQL).not.toMatch(/update storage\.buckets/);
+  });
+
+  it("indexes the foreign keys that had no index", () => {
+    const indexes: [string, string, string][] = [
+      ["background_jobs_org_id_idx", "background_jobs", "org_id"],
+      ["node_version_decisions_org_id_idx", "node_version_decisions", "org_id"],
+      ["canvas_reviews_canvas_id_idx", "canvas_reviews", "canvas_id"],
+      ["script_panel_takes_client_id_idx", "script_panel_takes", "client_id"],
+      ["script_panel_picks_take_id_idx", "script_panel_picks", "take_id"],
+      ["script_reviews_client_id_idx", "script_reviews", "client_id"],
+      ["script_review_comments_version_id_idx", "script_review_comments", "version_id"],
+      ["script_review_comments_parent_id_idx", "script_review_comments", "parent_id"],
+      ["client_script_messages_client_id_idx", "client_script_messages", "client_id"],
+      ["client_kb_jobs_version_id_idx", "client_kb_jobs", "version_id"],
+      ["nodes_active_version_id_idx", "nodes", "active_version_id"],
+      ["editor_edits_org_id_idx", "editor_edits", "org_id"],
+    ];
+    for (const [name, table, column] of indexes) {
+      expect(SQL, name).toContain(`create index if not exists ${name} on ${table} (${column});`);
+    }
+  });
+
   it("reloads the API schema", () => {
     expect(SQL).toContain("notify pgrst, 'reload schema';");
   });

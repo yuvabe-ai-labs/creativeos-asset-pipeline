@@ -1,5 +1,7 @@
 -- 0063: closes the owner-rights views to the public API (final review C2) and counts every invite
--- send, Resend included, towards the 50-a-day limit (final review I4). Apply after 0062.
+-- send, Resend included, towards the 50-a-day limit (final review I4). It also takes uploads and
+-- deletes in the node-files storage bucket away from the anon key, and indexes twelve foreign keys
+-- that had no index. Apply after 0062.
 -- Safe to run twice: every statement is guarded or idempotent.
 
 -- ── 1. The three views read only by the server ────────────────────────────────
@@ -76,5 +78,47 @@ end;
 $$;
 revoke all on function take_invite_send(uuid, int) from public, anon, authenticated;
 grant execute on function take_invite_send(uuid, int) to service_role;
+
+-- ── 3. node-files uploads and deletes: service role only ───────────────────────
+-- 0004 made the node-files bucket public and gave storage.objects an insert and a delete policy that
+-- check only bucket_id. Despite their names ("Authenticated ...") they have no `to authenticated`,
+-- so they apply to anon as well: the anon key from the browser bundle could upload any file into
+-- the bucket or delete any file in it.
+--
+-- Nothing in the app writes to node-files any more. Every upload (File nodes, generations, brand
+-- images, KB documents, logos, review assets, ...) goes to Google Cloud Storage through
+-- src/lib/storage/index.ts (_put / _signPutUrl in src/lib/storage/gcs.ts): server-side puts, or
+-- signed GCS PUT URLs the browser uploads to. NODE_FILE_BUCKET in src/lib/nodes/file-constants.ts is
+-- a leftover constant with no reader. No code in src/ or trigger/ calls storage.from(...).upload,
+-- createSignedUploadUrl, uploadToSignedUrl, getPublicUrl or createSignedUrl, and the browser
+-- Supabase client is used only for Realtime. The one Supabase Storage call left is the delete in
+-- removeObject (src/lib/storage/index.ts), for an old supabase.co public URL still held in a row,
+-- and it runs on the service-role client (createServerSupabase), which bypasses RLS.
+--
+-- So both write policies are dropped and no new one is made: writes are the service role's only,
+-- and anon and authenticated can't insert, update (there never was an update policy) or delete.
+--
+-- The "Public read node-files" policy and the bucket's public flag are left exactly as they are:
+-- old rows can still hold supabase.co public URLs of files in this bucket, and the app shows them by
+-- that URL (an image <img src>, a file link), so taking read away would break those images.
+drop policy if exists "Authenticated insert node-files" on storage.objects;
+drop policy if exists "Authenticated delete node-files" on storage.objects;
+
+-- ── 4. Indexes for foreign keys that had none (performance rule 9) ──────────────
+-- Each column is a foreign key with no index of its own and no composite index that leads with it
+-- (docs/database-schema.md lists the existing ones). Deleting the parent row, or filtering by it,
+-- scanned the table. org_invitations.org_id is not here: (org_id, created_at) already leads with it.
+create index if not exists background_jobs_org_id_idx on background_jobs (org_id);
+create index if not exists node_version_decisions_org_id_idx on node_version_decisions (org_id);
+create index if not exists canvas_reviews_canvas_id_idx on canvas_reviews (canvas_id);
+create index if not exists script_panel_takes_client_id_idx on script_panel_takes (client_id);
+create index if not exists script_panel_picks_take_id_idx on script_panel_picks (take_id);
+create index if not exists script_reviews_client_id_idx on script_reviews (client_id);
+create index if not exists script_review_comments_version_id_idx on script_review_comments (version_id);
+create index if not exists script_review_comments_parent_id_idx on script_review_comments (parent_id);
+create index if not exists client_script_messages_client_id_idx on client_script_messages (client_id);
+create index if not exists client_kb_jobs_version_id_idx on client_kb_jobs (version_id);
+create index if not exists nodes_active_version_id_idx on nodes (active_version_id);
+create index if not exists editor_edits_org_id_idx on editor_edits (org_id);
 
 notify pgrst, 'reload schema';
