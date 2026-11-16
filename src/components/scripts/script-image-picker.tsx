@@ -17,12 +17,18 @@ const KB_FILTERS = { source: null, media: "image" } as const;
 
 /** D446 — pick a product's pictures or a location's: upload new files, or choose from the client's
  *  brand kit and KB images. `max` is how many it may still take (1 for a location). */
-export function ScriptImagePicker({ clientId, open, onOpenChange, title, max, onUpload, onPick }: {
+export function ScriptImagePicker({ clientId, open, onOpenChange, title, max, existing, onRemoveExisting, onMakeMainExisting, current, onUpload, onPick }: {
   clientId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   max: number;
+  /** Pictures the item already has, shown first in the Upload grid so adding continues after them. */
+  existing?: string[];
+  onRemoveExisting?: (index: number) => void;
+  onMakeMainExisting?: (index: number) => void;
+  /** One-picture mode: the picture the item has now, which a new one replaces. */
+  current?: string | null;
   onUpload: (files: File[]) => void;
   onPick: (images: ScriptImage[]) => void;
 }) {
@@ -49,11 +55,17 @@ export function ScriptImagePicker({ clientId, open, onOpenChange, title, max, on
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {max > 1 ? `Add up to ${max}. The first one is the main picture.` : "One clear picture of the empty place."}
+            {existing?.length
+              ? `Add up to ${max} more. The first one is the main picture.`
+              : max > 1
+                ? `Add up to ${max}. The first one is the main picture.`
+                : current
+                  ? "A new picture replaces the current one."
+                  : "One clear picture of the empty place."}
           </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="upload">
@@ -62,7 +74,7 @@ export function ScriptImagePicker({ clientId, open, onOpenChange, title, max, on
             <TabsTrigger value="library">From the client</TabsTrigger>
           </TabsList>
           <TabsContent value="upload" className="pt-3">
-            <ScriptImageUploadPane files={files} max={max} onFilesChange={setFiles} />
+            <ScriptImageUploadPane files={files} max={max} existing={existing} onRemoveExisting={onRemoveExisting} onMakeMainExisting={onMakeMainExisting} current={current} onFilesChange={setFiles} />
           </TabsContent>
           <TabsContent value="library" className="pt-3">
             {library.length === 0 ? (

@@ -96,19 +96,22 @@ export function ScriptPresenterBlock({ scriptId, onOpenGallery }: { scriptId: st
 
   const { avatar } = presenter;
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    // One horizontal strip: face + name · divider · description · actions. Never wraps; only
+    // the description's text wraps (to ~2 lines).
+    <div className="inline-flex max-w-full items-center gap-4 rounded-xl bg-muted/60 py-2.5 pl-2.5 pr-4">
       <Face avatar={avatar} size="md" />
-      <div className="flex min-w-0 flex-col">
+      <div className="flex shrink-0 flex-col">
         <span className="text-eyebrow text-muted-foreground">Avatar</span>
-        <span className="text-sm font-medium">
+        <span className="whitespace-nowrap text-sm font-medium">
           {avatar.name}
           <span className="font-normal text-muted-foreground"> · {avatarVoiceLine(avatar.voice)}</span>
         </span>
-        <span className="max-w-prose text-xs text-muted-foreground">
-          On-camera shots from this script use {avatar.name}&apos;s face and voice when they&apos;re made into stills and videos.
-        </span>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />
+      <span className="min-w-0 max-w-[360px] text-xs leading-relaxed text-muted-foreground">
+        On-camera shots from this script use {avatar.name}&apos;s face and voice when they&apos;re made into stills and videos.
+      </span>
+      <div className="ml-2 flex shrink-0 items-center gap-1">
         <Button variant="outline" size="sm" onClick={onOpenGallery}>Change</Button>
         <Button
           variant="ghost"
