@@ -8769,3 +8769,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Opening the newest version straight from the chip when there is only one node, as before. A request per node or per version.
 
 **Originated →** `2026-11-12-client-review-versions.md`.
+
+### D501 — Uploading a version skips the dialog; the node's right-click menu uploads and copies the link *(recorded 2026-11-16; refines D497, D498)*
+
+**Decision.** "Upload new version" opens the file picker straight away and the chosen cut uploads at once. A new version allows download; the focus view's header turns it off with a labelled **Allow download** switch. The header no longer has "Open as client"; it keeps Copy link. Right-clicking a Client review node offers **Upload new version** and **Copy vN link** (the newest version). While a cut uploads, the Upload button and the node card read "Uploading…"; once it is saved, the node's focus view opens on the new version (from the menu too, so the canvas stays put during the upload). One upload hook per node (`useClientReviewUpload`) feeds both the menu and the focus view's button.
+
+**Why.** User, 16 Nov 2026: no popover between clicking Upload and the file picker; a toggle for Allow download; drop Open as client; upload and copy-link from the canvas.
+
+**Rejected.** Keeping the upload dialog for its per-upload download switch (the switch on the version does the same job after the upload). The icon-only download toggle with a slash. Separate upload state for the menu and the focus view.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
