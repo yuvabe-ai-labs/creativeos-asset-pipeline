@@ -314,20 +314,34 @@ All screens use the existing shadcn primitives and follow Cyril's page for layou
 ### 6.1 Team page (`/team`, owner only)
 
 The only place permissions are set or changed. Invites are not sent from here (§6.2). The
-header's Team link shows how many people are Signed up. Three sections:
-- **Waiting for you.** Signed up people. Card: name, email, "Signed up {date} · invited to
-  {client} by {name}", their clients, a permission editor (chips with ×, then "Choose a
-  permission" and Add; none to start), and **Give access**, which saves the permissions and sets
-  `access_given_at`. Give access works with no permissions picked, for someone who only looks.
-  Their client rows (the client they were invited to, and any they were added to while waiting)
-  receive the permissions through the cascade, so they can start at once, and they are emailed
-  that their access is ready. **Remove** deletes the membership.
-- **Invited.** Open invites: email, the client they were invited to, who invited them, sent
-  date, expiry, Copy link, Resend (new token, old one stops working), Cancel.
-- **Members.** Owner first. Each member: name, email, permission chips ("Can look" when they
-  have none), their clients. Edit opens the same permission editor; saving updates the agency
-  level and the cascade applies it to every client. Remove asks for confirmation and deletes the
-  membership.
+header's Team link shows how many people are Signed up.
+- **Header.** "Team", a summary ("5 people · 1 waiting · 1 invited"), then a search (name or
+  email), a client filter (each client with its logo) and the tabs All / Waiting (n) /
+  Invited (n) / Members.
+- **One list**, in one card, with the columns Person (initials avatar, name, email), Status,
+  Permissions, Clients and actions. Signed up people first, then open invites, then members with
+  the owner first. Status is one badge per status of §2.4 (Signed up in the warning colour).
+  Permissions are read-only chips ("Can look" when there are none, "Everything" for the owner).
+  Clients are the client logos, up to three and then "+n"; hovering lists each client, linking
+  to its Members list. A row shows at most one button (**Set permissions** for a Signed up
+  person); the rest are in its ⋯ menu: Edit permissions, Remove from agency (asks first, deletes
+  the membership), and for an invite Copy invite link, Resend (new token, old one stops
+  working) and Cancel invite. The owner's row has no actions. Each filter has its own empty
+  line.
+- **Person panel.** Clicking a person (or Set / Edit permissions, or `/team?person=<id>`) opens
+  a panel from the right: avatar, name, email, status, "Invited to {client} by {name} · Signed
+  up {when}" when known. Then the permission editor (chips with ×, then "Choose a permission"
+  and Add). For a Signed up person it starts empty with **Give access**, which saves the
+  permissions and sets `access_given_at`; Give access works with no permissions picked, for
+  someone who only looks. Their client rows (the client they were invited to, and any they were
+  added to while waiting) receive the permissions through the cascade, so they can start at
+  once, and they are emailed that their access is ready. For a member it shows their set with
+  **Save**; saving updates the agency level and the cascade applies it to every client. Then
+  **Clients**: each client they are on (logo, name, link to its Members list) with **Remove**,
+  which takes them off that client only (the same confirmation as a Members list), and an
+  **Add to a client** chip: choose one of the agency's clients they aren't on, then Add (one
+  insert, the same as adding from a Members list). Permissions are still the person's, not per
+  client.
 
 The editor's note: "These apply on every client {name} is on, and on any client they're added
 to later. With none, {name} can look but not change anything."
@@ -335,14 +349,19 @@ to later. With none, {name} can look but not change anything."
 ### 6.2 Members on a client (`/clients/[id]/members`)
 
 Who works on this client. Open to the owner and to anyone with Invite on this client; for
-anyone else the page is not found and the button is not shown. Permissions are not edited here.
-Reached from a **Members** button beside **Brand Workspace** on the client page.
-- **List.** "{n} people on this client", then Name, Status, Actions. Status is one of §2.4.
-  For the owner, a Signed up person shows "Signed up · Needs permissions" with
-  **Set permissions**, which opens the Team page at that person. The owner is listed with no
-  actions.
-- **Remove** (owner only) takes a person off this client only; they stay in the agency, keep
-  their other clients and keep their permissions. For an invite: Resend and Cancel (owner only).
+anyone else the page is not found and the button is not shown. Permissions are shown here but
+not edited. Reached from a **Members** button beside **Brand Workspace** on the client page.
+- **Header.** The client's logo and name, a "Members" label and "{n} people on this client",
+  with **Invite** on the right.
+- **List.** The Team page's rows (§6.1) without the Clients column: people and open invites
+  together, with Person, Status, Permissions and actions. Status is one of §2.4. For the owner,
+  a Signed up person shows "Signed up · Needs permissions" with **Set permissions**, which opens
+  the Team page with that person's panel; Edit permissions in a member's ⋯ menu does the same.
+  The owner is listed with no actions. An Invite holder sees names and statuses only: their read
+  carries no permissions, so the Permissions column is left out for them, and they get no menus.
+- **Remove from client** (owner only, in the ⋯ menu) takes a person off this client only; they
+  stay in the agency, keep their other clients and keep their permissions. For an invite: Copy
+  invite link, Resend and Cancel invite (owner only).
 - **Invite** (owner and Invite holders) opens a popup:
   - Step 1, **In your agency**: everyone in the agency not on this client (Members and Signed up
     people), with a search and checkboxes, then "Add {n} people". One insert; each row copies

@@ -8763,11 +8763,12 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 ### D509 — Permissions are set only on the Team page; a client's Members list invites, adds and removes *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- **Team page** (owner only) is the only place permissions are set: Waiting for you (Signed up people, Give access), Invited (Copy link, Resend, Cancel), Members (Edit, Remove). The editor is chips with ×, then "Choose a permission" and Add. A member with none shows "Can look".
-- **Client Members list**: Name, Status, Actions. Statuses Invited, Signed up ("Needs permissions", with a Set permissions link to Team for the owner), Member, Owner. Remove takes someone off that client only.
+- **Team page** (owner only) is the only place permissions are set. One list of people and open invites (Signed up first, then Invited, then Members with the owner first), with search, a client filter and All / Waiting / Invited / Members tabs. Each row shows the person's status, permissions ("Can look" when none, "Everything" for the owner) and client logos, with at most one button (Set permissions for someone Signed up) and the rest in a ⋯ menu (Edit permissions, Remove from agency; Copy invite link, Resend, Cancel invite).
+- **Person panel** on the Team page (a row, Set or Edit permissions, or `/team?person=<id>`): the permission editor (chips with ×, then "Choose a permission" and Add) with Give access for someone Signed up and Save for a member, and the person's clients, where they can be removed from a client or added to another one (the same add and remove as a client's Members list). Permissions stay the person's, set here only.
+- **Client Members list**: the same rows without the Clients column, so it shows each person's permissions read-only. Statuses Invited, Signed up ("Needs permissions", with a Set permissions link to the Team page's person panel for the owner), Member, Owner. Remove from client takes someone off that client only. An Invite holder sees names and statuses, no permissions and no actions.
 - Emails: "{Name} signed up to {Agency}" to the owner and the inviter, and "Your access to {Agency} is ready" to the person.
 
-**Why.** Cyril's page draws the Members button, statuses and the invite popup. Arun, 13 Nov: permissions are edited only agency-wide on Team; per client, people are only invited, added and removed.
+**Why.** Cyril's page draws the Members button, statuses and the invite popup. Arun, 13 Nov: permissions are edited only agency-wide on Team; per client, people are only invited, added and removed. Arun, 16 Nov: the people screens showed clients as a line of text, no faces or logos, three separate boxes and no permissions on Members; one list with avatars, status badges, client logos and a person panel answers that, and the panel is where an owner sees and changes which clients someone is on without going client by client.
 
 **Rejected.** Editing permissions by opening a person on a client's Members list (Cyril's page): permissions are per person, so one place avoids the impression they differ per client.
 

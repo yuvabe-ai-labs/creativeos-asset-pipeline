@@ -26,8 +26,8 @@ export default async function ClientMembersPage({ params }: { params: Promise<{ 
   const [people, invites] = await Promise.all([listAgencyPeople(effectiveOrgId), listOpenInvites(effectiveOrgId)]);
   const initial = peopleReadFor({ people, invites }, { canManage, access, orgId: effectiveOrgId });
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
-      <Breadcrumb className="mb-4">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-12 sm:px-6">
+      <Breadcrumb className="mb-6">
         <BreadcrumbList>
           <BreadcrumbItem><BreadcrumbLink render={<Link href="/">Clients</Link>} /></BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -36,10 +36,10 @@ export default async function ClientMembersPage({ params }: { params: Promise<{ 
           <BreadcrumbItem><BreadcrumbPage>Members</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h1 className="font-display mb-8 text-2xl font-semibold tracking-tight">Members</h1>
       <ClientMembers
         orgId={effectiveOrgId}
-        client={{ id: client.id, name: client.name }}
+        client={{ id: client.id, name: client.name, logo_url: client.logo_url }}
+        headingLevel="h1"
         initial={initial}
         canManage={canManage}
         inviteSlot={<InviteDialog orgId={effectiveOrgId} client={{ id: client.id, name: client.name }} canManage={canManage} />}

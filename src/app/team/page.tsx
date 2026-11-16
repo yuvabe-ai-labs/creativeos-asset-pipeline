@@ -8,7 +8,7 @@ import { TeamPeople } from "@/components/team/team-people";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Team — CreativeOS" };
 
-// Spec §6.1, owner only (a member gets the 404 page). ?person=<id> highlights that person, the
+// Spec §6.1, owner only (a member gets the 404 page). ?person=<id> opens that person's panel, the
 // target of a Members list's "Set permissions" and of the signed-up email.
 export default async function TeamPage({ searchParams }: { searchParams: Promise<{ person?: string }> }) {
   const [{ caller, effectiveOrgId }, { person }] = await Promise.all([resolveActingCaller(), searchParams]);
@@ -19,9 +19,9 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
     listClientNames(effectiveOrgId),
   ]);
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
-      <h1 className="font-display mb-8 text-2xl font-semibold tracking-tight">Team</h1>
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-12 sm:px-6">
       <TeamPeople
+        title="Team"
         orgId={effectiveOrgId}
         clients={clients}
         initial={{ people, invites }}

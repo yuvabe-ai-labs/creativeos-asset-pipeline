@@ -15,8 +15,22 @@ import {
 // Spec §6.6 Make owner, Admin only. Moving ownership is big and hard to undo, so it asks first.
 // Same convention as RemovePersonDialog: plain Buttons, so the dialog stays open until the change
 // resolves and a refusal can be read.
-export function MakeOwnerDialog({ name, onConfirm }: { name: string; onConfirm: () => Promise<unknown> }) {
-  const [open, setOpen] = useState(false);
+export function MakeOwnerDialog({
+  name,
+  onConfirm,
+  open,
+  onOpenChange: setOpenFromParent,
+}: {
+  name: string;
+  onConfirm: () => Promise<unknown>;
+  /** Given: opened from a row's ⋯ menu, with no button of its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = open !== undefined;
+  const isOpen = controlled ? open : ownOpen;
+  const setOpen = (next: boolean) => (controlled ? setOpenFromParent?.(next) : setOwnOpen(next));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,10 +56,12 @@ export function MakeOwnerDialog({ name, onConfirm }: { name: string; onConfirm: 
 
   return (
     <>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(true)}>
-        Make owner
-      </Button>
-      <AlertDialog open={open} onOpenChange={onOpenChange}>
+      {!controlled && (
+        <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(true)}>
+          Make owner
+        </Button>
+      )}
+      <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Make {name} the owner?</AlertDialogTitle>

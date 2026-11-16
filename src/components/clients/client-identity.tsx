@@ -5,6 +5,7 @@ import { ImagePlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format/initials";
+import { ClientLogo } from "@/components/shared/client-logo";
 import { LOGO_EXTENSIONS, LOGO_TYPES_LABEL } from "@/lib/clients/constants";
 import { EditableField } from "@/components/nodes/editable-field";
 import { useRenameClient, useUploadClientLogo } from "@/hooks/queries/clients";
@@ -90,8 +91,7 @@ export function ClientIdentity({ clientId, name, logoUrl, size = "lg" }: Props) 
       >
         {shownLogo ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={shownLogo} alt={`${shownName} logo`} className="size-full object-contain p-1.5" />
+            <ClientLogo name={shownName} logoUrl={shownLogo} alt={`${shownName} logo`} imgClassName="size-full p-1.5" />
             <span className="absolute inset-0 flex items-center justify-center bg-foreground/40 text-background opacity-0 transition-opacity group-hover:opacity-100">
               <ImagePlusIcon className="size-4" strokeWidth={1.5} />
             </span>

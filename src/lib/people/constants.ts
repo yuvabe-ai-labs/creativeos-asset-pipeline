@@ -19,6 +19,18 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 /** Spec §6.1: shown in place of the chips for a member with no permissions. */
 export const NO_PERMISSIONS_LABEL = "Can look";
 
+/** The owner's permissions, shown in place of the chips: they hold every one on every client. */
+export const EVERY_PERMISSION_LABEL = "Everything";
+
+/** What each Remove confirmation says it does (the Team page's menu, a Members list, the person
+ *  panel), so the same removal reads the same wherever it is started. */
+export const REMOVE_DETAILS = {
+  fromAgency: "They lose access to every client of this agency at once, and their login is deleted.",
+  waiting: "They haven't started yet. Their login is deleted and the invite link stops working.",
+  fromClient: (client: string) =>
+    `They come off ${client} only. They stay in the agency with their other clients and permissions.`,
+} as const;
+
 /** Spec §6.2, invite step 2: who sets the new person's permissions. */
 export const INVITE_NEXT_STEP = {
   owner: "They get an email to sign up. Once they have, you set their permissions on the Team page.",

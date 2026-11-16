@@ -1,7 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { uniqueSlug } from "@/lib/slug";
-import type { ClientRow } from "./types";
+import type { ClientBrief, ClientRow } from "./types";
 import {
   mapClientWithCount,
   type ClientWithCount,
@@ -33,18 +33,19 @@ export async function listClients(
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
 
-// The agency's active clients by id and name only, for screens that just name them (the Team
-// page, Admin). listClients also embeds every canvas timestamp, which these never read.
-export async function listClientNames(orgId: string): Promise<{ id: string; name: string }[]> {
+// The agency's active clients by id, name, slug and logo only, for screens that name, link and
+// mark them (the Team page, Admin). One query; listClients also embeds every canvas timestamp,
+// which these never read.
+export async function listClientNames(orgId: string): Promise<ClientBrief[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("clients")
-    .select("id, name")
+    .select("id, name, slug, logo_url")
     .eq("org_id", orgId)
     .is("archived_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as { id: string; name: string }[];
+  return (data ?? []) as ClientBrief[];
 }
 
 // Archived clients, most-recently-archived first — for the Archived tab. Org-scoped.

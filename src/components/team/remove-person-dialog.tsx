@@ -20,6 +20,8 @@ export function RemovePersonDialog({
   onConfirm,
   label = "Remove",
   showWorkNote = true,
+  open,
+  onOpenChange: setOpenFromParent,
 }: {
   name: string;
   /** What removing does here, e.g. "They lose access to Acme and their login is deleted." */
@@ -29,8 +31,14 @@ export function RemovePersonDialog({
   /** The note that their work stays. Off where they made none (still waiting) or keep their name
    *  on it (taken off one client only). */
   showWorkNote?: boolean;
+  /** Given: the dialog is opened from elsewhere (a row's ⋯ menu) and renders no button of its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = open !== undefined;
+  const isOpen = controlled ? open : ownOpen;
+  const setOpen = (next: boolean) => (controlled ? setOpenFromParent?.(next) : setOwnOpen(next));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,10 +63,12 @@ export function RemovePersonDialog({
 
   return (
     <>
-      <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setOpen(true)}>
-        {label}
-      </Button>
-      <AlertDialog open={open} onOpenChange={onOpenChange}>
+      {!controlled && (
+        <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setOpen(true)}>
+          {label}
+        </Button>
+      )}
+      <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {name}?</AlertDialogTitle>

@@ -13,6 +13,8 @@ import { ResetPasswordDialog } from "./reset-password-dialog";
 import { TeamPeople } from "@/components/team/team-people";
 import { AdminClientsTab } from "./admin-clients-tab";
 import type { AgencyPerson, OpenInvite } from "@/lib/people/types";
+import type { ClientBrief } from "@/lib/db/types";
+import type { PersonExtra } from "@/components/team/person-entry-row";
 import { ImpersonationAudit } from "@/components/admin/impersonation-audit/impersonation-audit";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
@@ -64,7 +66,7 @@ export function OrgDetailTabs({
   org: OrgRow;
   people: AgencyPerson[];
   invites: OpenInvite[];
-  clients: { id: string; name: string }[];
+  clients: ClientBrief[];
   generationCount: number;
   generationsPage: GenerationsPage;
   creditsUsedThisMonth: number;
@@ -85,10 +87,20 @@ export function OrgDetailTabs({
   // The same people resource the People and Clients tabs use, so the count follows their changes.
   const { data: team } = usePeople(org.id, { people, invites });
 
+  // Admin's own action on every person, from the row's menu.
+  const extras: PersonExtra[] = [
+    {
+      id: "reset_password",
+      label: "Reset password",
+      render: (p, dialog) => <ResetPasswordDialog orgId={org.id} userId={p.userId} displayName={p.name} {...dialog} />,
+    },
+  ];
+
   function selectTab(next: unknown) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", orgTabFrom(String(next)));
     params.delete("person");
+    params.delete("client");
     window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
   }
 
@@ -134,7 +146,9 @@ export function OrgDetailTabs({
           initial={{ people, invites }}
           focusUserId={focusUserId}
           canMakeOwner
-          extraMemberActions={(p) => <ResetPasswordDialog orgId={org.id} userId={p.userId} displayName={p.name} />}
+          extras={extras}
+          // A client opens in this page's Clients tab, not the agency's own Members page.
+          clientHref={(c) => `/admin/orgs/${org.id}?tab=clients&client=${c.id}`}
         />
       </TabsContent>
 

@@ -17,6 +17,9 @@ export type ClientRow = {
   org_id: string; // tenant boundary (D42), added in migration 0013
 };
 
+/** A client as the people screens show it: named, linked (slug) and marked (logo or initials). */
+export type ClientBrief = Pick<ClientRow, "id" | "name" | "slug" | "logo_url">;
+
 export type ClientBrandImageRow = {
   id: string;
   client_id: string;
