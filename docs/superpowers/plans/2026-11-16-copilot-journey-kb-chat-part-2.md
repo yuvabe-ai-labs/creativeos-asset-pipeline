@@ -4,7 +4,7 @@
 
 **Goal:** Once a brand KB is built, the copilot says what it found, asks about the few fields it could not settle, fills them from the person's answers, shows what is left to review, and offers the approval as a gate card; the thread records who approved.
 
-**Architecture:** Which field is asked, how it is worded and when the walk stops are decided by code; the model only reads the person's answer and calls a tool, and the tools refuse anything on a reviewed field. The "waiting for you" marker and the gate card are worked out on every thread read from the stored KB, never stored, so they follow what is done by hand. For that to be true the review screen saves each review as it is made, one field per write, and "Save changes" goes away (**this rests on Question 1 below**).
+**Architecture:** Which field is asked, how it is worded and when the walk stops are decided by code; the model only reads the person's answer and calls a tool, and the tools refuse anything on a reviewed field. The "waiting for you" marker and the gate card are worked out on every thread read from the stored KB, never stored, so they follow what is done by hand. The review screen keeps its draft and "Save changes" (Cyril, 2026-11-16): a save writes only the fields that changed and tells the copilot at once, and a draft can be discarded.
 
 **Tech stack:** Next.js route handlers (`withClient`, `apiOk/apiError`), Supabase (two SQL functions), TanStack Query mutations, zod 4, vitest, the part 1 agent loop (`runAgent`).
 
@@ -12,9 +12,13 @@
 
 **Builds on:** part 1 as built (`f7639ccb`), see the Outcome section of [the part 1 plan](2026-11-13-copilot-journey-kb-chat-part-1.md).
 
-## Question for Cyril before Task 9
+## Decided by Cyril on 2026-11-16
 
-1. **Does "Save changes" on the Brand KB review screen go away?** Today approving, editing or rejecting a field only changes a draft in the browser; nothing is stored until "Save changes". The copilot reads the stored KB, so it cannot see an unsaved review: it would ask about a field already approved on screen, and a later Save would write the draft over the copilot's answer. This plan makes each review save at once (the spec already says "a hand edit applies at once"), and removes the button. The alternative keeps the button, and the panel only catches up at each Save. Tasks 1 to 8 and 10 are the same either way; Task 9 is the one that changes.
+- **"Save changes" stays** on the Brand KB review screen. Reviews are still a draft until saved.
+- **"Discard changes" is added**, shown whenever the draft has unsaved changes.
+- **A save tells the copilot at once**, so the panel and the copilot's next reply are built on what was saved.
+
+What follows from that, and is built in Task 9: a save writes only the fields the person changed, so it can never write an old draft over a field the copilot or a teammate filled in the meantime.
 
 ## My calls (overrule any)
 
@@ -55,7 +59,7 @@
 | `supabase/migrations/0064_kb_review_writes.sql` | `patch_kb_fields`, `kb_unreviewed_fields` |
 | `src/lib/db/kb.ts` (modify) | `patchKBFields`, `listUnreviewedFields` |
 | `src/lib/kb/field-patch.ts` | The shape of a field patch and which paths may be patched (pure) |
-| `src/lib/kb/review-sync.ts` | Taking the server's KB into the screen's copy (pure) |
+| `src/lib/kb/review-sync.ts` | What a save sends, and taking the server's KB into the screen's two copies (pure) |
 | `src/lib/kb/approve.ts` | The one approval, used by the route and the action |
 | `src/lib/journey/kb-copilot/review.ts` | The reviewable fields, their kind, the priority order, the account (pure) |
 | `src/lib/journey/kb-copilot/walk.ts` | What has been asked, what is asked next, the question's words (pure) |
@@ -493,30 +497,40 @@ Neither keeps a cache: the KB still reaches the page from the server component.
 - [ ] **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(kb): service and mutations for saving field reviews and approving`.
 
-### Task 9: The review screen saves each review as it is made *(rests on Question 1)*
+### Task 9: Save writes only what changed, changes can be discarded, and a save tells the copilot
 
-**Files:** Create `src/lib/kb/review-sync.ts`. Modify `src/components/kb/kb-onboarding-review-step.tsx`, `src/app/clients/[id]/kb/page.tsx`, `src/lib/actions/kb.ts` (remove `saveKBOutputAction`), its cases in `src/lib/actions/kb.test.ts`, and its entry in `src/lib/auth/impersonation-audit-view.ts` (keep the entry: old audit rows still name it). Test `src/lib/kb/__tests__/review-sync.test.ts`.
+Decided by Cyril on 2026-11-16: the review screen keeps its draft and its "Save changes" button. It gains "Discard changes". A save tells the copilot at once.
 
-**Interfaces. Produces:**
+**Files:** Create `src/lib/kb/review-sync.ts`. Modify `src/components/kb/kb-onboarding-review-step.tsx`, `src/app/clients/[id]/kb/page.tsx`, `src/lib/actions/kb.ts` (remove `saveKBOutputAction`) and its cases in `src/lib/actions/kb.test.ts`. Keep its label in `src/lib/auth/impersonation-audit-view.ts`: old audit rows still name it. Test `src/lib/kb/__tests__/review-sync.test.ts`.
+
+**Interfaces. Consumes:** `usePatchKbFields` (Task 8), `KBFieldPatch` (Task 1).
+**Produces:**
 ```ts
 // review-sync.ts (pure)
 /** A short string that changes whenever any field of the six document sections changes. */
 export function kbRevision(kb: TraceableBrandKB): string;
-/** The screen's copy after the server's copy changed: the server's document sections, except the
- *  fields in `touched` (this person changed them here since the screen opened; their saves may still
- *  be on the way, so an older server copy must not undo them). Image Analysis is left as the screen has it. */
-export function adoptServerKb(local: TraceableBrandKB, server: TraceableBrandKB, touched: ReadonlySet<string>): TraceableBrandKB;
+/** One patch per field the person changed in the draft: every field, Image Analysis included, whose
+ *  value or status differs from the saved copy. The patch carries the draft's value, status,
+ *  confidence and evidence_type. Empty when nothing changed. */
+export function changedFields(draft: TraceableBrandKB, saved: TraceableBrandKB): KBFieldPatch[];
+/** After the server's copy changed (the copilot filled a field, a teammate saved). `saved` takes the
+ *  server's document sections. `draft` takes them too, except the fields the person has changed and
+ *  not yet saved, which stay as the person has them. Image Analysis is left alone in both. */
+export function adoptServerKb(draft: TraceableBrandKB, saved: TraceableBrandKB, server: TraceableBrandKB): { draft: TraceableBrandKB; saved: TraceableBrandKB };
 ```
 
 **The screen:**
 - `page.tsx` passes `kbRevision={kbRevision(output)}`.
-- `kb` stays local state. `savedKB`, `dirty`, `saving`, `handleSave` and the footer's "Save changes" case are removed. The footer is "Mark KB Ready" / "KB is Ready" as today.
-- `patchField(path, patch)`: updates `kb`, adds the dotted path to a `touched` state set, and calls `usePatchKbFields(clientId).mutate({ versionId, patches: [{ path, patch }] })`. On error: `toast.error("That change was not saved.")` and `router.refresh()`.
-- `handleApproveAll` sends one `mutate` with every patch.
-- When `kbRevision` differs from the last one taken (adjusting state during render, the way `useServerState` does): `setKB((local) => adoptServerKb(local, initialKB, touched))`.
-- Image Analysis: the stored section from `useImageAnalysisStatus` is shown as it is. Reviews are already in it, saved per field, and the background run keeps them through `mergeImageAnalysis`. The draft merge on this screen is removed.
+- `kb`, `savedKB` and `dirty` stay as they are.
+- **Save changes** sends only what changed: `patches = changedFields(kb, savedKB)`, then `usePatchKbFields(clientId).mutateAsync({ versionId, patches })`, then `setSavedKB(kb)` and the "Changes saved" toast. A failure shows the route's own message (a rebuilt KB says to reload) and keeps the draft. `saveKBOutputAction` is removed: a save no longer writes the whole KB, so it can never write an old draft over a field the copilot or a teammate has filled since.
+- **A save tells the copilot.** `usePatchKbFields` already re-reads the copilot thread when it succeeds (Task 8), so the panel's count, its pending question and the gate card are right the moment the save lands. The copilot's own picture of the KB is read fresh from the stored KB on every turn, so its next reply is built on what was just saved.
+- **Discard changes:** while `dirty`, an outline `Button size="sm"` labelled "Discard changes" sits beside "Save changes". It sets the draft back to `savedKB`. Disabled while a save is in flight. No confirmation dialog *(my call: one click, like closing an editor without saving)*.
+- When `kbRevision` differs from the last one taken (adjusting state during render, the way `useServerState` does): `const next = adoptServerKb(kb, savedKB, initialKB)`, then `setKB(next.draft)` and `setSavedKB(next.saved)`.
+- Image Analysis keeps today's logic (the stored section is merged into the draft as it arrives).
 - `selectedModule` starts from, and follows, the `section` search param when it names a module (`useSearchParams`).
-- `handleMarkReady` is unchanged.
+- `handleMarkReady`, the header and the per-field handlers are unchanged.
+
+**Known consequence of keeping the button** (accepted with the decision): the copilot and the panel only know a review once it is saved. Until then the panel may still wait on a field already approved in the draft, and the gate card appears after the save that settles the last field. If the copilot fills a field the person has also changed in the draft, the person's value wins at the next save.
 
 - [ ] **Step 1: Failing tests**
 
@@ -526,21 +540,32 @@ it("changes when any document field changes, and not for Image Analysis", () => 
   expect(kbRevision(kbWith({ "brand_profile.tagline": { status: "approved" } }))).not.toBe(kbRevision(kbWith({})));
   expect(kbRevision(withImageAnalysis(kbWith({}), { aesthetic: "new" }))).toBe(kbRevision(kbWith({})));
 });
-it("takes the server's fields, keeps the ones this person touched, and leaves Image Analysis alone", () => {
-  const local = kbWith({ "brand_profile.tagline": { status: "approved" } });
-  const server = kbWith({ "target_audience.age_range": { value: "30 to 45", status: "edited" } });
-  const next = adoptServerKb(local, server, new Set(["brand_profile.tagline"]));
-  expect(next.target_audience.age_range).toMatchObject({ value: "30 to 45", status: "edited" });
-  expect(next.brand_profile.tagline.status).toBe("approved");
-  expect(next.image_analysis).toBe(local.image_analysis);
+it("finds only the fields the person changed, Image Analysis included", () => {
+  const saved = kbWith({});
+  const draft = withImageAnalysis(kbWith({ "brand_profile.tagline": { status: "approved" }, "target_audience.age_range": { value: "30 to 45", status: "edited" } }), { aesthetic: { status: "rejected" } });
+  expect(changedFields(draft, saved).map((p) => p.path.join("."))).toEqual(["brand_profile.tagline", "target_audience.age_range", "image_analysis.aesthetic"]);
+  expect(changedFields(draft, saved)[1].patch).toMatchObject({ value: "30 to 45", status: "edited" });
+  expect(changedFields(saved, saved)).toEqual([]);
+});
+it("takes the server's fields into both copies and keeps what the person has not saved yet", () => {
+  const saved = kbWith({});
+  const draft = kbWith({ "brand_profile.tagline": { status: "approved" } });                           // unsaved review
+  const server = kbWith({ "target_audience.age_range": { value: "30 to 45", status: "edited" },        // the copilot filled it
+                          "brand_profile.tagline": { value: "new line", status: "edited" } });         // and a teammate changed the same field
+  const next = adoptServerKb(draft, saved, server);
+  expect(next.draft.target_audience.age_range).toMatchObject({ value: "30 to 45", status: "edited" });
+  expect(next.draft.brand_profile.tagline.status).toBe("approved");                                    // the person's unsaved review stays
+  expect(next.saved.brand_profile.tagline.value).toBe("new line");
+  expect(changedFields(next.draft, next.saved).map((p) => p.path.join("."))).toEqual(["brand_profile.tagline"]);   // still unsaved, still theirs to save or discard
+  expect(next.draft.image_analysis).toBe(draft.image_analysis);
 });
 ```
 
-- [ ] **Step 2:** Run `npx vitest run src/lib/kb/__tests__/review-sync.test.ts`. Expected: FAIL.
-- [ ] **Step 3:** Implement `review-sync.ts`. Run. Expected: PASS (2).
+- [ ] **Step 2:** Run `npx vitest run src/lib/kb/__tests__/review-sync.test.ts`. Expected: FAIL, module not found.
+- [ ] **Step 3:** Implement `review-sync.ts`. Run. Expected: PASS (3).
 - [ ] **Step 4:** Change the screen and the page. Remove `saveKBOutputAction` and its tests.
 - [ ] **Step 5:** Run `npx vitest run src/lib/kb src/lib/actions`, `npx tsc --noEmit`, `npx eslint src/components/kb src/lib/kb src/lib/actions`. Expected: PASS; no new type or lint errors. The component has no automated test; it is covered by the browser check.
-- [ ] **Step 6:** Commit `feat(kb): a review is saved as it is made, so the copilot and teammates see it; "Save changes" is gone`.
+- [ ] **Step 6:** Commit `feat(kb): Save writes only the fields that changed and tells the copilot; changes can be discarded`.
 
 ### Task 10: The panel shows the question's field, what is left, the gate card and who approved
 
@@ -564,10 +589,10 @@ ThreadGateCard({ title, opens, why, busy, onApprove }: { title: string; opens: s
 
 ### Task 11: Record the decisions
 
-**Files:** Modify `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, `docs/superpowers/specs/2026-11-12-copilot-journey-brand-kb-design.md` (§2.3 and §7: what was decided for Question 1, and the calls above that Cyril kept).
+**Files:** Modify `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, `docs/superpowers/specs/2026-11-12-copilot-journey-brand-kb-design.md` (§2.3 and §7: the 2026-11-16 decision on Save and Discard, and the calls above that Cyril kept).
 
 - [ ] **Step 1:** Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
-  - **D498** A brand KB review is saved one field at a time, as it is made; the review screen has no draft. Rejected: keeping "Save changes" with a field-by-field merge at save time. Refines D318.
+  - **D498** The brand KB review screen keeps its draft and "Save changes", and gains "Discard changes"; a save writes only the fields that changed, and tells the copilot. Rejected: saving each review the moment it is made (Cyril, 2026-11-16); saving the whole KB from the draft, which writes old values over the copilot's answers. Refines D318.
   - **D499** In a review walk, code chooses and words each question and decides when the walk stops; the model reads the answer and calls a tool; a tool never writes a reviewed field. Refines D497.
   - **D500** "Waiting for you" and the gate card are worked out on each thread read and never stored; an approval is one function for every caller and writes a "who approved" message that keeps the approver's name as it was.
 - [ ] **Step 2:** Commit `docs(adr): D498 to D500, the brand KB review walk`.
@@ -580,11 +605,13 @@ ThreadGateCard({ title, opens, why, busy, onApprove }: { title: string; opens: s
 2. Press "Yes, that's right": the field on the right turns approved without a reload, and the next question appears.
 3. Type a different value as the answer: the field shows it, marked edited.
 4. Type something unrelated ("what is a brand KB?"): the copilot answers, and the same question is asked again.
-5. Approve the pending question's field on the right instead of answering: within 20 seconds the rail stops saying "Your answer".
+5. Approve the pending question's field on the right instead of answering, and press "Save changes": the rail stops saying "Your answer" at once.
 6. After five questions the copilot offers "Keep asking" and "I'll review the rest".
-7. "I'll review the rest": the panel shows "Waiting for you" with one button per tab and its count. A button opens that tab. The counts fall as fields are approved on the right.
-8. Approve the last field: the gate card appears. Fold the panel: the rail says "Approve the brand KB".
+7. "I'll review the rest": the panel shows "Waiting for you" with one button per tab and its count. A button opens that tab. The counts fall each time you save.
+8. Approve the last field and save: the gate card appears. Fold the panel: the rail says "Approve the brand KB".
 9. Press the gate card's button: the thread says "<your name> approved the brand KB. Market research is now open." and the Market research tab unlocks.
 10. Ask the copilot to approve the KB for you, on another client in review: it says only you can.
 11. On an approved KB, tell the copilot to change a field: it says to edit it on the right.
-12. Two browser windows on the same KB in review: approve a field in one; reload the other and it is approved. Neither window undoes the other's work.
+12. Two browser windows on the same KB in review: approve one field in each and save both. Reload: both fields are approved. Neither save undid the other.
+13. Approve a few fields without saving: "Discard changes" appears. Press it: the fields go back and both buttons give way to "Mark KB Ready".
+14. With an unsaved approval on the right, answer a copilot question about another field: the answer appears on the right and your unsaved approval is still there.
