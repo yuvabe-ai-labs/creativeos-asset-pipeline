@@ -5,7 +5,7 @@ const m = vi.hoisted(() => ({ createServerSupabase: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: m.createServerSupabase }));
 
 import {
-  acceptInvitation, createLogin, findOpenInviteByEmail, hasOpenInviteElsewhere, insertInvitation, insertOwnerInvitation, isInviteOpen,
+  acceptInvitation, createLogin, findOpenInviteByEmail, hasOpenInviteElsewhere, insertInvitation, insertOwnerInvitation, openInviteSentAt,
   listOpenInvites, loginEmails, removePersonFromClient, replaceInvitationToken, takeInviteSend, toInvite, toPerson,
 } from "./people";
 
@@ -189,12 +189,12 @@ describe("takeInviteSend (the 50-a-day limit, I4)", () => {
   });
 });
 
-describe("isInviteOpen", () => {
-  it("answers whether the invite is still open in this agency", async () => {
-    const { db, chains } = fakeDb([{ data: { id: "i1" } }, { data: null }]);
+describe("openInviteSentAt", () => {
+  it("answers when an open invite in this agency was last sent, null when it isn't open", async () => {
+    const { db, chains } = fakeDb([{ data: { created_at: "2026-11-16T10:00:00Z" } }, { data: null }]);
     m.createServerSupabase.mockReturnValue(db);
-    expect(await isInviteOpen("org-1", "i1")).toBe(true);
-    expect(await isInviteOpen("org-1", "i2")).toBe(false);
+    expect(await openInviteSentAt("org-1", "i1")).toBe("2026-11-16T10:00:00Z");
+    expect(await openInviteSentAt("org-1", "i2")).toBeNull();
     expect(chains[0].calls).toEqual(expect.arrayContaining([["eq", "id", "i1"], ["eq", "org_id", "org-1"], ["is", "accepted_at", null], ["is", "revoked_at", null]]));
   });
 });

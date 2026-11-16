@@ -8,7 +8,7 @@ const db = vi.hoisted(() => ({
   setMemberPermissions: vi.fn(), deleteLogin: vi.fn(), addPeopleToClient: vi.fn(), removePersonFromClient: vi.fn(),
   transferOwner: vi.fn(), loginEmails: vi.fn(), ownerIds: vi.fn(), listOrgSlugs: vi.fn(),
   createAgencyWithOwnerInvite: vi.fn(), getOpenOwnerInvite: vi.fn(), insertOwnerInvitation: vi.fn(),
-  hasOpenInviteElsewhere: vi.fn(), isInviteOpen: vi.fn(),
+  hasOpenInviteElsewhere: vi.fn(), openInviteSentAt: vi.fn(),
 }));
 vi.mock("@/lib/db/people", () => db);
 const sendEmail = vi.hoisted(() => vi.fn());
@@ -34,6 +34,8 @@ beforeEach(() => {
   db.insertInvitation.mockResolvedValue(invite);
   db.hasOpenInviteElsewhere.mockResolvedValue(false);
   db.removePersonFromClient.mockResolvedValue(true);
+  // An open invite last sent an hour ago: Resend may go ahead.
+  db.openInviteSentAt.mockResolvedValue(new Date(Date.now() - 3_600_000).toISOString());
 });
 
 const LOGIN_NO_AGENCY = "This email already has a CreativeOS login. Ask Yuvabe to move it to your agency.";
@@ -166,11 +168,18 @@ describe("resendInvite and cancelInvite", () => {
     expect(sentBefore).toBeLessThanOrEqual(Date.now() - 60_000);
   });
 
-  it("refuses a Resend within a minute of the last send, and sends nothing", async () => {
-    db.replaceInvitationToken.mockResolvedValue(null);
-    db.isInviteOpen.mockResolvedValue(true);
+  it("refuses a Resend within a minute of the last send, sends nothing and takes no send", async () => {
+    db.openInviteSentAt.mockResolvedValue(new Date(Date.now() - 10_000).toISOString());
     expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 429, error: "That invite was just sent. Try again in a minute." });
-    expect(db.isInviteOpen).toHaveBeenCalledWith("org-1", "i1");
+    expect(db.openInviteSentAt).toHaveBeenCalledWith("org-1", "i1");
+    expect(db.takeInviteSend).not.toHaveBeenCalled();
+    expect(db.replaceInvitationToken).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("a Resend that loses a race with another one is refused as just sent", async () => {
+    db.replaceInvitationToken.mockResolvedValue(null);
+    expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 429, error: "That invite was just sent. Try again in a minute." });
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
@@ -197,10 +206,10 @@ describe("resendInvite and cancelInvite", () => {
     expect(db.replaceInvitationToken).not.toHaveBeenCalled();
   });
 
-  it("refuses an invite that is no longer open", async () => {
-    db.replaceInvitationToken.mockResolvedValue(null);
-    db.isInviteOpen.mockResolvedValue(false);
+  it("refuses an invite that is no longer open, taking no send", async () => {
+    db.openInviteSentAt.mockResolvedValue(null);
     expect(await resendInvite(agency, "i1", by)).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
+    expect(db.takeInviteSend).not.toHaveBeenCalled();
     db.revokeInvitation.mockResolvedValue(null);
     expect(await cancelInvite(agency, "i1")).toEqual({ ok: false, status: 404, error: "That invite isn't open any more." });
   });

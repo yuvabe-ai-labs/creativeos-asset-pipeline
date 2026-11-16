@@ -118,13 +118,16 @@ export async function inviteToClient(
  *  resending on a loop. Copy link is not here: it shows the stored link (OpenInvite.link) and
  *  makes no request. */
 export async function resendInvite(agency: Agency, inviteId: string, by: Actor): Promise<OpResult<InviteResult>> {
+  // The gap and the invite being open are checked before a send is taken, so a refused Resend
+  // doesn't use up one of the day's sends.
+  const lastSent = await people.openInviteSentAt(agency.orgId, inviteId);
+  if (!lastSent) return refuse(404, REFUSALS.inviteNotFound);
+  const sentBefore = Date.now() - RESEND_GAP_MS;
+  if (Date.parse(lastSent) > sentBefore) return refuse(429, REFUSALS.inviteJustSent);
   if (!(await people.takeInviteSend(agency.orgId, INVITES_PER_AGENCY_PER_DAY))) return refuse(429, REFUSALS.dailyLimit);
-  const sentBefore = new Date(Date.now() - RESEND_GAP_MS).toISOString();
-  const invite = await people.replaceInvitationToken(agency.orgId, inviteId, newInviteToken(), sentBefore);
-  if (!invite) {
-    // Nothing replaced: either sent less than a minute ago, or not open any more.
-    return (await people.isInviteOpen(agency.orgId, inviteId)) ? refuse(429, REFUSALS.inviteJustSent) : refuse(404, REFUSALS.inviteNotFound);
-  }
+  // The replace re-checks the gap in the same update, so two Resends at once can't both go out.
+  const invite = await people.replaceInvitationToken(agency.orgId, inviteId, newInviteToken(), new Date(sentBefore).toISOString());
+  if (!invite) return refuse(429, REFUSALS.inviteJustSent);
   const link = invite.link;
   const emailed = await emailInvite(link, () =>
     invite.asOwner

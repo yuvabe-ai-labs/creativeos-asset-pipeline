@@ -319,7 +319,7 @@ async function insertOpenInvite(i: { orgId: string; clientId: string | null; asO
 
 /** Resend only: a new token (the old link stops working), sent now, 7 more days. Copy link never
  *  calls this; it shows the stored link. Only an invite last sent at or before `sentBefore` is
- *  replaced, so two quick resends can't both go through; null when none was (see isInviteOpen). */
+ *  replaced, so two quick resends can't both go through; null when none was (see openInviteSentAt). */
 export async function replaceInvitationToken(orgId: string, inviteId: string, token: string, sentBefore: string): Promise<StoredInvite | null> {
   const db = createServerSupabase();
   const { data, error } = await db
@@ -339,17 +339,18 @@ export async function replaceInvitationToken(orgId: string, inviteId: string, to
 
 /** Whether the invite is still open in this agency: tells "just sent" from "gone" after a
  *  Resend replaced nothing. */
-export async function isInviteOpen(orgId: string, inviteId: string): Promise<boolean> {
+/** When an open invite was last sent (created_at moves on each Resend); null when it isn't open. */
+export async function openInviteSentAt(orgId: string, inviteId: string): Promise<string | null> {
   const { data, error } = await createServerSupabase()
     .from("org_invitations")
-    .select("id")
+    .select("created_at")
     .eq("id", inviteId)
     .eq("org_id", orgId)
     .is("accepted_at", null)
     .is("revoked_at", null)
     .maybeSingle();
   if (error) throw error;
-  return data !== null;
+  return (data as { created_at: string } | null)?.created_at ?? null;
 }
 
 /** Revokes an open invite; answers who it was for (the audit log names them), null when none was open. */
