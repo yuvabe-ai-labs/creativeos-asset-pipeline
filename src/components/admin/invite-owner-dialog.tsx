@@ -5,7 +5,7 @@ import { inviteOwnerAction, type OwnerInviteResult } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CopyRow } from "@/components/shared/copy-row";
+import { LinkSentNotice } from "@/components/shared/link-sent-notice";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 // Remounted (key) on every opening so a finished invite doesn't show again next time.
@@ -19,11 +19,9 @@ function InviteOwnerBody({ orgId, orgName, onDone }: { orgId: string; orgName: s
       <>
         <DialogHeader>
           <DialogTitle>Owner invited</DialogTitle>
-          <DialogDescription>
-            {result.emailed ? `We emailed ${result.email} a link to sign up.` : `The email wasn't sent. Copy the link and send it to ${result.email}.`}
-          </DialogDescription>
+          <DialogDescription>They can do everything in {orgName} once they sign up.</DialogDescription>
         </DialogHeader>
-        <CopyRow label="Owner's sign-up link" value={result.link} />
+        <LinkSentNotice emailed={result.emailed ?? false} email={result.email ?? ""} label="Owner's sign-up link" link={result.link} />
         <DialogFooter><Button onClick={onDone}>Done</Button></DialogFooter>
       </>
     );

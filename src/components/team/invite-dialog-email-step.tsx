@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CopyRow } from "@/components/shared/copy-row";
+import { LinkSentNotice } from "@/components/shared/link-sent-notice";
 import { useInviteToClient } from "@/hooks/queries/people";
 import { INVITE_NEXT_STEP } from "@/lib/people/constants";
 import type { InviteResult } from "@/lib/people/types";
@@ -27,14 +27,19 @@ export function InviteDialogEmailStep({ orgId, client, canManage, onBack, onDone
 
   if (sent) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-sm">
-          {sent.emailed ? `Invite sent to ${sent.invite.email}.` : `The email wasn't sent. Copy the link and send it to ${sent.invite.email}.`}
-        </p>
-        <CopyRow label="Invite link" value={sent.link} />
-        <p className="text-xs text-muted-foreground">{nextStep}</p>
+      <div className="flex min-w-0 flex-col gap-4">
+        <LinkSentNotice emailed={sent.emailed} email={sent.invite.email} label="Invite link" link={sent.link} note={nextStep} />
         <div className="flex justify-between gap-3">
-          <Button variant="outline" onClick={onBack}>Back</Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSent(null);
+              setEmail("");
+              invite.reset();
+            }}
+          >
+            Invite another
+          </Button>
           <Button onClick={onDone}>Done</Button>
         </div>
       </div>

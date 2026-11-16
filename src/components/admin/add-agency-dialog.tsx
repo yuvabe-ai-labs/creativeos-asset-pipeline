@@ -6,7 +6,7 @@ import { createAgencyAction, type CreateAgencyState } from "@/lib/actions/admin"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CopyRow } from "@/components/shared/copy-row";
+import { LinkSentNotice } from "@/components/shared/link-sent-notice";
 import { CreditLimitField } from "./credit-limit-field";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -20,14 +20,12 @@ function AddAgencyBody({ onDone }: { onDone: () => void }) {
       <>
         <DialogHeader>
           <DialogTitle>Agency added</DialogTitle>
-          <DialogDescription>
-            {created.emailed ? `We emailed ${created.email} a link to sign up.` : `The email wasn't sent. Copy the link and send it to ${created.email}.`}
-          </DialogDescription>
-          {created.limitNotSaved && (
-            <p className="text-sm text-destructive">The credit limit wasn&apos;t saved, so the agency is unlimited for now. Set it on the agency&apos;s page.</p>
-          )}
+          <DialogDescription>The owner can do everything in this agency once they sign up.</DialogDescription>
         </DialogHeader>
-        <CopyRow label="Owner's sign-up link" value={created.link} />
+        <LinkSentNotice emailed={created.emailed} email={created.email} label="Owner's sign-up link" link={created.link} />
+        {created.limitNotSaved && (
+          <p className="text-sm text-destructive">The credit limit wasn&apos;t saved, so the agency is unlimited for now. Set it on the agency&apos;s page.</p>
+        )}
         <DialogFooter><Button onClick={onDone}>Done</Button></DialogFooter>
       </>
     );

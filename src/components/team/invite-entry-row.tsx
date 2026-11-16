@@ -77,7 +77,7 @@ export function InviteEntryRow({
       setNotice(
         result.emailed
           ? { text: "Sent again with a new link. The old link no longer works.", tone: "info", fades: false }
-          : { text: "The email wasn't sent. Copy the new link and send it to them.", tone: "info", fades: false },
+          : { text: "We couldn't email it from here. Copy the new link and send it to them.", tone: "info", fades: false },
       );
     } catch {
       // Shown below through resend.error.
