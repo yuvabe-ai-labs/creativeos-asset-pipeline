@@ -9,8 +9,9 @@
 
 -- A review of one or more fields, merged into each field and nothing else (refines D318). The
 -- review screen's Save sends only the fields the person changed, and the copilot sends the one it
--- filled, so neither writes an older copy of the KB over the other. A path that holds no field is
--- skipped: this never creates one.
+-- filled, so neither writes an older copy of the KB over the other. The app only sends paths its own
+-- schema knows. A field the stored KB does not hold yet (one added to the schema after this KB was
+-- built) is created from the patch, when its section exists; anything else is skipped.
 create or replace function patch_kb_fields(p_version_id uuid, p_patches jsonb)
 returns void
 language plpgsql
@@ -29,8 +30,9 @@ begin
     select array_agg(x order by ord) into v_path
       from jsonb_array_elements_text(v_item -> 'path') with ordinality as t(x, ord);
     v_current := v_output #> v_path;
-    if jsonb_typeof(v_current) = 'object' and jsonb_typeof(v_item -> 'patch') = 'object' then
-      v_output := jsonb_set(v_output, v_path, v_current || (v_item -> 'patch'), false);
+    if jsonb_typeof(v_item -> 'patch') = 'object' and (v_current is null or jsonb_typeof(v_current) = 'object') then
+      -- create_missing adds only the last key, so a path whose section is missing changes nothing.
+      v_output := jsonb_set(v_output, v_path, coalesce(v_current, '{}'::jsonb) || (v_item -> 'patch'), true);
     end if;
   end loop;
   update client_kb_versions set output = v_output where id = p_version_id;

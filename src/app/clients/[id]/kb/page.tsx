@@ -21,6 +21,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
+import { kbRevision } from "@/lib/kb/review-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,7 @@ export default async function KBPage({
           clientSlug={client.slug}
           versionId={activeKBVersion!.id}
           initialKB={activeKBVersion!.output as TraceableBrandKB}
+          kbRevision={kbRevision(activeKBVersion!.output as TraceableBrandKB)}
           isEditMode={isEditMode}
           initialDocuments={documents}
           initialImages={images}

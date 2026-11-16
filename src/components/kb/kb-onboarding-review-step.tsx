@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
@@ -50,8 +50,9 @@ import { KBSkeleton } from "@/components/kb/kb-skeleton";
 import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB, KBField } from "@/lib/kb/schema";
 import { setNestedField } from "@/lib/kb/utils";
+import { adoptServerKb, changedFields } from "@/lib/kb/review-sync";
+import { usePatchKbFields } from "@/hooks/queries/kb";
 import {
-  saveKBOutputAction,
   markKBReadyAction,
   deleteKBDocumentAction,
   deleteBrandImageAction,
@@ -83,6 +84,9 @@ type Props = {
   clientSlug: string;
   versionId: string;
   initialKB: TraceableBrandKB;
+  /** Changes whenever the stored KB's document fields change (kbRevision): the copilot filled a
+   *  field, or a teammate saved. The screen then takes the stored copy in beside its own draft. */
+  kbRevision: string;
   isEditMode: boolean;
   initialDocuments?: ClientKBDocumentRow[];
   initialImages?: ClientBrandImageRow[];
@@ -99,6 +103,7 @@ export function KBOnboardingReviewStep({
   clientSlug,
   versionId,
   initialKB,
+  kbRevision,
   isEditMode,
   initialDocuments = [],
   initialImages = [],
@@ -115,8 +120,27 @@ export function KBOnboardingReviewStep({
   // instead of auto-saving every field change.
   const [kb, setKB] = useState<TraceableBrandKB>(initialKB);
   const [savedKB, setSavedKB] = useState<TraceableBrandKB>(initialKB);
-  const [saving, setSaving] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<ModuleKey>("brand_voice");
+  // Save sends only the fields the person changed (never the whole KB), and tells the copilot.
+  const saveFields = usePatchKbFields(clientId);
+  const saving = saveFields.isPending;
+  // The stored KB changed under the screen: take it into both copies, keeping what the person has
+  // changed and not saved yet. Adjusting state during render, on a change of the prop.
+  const [seenRevision, setSeenRevision] = useState(kbRevision);
+  if (seenRevision !== kbRevision) {
+    setSeenRevision(kbRevision);
+    const next = adoptServerKb(kb, savedKB, initialKB);
+    setKB(next.draft);
+    setSavedKB(next.saved);
+  }
+  // The copilot's "what is left" links open a tab by name (?section=compliance).
+  const sectionParam = useSearchParams().get("section");
+  const linkedModule = MODULES.find((m) => m.key === sectionParam)?.key ?? null;
+  const [selectedModule, setSelectedModule] = useState<ModuleKey>(linkedModule ?? "brand_voice");
+  const [seenLink, setSeenLink] = useState(linkedModule);
+  if (seenLink !== linkedModule) {
+    setSeenLink(linkedModule);
+    if (linkedModule) setSelectedModule(linkedModule);
+  }
   // Brand assets (D302) live on their own page; the header links there with a live count.
   const { data: importStatus } = useAssetImports(clientId);
   const importing = (importStatus?.imports ?? []).some(isImportLive);
@@ -144,7 +168,7 @@ export function KBOnboardingReviewStep({
   // Image Analysis is written by a background run (D312). When the stored section changes, take
   // it into the saved baseline, and into the draft over any unsaved reviews (D318), so it shows
   // without a reload. Other unsaved edits are left as they are. Saving never puts back an older
-  // section either: the save action keeps the stored one (see saveKBOutputAction).
+  // section either: a save sends only the fields the person changed (changedFields).
   const { data: imageAnalysisState } = useImageAnalysisStatus(clientId);
   const storedImageAnalysis = imageAnalysisState?.versionId === versionId ? imageAnalysisState.imageAnalysis : null;
   const storedKey = storedImageAnalysis ? JSON.stringify(storedImageAnalysis) : null;
@@ -234,16 +258,22 @@ export function KBOnboardingReviewStep({
   }
 
   async function handleSave() {
-    setSaving(true);
+    // What is sent is what becomes "saved": an edit made while the save is on its way stays unsaved.
+    const sent = kb;
+    const patches = changedFields(sent, savedKB);
     try {
-      await saveKBOutputAction(versionId, kb);
-      setSavedKB(kb);
+      if (patches.length > 0) await saveFields.mutateAsync({ versionId, patches });
+      setSavedKB(sent);
       toast.success("Changes saved");
-    } catch {
-      toast.error("Failed to save changes");
-    } finally {
-      setSaving(false);
+    } catch (e) {
+      // The route's own words: a rebuilt KB says to reload. The draft is kept.
+      toast.error(e instanceof Error ? e.message : "Failed to save changes");
     }
+  }
+
+  /** Puts the draft back to what was last saved. */
+  function handleDiscard() {
+    setKB(savedKB);
   }
 
   function handleEdit(module: ModuleKey, fieldKey: string, newValue: string | string[]) {
@@ -568,6 +598,11 @@ export function KBOnboardingReviewStep({
       {/* Fixed header — global actions + module tabs */}
       <div className="shrink-0">
         <div className="mb-2 flex items-center justify-end gap-3">
+          {dirty && (
+            <Button variant="outline" size="sm" onClick={handleDiscard} disabled={saving}>
+              Discard changes
+            </Button>
+          )}
           {/* Single dynamic action: "Save changes" while dirty, otherwise Mark KB Ready
              (or its edit-mode/in-flight variants) — see the footerAction derivation above. */}
           {footerAction.tooltip ? (

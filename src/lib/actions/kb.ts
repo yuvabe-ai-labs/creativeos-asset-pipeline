@@ -3,8 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
-  getKBImageAnalysis,
-  saveKBOutputKeepingImageAnalysis,
   setKBField,
   deleteKBDocument,
   deleteBrandImage,
@@ -13,15 +11,12 @@ import {
 import { getClientById } from "@/lib/db/clients";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { approveKB } from "@/lib/kb/approve";
-import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { removeObject } from "@/lib/storage";
 import {
   markKBJobStuckIfRunning,
   getKBJob,
 } from "@/lib/db/kb-jobs";
 import { withAction } from "@/lib/actions/with-action";
-import { setKBImageAnalysis } from "@/lib/db/image-cards";
-import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { startKBBuild } from "@/lib/kb/start-build";
 
@@ -46,26 +41,6 @@ export async function patchKBFieldAction(
     for (const key of path) field = (field as Record<string, unknown> | undefined)?.[key];
     // One field in one statement, so a background write elsewhere in the KB is never undone (D318).
     await setKBField(versionId, path, { ...(field as Record<string, unknown> | undefined), ...patch });
-  });
-}
-
-// ── Bulk Save ─────────────────────────────────────────────────────────────────
-// Persists the reviewed KB output. Mirrors the Script focus view's buffered Save: the client edits
-// a local draft and commits it here once, rather than auto-saving every field change.
-//
-// Image Analysis is rewritten in the background (D312), so the draft's copy may be older than the
-// stored one. Every other section is saved as sent; Image Analysis keeps the stored section and
-// lays the team's reviews over it (D318), so a Save never puts back an older analysis.
-export async function saveKBOutputAction(
-  versionId: string,
-  output: TraceableBrandKB,
-): Promise<void> {
-  return withAction("saveKBOutputAction", async () => {
-    const stored = await getKBImageAnalysis(versionId);
-    await saveKBOutputKeepingImageAnalysis(versionId, output);
-    if (stored && JSON.stringify(stored) !== JSON.stringify(output.image_analysis)) {
-      await setKBImageAnalysis(versionId, mergeImageAnalysis(output.image_analysis, stored));
-    }
   });
 }
 

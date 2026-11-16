@@ -322,30 +322,11 @@ export async function insertKBVersion(input: {
   return data as ClientKBVersionRow;
 }
 
-/**
- * Saves a KB version's output from the review screen, all but Image Analysis, in one statement:
- * that section is kept as stored, because a background run may have rewritten it since the screen
- * loaded (D318). saveKBOutputAction lays the screen's Image Analysis reviews over it separately.
- */
-export async function saveKBOutputKeepingImageAnalysis(versionId: string, output: TraceableBrandKB): Promise<void> {
-  const supabase = createServerSupabase();
-  const { error } = await supabase.rpc("save_kb_output_keep_image_analysis", { p_version_id: versionId, p_output: output });
-  if (error) throw error;
-}
-
 /** Writes one field of a KB version, and nothing else, in one statement (D318). */
 export async function setKBField(versionId: string, path: string[], field: unknown): Promise<void> {
   const supabase = createServerSupabase();
   const { error } = await supabase.rpc("set_kb_field", { p_version_id: versionId, p_path: path, p_value: field });
   if (error) throw error;
-}
-
-/** The Image Analysis section as stored on one KB version. */
-export async function getKBImageAnalysis(versionId: string): Promise<TraceableBrandKB["image_analysis"] | null> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase.from("client_kb_versions").select("output->image_analysis").eq("id", versionId).maybeSingle();
-  if (error) throw error;
-  return ((data as { image_analysis?: TraceableBrandKB["image_analysis"] } | null)?.image_analysis) ?? null;
 }
 
 export async function setActiveKBVersion(
