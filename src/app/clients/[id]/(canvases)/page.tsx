@@ -11,14 +11,6 @@ import { ClientSettingsMenu } from "@/components/clients/client-settings-menu";
 import { ClientIdentity } from "@/components/clients/client-identity";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 
 export const dynamic = "force-dynamic";
 
@@ -72,18 +64,7 @@ export default async function ClientPage({
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
-      <Breadcrumb className="animate-rise">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href="/">Clients</Link>} />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{client.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 pb-12 pt-4">
 
       <header className="animate-rise mb-10 mt-4 flex items-center justify-between gap-4">
         <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} />

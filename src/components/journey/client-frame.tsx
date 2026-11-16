@@ -23,16 +23,16 @@ export function ClientFrame({ tabs, guide, children }: {
 
   return (
     <>
-      <div className="h-12 shrink-0">{tabs}</div>
+      <div className="h-22 shrink-0">{tabs}</div>
       <div className={cn("flex flex-1", frame.panel && "mx-auto w-full max-w-[96rem]")}>
         {frame.panel && (
           // Stretched to the page's height, so the guide inside can stick. box-content: the
-          // width is the guide's own, with the gutter added around it. Width, left edge and top match the
-          // script copilot (copilot-chat.tsx inside a max-w-[96rem] px-6 py-8 page, under its
-          // breadcrumb), so the panel does not move when a script opens.
+          // width is the guide's own, with the gutter added around it. Width and left edge match the
+          // script copilot (copilot-chat.tsx inside a max-w-[96rem] px-6 page). Its top is level
+          // with where the page beside it starts (2rem under the client bar).
           <div
             className={cn(
-              "box-content hidden shrink-0 pb-6 pl-6 pt-19 lg:block",
+              "box-content hidden shrink-0 pb-6 pl-6 pt-8 lg:block",
               "transition-[width] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
               collapsed ? "lg:w-12" : "lg:w-[29rem]",
             )}

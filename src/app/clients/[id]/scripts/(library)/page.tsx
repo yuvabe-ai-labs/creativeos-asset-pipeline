@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listScriptDeleteBlocks, listScripts } from "@/lib/db/scripts";
@@ -7,9 +6,6 @@ import { listFeedbackCounts } from "@/lib/db/script-reviews";
 import { resolveOrgId } from "@/lib/dal";
 import { scriptsLocked } from "@/lib/journey/stages";
 import { ScriptsLibrary } from "@/components/scripts/scripts-library";
-import {
-  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +21,7 @@ export default async function ScriptsPage({ params }: { params: Promise<{ id: st
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
-      <Breadcrumb className="animate-rise shrink-0">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink render={<Link href="/">Clients</Link>} /></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbLink render={<Link href={`/clients/${client.slug}`}>{client.name}</Link>} /></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbPage>Scripts</BreadcrumbPage></BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 pb-12 pt-4">
       <ScriptsLibrary clientId={client.id} clientName={client.name} clientSlug={client.slug} scripts={scripts} unwritten={unwritten} feedback={feedback} deleteBlocks={deleteBlocks} locked={scriptsLocked(client)} />
     </main>
   );

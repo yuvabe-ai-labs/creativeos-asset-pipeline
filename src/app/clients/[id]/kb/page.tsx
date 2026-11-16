@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { resolveOrgId } from "@/lib/dal";
@@ -12,14 +11,6 @@ import { getBrandDetails } from "@/lib/db/brand-kit";
 import { ClientIdentity } from "@/components/clients/client-identity";
 import { KBOnboardingUploadStep } from "@/components/kb/kb-onboarding-upload-step";
 import { KBOnboardingReviewStep } from "@/components/kb/kb-onboarding-review-step";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { kbRevision } from "@/lib/kb/review-sync";
 
@@ -58,29 +49,10 @@ export default async function KBPage({
     <main
       className={
         isReviewOrEdit
-          ? "mx-auto flex h-[calc(100vh-7rem)] w-full max-w-5xl flex-col px-6 pt-6" // header 4rem + stage tabs 3rem
-          : "mx-auto w-full max-w-5xl flex-1 px-6 py-12"
+          ? "mx-auto flex h-[calc(100vh-9.5rem)] w-full max-w-5xl flex-col px-6 pt-8" // header 4rem + client bar 5.5rem
+          : "mx-auto w-full max-w-5xl flex-1 px-6 pb-12 pt-4"
       }
     >
-      <Breadcrumb className="animate-rise shrink-0">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href="/">Clients</Link>} />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              render={
-                <Link href={`/clients/${client.slug}`}>{client.name}</Link>
-              }
-            />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Brand KB</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
 
       {isReviewOrEdit ? (
         <KBOnboardingReviewStep
