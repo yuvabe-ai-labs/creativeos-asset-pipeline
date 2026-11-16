@@ -8710,3 +8710,35 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Trigger.dev `chat.agent` for the brand KB (no long-running model work to host). One fixed place for every agent to run. A free tool-calling agent for scripts (it would mean re-tuning script quality from scratch). Rules stated only in the prompt.
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.1 and §6, `2026-11-15-copilot-journey-map.md` §5 and §6.
+
+### D498 — The brand KB review keeps its draft and "Save changes"; a save writes only the fields that changed, and says so in the copilot thread *(recorded 2026-11-16; refines D318)*
+
+**Decision.** The review screen still buffers approvals, edits and rejections in a draft until "Save changes", and gains "Discard changes" beside it while the draft has unsaved changes. A save no longer writes the whole KB: it sends one patch per changed field (`changedFields`), and `patch_kb_fields` (migration 0064) merges each patch into its own stored field in one statement. The copilot writes its answers the same way. So a save can never write an older draft over a field the copilot or a teammate filled in the meantime. When the stored KB changes under an open screen, the screen takes the stored copy into both its copies and keeps the person's unsaved fields (`adoptServerKb`). After a save the route writes one line into the copilot thread ("Manual edits saved: 3 fields.") and the panel re-reads at once, which is how the copilot learns of it. `saveKBOutputAction` is removed.
+
+**Why.** User, 16 Nov 2026: keep the button, add a discard, and when a save is made tell the agent so it refreshes its understanding. The copilot reads the stored KB, so with a whole-KB save its answers would have been overwritten by any later save from a screen opened before them.
+
+**Rejected.** Saving each review the moment it is made, with no button (proposed; the user chose to keep the button). Keeping the whole-KB save. A cached copy of the KB in the browser's query cache (the KB still reaches the page from the server component).
+
+**Accepted with it.** The copilot and the panel only know a review once it is saved: the panel may wait on a field already approved in the draft, and the gate card appears after the save that settles the last field. If the copilot fills a field the person has also changed in the draft, the person's value wins at the next save.
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3; plan `2026-11-16-copilot-journey-kb-chat-part-2.md` Task 9.
+
+### D499 — In a review walk, code chooses and words each question and decides when the walk stops; the model only reads the answer *(recorded 2026-11-16; refines D497)*
+
+**Decision.** After a build the copilot asks about the fields it could not settle: still unreviewed, and inferred or empty. Which field comes next (`QUESTION_PRIORITY`, then screen order), the question's words (a template that only repeats what the KB holds), its reply choices ("Yes, that's right", "There is none", "Skip this one") and when to stop (after five, then only on "Keep asking") are all decided in `src/lib/journey/kb-copilot/walk.ts`. The walk keeps no state of its own: what has been asked and what is still waiting are read back from the question cards in the thread, and a new build starts it again. The model's part is to read the person's answer and call `answer_field`, `confirm_field`, `skip_question`, `keep_asking` or `stop_asking`. A tool never writes a field that is already reviewed; that refusal is in the tool's code. An answer is saved as edited, stated and high confidence; an agreement is saved as approved. The build's webhook writes the first question itself, with no model call.
+
+**Why.** User, 15 Nov 2026: the path is decided by code, with tool calls where they are needed. Spec §6: the copilot never proposes a value without a source, so it offers none of its own as a reply choice. A templated question can be tested word for word.
+
+**Rejected.** Letting the model choose and phrase the questions (it drifts, and it invents likely answers). A separate table or column for walk state. Asking about every unreviewed field (the stated ones are a straight review on the page).
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3 and §6.
+
+### D500 — "Waiting for you" and the gate card are worked out on every thread read, never stored; approving is one function that records who approved *(recorded 2026-11-16; follows D496)*
+
+**Decision.** `ThreadState` carries `waiting`: a reply the copilot is waiting for, a task on the page with links (how many fields are left, per tab), or a gate (the next approval, what it opens, why the copilot cannot do it). It is computed on each read from the thread and from the list of unreviewed field paths (`kb_unreviewed_fields`, migration 0064: paths only, the KB is never downloaded by the polled read). If that read fails the whole thread read fails, because an unknown count must never look like nothing left, which is the gate. The gate names its approval (`approve-kb`) and only the stage's own component can carry it out; the thread components stay stage-neutral. Approving is `approveKB`, reached by the page header's button and by the gate card alike; it checks the same list, approves once, and writes "<name> approved the brand KB." into the thread with the approver's id. The name is kept as it was that day.
+
+**Why.** A stored marker goes stale the moment a field is reviewed by hand. Rule 8 (ask for what you need) and rule 13 (a failure is never "empty"). Spec §2.3: any teammate may approve, and who approved is recorded.
+
+**Rejected.** Storing the gate card as a message. Downloading the KB on the polled read to count. Resolving the approver's name on every read (two more queries on a polled read; an approval is an event, so its name does not need to follow a later rename).
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3 and §3; `2026-11-15-copilot-journey-map.md` §2.

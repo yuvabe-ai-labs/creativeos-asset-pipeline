@@ -45,6 +45,7 @@ On the Brand KB page, the panel becomes a chat with the brand KB copilot. It doe
 - The person reviews on the screen as today. The panel keeps up with what was done by hand and does not ask about a field the person has already settled.
 - When every field is reviewed, the copilot shows the gate card: approve the brand KB, which opens market research. The approval is the person's action. *(My call: the gate card carries the same "Mark KB ready" action the page header has, so the person can approve from either place.)*
 - Any teammate who can open the client can approve, as today. The thread records who approved the KB and who approved each change card.
+- **Decided 2026-11-16 (Cyril):** reviews on the screen stay a draft until "Save changes", and the screen gains "Discard changes". A save tells the copilot at once and is said in the thread ("Manual edits saved"). So the panel keeps up with what was done by hand from the moment it is saved, not before.
 
 ### 2.4 Takes additions without wrecking what is approved
 
