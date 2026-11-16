@@ -27,6 +27,14 @@ describe("loadThread", () => {
     vi.mocked(listCopilotMessages).mockResolvedValue([]);
   });
 
+  it("keeps a question's choices on offer after a note about a save", async () => {
+    vi.mocked(listCopilotMessages).mockResolvedValue([
+      message({ id: "q", suggestions: ["Yes, that's right", "Skip this one"], card: { kind: "question", field: "a.b", label: "A" } }),
+      message({ id: "n", content: "Manual edits saved: 1 field.", card: { kind: "note" } }),
+    ]);
+    expect((await loadThread(client)).suggestions).toEqual(["Yes, that's right", "Skip this one"]);
+  });
+
   it("says what the person is waited on, from the brand KB as stored", async () => {
     withCtx({ ...empty, kbStatus: "in_review", hasVersion: true, unreviewed: [] });
     expect((await loadThread(client)).waiting).toMatchObject({ kind: "gate", action: "approve-kb" });

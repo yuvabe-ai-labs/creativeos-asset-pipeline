@@ -8,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { REPLY_CHIP_CLASS } from "@/components/copilot/reply-chip";
 import { useCopilotThread, useRefreshCopilotThread, useSendKbTurn } from "@/hooks/queries/copilot-thread";
+import { useApproveKb } from "@/hooks/queries/kb";
+import { APPROVE_KB_ACTION } from "@/lib/journey/kb-copilot/waiting";
 import { useThreadAttachments, type PendingAttachment } from "@/hooks/use-thread-attachments";
 import { KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
 import type { Attachment } from "@/lib/journey/thread/schema";
@@ -16,6 +18,7 @@ import { JourneyPanelShell } from "./journey-panel-shell";
 import { ThreadComposer } from "./thread-composer";
 import { ThreadMessageItem } from "./thread-message";
 import { ThreadStatusLines } from "./thread-status-lines";
+import { ThreadWaiting } from "./thread-waiting";
 
 const WORKING = [{ text: "Working on it…", state: "running" as const }];
 
@@ -28,6 +31,11 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const refreshThread = useRefreshCopilotThread(clientId);
   const turn = useSendKbTurn(clientId);
   const [text, setText] = useState("");
+  // Approving is the person's own action (spec §6): the gate card's button, never the copilot.
+  const approve = useApproveKb(clientId);
+  const onGate = (action: string) => {
+    if (action === APPROVE_KB_ACTION) approve.mutate(undefined, { onError: (e) => toast.error(e.message) });
+  };
 
   // A file is a source of the brand KB from the moment it is attached, exactly as if uploaded on
   // the form, so the form and the copilot's own view of the sources are both re-read.
@@ -73,7 +81,8 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const end = useRef<HTMLDivElement>(null);
   const count = state?.messages.length ?? 0;
   const liveCount = state?.live.length ?? 0;
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [count, liveCount, busy]);
+  const waitingKind = state?.waiting?.kind ?? null;
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [count, liveCount, busy, waitingKind]);
 
   // What the person is waited on comes from the server, worked out from the brand KB as stored.
   const waiting = busy ? null : (state?.waiting?.label ?? null);
@@ -112,6 +121,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
                 ))}
               </div>
             )}
+            {!busy && <ThreadWaiting waiting={state.waiting} onGate={onGate} gateBusy={approve.isPending} />}
           </>
         )}
         <div ref={end} />

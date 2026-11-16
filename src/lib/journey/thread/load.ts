@@ -16,7 +16,9 @@ export function threadState(ctx: KbContext, stored: ThreadMessage[]): ThreadStat
     ? stored
     : [{ id: VIRTUAL_OPENING_ID, role: "assistant", content: openingMessage(ctx), card: null, attachments: [], suggestions: [], createdAt: "" }];
   const live = liveStatus(ctx);
-  const last = messages[messages.length - 1];
+  // A note (a save on the page) is not part of the conversation: the choices under the copilot's
+  // last words stay on offer after one.
+  const last = messages.findLast((m) => m.card?.kind !== "note") ?? messages[messages.length - 1];
   const offered = last.role === "assistant" && last.suggestions.length > 0 ? last.suggestions : fallbackSuggestions(ctx);
   // The copilot asks nothing while something runs (spec §2.2), so it offers nothing either. A
   // failure that is only being shown is not something running.
