@@ -18,3 +18,10 @@ export const KB_REPLY_CHOICE_MAX_CHARS = 80;
 export const KB_TURN_FAILED_REPLY = "Something went wrong on my side. Nothing was changed. Try again.";
 /** What a failed turn says when a tool had already saved something before the failure. */
 export const KB_TURN_FAILED_AFTER_SAVE_REPLY = "Something went wrong on my side after I saved what you gave me. Check the page on the right, then try again.";
+
+/** How many questions the review walk asks before it offers to stop (brand KB spec §2.3). */
+export const REVIEW_QUESTIONS_FIRST = 5;
+/** The most of a field's value a question repeats back. */
+export const QUESTION_VALUE_MAX_CHARS = 280;
+/** The most of a field's value the model is shown in its list of fields. */
+export const PROMPT_VALUE_MAX_CHARS = 300;

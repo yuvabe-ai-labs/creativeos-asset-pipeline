@@ -14,6 +14,7 @@ vi.mock("@/lib/journey/kb-copilot/turn", () => ({ runKbTurn: vi.fn() }));
 vi.mock("@/lib/journey/agent-model", () => ({ openaiAgentModel: vi.fn(() => "model") }));
 vi.mock("@/lib/asset-import/start", () => ({ setImportTarget: vi.fn(), startAssetImports: vi.fn() }));
 vi.mock("@/lib/kb/start-build", () => ({ startKBBuild: vi.fn() }));
+vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn(), patchKBFields: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
@@ -25,6 +26,8 @@ import { loadThread } from "@/lib/journey/thread/load";
 import { runKbTurn, type KbActions } from "@/lib/journey/kb-copilot/turn";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { startKBBuild } from "@/lib/kb/start-build";
+import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
+import { kbWith } from "@/lib/kb/__tests__/fixtures";
 import { KB_TURN_FAILED_REPLY, KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
 import type { KbContext } from "@/lib/journey/kb-copilot/context";
@@ -39,6 +42,7 @@ const ctx: KbContext = {
   documentCount: 1, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const STATE = { messages: [], live: [], suggestions: [], waiting: null };
+const NO_WALK = { settled: [], skipped: false, more: false, stopped: false };
 const doc = { kind: "document", id: DOC, name: "brand.pdf", url: null };
 const order = (fn: unknown) => vi.mocked(fn as () => unknown).mock.invocationCallOrder[0];
 
@@ -52,7 +56,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(loadKbContext).mockResolvedValue({ ctx, sources: new Map([[DOC, { kind: "document" as const, id: DOC, name: "brand.pdf", url: null }]]) });
     vi.mocked(listCopilotMessages).mockResolvedValue([]);
     vi.mocked(insertOpeningIfEmpty).mockResolvedValue(true);
-    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Got it.", suggestions: ["Start the build"], changed: false });
+    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Got it.", suggestions: ["Start the build"], changed: false, walk: NO_WALK });
     vi.mocked(loadThread).mockResolvedValue(STATE);
   });
 
@@ -147,7 +151,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
   });
 
   it("refreshes the page on the right when the turn changed something", async () => {
-    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Saved.", suggestions: [], changed: true });
+    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Saved.", suggestions: [], changed: true, walk: NO_WALK });
     const { POST } = await import("./route");
     const res = await POST(post({ text: "acme.com", attachments: [] }), { params });
     expect(revalidatePath).toHaveBeenCalledWith("/clients/acme/kb");
@@ -159,7 +163,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       await actions.saveWebsite("acme.com");
       await actions.saveSocials({ instagram: "acmeskin" });
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true };
+      return { reply: "Started.", suggestions: [], changed: true, walk: NO_WALK };
     });
     const { POST } = await import("./route");
     await POST(post({ text: "go", attachments: [] }), { params });
@@ -175,7 +179,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(startKBBuild).mockRejectedValue(new BuildAlreadyRunningError());
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild().catch(() => {});
-      return { reply: "One is running.", suggestions: [], changed: false };
+      return { reply: "One is running.", suggestions: [], changed: false, walk: NO_WALK };
     });
     const { POST } = await import("./route");
     await POST(post({ text: "go", attachments: [] }), { params });
@@ -186,7 +190,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(loadKbContext).mockResolvedValue({ ctx: { ...ctx, importedBefore: ["website", "instagram"] }, sources: new Map() });
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true };
+      return { reply: "Started.", suggestions: [], changed: true, walk: NO_WALK };
     });
     const { POST } = await import("./route");
     await POST(post({ text: "start the build", attachments: [] }), { params });
@@ -209,11 +213,70 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     expect(vi.mocked(runKbTurn).mock.calls[0][0].attachments).toEqual([doc]);
   });
 
+  describe("with a built KB in review", () => {
+    const AGE = "target_audience.age_range";
+    const TONE = "brand_profile.tone_of_voice";
+    const question = (field: string) => ({ id: "q", role: "assistant" as const, content: "?", card: { kind: "question" as const, field, label: field }, attachments: [], suggestions: [], createdAt: "" });
+    beforeEach(() => {
+      vi.mocked(getClientById).mockResolvedValue({ id: "c1", slug: "acme", name: "Acme", org_id: "org-1", kb_status: "in_review", active_kb_version_id: "v1" } as never);
+      vi.mocked(loadKbContext).mockResolvedValue({ ctx: { ...ctx, kbStatus: "in_review", hasVersion: true, unreviewed: [AGE, TONE] }, sources: new Map() });
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: "v1", output: kbWith({ [AGE]: { evidence_type: "inferred" }, [TONE]: { evidence_type: "inferred" } }) } as never);
+      vi.mocked(listCopilotMessages).mockResolvedValue([question(AGE)]);
+    });
+
+    it("gives the turn the fields and the waiting question, and writes an answer to that one field", async () => {
+      vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
+        await actions.setField(AGE, { status: "approved" });
+        return { reply: "Good.", suggestions: [], changed: true, walk: { ...NO_WALK, settled: [AGE] } };
+      });
+      const { POST } = await import("./route");
+      await POST(post({ text: "yes", attachments: [] }), { params });
+      const { review } = vi.mocked(runKbTurn).mock.calls[0][0];
+      expect(review?.pending).toBe(AGE);
+      expect(review?.fields).toHaveLength(43);
+      expect(patchKBFields).toHaveBeenCalledWith("v1", [{ path: ["target_audience", "age_range"], patch: { status: "approved" } }]);
+    });
+
+    it("stores the reply and then the next question in one insert", async () => {
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: ["x"], changed: true, walk: { ...NO_WALK, settled: [AGE] } });
+      const { POST } = await import("./route");
+      await POST(post({ text: "yes", attachments: [] }), { params });
+      const stored = vi.mocked(insertCopilotMessages).mock.calls[1][3];
+      expect(stored).toHaveLength(2);
+      expect(stored[0]).toEqual({ role: "assistant", content: "Good.", suggestions: [] });
+      expect(stored[1].card).toMatchObject({ kind: "question", field: TONE });
+    });
+
+    it("adds no question when the turn failed", async () => {
+      vi.mocked(runKbTurn).mockRejectedValue(new Error("model down"));
+      const { POST } = await import("./route");
+      await POST(post({ text: "yes", attachments: [] }), { params });
+      expect(vi.mocked(insertCopilotMessages).mock.calls[1][3]).toEqual([{ role: "assistant", content: KB_TURN_FAILED_REPLY, suggestions: [] }]);
+    });
+
+    it("does not treat a question as waiting once its field was reviewed by hand", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: "v1", output: kbWith({ [AGE]: { evidence_type: "inferred", status: "approved" }, [TONE]: { evidence_type: "inferred" } }) } as never);
+      const { POST } = await import("./route");
+      await POST(post({ text: "hello", attachments: [] }), { params });
+      expect(vi.mocked(runKbTurn).mock.calls[0][0].review?.pending).toBeNull();
+      // The walk still moves on to the next field.
+      expect(vi.mocked(insertCopilotMessages).mock.calls[1][3][1].card).toMatchObject({ kind: "question", field: TONE });
+    });
+  });
+
+  it("reads no KB and adds no question before one is built", async () => {
+    const { POST } = await import("./route");
+    await POST(post({ text: "hi", attachments: [] }), { params });
+    expect(getActiveKBVersion).not.toHaveBeenCalled();
+    expect(vi.mocked(runKbTurn).mock.calls[0][0].review).toBeNull();
+    expect(vi.mocked(insertCopilotMessages).mock.calls[1][3]).toHaveLength(1);
+  });
+
   it("still starts the build when the image collection cannot be started", async () => {
     vi.mocked(startAssetImports).mockRejectedValue(new Error("apify down"));
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true };
+      return { reply: "Started.", suggestions: [], changed: true, walk: NO_WALK };
     });
     const { POST } = await import("./route");
     const res = await POST(post({ text: "go", attachments: [] }), { params });

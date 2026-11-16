@@ -22,7 +22,7 @@ const empty: KbContext = {
   documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const actions = (over: Partial<KbActions> = {}): KbActions => ({
-  saveWebsite: vi.fn(async () => {}), saveSocials: vi.fn(async () => {}), startBuild: vi.fn(async () => {}), ...over,
+  saveWebsite: vi.fn(async () => {}), saveSocials: vi.fn(async () => {}), startBuild: vi.fn(async () => {}), setField: vi.fn(async () => {}), ...over,
 });
 const call = (name: string, args: unknown, id = "c1") => ({ id, name, args });
 const say = (text: string): ModelOutput => ({ text, calls: [] });
@@ -158,5 +158,120 @@ describe("runKbTurn", () => {
     await turn({ model, history });
     expect(seen[0].messages).toHaveLength(KB_CONVERSATION_WINDOW + 1);
     expect(seen[0].messages[0].content).toBe("message 5");
+  });
+});
+
+// ── Part 2: answering the review walk ─────────────────────────────────────────
+
+import { reviewFields, REVIEW_FIELD_PATHS } from "../review";
+import { kbWith } from "@/lib/kb/__tests__/fixtures";
+
+describe("runKbTurn in review", () => {
+  const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [] };
+  const AGE = "target_audience.age_range";
+  const PAINS = "target_audience.pain_points";
+  const reviewOf = (over: Parameters<typeof kbWith>[0] = {}, pending: string | null = AGE) => ({ fields: reviewFields(kbWith(over)), pending });
+  const withField = () => {
+    const setField = vi.fn(async () => {});
+    return { setField, a: actions({ setField }) };
+  };
+
+  it("knows all 43 fields by path", () => {
+    expect(REVIEW_FIELD_PATHS).toHaveLength(43);
+    expect(REVIEW_FIELD_PATHS).toContain("creative_direction.video.pacing");
+  });
+
+  it("saves the person's answer as an edit they stated", async () => {
+    const { setField, a } = withField();
+    const { model } = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30 to 45" })] }, say("Noted.")]);
+    const result = await turn({ ctx: inReview, review: reviewOf(), actions: a, model, text: "it is 30 to 45" });
+    expect(setField).toHaveBeenCalledWith(AGE, { value: "30 to 45", status: "edited", evidence_type: "explicit", confidence: "high" });
+    expect(result.walk).toEqual({ settled: [AGE], skipped: false, more: false, stopped: false });
+    expect(result.changed).toBe(true);
+  });
+
+  it("approves the value when the person agrees", async () => {
+    const { setField, a } = withField();
+    const { model } = scripted([{ text: "", calls: [call("confirm_field", { field: AGE })] }, say("Good.")]);
+    const result = await turn({ ctx: inReview, review: reviewOf(), actions: a, model });
+    expect(setField).toHaveBeenCalledWith(AGE, { status: "approved" });
+    expect(result.walk.settled).toEqual([AGE]);
+  });
+
+  it("turns one string into a list for a list field, and a list into text for a text field", async () => {
+    const { setField, a } = withField();
+    const { model } = scripted([
+      { text: "", calls: [call("answer_field", { field: PAINS, value: "dry skin, breakouts\n redness " }, "c1"), call("answer_field", { field: AGE, value: ["25", "40"] }, "c2")] },
+      say("Saved."),
+    ]);
+    await turn({ ctx: inReview, review: reviewOf(), actions: a, model });
+    expect(setField).toHaveBeenCalledWith(PAINS, expect.objectContaining({ value: ["dry skin", "breakouts", "redness"] }));
+    expect(setField).toHaveBeenCalledWith(AGE, expect.objectContaining({ value: "25, 40" }));
+  });
+
+  it("refuses a field that is already reviewed, and writes nothing", async () => {
+    const { setField, a } = withField();
+    const { model, seen } = scripted([
+      { text: "", calls: [call("answer_field", { field: AGE, value: "30 to 45" }, "c1"), call("confirm_field", { field: AGE }, "c2")] },
+      say("It is already reviewed."),
+    ]);
+    const result = await turn({ ctx: inReview, review: reviewOf({ [AGE]: { status: "approved" } }, null), actions: a, model });
+    expect(setField).not.toHaveBeenCalled();
+    expect(outputs(seen)).toEqual(Array(2).fill("That field is already reviewed. It can be edited on the right. Proposing changes from the chat comes in a later step."));
+    expect(result.walk.settled).toEqual([]);
+    expect(result.changed).toBe(false);
+  });
+
+  it("refuses the second write to a field it settled earlier in the same turn", async () => {
+    const { setField, a } = withField();
+    const { model } = scripted([
+      { text: "", calls: [call("confirm_field", { field: AGE }, "c1"), call("answer_field", { field: AGE, value: "other" }, "c2")] },
+      say("ok"),
+    ]);
+    await turn({ ctx: inReview, review: reviewOf(), actions: a, model });
+    expect(setField).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an empty answer", async () => {
+    const { setField, a } = withField();
+    const { model, seen } = scripted([{ text: "", calls: [call("answer_field", { field: PAINS, value: " , " })] }, say("ok")]);
+    await turn({ ctx: inReview, review: reviewOf(), actions: a, model });
+    expect(setField).not.toHaveBeenCalled();
+    expect(outputs(seen)).toEqual(["No value was given."]);
+  });
+
+  it("refuses to answer a field when no KB is in review", async () => {
+    const { setField, a } = withField();
+    const { model, seen } = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30" })] }, say("ok")]);
+    await turn({ ctx: empty, review: null, actions: a, model });
+    expect(setField).not.toHaveBeenCalled();
+    expect(outputs(seen)).toEqual(["There is no brand KB in review to answer about."]);
+  });
+
+  it("skips only a question that is waiting, and records what the person asked of the walk", async () => {
+    const { model, seen } = scripted([{ text: "", calls: [call("skip_question", {}, "c1"), call("keep_asking", {}, "c2")] }, say("ok")]);
+    const skipped = await turn({ ctx: inReview, review: reviewOf(), model });
+    expect(skipped.walk).toEqual({ settled: [], skipped: true, more: true, stopped: false });
+    expect(skipped.changed).toBe(false);
+
+    const none = scripted([{ text: "", calls: [call("skip_question", {}), call("stop_asking", {}, "c2")] }, say("ok")]);
+    const result = await turn({ ctx: inReview, review: reviewOf({}, null), model: none.model });
+    expect(outputs(none.seen)[0]).toBe("No question is waiting.");
+    expect(result.walk).toEqual({ settled: [], skipped: false, more: false, stopped: true });
+    expect(seen).toHaveLength(2);
+  });
+
+  it("has no tool that approves the KB", async () => {
+    const { model, seen } = scripted([say("Only you can approve it.")]);
+    await turn({ ctx: inReview, review: reviewOf(), model });
+    expect(Object.keys(seen[0].tools).filter((name) => /approve|ready/i.test(name))).toEqual([]);
+  });
+
+  it("tells the model the pending question and each field's state", async () => {
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ ctx: inReview, review: reviewOf({ [AGE]: { evidence_type: "inferred", value: "25 to 40" } }), model });
+    expect(seen[0].system).toContain(`The question waiting for an answer is about: ${AGE}`);
+    expect(seen[0].system).toContain(`${AGE} | Audience & Casting · Age Range | inferred | not reviewed | 25 to 40`);
+    expect(seen[0].system).toContain("never ask about another field yourself");
   });
 });

@@ -120,3 +120,9 @@ export function unreviewedByModule(paths: string[]): { module: ModuleKey; label:
     })
     .filter((m) => m.count > 0);
 }
+
+/** Every reviewed field's path, from the schema: what a tool may name, whatever one KB holds. */
+export const REVIEW_FIELD_PATHS: string[] = SECTIONS.flatMap(({ section }) => {
+  const shape = schemaAt(section);
+  return shape instanceof z.ZodObject ? Object.keys((shape as ObjectShape).shape).map((key) => [...section, key].join(".")) : [];
+});

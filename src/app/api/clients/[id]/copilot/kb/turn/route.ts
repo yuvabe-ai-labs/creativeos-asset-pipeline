@@ -4,16 +4,20 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { IMPORT_SOURCES } from "@/lib/asset-import/constants";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { resolveCallerContext } from "@/lib/dal";
-import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages } from "@/lib/db/copilot-messages";
+import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
+import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { openaiAgentModel } from "@/lib/journey/agent-model";
 import {
   KB_COPILOT_MODEL, KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_ATTACHMENTS, KB_TURN_MAX_CHARS,
 } from "@/lib/journey/kb-copilot/constants";
-import { openingMessage } from "@/lib/journey/kb-copilot/context";
+import { isBuilding, openingMessage } from "@/lib/journey/kb-copilot/context";
+import { reviewFields } from "@/lib/journey/kb-copilot/review";
+import { walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/walk";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
-import { runKbTurn, type KbActions } from "@/lib/journey/kb-copilot/turn";
+import { runKbTurn, type KbActions, type KbReview } from "@/lib/journey/kb-copilot/turn";
 import { loadThread } from "@/lib/journey/thread/load";
 import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type ThreadMessage } from "@/lib/journey/thread/schema";
+import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { startKBBuild } from "@/lib/kb/start-build";
 
 // A turn is a few short model calls and quick saves; the build itself runs in the background.
@@ -44,11 +48,15 @@ export async function POST(req: Request, { params }: Ctx) {
       if (asked.length > KB_TURN_MAX_ATTACHMENTS) return apiError(`Attach at most ${KB_TURN_MAX_ATTACHMENTS} files to one message.`, 400);
 
       // The caller is resolved once and passed down; the context and the thread do not depend on each other.
-      const [{ userId }, { ctx, sources }, stored] = await Promise.all([
+      // A built KB in review is read once per turn (never by the polled read): the copilot answers
+      // about its fields and may fill the ones still unreviewed.
+      const reviewing = client.kb_status === "in_review" && client.active_kb_version_id !== null;
+      const [{ userId }, { ctx, sources }, stored, version] = await Promise.all([
         resolveCallerContext(),
         loadKbContext(client),
         // A failed read fails the turn here: it must never look like an empty thread.
         listCopilotMessages(clientId, ONBOARDING),
+        reviewing ? getActiveKBVersion(clientId) : Promise.resolve(null),
       ]);
       const attachments: Attachment[] = [];
       for (const a of asked) {
@@ -66,6 +74,14 @@ export async function POST(req: Request, { params }: Ctx) {
         : [{ id: VIRTUAL_OPENING_ID, role: "assistant", content: opening, card: null, attachments: [], suggestions: [], createdAt: "" }];
       await insertCopilotMessages(clientId, ONBOARDING, userId, [{ role: "user", content: text, attachments }]);
 
+      // The review walk as the thread stood before this message. A question only counts as waiting
+      // while its field is still unreviewed: one settled by hand on the page is no longer asked.
+      const walk = walkOf(history);
+      const fields = version ? reviewFields(version.output as unknown as TraceableBrandKB) : null;
+      const review: KbReview | null = fields
+        ? { fields, pending: fields.some((f) => f.path === walk.pending && f.status === "needs_review") ? walk.pending : null }
+        : null;
+
       // Each action is the same server function the Brand KB form reaches. `acted` records that
       // something was really saved, so a failure afterwards is never reported as "nothing changed".
       let acted = false;
@@ -79,6 +95,11 @@ export async function POST(req: Request, { params }: Ctx) {
           // One after the other: both merge into the same stored details.
           if (handles.instagram) await setImportTarget(clientId, "instagram", handles.instagram);
           if (handles.facebook) await setImportTarget(clientId, "facebook", handles.facebook);
+        }),
+        setField: done(async (path: string, patch) => {
+          if (!version) throw new Error("There is no brand KB in review.");
+          // One field, merged into what is stored: nothing else in the KB is touched.
+          await patchKBFields(version.id, [{ path: path.split("."), patch }]);
         }),
         startBuild: done(async () => {
           await startKBBuild(clientId);
@@ -97,16 +118,30 @@ export async function POST(req: Request, { params }: Ctx) {
 
       let reply: { content: string; suggestions: string[] };
       let changed: boolean;
+      let turnWalk: TurnWalk | null = null;
       try {
-        const result = await runKbTurn({ ctx, history, text, attachments, actions, model: openaiAgentModel(KB_COPILOT_MODEL) });
+        const result = await runKbTurn({ ctx, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL) });
         reply = { content: result.reply, suggestions: result.suggestions };
         changed = result.changed;
+        turnWalk = result.walk;
       } catch (e) {
         console.error("[kb-copilot] turn failed", e);
         reply = { content: acted ? KB_TURN_FAILED_AFTER_SAVE_REPLY : KB_TURN_FAILED_REPLY, suggestions: [] };
         changed = acted;
       }
-      await insertCopilotMessages(clientId, ONBOARDING, userId, [{ role: "assistant", ...reply }]);
+      // Code, not the model, asks the next question (spec §2.3), and never while a build runs or
+      // after a turn that failed. The fields are the ones read above with this turn's answers laid
+      // over them.
+      const settled = turnWalk?.settled ?? [];
+      const extra: NewCopilotMessage[] = fields && turnWalk && !isBuilding(ctx)
+        ? walkMessages({ fields: fields.map((f) => (settled.includes(f.path) ? { ...f, status: "approved" as const } : f)), walk, turn: turnWalk })
+        : [];
+      // One insert, so the reply and the question that follows it are stored in order. When a
+      // question follows, its own choices are the ones offered.
+      await insertCopilotMessages(clientId, ONBOARDING, userId, [
+        { role: "assistant", content: reply.content, suggestions: extra.length > 0 ? [] : reply.suggestions },
+        ...extra,
+      ]);
 
       // An attached file is a new source, so the page on the right has changed even when no tool ran.
       const refresh = changed || attachments.length > 0;

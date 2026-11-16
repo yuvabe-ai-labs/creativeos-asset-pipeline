@@ -2,7 +2,33 @@
 // Spec: docs/superpowers/specs/2026-11-12-copilot-journey-brand-kb-design.md §2.1, §2.2, §6.
 // The rules that must never break are enforced in the tools' code (src/lib/journey/kb-copilot/turn.ts),
 // not here: this text asks, the tools refuse.
+import { PROMPT_VALUE_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
 import { canStartBuild, isBuilding, sourcesSummary, type KbContext } from "@/lib/journey/kb-copilot/context";
+import { isEmpty, type ReviewField } from "@/lib/journey/kb-copilot/review";
+
+function fieldLine(f: ReviewField): string {
+  const raw = isEmpty(f.value) ? "(empty)" : Array.isArray(f.value) ? f.value.join(", ") : String(f.value);
+  const value = raw.length > PROMPT_VALUE_MAX_CHARS ? `${raw.slice(0, PROMPT_VALUE_MAX_CHARS)}…` : raw;
+  return `${f.path} | ${f.title} | ${f.inferred ? "inferred" : "stated"} | ${f.status === "needs_review" ? "not reviewed" : "reviewed"} | ${value.replace(/\s+/g, " ")}`;
+}
+
+/** What the copilot is told while a built KB is being reviewed (spec §2.3). */
+function reviewBlock(review: { fields: ReviewField[]; pending: string | null }): string {
+  return `The brand KB is built and the person is reviewing it. The fields, one per line, as path | name | stated in the sources or inferred | reviewed or not | value:
+${review.fields.map(fieldLine).join("\n")}
+
+${review.pending ? `The question waiting for an answer is about: ${review.pending}` : "No question is waiting for an answer."}
+
+While the KB is being reviewed:
+- When the person answers the waiting question: if they give a value, call answer_field for that field with their own words; if they agree with the value, or say there is none for an empty field, call confirm_field; if they do not want to answer, call skip_question.
+- The person may also give a value for another field that is not reviewed yet. Save it with answer_field the same way.
+- Never save a value of your own. If the person did not give one, do not call answer_field.
+- If they want you to ask questions, or to go on asking, call keep_asking. If they want no more questions, call stop_asking.
+- The next question is added after your reply by the system, so never ask about another field yourself. Acknowledge in one short sentence and stop.
+- A field that is already reviewed cannot be changed from the chat yet. Say they can edit it on the right.
+- If they ask why a field says what it says, say whether it was stated in the sources or inferred. You cannot point to the page or document it came from.
+- If the person attaches a file, say it is saved as a source. Reading new sources into a built KB comes in a later step.`;
+}
 
 function contextBlock(ctx: KbContext): string {
   const state = isBuilding(ctx)
@@ -25,7 +51,7 @@ function contextBlock(ctx: KbContext): string {
   ].join("\n");
 }
 
-export function kbCopilotSystem(ctx: KbContext): string {
+export function kbCopilotSystem(ctx: KbContext, review: { fields: ReviewField[]; pending: string | null } | null = null): string {
   return `You are the brand KB copilot in a creative agency's content tool. You help one teammate get one client's brand knowledge base (brand KB) built from the brand's own sources.
 
 What you know right now:
@@ -41,8 +67,8 @@ Before a brand KB exists, your job is to collect the sources and start the build
 While a build is running:
 - Ask nothing. If the person writes, answer briefly and say the build is still running. Do not ask for more sources.
 
-Once the brand KB is built:
-- Changing reviewed fields from the chat comes in a later step. If the person attaches a file, say it is saved as a source. If they ask for a change to the KB, say they can edit the field on the right, and that proposing changes from the chat is not available yet.
+${review ? reviewBlock(review) : `Once the brand KB is built:
+- Changing reviewed fields from the chat comes in a later step. If the person attaches a file, say it is saved as a source. If they ask for a change to the KB, say they can edit the field on the right, and that proposing changes from the chat is not available yet.`}
 
 Always:
 - You never approve the brand KB and never mark it ready. Only the person can.
