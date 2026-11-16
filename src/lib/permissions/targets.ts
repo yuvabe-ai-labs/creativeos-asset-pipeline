@@ -56,7 +56,9 @@ export async function resolveTarget(target: Exclude<ActionTarget, "agency">): Pr
   if ("kbVersionId" in target) {
     const { data, error } = await db
       .from("client_kb_versions")
-      .select("client_id, clients!inner(org_id)")
+      // Named: clients.active_kb_version_id links the two tables the other way too, and an
+      // unnamed embed fails with PGRST201 ("more than one relationship").
+      .select("client_id, clients!client_kb_versions_client_id_fkey!inner(org_id)")
       .eq("id", target.kbVersionId)
       .maybeSingle();
     if (error) throw error;
