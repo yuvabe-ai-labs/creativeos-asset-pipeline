@@ -23,6 +23,26 @@ describe("admin agency page: the tab lives in the URL (Task 13 review)", () => {
     expect(page).not.toContain("searchParams");
   });
 
+  it("pushes a history entry per tab switch, so Back returns to the previous tab", () => {
+    const tabs = read("src/app/admin/orgs/[id]/org-detail-tabs.tsx");
+    expect(tabs).toContain("window.history.pushState(null, \"\", orgTabUrl(");
+    expect(tabs).not.toContain("replaceState");
+  });
+
+  it("opens a client in the Clients tab from the URL with a history entry, and offers All clients back", () => {
+    const clients = read("src/app/admin/orgs/[id]/admin-clients-tab.tsx");
+    expect(clients).toContain('searchParams.get("client")');
+    expect(clients).toContain("window.history.pushState(");
+    expect(clients).not.toContain("useState");
+    expect(clients).toContain("adminClientCrumbs(orgId, open)");
+  });
+
+  it("shows the tab in the page's trail", () => {
+    const crumbs = read("src/app/admin/orgs/[id]/org-crumbs.tsx");
+    expect(crumbs).toContain("adminOrgCrumbs(org, tab)");
+    expect(read("src/app/admin/orgs/[id]/page.tsx")).toContain("<OrgCrumbs");
+  });
+
   it("keeps the Overview People count on the shared people read", () => {
     const tabs = read("src/app/admin/orgs/[id]/org-detail-tabs.tsx");
     expect(tabs).toContain("usePeople(org.id");

@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { usePeople } from "@/hooks/queries/people";
-import { orgTabFrom } from "./org-tabs";
+import { orgTabFrom, orgTabUrl } from "./org-tabs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { CreditLimitEditor } from "./credit-limit-editor";
@@ -78,7 +78,7 @@ export function OrgDetailTabs({
   impersonationSessions: ImpersonationSessionPage;
 }) {
   // The tab and the focused person live in the URL (Set permissions in the Clients tab links to
-  // ?tab=people&person=). Switching tabs rewrites the URL with the History API, which Next keeps in
+  // ?tab=people&person=). Switching tabs pushes the URL with the History API, which Next keeps in
   // step with useSearchParams without a server round trip or remounting the tabs.
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -96,12 +96,11 @@ export function OrgDetailTabs({
     },
   ];
 
+  // Each tab switch is a history entry, so Back returns to the previous tab.
   function selectTab(next: unknown) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", orgTabFrom(String(next)));
-    params.delete("person");
-    params.delete("client");
-    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+    const nextTab = orgTabFrom(String(next));
+    if (nextTab === tab) return;
+    window.history.pushState(null, "", orgTabUrl(pathname, searchParams, { tab: nextTab }));
   }
 
   return (

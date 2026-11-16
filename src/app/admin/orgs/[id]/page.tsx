@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Eye } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
@@ -18,14 +17,8 @@ import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
 import { listClientNames } from "@/lib/db/clients";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { OrgCrumbs } from "./org-crumbs";
+import { PAGE_CONTAINER, PageHeader } from "@/components/shared/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -76,33 +69,25 @@ export default async function OrgDetailPage({
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-14">
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href="/admin">Agencies</Link>} />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{org.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">
-          {org.name}
-        </h1>
-        {isViewingThisOrg ? (
-          // Offering "Enter as this org" while already inside it is the kind of dead
-          // control that makes the whole feature feel unresponsive. Exit lives in the
-          // banner, so this is a status, not an action.
-          <span className="flex items-center gap-1.5 text-sm text-neutral-500">
-            <Eye className="size-3.5" strokeWidth={1.5} />
-            You&rsquo;re viewing as this org
-          </span>
-        ) : (
-          <EnterImpersonationButton orgId={org.id} orgName={org.name} />
-        )}
+    <main className={PAGE_CONTAINER}>
+      <div className="mb-6">
+        <PageHeader
+          breadcrumb={<OrgCrumbs org={{ id: org.id, name: org.name }} />}
+          title={org.name}
+          actions={
+            isViewingThisOrg ? (
+              // Offering "Enter as this org" while already inside it is the kind of dead
+              // control that makes the whole feature feel unresponsive. Exit lives in the
+              // banner, so this is a status, not an action.
+              <span className="flex items-center gap-1.5 text-sm text-neutral-500">
+                <Eye className="size-3.5" strokeWidth={1.5} />
+                You&rsquo;re viewing as this org
+              </span>
+            ) : (
+              <EnterImpersonationButton orgId={org.id} orgName={org.name} />
+            )
+          }
+        />
       </div>
       <OrgDetailTabs
         org={org}

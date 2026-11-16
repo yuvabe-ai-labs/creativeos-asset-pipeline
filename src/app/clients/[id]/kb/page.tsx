@@ -55,7 +55,8 @@ export default async function KBPage({
       }
     >
       {/* Until the brand KB is ready the client page sends everyone here, so the Members button
-          that sits beside Brand Workspace there sits beside the breadcrumb here (spec 6.2). */}
+          that sits in the client page's header sits in this page's header too (spec 6.2). The
+          review step has no header, so there it sits beside the breadcrumb. */}
       <div className="animate-rise flex shrink-0 items-center justify-between gap-4">
         <Breadcrumb>
           <BreadcrumbList>
@@ -76,7 +77,7 @@ export default async function KBPage({
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        {!isEditMode && <ClientMembersButton slug={client.slug} clientId={client.id} />}
+        {isReviewOrEdit && !isEditMode && <ClientMembersButton slug={client.slug} clientId={client.id} />}
       </div>
 
       {isReviewOrEdit ? (
@@ -96,12 +97,15 @@ export default async function KBPage({
         />
       ) : (
         <>
-          <header className="animate-rise mb-8 mt-4">
-            <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
-            <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} size="md" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              Upload brand documents and images to extract your brand knowledge base.
-            </p>
+          <header className="animate-rise mb-8 mt-4 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
+              <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} size="md" />
+              <p className="mt-3 text-sm text-muted-foreground">
+                Upload brand documents and images to extract your brand knowledge base.
+              </p>
+            </div>
+            {!isEditMode && <ClientMembersButton slug={client.slug} clientId={client.id} />}
           </header>
           <KBOnboardingUploadStep
             clientId={client.id}
