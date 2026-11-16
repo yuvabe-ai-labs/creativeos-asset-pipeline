@@ -227,8 +227,22 @@ export async function createLogin(
   return { ok: true, userId: data.user.id };
 }
 
-/** Deletes the login; the profile, membership and client rows go with it (cascade). The owner's
- *  is refused by the owner-protection trigger. Their work stays, unattributed. */
+/** Takes a member out of the agency: the membership and, by cascade, their client rows. Never the
+ *  owner (is_owner = false). Run before deleteLogin: deleting the login alone fails, because the
+ *  cascade from auth.users runs the membership triggers as the Auth service role, which cannot
+ *  read org_memberships. */
+export async function deleteMembership(orgId: string, userId: string): Promise<void> {
+  const { error } = await createServerSupabase()
+    .from("org_memberships")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .eq("is_owner", false);
+  if (error) throw error;
+}
+
+/** Deletes the login; the profile goes with it (cascade). Their work stays, unattributed. A login
+ *  that still has a membership must lose it first (deleteMembership). */
 export async function deleteLogin(userId: string): Promise<void> {
   const { error } = await createServerSupabase().auth.admin.deleteUser(userId);
   if (error) throw error;

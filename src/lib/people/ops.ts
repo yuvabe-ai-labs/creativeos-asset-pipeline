@@ -160,6 +160,7 @@ export async function removePerson(agency: Agency, userId: string): Promise<OpRe
   const member = await people.getMembership(agency.orgId, userId);
   if (!member) return refuse(404, REFUSALS.personNotFound);
   if (member.isOwner) return refuse(409, REFUSALS.ownerFixed);
+  await people.deleteMembership(agency.orgId, userId);
   await people.deleteLogin(userId);
   return ok(null);
 }

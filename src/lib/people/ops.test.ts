@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 const db = vi.hoisted(() => ({
   findLoginByEmail: vi.fn(), findOpenInviteByEmail: vi.fn(), takeInviteSend: vi.fn(), insertInvitation: vi.fn(),
   replaceInvitationToken: vi.fn(), revokeInvitation: vi.fn(), getMembership: vi.fn(), getMemberships: vi.fn(),
-  setMemberPermissions: vi.fn(), deleteLogin: vi.fn(), addPeopleToClient: vi.fn(), removePersonFromClient: vi.fn(),
+  setMemberPermissions: vi.fn(), deleteMembership: vi.fn(), deleteLogin: vi.fn(), addPeopleToClient: vi.fn(), removePersonFromClient: vi.fn(),
   transferOwner: vi.fn(), loginEmails: vi.fn(), ownerIds: vi.fn(), listOrgSlugs: vi.fn(),
   createAgencyWithOwnerInvite: vi.fn(), getOpenOwnerInvite: vi.fn(), insertOwnerInvitation: vi.fn(),
   hasOpenInviteElsewhere: vi.fn(), openInviteSentAt: vi.fn(),
@@ -267,12 +267,17 @@ describe("removePerson", () => {
   it("deletes the login of someone waiting or a member", async () => {
     db.getMembership.mockResolvedValue({ isOwner: false, accessGiven: false });
     expect(await removePerson(agency, "u1")).toEqual({ ok: true, value: null });
+    // Membership first: deleting the login alone fails, because the membership triggers then run
+    // as the Auth service role, which cannot read org_memberships.
+    expect(db.deleteMembership).toHaveBeenCalledWith("org-1", "u1");
     expect(db.deleteLogin).toHaveBeenCalledWith("u1");
+    expect(db.deleteMembership.mock.invocationCallOrder[0]).toBeLessThan(db.deleteLogin.mock.invocationCallOrder[0]);
   });
 
   it("refuses the owner", async () => {
     db.getMembership.mockResolvedValue({ isOwner: true, accessGiven: true });
     expect(await removePerson(agency, "o1")).toEqual({ ok: false, status: 409, error: "The agency owner can't be removed." });
+    expect(db.deleteMembership).not.toHaveBeenCalled();
     expect(db.deleteLogin).not.toHaveBeenCalled();
   });
 });
