@@ -34,11 +34,13 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
       />
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-card">
-        <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 px-5 py-3 text-[0.7rem] text-muted-foreground/80">
+        <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 py-3 pl-5 text-[0.7rem] text-muted-foreground/80">
           <span className="flex-[3]">Agency</span>
           <span className="flex-1">Clients</span>
-          <span className="flex-1">Credit limit</span>
+          <span className="flex-1 whitespace-nowrap">Credit limit</span>
           <span className="flex-1 text-right">Created</span>
+          {/* Every row has this actions column, so rows with Resend line up with the rest. */}
+          <span className="w-28 shrink-0 pr-5" aria-hidden />
         </div>
 
         {rows.length === 0 ? (
@@ -49,7 +51,7 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
           <ul>
             {rows.map((org) => (
               <li key={org.id} className="flex items-center border-b last:border-b-0 hover:bg-muted/40">
-                <Link href={`/admin/orgs/${org.id}`} className="flex flex-1 items-center gap-4 px-5 py-3.5 transition-colors">
+                <Link href={`/admin/orgs/${org.id}`} className="flex flex-1 items-center gap-4 py-3.5 pr-4 pl-5 transition-colors">
                   <span className="flex flex-[3] items-center gap-3">
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-card text-xs font-semibold text-muted-foreground/50">
                       {initials(org.name)}
@@ -70,16 +72,10 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
                   </span>
                   <span className="flex-1 text-right text-sm text-muted-foreground">{formatRelativeTime(org.created_at)}</span>
                 </Link>
-                {org.owner_status === "invited" && (
-                  <div className="pr-5">
-                    <ResendOwnerInviteButton orgId={org.id} />
-                  </div>
-                )}
-                {org.owner_status === "none" && (
-                  <div className="pr-5">
-                    <InviteOwnerDialog orgId={org.id} orgName={org.name} />
-                  </div>
-                )}
+                <div className="flex w-28 shrink-0 justify-end pr-5">
+                  {org.owner_status === "invited" && <ResendOwnerInviteButton orgId={org.id} />}
+                  {org.owner_status === "none" && <InviteOwnerDialog orgId={org.id} orgName={org.name} />}
+                </div>
               </li>
             ))}
           </ul>
