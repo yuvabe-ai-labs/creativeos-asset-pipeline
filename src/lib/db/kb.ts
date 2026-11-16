@@ -395,3 +395,25 @@ export async function getActiveKBVersion(
   if (error) throw error;
   return (data as ClientKBVersionRow) ?? null;
 }
+
+// ── Field reviews (copilot journey, piece 2 part 2) ───────────────────────────
+
+type KBFieldPatch = import("@/lib/kb/field-patch").KBFieldPatch;
+
+/** Merges each patch into its own field, all in one statement, and touches nothing else: a review
+ *  saved from one place never undoes a field filled from another (migration 0064). */
+export async function patchKBFields(versionId: string, patches: KBFieldPatch[]): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase.rpc("patch_kb_fields", { p_version_id: versionId, p_patches: patches });
+  if (error) throw error;
+}
+
+/** The dotted paths of the fields still to review, Image Analysis left out, without downloading the
+ *  KB. Throws when the read fails or the version is gone: that is never "nothing left to review". */
+export async function listUnreviewedFields(versionId: string): Promise<string[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc("kb_unreviewed_fields", { p_version_id: versionId });
+  if (error) throw error;
+  if (data === null || data === undefined) throw new Error("KB version not found");
+  return data as string[];
+}
