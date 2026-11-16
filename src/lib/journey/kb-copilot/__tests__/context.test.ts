@@ -4,11 +4,22 @@ import {
 } from "../context";
 
 const empty: KbContext = {
-  clientName: "Acme", kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
+  clientName: "Acme", clientSlug: "acme", unreviewed: null, kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
   documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const ctx = (over: Partial<KbContext>): KbContext => ({ ...empty, ...over });
 const running = { status: "researching", phaseMessage: "Reading the website…" };
+
+describe("fallbackSuggestions for a built KB", () => {
+  it("offers the open questions while a built KB has fields left to review", () => {
+    expect(fallbackSuggestions(ctx({ kbStatus: "in_review", hasVersion: true, unreviewed: ["brand_profile.tagline"] }))).toEqual(["Ask me the open questions"]);
+  });
+  it("offers nothing when nothing is left, during a build, or once approved", () => {
+    expect(fallbackSuggestions(ctx({ kbStatus: "in_review", hasVersion: true, unreviewed: [] }))).toEqual([]);
+    expect(fallbackSuggestions(ctx({ kbStatus: "in_review", hasVersion: true, unreviewed: ["a.b"], job: running }))).toEqual([]);
+    expect(fallbackSuggestions(ctx({ kbStatus: "ready", hasVersion: true, unreviewed: null }))).toEqual([]);
+  });
+});
 
 describe("isBuilding", () => {
   it("is true while the latest job has not finished", () => {

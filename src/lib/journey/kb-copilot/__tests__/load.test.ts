@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db/kb", () => ({ listKBDocuments: vi.fn(), listBrandImages: vi.fn() }));
+vi.mock("@/lib/db/kb", () => ({ listKBDocuments: vi.fn(), listBrandImages: vi.fn(), listUnreviewedFields: vi.fn() }));
 vi.mock("@/lib/db/kb-jobs", () => ({ getLatestKBJob: vi.fn() }));
 vi.mock("@/lib/db/brand-kit", () => ({ getBrandDetails: vi.fn() }));
 vi.mock("@/lib/jobs/db", () => ({ listRecentJobs: vi.fn(), failStaleJobs: vi.fn() }));
 
 import { getBrandDetails } from "@/lib/db/brand-kit";
-import { listBrandImages, listKBDocuments } from "@/lib/db/kb";
+import { listBrandImages, listKBDocuments, listUnreviewedFields } from "@/lib/db/kb";
 import { getLatestKBJob } from "@/lib/db/kb-jobs";
 import { failStaleJobs, listRecentJobs } from "@/lib/jobs/db";
 import { KB_STALE_AFTER_MS, loadKbContext } from "../load";
@@ -33,6 +33,23 @@ describe("loadKbContext", () => {
   it("reads the basics from the client row and the brand details", async () => {
     const { ctx } = await loadKbContext(client, NOW);
     expect(ctx).toMatchObject({ clientName: "Acme", kbStatus: "pending", hasVersion: false, websiteUrl: "https://acme.com", instagram: "acmeskin", facebook: null });
+  });
+
+  it("reads what is unreviewed only for a built KB in review", async () => {
+    vi.mocked(listUnreviewedFields).mockResolvedValue(["brand_profile.tagline"]);
+    const built = { ...(client as object), kb_status: "in_review", active_kb_version_id: "v1" } as never;
+    expect((await loadKbContext(built, NOW)).ctx).toMatchObject({ clientSlug: "acme", unreviewed: ["brand_profile.tagline"] });
+    expect(listUnreviewedFields).toHaveBeenCalledWith("v1");
+
+    vi.mocked(listUnreviewedFields).mockClear();
+    expect((await loadKbContext(client, NOW)).ctx.unreviewed).toBeNull();
+    expect((await loadKbContext({ ...(client as object), kb_status: "ready", active_kb_version_id: "v1" } as never, NOW)).ctx.unreviewed).toBeNull();
+    expect(listUnreviewedFields).not.toHaveBeenCalled();
+  });
+
+  it("fails the whole read when the unreviewed read fails, so a failure never looks like nothing left", async () => {
+    vi.mocked(listUnreviewedFields).mockRejectedValue(new Error("boom"));
+    await expect(loadKbContext({ ...(client as object), kb_status: "in_review", active_kb_version_id: "v1" } as never, NOW)).rejects.toThrow("boom");
   });
 
   it("never writes: a polled read does not fail stale jobs", async () => {

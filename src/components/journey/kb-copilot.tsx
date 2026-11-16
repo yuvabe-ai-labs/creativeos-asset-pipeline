@@ -75,9 +75,8 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const liveCount = state?.live.length ?? 0;
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [count, liveCount, busy]);
 
-  const last = state?.messages[state.messages.length - 1];
-  const running = state?.live.some((line) => line.state === "running") ?? false;
-  const waiting = !busy && !running && last?.role === "assistant" ? "Your reply" : null;
+  // What the person is waited on comes from the server, worked out from the brand KB as stored.
+  const waiting = busy ? null : (state?.waiting?.label ?? null);
 
   return (
     <JourneyPanelShell slug={slug} waiting={waiting} busy={busy}>

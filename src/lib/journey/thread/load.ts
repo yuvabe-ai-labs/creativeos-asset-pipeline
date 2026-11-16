@@ -3,6 +3,7 @@ import { listCopilotMessages } from "@/lib/db/copilot-messages";
 import type { ClientRow } from "@/lib/db/types";
 import { fallbackSuggestions, liveStatus, openingMessage, type KbContext } from "@/lib/journey/kb-copilot/context";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
+import { kbWaiting } from "@/lib/journey/kb-copilot/waiting";
 import { ONBOARDING, VIRTUAL_OPENING_ID, type ThreadMessage, type ThreadState } from "./schema";
 
 // The one read of a client's onboarding thread, for every stage page (journey map §2). Today its
@@ -20,7 +21,7 @@ export function threadState(ctx: KbContext, stored: ThreadMessage[]): ThreadStat
   // The copilot asks nothing while something runs (spec §2.2), so it offers nothing either. A
   // failure that is only being shown is not something running.
   const running = live.some((line) => line.state === "running");
-  return { messages, live, suggestions: running ? [] : offered, waiting: null };
+  return { messages, live, suggestions: running ? [] : offered, waiting: kbWaiting(ctx, messages) };
 }
 
 /** Throws when either read fails: a thread that could not be read is never shown as empty. */

@@ -18,7 +18,7 @@ function scripted(responses: ModelOutput[]) {
 }
 
 const empty: KbContext = {
-  clientName: "Acme", kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
+  clientName: "Acme", clientSlug: "acme", unreviewed: null, kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
   documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const actions = (over: Partial<KbActions> = {}): KbActions => ({

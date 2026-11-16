@@ -12,7 +12,7 @@ import { loadThread } from "../load";
 
 const client = { id: "c1", slug: "acme", name: "Acme" } as never;
 const empty: KbContext = {
-  clientName: "Acme", kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
+  clientName: "Acme", clientSlug: "acme", unreviewed: null, kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
   documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const withCtx = (ctx: KbContext) =>
@@ -25,6 +25,11 @@ describe("loadThread", () => {
     vi.resetAllMocks();
     withCtx(empty);
     vi.mocked(listCopilotMessages).mockResolvedValue([]);
+  });
+
+  it("says what the person is waited on, from the brand KB as stored", async () => {
+    withCtx({ ...empty, kbStatus: "in_review", hasVersion: true, unreviewed: [] });
+    expect((await loadThread(client)).waiting).toMatchObject({ kind: "gate", action: "approve-kb" });
   });
 
   it("shows the opening for an empty thread without storing anything", async () => {

@@ -35,7 +35,7 @@ const params = Promise.resolve({ id: "c1" });
 const post = (body: unknown) =>
   new NextRequest("http://localhost/api/clients/c1/copilot/kb/turn", { method: "POST", body: JSON.stringify(body) });
 const ctx: KbContext = {
-  clientName: "Acme", kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
+  clientName: "Acme", clientSlug: "acme", unreviewed: null, kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
   documentCount: 1, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const STATE = { messages: [], live: [], suggestions: [], waiting: null };

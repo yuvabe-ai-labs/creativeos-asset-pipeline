@@ -8,6 +8,11 @@ export type ImportSource = "website" | "instagram" | "facebook";
 
 export type KbContext = {
   clientName: string;
+  /** For links to the Brand KB page. */
+  clientSlug: string;
+  /** Dotted paths of the fields still to review. Null when there is no built KB in review: nothing
+   *  was read, which is not the same as nothing left. */
+  unreviewed: string[] | null;
   kbStatus: "pending" | "in_review" | "ready";
   /** An active KB version exists. */
   hasVersion: boolean;
@@ -80,8 +85,13 @@ export function openingMessage(ctx: KbContext): string {
 
 export const START_BUILD_CHOICE = "Start the build";
 
+/** Starts the review walk on a built KB (spec §2.3), including one built before the walk existed. */
+export const ASK_OPEN_CHOICE = "Ask me the open questions";
+
 export function fallbackSuggestions(ctx: KbContext): string[] {
-  return canStartBuild(ctx) ? [START_BUILD_CHOICE] : [];
+  if (canStartBuild(ctx)) return [START_BUILD_CHOICE];
+  const reviewing = ctx.kbStatus === "in_review" && ctx.hasVersion && !isBuilding(ctx);
+  return reviewing && (ctx.unreviewed?.length ?? 0) > 0 ? [ASK_OPEN_CHOICE] : [];
 }
 
 const IMPORT_LABEL: Record<ImportSource, string> = { website: "the website", instagram: "Instagram", facebook: "Facebook" };
