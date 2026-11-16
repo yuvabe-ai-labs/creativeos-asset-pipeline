@@ -8779,3 +8779,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping the upload dialog for its per-upload download switch (the switch on the version does the same job after the upload). The icon-only download toggle with a slash. Separate upload state for the menu and the focus view.
 
 **Originated →** `2026-11-12-client-review-versions.md`.
+
+### D502 — A new version starts with download off; uploading stays on the canvas with a skeleton *(recorded 2026-11-16; refines D497, D501)*
+
+**Decision.** A newly uploaded version has **Allow download off**; the focus view's switch turns it on (the finalize route also defaults to off when the body omits it). Uploading from the node card or its right-click menu no longer opens the focus view: the card's media area shows a skeleton (at the current cut's shape, or 16:9 for the first) and the footer reads "Uploading…" until the version is saved. A focus view that is already open, or the next one opened, shows the new version.
+
+**Why.** User, 16 Nov 2026: don't open the focus view after an upload; download off by default; show a loading skeleton in the node while uploading.
+
+**Rejected.** Keeping download on by default (D497): a cut should not be downloadable until someone chooses that.
+
+**Originated →** `2026-11-12-client-review-versions.md`.

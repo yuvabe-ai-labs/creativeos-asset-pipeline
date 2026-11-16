@@ -24,7 +24,7 @@ export type ClientReviewUpload = {
 };
 
 // D495/D497 — upload a cut as the node's next version straight from the file picker, with no
-// dialog between. A new version allows download; the focus view's switch turns it off. Shared by
+// dialog between. A new version starts with download off; the focus view's switch turns it on. Shared by
 // the node's right-click menu and the focus view's Upload button, so both show "Uploading…" while
 // it runs; the caller opens the new version once it is saved.
 export function useClientReviewUpload(
@@ -61,7 +61,7 @@ export function useClientReviewUpload(
       const next = await uploadViaSignedUrl<NodeClientReview>(file, {
         signEndpoint: `/api/nodes/${nodeId}/client-review/sign`,
         finalizeEndpoint: `/api/nodes/${nodeId}/client-review`,
-        finalizeBody: { allowDownload: true },
+        finalizeBody: { allowDownload: false },
         contentType,
       });
       // Each version is named after its file; the node card shows the newest version, so the
