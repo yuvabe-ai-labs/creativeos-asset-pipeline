@@ -99,7 +99,7 @@ describe("resolveTarget", () => {
     expect(await resolveTarget({ kbVersionId: "kv1" })).toEqual({ clientId: "c1", orgId: "o1" });
     expect(calls).toEqual({
       table: "client_kb_versions",
-      select: "client_id, clients!inner(org_id)",
+      select: "client_id, clients!client_kb_versions_client_id_fkey!inner(org_id)",
       eq: [["id", "kv1"]],
     });
   });
