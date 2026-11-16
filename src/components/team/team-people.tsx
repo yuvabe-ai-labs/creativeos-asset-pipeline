@@ -55,12 +55,26 @@ export function TeamPeople({
   const { data, error } = usePeople(orgId, initial);
   const [filter, setFilter] = useState<TeamFilter>({ query: "", clientId: null, tab: "all" });
   const [openId, setOpenId] = useState<string | null>(focusUserId);
+  // The ?person target stays highlighted only until its panel is closed.
+  const [focusId, setFocusId] = useState<string | null>(focusUserId);
   // A new ?person target (Admin's Set permissions link) opens that person.
   const [seenFocus, setSeenFocus] = useState(focusUserId);
   if (focusUserId !== seenFocus) {
     setSeenFocus(focusUserId);
     setOpenId(focusUserId);
+    setFocusId(focusUserId);
   }
+  const closePanel = () => {
+    setOpenId(null);
+    setFocusId(null);
+    // Drop ?person from the address so a refresh or Back doesn't reopen it. replaceState keeps the
+    // page as it is (no server render), and stays in step with useSearchParams.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("person")) {
+      url.searchParams.delete("person");
+      window.history.replaceState(window.history.state, "", url);
+    }
+  };
   const clientsById = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients]);
   const entries = useMemo(() => (data ? teamEntries(data) : []), [data]);
 
@@ -112,13 +126,13 @@ export function TeamPeople({
               clientsCell={<ClientStack clients={clientsOf(e.person.clientIds)} href={clientHref} everyClient={e.person.status === "owner"} />}
               onOpen={() => setOpenId(e.person.userId)}
               extras={extras}
-              focused={e.person.userId === focusUserId}
+              focused={e.person.userId === focusId}
             />
           ),
         )}
       </PeopleList>
 
-      <PersonPanel orgId={orgId} person={openPerson} clients={clients} clientHref={clientHref} onClose={() => setOpenId(null)} />
+      <PersonPanel orgId={orgId} person={openPerson} clients={clients} clientHref={clientHref} onClose={closePanel} />
     </div>
   );
 }

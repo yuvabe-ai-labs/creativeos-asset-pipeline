@@ -45,11 +45,9 @@ export function PersonPanelAccess({ orgId, person }: { orgId: string; person: Ag
             <Button disabled={!changed || update.isPending} onClick={() => update.mutate({ userId: person.userId, permissions: draft })}>
               {update.isPending ? "Saving…" : "Save"}
             </Button>
-            {changed && (
-              <Button variant="ghost" disabled={update.isPending} onClick={() => setDraft(person.permissions)}>
-                Undo changes
-              </Button>
-            )}
+            <Button variant="outline" disabled={!changed || update.isPending} onClick={() => setDraft(person.permissions)}>
+              Cancel
+            </Button>
           </>
         )}
       </div>
