@@ -82,7 +82,11 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     <main className={cn("mx-auto w-full flex-1 px-6 py-12", board || approved ? "max-w-[96rem]" : "max-w-6xl")}>
       <Breadcrumb className="animate-rise mb-6 shrink-0">
         <BreadcrumbList>
-          {/* The client bar above already says Clients and the client; this trail is the depth inside the Scripts tab. */}
+          {/* A script has no client bar above it (frame.ts), so this trail is the whole way back. */}
+          <BreadcrumbItem><BreadcrumbLink render={<Link href="/">Clients</Link>} /></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbLink render={<Link href={`/clients/${client.slug}`}>{client.name}</Link>} /></BreadcrumbItem>
+          <BreadcrumbSeparator />
           <BreadcrumbItem><BreadcrumbLink render={<Link href={`/clients/${client.slug}/scripts`}>Scripts</Link>} /></BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem><BreadcrumbPage>{label ? `${label} · ` : ""}{script.doc.header.title}</BreadcrumbPage></BreadcrumbItem>

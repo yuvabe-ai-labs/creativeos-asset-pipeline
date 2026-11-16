@@ -30,7 +30,11 @@ export function frameFor(pathname: string, slug: string): Frame {
   if (section === "canvases") return NO_FRAME;
   const tab = JOURNEY_TABS.find((t) => t.id === section);
   if (!tab) return { tabs: true, tab: null, panel: null };
-  // A page inside a tab has the whole width: a script keeps its own copilot, an avatar its studio.
+  // Inside a script there is no frame at all. A script is its own thread with its own copilot, so
+  // the client's tabs (which belong to the onboarding thread) step aside; the script's page
+  // carries the whole trail back (Clients › client › Scripts › script).
+  if (tab.id === "scripts" && rest.length > 0) return NO_FRAME;
+  // Any other page inside a tab has the whole width (an avatar's studio), with the tabs kept.
   const panel = rest.length > 0 ? null : tab.stage ? (tab.id as PanelSection) : "current";
   return { tabs: true, tab: tab.id, panel };
 }

@@ -12,8 +12,9 @@ describe("frameFor", () => {
     expect(f("/clients/chupps/market")).toEqual({ tabs: true, tab: "market", panel: "market" });
     expect(f("/clients/chupps/scripts")).toEqual({ tabs: true, tab: "scripts", panel: "scripts" });
   });
-  it("a script keeps its own copilot, so no panel", () => {
-    expect(f("/clients/chupps/scripts/abc")).toEqual({ tabs: true, tab: "scripts", panel: null });
+  it("inside a script there is no frame: the script is its own thread, with its own copilot and trail", () => {
+    expect(f("/clients/chupps/scripts/abc")).toEqual({ tabs: false, tab: null, panel: null });
+    expect(f("/clients/chupps/scripts/abc/review")).toEqual({ tabs: false, tab: null, panel: null });
   });
   it("avatars and brand assets keep the panel, showing the stage the client is at", () => {
     expect(f("/clients/chupps/avatars")).toEqual({ tabs: true, tab: "avatars", panel: "current" });
