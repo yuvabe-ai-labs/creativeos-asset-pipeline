@@ -196,6 +196,18 @@ Every resource is split into three layers, and nothing skips one:
 <!-- END:data-fetching -->
 
 <!-- BEGIN:performance -->
+# Streaming — a copilot shows its work as it happens
+
+**Anything a copilot does that a person waits on is shown as it happens, not when it is finished** (D502).
+This holds for every copilot surface: brand KB, market research, scripts, and the stages still to come.
+Spec: [docs/superpowers/specs/2026-11-17-copilot-streaming-design.md](docs/superpowers/specs/2026-11-17-copilot-streaming-design.md).
+
+- **Its words appear as they are written.** A reply never arrives whole after a silent wait.
+- **Each thing it does shows at the moment it is done.** A save the copilot makes is on the page then, not at the end of the turn.
+- **A line always says what it is doing now**, from the moment the person presses send.
+- **Showing early never changes what is stored.** After a turn the thread reads the same as after a reload, and the page never shows a value that was not saved.
+- **A new copilot surface is built this way from the start.** An existing one that does not yet do it moves when it is next substantially changed, not in passing.
+- Background work that runs for minutes (a build, a collection) is not part of this: it reports through the live status lines.
 # Performance — rules we never break
 
 Learned the hard way (October 2026: one cost request per node, auth checked twice per request,

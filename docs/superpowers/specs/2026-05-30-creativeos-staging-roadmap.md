@@ -8754,3 +8754,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Costs.** If a person gives a source and asks a question in the same message, the question is not answered in that turn. If the model saves the source and starts the build in two separate rounds instead of one, the build does not start and the reply asks "Shall I start the build?" with the button; the prompt now asks for both calls in the same response.
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.1; measurements in this session.
+
+### D502 — Every copilot surface shows its work as it happens *(recorded 2026-11-17; decided by Cyril)*
+
+**Decision.** Anything a copilot does that a person waits on is shown as it happens, not when it is finished: its words appear as they are written, each thing it does shows on the page at the moment it is done, and a line always says what it is doing now. This holds for every copilot surface (brand KB, market research, scripts, and the stages still to come). A new copilot surface is built this way from the start; the brand KB chat is converted first; an existing surface that does not yet do it moves when it is next substantially changed. Background work that runs for minutes keeps reporting through the live status lines and is not part of this.
+
+**Why.** Measured on 2026-11-17: a website given in the brand KB chat was stored about halfway through a ten-second wait, and the person saw nothing until the end. The copilot was working and looked idle. Every later stage has the same shape, so the same wait would be built into each. The script copilot's first draft already appears as it is written (D337), and that is the experience people compare the rest against. Cyril: "I want streaming to be a first class principle as the user experience gets affected by it", for every surface.
+
+**Rejected.** A faster model: the measured calls used no reasoning and wrote about 25 tokens each. Converting only the brand KB chat: the later stages are not built yet, so building them this way costs nothing extra, and converting them afterwards would. Showing one person's turn live to their teammates: a different feature.
+
+**Refines.** D337 (which rejected streaming for turns and later let the first script draft stream; "everything else stays request and response" no longer holds for a copilot surface once it is converted), D497 (the shared agent loop), D501 (the form takes a saved value from the turn's answer: the same path, delivered at the moment of the save).
+
+**Originated →** `2026-11-17-copilot-streaming-design.md`.
