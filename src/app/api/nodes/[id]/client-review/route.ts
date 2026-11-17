@@ -66,7 +66,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/nodes/:id/client-review — finalize an upload as the node's next version (D495): v1
 // also makes the review and its share code, so the link exists as soon as the video does.
 // Body: { path, filename?, allowDownload? } — the version is named after its file; Allow download
-// is on unless the dialog turned it off (D497).
+// starts off unless the uploader turns it on (D497, D501).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not save the cut.", () =>
     logClientReviewErrors("finalize", req, () => withNode(req, params, async (nodeId, node, caller, clientId) => {
@@ -94,7 +94,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         videoPath: body.path,
         // The version is named after its file, as the node used to be (the uploader sends it).
         title: typeof body.filename === "string" ? titleFromFilename(body.filename).slice(0, 200) || null : null,
-        allowDownload: body.allowDownload ?? true,
+        allowDownload: body.allowDownload ?? false,
         createdBy: caller.userId,
       });
       return apiOk(await clientReviewPayload(review), 201);
