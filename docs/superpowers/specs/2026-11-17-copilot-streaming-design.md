@@ -64,7 +64,7 @@ This is the first surface converted. The others follow the same picture when the
 
 ## 6. Not in this piece
 
-- Stopping a reply part-way (see the question below).
+- Stopping a reply part-way. Decided: no stop button.
 - Showing one person's turn live to their teammates.
 - Changing how background work reports progress.
 - Speeding up the work itself. This piece is about showing it.
@@ -74,9 +74,9 @@ This is the first surface converted. The others follow the same picture when the
 
 **Question 3 is the one the plan cannot start without.**
 
-**Question 1. A stop button.** While words are appearing, should the person be able to stop the reply? If yes: a save that has already happened stays saved, and the thread keeps the words written so far. My recommendation is not in this piece: the replies here are one or two sentences, so there is little to stop, and it adds a case to every surface.
+**Answered by Cyril on 2026-11-17. No stop button.** A reply cannot be stopped part-way.
 
-**Question 2. Plain saves.** Since D501, after the copilot saves a website or a handle the reply is one fixed sentence written by code, so there are no words to appear gradually on that turn. With this piece the form fills at the moment of the save and the reply follows almost at once. Do you want to keep D501 as it is, or go back to the model wording that reply now that its words would appear as they are written? My recommendation is to keep D501: it is the faster of the two, and you can change it later without touching anything else.
+**Answered by Cyril on 2026-11-17. Plain saves stay as D501 made them.** After the copilot saves a website or a handle the reply is the fixed sentence written by code. With this piece the form fills at the moment of the save and the reply follows almost at once.
 
 **Question 3. Reloading the page in the middle of a turn.** Today, and for a teammate, the reloaded page shows the person's message and an open message box, with nothing to say a reply is on its way; the reply appears when the page next checks the thread, which can be up to 20 seconds later. Two choices:
 
