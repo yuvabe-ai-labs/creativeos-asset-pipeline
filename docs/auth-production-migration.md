@@ -1277,3 +1277,61 @@ Expect a 400 or 403 (`new row violates row-level security policy`). A 200 means 
 is still there; if it does go through, delete `test.txt` in the dashboard. Then in the app, open a
 canvas with File nodes and images made before the move to Google Cloud Storage (if there are any):
 they still display.
+
+## Migration 0065 — the browser's direct reads follow the client list (D512, 2026-11-18)
+
+Apply after 0064, in any order with the code: the app reads these tables through the service role,
+which policies don't affect, and the browser only uses them for Realtime.
+
+- Eight tables could be read by anyone in an agency through the public API with their own sign-in
+  (`org isolation` checked only the agency). The permission tests of 17 November showed a member,
+  and someone still waiting for access, reading the canvases and brand kit jobs of a client they
+  are not on.
+- `auth_client_ids()` lists the clients a person may see: every client of an agency they own, and
+  the clients they are on once the owner has given access. `canvases`, `client_kb_jobs`,
+  `generations`, `node_versions`, `node_version_decisions`, `node_version_annotations` and
+  `moodboard_items` now need the row's client in that list, besides the agency. Rows without a
+  client id find it through small definer lookups (`node_client_id` and the like), each a
+  primary-key read.
+- `credit_transactions` is readable by the agency's owner only (credits are owner-only in the app).
+- No tables, no columns, no data changes.
+
+**Verify after running:**
+
+```sql
+-- expect 8 rows; each qual mentions auth_client_ids except credit_transactions (is_owner)
+select tablename, qual from pg_policies
+ where schemaname = 'public' and policyname = 'org isolation'
+ order by tablename;
+
+-- expect 6 rows, all security definer
+select proname, prosecdef from pg_proc
+ where proname in ('auth_client_ids', 'node_client_id', 'version_client_id',
+                   'decision_client_id', 'moodboard_client_id', 'generation_client_id');
+```
+
+**Check in the app:** as an owner, open a canvas and run a generation: the version appears without a
+reload (Realtime on `node_versions` and `generations`), and the profile menu's credits update. As a
+member on one client, start a brand kit build there: its progress still updates. The permission
+tests' "Round the app" set (`node bypass.mjs` in the test folder) should now pass every case.
+
+**Rollback** (puts back the agency-only reads of 0062):
+
+```sql
+do $$
+declare t text;
+begin
+  foreach t in array array['canvases', 'client_kb_jobs', 'generations', 'node_versions',
+    'node_version_decisions', 'node_version_annotations', 'moodboard_items', 'credit_transactions'] loop
+    execute format('drop policy if exists "org isolation" on %I', t);
+    execute format('create policy "org isolation" on %I for select using (org_id in (select auth_org_ids()))', t);
+  end loop;
+end $$;
+drop function if exists generation_client_id(uuid, uuid, uuid);
+drop function if exists decision_client_id(uuid);
+drop function if exists version_client_id(uuid);
+drop function if exists moodboard_client_id(uuid);
+drop function if exists node_client_id(uuid);
+drop function if exists auth_client_ids();
+notify pgrst, 'reload schema';
+```

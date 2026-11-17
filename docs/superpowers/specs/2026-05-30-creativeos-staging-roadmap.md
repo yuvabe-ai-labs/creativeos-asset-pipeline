@@ -8807,3 +8807,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** D509 (one place for permissions), AGENTS.md "share the wiring too", and D85's line between administering the platform and acting as an agency. The trimmed read keeps an Invite holder from learning other clients' names, members or invitees. Without the cooldown and the count, Resend could mail one address on a loop. Without the cross-agency check, two agencies could both invite one new email and the second sign-up would fail.
 
 **Rejected.** Separate admin routes mirroring the owner's (two copies of every rule). Giving Invite holders the owner's full read with only links withheld. A database index for the cross-agency check (the per-agency unique index stays; the table is small). Counting invitation rows by their sent time (an invite resent every minute counted once). A table logging every send (a counter answers "how many sends today" with one row and one atomic update; a log is only worth it for per-send history, which the audit log already keeps for Admin). Counting, then inserting (two sends at 49 could both pass). A rolling 24 hours (needs every send's time; a fixed window is enough to stop abuse).
+
+### D512 — The browser's direct reads follow the client list *(recorded 2026-11-18; refines D501, D510; originated → migration 0065)*
+
+**Decision.**
+- Every `org isolation` read policy also needs the row's client to be one the reader may see: `auth_client_ids()` returns every client of an agency they own, and the clients they are on once the owner has given access (`access_given_at` set). It covers `canvases`, `client_kb_jobs`, `generations`, `node_versions`, `node_version_decisions`, `node_version_annotations` and `moodboard_items`. Rows without a client id reach it through definer lookups (`node_client_id`, `version_client_id`, `decision_client_id`, `moodboard_client_id`, `generation_client_id`), each a primary-key read.
+- `credit_transactions` is readable by the agency's owner only, matching `view_credits`.
+- The agency check stays first in each policy, so another agency's rows are turned away by the indexed `org_id` before any lookup.
+- An owner-only Team action on a named client (`withTeam` with `manage_team`) now passes that client to `check`, so someone not on it gets 404 before the owner-only 403 (D510 step 4).
+
+**Why.** The permission tests of 17 November read QA Beta's canvases and brand kit jobs as members on QA Alpha only, and as someone still waiting for access, using their own sign-in on the public API. Routes and pages already limited them (D501); the database didn't. The browser still needs these tables for Realtime, so the policies are scoped rather than removed.
+
+**Rejected.** Dropping the policies and serving Realtime through the server (a rewrite of every live screen). A `client_id` column on every table (a migration and backfill per table for what a lookup answers). Checking the person's permissions in the policies (reading is never permission-gated: being on a client is enough, D507).

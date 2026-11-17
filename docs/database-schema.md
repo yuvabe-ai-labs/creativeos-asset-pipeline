@@ -1,9 +1,9 @@
 # Database schema map
 
-Generated from migrations up to **0064** (`supabase/migrations/0001_init.sql` … `0064_lock_node_files_bucket.sql`).
+Generated from migrations up to **0065** (`supabase/migrations/0001_init.sql` … `0065_client_scoped_reads.sql`).
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
-- **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows.
+- **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
 - **Tenancy.** `org_id` is on the tables marked so. The others belong to an agency through `client_id → clients.org_id` (or `canvas_id → canvases.org_id`), and the code scopes by client.
 - **RLS.** On for every table. "Service role only" means RLS on and no policies (default deny, 0017).
 - **Keep it current.** A change that adds a migration updates this file in the same commit (and `docs/auth-production-migration.md`). `src/lib/db/schema-map.test.ts` fails when a table or view has no heading here, or when the "up to" number above is not the last migration.
@@ -78,7 +78,7 @@ Each extracted Brand KB (full JSON). *0002*
 A background KB build (research + extract). *0008* · org_id · *Realtime*
 - `id` uuid PK · `client_id` → clients cascade · `status` client_kb_job_status · `phase_message` · `website_url` · `doc_ids_used` uuid[] · `trigger_run_id` · `version_id` → client_kb_versions set null · `error` · `org_id` → organizations (not null, 0014)
 - Indexes: `(client_id, status)`, `org_id`, `version_id` (0063); unique `(client_id) where status` is live (one running job per client)
-- RLS: select `org isolation`.
+- RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065).
 
 ### client_brand_images
 Brand images and videos: uploads plus imports from website/Instagram/Facebook. *0003, 0044–0046*
@@ -107,7 +107,7 @@ A client's node canvas. *0001* · org_id
 - Edit lock (0010): `editing_session_id` uuid · `editing_name` · `editing_heartbeat_at` (see `acquire_canvas_lock`)
 - `source_script_id` → client_scripts set null, unique where not null (0056: one canvas per script)
 - Unique `(client_id, slug)` · Indexes: `client_id`, `org_id`
-- RLS: select `org isolation`. `updated_at` is bumped by triggers on nodes, edges and node_versions.
+- RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065). `updated_at` is bumped by triggers on nodes, edges and node_versions.
 
 ### nodes
 A node on a canvas; `type` is the node kind (`image-gen`, `video-gen`, `editor`, `dubbing`, …). *0001*
@@ -122,7 +122,7 @@ Each run/output of a node, with its approval state. *0001* · org_id · *Realtim
 - Approval (0009/0030/0032): `approval_status` check pending/approved/changes_requested · `approved_at` · `approved_by_user_id`, `operator_user_id` → auth.users set null · `approved_seen_at`
 - `org_id` → organizations (nullable; filled by trigger) · `updated_at` (0034)
 - Indexes: `node_id`, `(org_id, approval_status)`, `operator_user_id where not null`
-- RLS: select `org isolation`.
+- RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065).
 - Triggers: `node_versions_touch_canvas` · `node_versions_set_org_id` (before insert)
 
 ### edges
@@ -171,13 +171,13 @@ One AI generation job (image/video/prompt/…), owned by a node, an avatar or a 
 - `cost_usd` numeric (renamed from credits_consumed, 0019) · `credits_charged` numeric · `output_snapshot` text (0016)
 - `version_id` → node_versions (no on delete action) · `user_id` uuid (no FK) · `org_id` → organizations (not null) · `client_id` → clients (no on delete action, 0016)
 - Indexes: `node_id`, `status`, `version_id`, `org_id`, `client_id`, `avatar_id`, `script_id`
-- RLS: select `org isolation`.
+- RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065).
 
 ### credit_transactions
 The credit ledger: reservation, consumption, refund, adjustment. *0019* · org_id · *Realtime*
 - `id` uuid PK · `org_id` → organizations · `generation_id` → generations set null (nullable, 0028) · `amount` numeric · `type` check
 - Indexes: `org_id`, `generation_id`, `(org_id, created_at)`
-- RLS: select `org isolation`. Written by `reserve_credits` and the server.
+- RLS: select owners of the agency only (0065). Written by `reserve_credits` and the server.
 
 ### background_jobs
 Generic background job rows (kind + input/result), one live job per `lock_key`. *0044* · org_id
@@ -192,12 +192,12 @@ Generic background job rows (kind + input/result), one live job per `lock_key`. 
 ### node_version_decisions
 Every approve / request-changes decision on a version (history; the version keeps the latest). *0033* · org_id
 - `id` uuid PK · `version_id` → node_versions cascade · `org_id` → organizations · `status` check approved/changes_requested · `note` · `decided_by_user_id` → auth.users set null · `decided_at`
-- Indexes: `(version_id, decided_at desc)`, `org_id` (0063) · RLS: select `org isolation`.
+- Indexes: `(version_id, decided_at desc)`, `org_id` (0063) · RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065).
 
 ### node_version_annotations
 Painted marks attached to a decision (image or video frame). *0035–0037* · org_id
 - `id` uuid PK · `decision_id` → node_version_decisions cascade · `org_id` → organizations · `seq` int · `kind` check image/video-frame · `timecode_ms` (video only) · `mask_path` · `note` · `bounds` jsonb · `frame_path` (unused since D249, always null)
-- Unique `(decision_id, seq)` · RLS: select `org isolation`.
+- Unique `(decision_id, seq)` · RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065).
 
 ### canvas_reviews
 A share link for one video node, for client comments. *0047* · org_id
@@ -259,7 +259,7 @@ An image/video/link on a board, with its archived copy. *0026, 0034, 0039, 0040*
 - Archive: `media_url` · `media_bytes` · `media_type` · `archive_status` pending/downloading/ready/failed/skipped · `archive_error` · `archive_attempts` · `archive_started_at` · `archived_at`
 - `org_id` → organizations (filled by trigger)
 - Indexes: `moodboard_id`, `org_id`, `archive_status` where pending/failed/downloading
-- RLS: select `org isolation`. Trigger `moodboard_items_set_org_id`.
+- RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065). Trigger `moodboard_items_set_org_id`.
 
 ### signals
 A named market signal grouping board items. *0034_market_signals*
@@ -365,7 +365,9 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `take_invite_send` | org_id, limit → bool | definer, service role | 0063 |
 
 ### Used by RLS
-- `auth_org_ids()` → setof uuid: the caller's agencies. Definer; executable by `authenticated` and `service_role`. Every `org isolation` policy is `org_id in (select auth_org_ids())` (0062).
+- `auth_org_ids()` → setof uuid: the caller's agencies. Definer; executable by `authenticated` and `service_role` (0062).
+- `auth_client_ids()` → setof uuid: the clients the caller may see: every client of an agency they own, and the clients they are on once access is given (0065). Every `org isolation` policy is `org_id in (select auth_org_ids()) and <the row's client> in (select auth_client_ids())`; `credit_transactions` instead needs an owner membership of the row's agency.
+- `node_client_id(node)`, `version_client_id(version)`, `decision_client_id(decision)`, `moodboard_client_id(moodboard)`, `generation_client_id(node, avatar, script)` → uuid: the client a row belongs to, for rows that hold no client id (0065). Definer (the parent tables are closed to the browser), primary-key reads; executable by `authenticated` and `service_role`.
 
 ### Trigger functions
 | Function | Trigger(s) | Migration |
