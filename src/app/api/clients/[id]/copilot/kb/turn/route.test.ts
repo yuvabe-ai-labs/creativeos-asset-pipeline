@@ -56,8 +56,9 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(loadKbContext).mockResolvedValue({ ctx, sources: new Map([[DOC, { kind: "document" as const, id: DOC, name: "brand.pdf", url: null }]]) });
     vi.mocked(listCopilotMessages).mockResolvedValue([]);
     vi.mocked(insertOpeningIfEmpty).mockResolvedValue(true);
-    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Got it.", suggestions: ["Start the build"], changed: false, walk: NO_WALK });
+    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Got it.", suggestions: ["Start the build"], changed: false, saved: {}, walk: NO_WALK });
     vi.mocked(loadThread).mockResolvedValue(STATE);
+    vi.mocked(setImportTarget).mockResolvedValue({ website: null, instagram: null, facebook: null });
   });
 
   it("refuses an empty message with no attachment", async () => {
@@ -100,14 +101,14 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     expect(inserts[1]).toEqual(["c1", "onboarding", "u1", [{ role: "assistant", content: "Got it.", suggestions: ["Start the build"] }]]);
     expect(order(insertOpeningIfEmpty)).toBeLessThan(order(insertCopilotMessages));
     // The attached file is a new source, so the page on the right is re-read.
-    expect(await res.json()).toEqual({ state: STATE, changed: true });
+    expect(await res.json()).toEqual({ state: STATE, changed: true, saved: {} });
     expect(revalidatePath).toHaveBeenCalledWith("/clients/acme/kb");
   });
 
   it("reports no change for words alone when no tool ran", async () => {
     const { POST } = await import("./route");
     const res = await POST(post({ text: "hello", attachments: [] }), { params });
-    expect(await res.json()).toEqual({ state: STATE, changed: false });
+    expect(await res.json()).toEqual({ state: STATE, changed: false, saved: {} });
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
@@ -151,7 +152,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
   });
 
   it("refreshes the page on the right when the turn changed something", async () => {
-    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Saved.", suggestions: [], changed: true, walk: NO_WALK });
+    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Saved.", suggestions: [], changed: true, saved: {}, walk: NO_WALK });
     const { POST } = await import("./route");
     const res = await POST(post({ text: "acme.com", attachments: [] }), { params });
     expect(revalidatePath).toHaveBeenCalledWith("/clients/acme/kb");
@@ -163,7 +164,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       await actions.saveWebsite("acme.com");
       await actions.saveSocials({ instagram: "acmeskin" });
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true, walk: NO_WALK };
+      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK };
     });
     const { POST } = await import("./route");
     await POST(post({ text: "go", attachments: [] }), { params });
@@ -175,11 +176,33 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     expect(order(startKBBuild)).toBeLessThan(order(startAssetImports));
   });
 
+  it("reports what a plain save stored, for the form to show at once", async () => {
+    vi.mocked(setImportTarget).mockResolvedValue({ website: "https://acme.com/", instagram: null, facebook: null });
+    vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
+      const website = await actions.saveWebsite("acme.com");
+      return { reply: "Saved the website.", suggestions: [], changed: true, saved: { website }, walk: NO_WALK };
+    });
+    const { POST } = await import("./route");
+    const res = await POST(post({ text: "acme.com", attachments: [] }), { params });
+    expect(await res.json()).toEqual({ state: STATE, changed: true, saved: { website: "https://acme.com/" } });
+  });
+
+  it("reports a handle as the form shows it, not as a link", async () => {
+    vi.mocked(setImportTarget).mockResolvedValue({ website: null, instagram: "https://www.instagram.com/acmeskin/", facebook: null });
+    vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
+      const saved = await actions.saveSocials({ instagram: "@acmeskin" });
+      return { reply: "Saved the handles.", suggestions: [], changed: true, saved, walk: NO_WALK };
+    });
+    const { POST } = await import("./route");
+    const res = await POST(post({ text: "@acmeskin", attachments: [] }), { params });
+    expect((await res.json()).saved).toEqual({ instagram: "acmeskin" });
+  });
+
   it("does not start a collection when the build was refused", async () => {
     vi.mocked(startKBBuild).mockRejectedValue(new BuildAlreadyRunningError());
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild().catch(() => {});
-      return { reply: "One is running.", suggestions: [], changed: false, walk: NO_WALK };
+      return { reply: "One is running.", suggestions: [], changed: false, saved: {}, walk: NO_WALK };
     });
     const { POST } = await import("./route");
     await POST(post({ text: "go", attachments: [] }), { params });
@@ -190,7 +213,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(loadKbContext).mockResolvedValue({ ctx: { ...ctx, importedBefore: ["website", "instagram"] }, sources: new Map() });
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true, walk: NO_WALK };
+      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK };
     });
     const { POST } = await import("./route");
     await POST(post({ text: "start the build", attachments: [] }), { params });
@@ -227,7 +250,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     it("gives the turn the fields and the waiting question, and writes an answer to that one field", async () => {
       vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
         await actions.setField(AGE, { status: "approved" });
-        return { reply: "Good.", suggestions: [], changed: true, walk: { ...NO_WALK, settled: [AGE] } };
+        return { reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] } };
       });
       const { POST } = await import("./route");
       await POST(post({ text: "yes", attachments: [] }), { params });
@@ -239,7 +262,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     });
 
     it("stores the reply and then the next question in one insert", async () => {
-      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: ["x"], changed: true, walk: { ...NO_WALK, settled: [AGE] } });
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: ["x"], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] } });
       const { POST } = await import("./route");
       await POST(post({ text: "yes", attachments: [] }), { params });
       const stored = vi.mocked(insertCopilotMessages).mock.calls[1][3];
@@ -277,7 +300,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(startAssetImports).mockRejectedValue(new Error("apify down"));
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true, walk: NO_WALK };
+      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK };
     });
     const { POST } = await import("./route");
     const res = await POST(post({ text: "go", attachments: [] }), { params });

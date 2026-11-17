@@ -1,8 +1,10 @@
+import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { Attachment, ThreadState } from "@/lib/journey/thread/schema";
 import { readJson } from "./read-json";
 
 export type KbTurnBody = { text: string; attachments: Attachment[] };
-export type KbTurnResult = { state: ThreadState; changed: boolean };
+/** `saved` is the website or handles the turn stored, for the form beside the chat to show at once. */
+export type KbTurnResult = { state: ThreadState; changed: boolean; saved: KbSaved };
 
 // The copilot's saved onboarding thread (D496). One read for every stage page; a turn is sent to
 // the stage's own agent.

@@ -22,7 +22,7 @@ const empty: KbContext = {
   documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
 };
 const actions = (over: Partial<KbActions> = {}): KbActions => ({
-  saveWebsite: vi.fn(async () => {}), saveSocials: vi.fn(async () => {}), startBuild: vi.fn(async () => {}), setField: vi.fn(async () => true), ...over,
+  saveWebsite: vi.fn(async (url: string) => url), saveSocials: vi.fn(async (handles: { instagram?: string; facebook?: string }) => handles), startBuild: vi.fn(async () => {}), setField: vi.fn(async () => true), ...over,
 });
 const call = (name: string, args: unknown, id = "c1") => ({ id, name, args });
 const say = (text: string): ModelOutput => ({ text, calls: [] });
@@ -36,8 +36,32 @@ describe("runKbTurn", () => {
     const { model } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }, say("Saved acme.com.")]);
     const result = await turn({ actions: a, model });
     expect(a.saveWebsite).toHaveBeenCalledWith("acme.com");
-    expect(result.reply).toBe("Saved acme.com.");
+    expect(result.reply).toMatch(/^Saved the website./);
     expect(result.changed).toBe(true);
+  });
+
+  it("answers a plain save itself, with what comes next, and asks the model only once", async () => {
+    const { model, seen } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }, say("never asked")]);
+    const result = await turn({ model });
+    expect(seen).toHaveLength(1);
+    expect(result.reply).toBe("Saved the website.\n\nShall I start the build?\nYou can add Instagram or Facebook handles, documents or images first.");
+    expect(result.suggestions).toEqual(["Start the build"]);
+    expect(result.saved).toEqual({ website: "acme.com" });
+  });
+
+  it("asks for the website after saving only a handle", async () => {
+    const { model, seen } = scripted([{ text: "", calls: [call("save_socials", { instagram: "acme" })] }]);
+    const result = await turn({ model });
+    expect(seen).toHaveLength(1);
+    expect(result.reply).toBe("Saved the handles.\n\nWhat is the brand's website?\nNo website? Attach brand documents here instead.");
+    expect(result.saved).toEqual({ instagram: "acme" });
+  });
+
+  it("adds no next step to a refusal once the KB is built", async () => {
+    const { model } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }]);
+    const result = await turn({ ctx: { ...empty, hasVersion: true, kbStatus: "in_review" }, model });
+    expect(result.reply).toBe("The website cannot be changed here once the KB is built.");
+    expect(result.saved).toEqual({});
   });
 
   it("refuses to start a build while one is running", async () => {
@@ -105,10 +129,10 @@ describe("runKbTurn", () => {
 
   it("does not change the website once the KB is built", async () => {
     const a = actions();
-    const { model, seen } = scripted([{ text: "", calls: [call("save_website", { url: "new.com" })] }, say("Cannot.")]);
+    const { model } = scripted([{ text: "", calls: [call("save_website", { url: "new.com" })] }, say("Cannot.")]);
     const result = await turn({ ctx: { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "ready" }, actions: a, model });
     expect(a.saveWebsite).not.toHaveBeenCalled();
-    expect(outputs(seen)).toEqual(["The website cannot be changed here once the KB is built."]);
+    expect(result.reply).toBe("The website cannot be changed here once the KB is built.");
     expect(result.changed).toBe(false);
   });
 

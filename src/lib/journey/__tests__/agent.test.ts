@@ -92,4 +92,44 @@ describe("runAgent", () => {
       await expect(runAgent({ ...base, model, tools: {}, answer })).rejects.toBeInstanceOf(AgentAnswerError);
     });
   });
+
+  it("ends the turn after a round of tools that end it, without asking the model again", async () => {
+    const tools = saveWebsite();
+    tools.save_website.ends = true;
+    const { model, seen } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }, { text: "never asked", calls: [] }]);
+    expect(await runAgent({ ...base, model, tools })).toEqual({ text: "Done.", ran: ["save_website"] });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("keeps the words the model wrote beside the calls that ended the turn", async () => {
+    const tools = saveWebsite();
+    tools.save_website.ends = true;
+    const { model } = scripted([{ text: "Saving that now.", calls: [call("save_website", { url: "acme.com" })] }]);
+    expect((await runAgent({ ...base, model, tools })).text).toBe("Saving that now.");
+  });
+
+  it("asks the model again when a tool that ends the turn failed", async () => {
+    const tools = saveWebsite(vi.fn(async () => { throw new Error("not a website"); }));
+    tools.save_website.ends = true;
+    const { model, seen } = scripted([{ text: "", calls: [call("save_website", { url: "x" })] }, { text: "That is not a website.", calls: [] }]);
+    expect((await runAgent({ ...base, model, tools })).text).toBe("That is not a website.");
+    expect(seen).toHaveLength(2);
+  });
+
+  it("asks the model again when the round also held a tool that does not end the turn", async () => {
+    const tools: Record<string, AgentTool> = { ...saveWebsite(), other: { description: "x", schema: z.object({}), run: async () => "ok" } };
+    tools.save_website.ends = true;
+    const { model, seen } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" }, "c1"), call("other", {}, "c2")] }, { text: "Both done.", calls: [] }]);
+    expect((await runAgent({ ...base, model, tools })).text).toBe("Both done.");
+    expect(seen).toHaveLength(2);
+  });
+
+  it("does not end early when a structured answer is owed", async () => {
+    const tools = saveWebsite();
+    tools.save_website.ends = true;
+    const { model, seen } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }, { text: "", calls: [], answer: { ok: true } }]);
+    const result = await runAgent({ ...base, model, tools, answer: z.object({ ok: z.boolean() }) });
+    expect(result.answer).toEqual({ ok: true });
+    expect(seen).toHaveLength(2);
+  });
 });

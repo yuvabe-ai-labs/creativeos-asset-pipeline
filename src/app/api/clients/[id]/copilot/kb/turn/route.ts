@@ -3,6 +3,7 @@ import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { IMPORT_SOURCES } from "@/lib/asset-import/constants";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
+import { importTargetEditValue } from "@/lib/asset-import/utils";
 import { resolveCallerContext } from "@/lib/dal";
 import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
@@ -14,7 +15,7 @@ import { isBuilding, openingMessage } from "@/lib/journey/kb-copilot/context";
 import { reviewFields } from "@/lib/journey/kb-copilot/review";
 import { walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/walk";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
-import { runKbTurn, type KbActions, type KbReview } from "@/lib/journey/kb-copilot/turn";
+import { runKbTurn, type KbActions, type KbReview, type KbSaved } from "@/lib/journey/kb-copilot/turn";
 import { loadThread } from "@/lib/journey/thread/load";
 import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type ThreadMessage } from "@/lib/journey/thread/schema";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
@@ -85,16 +86,22 @@ export async function POST(req: Request, { params }: Ctx) {
       // Each action is the same server function the Brand KB form reaches. `acted` records that
       // something was really saved, so a failure afterwards is never reported as "nothing changed".
       let acted = false;
-      const done = <A extends unknown[]>(fn: (...args: A) => Promise<unknown>) => async (...args: A) => {
-        await fn(...args);
+      const done = <A extends unknown[], R>(fn: (...args: A) => Promise<R>) => async (...args: A) => {
+        const result = await fn(...args);
         acted = true;
+        return result;
       };
       const actions: KbActions = {
-        saveWebsite: done(async (url: string) => setImportTarget(clientId, "website", url)),
+        // Both report what was stored, in the form's own shape: the website as saved, a handle bare.
+        saveWebsite: done(async (url: string) => (await setImportTarget(clientId, "website", url)).website ?? url),
         saveSocials: done(async (handles: { instagram?: string; facebook?: string }) => {
+          const stored: { instagram?: string; facebook?: string } = {};
           // One after the other: both merge into the same stored details.
-          if (handles.instagram) await setImportTarget(clientId, "instagram", handles.instagram);
-          if (handles.facebook) await setImportTarget(clientId, "facebook", handles.facebook);
+          for (const source of ["instagram", "facebook"] as const) {
+            const handle = handles[source];
+            if (handle) stored[source] = importTargetEditValue(source, (await setImportTarget(clientId, source, handle))[source]) || handle;
+          }
+          return stored;
         }),
         setField: async (path, patch) => {
           if (!version) throw new Error("There is no brand KB in review.");
@@ -122,11 +129,13 @@ export async function POST(req: Request, { params }: Ctx) {
       let reply: { content: string; suggestions: string[] };
       let changed: boolean;
       let turnWalk: TurnWalk | null = null;
+      let saved: KbSaved = {};
       try {
         const result = await runKbTurn({ ctx, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL) });
         reply = { content: result.reply, suggestions: result.suggestions };
         changed = result.changed;
         turnWalk = result.walk;
+        saved = result.saved;
       } catch (e) {
         console.error("[kb-copilot] turn failed", e);
         reply = { content: acted ? KB_TURN_FAILED_AFTER_SAVE_REPLY : KB_TURN_FAILED_REPLY, suggestions: [] };
@@ -149,7 +158,9 @@ export async function POST(req: Request, { params }: Ctx) {
       // An attached file is a new source, so the page on the right has changed even when no tool ran.
       const refresh = changed || attachments.length > 0;
       if (refresh) revalidatePath(`/clients/${client.slug}/kb`);
-      return apiOk({ state: await loadThread(client), changed: refresh });
+      // `saved` is the website or handles this turn stored. The form shows them from here at once;
+      // the page is still re-read after, so everything else on it catches up.
+      return apiOk({ state: await loadThread(client), changed: refresh, saved });
     }),
   );
 }

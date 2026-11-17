@@ -8742,3 +8742,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Storing the gate card as a message. Downloading the KB on the polled read to count. Resolving the approver's name on every read (two more queries on a polled read; an approval is an event, so its name does not need to follow a later rename).
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3 and §3; `2026-11-15-copilot-journey-map.md` §2.
+
+### D501 — After a plain save the copilot's reply is worded by code, and the form takes the saved value from the turn's answer *(recorded 2026-11-17; refines D497 and D499)*
+
+**Decision.** A tool of the shared agent loop can be marked `ends`. When every call in a round is such a tool and each ran without error, the loop returns there and the model is not asked a second time. In the brand KB chat the two source saves (`save_website`, `save_socials`) are marked so. The reply is then the tool's own sentence followed by what comes next while sources are being collected (`nextStep`, the same lines the opening ends with), with the usual code-chosen reply choices. A failed call, a round that also holds any other tool, and a turn that owes a structured answer still go back to the model. Separately, the turn's answer carries `saved` (the website or handles as stored, in the form's own shape) and the form beside the chat shows them at once; the page is still re-read after.
+
+**Why.** Measured on 2026-11-17: one "save the website" turn made two model calls of about 2 s each, and the second only said "saved". The model used no reasoning and wrote about 25 tokens per call, so a faster model would not have helped. The form waited for the whole turn and then a page re-read before it showed a value that was already stored. Decided by Cyril on 2026-11-17 ("do 1, 2").
+
+**Rejected.** A faster model (nothing for it to save). Ending the turn on review answers and on a started build as well: the same switch would work, but it was not asked for and is left for a decision. Skipping the page re-read after a plain save: a later re-read would then bring the value in late and could replace text typed into that field meanwhile.
+
+**Costs.** If a person gives a source and asks a question in the same message, the question is not answered in that turn. If the model saves the source and starts the build in two separate rounds instead of one, the build does not start and the reply asks "Shall I start the build?" with the button; the prompt now asks for both calls in the same response.
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.1; measurements in this session.

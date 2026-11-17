@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { liveRefetchInterval, THREAD_IDLE_POLL_MS, THREAD_LIVE_POLL_MS, withPendingMessage } from "../copilot-thread";
+import { liveRefetchInterval, nextSavedEvent, THREAD_IDLE_POLL_MS, THREAD_LIVE_POLL_MS, withPendingMessage } from "../copilot-thread";
 import type { ThreadState } from "@/lib/journey/thread/schema";
 
 const state = (over: Partial<ThreadState>): ThreadState => ({ messages: [], live: [], suggestions: ["Start the build"], waiting: null, ...over });
@@ -27,5 +27,18 @@ describe("withPendingMessage", () => {
     expect(next.messages).toHaveLength(1);
     expect(next.messages[0]).toMatchObject({ role: "user", content: "Here you go", attachments: [attachment] });
     expect(next.suggestions).toEqual([]);
+  });
+});
+
+describe("nextSavedEvent", () => {
+  it("counts each save, so the form can tell a new one from one it has already shown", () => {
+    const first = nextSavedEvent(null, { website: "https://acme.com/" });
+    expect(first).toEqual({ n: 1, website: "https://acme.com/" });
+    expect(nextSavedEvent(first, { instagram: "acme" })).toEqual({ n: 2, instagram: "acme" });
+  });
+  it("leaves the last save in place when a turn saved nothing", () => {
+    const first = nextSavedEvent(null, { website: "https://acme.com/" });
+    expect(nextSavedEvent(first, {})).toBe(first);
+    expect(nextSavedEvent(null, {})).toBeNull();
   });
 });

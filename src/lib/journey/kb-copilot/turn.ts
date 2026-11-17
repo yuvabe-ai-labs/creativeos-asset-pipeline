@@ -4,7 +4,7 @@ import type { Attachment, ThreadMessage } from "@/lib/journey/thread/schema";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
 import { kbCopilotSystem } from "@/prompts/kb-copilot";
 import { KB_CONVERSATION_WINDOW, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX } from "./constants";
-import { canStartBuild, fallbackSuggestions, isBuilding, type KbContext } from "./context";
+import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, type KbContext } from "./context";
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
 import { isEmpty, REVIEW_FIELD_PATHS, type ReviewField } from "./review";
 import type { TurnWalk } from "./walk";
@@ -15,9 +15,13 @@ import type { TurnWalk } from "./walk";
 
 export { BuildAlreadyRunningError };
 
+/** The sources a turn saved, as they are now stored: what the form beside the chat shows at once. */
+export type KbSaved = { website?: string; instagram?: string; facebook?: string };
+
 export type KbActions = {
-  saveWebsite: (url: string) => Promise<void>;
-  saveSocials: (handles: { instagram?: string; facebook?: string }) => Promise<void>;
+  /** Both saves return what was stored, which may be tidier than what the person typed. */
+  saveWebsite: (url: string) => Promise<string>;
+  saveSocials: (handles: { instagram?: string; facebook?: string }) => Promise<{ instagram?: string; facebook?: string }>;
   /** Throws BuildAlreadyRunningError when one is already running. */
   startBuild: () => Promise<void>;
   /** Merges `patch` into the one field at `path` (dotted) of the KB in review, only if that field
@@ -61,11 +65,12 @@ export async function runKbTurn(input: {
   actions: KbActions; model: AgentModel;
   /** Null or left out unless a built KB is in review. */
   review?: KbReview | null;
-}): Promise<{ reply: string; suggestions: string[]; changed: boolean; walk: TurnWalk }> {
+}): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk }> {
   const { actions, model } = input;
   // The context as the tools have changed it so far this turn, so a later tool sees an earlier one.
   let ctx = input.ctx;
   let changed = false;
+  const saved: KbSaved = {};
   let choices: string[] | null = null;
   // What each tool told the model, in plain sentences, in case the model adds no words of its own.
   const said: string[] = [];
@@ -151,12 +156,14 @@ export async function runKbTurn(input: {
     save_website: {
       description: "Save the brand's website address. Use it when the person gives a website.",
       schema: z.object({ url: z.string().min(1).max(500) }),
+      // A plain save: the reply after it is worded here, so the model is not asked a second time.
+      ends: true,
       run: async (args) => {
         const { url } = args as { url: string };
         if (ctx.hasVersion) return tell(WEBSITE_LOCKED);
         if (isBuilding(ctx)) return tell(WEBSITE_LOCKED_BUILDING);
-        await actions.saveWebsite(url);
-        ctx = { ...ctx, websiteUrl: url };
+        saved.website = await actions.saveWebsite(url);
+        ctx = { ...ctx, websiteUrl: saved.website };
         changed = true;
         return tell("Saved the website.");
       },
@@ -164,11 +171,14 @@ export async function runKbTurn(input: {
     save_socials: {
       description: "Save the brand's Instagram and/or Facebook handle. Pass only the ones the person gave.",
       schema: z.object({ instagram: z.string().min(1).max(200).optional(), facebook: z.string().min(1).max(200).optional() }),
+      ends: true,
       run: async (args) => {
         const handles = args as { instagram?: string; facebook?: string };
-        if (!handles.instagram && !handles.facebook) return "No handle was given.";
-        await actions.saveSocials(handles);
-        ctx = { ...ctx, instagram: handles.instagram ?? ctx.instagram, facebook: handles.facebook ?? ctx.facebook };
+        if (!handles.instagram && !handles.facebook) return tell("No handle was given.");
+        const stored = await actions.saveSocials(handles);
+        if (stored.instagram) saved.instagram = stored.instagram;
+        if (stored.facebook) saved.facebook = stored.facebook;
+        ctx = { ...ctx, instagram: stored.instagram ?? ctx.instagram, facebook: stored.facebook ?? ctx.facebook };
         changed = true;
         return tell("Saved the handles.");
       },
@@ -207,8 +217,9 @@ export async function runKbTurn(input: {
   ];
 
   const { text } = await runAgent({ model, system: kbCopilotSystem(input.ctx, review), messages, tools });
-  // The model sometimes ends a turn without words. Say what the tools said, never a bare "Done."
-  // that could follow a refusal.
-  const reply = text === EMPTY_AGENT_REPLY && said.length > 0 ? said.join(" ") : text;
-  return { reply, suggestions: choices ?? fallbackSuggestions(ctx), changed, walk };
+  // A turn can end without the model's words: after a plain save it is not asked again, and
+  // sometimes it just says nothing. Say what the tools said, never a bare "Done." that could follow
+  // a refusal, and while sources are still being collected, what comes next.
+  const reply = text === EMPTY_AGENT_REPLY && said.length > 0 ? [said.join(" "), nextStep(ctx)].filter(Boolean).join("\n\n") : text;
+  return { reply, suggestions: choices ?? fallbackSuggestions(ctx), changed, saved, walk };
 }

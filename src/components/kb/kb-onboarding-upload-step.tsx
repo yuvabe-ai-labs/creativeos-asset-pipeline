@@ -31,7 +31,7 @@ import { startKBBuildJob } from "@/lib/actions/kb";
 import { useKBJobStatus } from "./use-kb-job-status";
 import { brandKitService } from "@/services/brand-kit.service";
 import { useAssetImports, useStartAssetImport } from "@/hooks/queries/asset-imports";
-import { useRefreshCopilotThread } from "@/hooks/queries/copilot-thread";
+import { useKbCopilotSaved, useRefreshCopilotThread } from "@/hooks/queries/copilot-thread";
 import { useServerState } from "@/hooks/use-server-state";
 import { KBSocialHandleFields } from "./kb-social-handle-fields";
 import { AssetImportStatusList } from "./asset-import-status-list";
@@ -109,6 +109,16 @@ export function KBOnboardingUploadStep({
   const [websiteUrl, setWebsiteUrl] = useServerState(initialWebsiteUrl ?? "", initialWebsiteUrl ?? "");
   const [instagram, setInstagram] = useServerState(initialInstagram ?? "", initialInstagram ?? "");
   const [facebook, setFacebook] = useServerState(initialFacebook ?? "", initialFacebook ?? "");
+  // A website or handle the copilot has just saved is shown at once, before the page is re-read.
+  // Only the fields it saved are touched, and each save is taken once.
+  const copilotSaved = useKbCopilotSaved(clientId);
+  const [shownSave, setShownSave] = useState(copilotSaved?.n ?? 0);
+  if (copilotSaved && copilotSaved.n !== shownSave) {
+    setShownSave(copilotSaved.n);
+    if (copilotSaved.website !== undefined) setWebsiteUrl(copilotSaved.website);
+    if (copilotSaved.instagram !== undefined) setInstagram(copilotSaved.instagram);
+    if (copilotSaved.facebook !== undefined) setFacebook(copilotSaved.facebook);
+  }
   // What is done here changes what the copilot beside it should say, so it re-reads its thread.
   const refreshCopilot = useRefreshCopilotThread(clientId);
   const [starting, startStartTransition] = useTransition();

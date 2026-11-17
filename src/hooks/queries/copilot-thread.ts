@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { ThreadState } from "@/lib/journey/thread/schema";
 import { copilotThreadService, type KbTurnBody } from "@/services/copilot-thread.service";
 
@@ -12,7 +13,30 @@ import { copilotThreadService, type KbTurnBody } from "@/services/copilot-thread
 export const copilotThreadKeys = {
   all: (clientId: string) => ["copilot-thread", clientId] as const,
   thread: (clientId: string) => [...copilotThreadKeys.all(clientId), "thread"] as const,
+  saved: (clientId: string) => [...copilotThreadKeys.all(clientId), "saved"] as const,
 };
+
+/** The website or handles the copilot last saved, for the form beside it. `n` counts the saves, so
+ *  the form can tell a new one from one it has already shown. */
+export type KbSavedEvent = KbSaved & { n: number };
+
+/** The event after a turn: a new one when the turn saved a source, the last one otherwise. */
+export function nextSavedEvent(previous: KbSavedEvent | null | undefined, saved: KbSaved): KbSavedEvent | null {
+  if (Object.keys(saved).length === 0) return previous ?? null;
+  return { ...saved, n: (previous?.n ?? 0) + 1 };
+}
+
+/** What the copilot last saved, or null. Nothing is fetched: a turn's answer puts it here
+ *  (useSendKbTurn), so the form shows a saved website before the page has been re-read. */
+export function useKbCopilotSaved(clientId: string): KbSavedEvent | null {
+  return useQuery<KbSavedEvent | null>({
+    queryKey: copilotThreadKeys.saved(clientId),
+    queryFn: () => null,
+    enabled: false,
+    initialData: null,
+    staleTime: Infinity,
+  }).data;
+}
 
 /** How often the panel re-reads the thread while a build, a collection or a study is running. */
 export const THREAD_LIVE_POLL_MS = 3000;
@@ -77,8 +101,11 @@ export function useSendKbTurn(clientId: string) {
       // The server may have stored the message before it failed: read what it really holds.
       void queryClient.invalidateQueries({ queryKey: key });
     },
-    onSuccess: ({ state, changed }) => {
+    onSuccess: ({ state, changed, saved }) => {
       queryClient.setQueryData(key, state);
+      // The form takes a saved website or handle from here at once; the page re-read that follows
+      // brings everything else on it up to date.
+      queryClient.setQueryData<KbSavedEvent | null>(copilotThreadKeys.saved(clientId), (previous: KbSavedEvent | null | undefined) => nextSavedEvent(previous, saved));
       if (changed) router.refresh();
     },
   });

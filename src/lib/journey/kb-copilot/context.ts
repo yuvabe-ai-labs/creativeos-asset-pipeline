@@ -77,10 +77,17 @@ export function openingMessage(ctx: KbContext): string {
   if (ctx.hasVersion) {
     return `${name}'s brand KB is built and waiting for your review on the right.\n\nReview each section there. You can mark the KB ready once every field is reviewed.`;
   }
-  if (canStartBuild(ctx)) {
-    return `I have ${sourcesSummary(ctx)} for ${name}.\n\nShall I start the build?\nYou can add Instagram or Facebook handles, documents or images first.`;
-  }
-  return `Let's build ${name}'s brand KB.\n\nWhat is the brand's website?\nNo website? Attach brand documents here instead.`;
+  if (canStartBuild(ctx)) return `I have ${sourcesSummary(ctx)} for ${name}.\n\n${nextStep(ctx)}`;
+  return `Let's build ${name}'s brand KB.\n\n${nextStep(ctx)}`;
+}
+
+/** What the copilot asks for next while it is still collecting sources: the opening ends with it,
+ *  and so does the line it says after a plain save. Null once there is a KB or a build is running. */
+export function nextStep(ctx: KbContext): string | null {
+  if (isBuilding(ctx) || ctx.hasVersion) return null;
+  return canStartBuild(ctx)
+    ? "Shall I start the build?\nYou can add Instagram or Facebook handles, documents or images first."
+    : "What is the brand's website?\nNo website? Attach brand documents here instead.";
 }
 
 export const START_BUILD_CHOICE = "Start the build";

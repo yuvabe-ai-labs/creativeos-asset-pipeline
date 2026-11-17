@@ -6,7 +6,12 @@ import { z } from "zod";
 // The model only ever says what it wants. This loop is what acts, and each tool's own code decides
 // whether the action is allowed, so the rules that must hold live in the tools, not in the prompt.
 
-export type AgentTool = { description: string; schema: z.ZodType; run: (args: unknown) => Promise<string> };
+export type AgentTool = {
+  description: string; schema: z.ZodType; run: (args: unknown) => Promise<string>;
+  /** A tool whose result needs no words from the model: when every call in a round is one of these
+   *  and each ran without error, the turn ends there and the caller words the reply itself. */
+  ends?: boolean;
+};
 export type AgentMessage = { role: "user" | "assistant"; content: string };
 export type ToolCall = { id: string; name: string; args: unknown };
 export type ToolResult = { id: string; output: string };
@@ -55,13 +60,20 @@ export async function runAgent<T = never>(input: {
   let reply = await model({ system, messages, tools: input.tools, rounds, answer });
   while (reply.calls.length > 0 && rounds.length < MAX_AGENT_ROUNDS) {
     const results: ToolResult[] = [];
+    let allRan = true;
     // One at a time, in the order asked: a later call may depend on what an earlier one saved.
     for (const call of reply.calls) {
       const { output, ok } = await runCall(call, input.tools);
       if (ok) ran.push(call.name);
+      else allRan = false;
       results.push({ id: call.id, output });
     }
     rounds.push({ calls: reply.calls, results });
+    // Nothing is left for the model to say after a round of tools that end the turn, so it is not
+    // asked again. A failed call still goes back to it, and so does a turn that owes an answer.
+    if (!answer && allRan && reply.calls.every((call) => input.tools[call.name]?.ends)) {
+      return { text: reply.text.trim() || EMPTY_AGENT_REPLY, ran };
+    }
     // After the last round the tools are taken away, so the model has to answer.
     const tools = rounds.length < MAX_AGENT_ROUNDS ? input.tools : {};
     reply = await model({ system, messages, tools, rounds, answer });
