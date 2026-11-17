@@ -68,6 +68,20 @@ describe("withTeam (spec §6.1, §6.6)", () => {
     expect(ok).not.toHaveBeenCalled();
   });
 
+  it("answers an owner-only action on a client the person isn't on with 404, not 403 (spec §4.2 step 4)", async () => {
+    m.caller = caller(testAccess({ permissions: ["generate"], clientIds: ["c1"] }));
+    m.client = { id: "c3", org_id: "org-1", name: "Not theirs" };
+    expect((await withTeam(req("DELETE"), Promise.resolve({ orgId: "org-1", clientId: "c3" }), { need: "manage_team" }, ok)).status).toBe(404);
+    // Signed up, access not given: not on any client yet, even the one they were invited to.
+    m.caller = caller(testAccess({ permissions: [], clientIds: ["c1"], accessGiven: false }));
+    m.client = { id: "c1", org_id: "org-1", name: "Chupps" };
+    expect((await withTeam(req("DELETE"), Promise.resolve({ orgId: "org-1", clientId: "c1" }), { need: "manage_team" }, ok)).status).toBe(404);
+    // On the client, still owner only: 403.
+    m.caller = caller(testAccess({ permissions: ["generate"], clientIds: ["c1"] }));
+    expect((await withTeam(req("DELETE"), Promise.resolve({ orgId: "org-1", clientId: "c1" }), { need: "manage_team" }, ok)).status).toBe(403);
+    expect(ok).not.toHaveBeenCalled();
+  });
+
   it("refuses inviting without Invite", async () => {
     m.caller = caller(testAccess({ permissions: ["generate", "approve", "share", "delete"], clientIds: ["c1"] }));
     expect((await withTeam(req("POST"), Promise.resolve({ orgId: "org-1", clientId: "c1" }), { need: "invite" }, ok)).status).toBe(403);

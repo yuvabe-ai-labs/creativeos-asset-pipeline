@@ -324,7 +324,9 @@ export async function withTeam(
   if (!viaAdmin) {
     if (orgId !== acting.effectiveOrgId) return apiError("Not found.", 404);
     const access = accessOf(caller);
-    const decision = check(access, guard.need, { orgId, clientId: guard.need === "invite" ? (clientId ?? null) : null });
+    // The named client goes to the check for both needs: someone not on it gets 404 before an
+    // owner-only action's 403, so the refusal never confirms the client exists (spec §4.2 step 4).
+    const decision = check(access, guard.need, { orgId, clientId: clientId ?? null });
     if (decision !== "allow") return denial(decision, "Not found.");
     const blocked = await writeGate(req, impersonation);
     if (blocked) return blocked;
