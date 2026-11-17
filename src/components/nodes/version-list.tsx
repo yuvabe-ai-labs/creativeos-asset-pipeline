@@ -40,12 +40,15 @@ export function VersionList({
   viewedVersionId,
   onView,
   hideHeader = false,
+  showApproval = true,
 }: {
   rows: VersionRow[];
   activeVersionId: string | null;
   viewedVersionId: string | null;
   onView: (id: string) => void;
   hideHeader?: boolean;
+  /** False where versions have no approval (a storyboard panel's takes, D489). */
+  showApproval?: boolean;
 }) {
   const total = rows.length;
   if (total === 0) return null;
@@ -114,7 +117,7 @@ export function VersionList({
                   {isError ? (
                     <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-destructive">Failed</span>
                   ) : (
-                    <ApprovalStatusIcon status={row.approvalStatus} />
+                    showApproval && <ApprovalStatusIcon status={row.approvalStatus} />
                   )}
                   {isActive ? (
                     <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-primary">Active</span>
@@ -123,7 +126,8 @@ export function VersionList({
                   ) : null}
                 </span>
               </Button>
-              {isOpen && (
+              {/* Only when there is something to show: a panel's take has no details (D489). */}
+              {isOpen && (row.meta || row.makerName !== undefined || (row.decisions?.length ?? 0) > 0) && (
                 <div className="border-t border-border px-3 py-2">
                   {row.meta}
                   {row.makerName !== undefined && (

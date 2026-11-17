@@ -1,6 +1,6 @@
 "use client";
 
-import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { canvasNodeName, canvasPicture } from "@/lib/nodes/canvas-picture";
 import { useMemo, useState } from "react";
 import { useGenerationStatus } from "@/hooks/use-generation-status";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
@@ -72,18 +72,9 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
         return {
           id: n.id,
           type: n.type ?? "",
-          fileUrl:
-            n.type === "file" || n.type === "draw"
-              ? (d.fileUrl as string | undefined)
-              : isGeneratedImageType(n.type)
-                ? (typeof d.parsed === "string" ? d.parsed : undefined)
-                : undefined,
-          fileKind:
-            n.type === "file" || n.type === "draw"
-              ? (d.fileKind as string | undefined)
-              : isGeneratedImageType(n.type)
-                ? "image"
-                : undefined,
+          ...canvasPicture(n.type, d),
+          // A script's Product / Location is shown by its own name on the rail.
+          ...(n.type === "product" || n.type === "location" ? { label: canvasNodeName(d) } : {}),
           fileSizeBytes: d.fileSizeBytes as number | undefined,
           imageWidth: d.imageWidth as number | undefined,
           imageHeight: d.imageHeight as number | undefined,

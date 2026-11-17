@@ -50,6 +50,11 @@ export function parseFieldPath(path: string): FieldTarget | null {
   return null;
 }
 
+/** A field of the script itself, not of the reel's notes: what the Visualise board edits (D489). */
+export function isDocTarget(t: FieldTarget): boolean {
+  return t.kind !== "notes" && t.kind !== "confirm";
+}
+
 export function readField(doc: ScriptDoc | null, notes: ScriptNotes, t: FieldTarget): string | null {
   if (t.kind === "notes") return notes.brief;
   if (t.kind === "confirm") {

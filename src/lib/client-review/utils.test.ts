@@ -19,9 +19,11 @@ describe("formatCutTimecode", () => {
 });
 
 const c = (id: string, body = "x"): ReviewComment => ({
-  id, authorName: "P", body, timecodeMs: 0, editedByName: null, createdAt: "t", updatedAt: "t",
+  id, versionId: "v1", authorName: "P", body, timecodeMs: 0, editedByName: null, createdAt: "t", updatedAt: "t",
 });
-const review = (comments: ReviewComment[]): PublicReview => ({ title: "T", videoUrl: "v", comments });
+const review = (comments: ReviewComment[]): PublicReview => ({
+  title: "T", versionNo: 1, videoUrl: "v", allowDownload: true, createdAt: "t", comments,
+});
 
 describe("withAddedComment", () => {
   it("appends the posted comment", () => {

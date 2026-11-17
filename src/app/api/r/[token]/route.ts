@@ -8,6 +8,6 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   return withQuietErrors("Could not load the review.", () =>
-    withShareToken(params, async (review) => apiOk(await buildPublicReview(review))),
+    withShareToken(params, async (review, version) => apiOk(await buildPublicReview(review, version))),
   );
 }

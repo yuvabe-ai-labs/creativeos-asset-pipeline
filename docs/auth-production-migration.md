@@ -1278,6 +1278,13 @@ is still there; if it does go through, delete `test.txt` in the dashboard. Then 
 canvas with File nodes and images made before the move to Google Cloud Storage (if there are any):
 they still display.
 
+## Two migrations numbered 0062 (2026-11-18)
+
+Staging's `0062_client_review_versions.sql` (client review versions, D495–D499) and this branch's
+`0062_permission_based_access.sql` were written at the same time and share the number. They touch
+different tables, so either can run first, and both are already applied on the development
+database. Neither is renamed, because both have been applied. On production, run both before 0063.
+
 ## Migration 0065 — the browser's direct reads follow the client list (D512, 2026-11-18)
 
 Apply after 0064, in any order with the code: the app reads these tables through the service role,

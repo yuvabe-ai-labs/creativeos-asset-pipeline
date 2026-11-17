@@ -29,6 +29,14 @@ class VisualiseService {
     return readJson(res, "Could not describe the person.");
   }
 
+  /** D489 — one script text field typed on the board (Visualise only). */
+  async setField(clientId: string, scriptId: string, path: string, value: string): Promise<Script> {
+    const res = await fetch(`${base(clientId, scriptId)}/visualise`, {
+      method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify({ path, value }),
+    });
+    return (await readJson<{ script: Script }>(res, "Could not save that change.")).script;
+  }
+
   async reopen(clientId: string, scriptId: string): Promise<Script> {
     const res = await fetch(`${base(clientId, scriptId)}/reopen`, { method: "POST" });
     return (await readJson<{ script: Script }>(res, "Could not reopen the script.")).script;

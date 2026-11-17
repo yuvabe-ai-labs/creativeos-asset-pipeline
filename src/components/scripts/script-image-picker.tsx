@@ -4,17 +4,15 @@ import { useState } from "react";
 import { Check, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBrandKit } from "@/hooks/use-brand-kit";
 import { useImportedAssets } from "@/hooks/queries/asset-imports";
-import { SCRIPT_IMAGE_EXTENSIONS } from "@/lib/scripts/constants";
 import type { ScriptImage } from "@/lib/scripts/schema";
+import { PICKER_BOX, ScriptImageUploadPane } from "./script-image-upload-pane";
 
 type LibraryImage = { url: string; preview: string; name: string; source: ScriptImage["source"] };
 
-const ACCEPT = [...SCRIPT_IMAGE_EXTENSIONS].map((e) => `.${e}`).join(",");
 const KB_FILTERS = { source: null, media: "image" } as const;
 
 /** D446 — pick a product's pictures or a location's: upload new files, or choose from the client's
@@ -63,25 +61,16 @@ export function ScriptImagePicker({ clientId, open, onOpenChange, title, max, on
             <TabsTrigger value="upload">Upload</TabsTrigger>
             <TabsTrigger value="library">From the client</TabsTrigger>
           </TabsList>
-          <TabsContent value="upload" className="flex flex-col gap-2 pt-3">
-            <Input
-              type="file"
-              accept={ACCEPT}
-              multiple={max > 1}
-              aria-label="Pictures to upload"
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, max))}
-            />
-            <p className="text-xs text-muted-foreground">
-              A clean shot on a plain background works best.
-            </p>
+          <TabsContent value="upload" className="pt-3">
+            <ScriptImageUploadPane files={files} max={max} onFilesChange={setFiles} />
           </TabsContent>
           <TabsContent value="library" className="pt-3">
             {library.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
+              <p className={cn(PICKER_BOX, "flex items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground")}>
                 {kit.loading || kb.isLoading ? "Loading the client's pictures…" : "This client has no pictures yet. Upload one instead."}
               </p>
             ) : (
-              <div className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-5">
+              <div className={cn(PICKER_BOX, "grid auto-rows-min grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-5")}>
                 {library.map((img) => {
                   const on = picked.some((p) => p.url === img.url);
                   return (

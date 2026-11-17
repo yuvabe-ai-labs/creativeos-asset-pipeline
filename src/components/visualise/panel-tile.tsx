@@ -101,7 +101,7 @@ export function PanelTile({ shot, doc, label, time, view, aspect, credits, onDra
           </span>
         )}
       </div>
-      <PanelTileCaption label={label} beat={shot.beat} time={time} visual={shot.visual} vo={shot.vo} />
+      <PanelTileCaption shotId={shot.id} label={label} beat={shot.beat} time={time} visual={shot.visual} vo={shot.vo} />
       <ScriptShotAssets shot={shot} doc={doc} />
       {!view.pick && (
         <Hint text={view.canGenerate ? null : waitingMessage(view.waitingFor)} className="block w-full">

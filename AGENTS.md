@@ -67,6 +67,28 @@ See **[docs/component-structure.md](docs/component-structure.md)** for the full 
 folder ownership, component rules (one per file, named export, split at ~200 lines, no prop drilling), and shadcn/ui usage (Base UI registry — `render` prop, not `asChild`).
 <!-- END:component-structure -->
 
+<!-- BEGIN:ui-consistency -->
+# UI consistency — one look per concept
+
+The same thing looks and behaves the same on every screen. Comments, a version list, an asset
+card, a stage badge or a readiness line must not get a second, hand-built design because it
+appears somewhere new.
+
+- **Find the existing UI first.** Before building a panel, list, card or column, search
+  `src/components/` for where the same concept is already shown (for example, script comments:
+  `src/components/script-review/`, the `ReviewColumn` / `CommentsColumn` / `CommentThread` set).
+  If it exists, render that component.
+- **Extend it, don't fork it.** When the new screen needs one more action, add
+  an optional prop or context field to the shared component, shown only where it is passed. Never
+  copy the markup into a new component to change one thing.
+- **Share the wiring too.** When two screens feed the same component, put the data and actions in
+  one hook (e.g. `useTeamReviewSurface`) and call it from both, so behaviour can't drift either.
+- **Same placement and responsive behaviour.** A side column stays a side column at the same width
+  and breakpoint, with the same narrow-screen fallback (a sheet opened by the same button).
+- **If a different design is really wanted,** ask first, and change the shared component for every
+  screen rather than giving one screen its own variant.
+<!-- END:ui-consistency -->
+
 <!-- BEGIN:controls -->
 # Controls — shadcn primitives only, never native
 

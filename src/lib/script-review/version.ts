@@ -9,8 +9,10 @@ import type { AvatarSnapshot, ChangedPart, Part, VersionContent } from "./types"
 const shotText = (s: Shot) =>
   JSON.stringify([s.beat, s.lengthSeconds, s.visual, s.vo, s.onScreenText, s.onScreen, s.products ?? [], s.location ?? null]);
 const memberText = (c: CastMember) => JSON.stringify([c.name, c.description, c.isLead]);
-/** D451 — the script's products and locations (names, words and pictures) count with the context. */
-const contextText = (d: ScriptDoc) => JSON.stringify([d.header, d.context, d.products ?? [], d.locations ?? []]);
+/** D451 — the script's products and locations (names, words and pictures) count with the context.
+ *  D489 — a location's past plates do not: only the plate it shows is a change. */
+const contextText = (d: ScriptDoc) =>
+  JSON.stringify([d.header, d.context, d.products ?? [], (d.locations ?? []).map((l) => [l.id, l.name, l.description, l.image])]);
 /** An avatar as compared between shares. The sheet is left out: it changes exactly when its views
  *  do, and a version from before D395 has none, which is not a change to the person. */
 const avatarText = (a: AvatarSnapshot | undefined) =>

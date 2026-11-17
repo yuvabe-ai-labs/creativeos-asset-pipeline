@@ -197,12 +197,12 @@ export function ConnectedDetailView({
   // rail), omit this and no back button renders.
   onBack?: () => void;
 }) {
-  // An avatar's preview is its front image (the Composite rail, D312).
+  // An avatar's preview is its front image (the Composite rail, D312); a script's Product or
+  // Location its packshot or plate (D450). Any input that carries an image shows it: listing the
+  // types here left products and locations reading "No content yet" beside their own picture.
   const isImage =
     !!node.fileUrl &&
-    (isGeneratedImageType(node.type) ||
-      node.type === "avatar" ||
-      ((node.type === "file" || node.type === "draw") && node.fileKind === "image"));
+    (isGeneratedImageType(node.type) || node.type === "avatar" || node.fileKind === "image");
   // A Video Gen preview is its take (the Dubbing rail, D374).
   const isVideo = !!node.fileUrl && node.type === "video-gen";
 

@@ -3,8 +3,10 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/avatars/utils";
 import { reelLabel } from "@/lib/scripts/utils";
 import { rowToScript, type ScriptRow } from "@/lib/scripts/rows";
-import type { Script } from "@/lib/scripts/schema";
+import { scriptDocSchema, type Script } from "@/lib/scripts/schema";
 import { isScriptStage } from "@/lib/scripts/constants";
+import { writeField, type FieldTarget } from "@/lib/scripts/copilot/fields";
+import { EMPTY_NOTES } from "@/lib/scripts/copilot/schema";
 import { isVisualiseStage, withCastAvatar } from "@/lib/scripts/visualise/cast";
 
 // Spec 3's reads and writes on client_scripts. Kept apart from src/lib/db/scripts.ts so specs 2
@@ -31,15 +33,16 @@ export async function listScriptsUsingAvatar(clientId: string, avatarId: string)
 }
 
 type Failure = { ok: false; error: string; status: number };
+type DocChange = { ok: true; doc: unknown } | Failure;
 
-/** D338 — set or clear one cast member's avatar. Optimistic on `updated_at`: if the script was
- *  written between the read and the write, the write matches nothing and is tried once more on
- *  the fresh row, so a concurrent change is never overwritten. */
-export async function setCastAvatar(
+/** One write into a Visualise script's doc. Optimistic on `updated_at`: if the script was written
+ *  between the read and the write, the write matches nothing and is tried once more on the fresh
+ *  row, so a concurrent change is never overwritten. `change` returns a Failure to refuse (the
+ *  stage check included). */
+async function changeVisualiseDoc(
   clientId: string,
   scriptId: string,
-  castId: string,
-  avatarId: string | null,
+  change: (stored: ScriptRow) => DocChange,
 ): Promise<{ ok: true; script: Script } | Failure> {
   if (!isUuid(scriptId)) return { ok: false, error: "Script not found.", status: 404 };
   const supabase = createServerSupabase();
@@ -51,10 +54,7 @@ export async function setCastAvatar(
     if (readError) throw readError;
     if (!row) return { ok: false, error: "Script not found.", status: 404 };
     const stored = row as ScriptRow;
-    if (!isScriptStage(stored.stage) || !isVisualiseStage(stored.stage)) {
-      return { ok: false, error: "Avatars can be changed only while the script is in Visualise or In review.", status: 409 };
-    }
-    const next = withCastAvatar(stored.doc, castId, avatarId);
+    const next = change(stored);
     if (!next.ok) return next;
     const { data, error } = await supabase
       .from("client_scripts")
@@ -68,6 +68,42 @@ export async function setCastAvatar(
     }
   }
   return { ok: false, error: "The script changed at the same time. Try again.", status: 409 };
+}
+
+/** D338 — set or clear one cast member's avatar, at Visualise or In review. */
+export function setCastAvatar(
+  clientId: string,
+  scriptId: string,
+  castId: string,
+  avatarId: string | null,
+): Promise<{ ok: true; script: Script } | Failure> {
+  return changeVisualiseDoc(clientId, scriptId, (stored) => {
+    if (!isScriptStage(stored.stage) || !isVisualiseStage(stored.stage)) {
+      return { ok: false, error: "Avatars can be changed only while the script is in Visualise or In review.", status: 409 };
+    }
+    return withCastAvatar(stored.doc, castId, avatarId);
+  });
+}
+
+/** D489 — one script text field typed on the Visualise board. Only at Visualise: once the script
+ *  is In review its text stays as the client was sent it. A changed shot marks its panel out of
+ *  date through the take's shot key, as an edit at Generate does. */
+export function setVisualiseField(
+  clientId: string,
+  scriptId: string,
+  target: FieldTarget,
+  value: string,
+): Promise<{ ok: true; script: Script } | Failure> {
+  return changeVisualiseDoc(clientId, scriptId, (stored) => {
+    if (stored.stage !== "visualise") {
+      return { ok: false, error: "The script can be edited here only while it is in Visualise.", status: 409 };
+    }
+    const doc = scriptDocSchema.safeParse(stored.doc);
+    if (!doc.success) return { ok: false, error: "This script could not be read.", status: 422 };
+    const written = writeField(doc.data, EMPTY_NOTES, target, value);
+    if ("error" in written) return { ok: false, error: written.error, status: 422 };
+    return { ok: true, doc: written.doc };
+  });
 }
 
 /** D347 — Reopen: Visualise → Generate, the only stage move spec 3 makes. Conditioned on the

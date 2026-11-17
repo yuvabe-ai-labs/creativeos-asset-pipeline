@@ -23,3 +23,9 @@ export function shotSummary(doc: ScriptDoc): string {
   const n = doc.shots.length;
   return `${n} shot${n === 1 ? "" : "s"} · ${formatSeconds(totalSeconds(doc.shots))}s`;
 }
+
+/** A shot's spoken line in curly quotes. The copilot sometimes writes the quotes into the line
+ *  itself, so any already there are taken off first rather than doubled. */
+export function spokenLine(vo: string): string {
+  return `“${vo.trim().replace(/^["“”']+|["“”']+$/g, "").trim()}”`;
+}

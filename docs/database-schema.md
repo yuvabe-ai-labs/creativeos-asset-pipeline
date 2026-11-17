@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0065** (`supabase/migrations/0001_init.sql` … `0065_client_scoped_reads.sql`).
+Generated from migrations up to **0065** (`supabase/migrations/0001_init.sql` … `0065_client_scoped_reads.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -201,13 +201,19 @@ Painted marks attached to a decision (image or video frame). *0035–0037* · or
 
 ### canvas_reviews
 A share link for one video node, for client comments. *0047* · org_id
-- `id` uuid PK · `canvas_id` → canvases cascade · `node_id` → nodes cascade, unique · `org_id` → organizations (filled by trigger) · `video_path` · `share_token` unique · `created_by` uuid (no FK)
+- `id` uuid PK · `canvas_id` → canvases cascade · `node_id` → nodes cascade, unique · `org_id` → organizations (filled by trigger) · `video_path` (nullable since `0062_client_review_versions`; the cut lives on the version, kept unread for one release) · `share_token` unique · `created_by` uuid (no FK)
 - Index: `canvas_id` (0063) · RLS: service role only. Trigger `canvas_reviews_set_org_id`.
+- One Client review node per canvas from `0062_client_review_versions` (D495): trigger `refuse_second_client_review_node` on `nodes` refuses a new second one; canvases that already had several keep them.
+
+### canvas_review_versions
+Each uploaded cut of a client review, with its own link, comments and download switch (D495–D499). *`0062_client_review_versions`*
+- `id` uuid PK · `review_id` → canvas_reviews cascade · `version_no` ≥ 1 · `video_path` · `title` (1–200, null = the node's title) · `allow_download` bool default true · `legacy_link` bool (a v1 moved from a pre-version review keeps its old link) · `created_by` uuid · `created_at`
+- Unique `(review_id, version_no)` · RLS: service role only.
 
 ### canvas_review_comments
 Timecoded comments on a canvas review. *0047*
-- `id` uuid PK · `review_id` → canvas_reviews cascade · `author_name` (1–60) · `body` (1–2000) · `timecode_ms` ≥ 0 · `edited_by_name`
-- Index: `(review_id, created_at)` · RLS: service role only.
+- `id` uuid PK · `review_id` → canvas_reviews cascade · `version_id` → canvas_review_versions cascade, not null (`0062_client_review_versions`) · `author_name` (1–60) · `body` (1–2000) · `timecode_ms` ≥ 0 · `edited_by_name`
+- Indexes: `(review_id, created_at)`, `(version_id, created_at)` · RLS: service role only.
 
 ### script_reviews
 A script's share link (one per script). *0054*

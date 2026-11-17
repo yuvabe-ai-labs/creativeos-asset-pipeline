@@ -322,11 +322,6 @@ export function ScriptFocusView({
                     <FileUp className="size-4 text-muted-foreground" /> Replace script
                   </Button>
                   <div className="mx-1 h-6 w-px bg-border" aria-hidden />
-                  {dirty && (
-                    <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                      Unsaved changes
-                    </span>
-                  )}
                   {/* Fan out is always the filled primary: it keeps its look while edits
                       are pending (it saves them first), and Save is the purple outline. */}
                   {shotCount > 0 && (

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useReactFlow } from "@xyflow/react";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
-import { isUnhandledPointer, urlWithParam } from "@/lib/review/focus-pointer";
+import { pointerAction, urlWithParam } from "@/lib/review/focus-pointer";
 
 // D473 — `?node=<id>` names the node whose focus view is open, so the URL can be copied and
 // shared (a bug report, "look at this clip") and opens that node directly. It used to be an
@@ -27,13 +27,22 @@ export function useNodeLink({ onReviewArrival }: { onReviewArrival: () => void }
   const review = searchParams.has("review");
   const handledRef = useRef<string | null>(null);
 
-  // Arrival: fly to the node and open it.
+  // Arrival: fly to the node and open it. While a view is open the URL can only be stale (the
+  // views are modal, so no link can be followed): Next.js writes back the URL of a view just
+  // left when a server action queued ahead of our replaceState finishes. Point it back at the
+  // open view rather than reopening the old one (pointerAction).
   useEffect(() => {
     if (!pointer) {
       handledRef.current = null;
       return;
     }
-    if (!isUnhandledPointer(pointer, handledRef.current)) return;
+    const action = pointerAction(pointer, handledRef.current, openId);
+    if (action === "correct") {
+      const fixed = urlWithParam(window.location.href, "node", openId);
+      if (fixed) window.history.replaceState(null, "", fixed);
+      return;
+    }
+    if (action !== "open") return;
     const node = getNode(pointer);
     if (!node) return; // not hydrated yet, or deleted; the next nodes change re-runs this
     handledRef.current = pointer;
@@ -45,7 +54,7 @@ export function useNodeLink({ onReviewArrival }: { onReviewArrival: () => void }
       onReviewArrival();
     }
     setFocusedNodeId(pointer);
-  }, [pointer, review, getNode, setCenter, setFocusSection, setFocusedNodeId, onReviewArrival, nodes]);
+  }, [pointer, review, openId, getNode, setCenter, setFocusSection, setFocusedNodeId, onReviewArrival, nodes]);
 
   // The URL follows the open view. Only a CHANGE writes: on load nothing is open yet while the
   // link's node hydrates, and clearing then would throw the link away before it was followed.

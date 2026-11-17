@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clientReviewService } from "@/services/client-review.service";
 import { withAddedComment, withEditedComment } from "@/lib/client-review/utils";
-import type { PublicReview, ReviewComment } from "@/lib/client-review/wire";
+import type { NodeClientReview, PublicReview, ReviewComment, ReviewVersion } from "@/lib/client-review/wire";
 
 // D309 client review share, through TanStack Query (CLAUDE.md, "Data fetching"). The keys are
 // built here and nowhere else. Both queries keep the app defaults (staleTime 30 s, no refetch on
@@ -32,6 +32,44 @@ export function useNodeClientReview(nodeId: string) {
     queryKey: clientReviewKeys.node(nodeId),
     queryFn: () => clientReviewService.getForNode(nodeId),
     enabled: Boolean(nodeId),
+  });
+}
+
+type VersionPatch = { allowDownload?: boolean; title?: string };
+
+/** Change one version: its Allow download switch (D497) and/or its title. The change shows at
+ *  once (optimistic) and is undone if the server refuses; the node query is the one owner of the
+ *  versions. */
+export function useUpdateReviewVersion(nodeId: string) {
+  const queryClient = useQueryClient();
+  const key = clientReviewKeys.node(nodeId);
+  const apply = (versionNo: number, change: Partial<ReviewVersion>) =>
+    queryClient.setQueryData<NodeClientReview>(key, (cur: NodeClientReview | undefined) =>
+      cur?.review
+        ? {
+            ...cur,
+            review: {
+              ...cur.review,
+              versions: cur.review.versions.map((v: ReviewVersion) => (v.versionNo === versionNo ? { ...v, ...change } : v)),
+            },
+          }
+        : cur,
+    );
+  return useMutation({
+    mutationFn: ({ versionNo, patch }: { versionNo: number; patch: VersionPatch }) =>
+      clientReviewService.updateVersion(nodeId, versionNo, patch),
+    onMutate: async ({ versionNo, patch }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const before = queryClient
+        .getQueryData<NodeClientReview>(key)
+        ?.review?.versions.find((v) => v.versionNo === versionNo);
+      apply(versionNo, patch);
+      return { before };
+    },
+    onError: (_e, { versionNo }, ctx) => {
+      if (ctx?.before) apply(versionNo, ctx.before);
+    },
+    onSuccess: (version: ReviewVersion) => apply(version.versionNo, version),
   });
 }
 

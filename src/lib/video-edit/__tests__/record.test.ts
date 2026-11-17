@@ -52,8 +52,9 @@ describe("videoEditGate", () => {
     expect(videoEditGate({ ...ok, instruction: "   " })).toEqual({ ok: false, reason: "Describe the change first." });
     expect(videoEditGate({ ...ok, durationSeconds: 16 })).toEqual({ ok: false, reason: "Omni 1.2 edits takes up to 15 seconds." });
     expect(videoEditGate({ ...ok, durationSeconds: 12, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: false, reason: "Omni 1.1 edits takes up to 10 seconds." });
-    expect(videoEditGate({ ...ok, referenceCount: 7 })).toEqual({ ok: false, reason: "Omni 1.2 takes up to 6 references. Untick some." });
-    expect(videoEditGate({ ...ok, referenceCount: 7, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: true });
+    expect(videoEditGate({ ...ok, referenceCount: 25 })).toEqual({ ok: false, reason: "Omni 1.2 takes up to 24 references. Untick some." });
+    expect(videoEditGate({ ...ok, referenceCount: 13, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: false, reason: "Omni 1.1 takes up to 12 references. Untick some." });
+    expect(videoEditGate({ ...ok, referenceCount: 12, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: true });
     expect(videoEditGate({ ...ok, submitting: true })).toEqual({ ok: false, reason: "Starting…" });
   });
 });
@@ -71,7 +72,7 @@ describe("plainVideoEditFailure", () => {
 
 describe("videoEditLimitsFor", () => {
   it("reads each model's take length and reference cap off its spec", () => {
-    expect(videoEditLimitsFor(GEMINI_OMNI_12_MODEL_ID)).toEqual({ label: "Omni 1.2", maxSeconds: 15, maxReferences: 6 });
+    expect(videoEditLimitsFor(GEMINI_OMNI_12_MODEL_ID)).toEqual({ label: "Omni 1.2", maxSeconds: 15, maxReferences: 24 });
     expect(videoEditLimitsFor(GEMINI_OMNI_11_MODEL_ID)).toEqual({ label: "Omni 1.1", maxSeconds: 10, maxReferences: 12 });
     expect(VIDEO_EDIT_DEFAULT_MODEL_ID).toBe(GEMINI_OMNI_12_MODEL_ID);
   });

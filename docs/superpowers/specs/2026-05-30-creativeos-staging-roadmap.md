@@ -8534,6 +8534,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session.
 
+### D489 — A location keeps its past plates in the script doc, and any can be put back *(recorded 2026-11-12; refines D446, D448, D449)*
+
+**Decision.** Each location in the script doc gains an optional `versions` list next to `image`. It holds up to 10 plates the location has had (`{ url, source, mode?, note? }`), oldest first. `image` stays the current plate, so panel prompts, the shot fingerprint, Fan out and shares read it as before. `set_location_image` (the one write, `applyAssetOp`) adds a picture the location never held to the end of the list, dropping the oldest past 10. A picture it already holds, as on a restore, adds nothing. Clear keeps the list. A location stored before versions starts from its current plate, so that plate is not lost. The plate route records Redraw's mode and note on the version. The location card shows "v2 of 3" with previous and next, which only preview, and **Use this version**, which sets `image` back through the same op. Past plates count as the doc's own pictures for the client-picture check (rule 14). They stay out of the copilot's prompt, the share version line and the assets frozen onto the canvas (`withoutLocationVersions`). Products keep no versions.
+
+**Why.** User, 12 Nov 2026: Redraw and "Change this picture" overwrote the plate, so a change that made it worse could not be undone. Storyboard panels already keep every take.
+
+**Rejected.** (1) A takes table like `script_panel_takes`: a migration, two routes and a query for what is at most 10 small entries already loaded with the doc. (2) A separate picks table: the doc's `image` already is the pick. (3) Versions for products: a product is a set of angles, and per-picture history did not make sense to the user. (4) Seeding the canvas Composite with every past plate: versions stay on the script page; Fan out still sends the current plate as v1 (D456).
+
+**Originated →** conversation in this session.
 ### D483 — Video Gen gets an Edit toggle beside Edit voice; an edit is a new version of the whole take *(recorded 2026-11-10; follows D284, D37)*
 
 **Decision.** The Video Gen focus view has two switches beside the VIDEO heading, **Edit voice** (D284) and **Edit**, and only one can be on. Edit shows the connected images as checkable references, an instruction box, a resolution choice (360p to 4k, default 720p) and an Edit video button with its credit estimate. It sends the whole active take (up to 10 seconds) to Gemini Omni with `task: "edit"`, as a `video` generation run by the existing `video-generate` task with an `editVideoUrl`, billed at Omni's rate for the chosen resolution. The result is appended as a new version with `inputs_used.videoEdit` (base and root version, instruction, literal prompt, references, resolution). A refusal or a failure refunds and makes no version.
@@ -8613,6 +8622,143 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Unverified, accepted (Q8).** That fal's O3 reference endpoint takes a start frame and `image_urls` together; that embedded (data URI) images from the shape fitter are accepted; whether frames count toward fal's 7-image budget (the 5-reference cap stays); fal's per-shot text limit, since confirmed at 512 by fal's own 422. The first staging generations are the check; `KLING_TRANSPORT=native` is the fallback.
 
 **Originated →** this session; plan in the "Kling fal Migration Plan" artifact.
+### D489 — Trigger.dev workers deploy from GitHub Actions on every staging and main push *(recorded 2026-11-11)*
+
+**Decision.** A reusable workflow, `.github/workflows/trigger-deploy.yml`, runs `npm run deploy:trigger -- --project-ref <ref> --env prod`. `deploy-staging.yml` calls it on every push to `staging` (docs-only pushes skipped; a newer push cancels the one in flight). `deploy-prod.yml` calls it on every push to `main` as a `trigger` job, and the Cloud Run `deploy` job `needs:` it. Each target is a GitHub Environment (`staging`, `production`) holding its own secret `TRIGGER_ACCESS_TOKEN` (a Personal Access Token of the account that owns that project) and variable `TRIGGER_PROJECT_REF`. Staging is `proj_oowdgamapcwpnltwkxde` (account creativeos@), production `proj_mlnaizhphqpdqwzctaag` (account developer@). `--project-ref` overrides the project in `trigger.config.ts`, so CI never depends on what that file hardcodes. Task env vars stay in each Trigger dashboard, set by hand before a merge that needs them.
+
+**Why.** User, 11 Nov 2026: Trigger was deployed by hand after each push, so the workers could fall behind the app. The two projects sit in different Trigger accounts (free tier), so one token can't deploy both. Workers deploy before the app so a task id the new app calls already exists, and a failed worker deploy stops the app deploy.
+
+**Rejected.** Keeping the manual step (it drifts). Deploying workers and app in parallel (a race on new task ids). One shared access token (the projects are in different accounts). Relying on the project in `trigger.config.ts` (hardcoded to staging since a962a9b1).
+
+**Originated →** this session; plan `currently-we-are-manually-abundant-sunset.md`.
+### D489 — A script's text is typed on the Visualise board; In review it is read-only; a reopened script shows the client's open comments *(recorded 2026-11-11; amends D347, refines D349)*
+
+**Decision.** While a script is in Visualise, its text on the board (title, header facts, purpose, setting and camera, disclaimers, watch-outs, and each shot's beat, action and spoken line) is typed in place, the same way it is at Generate (`PATCH …/scripts/:scriptId/visualise`, one field per write through `writeField`). The write is refused unless the stage is `visualise`, so In review the text is read-only. Adding, removing or splitting shots and the reel's notes stay with the copilot (Reopen). A changed shot marks its panel Out of date through the take's shot key. After a Reopen to Generate, a script the client commented on shows the Visualise board's own Comments column beside the script (the same components and wiring, `useTeamReviewSurface`; 20rem from `xl`, a sheet below it opened by the same Comments button), with Reply, Resolve and the activity as on the board.
+
+**Why.** User, 11 Nov 2026: a small fix at Visualise should not need a Reopen; once the script is with the client it should not change under them; after a Reopen the team needs the client's words beside the copilot.
+
+**Rejected.** Editing In review (D349's "editing stays allowed In review" now covers visual work only: avatars, panels, products and locations). A card above the script (tried first; it pushed the script down and read as part of it). A separate comments design for Generate (tried second; inconsistent with the board, so AGENTS.md now has a UI consistency rule). A tab inside the copilot, and a sheet only.
+
+**Originated →** this session.
+### D490 — A storyboard panel's versions open as a focus view with the shared version list *(recorded 2026-11-11; refines D344, D345, D465; follows D180, D383)*
+
+**Decision.** The panel view (a tile's Versions) is a wide two-pane dialog: the frame at full height on the left; on the right the shot (action, spoken line, on-screen text, who is on screen), then the takes in the shared `VersionList` (newest first, v1…vN, no approval marker), then Redraw with "Edit the prompt" beside it. A row click previews the take on the left; `VersionViewingBar` ("The panel still uses v3", Back, Restore) sets it, as on the canvas. Redraw and the prompt act only on the take in use, so they step aside while another is previewed. A spoken line already written with quotes is not quoted again (`spokenLine`).
+
+**Why.** User, 11 Nov 2026: the dialog was messy. It was a narrow column that always scrolled, opened scrolled to the bottom (focus landed on the first take), showed two purple rings (picked and focused), doubled the quotes, split Redraw from the prompt, and had its own "Takes" strip unlike every other version list.
+
+**Rejected.** A side sheet (still narrow, still scrolls). Fixing the old layout in place (left the cramped column and the second version-list design). Click-to-set, as before (the client sees a pick at once; a preview first matches D383).
+
+**Originated →** this session.
+
+### D491 — A referenced person is named and pinned to their picture, never described *(recorded 2026-11-11; extends D441, refines D319)*
+
+**Decision.** The multishot writers (Omni, Kling, Seedance) treat a person reference the way D441 treats a product: the beat names them ("Maya", "the man") and pins them to the picture ("Maya, exactly as in her reference"). It never states their age, build, skin tone, face, hair, glasses, clothing or accessories. It writes what the picture cannot give: action, pose, expression, framing. The one exception is a change the direction or shot text asks for (barefoot, jacket off), which is written, and only that. The reading's `contents` for a person is a few words. Un-referenced people are still described specifically.
+
+**Why.** User, 11 Nov 2026: with an avatar attached, beats still spelled out skin tone and outfit, and the words conflicted with the picture (a different face or a mix of the written and pictured clothes), the same hybrid D441 fixed for products. The D319 CHARACTER rule asked for exactly that list in every beat.
+
+**Rejected.** Keeping a short description for continuity across beats (the picture already gives continuity, and any description is one more thing to conflict). Describing only the wardrobe (the outfit was where most conflicts showed).
+
+**Originated →** this session.
+
+### D492 — Generate, Edit video and Edit voice are tabs under the VIDEO heading *(recorded 2026-11-11; amends D487, D488)*
+
+**Decision.** The two labelled edit tools beside the VIDEO heading become three line tabs under it: Generate, Edit video, Edit voice. The tab picks what the centre column holds; the slim panel headers with Close are gone. Edit tabs show once a finished take exists, are off while an older take plays, and carry a dot while their job runs. The active take shows its version ("v2") on the player. Edit video: the model picker, the reference tiles, then one "Edit this video" card holding the prompt, the resolution chips and the button. Edit voice: the take, the voice, then a Settings card with Speaker boost and Remove background noise and the button; stability, similarity and seed are no longer offered and keep the node's stored values. Both buttons sit inside their card, not pinned to the column.
+
+**Why.** User, 11 Nov 2026, with a mockup: tabs read clearer than tools that swap the column, and each panel should keep only what that edit needs.
+
+**Rejected.** Keeping the icon or labelled tools with a Close header (D487). Resolution in a closed Advanced section and pinned buttons (D488): the mockup puts both in the card.
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D493 — Edit video and Edit voice open from an "Edit" menu on the take, with a back arrow *(recorded 2026-11-11; amends D492)*
+
+**Decision.** The Generate / Edit video / Edit voice tabs under the VIDEO heading become one "Edit" menu at the right of that heading (pencil, "Edit", chevron; opens on hover or click) with two items, Edit video and Edit voice. The VIDEO header takes the active take's rendered width, so the menu sits on the take's right edge at any column width. Each edit panel opens with a back arrow and its title; the arrow returns the centre column to the generate settings, which stay its default. The menu shows once a finished take exists, is hidden while an older take plays, and carries a dot while an edit or voice change runs. The panels' contents are unchanged from D492.
+
+**Why.** User, 11 Nov 2026, from the UX team's "⋯ Edit menu + Back to video" board: a menu keeps the edits as secondary actions on the take, with Generate as the screen's main job.
+
+**Rejected.** Tabs (D492): they made the edits look as important as Generate.
+
+**Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D492 — The @ menu opens where there is room and scrolls inside itself *(recorded 2026-11-11)*
+
+**Decision.** The mention editor's @ menu opens below the caret when there is more room below (or a full menu fits), otherwise above, and its height is capped to that room (at most 320px) so a long list scrolls inside the menu. It never leaves the screen sideways, and arrow keys keep the highlighted item in view. When the caret has no measurable box (start of a line, right after a chip), the menu anchors to the editor instead of not opening.
+
+**Why.** User, 11 Nov 2026: with many references the menu always opened upward with no height limit, ran off the top of the screen, and the first items could only be reached by zooming the browser out; sometimes @ opened nothing at all (the empty caret box).
+
+**Rejected.** Moving the menu onto a Popover primitive (a larger change for a positioning bug; the portal and keyboard handling already work).
+
+**Originated →** this session.
+
+### D493 — A script's Product and Location show their picture in every input preview *(recorded 2026-11-11; refines D450)*
+
+**Decision.** One helper, `canvasPicture` (`src/lib/nodes/canvas-picture.ts`), gives the picture a canvas node shows (upload, generated image, product packshot, location plate), and every node that lists its inputs uses it instead of its own copy. The shared `ConnectedDetailView` shows any input that carries an image, whatever its node type. The Prompt, Motion Prompt and Multishot Prompt views fall back to the canvas picture when the server's preview has no row for the input (`selectedInputPreview`).
+
+**Why.** User, 11 Nov 2026: a background or product from the script read "no preview" in node previews. Four node files each had their own picture lookup covering only files, sketches and generated images, and the detail view only treated a fixed list of types as pictures, so a product with its URL in hand still read "No content yet".
+
+**Rejected.** Adding `product` / `location` to each copy (the next new type would miss them again).
+
+**Originated →** this session.
+
+### D494 — Omni 1.2 takes 24 references alone and 9 images in all with frames, as measured *(recorded 2026-11-11; amends D484, follows D428)*
+
+**Decision.** `GEMINI_OMNI_12_IMAGE_INPUTS` becomes `maxReferenceImages: 24`, `maxImagesWithFrames: 9` (was Google's documented 6, and 1.1's measured 7 with frames). Video edits read the same cap, as before (D483).
+
+**Why.** User, 11 Nov 2026: 1.1 turned out to take more than its documented limit; check 1.2. Probed live against `gemini-omni-1.2-flash` the D428 way (numbered, coloured cards, 360p / 4s, `reference_to_video`, frames read back). References alone: 6, 8, 12, 16 and 24 rendered every card's number and colour; 32 kept the numbers but two cards' colours drifted. With frames: start + 8, start + end + 6 and start + end + 7 held both frames and every card; start + end + 8 misnumbered a card; start + 10 and start + 12 dropped the start frame (it became a card on the table); start + end + 12 turned both frames into cards. One run per case, so the cutoffs are a guide.
+
+**Rejected.** Keeping Google's 6 (well under what renders correctly). 32 (the API accepts it, but colours drift). A separate, lower cap for edits (edits were not probed; they keep reading the generation cap so the two can't drift, and edit references are ticked by hand).
+
+**Originated →** this session; probe script and frames kept outside the repo.
+
+### D495 — One Client review node per canvas; a new cut is a new version *(recorded 2026-11-12; supersedes D309's "a new cut is a new node")*
+
+**Decision.** A canvas has at most one Client review node. Uploading a cut into it adds the next version (v1, v2, …) in `canvas_review_versions`; versions are never removed. Comments belong to a version (`canvas_review_comments.version_id`) and stay there: no Done marks, no client approval for now. The limit is enforced in the add menu, `addNode`, duplicate (like `kb`), the copilot's `add_node` (opens the existing node), the canvas save (a new second node is dropped and the client removes it) and a `before insert` trigger on `nodes`.
+
+**Why.** User, 11–12 Nov 2026: every feedback round meant a new node, upload and link, and the canvas filled with review nodes.
+
+**Rejected.** A unique index on (canvas, type) (older canvases already have several). Combining older nodes into one (the user asked for no combine logic; D499).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D496 — Each version has its own link; a link without a suffix means v1 *(recorded 2026-11-12; refines D311)*
+
+**Decision.** A version's link is `/r/<title-slug>-<code>-v<n>` (`parseReviewLink`). The client sees only that version and its comments, with no mention of newer versions, and comments on it. A link with no suffix resolves to v1, so links sent before versions keep working; a migrated v1 (`legacy_link`) is shown to the team with its original link.
+
+**Why.** User, 11 Nov 2026: a client should review exactly the cut they were sent.
+
+**Rejected.** One rolling link that always shows the latest (a client mid-review would see the cut change under them). An old link pointing to the newer version.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D497 — Allow download is per version, on by default, enforced on the server *(recorded 2026-11-12; refines D478)*
+
+**Decision.** Each version has `allow_download` (default on, for new uploads and migrated versions alike), set in the upload dialog and by a download toggle in the focus view's header, beside the link's Copy and Open buttons (moved from under the video, 13 Nov 2026). Off: the client page has no Download button and `/api/r/:token/download` answers 404. A page already open keeps its button until it reloads; a click on it is refused.
+
+**Why.** User, 11–12 Nov 2026: the team decides per cut whether the client may download it.
+
+**Rejected.** Off by default (old links would lose their button; the user chose on). Updating open pages live (costs more to build; reload is fine).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D498 — The Client review node opens as a focus view, not the side drawer *(recorded 2026-11-12; supersedes D309/D310's feedback drawer)*
+
+**Decision.** Clicking the node (or the header's Client feedback chip) opens a focus view like other nodes: Upload first/new version in the header; the shared `VersionList` on the left; the link row (link, Copy vN link, Open vN as client) above the video in the centre, then "vN · uploaded <date>" and the Allow download switch; the version's comments on the right.
+
+**Why.** User, 11 Nov 2026: versions need room, and the node should open like every other node.
+
+**Rejected.** Keeping the right-side drawer (no room for a version list and comments side by side).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D499 — Older canvases keep every review node, each as a single-version node *(recorded 2026-11-12; follows D495)*
+
+**Decision.** Migration 0062 turns each existing review into v1 (its cut, download on, all its comments, `legacy_link`). Every node stays, works like a new review node and can take new versions. A canvas with any review node can't get another: the add menu greys Client review out with a note when there are several.
+
+**Why.** User, 11 Nov 2026: handle existing canvases without deleting nodes, and without combine logic.
+
+**Rejected.** Merging a canvas's review nodes into one (combine logic). Deleting or hiding the extra nodes.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
 
 ### D500 — Five permissions on the person, copied onto each client they are on; one owner with everything *(recorded 2026-11-13; refines D43, D166, D188; originated → `2026-11-12-agency-permissions-design.md`)*
 
@@ -8819,3 +8965,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Why.** The permission tests of 17 November read QA Beta's canvases and brand kit jobs as members on QA Alpha only, and as someone still waiting for access, using their own sign-in on the public API. Routes and pages already limited them (D501); the database didn't. The browser still needs these tables for Realtime, so the policies are scoped rather than removed.
 
 **Rejected.** Dropping the policies and serving Realtime through the server (a rewrite of every live screen). A `client_id` column on every table (a migration and backfill per table for what a lookup answers). Checking the person's permissions in the policies (reading is never permission-gated: being on a client is enough, D507).
+
+### D513 — The Client feedback chip lists versions; a row opens that version *(recorded 2026-11-13; refines D310, D495)*
+
+**Decision.** The header's Client feedback chip always opens a list. It shows each version newest first, with its name and its own comment count. Older canvases with several review nodes (D499) group the versions under each node's name. A row opens the review's focus view on that version. The chip's one canvas query returns the per-version counts: comments are embedded under each version.
+
+**Why.** User, 13 Nov 2026: client feedback should be listed by version, since comments stay on their version (D495).
+
+**Rejected.** Opening the newest version straight from the chip when there is only one node, as before. A request per node or per version.
+
+**Originated →** `2026-11-12-client-review-versions.md`.

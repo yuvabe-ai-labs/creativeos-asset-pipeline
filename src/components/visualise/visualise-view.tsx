@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ScriptContextCard } from "@/components/scripts/script-context-card";
 import { ScriptSheetFrame } from "@/components/scripts/script-sheet-frame";
-import { usePickTake, useReopenScript, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
+import { usePickTake, useReopenScript, useSetVisualiseField, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
+import { ScriptEditProvider, type ScriptEdit } from "@/components/scripts/script-edit-context";
 import { usePanelDraws } from "@/hooks/use-panel-draws";
 import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { errorMessage } from "@/lib/avatars/utils";
@@ -47,6 +48,17 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const reopen = useReopenScript(clientId, script.id);
   const canReopen = useCan("approve", clientId);
+  // Typing the script's text is an edit: it needs Generate (D500), like every other change by hand.
+  const canEditText = useCan("edit", clientId);
+  const setField = useSetVisualiseField(clientId, script.id);
+  // D489 — the script's text is typed here while it is in Visualise; In review it is read-only,
+  // as the client was sent it. Adding or removing shots stays with the copilot (Reopen).
+  const edit: ScriptEdit | null = script.stage === "visualise" && canEditText
+    ? {
+        commit: (path, value) => setField.mutate({ path, value }, { onError: (e) => toast.error(errorMessage(e, "Could not save that change")) }),
+        busyPath: null,
+      }
+    : null;
   const pick = usePickTake(clientId, script.id);
   const [openShot, setOpenShot] = useState<string | null>(null);
   const timed = useMemo(() => timeShots(script.doc.shots), [script.doc.shots]);
@@ -66,6 +78,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   return (
     // D446 — products and locations are edited here too: their pictures are visual work.
     <ScriptAssetsProvider clientId={clientId} scriptId={script.id}>
+    <MaybeScriptEdit edit={edit}>
     <div className="flex flex-col gap-6">
       <VisualiseReadiness
         canReopen={canReopen}
@@ -130,6 +143,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
           open
           onOpenChange={(o) => { if (!o) setOpenShot(null); }}
           label={shotLabel(openShot)}
+          time={formatRange(openTimed.start, openTimed.end)}
           view={model.views.get(openShot)!}
           inputs={model.inputs.get(openShot)!}
           aspect={model.aspect}
@@ -146,6 +160,12 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
         />
       )}
     </div>
+    </MaybeScriptEdit>
     </ScriptAssetsProvider>
   );
+}
+
+/** Without a ScriptEditProvider every ScriptText renders as plain text. */
+function MaybeScriptEdit({ edit, children }: { edit: ScriptEdit | null; children: ReactNode }) {
+  return edit ? <ScriptEditProvider value={edit}>{children}</ScriptEditProvider> : <>{children}</>;
 }

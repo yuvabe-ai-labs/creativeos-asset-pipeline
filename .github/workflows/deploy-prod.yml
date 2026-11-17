@@ -1,4 +1,7 @@
-# Every push to main builds the production image and deploys it to Cloud Run.
+# Every push to main deploys the Trigger.dev workers to the production Trigger project, then
+# builds the production image and deploys it to Cloud Run (D489). Workers go first so a task
+# the new app calls already exists; if they fail, the app is not deployed.
+# Trigger settings live on the "production" GitHub Environment; see trigger-deploy.yml.
 # GCP access is keyless (Workload Identity Federation, scripts/gcp/setup-cicd.sh) and only
 # trusted for this repo's main branch. Secrets live in Secret Manager and are already wired
 # into the service, so the deploy only swaps the image — every other setting is kept.
@@ -25,7 +28,14 @@ env:
   IMAGE: australia-southeast1-docker.pkg.dev/yuvabe-500205/creativeos/app:${{ github.sha }}
 
 jobs:
+  trigger:
+    uses: ./.github/workflows/trigger-deploy.yml
+    with:
+      environment: production
+    secrets: inherit
+
   deploy:
+    needs: trigger
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

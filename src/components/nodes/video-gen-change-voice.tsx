@@ -82,7 +82,7 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
   const busy = submitting || changing;
 
   return (
-    <div className="flex flex-1 flex-col gap-8">
+    <div className="flex flex-col gap-8">
       <LeftSection icon={Film} label="Take">
         {sourceId ? (
           <div className="flex flex-col gap-1.5">
@@ -113,14 +113,12 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
       </LeftSection>
 
       <VideoGenChangeVoiceSettings
-        sourceId={sourceId}
         settings={state.settings}
         onSettings={(patch) => onChange({ ...state, settings: { ...state.settings, ...patch } })}
-      />
-
-      {/* D487 — the same pinned footer as Generate and Edit video. */}
-      <GenerateFooter
-        className="-mx-6 -mb-5"
+      >
+        {/* D492 — Generate's own button, inside the card as on Edit video. */}
+        <GenerateFooter
+        className="static mt-0 border-t-0 bg-transparent p-0"
         label="Change voice"
         busy={busy}
         busyLabel="Changing voice…"
@@ -129,7 +127,8 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
         disabled={busy || !gate.ok}
         disabledReason={gate.ok ? null : gate.reason ?? null}
         credits={estimatedCredits}
-      />
+        />
+      </VideoGenChangeVoiceSettings>
     </div>
   );
 }

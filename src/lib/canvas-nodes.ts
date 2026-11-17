@@ -391,9 +391,10 @@ export function canConnect(sourceType: string, targetType: string): boolean {
   return (VALID_CONNECTIONS[sourceType] ?? []).includes(targetType);
 }
 
-// Nodes that are never duplicated: the KB anchors the canvas, and there is one Editor per canvas
-// (D388). One check for the context menu, Ctrl+D and both duplicate routes.
-const NOT_DUPLICABLE = new Set(["kb", "editor"]);
+// Nodes that are never duplicated: the KB anchors the canvas, and there is one Editor (D388) and
+// one Client review node (D495) per canvas. One check for the context menu, Ctrl+D and both
+// duplicate routes.
+const NOT_DUPLICABLE = new Set(["kb", "editor", "client-review"]);
 export function canDuplicateNode(type: string | undefined): boolean {
   return !NOT_DUPLICABLE.has(type ?? "");
 }

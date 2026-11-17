@@ -30,15 +30,23 @@ export const GEMINI_OMNI_IMAGE_INPUTS = {
 } as const;
 
 /**
- * Omni 1.2. Google's model docs state "up to 6 reference images across a request". 1.1's 12 was
- * our own measurement (D428) and isn't carried over until 1.2 is measured the same way. The
- * 7-in-all cap with frames is 1.1's measured figure, kept so a start frame still leaves room for 6.
+ * D494 — Omni 1.2, measured against the live API on 2026-11-11 the same way as 1.1 (numbered,
+ * coloured cards, 360p / 4s, frames checked). Google's docs say "up to 6 reference images"; the
+ * model does far better.
+ *
+ * References alone: 6, 8, 12, 16 and 24 rendered every card's number and colour; 32 kept the
+ * numbers but drifted colours on two cards. So 24.
+ *
+ * With frames: start + 8, start + end + 6 and start + end + 7 held both frames and every card;
+ * start + end + 8 misnumbered a card, start + 10 and start + 12 lost the start frame (it became a
+ * card on the table), start + end + 12 turned both frames into cards. So 9 images in all.
+ * One run per case, so the cutoffs are a guide.
  */
 export const GEMINI_OMNI_12_IMAGE_INPUTS = {
   startFrame: true,
   endFrame: true,
-  maxReferenceImages: 6,
-  maxImagesWithFrames: 7,
+  maxReferenceImages: 24,
+  maxImagesWithFrames: 9,
 } as const;
 
 /** Omni 1.2 interpolates between a first and last frame for 3–10s only; longer returns a 400. */

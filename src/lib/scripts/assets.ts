@@ -2,11 +2,14 @@ import { z } from "zod";
 import {
   scriptImageSchema,
   scriptDocSchema,
+  MAX_LOCATION_VERSIONS,
   MAX_LOCATIONS,
   MAX_PRODUCT_IMAGES,
   MAX_PRODUCTS,
+  type LocationVersion,
   type ScriptDoc,
   type ScriptImage,
+  type ScriptLocation,
 } from "./schema";
 import { castIdFor } from "./copilot/draft";
 
@@ -23,7 +26,7 @@ export type AssetOp =
   | { op: "add_location"; name: string; description: string }
   | { op: "update_location"; locationId: string; name: string; description: string }
   | { op: "remove_location"; locationId: string }
-  | { op: "set_location_image"; locationId: string; image: ScriptImage | null }
+  | { op: "set_location_image"; locationId: string; image: ScriptImage | null; mode?: "fresh" | "change"; note?: string }
   | { op: "set_shot_assets"; shotId: string; products: string[]; location: string | null };
 
 /** The same ops as a request body (the script page posts one at a time). */
@@ -35,7 +38,10 @@ export const assetOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add_location"), name: z.string(), description: z.string() }),
   z.object({ op: z.literal("update_location"), locationId: z.string(), name: z.string(), description: z.string() }),
   z.object({ op: z.literal("remove_location"), locationId: z.string() }),
-  z.object({ op: z.literal("set_location_image"), locationId: z.string(), image: scriptImageSchema.nullable() }),
+  z.object({
+    op: z.literal("set_location_image"), locationId: z.string(), image: scriptImageSchema.nullable(),
+    mode: z.enum(["fresh", "change"]).optional(), note: z.string().optional(),
+  }),
   z.object({ op: z.literal("set_shot_assets"), shotId: z.string(), products: z.array(z.string()), location: z.string().nullable() }),
 ]) satisfies z.ZodType<AssetOp>;
 
@@ -51,7 +57,37 @@ export function docImageUrls(doc: ScriptDoc): Set<string> {
   return new Set([
     ...doc.products.flatMap((p) => p.images.map((i) => i.url)),
     ...doc.locations.flatMap((l) => (l.image ? [l.image.url] : [])),
+    // D489 — a past plate stays usable: restoring it is never refused as a foreign picture.
+    ...doc.locations.flatMap((l) => (l.versions ?? []).map((v) => v.url)),
   ]);
+}
+
+/** D489 — a location's plates for the version switcher: its versions, or, for a location stored
+ *  before versions existed, its current plate as the only one. */
+export function locationVersions(location: ScriptLocation): LocationVersion[] {
+  if (location.versions?.length) return location.versions;
+  return location.image ? [location.image] : [];
+}
+
+/** D489 — the doc without its locations' past plates: for what reads the script, not its history
+ *  (the copilot's prompt, the share diff, the canvas freeze). */
+export function withoutLocationVersions(doc: ScriptDoc): ScriptDoc {
+  return { ...doc, locations: (doc.locations ?? []).map((l) => ({ ...l, versions: undefined })) };
+}
+
+/** D489 — the versions after `image` becomes the plate: a picture the location never held is added
+ *  last (the oldest dropped past the cap); one it held already, as on a restore, adds nothing. A
+ *  location from before versions starts from its current plate, so that one is not lost. */
+function nextVersions(
+  location: ScriptLocation,
+  image: ScriptImage | null,
+  how: { mode?: "fresh" | "change"; note?: string },
+): LocationVersion[] {
+  const versions = locationVersions(location);
+  if (!image || versions.some((v) => v.url === image.url)) return versions;
+  const note = how.note?.trim().slice(0, 500);
+  const added: LocationVersion = { ...image, ...(how.mode ? { mode: how.mode } : {}), ...(note ? { note } : {}) };
+  return [...versions, added].slice(-MAX_LOCATION_VERSIONS);
 }
 
 export type AssetOpResult =
@@ -130,7 +166,12 @@ function apply(doc: ScriptDoc, op: AssetOp, touched: Set<string>): ScriptDoc {
     }
     case "set_location_image": {
       locationOf(op.locationId);
-      return { ...doc, locations: doc.locations.map((l) => (l.id === op.locationId ? { ...l, image: op.image } : l)) };
+      return {
+        ...doc,
+        locations: doc.locations.map((l) =>
+          l.id === op.locationId ? { ...l, image: op.image, versions: nextVersions(l, op.image, op) } : l,
+        ),
+      };
     }
     case "set_shot_assets": {
       const i = doc.shots.findIndex((s) => s.id === op.shotId);
