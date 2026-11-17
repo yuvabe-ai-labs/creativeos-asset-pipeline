@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-17
 **Parent spec:** [2026-11-12-copilot-journey-design.md](2026-11-12-copilot-journey-design.md)
-**Status:** draft for Cyril's review. The principle in section 2 was decided by Cyril on 2026-11-17 ("I want streaming to be a first class principle", "yes, every surface"). Lines marked *(my call)* are calls I made and can be overruled. Lines marked **Question** are yours to decide; nothing is built on a guess about them.
+**Status:** the three questions in section 7 were answered by Cyril on 2026-11-17. The calls marked *(my call)* have been put to him and not yet confirmed one by one. The principle in section 2 was decided by Cyril on 2026-11-17 ("I want streaming to be a first class principle", "yes, every surface"). Lines marked *(my call)* are calls I made and can be overruled. Lines marked **Question** are yours to decide; nothing is built on a guess about them.
 
 ## 1. The problem
 
@@ -59,7 +59,7 @@ This is the first surface converted. The others follow the same picture when the
 - While the copilot is doing a step that changes the page, the line names that step.
 - A saved website is in the form before the copilot's reply has finished.
 - The first words of a reply are on screen before the reply is complete.
-- A reload after a turn shows the same thread that was on screen. A reload during a turn is Question 3.
+- A reload after a turn shows the same thread that was on screen. A reload during a turn shows the person's message and no reply yet; the reply arrives when the page next checks.
 - All of section 4 holds.
 
 ## 6. Not in this piece
@@ -70,17 +70,10 @@ This is the first surface converted. The others follow the same picture when the
 - Speeding up the work itself. This piece is about showing it.
 - Converting the script copilot's turns that do not stream today. It streams its first draft already; the rest of it moves to this principle when it is next substantially changed, as the data-fetching rule does for old hooks. *(my call)*
 
-## 7. Questions
-
-**Question 3 is the one the plan cannot start without.**
+## 7. Questions, all answered
 
 **Answered by Cyril on 2026-11-17. No stop button.** A reply cannot be stopped part-way.
 
 **Answered by Cyril on 2026-11-17. Plain saves stay as D501 made them.** After the copilot saves a website or a handle the reply is the fixed sentence written by code. With this piece the form fills at the moment of the save and the reply follows almost at once.
 
-**Question 3. Reloading the page in the middle of a turn.** Today, and for a teammate, the reloaded page shows the person's message and an open message box, with nothing to say a reply is on its way; the reply appears when the page next checks the thread, which can be up to 20 seconds later. Two choices:
-
-- **(a) Leave that as it is.** A reload mid-turn looks like the teammate's view. Nothing new is stored.
-- **(b) The reloaded page shows the copilot is still working and does not take a second message until the reply lands.** This needs the app to record that a turn is running, and to clear that record safely if a turn dies.
-
-My recommendation is (a) for this piece: a reload inside a turn of a few seconds is rare, the reply is never lost either way, and (b) can be added later for every surface at once.
+**Answered by Cyril on 2026-11-17. A reload in the middle of a turn stays as it is today.** The reloaded page shows the person's message and an open message box, like a teammate's view, and the reply appears when the page next checks the thread. Nothing records that a turn is running.
