@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CopilotText } from "@/components/copilot/copilot-text";
 import { REPLY_CHIP_CLASS } from "@/components/copilot/reply-chip";
 import { useCopilotThread, useRefreshCopilotThread, useSendKbTurn } from "@/hooks/queries/copilot-thread";
 import { useApproveKb } from "@/hooks/queries/kb";
@@ -20,7 +21,8 @@ import { ThreadMessageItem } from "./thread-message";
 import { ThreadStatusLines } from "./thread-status-lines";
 import { ThreadWaiting } from "./thread-waiting";
 
-const WORKING = [{ text: "Working on it…", state: "running" as const }];
+/** What the line says while the copilot is thinking, before or between the steps it names. */
+const WORKING = "Working on it…";
 
 /** The brand KB copilot on the Brand KB page (brand KB spec §2): the client's saved thread, with
  *  the brand KB agent behind it. The only file here that knows about the brand KB: the thread
@@ -78,11 +80,17 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
     send(text.trim(), attachments.ready, draft);
   };
 
+  // What the turn in flight is doing: the reply so far, or the step it is on.
+  const draft = turn.progress.text;
+  const step = turn.progress.step;
+  const working = useMemo(() => [{ text: step ?? WORKING, state: "running" as const }], [step]);
+
   const end = useRef<HTMLDivElement>(null);
   const count = state?.messages.length ?? 0;
   const liveCount = state?.live.length ?? 0;
   const waitingKind = state?.waiting?.kind ?? null;
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [count, liveCount, busy, waitingKind]);
+  // The view follows the reply as it grows, as it follows a new message.
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [count, liveCount, busy, waitingKind, draft.length, step]);
 
   // What the person is waited on comes from the server, worked out from the brand KB as stored.
   const waiting = busy ? null : (state?.waiting?.label ?? null);
@@ -107,9 +115,14 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
           <>
             <ol className="flex flex-col gap-4 p-4" aria-live="polite">
               {state.messages.map((m) => <ThreadMessageItem key={m.id} message={m} />)}
-              {(busy || state.live.length > 0) && (
-                <li><ThreadStatusLines lines={busy ? WORKING : state.live} live /></li>
+              {/* While a turn runs (D502): the reply as it is being written, in the place the stored
+                  message will take, or else a line naming what the copilot is doing. The words are
+                  not read out piece by piece; the stored message is announced once it lands. */}
+              {busy && draft && (
+                <li className="flex flex-col items-start gap-2" aria-live="off"><CopilotText content={draft} /></li>
               )}
+              {busy && !draft && <li><ThreadStatusLines lines={working} live /></li>}
+              {!busy && state.live.length > 0 && <li><ThreadStatusLines lines={state.live} live /></li>}
             </ol>
             {/* Under the newest message, so the choices sit right below the question they answer. */}
             {!busy && state.suggestions.length > 0 && (
