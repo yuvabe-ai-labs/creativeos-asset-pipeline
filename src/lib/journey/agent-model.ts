@@ -30,7 +30,7 @@ export function openaiAgentModel(modelId: string): AgentModel {
   let roundsSent = 0;
   let lastTools: FunctionTool[] = [];
 
-  return async ({ system, messages, tools, rounds, answer }) => {
+  return async ({ system, messages, tools, rounds, answer, onText }) => {
     if (rounds.length === 0) {
       carried.length = 0;
       roundsSent = 0;
@@ -50,7 +50,7 @@ export function openaiAgentModel(modelId: string): AgentModel {
       strict: false,
     }));
 
-    const response = await createOpenAI().responses.create({
+    const body = {
       model: modelId,
       instructions: system,
       input: [...messages.map((m) => ({ role: m.role, content: m.content })), ...carried],
@@ -58,7 +58,19 @@ export function openaiAgentModel(modelId: string): AgentModel {
       // them, so they stay declared and the model is told to call none.
       ...(functionTools.length > 0 ? { tools: functionTools } : lastTools.length > 0 ? { tools: lastTools, tool_choice: "none" as const } : {}),
       ...(answer ? { text: { format: zodTextFormat(answer, "answer") } } : {}),
-    }, { timeout: CALL_TIMEOUT_MS, maxRetries: 0 });
+    };
+    const options = { timeout: CALL_TIMEOUT_MS, maxRetries: 0 };
+    const client = createOpenAI();
+    // The same request either way. With a listener the reply is streamed and each piece of text is
+    // passed on as it is written (D502); the whole response is still what the rest of this reads.
+    let response;
+    if (onText) {
+      const streamed = client.responses.stream(body, options);
+      streamed.on("response.output_text.delta", (event) => onText(event.delta));
+      response = await streamed.finalResponse();
+    } else {
+      response = await client.responses.create(body, options);
+    }
     if (functionTools.length > 0) lastTools = functionTools;
 
     // Keep everything the model produced, so the next call can refer back to it.
