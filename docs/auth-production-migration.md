@@ -1052,7 +1052,10 @@ select count(*) from membership_clients where permissions && array['view','edit'
   Invites and actions still succeed either way.
 - `RESEND_API_KEY` and `EMAIL_FROM`, where `EMAIL_FROM` is an address on a sending domain verified
   in Resend (each environment's key must be allowed to send from it). Without either, nothing is
-  emailed; invites are still created and the link is shown to copy.
+  emailed; invites are still created and the link is shown to copy. The verified domain is
+  `creativeos.yuvabe.com` (Resend, verified 18 Nov 2026); the sender is
+  `EMAIL_FROM="CreativeOS <noreply@creativeos.yuvabe.com>"`. Checked end to end on 18 Nov: an
+  invite to Resend's test address `delivered@resend.dev` was sent and delivered.
 
 **The invite page is outside the session check.** `src/proxy.ts` excludes `/invite/*`: the token is
 the capability, and someone invited has no account yet. The proxy also sets an `x-pathname` header
