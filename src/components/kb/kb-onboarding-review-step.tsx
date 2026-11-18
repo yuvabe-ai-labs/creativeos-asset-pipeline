@@ -46,7 +46,6 @@ import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
 import { KBImageAnalysisStatus } from "@/components/kb/kb-image-analysis-status";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
-import { KBSkeleton } from "@/components/kb/kb-skeleton";
 import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB, KBField } from "@/lib/kb/schema";
 import { setNestedField } from "@/lib/kb/utils";
@@ -59,6 +58,8 @@ import {
 } from "@/lib/actions/kb";
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
+import { kbService } from "@/services/kb.service";
+import { useRefreshCopilotThread } from "@/hooks/queries/copilot-thread";
 import type { ModuleKey, FieldPath, StagedChanges } from "@/lib/kb/types";
 import {
   MODULES,
@@ -113,6 +114,8 @@ export function KBOnboardingReviewStep({
   clientLogoUrl,
 }: Props) {
   const router = useRouter();
+  // The copilot beside the page shows what it is reading as soon as Save & re-analyze is pressed.
+  const refreshCopilot = useRefreshCopilotThread(clientId);
 
   // KB review state — reset via key={versionId} at the call site (page.tsx).
   // `kb` is the working draft; `savedKB` is the last persisted baseline. Edits
@@ -147,7 +150,6 @@ export function KBOnboardingReviewStep({
   const assetTotal = importStatus?.counts.total ?? 0;
   const [reanalyzingFields, setReanalyzingFields] = useState<Set<string>>(new Set());
   const [markingReady, setMarkingReady] = useState(false);
-  const [reExtracting, setReExtracting] = useState(false);
 
   // Document management state
   const [documents, setDocuments] = useState<ClientKBDocumentRow[]>(initialDocuments);
@@ -357,22 +359,15 @@ export function KBOnboardingReviewStep({
 
   // ── Re-extract ────────────────────────────────────────────────────────────
 
-  async function fireReExtract() {
-    setReExtracting(true);
+  /** The copilot reads what was just added and removed against the brand KB and answers with a
+   *  change card (D505). Nothing is rebuilt and no review is lost. */
+  async function proposeChanges(added: string[], removed: string[]) {
     try {
-      const res = await fetch(`/api/clients/${clientId}/kb/re-extract`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error ?? "Re-extract failed");
-        setReExtracting(false);
-        return;
-      }
-      // Keep reExtracting=true so the overlay persists during navigation.
-      // The component remounts via key={versionId} in page.tsx once the new version arrives.
-      router.refresh();
-    } catch {
-      toast.error("Re-extract failed");
-      setReExtracting(false);
+      const { started } = await kbService.propose(clientId, { added, removed });
+      if (started) toast.success("Saved. The copilot is reading the changes.");
+      void refreshCopilot();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not read the changes.");
     }
   }
 
@@ -418,6 +413,9 @@ export function KBOnboardingReviewStep({
   async function handleSaveChanges() {
     setSavingChanges(true);
     try {
+      // Named before they go: the copilot is told which documents were removed.
+      const removedNames = documents.filter((d) => pendingDocRemovals.has(d.id)).map((d) => d.filename);
+      const addedIds = documents.filter((d) => newlyAddedDocIds.has(d.id) && !pendingDocRemovals.has(d.id)).map((d) => d.id);
       for (const docId of pendingDocRemovals) await deleteKBDocumentAction(clientId, docId);
       for (const imageId of pendingImageRemovals) await deleteBrandImageAction(clientId, imageId);
       setDocuments((prev) => prev.filter((d) => !pendingDocRemovals.has(d.id)));
@@ -427,7 +425,7 @@ export function KBOnboardingReviewStep({
       setNewlyAddedDocIds(new Set());
       setNewlyAddedImageIds(new Set());
       setShowSaveDialog(false);
-      fireReExtract();
+      void proposeChanges(addedIds, removedNames);
     } catch {
       toast.error("Failed to save changes");
     } finally {
@@ -498,24 +496,24 @@ export function KBOnboardingReviewStep({
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Save & Re-analyze KB?</DialogTitle>
+            <DialogTitle>Save & re-analyze?</DialogTitle>
             <DialogDescription>
-              {buildChangeSummary(staged)}. The documents are read again and the knowledge
-              base is rebuilt from them, so review progress on those sections starts over.
-              Image Analysis keeps your reviews and updates from the images.
+              {buildChangeSummary(staged)}. The copilot reads the changes against the brand KB
+              and shows what they would change, for you to approve. Nothing is rebuilt and no
+              review is lost. Images are studied as usual.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose
-              render={<Button variant="outline" disabled={savingChanges || reExtracting} />}
+              render={<Button variant="outline" disabled={savingChanges} />}
             >
               Cancel
             </DialogClose>
-            <Button onClick={handleSaveChanges} disabled={savingChanges || reExtracting}>
+            <Button onClick={handleSaveChanges} disabled={savingChanges}>
               <RefreshCwIcon
-                className={cn("mr-1.5 size-3.5", (savingChanges || reExtracting) && "animate-spin")}
+                className={cn("mr-1.5 size-3.5", savingChanges && "animate-spin")}
               />
-              {savingChanges || reExtracting ? "Saving…" : "Save & Re-analyze"}
+              {savingChanges ? "Saving…" : "Save & Re-analyze"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -655,14 +653,9 @@ export function KBOnboardingReviewStep({
       {/* Scrolling tab body — fills the viewport below the fixed header. Keyed by
          module so it remounts (resets scroll) and slides in on switch. */}
       <div
-        key={reExtracting ? "re-extracting" : selectedModule}
+        key={selectedModule}
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
-        {reExtracting ? (
-          <div className="pt-5 pb-12">
-            <KBSkeleton showTabs={false} />
-          </div>
-        ) : (
         <motion.div
           initial={{ opacity: 0, x: 8 }}
           animate={{ opacity: 1, x: 0 }}
@@ -741,7 +734,6 @@ export function KBOnboardingReviewStep({
             </div>
           )}
         </motion.div>
-        )}
       </div>
     </div>
   );

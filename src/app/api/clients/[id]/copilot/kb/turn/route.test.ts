@@ -19,6 +19,7 @@ vi.mock("@/lib/journey/agent-model", () => ({ openaiAgentModel: vi.fn(() => "mod
 vi.mock("@/lib/asset-import/start", () => ({ setImportTarget: vi.fn(), startAssetImports: vi.fn() }));
 vi.mock("@/lib/kb/start-build", () => ({ startKBBuild: vi.fn() }));
 vi.mock("@/lib/image-analysis/start", () => ({ startImageAnalysisQuietly: vi.fn() }));
+vi.mock("@/lib/kb/changes/start", () => ({ startKbProposal: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn(), patchKBFields: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
@@ -32,6 +33,7 @@ import { runKbTurn, type KbActions } from "@/lib/journey/kb-copilot/turn";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { startKBBuild } from "@/lib/kb/start-build";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
+import { startKbProposal } from "@/lib/kb/changes/start";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { kbWith } from "@/lib/kb/__tests__/fixtures";
 import { KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
@@ -425,6 +427,21 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
         { role: "assistant", content: "Here is the change.", suggestions: [] },
         { role: "assistant", content: "", card, suggestions: [] },
       ]);
+    });
+  });
+
+  describe("documents attached to a built KB", () => {
+    it("starts a proposal for documents attached to a message once the KB is built", async () => {
+      vi.mocked(getClientById).mockResolvedValue({ id: "c1", slug: "acme", name: "Acme", org_id: "org-1", kb_status: "ready", active_kb_version_id: "v1" } as never);
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: "v1", output: kbWith({}) } as never);
+      await send({ text: "here", attachments: [{ kind: "document", id: DOC }] });
+      expect(startKbProposal).toHaveBeenCalledWith("c1", "u1", { added: [{ id: DOC, name: "brand.pdf" }], removed: [] });
+      expect(order(insertCopilotMessages)).toBeLessThan(order(startKbProposal));
+    });
+
+    it("starts no proposal for documents attached before any build", async () => {
+      await send({ text: "here", attachments: [{ kind: "document", id: DOC }] });
+      expect(startKbProposal).not.toHaveBeenCalled();
     });
   });
 });

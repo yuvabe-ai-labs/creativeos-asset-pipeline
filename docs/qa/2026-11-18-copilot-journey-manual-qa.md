@@ -99,6 +99,13 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.8 | *(client in review)* Answer a question about a field nobody has reviewed yet. | Filled at once, no card (as in 4.1). |
 | 6.9 | *(client in review)* Ask to change a field you have already approved on the right. | A card, not a direct change. |
 | 6.10 | Reload the page while a card is pending, and open the client in another browser. | The card is still there, still pending, in both. |
+| 6.11 | *(approved client)* Attach the second brand document in the chat and send. | The copilot says it will read it. A line "Reading {file}…" shows while it runs, then a card whose fields name that file as the source. The KB stays approved the whole time. |
+| 6.12 | Discard that card. Attach the same document again and send. | Nothing from it is proposed again: the copilot says nothing in it changes the brand KB. |
+| 6.13 | Attach a document that agrees with the KB. | No card: "Read {file}. Nothing in it changes the brand KB." |
+| 6.14 | *(approved client)* In Source files, add a document and press "Save & re-analyze". | The dialog says nothing is rebuilt and no review is lost. After saving, "Saved. The copilot is reading the changes." The page does not go back to "in review"; no review is lost. A card follows in the panel. |
+| 6.15 | *(approved client)* In Source files, remove a document and press "Save & re-analyze". | A card listing the fields nothing else supports any more ("No remaining source supports it"), or a line saying everything is still supported. Nothing is wiped. |
+| 6.16 | *(new client)* Attach a document before any build. | No card: it is just a source for the build. |
+| 6.17 | Use a document that cannot be read (for example a corrupted PDF). | A line "Could not read {file}. Try again from Source files." No card, nothing changed. |
 
 ## Known limits (not bugs)
 

@@ -19,6 +19,13 @@ class KbService {
     });
     return readJson<{ ok: true }>(res, "Failed to mark KB ready");
   }
+
+  /** Asks the copilot to read documents just added or removed in Source files against the brand
+   *  KB; it answers in the thread with a change card. `removed` holds the removed files' names. */
+  async propose(clientId: string, body: { added: string[]; removed: string[] }): Promise<{ started: boolean }> {
+    const res = await fetch(`/api/clients/${clientId}/kb/propose`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
+    return readJson<{ started: boolean }>(res, "Could not read the changes.");
+  }
 }
 
 export const kbService = new KbService();
