@@ -1,7 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { rowToThreadMessage, type CopilotMessageRow } from "@/lib/journey/thread/rows";
-import type { Attachment, CopilotThread, ThreadCard, ThreadMessage } from "@/lib/journey/thread/schema";
+import { changeCardSchema, ONBOARDING, type Attachment, type ChangeCard, type CopilotThread, type ThreadCard, type ThreadMessage } from "@/lib/journey/thread/schema";
 
 // The saved onboarding thread of a client (D496). Every query filters on client_id AND thread:
 // withClient authorises the CLIENT in the URL, and a client may gain other threads later.
@@ -83,4 +83,41 @@ export async function insertOpeningIfEmpty(clientId: string, thread: CopilotThre
     throw insertError;
   }
   return true;
+}
+
+/** Settles a change card (D505): writes `next` only while the stored card is still pending, so two
+ *  people deciding at once settle it once. False when someone settled it first. */
+export async function claimChangeCard(clientId: string, messageId: string, next: ChangeCard): Promise<boolean> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_copilot_messages").update({ card: next })
+    .eq("id", messageId).eq("client_id", clientId).eq("thread", ONBOARDING).eq("card->>status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/** Puts a card back on its message: a claimed change card whose write then failed. */
+export async function setMessageCard(clientId: string, messageId: string, card: ThreadCard): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from("client_copilot_messages").update({ card })
+    .eq("id", messageId).eq("client_id", clientId).eq("thread", ONBOARDING);
+  if (error) throw error;
+}
+
+/** Every settled change card of the client's onboarding thread, however old: what a person turned
+ *  down is remembered for good. Throws when it cannot be read: never "nothing was refused". */
+export async function listSettledChangeCards(clientId: string): Promise<ChangeCard[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_copilot_messages").select("card")
+    .eq("client_id", clientId).eq("thread", ONBOARDING).eq("card->>kind", "change")
+    .in("card->>status", ["applied", "discarded"]);
+  if (error) throw error;
+  return ((data ?? []) as { card: unknown }[]).flatMap((row) => {
+    const parsed = changeCardSchema.safeParse(row.card);
+    return parsed.success ? [parsed.data] : [];
+  });
 }

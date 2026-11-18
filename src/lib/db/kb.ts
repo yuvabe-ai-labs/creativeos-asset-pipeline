@@ -1,4 +1,5 @@
 import "server-only";
+import { isPatchablePath } from "@/lib/kb/field-patch";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { removeObject } from "@/lib/storage";
 import type {
@@ -403,4 +404,21 @@ export async function listUnreviewedFields(versionId: string): Promise<string[]>
   if (error) throw error;
   if (data === null || data === undefined) throw new Error("KB version not found");
   return data as string[];
+}
+
+/** The stored values at these dotted field paths of one KB version (D505), read by JSON path so the
+ *  KB itself is never downloaded. Each path is checked to name a KB field before it reaches the
+ *  query. Throws when the read fails or the version is gone: an unknown value is never "empty". */
+export async function readKBFieldValues(versionId: string, paths: string[]): Promise<Record<string, unknown>> {
+  if (paths.length === 0) return {};
+  for (const path of paths) {
+    if (!isPatchablePath(path.split("."))) throw new Error(`Not a KB field: ${path}`);
+  }
+  const columns = paths.map((path, i) => `f${i}:output->${path.split(".").join("->")}->value`).join(",");
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.from("client_kb_versions").select(columns).eq("id", versionId).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("That brand KB version is gone.");
+  const row = data as unknown as Record<string, unknown>;
+  return Object.fromEntries(paths.map((path, i) => [path, row[`f${i}`] ?? null]));
 }
