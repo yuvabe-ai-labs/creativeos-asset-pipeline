@@ -11,7 +11,15 @@ export type AgentTool = {
   /** A tool whose result needs no words from the model: when every call in a round is one of these
    *  and each ran without error, the turn ends there and the caller words the reply itself. */
   ends?: boolean;
+  /** The line shown to the person while this tool runs ("Saving the website…"). Only tools that
+   *  change what is on the page have one. */
+  label?: string;
 };
+
+/** What a turn reports while it runs (D502), for whoever is showing it. All optional: a turn with
+ *  no listener runs exactly the same. `reset` means the words sent so far are not the reply after
+ *  all, because the model went on to ask for a tool. */
+export type AgentEvents = { text?: (delta: string) => void; reset?: () => void; step?: (label: string) => void };
 export type AgentMessage = { role: "user" | "assistant"; content: string };
 export type ToolCall = { id: string; name: string; args: unknown };
 export type ToolResult = { id: string; output: string };
@@ -23,6 +31,8 @@ export type AgentModel = (input: {
   rounds: AgentRound[];
   /** When set, the final reply must be this structure, not only words. */
   answer?: z.ZodType;
+  /** When set, the model's words are passed here piece by piece as it writes them. */
+  onText?: (delta: string) => void;
 }) => Promise<{ text: string; calls: ToolCall[]; answer?: unknown }>;
 
 /** The model's final structured answer did not fit what the caller asked for. */
@@ -52,17 +62,35 @@ async function runCall(call: ToolCall, tools: Record<string, AgentTool>): Promis
 export async function runAgent<T = never>(input: {
   model: AgentModel; system: string; messages: AgentMessage[]; tools: Record<string, AgentTool>;
   answer?: z.ZodType<T>;
+  on?: AgentEvents;
 }): Promise<{ text: string; ran: string[]; answer?: T }> {
-  const { model, system, messages, answer } = input;
+  const { model, system, messages, answer, on } = input;
   const rounds: AgentRound[] = [];
   const ran: string[] = [];
 
-  let reply = await model({ system, messages, tools: input.tools, rounds, answer });
+  // Words are only passed on when somebody is listening and the reply is words: a structured
+  // answer arrives as JSON, which is not something to show a person as it is written.
+  let wrote = false;
+  const onText = on?.text && !answer
+    ? (delta: string) => {
+        wrote = true;
+        on.text?.(delta);
+      }
+    : undefined;
+
+  let reply = await model({ system, messages, tools: input.tools, rounds, answer, onText });
   while (reply.calls.length > 0 && rounds.length < MAX_AGENT_ROUNDS) {
+    // The model wrote something and then asked for a tool: those words were not its reply.
+    if (wrote) {
+      on?.reset?.();
+      wrote = false;
+    }
     const results: ToolResult[] = [];
     let allRan = true;
     // One at a time, in the order asked: a later call may depend on what an earlier one saved.
     for (const call of reply.calls) {
+      const label = Object.hasOwn(input.tools, call.name) ? input.tools[call.name].label : undefined;
+      if (label) on?.step?.(label);
       const { output, ok } = await runCall(call, input.tools);
       if (ok) ran.push(call.name);
       else allRan = false;
@@ -76,7 +104,7 @@ export async function runAgent<T = never>(input: {
     }
     // After the last round the tools are taken away, so the model has to answer.
     const tools = rounds.length < MAX_AGENT_ROUNDS ? input.tools : {};
-    reply = await model({ system, messages, tools, rounds, answer });
+    reply = await model({ system, messages, tools, rounds, answer, onText });
   }
 
   const text = reply.text.trim() || EMPTY_AGENT_REPLY;

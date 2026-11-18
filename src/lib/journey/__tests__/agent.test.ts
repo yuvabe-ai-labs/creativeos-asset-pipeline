@@ -133,3 +133,73 @@ describe("runAgent", () => {
     expect(seen).toHaveLength(2);
   });
 });
+
+/** A scripted model that also writes: each response may carry the pieces of text it sends through
+ *  `onText` before it returns. */
+function writing(responses: (ModelOutput & { deltas?: string[] })[]) {
+  const seen: ModelInput[] = [];
+  const model: AgentModel = async (input) => {
+    seen.push({ ...input, rounds: [...input.rounds] });
+    const { deltas, ...response } = responses[Math.min(seen.length - 1, responses.length - 1)];
+    for (const delta of deltas ?? []) input.onText?.(delta);
+    return response;
+  };
+  return { model, seen };
+}
+
+describe("runAgent, reporting as it goes", () => {
+  /** Callbacks that record everything in the order it happened. */
+  function recorder() {
+    const order: string[] = [];
+    return { order, on: { text: (d: string) => order.push(`text:${d}`), reset: () => order.push("reset"), step: (l: string) => order.push(`step:${l}`) } };
+  }
+
+  it("passes the model's words on as they are written", async () => {
+    const { model } = writing([{ text: "Hello", calls: [], deltas: ["Hel", "lo"] }]);
+    const { order, on } = recorder();
+    await runAgent({ ...base, model, tools: saveWebsite(), on });
+    expect(order).toEqual(["text:Hel", "text:lo"]);
+  });
+
+  it("clears words the model wrote before it asked for a tool", async () => {
+    const { model } = writing([
+      { text: "Let me", calls: [call("save_website", { url: "acme.com" })], deltas: ["Let me"] },
+      { text: "Saved.", calls: [], deltas: ["Saved."] },
+    ]);
+    const { order, on } = recorder();
+    await runAgent({ ...base, model, tools: saveWebsite(), on });
+    expect(order).toEqual(["text:Let me", "reset", "text:Saved."]);
+  });
+
+  it("does not clear anything when the round with a tool wrote no words", async () => {
+    const { model } = writing([{ text: "", calls: [call("save_website", { url: "acme.com" })] }, { text: "Saved.", calls: [], deltas: ["Saved."] }]);
+    const { order, on } = recorder();
+    await runAgent({ ...base, model, tools: saveWebsite(), on });
+    expect(order).toEqual(["text:Saved."]);
+  });
+
+  it("names the step before a labelled tool runs, and says nothing for an unlabelled one", async () => {
+    const { order, on } = recorder();
+    const tools: Record<string, AgentTool> = {
+      save_website: { description: "x", schema: z.object({ url: z.string() }), label: "Saving the website…", run: async () => { order.push("ran:save_website"); return "ok"; } },
+      other: { description: "x", schema: z.object({}), run: async () => { order.push("ran:other"); return "ok"; } },
+    };
+    const { model } = writing([{ text: "", calls: [call("save_website", { url: "acme.com" }, "c1"), call("other", {}, "c2")] }, { text: "Done both.", calls: [] }]);
+    await runAgent({ ...base, model, tools, on });
+    expect(order).toEqual(["step:Saving the website…", "ran:save_website", "ran:other"]);
+  });
+
+  it("gives the model no way to send words when a structured answer is owed", async () => {
+    const { model, seen } = writing([{ text: "", calls: [], answer: { ok: true }, deltas: ["{"] }]);
+    const { order, on } = recorder();
+    await runAgent({ ...base, model, tools: {}, answer: z.object({ ok: z.boolean() }), on });
+    expect(seen[0].onText).toBeUndefined();
+    expect(order).toEqual([]);
+  });
+
+  it("gives the model no way to send words when nobody is listening for them", async () => {
+    const { model, seen } = writing([{ text: "Hello", calls: [], deltas: ["Hello"] }]);
+    expect(await runAgent({ ...base, model, tools: saveWebsite() })).toEqual({ text: "Hello", ran: [] });
+    expect(seen[0].onText).toBeUndefined();
+  });
+});
