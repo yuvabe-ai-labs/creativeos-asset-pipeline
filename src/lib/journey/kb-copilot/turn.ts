@@ -6,7 +6,7 @@ import { kbCopilotSystem } from "@/prompts/kb-copilot";
 import { KB_CONVERSATION_WINDOW, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX } from "./constants";
 import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, type KbContext } from "./context";
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
-import { isEmpty, REVIEW_FIELD_PATHS, reviewFields, type ReviewField } from "./review";
+import { coerceValue as coerce, isEmpty, REVIEW_FIELD_PATHS, reviewFields, type ReviewField } from "./review";
 import type { TurnWalk } from "./walk";
 import type { ChangeCard } from "@/lib/journey/thread/schema";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
@@ -62,14 +62,6 @@ const NO_QUESTION = "No question is waiting.";
 
 const fieldArg = z.enum(REVIEW_FIELD_PATHS as [string, ...string[]]);
 
-/** The person's words in the shape the field holds: a list field takes items, a text field one text. */
-function coerce(kind: ReviewField["kind"], value: string | string[]): string | string[] {
-  if (kind === "list") {
-    const items = Array.isArray(value) ? value : value.split(/[,\n]/);
-    return items.map((item) => item.trim()).filter(Boolean);
-  }
-  return (Array.isArray(value) ? value.map((item) => item.trim()).filter(Boolean).join(", ") : value).trim();
-}
 
 function userContent(text: string, attachments: Attachment[]): string {
   if (attachments.length === 0) return text;

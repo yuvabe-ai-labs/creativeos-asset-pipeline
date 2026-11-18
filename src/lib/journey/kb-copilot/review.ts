@@ -64,6 +64,16 @@ export function fieldKind(path: string): "text" | "list" | null {
   return inner instanceof z.ZodArray ? "list" : "text";
 }
 
+/** Words in the shape a field holds: a list field takes items (split on commas and new lines), a
+ *  text field one text. Shared by the chat and by documents read against the KB. */
+export function coerceValue(kind: ReviewField["kind"], value: string | string[]): string | string[] {
+  if (kind === "list") {
+    const items = Array.isArray(value) ? value : value.split(/[,\n]/);
+    return items.map((item) => item.trim()).filter(Boolean);
+  }
+  return (Array.isArray(value) ? value.map((item) => item.trim()).filter(Boolean).join(", ") : value).trim();
+}
+
 export function isEmpty(value: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === "string") return value.trim() === "";
