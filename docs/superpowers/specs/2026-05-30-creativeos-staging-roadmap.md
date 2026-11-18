@@ -8766,3 +8766,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Refines.** D337 (which rejected streaming for turns and later let the first script draft stream; "everything else stays request and response" no longer holds for a copilot surface once it is converted), D497 (the shared agent loop), D501 (the form takes a saved value from the turn's answer: the same path, delivered at the moment of the save).
 
 **Originated →** `2026-11-17-copilot-streaming-design.md`.
+
+### D503 — A copilot turn sends its work to the browser as event lines over the one request *(recorded 2026-11-18; refines D337, D497, D502)*
+
+**Decision.** A brand KB turn answers as newline-delimited JSON, the format the script copilot's first draft already uses (D337): `step` (the line naming what it is doing), `text` (the next piece of the reply), `reset` (the words so far were not the reply), `saved` (a website or handles as stored), `page` (something else on the page changed), and a last line that is `state` (exactly what the turn used to answer in one piece) or `error`. Bad input is still refused as plain JSON before anything streams. The shared agent loop reports through optional callbacks and stays pure; a tool may carry a `label` (its step line) and may be `quiet` (reply buttons: words written beside it are the reply, so they are not cleared and rewritten). The OpenAI adapter streams only when words are wanted, sends a streamed answer back to the model through the SDK's `toResponseInputItems`, and limits a streamed call over its whole length. The turn runs on its own and is handed to `after()`, so a closed tab never loses a reply. The browser reads lines with one shared reader (`src/services/read-ndjson.ts`, also used by the script copilot).
+
+**Why.** D502 (Cyril, 2026-11-17): every copilot shows its work as it happens. One request with many lines back keeps the turn's existing order of writes and its single answer, so nothing stored changes. Found in review: the SDK's streamed response carries fields the API refuses as input, and its own timeout stops at the first byte.
+
+**Rejected.** A second request or a realtime channel for progress (two things to keep in step, and a channel per turn). Server-sent events as a second format beside D337's. Recording that a turn is running, so a reload mid-turn could show it (Cyril, 2026-11-17: leave reloads as they are). A stop button (Cyril, 2026-11-17).
+
+**Originated →** `2026-11-17-copilot-streaming-design.md`; plan `2026-11-17-copilot-streaming.md`.

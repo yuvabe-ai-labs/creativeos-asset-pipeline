@@ -366,3 +366,28 @@
 4. On a client whose KB is in review, answer a question in your own words. "Saving your answer…" shows, the field on the right updates, and the copilot's short acknowledgement appears word by word, followed by the next question.
 5. Ask it something that needs no tool ("what do you still need from me?"). The reply appears word by word.
 6. Send a message and close the tab at once. Reopen the client: the reply is in the thread.
+
+## Outcome (2026-11-18)
+
+Built as planned in seven commits, then one review and one fix pass (`8211af86..e3cd5921`, unpushed). Recorded as D503.
+
+**Departures from the plan**
+- The route tests read the answer through one `send` helper that waits for the whole stream, in place of rewriting each assertion.
+- `readNdjson` also cancels the reader if a handler throws, so a broken turn stops downloading.
+
+**What the review changed**
+- A streamed reply that needed a second model call would have been refused by OpenAI: the SDK's streamed response adds `parsed_arguments` and `parsed`, which the API does not take back as input. It is now sent back through the SDK's `toResponseInputItems`.
+- The 20-second limit only covered the start of a streamed call; it now covers the whole reply.
+- Words written beside reply buttons appeared, vanished and were written again. Reply buttons are now a `quiet` tool, and those words stay as the reply. *(My rule, narrower than the reviewer's: only `reply_choices` is quiet, because skip, keep-asking and stop-asking can return a refusal the model must see.)*
+- A thread read in flight when a turn finished could put the older thread back for up to 20 seconds (from before this change). The finished thread is now written after cancelling it.
+
+**Left for later (minor)**
+- A one-frame "Working on it…" between the last word and the stored message.
+- `revalidatePath` now runs after the answer has started; the browser's own re-read does the work.
+- Two saves arriving in one network chunk show only the second until the end of the turn.
+- "Saving the website…" shows even when the tool then refuses.
+- A failed or cut-off stream reads like a reply, as a failed plain call already did.
+
+**Not verified**
+- Nothing here was run in a browser or against the real OpenAI API by the implementer. The first streamed call to OpenAI is Cyril's test.
+- That `after()` keeps the function alive after a disconnect on Vercel shows only on staging.
