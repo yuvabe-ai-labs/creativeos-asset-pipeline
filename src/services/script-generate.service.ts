@@ -2,6 +2,7 @@ import type { GenerateState } from "@/lib/scripts/copilot/schema";
 import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 import type { ScriptStage } from "@/lib/scripts/constants";
 import { readJson } from "./read-json";
+import { readNdjson } from "./read-ndjson";
 
 // Script copilot spec 2 — browser calls to the Generate routes. No caching here (TanStack Query owns it).
 
@@ -38,29 +39,14 @@ class ScriptGenerateService {
   async turn(clientId: string, scriptId: string, message: TurnMessage, onDraft?: (draft: PartialDraft) => void): Promise<GenerateState> {
     const res = await send(`${scriptUrl(clientId, scriptId)}/turn`, "POST", message);
     if (!res.ok || !res.body) return (await readJson<{ state: GenerateState }>(res, "The copilot could not answer.")).state;
-    let state: GenerateState | null = null;
-    const handle = (line: string) => {
-      if (!line.trim()) return;
-      const msg = JSON.parse(line) as { type: string; draft?: PartialDraft; state?: GenerateState; error?: string };
+    const got: { state: GenerateState | null } = { state: null };
+    await readNdjson<{ type: string; draft?: PartialDraft; state?: GenerateState; error?: string }>(res.body, (msg) => {
       if (msg.type === "draft" && msg.draft) onDraft?.(msg.draft);
-      else if (msg.type === "state" && msg.state) state = msg.state;
+      else if (msg.type === "state" && msg.state) got.state = msg.state;
       else if (msg.type === "error") throw new Error(msg.error ?? "The copilot could not answer.");
-    };
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      for (let i = buffer.indexOf("\n"); i >= 0; i = buffer.indexOf("\n")) {
-        handle(buffer.slice(0, i));
-        buffer = buffer.slice(i + 1);
-      }
-    }
-    handle(buffer);
-    if (!state) throw new Error("The copilot could not answer.");
-    return state;
+    });
+    if (!got.state) throw new Error("The copilot could not answer.");
+    return got.state;
   }
 
   async setField(clientId: string, scriptId: string, path: string, value: string): Promise<GenerateState> {

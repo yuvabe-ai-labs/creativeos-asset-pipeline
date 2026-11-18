@@ -1,6 +1,10 @@
 import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { Attachment, ThreadState } from "@/lib/journey/thread/schema";
+import type { KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import { readJson } from "./read-json";
+import { readNdjson } from "./read-ndjson";
+
+const COULD_NOT_ANSWER = "The copilot could not answer.";
 
 export type KbTurnBody = { text: string; attachments: Attachment[] };
 /** `saved` is the website or handles the turn stored, for the form beside the chat to show at once. */
@@ -14,14 +18,24 @@ class CopilotThreadService {
     return readJson<ThreadState>(res, "The copilot could not be loaded.");
   }
 
-  /** One message to the brand KB copilot. `changed` is true when it saved or started something. */
-  async kbTurn(clientId: string, body: KbTurnBody): Promise<KbTurnResult> {
+  /** One message to the brand KB copilot. The answer arrives as event lines while the turn runs
+   *  (D502): each goes to `onEvent`, and the last one is the result. `changed` is true when the
+   *  turn saved or started something. A refusal is plain JSON and is thrown as its message. */
+  async kbTurn(clientId: string, body: KbTurnBody, onEvent?: (event: KbTurnEvent) => void): Promise<KbTurnResult> {
     const res = await fetch(`/api/clients/${clientId}/copilot/kb/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    return readJson<KbTurnResult>(res, "The copilot could not answer.");
+    if (!res.ok || !res.body) return readJson<KbTurnResult>(res, COULD_NOT_ANSWER);
+    const got: { result: KbTurnResult | null } = { result: null };
+    await readNdjson<KbTurnEvent>(res.body, (event) => {
+      onEvent?.(event);
+      if (event.type === "state") got.result = { state: event.state, changed: event.changed, saved: event.saved };
+      else if (event.type === "error") throw new Error(event.error || COULD_NOT_ANSWER);
+    });
+    if (!got.result) throw new Error(COULD_NOT_ANSWER);
+    return got.result;
   }
 }
 
