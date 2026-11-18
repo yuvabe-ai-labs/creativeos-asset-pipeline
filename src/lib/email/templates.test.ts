@@ -41,6 +41,33 @@ describe("emails (spec §6.3, §6.7)", () => {
     expect(e.html).toContain("&lt;b&gt;Acme&lt;/b&gt;");
   });
 
+  it("lays every email out as a card: heading, message, button, the link written out, footer", () => {
+    const e = memberInviteEmail({ to: "p@x.com", agency: "Acme", inviter: "Asha", client: "Chupps", link: "https://app.example/invite/t" });
+    expect(e.html).toContain(">Join Acme on CreativeOS</h1>");
+    expect(e.html).toContain(">Join Acme</a>");
+    expect(e.html).toContain(">The link works for 7 days.</p>");
+    expect(e.html).toContain("Or copy this link:");
+    expect(e.html.match(/href="https:\/\/app\.example\/invite\/t"/g)).toHaveLength(2);
+    expect(e.html).toContain("CreativeOS by Yuvabe Studios.");
+    // The hidden preview line inbox apps show next to the subject.
+    expect(e.html).toContain("Asha invited you to work on Chupps.");
+    expect(e.html.startsWith("<!doctype html>")).toBe(true);
+  });
+
+  it("gives each email its own heading", () => {
+    const link = "https://app.example/";
+    expect(ownerInviteEmail({ to: "o@x.com", agency: "Acme", link }).html).toContain(">Set up Acme</h1>");
+    expect(signedUpEmail({ to: ["o@x.com"], name: "Ravi", agency: "Acme", link, forOwner: true }).html).toContain(">Ravi signed up</h1>");
+    expect(accessReadyEmail({ to: "p@x.com", agency: "Acme", link }).html).toContain(">You&#39;re in</h1>");
+  });
+
+  it("escapes names in the heading, the preview line and the footer too", () => {
+    const e = signedUpEmail({ to: ["o@x.com"], name: "<i>R</i>", agency: "A&B", link: "https://app.example/", forOwner: true });
+    expect(e.html).not.toContain("<i>R</i>");
+    expect(e.html).toContain("&lt;i&gt;R&lt;/i&gt; signed up</h1>");
+    expect(e.html).toContain("A&amp;B");
+  });
+
   it("builds links on APP_URL", () => {
     expect(appLink("/team")).toBe("https://app.example/team");
   });
