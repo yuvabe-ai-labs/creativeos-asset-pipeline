@@ -18,7 +18,7 @@ import { walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/wa
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
 import { runKbTurn, type KbActions, type KbReview, type KbSaved } from "@/lib/journey/kb-copilot/turn";
 import { loadThread } from "@/lib/journey/thread/load";
-import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type ThreadMessage } from "@/lib/journey/thread/schema";
+import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type ChangeCard, type ThreadMessage } from "@/lib/journey/thread/schema";
 import { NDJSON_HEADERS, type KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { startKBBuild } from "@/lib/kb/start-build";
@@ -53,15 +53,16 @@ export async function POST(req: Request, { params }: Ctx) {
       if (asked.length > KB_TURN_MAX_ATTACHMENTS) return apiError(`Attach at most ${KB_TURN_MAX_ATTACHMENTS} files to one message.`, 400);
 
       // The caller is resolved once and passed down; the context and the thread do not depend on each other.
-      // A built KB in review is read once per turn (never by the polled read): the copilot answers
-      // about its fields and may fill the ones still unreviewed.
+      // A built KB is read once per turn (never by the polled read). In review the copilot answers
+      // about its fields and may fill the ones still unreviewed; a reviewed field it only proposes
+      // to change, on a change card made against this version (D505).
       const reviewing = client.kb_status === "in_review" && client.active_kb_version_id !== null;
       const [{ userId }, { ctx, sources }, stored, version] = await Promise.all([
         resolveCallerContext(),
         loadKbContext(client),
         // A failed read fails the turn here: it must never look like an empty thread.
         listCopilotMessages(clientId, ONBOARDING),
-        reviewing ? getActiveKBVersion(clientId) : Promise.resolve(null),
+        client.active_kb_version_id ? getActiveKBVersion(clientId) : Promise.resolve(null),
       ]);
       const attachments: Attachment[] = [];
       for (const a of asked) {
@@ -100,7 +101,7 @@ export async function POST(req: Request, { params }: Ctx) {
           // The review walk as the thread stood before this message. A question only counts as waiting
           // while its field is still unreviewed: one settled by hand on the page is no longer asked.
           const walk = walkOf(history);
-          const fields = version ? reviewFields(version.output as unknown as TraceableBrandKB) : null;
+          const fields = version && reviewing ? reviewFields(version.output as unknown as TraceableBrandKB) : null;
           const review: KbReview | null = fields
             ? { fields, pending: fields.some((f) => f.path === walk.pending && f.status === "needs_review") ? walk.pending : null }
             : null;
@@ -152,9 +153,11 @@ export async function POST(req: Request, { params }: Ctx) {
           let changed: boolean;
           let turnWalk: TurnWalk | null = null;
           let saved: KbSaved = {};
+          let card: ChangeCard | null = null;
           try {
             const result = await runKbTurn({
               ctx, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL),
+              kb: version ? { versionId: version.id, output: version.output as unknown as TraceableBrandKB } : null,
               on: {
                 step: (line) => emit({ type: "step", text: line }),
                 text: (delta) => emit({ type: "text", delta }),
@@ -167,6 +170,7 @@ export async function POST(req: Request, { params }: Ctx) {
             changed = result.changed;
             turnWalk = result.walk;
             saved = result.saved;
+            card = result.card;
           } catch (e) {
             console.error("[kb-copilot] turn failed", e);
             reply = { content: acted ? KB_TURN_FAILED_AFTER_SAVE_REPLY : KB_TURN_FAILED_REPLY, suggestions: [] };
@@ -184,6 +188,8 @@ export async function POST(req: Request, { params }: Ctx) {
           await insertCopilotMessages(clientId, ONBOARDING, userId, [
             { role: "assistant", content: reply.content, suggestions: extra.length > 0 ? [] : reply.suggestions },
             ...extra,
+            // A change card is its own message, after the words that introduce it.
+            ...(card ? [{ role: "assistant" as const, content: "", card, suggestions: [] }] : []),
           ]);
 
           // An attached file is a new source, so the page on the right has changed even when no tool ran.

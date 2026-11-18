@@ -241,7 +241,7 @@ describe("runKbTurn in review", () => {
     ]);
     const result = await turn({ ctx: inReview, review: reviewOf({ [AGE]: { status: "approved" } }, null), actions: a, model });
     expect(setField).not.toHaveBeenCalled();
-    expect(outputs(seen)).toEqual(Array(2).fill("That field is already reviewed. It can be edited on the right. Proposing changes from the chat comes in a later step."));
+    expect(outputs(seen)).toEqual(Array(2).fill("That field is already reviewed. Use propose_change to suggest a new value; the person approves it."));
     expect(result.walk.settled).toEqual([]);
     expect(result.changed).toBe(false);
   });
@@ -251,7 +251,7 @@ describe("runKbTurn in review", () => {
     const setField = vi.fn(async () => false);
     const { model, seen } = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30 to 45" })] }, say("It was just reviewed.")]);
     const result = await turn({ ctx: inReview, review: reviewOf(), actions: actions({ setField }), model });
-    expect(outputs(seen)).toEqual(["That field is already reviewed. It can be edited on the right. Proposing changes from the chat comes in a later step."]);
+    expect(outputs(seen)).toEqual(["That field is already reviewed. Use propose_change to suggest a new value; the person approves it."]);
     expect(result.walk.settled).toEqual([]);
     expect(result.changed).toBe(false);
   });
@@ -361,6 +361,7 @@ describe("runKbTurn, reporting as it goes", () => {
     expect(labels).toEqual({
       save_website: "Saving the website…", save_socials: "Saving the handles…",
       answer_field: "Saving your answer…", confirm_field: "Saving your answer…", start_build: "Starting the build…",
+      propose_change: "Preparing the change…",
     });
   });
 
@@ -387,5 +388,88 @@ describe("runKbTurn, reporting as it goes", () => {
     expect(seen).toHaveLength(1);
     expect(result.reply).toBe("Shall I start?");
     expect(result.suggestions).toEqual(["Start the build"]);
+  });
+});
+
+// ── Change cards (piece 2.3, D505) ───────────────────────────────────────────
+
+describe("runKbTurn, changing reviewed fields", () => {
+  const V1 = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11";
+  const TONE = "brand_profile.tone_of_voice";
+  const WORDS = "compliance.never_use_words";
+  const AGE = "target_audience.age_range";
+  const approved: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "ready", unreviewed: [] };
+  const output = kbWith({ [TONE]: { value: "Warm", status: "approved" }, [WORDS]: { value: ["cheap"], status: "edited" } });
+  const kb = { versionId: V1, output };
+
+  it("turns a change to a reviewed field into a card, sourced to the person, and ends with the fixed reply", async () => {
+    const { model, seen } = scripted([{ text: "", calls: [call("propose_change", { changes: [{ field: TONE, value: "Warm and plain" }] })] }, say("never asked")]);
+    const result = await turn({ ctx: approved, kb, model });
+    expect(seen).toHaveLength(1);
+    expect(result.card).toMatchObject({ kind: "change", versionId: V1, status: "pending", fields: [{ path: TONE, before: "Warm", after: "Warm and plain", from: "You, in this chat", docId: null }] });
+    expect(result.reply).toBe("Here is the change. Nothing changes until you approve it.");
+    expect(result.changed).toBe(false);
+  });
+
+  it("labels the step 'Preparing the change…'", async () => {
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ ctx: approved, kb, model });
+    expect(seen[0].tools.propose_change.label).toBe("Preparing the change…");
+  });
+
+  it("puts every field of one turn on one card, a list value as a list", async () => {
+    const { model } = scripted([{ text: "", calls: [
+      call("propose_change", { changes: [{ field: TONE, value: "Plain" }] }, "c1"),
+      call("propose_change", { changes: [{ field: WORDS, value: "cheap, chemical-free" }] }, "c2"),
+    ] }]);
+    const result = await turn({ ctx: approved, kb, model });
+    expect(result.card?.fields.map((f) => [f.path, f.after])).toEqual([[TONE, "Plain"], [WORDS, ["cheap", "chemical-free"]]]);
+  });
+
+  it("refuses a change that equals what is there, and makes no card", async () => {
+    const { model, seen } = scripted([{ text: "", calls: [call("propose_change", { changes: [{ field: TONE, value: " Warm " }] })] }, say("It already says that.")]);
+    const result = await turn({ ctx: approved, kb, model });
+    expect(outputs(seen)).toEqual(["Error: That is already the value."]);
+    expect(result.card).toBeNull();
+  });
+
+  it("refuses a field nobody has reviewed yet and points to answer_field", async () => {
+    const inReview: KbContext = { ...approved, kbStatus: "in_review", unreviewed: [AGE] };
+    const { model, seen } = scripted([{ text: "", calls: [call("propose_change", { changes: [{ field: AGE, value: "30 to 50" }] })] }, say("ok")]);
+    const result = await turn({ ctx: inReview, kb, review: { fields: reviewFields(output), pending: null }, model });
+    expect(outputs(seen)).toEqual(["Error: That field is not reviewed yet. Use answer_field."]);
+    expect(result.card).toBeNull();
+  });
+
+  it("still fills an unreviewed field directly during the first review", async () => {
+    const setField = vi.fn(async () => true);
+    const inReview: KbContext = { ...approved, kbStatus: "in_review", unreviewed: [AGE] };
+    const { model } = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30 to 50" })] }, say("Noted.")]);
+    const result = await turn({ ctx: inReview, kb, review: { fields: reviewFields(output), pending: null }, actions: actions({ setField }), model });
+    expect(setField).toHaveBeenCalled();
+    expect(result.card).toBeNull();
+  });
+
+  it("refuses answer_field on a reviewed field and points the model to propose_change", async () => {
+    const setField = vi.fn(async () => true);
+    const { model, seen } = scripted([{ text: "", calls: [call("answer_field", { field: TONE, value: "Bold" })] }, say("ok")]);
+    await turn({ ctx: approved, kb, actions: actions({ setField }), model });
+    expect(setField).not.toHaveBeenCalled();
+    expect(outputs(seen)[0]).toBe("That field is already reviewed. Use propose_change to suggest a new value; the person approves it.");
+  });
+
+  it("refuses a change when there is no brand KB yet", async () => {
+    const { model, seen } = scripted([{ text: "", calls: [call("propose_change", { changes: [{ field: TONE, value: "Bold" }] })] }, say("ok")]);
+    const result = await turn({ model });
+    expect(outputs(seen)).toEqual(["Error: There is no brand KB to change yet."]);
+    expect(result.card).toBeNull();
+  });
+
+  it("tells the model each field's current value on an approved KB, and how to change one", async () => {
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ ctx: approved, kb, model });
+    expect(seen[0].system).toContain(`${TONE} | `);
+    expect(seen[0].system).toContain("propose_change");
+    expect(seen[0].system).not.toContain("comes in a later step");
   });
 });

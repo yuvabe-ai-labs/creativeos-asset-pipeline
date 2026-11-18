@@ -73,7 +73,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(loadKbContext).mockResolvedValue({ ctx, sources: new Map([[DOC, { kind: "document" as const, id: DOC, name: "brand.pdf", url: null }]]) });
     vi.mocked(listCopilotMessages).mockResolvedValue([]);
     vi.mocked(insertOpeningIfEmpty).mockResolvedValue(true);
-    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Got it.", suggestions: ["Start the build"], changed: false, saved: {}, walk: NO_WALK });
+    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Got it.", suggestions: ["Start the build"], changed: false, saved: {}, walk: NO_WALK, card: null });
     vi.mocked(loadThread).mockResolvedValue(STATE);
     vi.mocked(setImportTarget).mockResolvedValue({ website: null, instagram: null, facebook: null });
   });
@@ -159,7 +159,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
   });
 
   it("refreshes the page on the right when the turn changed something", async () => {
-    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Saved.", suggestions: [], changed: true, saved: {}, walk: NO_WALK });
+    vi.mocked(runKbTurn).mockResolvedValue({ reply: "Saved.", suggestions: [], changed: true, saved: {}, walk: NO_WALK, card: null });
     const sent = await send({ text: "acme.com", attachments: [] });
     expect(revalidatePath).toHaveBeenCalledWith("/clients/acme/kb");
     expect(sent.last.changed).toBe(true);
@@ -170,7 +170,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       await actions.saveWebsite("acme.com");
       await actions.saveSocials({ instagram: "acmeskin" });
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK };
+      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK, card: null };
     });
     await send({ text: "go", attachments: [] });
     expect(setImportTarget).toHaveBeenCalledWith("c1", "website", "acme.com");
@@ -185,7 +185,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(setImportTarget).mockResolvedValue({ website: "https://acme.com/", instagram: null, facebook: null });
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       const website = await actions.saveWebsite("acme.com");
-      return { reply: "Saved the website.", suggestions: [], changed: true, saved: { website }, walk: NO_WALK };
+      return { reply: "Saved the website.", suggestions: [], changed: true, saved: { website }, walk: NO_WALK, card: null };
     });
     const sent = await send({ text: "acme.com", attachments: [] });
     expect(sent.last).toEqual({ type: "state", state: STATE, changed: true, saved: { website: "https://acme.com/" } });
@@ -195,7 +195,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(setImportTarget).mockResolvedValue({ website: null, instagram: "https://www.instagram.com/acmeskin/", facebook: null });
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       const saved = await actions.saveSocials({ instagram: "@acmeskin" });
-      return { reply: "Saved the handles.", suggestions: [], changed: true, saved, walk: NO_WALK };
+      return { reply: "Saved the handles.", suggestions: [], changed: true, saved, walk: NO_WALK, card: null };
     });
     const sent = await send({ text: "@acmeskin", attachments: [] });
     expect(sent.last.saved).toEqual({ instagram: "acmeskin" });
@@ -205,7 +205,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(startKBBuild).mockRejectedValue(new BuildAlreadyRunningError());
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild().catch(() => {});
-      return { reply: "One is running.", suggestions: [], changed: false, saved: {}, walk: NO_WALK };
+      return { reply: "One is running.", suggestions: [], changed: false, saved: {}, walk: NO_WALK, card: null };
     });
     await send({ text: "go", attachments: [] });
     expect(startAssetImports).not.toHaveBeenCalled();
@@ -215,7 +215,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(loadKbContext).mockResolvedValue({ ctx: { ...ctx, importedBefore: ["website", "instagram"] }, sources: new Map() });
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK };
+      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK, card: null };
     });
     await send({ text: "start the build", attachments: [] });
     expect(startAssetImports).toHaveBeenCalledWith({ clientId: "c1", userId: "u1", sources: ["facebook"] });
@@ -249,7 +249,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     it("gives the turn the fields and the waiting question, and writes an answer to that one field", async () => {
       vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
         await actions.setField(AGE, { status: "approved" });
-        return { reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] } };
+        return { reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null };
       });
         await send({ text: "yes", attachments: [] });
       const { review } = vi.mocked(runKbTurn).mock.calls[0][0];
@@ -260,7 +260,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     });
 
     it("stores the reply and then the next question in one insert", async () => {
-      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: ["x"], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] } });
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: ["x"], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null });
         await send({ text: "yes", attachments: [] });
       const stored = vi.mocked(insertCopilotMessages).mock.calls[1][3];
       expect(stored).toHaveLength(2);
@@ -294,7 +294,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(startAssetImports).mockRejectedValue(new Error("apify down"));
     vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
       await actions.startBuild();
-      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK };
+      return { reply: "Started.", suggestions: [], changed: true, saved: {}, walk: NO_WALK, card: null };
     });
     const sent = await send({ text: "go", attachments: [] });
     expect(sent.res.status).toBe(200);
@@ -314,7 +314,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
         on?.step?.("Saving the website…");
         const website = await actions.saveWebsite("acme.com");
         on?.saved?.({ website });
-        return { reply: "Saved the website.", suggestions: [], changed: true, saved: { website }, walk: NO_WALK };
+        return { reply: "Saved the website.", suggestions: [], changed: true, saved: { website }, walk: NO_WALK, card: null };
       });
       const sent = await send({ text: "acme.com", attachments: [] });
       expect(sent.events).toEqual([
@@ -330,7 +330,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
         on?.reset?.();
         on?.page?.();
         on?.text?.("Done.");
-        return { reply: "Done.", suggestions: [], changed: true, saved: {}, walk: NO_WALK };
+        return { reply: "Done.", suggestions: [], changed: true, saved: {}, walk: NO_WALK, card: null };
       });
       const sent = await send({ text: "hi", attachments: [] });
       expect(sent.events.slice(0, 4)).toEqual([{ type: "text", delta: "Let me" }, { type: "reset" }, { type: "page" }, { type: "text", delta: "Done." }]);
@@ -399,6 +399,32 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       await send({ text: "here", attachments: [{ kind: "document", id: DOC }] });
       await send({ text: "hi", attachments: [] });
       expect(startImageAnalysisQuietly).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("change cards", () => {
+    const V1 = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11";
+    const card = {
+      kind: "change" as const, versionId: V1, status: "pending" as const, decision: null,
+      fields: [{ path: "brand_profile.tone_of_voice", label: "Tone", before: "Warm", after: "Plain", from: "You, in this chat", docId: null }],
+    };
+    beforeEach(() => {
+      vi.mocked(getClientById).mockResolvedValue({ id: "c1", slug: "acme", name: "Acme", org_id: "org-1", kb_status: "ready", active_kb_version_id: V1 } as never);
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: V1, output: kbWith({}) } as never);
+    });
+
+    it("gives the turn the approved KB, so a change can be made against it", async () => {
+      await send({ text: "we no longer say warm", attachments: [] });
+      expect(vi.mocked(runKbTurn).mock.calls[0][0].kb).toEqual({ versionId: V1, output: kbWith({}) });
+    });
+
+    it("stores the card as its own message after the reply, in the same insert", async () => {
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Here is the change.", suggestions: [], changed: false, saved: {}, walk: NO_WALK, card });
+      await send({ text: "we no longer say warm", attachments: [] });
+      expect(vi.mocked(insertCopilotMessages).mock.calls[1][3]).toEqual([
+        { role: "assistant", content: "Here is the change.", suggestions: [] },
+        { role: "assistant", content: "", card, suggestions: [] },
+      ]);
     });
   });
 });

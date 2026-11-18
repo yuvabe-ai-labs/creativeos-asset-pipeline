@@ -6,8 +6,11 @@ import { kbCopilotSystem } from "@/prompts/kb-copilot";
 import { KB_CONVERSATION_WINDOW, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX } from "./constants";
 import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, type KbContext } from "./context";
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
-import { isEmpty, REVIEW_FIELD_PATHS, type ReviewField } from "./review";
+import { isEmpty, REVIEW_FIELD_PATHS, reviewFields, type ReviewField } from "./review";
 import type { TurnWalk } from "./walk";
+import type { ChangeCard } from "@/lib/journey/thread/schema";
+import type { TraceableBrandKB } from "@/lib/kb/schema";
+import { buildChangeCard, sameValue, type Proposal } from "@/lib/kb/changes/card";
 
 // One turn of the brand KB copilot: the agent's tools and the rules they enforce. The rules live
 // here, in code, because the prompt can only ask (spec §6). The actions are passed in, so this
@@ -47,7 +50,13 @@ const WEBSITE_LOCKED = "The website cannot be changed here once the KB is built.
 const WEBSITE_LOCKED_BUILDING = "The website cannot be changed while a build is running.";
 const NO_REVIEW = "There is no brand KB in review to answer about.";
 const NOT_IN_KB = "That field is not in this brand KB.";
-const REVIEWED_LOCKED = "That field is already reviewed. It can be edited on the right. Proposing changes from the chat comes in a later step.";
+const REVIEWED_LOCKED = "That field is already reviewed. Use propose_change to suggest a new value; the person approves it.";
+const NOT_REVIEWED_YET = "That field is not reviewed yet. Use answer_field.";
+const NO_KB = "There is no brand KB to change yet.";
+const ALREADY_THE_VALUE = "That is already the value.";
+const CHANGE_READY = "Here is the change. Nothing changes until you approve it.";
+/** Where a value the person states in the chat came from, as a change card shows it. */
+export const FROM_CHAT = "You, in this chat";
 const EMPTY_ANSWER = "No value was given.";
 const NO_QUESTION = "No question is waiting.";
 
@@ -73,8 +82,10 @@ export async function runKbTurn(input: {
   actions: KbActions; model: AgentModel;
   /** Null or left out unless a built KB is in review. */
   review?: KbReview | null;
+  /** The client's brand KB as stored, when one has been built: what a change card is made against. */
+  kb?: { versionId: string; output: TraceableBrandKB } | null;
   on?: KbTurnEvents;
-}): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk }> {
+}): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk; card: ChangeCard | null }> {
   const { actions, model } = input;
   // The context as the tools have changed it so far this turn, so a later tool sees an earlier one.
   let ctx = input.ctx;
@@ -94,6 +105,12 @@ export async function runKbTurn(input: {
   const review = input.review ?? null;
   const status = new Map(review?.fields.map((f) => [f.path, f.status]) ?? []);
   const walk: TurnWalk = { settled: [], skipped: false, more: false, stopped: false };
+  // Every field of the built KB, for changes to reviewed fields (spec §2.4). During the first review
+  // a field's status is the one this turn has seen; otherwise it is as stored.
+  const kbFields = input.kb ? reviewFields(input.kb.output) : [];
+  const statusOf = (path: string) => status.get(path) ?? kbFields.find((f) => f.path === path)?.status;
+  const proposals: Proposal[] = [];
+  let toldChange = false;
   /** The field a tool may write, or the sentence that refuses it. */
   const open = (path: string): ReviewField | string => {
     if (!review) return ctx.kbStatus === "ready" ? REVIEWED_LOCKED : NO_REVIEW;
@@ -137,6 +154,32 @@ export async function runKbTurn(input: {
         if (typeof field === "string") return tell(field);
         const saved = await settle(field, { status: "approved" }, "approved");
         return tell(saved ? `Marked ${field.label} as right.` : REVIEWED_LOCKED);
+      },
+    },
+    propose_change: {
+      description: "Propose new values for fields of the brand KB that a person has already reviewed. Only what the person said. Nothing changes until a person approves the change card this makes.",
+      schema: z.object({ changes: z.array(z.object({ field: fieldArg, value: z.union([z.string(), z.array(z.string())]) })).min(1).max(10) }),
+      label: "Preparing the change…",
+      // The card is the answer: the reply after it is worded here.
+      ends: true,
+      run: async (args) => {
+        // A refusal is thrown, not returned: it goes back to the model, which answers in its own
+        // words (a turn that "ends" never asks it again, and these sentences are written for it).
+        if (!input.kb) throw new Error(NO_KB);
+        const refusals: string[] = [];
+        for (const { field: path, value } of (args as { changes: { field: string; value: string | string[] }[] }).changes) {
+          const field = kbFields.find((f) => f.path === path);
+          if (!field) { refusals.push(NOT_IN_KB); continue; }
+          if (statusOf(path) === "needs_review") { refusals.push(NOT_REVIEWED_YET); continue; }
+          const next = coerce(field.kind, value);
+          if (isEmpty(next) && isEmpty(field.value)) { refusals.push(ALREADY_THE_VALUE); continue; }
+          if (sameValue(field.value, next)) { refusals.push(ALREADY_THE_VALUE); continue; }
+          proposals.push({ path, value: isEmpty(next) ? null : next, from: FROM_CHAT, docId: null });
+        }
+        if (proposals.length === 0) throw new Error(refusals.join(" "));
+        if (toldChange) return "Added to the change.";
+        toldChange = true;
+        return tell(CHANGE_READY);
       },
     },
     skip_question: {
@@ -239,12 +282,15 @@ export async function runKbTurn(input: {
   ];
 
   const { text } = await runAgent({
-    model, system: kbCopilotSystem(input.ctx, review), messages, tools,
+    model, system: kbCopilotSystem(input.ctx, review, review ? null : kbFields), messages, tools,
     on: input.on && { text: input.on.text, reset: input.on.reset, step: input.on.step },
   });
   // A turn can end without the model's words: after a plain save it is not asked again, and
   // sometimes it just says nothing. Say what the tools said, never a bare "Done." that could follow
   // a refusal, and while sources are still being collected, what comes next.
   const reply = text === EMPTY_AGENT_REPLY && said.length > 0 ? [said.join(" "), nextStep(ctx)].filter(Boolean).join("\n\n") : text;
-  return { reply, suggestions: choices ?? fallbackSuggestions(ctx), changed, saved, walk };
+  const card = input.kb && proposals.length > 0
+    ? buildChangeCard({ versionId: input.kb.versionId, current: input.kb.output, proposals, refused: new Set() })
+    : null;
+  return { reply, suggestions: card ? [] : choices ?? fallbackSuggestions(ctx), changed, saved, walk, card };
 }

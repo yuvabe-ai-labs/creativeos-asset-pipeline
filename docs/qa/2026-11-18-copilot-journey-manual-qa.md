@@ -93,6 +93,12 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.2 | Leave a card pending, change one of its fields by hand on the right and save, then approve the card. | That field keeps what you typed. The card says it was changed by hand since and was left as it is. The other fields are applied. |
 | 6.3 | Approve a card with some fields unticked. | Only the ticked fields change. The card shows "Approved by {name}: {k} of {n} changed." The KB stays approved; Market research stays open. |
 | 6.4 | Discard a card. | Nothing on the right changes. The card shows "Discarded by {name}." |
+| 6.5 | *(approved client)* In the chat: "we no longer say chemical-free". | "Preparing the change…", then "Here is the change. Nothing changes until you approve it." and a card listing the affected fields, each with Before, After and "You, in this chat". Nothing on the right has changed yet. |
+| 6.6 | *(approved client)* Ask for a field to be set to what it already says. | No card. The copilot says it already says that. |
+| 6.7 | *(approved client)* "Change the tone of voice" without saying to what. | No card. The copilot asks what it should be. |
+| 6.8 | *(client in review)* Answer a question about a field nobody has reviewed yet. | Filled at once, no card (as in 4.1). |
+| 6.9 | *(client in review)* Ask to change a field you have already approved on the right. | A card, not a direct change. |
+| 6.10 | Reload the page while a card is pending, and open the client in another browser. | The card is still there, still pending, in both. |
 
 ## Known limits (not bugs)
 
