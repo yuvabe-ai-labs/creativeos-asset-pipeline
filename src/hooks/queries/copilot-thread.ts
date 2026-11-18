@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { ThreadState } from "@/lib/journey/thread/schema";
+import type { KbTurnEvent } from "@/lib/journey/thread/turn-events";
+import { applyTurnEvent, NO_PROGRESS, type TurnProgress } from "@/lib/journey/thread/turn-progress";
 import { copilotThreadService, type KbTurnBody } from "@/services/copilot-thread.service";
 
 // The copilot's saved onboarding thread through TanStack Query. One key for the thread, whichever
@@ -81,14 +83,24 @@ export function useRefreshCopilotThread(clientId: string) {
   );
 }
 
-/** One message to the brand KB copilot. Shown at once; rolled back if the request fails. When the
- *  turn saved or started something, the page on the right is re-read so both sides agree. */
+/** One message to the brand KB copilot. Shown at once; rolled back if the request fails. While the
+ *  turn runs, what the copilot is doing comes back as `progress`, each save reaches the form the
+ *  moment it is stored, and the page on the right is re-read when something else on it changed
+ *  (D502). */
 export function useSendKbTurn(clientId: string) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const key = copilotThreadKeys.thread(clientId);
-  return useMutation({
-    mutationFn: (body: KbTurnBody) => copilotThreadService.kbTurn(clientId, body),
+  const [progress, setProgress] = useState<TurnProgress>(NO_PROGRESS);
+  const onEvent = (event: KbTurnEvent) => {
+    setProgress((current) => applyTurnEvent(current, event));
+    if (event.type === "saved") {
+      queryClient.setQueryData<KbSavedEvent | null>(copilotThreadKeys.saved(clientId), (previous: KbSavedEvent | null | undefined) => nextSavedEvent(previous, event.saved));
+    }
+    if (event.type === "page") router.refresh();
+  };
+  const mutation = useMutation({
+    mutationFn: (body: KbTurnBody) => copilotThreadService.kbTurn(clientId, body, onEvent),
     onMutate: async (body) => {
       // A poll in flight would put the older thread back over the message just shown.
       await queryClient.cancelQueries({ queryKey: key });
@@ -101,12 +113,14 @@ export function useSendKbTurn(clientId: string) {
       // The server may have stored the message before it failed: read what it really holds.
       void queryClient.invalidateQueries({ queryKey: key });
     },
-    onSuccess: ({ state, changed, saved }) => {
+    onSuccess: ({ state, changed }) => {
       queryClient.setQueryData(key, state);
-      // The form takes a saved website or handle from here at once; the page re-read that follows
-      // brings everything else on it up to date.
-      queryClient.setQueryData<KbSavedEvent | null>(copilotThreadKeys.saved(clientId), (previous: KbSavedEvent | null | undefined) => nextSavedEvent(previous, saved));
+      // Saves already reached the form as they happened. This last re-read brings everything else
+      // on the page up to date.
       if (changed) router.refresh();
     },
+    // Whatever was being shown for the turn in flight goes: the thread now holds the real messages.
+    onSettled: () => setProgress(NO_PROGRESS),
   });
+  return { ...mutation, progress };
 }
