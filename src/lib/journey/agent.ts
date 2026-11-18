@@ -14,6 +14,10 @@ export type AgentTool = {
   /** The line shown to the person while this tool runs ("Saving the website…"). Only tools that
    *  change what is on the page have one. */
   label?: string;
+  /** A tool that needs nothing said back to the model (reply buttons). When the model has written
+   *  its words and every call in that round is quiet and ran, those words are the reply: the model
+   *  is not asked again, so the words are not cleared and written a second time. */
+  quiet?: boolean;
 };
 
 /** What a turn reports while it runs (D502), for whoever is showing it. All optional: a turn with
@@ -80,8 +84,11 @@ export async function runAgent<T = never>(input: {
 
   let reply = await model({ system, messages, tools: input.tools, rounds, answer, onText });
   while (reply.calls.length > 0 && rounds.length < MAX_AGENT_ROUNDS) {
-    // The model wrote something and then asked for a tool: those words were not its reply.
-    if (wrote) {
+    // Words beside quiet tools only (reply buttons) are already the reply, so they are kept.
+    // Otherwise the model wrote something and then asked for a tool that needs an answer back:
+    // those words were not its reply, and are cleared before the tools run.
+    const quietRound = !answer && reply.text.trim() !== "" && reply.calls.every((call) => input.tools[call.name]?.quiet);
+    if (wrote && !quietRound) {
       on?.reset?.();
       wrote = false;
     }
@@ -101,6 +108,12 @@ export async function runAgent<T = never>(input: {
     // asked again. A failed call still goes back to it, and so does a turn that owes an answer.
     if (!answer && allRan && reply.calls.every((call) => input.tools[call.name]?.ends)) {
       return { text: reply.text.trim() || EMPTY_AGENT_REPLY, ran };
+    }
+    if (quietRound && allRan) return { text: reply.text.trim(), ran };
+    // A quiet tool that failed goes back to the model, which writes its reply again.
+    if (wrote) {
+      on?.reset?.();
+      wrote = false;
     }
     // After the last round the tools are taken away, so the model has to answer.
     const tools = rounds.length < MAX_AGENT_ROUNDS ? input.tools : {};

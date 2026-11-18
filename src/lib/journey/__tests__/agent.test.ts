@@ -202,4 +202,30 @@ describe("runAgent, reporting as it goes", () => {
     expect(await runAgent({ ...base, model, tools: saveWebsite() })).toEqual({ text: "Hello", ran: [] });
     expect(seen[0].onText).toBeUndefined();
   });
+
+  it("keeps words written beside a quiet tool as the reply, without clearing them or asking again", async () => {
+    const tools: Record<string, AgentTool> = { reply_choices: { description: "x", schema: z.object({}), quiet: true, run: async () => "ok" } };
+    const { model, seen } = writing([{ text: "Which one?", calls: [call("reply_choices", {})], deltas: ["Which one?"] }, { text: "never asked", calls: [] }]);
+    const { order, on } = recorder();
+    expect((await runAgent({ ...base, model, tools, on })).text).toBe("Which one?");
+    expect(order).toEqual(["text:Which one?"]);
+    expect(seen).toHaveLength(1);
+  });
+
+  it("still asks again after a quiet tool when the model wrote no words", async () => {
+    const tools: Record<string, AgentTool> = { reply_choices: { description: "x", schema: z.object({}), quiet: true, run: async () => "ok" } };
+    const { model, seen } = writing([{ text: "", calls: [call("reply_choices", {})] }, { text: "Which one?", calls: [] }]);
+    expect((await runAgent({ ...base, model, tools })).text).toBe("Which one?");
+    expect(seen).toHaveLength(2);
+  });
+
+  it("asks again when a quiet tool sits beside one that is not", async () => {
+    const tools: Record<string, AgentTool> = {
+      ...saveWebsite(),
+      reply_choices: { description: "x", schema: z.object({}), quiet: true, run: async () => "ok" },
+    };
+    const { model, seen } = writing([{ text: "Saving.", calls: [call("save_website", { url: "a.com" }, "c1"), call("reply_choices", {}, "c2")] }, { text: "Saved.", calls: [] }]);
+    expect((await runAgent({ ...base, model, tools })).text).toBe("Saved.");
+    expect(seen).toHaveLength(2);
+  });
 });

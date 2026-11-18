@@ -223,6 +223,8 @@ export async function runKbTurn(input: {
     },
     reply_choices: {
       description: "Offer the person's likely answers as buttons under your message. Short phrases they could send as they are.",
+      // Nothing to say back: words written beside the buttons are the reply.
+      quiet: true,
       schema: z.object({ choices: z.array(z.string().min(1).max(KB_REPLY_CHOICE_MAX_CHARS)).min(1).max(KB_REPLY_CHOICES_MAX) }),
       run: async (args) => {
         choices = (args as { choices: string[] }).choices;

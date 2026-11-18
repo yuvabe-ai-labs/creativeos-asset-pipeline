@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { ThreadState } from "@/lib/journey/thread/schema";
 import type { KbTurnEvent } from "@/lib/journey/thread/turn-events";
@@ -83,6 +83,13 @@ export function useRefreshCopilotThread(clientId: string) {
   );
 }
 
+/** Puts a finished turn's thread in the cache. A thread read already in flight started before the
+ *  reply was stored, so it is cancelled first: landing late, it would put the older thread back. */
+export async function finishTurn(queryClient: QueryClient, key: readonly unknown[], state: ThreadState): Promise<void> {
+  await queryClient.cancelQueries({ queryKey: key });
+  queryClient.setQueryData(key, state);
+}
+
 /** One message to the brand KB copilot. Shown at once; rolled back if the request fails. While the
  *  turn runs, what the copilot is doing comes back as `progress`, each save reaches the form the
  *  moment it is stored, and the page on the right is re-read when something else on it changed
@@ -113,8 +120,8 @@ export function useSendKbTurn(clientId: string) {
       // The server may have stored the message before it failed: read what it really holds.
       void queryClient.invalidateQueries({ queryKey: key });
     },
-    onSuccess: ({ state, changed }) => {
-      queryClient.setQueryData(key, state);
+    onSuccess: async ({ state, changed }) => {
+      await finishTurn(queryClient, key, state);
       // Saves already reached the form as they happened. This last re-read brings everything else
       // on the page up to date.
       if (changed) router.refresh();

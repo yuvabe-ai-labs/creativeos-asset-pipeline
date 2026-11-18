@@ -380,4 +380,12 @@ describe("runKbTurn, reporting as it goes", () => {
     });
     expect(order).toEqual(["text:Let me", "reset", "step:Starting the build…", "page", "text:Started."]);
   });
+
+  it("keeps the words the model wrote beside its reply buttons, and offers those buttons", async () => {
+    const { model, seen } = scripted([{ text: "Shall I start?", calls: [call("reply_choices", { choices: ["Start the build"] })] }, say("never asked")]);
+    const result = await turn({ ctx: { ...empty, documentCount: 1 }, model });
+    expect(seen).toHaveLength(1);
+    expect(result.reply).toBe("Shall I start?");
+    expect(result.suggestions).toEqual(["Start the build"]);
+  });
 });

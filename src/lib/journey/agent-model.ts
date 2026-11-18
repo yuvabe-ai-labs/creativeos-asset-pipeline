@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
+import { toResponseInputItems } from "openai/lib/responses/ResponseInputItems";
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import { createOpenAI } from "@/lib/openai/server";
 import type { AgentModel, ToolCall } from "./agent";
@@ -65,7 +66,9 @@ export function openaiAgentModel(modelId: string): AgentModel {
     // passed on as it is written (D502); the whole response is still what the rest of this reads.
     let response;
     if (onText) {
-      const streamed = client.responses.stream(body, options);
+      // The SDK's own timeout stops at the first byte of a streamed answer, so a stream that stalls
+      // half-way would hang the turn. This limit covers the whole reply.
+      const streamed = client.responses.stream(body, { ...options, signal: AbortSignal.timeout(CALL_TIMEOUT_MS) });
       streamed.on("response.output_text.delta", (event) => onText(event.delta));
       response = await streamed.finalResponse();
     } else {
@@ -73,8 +76,10 @@ export function openaiAgentModel(modelId: string): AgentModel {
     }
     if (functionTools.length > 0) lastTools = functionTools;
 
-    // Keep everything the model produced, so the next call can refer back to it.
-    carried.push(...(response.output as ResponseInputItem[]));
+    // Keep everything the model produced, so the next call can refer back to it. A streamed answer
+    // comes back with fields only the SDK adds (parsed_arguments, parsed), which the API refuses as
+    // input; this strips them, and leaves a plain answer as it is.
+    carried.push(...toResponseInputItems(response.output));
 
     const calls: ToolCall[] = response.output.flatMap((item) =>
       item.type === "function_call" ? [{ id: item.call_id, name: item.name, args: parseArgs(item.arguments) }] : [],

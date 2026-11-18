@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { liveRefetchInterval, nextSavedEvent, THREAD_IDLE_POLL_MS, THREAD_LIVE_POLL_MS, withPendingMessage } from "../copilot-thread";
+import { QueryClient } from "@tanstack/react-query";
+import { copilotThreadKeys, finishTurn, liveRefetchInterval, nextSavedEvent, THREAD_IDLE_POLL_MS, THREAD_LIVE_POLL_MS, withPendingMessage } from "../copilot-thread";
 import type { ThreadState } from "@/lib/journey/thread/schema";
 
 const state = (over: Partial<ThreadState>): ThreadState => ({ messages: [], live: [], suggestions: ["Start the build"], waiting: null, ...over });
@@ -42,3 +43,19 @@ describe("nextSavedEvent", () => {
     expect(nextSavedEvent(null, {})).toBeNull();
   });
 });
+describe("finishTurn", () => {
+  it("is not undone by a thread read that started before the reply was stored", async () => {
+    const client = new QueryClient();
+    const key = copilotThreadKeys.thread("c1");
+    const before = state({ suggestions: [] });
+    const after = state({ suggestions: ["Start the build"] });
+    let land!: (s: ThreadState) => void;
+    // A poll in flight: it read the thread before the reply was stored, and lands late.
+    const poll = client.fetchQuery({ queryKey: key, queryFn: () => new Promise<ThreadState>((resolve) => { land = resolve; }) });
+    await finishTurn(client, key, after);
+    land(before);
+    await poll.catch(() => {});
+    expect(client.getQueryData(key)).toEqual(after);
+  });
+});
+

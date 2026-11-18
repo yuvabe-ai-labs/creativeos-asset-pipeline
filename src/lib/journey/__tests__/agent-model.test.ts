@@ -52,7 +52,7 @@ describe("openaiAgentModel", () => {
     await openaiAgentModel("m")(base);
     await openaiAgentModel("m")({ ...base, onText: vi.fn() });
     expect(stream.mock.calls[0][0]).toEqual(create.mock.calls[0][0]);
-    expect(stream.mock.calls[0][1]).toEqual(create.mock.calls[0][1]);
+    expect(stream.mock.calls[0][1]).toMatchObject(create.mock.calls[0][1]);
     expect(create.mock.calls[0][1]).toEqual({ timeout: 20_000, maxRetries: 0 });
   });
 
@@ -61,5 +61,30 @@ describe("openaiAgentModel", () => {
     stream.mockImplementation(() => ({ on() { return this; }, finalResponse: async () => withCall }));
     const out = await openaiAgentModel("m")({ ...base, onText: vi.fn() });
     expect(out.calls).toEqual([{ id: "c1", name: "save_website", args: { url: "acme.com" } }]);
+  });
+
+  it("sends a streamed tool call back without the fields only the SDK adds", async () => {
+    // What the SDK's stream helper really returns: each tool call gains parsed_arguments, each
+    // message part gains parsed. The API does not accept those back as input.
+    const parsed = {
+      output: [
+        { type: "message", id: "m1", role: "assistant", status: "completed", content: [{ type: "output_text", text: "Let me", annotations: [], parsed: null }] },
+        { type: "function_call", id: "f1", call_id: "c1", name: "save_website", arguments: "{}", status: "completed", parsed_arguments: null },
+      ],
+      output_text: "Let me",
+    };
+    stream.mockImplementationOnce(() => ({ on() { return this; }, finalResponse: async () => parsed }));
+    const model = openaiAgentModel("m");
+    await model({ ...base, onText: vi.fn() });
+    await model({ ...base, onText: vi.fn(), rounds: [{ calls: [{ id: "c1", name: "save_website", args: {} }], results: [{ id: "c1", output: "ok" }] }] });
+    const sent = JSON.stringify(stream.mock.calls[1][0].input);
+    expect(sent).toContain("save_website");
+    expect(sent).not.toContain("parsed_arguments");
+    expect(sent).not.toContain("\"parsed\"");
+  });
+
+  it("gives a streamed call a limit that covers the whole reply, not only the start of it", async () => {
+    await openaiAgentModel("m")({ ...base, onText: vi.fn() });
+    expect(stream.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
   });
 });
