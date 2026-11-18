@@ -18,6 +18,7 @@ vi.mock("@/lib/journey/kb-copilot/turn", () => ({ runKbTurn: vi.fn() }));
 vi.mock("@/lib/journey/agent-model", () => ({ openaiAgentModel: vi.fn(() => "model") }));
 vi.mock("@/lib/asset-import/start", () => ({ setImportTarget: vi.fn(), startAssetImports: vi.fn() }));
 vi.mock("@/lib/kb/start-build", () => ({ startKBBuild: vi.fn() }));
+vi.mock("@/lib/image-analysis/start", () => ({ startImageAnalysisQuietly: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn(), patchKBFields: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
@@ -30,6 +31,7 @@ import { loadThread } from "@/lib/journey/thread/load";
 import { runKbTurn, type KbActions } from "@/lib/journey/kb-copilot/turn";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { startKBBuild } from "@/lib/kb/start-build";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { kbWith } from "@/lib/kb/__tests__/fixtures";
 import { KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
@@ -368,6 +370,35 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       expect(sent.events[0]).toEqual({ type: "saved", saved: { website: "https://acme.com/" } });
       expect(sent.last).toMatchObject({ type: "state", changed: true });
       expect(vi.mocked(insertCopilotMessages).mock.calls[1][3][0].content).toBe(KB_TURN_FAILED_AFTER_SAVE_REPLY);
+    });
+  });
+
+  describe("studying attached images", () => {
+    const IMG = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c22";
+    beforeEach(() => {
+      vi.mocked(loadKbContext).mockResolvedValue({
+        ctx,
+        sources: new Map([
+          [DOC, { kind: "document" as const, id: DOC, name: "brand.pdf", url: null }],
+          [IMG, { kind: "image" as const, id: IMG, name: "hero.png", url: "https://cdn/hero.png" }],
+        ]),
+      });
+    });
+
+    it("starts the study when a message with an image is sent", async () => {
+      await send({ text: "here", attachments: [{ kind: "image", id: IMG }] });
+      expect(startImageAnalysisQuietly).toHaveBeenCalledWith("c1", "u1");
+    });
+
+    it("starts the study only after the message is stored", async () => {
+      await send({ text: "here", attachments: [{ kind: "image", id: IMG }] });
+      expect(order(insertCopilotMessages)).toBeLessThan(order(startImageAnalysisQuietly));
+    });
+
+    it("starts no study for a message with only a document, or none", async () => {
+      await send({ text: "here", attachments: [{ kind: "document", id: DOC }] });
+      await send({ text: "hi", attachments: [] });
+      expect(startImageAnalysisQuietly).not.toHaveBeenCalled();
     });
   });
 });

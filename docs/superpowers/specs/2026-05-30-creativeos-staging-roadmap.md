@@ -8776,3 +8776,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A second request or a realtime channel for progress (two things to keep in step, and a channel per turn). Server-sent events as a second format beside D337's. Recording that a turn is running, so a reload mid-turn could show it (Cyril, 2026-11-17: leave reloads as they are). A stop button (Cyril, 2026-11-17).
 
 **Originated →** `2026-11-17-copilot-streaming-design.md`; plan `2026-11-17-copilot-streaming.md`.
+
+### D504 — An image attached in the copilot chat is studied when its message is sent, not when it is attached *(recorded 2026-11-18; decided by Cyril; refines D312 for the chat only)*
+
+**Decision.** An image attached in the brand KB chat is uploaded and becomes a source at once, as before, but its image study starts when the message carrying it is sent: the chat's finalize call passes `studyLater`, and the turn starts the study after storing the message. Removing an attachment before sending starts no study. Images uploaded or removed on the form keep starting a study at once (D312).
+
+**Why.** Cyril, 2026-11-18: "the image study should only happen when the send button is pressed." Attaching and then removing an image started two studies before anything was sent, and the panel showed "Studying the images…" for a message that did not exist yet.
+
+**Rejected.** Uploading only on send (the chip would show nothing until then, and the turn route would carry file bytes, against performance rule 8). Changing the form's own uploads (not asked for).
+
+**Costs.** An image attached and never sent is a source that is not studied until the next study starts (the next upload, or the build when it lands).

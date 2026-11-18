@@ -22,6 +22,7 @@ import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type ThreadMessage } f
 import { NDJSON_HEADERS, type KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { startKBBuild } from "@/lib/kb/start-build";
+import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 
 // A turn is a few short model calls and quick saves; the build itself runs in the background.
 export const maxDuration = 120;
@@ -77,6 +78,9 @@ export async function POST(req: Request, { params }: Ctx) {
         ? stored
         : [{ id: VIRTUAL_OPENING_ID, role: "assistant", content: opening, card: null, attachments: [], suggestions: [], createdAt: "" }];
       await insertCopilotMessages(clientId, ONBOARDING, userId, [{ role: "user", content: text, attachments }]);
+      // An image attached in the chat is studied now that its message is sent, not when it was
+      // attached. It never holds up the turn, and never fails it.
+      const study = attachments.some((a) => a.kind === "image") ? startImageAnalysisQuietly(clientId, userId) : null;
 
       // From here the answer is a stream of event lines (D502): what the copilot does is sent as it
       // happens, and the last line is the whole thread, as the turn used to answer in one piece.
@@ -208,7 +212,7 @@ export async function POST(req: Request, { params }: Ctx) {
       });
       // The turn is seen through even if the browser leaves in the middle of it: a reply is never
       // lost to a closed tab.
-      const work = turn();
+      const work = Promise.all([turn(), study]);
       after(() => work);
       return new NextResponse(stream, { headers: NDJSON_HEADERS });
     }),

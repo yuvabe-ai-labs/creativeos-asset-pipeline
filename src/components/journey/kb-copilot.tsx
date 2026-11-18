@@ -53,7 +53,8 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
       return attachment;
     }, [clientId, sourcesChanged]),
     discard: useCallback(async (attachment: Attachment) => {
-      await deleteSource(clientId, attachment);
+      // Never sent, so never studied: removing it starts no study either.
+      await deleteSource(clientId, attachment, { studyLater: true });
       sourcesChanged();
     }, [clientId, sourcesChanged]),
   });

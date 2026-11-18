@@ -48,13 +48,14 @@ export type UploadedSource =
   | { kind: "image"; row: ClientBrandImageRow };
 
 /** Uploads one file straight to storage and records it as a source of the client's brand KB. */
-export async function uploadSource(clientId: string, file: File): Promise<UploadedSource> {
+export async function uploadSource(clientId: string, file: File, opts: { studyLater?: boolean } = {}): Promise<UploadedSource> {
   const kind = sourceKindOf(file.name);
   if (!kind) throw new Error(checkSourceFile(file) ?? "This file is not supported.");
   const endpoint = `/api/clients/${clientId}/kb/${kind === "document" ? "documents" : "images"}`;
   const json = await uploadViaSignedUrl<{ document?: ClientKBDocumentRow; image?: ClientBrandImageRow }>(file, {
     signEndpoint: `${endpoint}/sign`,
     finalizeEndpoint: `${endpoint}/finalize`,
+    ...(opts.studyLater ? { finalizeBody: { studyLater: true } } : {}),
   });
   if (kind === "document" && json.document) return { kind, row: json.document };
   if (kind === "image" && json.image) return { kind, row: json.image };
@@ -62,14 +63,17 @@ export async function uploadSource(clientId: string, file: File): Promise<Upload
 }
 
 /** Takes a source back out of the brand KB: what removing it on the form does. */
-export async function deleteSource(clientId: string, source: { kind: SourceKind; id: string; name: string }): Promise<void> {
-  const query = source.kind === "document" ? `documents?docId=${source.id}` : `images?imageId=${source.id}`;
+export async function deleteSource(
+  clientId: string, source: { kind: SourceKind; id: string; name: string }, opts: { studyLater?: boolean } = {},
+): Promise<void> {
+  const query = source.kind === "document" ? `documents?docId=${source.id}` : `images?imageId=${source.id}${opts.studyLater ? "&studyLater=1" : ""}`;
   const res = await fetch(`/api/clients/${clientId}/kb/${query}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Failed to remove ${source.name}`);
 }
 
-/** The same upload, as what a chat message carries. */
+/** The same upload, as what a chat message carries. An image is studied when the message is
+ *  sent, not when it is attached: the chat's turn starts the study. */
 export async function uploadSourceFile(clientId: string, file: File): Promise<Attachment> {
-  const { kind, row } = await uploadSource(clientId, file);
+  const { kind, row } = await uploadSource(clientId, file, { studyLater: true });
   return { kind, id: row.id, name: row.filename, url: kind === "image" ? row.storage_url : null };
 }
