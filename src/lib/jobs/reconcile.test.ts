@@ -17,12 +17,14 @@ vi.mock("@/lib/supabase/server", () => ({
     from: () => {
       let row: Record<string, unknown> | null = null;
       let id = "";
+      let rows = db.live;
       const b = {
         select: () => (row ? Promise.resolve(update()) : b),
         in: () => b,
         not: () => b,
-        lt: () => b,
-        limit: async () => ({ data: db.live, error: null }),
+        // Applied for real, so a test sees which jobs the sweep reads at all.
+        lt: (_k: string, iso: string) => ((rows = rows.filter((r) => r.created_at < iso)), b),
+        limit: async () => ({ data: rows, error: null }),
         update: (r: Record<string, unknown>) => ((row = r), b),
         eq: (_k: string, v: string) => ((id = v), b),
       };
@@ -83,6 +85,22 @@ describe("reconcileDeadJobs", () => {
   it("keeps the result of a job that finished between the read and the update", async () => {
     db.live = [job("just-finished", 20)];
     const result = await reconcileDeadJobs(async () => "COMPLETED", NOW);
+    expect(result.failed).toEqual([]);
+  });
+
+  it("fails a job whose run has already ended, however young the job is", async () => {
+    // A run that fails before its code loads (Trigger.dev's own error) never marks its job: the
+    // panel said "Studying the images…" for a study that had stopped two seconds in.
+    db.live = [job("died", 2)];
+    db.stillLive = new Set(["died"]);
+    const result = await reconcileDeadJobs(async () => "SYSTEM_FAILURE", NOW);
+    expect(result.failed).toEqual(["died"]);
+  });
+
+  it("leaves a young job alone while its run is still waiting to start", async () => {
+    db.live = [job("waiting", 2)];
+    db.stillLive = new Set(["waiting"]);
+    const result = await reconcileDeadJobs(async () => "QUEUED", NOW);
     expect(result.failed).toEqual([]);
   });
 });

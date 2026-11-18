@@ -12,9 +12,9 @@ export const RECONCILED_JOB_KINDS: JobKind[] = ["asset-import", "image-analysis"
 /** Trigger.dev run statuses after which a run never writes again. */
 const RUN_ENDED = new Set(["COMPLETED", "CANCELED", "FAILED", "CRASHED", "SYSTEM_FAILURE", "EXPIRED", "TIMED_OUT"]);
 
-/** A younger job is left alone: its run may still be queued or starting. */
-const MIN_AGE_MS = 10 * 60_000;
-/** A run Trigger.dev no longer knows of is given up on only after this long. */
+/** A run Trigger.dev no longer knows of is given up on only after this long. A run that has ended
+ *  is acted on at once, however young its job: a run that fails before its code loads (Trigger.dev's
+ *  own SYSTEM_FAILURE) dies within seconds and never marks its job. */
 const MISSING_AFTER_MS = 45 * 60_000;
 /** Jobs read per sweep, and run lookups made at once. */
 const SWEEP_LIMIT = 200;
@@ -36,7 +36,6 @@ export async function reconcileDeadJobs(
     .in("kind", RECONCILED_JOB_KINDS)
     .in("status", ["queued", "running"])
     .not("trigger_run_id", "is", null)
-    .lt("created_at", new Date(now.getTime() - MIN_AGE_MS).toISOString())
     .limit(SWEEP_LIMIT);
   if (error) throw error;
   const jobs = (data ?? []) as LiveJob[];

@@ -6,7 +6,8 @@ import { logger, runs, schedules } from "@trigger.dev/sdk";
 
 export const reconcileBackgroundJobsTask = schedules.task({
   id: "reconcile-background-jobs",
-  cron: "*/15 * * * *",
+  // Often enough that a run which died is cleared from the screen within minutes, not a quarter-hour.
+  cron: "*/5 * * * *",
   // A few database reads and API calls: the smallest machine is plenty.
   machine: "micro",
   run: async () => {
