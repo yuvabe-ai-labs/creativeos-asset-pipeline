@@ -121,3 +121,14 @@ export async function listSettledChangeCards(clientId: string): Promise<ChangeCa
     return parsed.success ? [parsed.data] : [];
   });
 }
+
+/** One message of the client's onboarding thread, or null when it is not there. */
+export async function getCopilotMessage(clientId: string, messageId: string): Promise<ThreadMessage | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_copilot_messages").select(COLUMNS)
+    .eq("id", messageId).eq("client_id", clientId).eq("thread", ONBOARDING)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToThreadMessage(data as CopilotMessageRow) : null;
+}
