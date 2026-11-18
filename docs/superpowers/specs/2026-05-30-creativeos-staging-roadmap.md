@@ -8789,3 +8789,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Keeping download on by default (D497): a cut should not be downloadable until someone chooses that.
 
 **Originated →** `2026-11-12-client-review-versions.md`.
+
+### D503 — Scripts and Avatars wait for the Brand KB, like canvases *(recorded 2026-11-18)*
+
+**Decision.** A client's Scripts and Avatars open only once its Brand KB is ready (`kb_status = 'ready'`), the same rule the client's canvas page already had. One helper, `src/lib/clients/kb-gate.ts`, decides it for every entry point: the Scripts and Avatars pages (library, script, new avatar, avatar) redirect to `/clients/<slug>/kb?kb=required`, and the KB page then shows an info toast, "Set up the Brand KB first.", and drops the flag from the URL; `POST /api/clients/:id/scripts` and `POST /api/clients/:id/avatars` refuse with 409. The home tile keeps its Scripts and Avatars buttons unchanged. The client's own page still redirects to the KB with no toast, since opening a new client's KB is the expected first step. Brand KB, Brand assets and Market stay open, since they are part of setting a client up.
+
+**Why.** User, 18 Nov 2026: a new client's tile sent its main link to KB setup, but its Scripts and Avatars buttons skipped it and let scripts and avatars be made with no brand behind them. The gate lived only on the canvases page, so each newer surface had to remember it and these two did not.
+
+**Rejected.** Swapping the tile's Scripts and Avatars buttons for one **Set up Brand KB** button (tried, and turned down by the user on 18 Nov 2026: the tile should look the same for every client). Hiding the buttons alone (a typed or bookmarked URL, and the create routes, would still get through). Letting the script copilot run without a KB (it can, with `hasKb: false`, but a script written with no brand context is what the KB step exists to prevent).
+
+**Originated →** this log.

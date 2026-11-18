@@ -7,6 +7,7 @@ import { ScriptCanvasButton } from "@/components/scripts/script-canvas-button";
 import { getGenerateScript, loadGenerateState } from "@/lib/db/script-generate";
 import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
+import { redirectUnlessKbReady } from "@/lib/clients/kb-gate";
 import { ScriptView } from "@/components/scripts/script-view";
 import { ScriptBreadcrumb } from "@/components/scripts/script-breadcrumb";
 import { GenerateWorkspace } from "@/components/scripts/generate/generate-workspace";
@@ -28,6 +29,8 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   const client = await getClientBySlug(id);
   const effectiveOrgId = await resolveOrgId();
   if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  // D503: no scripts or avatars until the Brand KB is set up, the same rule as the canvases page.
+  redirectUnlessKbReady(client);
 
   // Spec 2 — at Generate the script opens in the copilot workspace, with or without a draft yet.
   const atGenerate = await getGenerateScript(client.id, scriptId);

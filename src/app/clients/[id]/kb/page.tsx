@@ -10,6 +10,8 @@ import {
 import { getLatestKBJob } from "@/lib/db/kb-jobs";
 import { getBrandDetails } from "@/lib/db/brand-kit";
 import { ClientIdentity } from "@/components/clients/client-identity";
+import { KBRequiredToast } from "@/components/kb/kb-required-toast";
+import { KB_REQUIRED_PARAM, KB_REQUIRED_VALUE } from "@/lib/clients/kb-gate";
 import { KBOnboardingUploadStep } from "@/components/kb/kb-onboarding-upload-step";
 import { KBOnboardingReviewStep } from "@/components/kb/kb-onboarding-review-step";
 import {
@@ -26,10 +28,14 @@ export const dynamic = "force-dynamic";
 
 export default async function KBPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  // D503: Scripts or Avatars sent the user here because the KB isn't ready; say so in a toast.
+  const kbRequired = (await searchParams)[KB_REQUIRED_PARAM] === KB_REQUIRED_VALUE;
   const client = await getClientBySlug(id);
   const effectiveOrgId = await resolveOrgId();
 
@@ -80,6 +86,8 @@ export default async function KBPage({
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+
+      {kbRequired && <KBRequiredToast />}
 
       {isReviewOrEdit ? (
         <KBOnboardingReviewStep
