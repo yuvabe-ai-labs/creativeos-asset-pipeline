@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { flowToPersisted } from "@/lib/canvas-nodes";
 import { saveCanvasAction } from "@/lib/actions/nodes";
+import { clientReviewKeys } from "@/hooks/queries/client-reviews";
+import type { CanvasClientFeedback } from "@/lib/client-review/wire";
 import { useCanvasStoreApi } from "./canvas-store-provider";
 import {
   runAutosaveFlush,
@@ -31,6 +34,7 @@ export function CanvasAutosave({
   const canEditRef = useRef(canEdit);
   canEditRef.current = canEdit;
   const registerFlush = useRegisterAutosaveFlush();
+  const queryClient = useQueryClient();
   // One toast per failure streak — autosave retries every debounce tick, and a
   // toast per retry would spam. Reset on the next successful save.
   const saveFailedRef = useRef(false);
@@ -101,6 +105,7 @@ export function CanvasAutosave({
         if (canEditRef.current) {
           storeApi.getState().clearRemoved(s.removedNodeIds, s.removedEdgeIds);
         }
+        dropDeletedClientReviews(s.removedNodeIds);
       } else if (outcome === "error") {
         if (!saveFailedRef.current) {
           saveFailedRef.current = true;
@@ -118,6 +123,21 @@ export function CanvasAutosave({
         }
       }
     }
+    // A deleted Client review node takes its review with it (canvas_reviews cascades on the
+    // node row), so the header's Client feedback chip must forget it. Done only once the delete
+    // is saved — a refetch before then would still find the review. No request unless a removed
+    // node is one the chip lists.
+    function dropDeletedClientReviews(removedNodeIds: readonly string[]) {
+      if (removedNodeIds.length === 0) return;
+      const feedbackKey = clientReviewKeys.canvas(canvasId);
+      const feedback = queryClient.getQueryData<CanvasClientFeedback>(feedbackKey);
+      const removed = new Set(removedNodeIds);
+      for (const id of removed) queryClient.removeQueries({ queryKey: clientReviewKeys.node(id) });
+      if (feedback?.nodes.some((n) => removed.has(n.nodeId))) {
+        void queryClient.invalidateQueries({ queryKey: feedbackKey });
+      }
+    }
+
     registerFlush(flush);
 
     const unsub = storeApi.subscribe((state, prev) => {
@@ -132,7 +152,7 @@ export function CanvasAutosave({
       unsub();
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [storeApi, canvasId, sessionId, onLockLost, registerFlush]);
+  }, [storeApi, canvasId, sessionId, onLockLost, registerFlush, queryClient]);
 
   return null;
 }

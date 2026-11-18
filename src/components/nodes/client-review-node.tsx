@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useReactFlow, type NodeProps } from "@xyflow/react";
-import { MessageSquareText } from "lucide-react";
+import { Link2, Loader2, MessageSquareText, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ContextMenuItem } from "@/components/ui/context-menu";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useNodeMediaSize } from "@/hooks/use-node-media-size";
@@ -11,6 +14,8 @@ import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { nodeMediaBox } from "@/lib/canvas/media-fit";
 import { useDeleteNode } from "@/hooks/use-delete-node";
 import { useNodeClientReview } from "@/hooks/queries/client-reviews";
+import { useClientReviewUpload } from "@/hooks/use-client-review-upload";
+import { copyVersionLink } from "@/lib/client-review/copy-link";
 import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
 import { useClientFeedback, type FeedbackRequest } from "@/components/canvas/client-feedback-drawer/client-feedback-context";
 import { ClientReviewFocusView } from "./client-review-focus-view";
@@ -20,7 +25,8 @@ import { NodeMedia } from "./node-media";
 
 // D309 + D495–D498: terminal node (no handles) — the cuts a client reviews, one version per
 // upload, each at its own link. Clicking the card opens its focus view. The card shows the
-// newest version and its comment count.
+// newest version and its comment count. Right-click: Upload new version (file picker; the card shows
+// a skeleton and Uploading… until it is saved) and Copy the newest version's link.
 export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useDeleteNode();
@@ -35,6 +41,13 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
   // The version the focus view shows; null is the newest.
   const [viewedVersionNo, setViewedVersionNo] = useState<number | null>(null);
   const [handledRequest, setHandledRequest] = useState<FeedbackRequest | null>(null);
+  const editable = useCanvasEditable();
+  // One upload per node, shared by the right-click menu and the focus view's button. The card
+  // shows a skeleton while it runs; once saved, the (open or next-opened) focus view shows the
+  // new version. Uploading from the card does not open the focus view.
+  const upload = useClientReviewUpload(id, {
+    onUploaded: (versionNo) => setViewedVersionNo(versionNo),
+  });
 
   // D500 — a request naming a version (a row in the Client feedback chip) switches the view to
   // it. Adjusted while rendering, not in an effect, so the view opens on that version at once.
@@ -61,16 +74,37 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
   };
   useFocusViewRegistration(id, focusViewOpen);
 
-  const latest = current?.review?.versions[0] ?? null;
+  const review = current?.review ?? null;
+  const latest = review?.versions[0] ?? null;
   const count = latest ? (current?.comments.filter((c) => c.versionId === latest.id).length ?? 0) : 0;
   // D384 — the cut at its own shape, no black bars.
   const media = useNodeMediaSize(id, { width: d.mediaWidth, height: d.mediaHeight }, 16 / 9);
-  const box = latest ? nodeMediaBox(media.ratio, "input") : null;
+  // While uploading, the media area holds a skeleton (at the current cut's shape, or 16:9 for the first).
+  const box = latest || upload.uploading ? nodeMediaBox(media.ratio, "input") : null;
   const commitTitle = (t: string) => updateNodeData(id, { title: t });
 
   return (
     <>
-      <NodeContextMenu onDuplicate={() => duplicateNode(id)} onDelete={() => deleteNode(id)}>
+      <NodeContextMenu
+        onDuplicate={() => duplicateNode(id)}
+        onDelete={() => deleteNode(id)}
+        extraItems={
+          <>
+            <ContextMenuItem disabled={!editable || upload.uploading || !current} onClick={upload.choose}>
+              <Upload className="mr-2 size-3.5" strokeWidth={1.5} />
+              {latest ? "Upload new version" : "Upload first version"}
+            </ContextMenuItem>
+            {latest && review && (
+              <ContextMenuItem
+                onClick={() => void copyVersionLink(review.shareToken, latest.title || d.title || "", latest)}
+              >
+                <Link2 className="mr-2 size-3.5" strokeWidth={1.5} />
+                {`Copy v${latest.versionNo} link`}
+              </ContextMenuItem>
+            )}
+          </>
+        }
+      >
         <div
           onClick={(e) => {
             // A click on a control inside the card (the inline title) is that control's own
@@ -98,11 +132,31 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
               onCommitTitle={commitTitle}
             />
           </div>
-          {latest && box && (
-            <NodeMedia kind="video" src={latest.videoUrl} alt={d.title || "Cut"} box={box} onMeasured={media.onMeasured} edge />
+          {upload.uploading && box ? (
+            <div
+              aria-label="Uploading cut"
+              className="relative overflow-hidden border-b border-border"
+              style={{ width: box.mediaWidth, height: box.mediaHeight }}
+            >
+              <Skeleton className="absolute inset-0 rounded-none" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-primary">
+                <Loader2 className="size-5 animate-spin" strokeWidth={1.5} />
+                <span className="text-xs font-medium">Uploading…</span>
+              </div>
+            </div>
+          ) : (
+            latest &&
+            box && (
+              <NodeMedia kind="video" src={latest.videoUrl} alt={d.title || "Cut"} box={box} onMeasured={media.onMeasured} edge />
+            )
           )}
           <div className="flex items-center justify-between gap-2 px-3 py-3">
-            {latest ? (
+            {upload.uploading ? (
+              <span className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{`v${(latest?.versionNo ?? 0) + 1}`}</span>
+                {" · uploading"}
+              </span>
+            ) : latest ? (
               <>
                 <span className="text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">{`v${latest.versionNo}`}</span>
@@ -126,11 +180,21 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
                   Retry
                 </Button>
               </>
+            ) : editable ? (
+              // The empty node's one action: pick the first cut right here.
+              <Button
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  upload.choose();
+                }}
+                className="nodrag h-auto w-full gap-2 border border-dashed border-primary/40 py-2.5 text-primary hover:bg-primary/5 hover:text-primary"
+              >
+                <Upload className="size-4" strokeWidth={1.5} />
+                Upload first version
+              </Button>
             ) : (
-              <>
-                <span className="text-xs text-muted-foreground">No cut yet</span>
-                <span className="text-xs font-medium text-primary">Upload first version →</span>
-              </>
+              <span className="text-xs text-muted-foreground">No cut yet</span>
             )}
           </div>
         </div>
@@ -143,7 +207,9 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
         onCommitTitle={commitTitle}
         viewedVersionNo={viewedVersionNo}
         onViewVersion={setViewedVersionNo}
+        upload={upload}
       />
+      {upload.input}
     </>
   );
 }
