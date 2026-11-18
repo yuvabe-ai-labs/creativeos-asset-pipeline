@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopilotText } from "@/components/copilot/copilot-text";
 import { REPLY_CHIP_CLASS } from "@/components/copilot/reply-chip";
-import { useCopilotThread, useRefreshCopilotThread, useSendKbTurn } from "@/hooks/queries/copilot-thread";
+import { useCopilotThread, useDecideChange, useRefreshCopilotThread, useSendKbTurn } from "@/hooks/queries/copilot-thread";
 import { useApproveKb } from "@/hooks/queries/kb";
 import { APPROVE_KB_ACTION } from "@/lib/journey/kb-copilot/waiting";
 import { useThreadAttachments, type PendingAttachment } from "@/hooks/use-thread-attachments";
@@ -35,6 +35,13 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const [text, setText] = useState("");
   // Approving is the person's own action (spec §6): the gate card's button, never the copilot.
   const approve = useApproveKb(clientId);
+  // A change card is settled by a person only (spec §2.4), from its own buttons.
+  const decide = useDecideChange(clientId);
+  const change = {
+    busy: decide.isPending,
+    onDecide: (messageId: string, body: Parameters<typeof decide.mutate>[0]["body"]) =>
+      decide.mutate({ messageId, body }, { onError: (e) => toast.error(e.message) }),
+  };
   const onGate = (action: string) => {
     if (action === APPROVE_KB_ACTION) approve.mutate(undefined, { onError: (e) => toast.error(e.message) });
   };
@@ -115,7 +122,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
         {state && (
           <>
             <ol className="flex flex-col gap-4 p-4" aria-live="polite">
-              {state.messages.map((m) => <ThreadMessageItem key={m.id} message={m} />)}
+              {state.messages.map((m) => <ThreadMessageItem key={m.id} message={m} change={change} />)}
               {/* While a turn runs (D502): the reply as it is being written, in the place the stored
                   message will take, or else a line naming what the copilot is doing. The words are
                   not read out piece by piece; the stored message is announced once it lands. */}

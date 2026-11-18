@@ -5,10 +5,15 @@ import type { ThreadMessage } from "@/lib/journey/thread/schema";
 import { cn } from "@/lib/utils";
 import { ThreadAttachmentChip } from "./thread-attachment-chip";
 import { ThreadStatusLines } from "./thread-status-lines";
+import { ThreadChangeCard, type ChangeDecision } from "./thread-change-card";
 
 /** One message of a copilot thread, the same in every stage: the words, what was attached, and
  *  the card. A later part adds the change card here. */
-export function ThreadMessageItem({ message }: { message: ThreadMessage }) {
+export function ThreadMessageItem({ message, change }: {
+  message: ThreadMessage;
+  /** How a change card in this thread is settled; a stage with no change cards leaves it out. */
+  change?: { busy: boolean; onDecide: (messageId: string, decision: ChangeDecision) => void };
+}) {
   const mine = message.role === "user";
   // Something that happened, not something said: who approved, or a save on the page. One quiet
   // line with a tick, in place of the copilot's words.
@@ -23,6 +28,9 @@ export function ThreadMessageItem({ message }: { message: ThreadMessage }) {
   return (
     <li className={cn("flex flex-col gap-2", mine ? "items-end" : "items-start")}>
       {message.card?.kind === "status" && <ThreadStatusLines lines={message.card.lines} />}
+      {message.card?.kind === "change" && change && (
+        <ThreadChangeCard id={message.id} card={message.card} outOfDate={message.outOfDate} busy={change.busy} onDecide={(d) => change.onDecide(message.id, d)} />
+      )}
       {/* Which field a question is about, above the question itself. */}
       {message.card?.kind === "question" && <p className="text-eyebrow px-0.5 text-muted-foreground">{message.card.label}</p>}
       {message.content && (mine ? <PersonText content={message.content} /> : <CopilotText content={message.content} />)}

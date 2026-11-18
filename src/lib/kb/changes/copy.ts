@@ -1,3 +1,5 @@
+import type { ChangeCard } from "@/lib/journey/thread/schema";
+
 // What the copilot says about a change worked out from documents (D505), word for word.
 
 /** "a.pdf", "a.pdf and b.md", "a.pdf, b.md and c.docx". */
@@ -25,3 +27,33 @@ export const proposalCopy = {
   /** Where a value came from when no remaining source supports the old one. */
   unsupported: "No remaining source supports it",
 };
+
+// ── The card on screen ───────────────────────────────────────────────────────
+
+/** The approve button, counting the fields it will change. */
+export function approveLabel(n: number): string {
+  return n === 0 ? "Approve" : `Approve ${n} change${n === 1 ? "" : "s"}`;
+}
+
+/** A field's value as the card shows it. */
+export function valueText(value: unknown): string {
+  if (value === null || value === undefined) return "none";
+  if (Array.isArray(value)) return value.length === 0 ? "none" : value.map(String).join(", ");
+  const text = String(value).trim();
+  return text === "" ? "none" : text;
+}
+
+export const OUT_OF_DATE_LINE = "Changed by hand since. Approving leaves it as it is.";
+
+/** The footer of a settled card, or null while it is pending. */
+export function settledLine(card: ChangeCard): string | null {
+  const by = card.decision?.by ?? "a teammate";
+  if (card.status === "discarded") return `Discarded by ${by}.`;
+  if (card.status === "stale") return "The brand KB was rebuilt after this was proposed, so it no longer applies.";
+  if (card.status === "applied") {
+    const kept = card.decision?.kept.length ?? 0;
+    if (kept === 0 && (card.decision?.outOfDate.length ?? 0) > 0) return `Approved by ${by}: nothing changed. The fields were changed by hand since.`;
+    return `Approved by ${by}: ${kept} of ${card.fields.length} changed.`;
+  }
+  return null;
+}

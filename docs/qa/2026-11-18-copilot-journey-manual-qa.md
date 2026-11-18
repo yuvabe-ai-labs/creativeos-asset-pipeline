@@ -109,6 +109,9 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.18 | Fold the panel while a card is pending. | The rail reads "Approve the change" (or "Approve 2 changes"). It clears once the card is settled. |
 | 6.19 | *(client in review)* With a question waiting, ask for a change to an approved field. | The card appears; once you answer or the copilot asks again, the rail follows the latest thing it is waiting on. |
 | 6.20 | Leave a card pending; in another window change one of its fields on the right and save. Wait 20 seconds in the first window. | Without reloading, that field on the card is marked as changed by hand since and its Keep box is off and disabled. |
+| 6.21 | Look at a pending card. | Each field shows its name, Before (struck through), After, the source, and a ticked Keep box. The button reads "Approve N changes" for the ticked count; untick all and it reads "Approve" and is disabled. A list shows as comma-separated items; an empty value shows as "none". |
+| 6.22 | Press Approve or Discard. | Both buttons disable while it saves. The card then shows its footer and no buttons. The right side updates without a reload. |
+| 6.23 | Check the card at phone width and in dark mode. | Long values wrap inside the card; nothing runs off the side. Text stays readable. |
 
 ## Known limits (not bugs)
 

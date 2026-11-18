@@ -90,6 +90,24 @@ export async function finishTurn(queryClient: QueryClient, key: readonly unknown
   queryClient.setQueryData(key, state);
 }
 
+/** A person approves or discards a change card (D505). The thread comes back settled, and the page
+ *  on the right is re-read, since an approval changed fields on it. */
+export function useDecideChange(clientId: string) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const key = copilotThreadKeys.thread(clientId);
+  return useMutation({
+    mutationFn: ({ messageId, body }: { messageId: string; body: { decision: "approve"; keep: string[] } | { decision: "discard" } }) =>
+      copilotThreadService.decideChange(clientId, messageId, body),
+    onSuccess: async ({ state }) => {
+      await finishTurn(queryClient, key, state);
+      router.refresh();
+    },
+    // Settled by someone else meanwhile, or the write failed: show what is really stored.
+    onError: () => void queryClient.invalidateQueries({ queryKey: key }),
+  });
+}
+
 /** One message to the brand KB copilot. Shown at once; rolled back if the request fails. While the
  *  turn runs, what the copilot is doing comes back as `progress`, each save reaches the form the
  *  moment it is stored, and the page on the right is re-read when something else on it changed

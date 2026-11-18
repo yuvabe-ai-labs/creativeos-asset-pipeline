@@ -37,6 +37,16 @@ class CopilotThreadService {
     if (!got.result) throw new Error(COULD_NOT_ANSWER);
     return got.result;
   }
+
+  /** A person approves (keeping the fields in `keep`) or discards a change card (D505). */
+  async decideChange(clientId: string, messageId: string, body: { decision: "approve"; keep: string[] } | { decision: "discard" }): Promise<{ state: ThreadState }> {
+    const res = await fetch(`/api/clients/${clientId}/copilot/changes/${messageId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return readJson<{ state: ThreadState }>(res, "Could not apply that change.");
+  }
 }
 
 export const copilotThreadService = new CopilotThreadService();
