@@ -105,4 +105,13 @@ describe("loadKbContext", () => {
     expect(sources.get("d1")).toEqual({ kind: "document", id: "d1", name: "brand.pdf", url: null });
     expect(sources.get("i1")).toEqual({ kind: "image", id: "i1", name: "hero.png", url: "https://cdn/hero.png" });
   });
+
+  it("names the proposal that is running, and nothing once it has ended", async () => {
+    const proposal = (status: string) => vi.mocked(listRecentJobs).mockImplementation(async (_c, kind) =>
+      (kind === "kb-propose" ? [job("kb-propose", status, { phase_message: "Reading guide.pdf…" })] : []) as never);
+    proposal("running");
+    expect((await loadKbContext(client, NOW)).ctx.proposing).toBe("Reading guide.pdf…");
+    proposal("succeeded");
+    expect((await loadKbContext(client, NOW)).ctx.proposing).toBeNull();
+  });
 });

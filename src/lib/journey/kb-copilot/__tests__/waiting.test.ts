@@ -55,4 +55,19 @@ describe("kbWaiting", () => {
     expect(kbWaiting(ctx({ kbStatus: "ready", hasVersion: true }), [msg({})])).toBeNull();
     expect(kbWaiting(inReview(null), [])).toBeNull();
   });
+
+  describe("a pending change card", () => {
+    const change = (status = "pending") => msg({ content: "", card: { kind: "change", versionId: "v1", status: status as never, decision: null, fields: [{ path: "brand_profile.tone_of_voice", label: "Tone", before: "Warm", after: "Plain", from: "You, in this chat", docId: null }] } });
+    it("waits on the person, also on an approved KB", () => {
+      expect(kbWaiting(ctx({ kbStatus: "ready", hasVersion: true }), [change()])).toEqual({ kind: "change", label: "Approve the change" });
+      expect(kbWaiting(ctx({ kbStatus: "ready", hasVersion: true }), [change(), change()])).toEqual({ kind: "change", label: "Approve 2 changes" });
+    });
+    it("waits on nothing for a settled card", () => {
+      expect(kbWaiting(ctx({ kbStatus: "ready", hasVersion: true }), [change("applied")])).toBeNull();
+    });
+    it("outranks the review task, but not a question waiting for an answer", () => {
+      expect(kbWaiting(inReview(["brand_profile.tagline"]), [change()])).toMatchObject({ kind: "change" });
+      expect(kbWaiting(inReview(["brand_profile.tagline"]), [change(), q("brand_profile.tagline")])).toMatchObject({ kind: "reply" });
+    });
+  });
 });

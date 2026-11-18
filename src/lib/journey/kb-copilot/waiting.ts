@@ -10,8 +10,13 @@ import { walkOf } from "./walk";
 export const APPROVE_KB_ACTION = "approve-kb";
 
 export function kbWaiting(ctx: KbContext, messages: ThreadMessage[]): Waiting | null {
-  // The copilot asks nothing while a build runs (spec §2.2), and an approved KB waits on nobody.
-  if (isBuilding(ctx) || ctx.kbStatus === "ready") return null;
+  // The copilot asks nothing while a build runs (spec §2.2).
+  if (isBuilding(ctx)) return null;
+  // A change card waits on a person until it is settled, on an approved KB too (spec §3).
+  const cards = messages.filter((m) => m.card?.kind === "change" && m.card.status === "pending").length;
+  const change: Waiting | null = cards > 0 ? { kind: "change", label: cards === 1 ? "Approve the change" : `Approve ${cards} changes` } : null;
+  // An approved KB waits on nobody else.
+  if (ctx.kbStatus === "ready") return change;
 
   if (!ctx.hasVersion) {
     const last = messages[messages.length - 1];
@@ -19,10 +24,11 @@ export function kbWaiting(ctx: KbContext, messages: ThreadMessage[]): Waiting | 
   }
 
   // Not read: say nothing. An unknown count must never look like "nothing left", which is the gate.
-  if (ctx.unreviewed === null) return null;
+  if (ctx.unreviewed === null) return change;
 
   const { pending } = walkOf(messages);
   if (pending && ctx.unreviewed.includes(pending)) return { kind: "reply", label: "Your answer" };
+  if (change) return change;
 
   const left = ctx.unreviewed.length;
   if (left > 0) {

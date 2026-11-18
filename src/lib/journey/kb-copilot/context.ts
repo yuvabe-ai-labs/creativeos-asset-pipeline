@@ -32,6 +32,9 @@ export type KbContext = {
   importFailed: ImportSource[];
   /** The latest study of the images failed. */
   studyFailed: boolean;
+  /** The line of a proposal reading documents against the KB right now (D505), or null. Optional:
+   *  only the stored read sets it. */
+  proposing?: string | null;
   /** Sources that have been collected from at least once, however it ended. */
   importedBefore: ImportSource[];
 };
@@ -114,6 +117,7 @@ export function liveStatus(ctx: KbContext): StatusLine[] {
     ...(isBuilding(ctx) ? [running(ctx.job?.phaseMessage ?? "Starting the build…")] : []),
     ...ctx.importing.map((source) => running(`Collecting images and video from ${IMPORT_LABEL[source]}…`)),
     ...(ctx.studyingImages ? [running("Studying the images…")] : []),
+    ...(ctx.proposing ? [running(ctx.proposing)] : []),
     ...(showFailures
       ? ctx.importFailed
           .filter((source) => !ctx.importing.includes(source))

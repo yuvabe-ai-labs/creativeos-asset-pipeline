@@ -29,13 +29,14 @@ const NON_TERMINAL: readonly string[] = KB_JOB_NON_TERMINAL_STATUSES;
  *  KB's content. If that read fails the whole read fails: unknown must never look like none left. */
 export async function loadKbContext(client: ClientRow, now: number = Date.now()): Promise<{ ctx: KbContext; sources: Map<string, Attachment> }> {
   const reviewing = client.kb_status === "in_review" && client.active_kb_version_id !== null;
-  const [documents, images, job, details, importJobs, studyJobs, unreviewed] = await Promise.all([
+  const [documents, images, job, details, importJobs, studyJobs, proposeJobs, unreviewed] = await Promise.all([
     listKBDocuments(client.id),
     listBrandImages(client.id, "uploads"),
     getLatestKBJob(client.id),
     getBrandDetails(client.id),
     listRecentJobs<{ source?: ImportSource }>(client.id, "asset-import", IMPORT_JOBS_READ),
     listRecentJobs(client.id, "image-analysis", 1),
+    listRecentJobs(client.id, "kb-propose", 1),
     reviewing ? listUnreviewedFields(client.active_kb_version_id as string) : Promise.resolve(null),
   ]);
   const reporting = (updatedAt: string) => now - Date.parse(updatedAt) < KB_STALE_AFTER_MS;
@@ -73,6 +74,7 @@ export async function loadKbContext(client: ClientRow, now: number = Date.now())
     importedBefore: latest.map(([source]) => source),
     studyingImages: study !== undefined && live(study),
     studyFailed: study?.status === "failed",
+    proposing: proposeJobs[0] && live(proposeJobs[0]) ? (proposeJobs[0].phase_message ?? "Reading the documents…") : null,
   };
 
   const sources = new Map<string, Attachment>();

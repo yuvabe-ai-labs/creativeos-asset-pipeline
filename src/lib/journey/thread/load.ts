@@ -3,6 +3,8 @@ import { listCopilotMessages } from "@/lib/db/copilot-messages";
 import type { ClientRow } from "@/lib/db/types";
 import { fallbackSuggestions, isBuilding, liveStatus, openingMessage, type KbContext } from "@/lib/journey/kb-copilot/context";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
+import { readKBFieldValues } from "@/lib/db/kb";
+import { outOfDatePaths } from "@/lib/kb/changes/card";
 import { kbWaiting } from "@/lib/journey/kb-copilot/waiting";
 import { ONBOARDING, VIRTUAL_OPENING_ID, type ThreadMessage, type ThreadState } from "./schema";
 
@@ -27,8 +29,30 @@ export function threadState(ctx: KbContext, stored: ThreadMessage[]): ThreadStat
   return { messages, live, suggestions: isBuilding(ctx) ? [] : offered, waiting: kbWaiting(ctx, messages) };
 }
 
-/** Throws when either read fails: a thread that could not be read is never shown as empty. */
+/** Throws when any read fails: a thread that could not be read is never shown as empty. */
 export async function loadThread(client: ClientRow): Promise<ThreadState> {
   const [{ ctx }, stored] = await Promise.all([loadKbContext(client), listCopilotMessages(client.id, ONBOARDING)]);
-  return threadState(ctx, stored);
+  return threadState(ctx, await markOutOfDate(stored));
+}
+
+/** Each pending change card gains the fields changed by hand since it was made (D505). Only the
+ *  paths on pending cards are read, by JSON path; with no pending card nothing more is read. */
+async function markOutOfDate(messages: ThreadMessage[]): Promise<ThreadMessage[]> {
+  const pending = messages.filter((m) => m.card?.kind === "change" && m.card.status === "pending");
+  if (pending.length === 0) return messages;
+  const paths = new Map<string, Set<string>>();
+  for (const m of pending) {
+    if (m.card?.kind !== "change") continue;
+    const set = paths.get(m.card.versionId) ?? new Set<string>();
+    for (const f of m.card.fields) set.add(f.path);
+    paths.set(m.card.versionId, set);
+  }
+  const values = new Map(await Promise.all(
+    [...paths].map(async ([versionId, set]) => [versionId, await readKBFieldValues(versionId, [...set])] as const),
+  ));
+  return messages.map((m) =>
+    m.card?.kind === "change" && m.card.status === "pending"
+      ? { ...m, outOfDate: outOfDatePaths(m.card, values.get(m.card.versionId) ?? {}) }
+      : m,
+  );
 }

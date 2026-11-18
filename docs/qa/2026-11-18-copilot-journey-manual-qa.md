@@ -106,6 +106,9 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.15 | *(approved client)* In Source files, remove a document and press "Save & re-analyze". | A card listing the fields nothing else supports any more ("No remaining source supports it"), or a line saying everything is still supported. Nothing is wiped. |
 | 6.16 | *(new client)* Attach a document before any build. | No card: it is just a source for the build. |
 | 6.17 | Use a document that cannot be read (for example a corrupted PDF). | A line "Could not read {file}. Try again from Source files." No card, nothing changed. |
+| 6.18 | Fold the panel while a card is pending. | The rail reads "Approve the change" (or "Approve 2 changes"). It clears once the card is settled. |
+| 6.19 | *(client in review)* With a question waiting, ask for a change to an approved field. | The card appears; once you answer or the copilot asks again, the rail follows the latest thing it is waiting on. |
+| 6.20 | Leave a card pending; in another window change one of its fields on the right and save. Wait 20 seconds in the first window. | Without reloading, that field on the card is marked as changed by hand since and its Keep box is off and disabled. |
 
 ## Known limits (not bugs)
 

@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/copilot-messages", () => ({ listCopilotMessages: vi.fn(), insertCopilotMessages: vi.fn(), insertOpeningIfEmpty: vi.fn() }));
 vi.mock("@/lib/journey/kb-copilot/load", () => ({ loadKbContext: vi.fn() }));
+vi.mock("@/lib/db/kb", () => ({ readKBFieldValues: vi.fn() }));
 
 import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages } from "@/lib/db/copilot-messages";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
+import { readKBFieldValues } from "@/lib/db/kb";
 import type { KbContext } from "@/lib/journey/kb-copilot/context";
 import type { ThreadMessage } from "../schema";
 import { loadThread } from "../load";
@@ -91,5 +93,33 @@ describe("loadThread", () => {
   it("fails when the thread cannot be read, instead of showing an empty one", async () => {
     vi.mocked(listCopilotMessages).mockRejectedValue(new Error("db down"));
     await expect(loadThread(client)).rejects.toThrow("db down");
+  });
+
+  describe("pending change cards", () => {
+    const change = (versionId = "v1", status = "pending") => message({ id: `c-${versionId}-${status}`, content: "", card: { kind: "change", versionId: versionId, status: status as never, decision: null, fields: [{ path: "brand_profile.tone_of_voice", label: "Tone", before: "Warm", after: "Plain", from: "You, in this chat", docId: null }] } });
+
+    it("marks a field on a pending card that was changed by hand since", async () => {
+      vi.mocked(listCopilotMessages).mockResolvedValue([change()]);
+      vi.mocked(readKBFieldValues).mockResolvedValue({ "brand_profile.tone_of_voice": "Typed by hand" });
+      const state = await loadThread(client);
+      expect(state.messages[0].outOfDate).toEqual(["brand_profile.tone_of_voice"]);
+    });
+
+    it("reads only the paths on pending cards, and no KB at all when none is pending", async () => {
+      vi.mocked(listCopilotMessages).mockResolvedValue([change("v1", "applied")]);
+      await loadThread(client);
+      expect(readKBFieldValues).not.toHaveBeenCalled();
+      vi.mocked(listCopilotMessages).mockResolvedValue([change()]);
+      vi.mocked(readKBFieldValues).mockResolvedValue({ "brand_profile.tone_of_voice": "Warm" });
+      const state = await loadThread(client);
+      expect(readKBFieldValues).toHaveBeenCalledWith("v1", ["brand_profile.tone_of_voice"]);
+      expect(state.messages[0].outOfDate).toEqual([]);
+    });
+
+    it("fails the thread read when those values cannot be read", async () => {
+      vi.mocked(listCopilotMessages).mockResolvedValue([change()]);
+      vi.mocked(readKBFieldValues).mockRejectedValue(new Error("down"));
+      await expect(loadThread(client)).rejects.toThrow("down");
+    });
   });
 });

@@ -12,7 +12,8 @@ export function ThreadWaiting({ waiting, onGate, gateBusy }: {
   onGate: (action: string) => void;
   gateBusy: boolean;
 }) {
-  if (!waiting || waiting.kind === "reply") return null;
+  // A reply waits on the question already said; a change waits on the card already in the thread.
+  if (!waiting || waiting.kind === "reply" || waiting.kind === "change") return null;
   if (waiting.kind === "gate") {
     return (
       <div className="px-4 pb-4">

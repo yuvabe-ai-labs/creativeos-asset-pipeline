@@ -136,4 +136,8 @@ describe("liveStatus, when a step failed", () => {
   it("stops repeating an old failure once the KB is approved", () => {
     expect(liveStatus(ctx({ kbStatus: "ready", hasVersion: true, importFailed: ["instagram"], studyFailed: true }))).toEqual([]);
   });
+
+  it("shows what the copilot is reading while a proposal runs", () => {
+    expect(liveStatus({ ...empty, kbStatus: "ready", hasVersion: true, proposing: "Reading guide.pdf…" })).toEqual([{ text: "Reading guide.pdf…", state: "running" }]);
+  });
 });

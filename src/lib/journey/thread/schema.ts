@@ -86,7 +86,9 @@ export const VIRTUAL_OPENING_ID = "opening";
 export type Waiting =
   | { kind: "reply"; label: string }
   | { kind: "task"; label: string; text: string; links: { label: string; href: string }[] }
-  | { kind: "gate"; label: string; title: string; opens: string; why: string; action: string };
+  | { kind: "gate"; label: string; title: string; opens: string; why: string; action: string }
+  /** One or more change cards in the thread are waiting for a person's decision (D505). */
+  | { kind: "change"; label: string };
 
 /** What the panel shows: the saved messages, what is running right now, the reply choices, and
  *  what the person is waited on. */
