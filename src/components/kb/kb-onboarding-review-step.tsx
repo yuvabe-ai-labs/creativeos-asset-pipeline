@@ -148,7 +148,6 @@ export function KBOnboardingReviewStep({
   const { data: importStatus } = useAssetImports(clientId);
   const importing = (importStatus?.imports ?? []).some(isImportLive);
   const assetTotal = importStatus?.counts.total ?? 0;
-  const [reanalyzingFields, setReanalyzingFields] = useState<Set<string>>(new Set());
   const [markingReady, setMarkingReady] = useState(false);
 
   // Document management state
@@ -316,30 +315,6 @@ export function KBOnboardingReviewStep({
     if (next) setSelectedModule(next);
   }
 
-  async function handleReanalyzeField(module: ModuleKey, fieldKey: string, comment: string) {
-    const key = `${module}:${fieldKey}`;
-    setReanalyzingFields((prev) => new Set(prev).add(key));
-    try {
-      const res = await fetch(`/api/clients/${clientId}/kb/re-analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionId, module, fieldKey, comment }),
-      });
-      const json = await res.json();
-      if (!res.ok) { toast.error(json.error ?? "Re-analysis failed"); return; }
-      patchField(getFieldPath(module, fieldKey), {
-        value: json.field.value,
-        confidence: json.field.confidence,
-        evidence_type: json.field.evidence_type,
-        status: "needs_review",
-      });
-      toast.success(`${FIELD_LABELS[fieldKey] ?? fieldKey} updated — review the new value`);
-    } catch {
-      toast.error("Re-analysis failed");
-    } finally {
-      setReanalyzingFields((prev) => { const n = new Set(prev); n.delete(key); return n; });
-    }
-  }
 
   // ── Mark KB ready ─────────────────────────────────────────────────────────
 
@@ -568,8 +543,8 @@ export function KBOnboardingReviewStep({
           <SheetHeader className="shrink-0 border-b border-border p-5 pr-12">
             <SheetTitle className="font-display text-lg">Source Documents & Images</SheetTitle>
             <SheetDescription>
-              Add or remove the documents and images used to build the brand KB, then
-              Save &amp; re-analyze to rebuild it.
+              Add or remove the documents and images the brand KB is built from, then
+              Save &amp; re-analyze. The copilot shows what they would change, for you to approve.
             </SheetDescription>
           </SheetHeader>
           <KBSourcePanel
@@ -724,11 +699,9 @@ export function KBOnboardingReviewStep({
                   fieldKey={fieldKey}
                   label={FIELD_LABELS[fieldKey] ?? fieldKey}
                   field={field}
-                  isReanalyzing={reanalyzingFields.has(`${selectedModule}:${fieldKey}`)}
                   onEdit={(val) => handleEdit(selectedModule, fieldKey, val)}
                   onApprove={() => handleApprove(selectedModule, fieldKey)}
                   onReject={() => handleReject(selectedModule, fieldKey)}
-                  onReanalyze={(comment) => handleReanalyzeField(selectedModule, fieldKey, comment)}
                 />
               ))}
             </div>

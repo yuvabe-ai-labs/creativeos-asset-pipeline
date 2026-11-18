@@ -112,6 +112,8 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.21 | Look at a pending card. | Each field shows its name, Before (struck through), After, the source, and a ticked Keep box. The button reads "Approve N changes" for the ticked count; untick all and it reads "Approve" and is disabled. A list shows as comma-separated items; an empty value shows as "none". |
 | 6.22 | Press Approve or Discard. | Both buttons disable while it saves. The card then shows its footer and no buttons. The right side updates without a reload. |
 | 6.23 | Check the card at phone width and in dark mode. | Long values wrap inside the card; nothing runs off the side. Text stays readable. |
+| 6.24 | Hover any field on the Brand KB screen. | No sparkle "Refine with AI" button. Editing by typing, the approve tick on an empty field, Reject and Restore still work. |
+| 6.25 | Open Source files. | The text says the copilot shows what the change would do, for you to approve; it no longer says the KB is rebuilt. |
 
 ## Known limits (not bugs)
 
