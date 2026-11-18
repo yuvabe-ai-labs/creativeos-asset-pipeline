@@ -309,3 +309,75 @@ describe("runKbTurn in review", () => {
     expect(seen[0].system).toContain("never ask about another field yourself");
   });
 });
+
+// ── Showing work as it happens (D502) ────────────────────────────────────────
+
+describe("runKbTurn, reporting as it goes", () => {
+  const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [] };
+  const AGE = "target_audience.age_range";
+  const review = () => ({ fields: reviewFields(kbWith({})), pending: AGE });
+
+  it("reports a saved website the moment it is stored", async () => {
+    const saved = vi.fn();
+    const { model } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }]);
+    await turn({ model, on: { saved } });
+    expect(saved).toHaveBeenCalledWith({ website: "acme.com" });
+  });
+
+  it("reports only the handles that were stored", async () => {
+    const saved = vi.fn();
+    const { model } = scripted([{ text: "", calls: [call("save_socials", { instagram: "acme" })] }]);
+    await turn({ model, on: { saved } });
+    expect(saved).toHaveBeenCalledWith({ instagram: "acme" });
+  });
+
+  it("says the page changed when a field is written", async () => {
+    const page = vi.fn();
+    const { model } = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30 to 50" })] }, say("Good.")]);
+    await turn({ ctx: inReview, review: review(), model, on: { page } });
+    expect(page).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the page changed when a build starts", async () => {
+    const page = vi.fn();
+    const { model } = scripted([{ text: "", calls: [call("start_build", {})] }, say("Started.")]);
+    await turn({ ctx: { ...empty, documentCount: 1 }, model, on: { page } });
+    expect(page).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not say the page changed when a write was refused", async () => {
+    const page = vi.fn();
+    const refusedField = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30 to 50" })] }, say("It was reviewed already.")]);
+    await turn({ ctx: inReview, review: review(), actions: actions({ setField: vi.fn(async () => false) }), model: refusedField.model, on: { page } });
+    const refusedBuild = scripted([{ text: "", calls: [call("start_build", {})] }, say("One is running.")]);
+    await turn({ ctx: { ...empty, documentCount: 1, job: { status: "researching", phaseMessage: null } }, model: refusedBuild.model, on: { page } });
+    expect(page).not.toHaveBeenCalled();
+  });
+
+  it("labels the tools that change the page, and no others", async () => {
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ model });
+    const labels = Object.fromEntries(Object.entries(seen[0].tools).flatMap(([name, tool]) => (tool.label ? [[name, tool.label]] : [])));
+    expect(labels).toEqual({
+      save_website: "Saving the website…", save_socials: "Saving the handles…",
+      answer_field: "Saving your answer…", confirm_field: "Saving your answer…", start_build: "Starting the build…",
+    });
+  });
+
+  it("passes the model's words, a reset and the step through", async () => {
+    const order: string[] = [];
+    const model: AgentModel = async (input) => {
+      if (input.rounds.length === 0) {
+        input.onText?.("Let me");
+        return { text: "Let me", calls: [call("start_build", {})] };
+      }
+      input.onText?.("Started.");
+      return { text: "Started.", calls: [] };
+    };
+    await turn({
+      ctx: { ...empty, documentCount: 1 }, model,
+      on: { text: (d) => order.push(`text:${d}`), reset: () => order.push("reset"), step: (l) => order.push(`step:${l}`), page: () => order.push("page") },
+    });
+    expect(order).toEqual(["text:Let me", "reset", "step:Starting the build…", "page", "text:Started."]);
+  });
+});

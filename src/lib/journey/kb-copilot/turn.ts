@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EMPTY_AGENT_REPLY, runAgent, type AgentMessage, type AgentModel, type AgentTool } from "@/lib/journey/agent";
+import { EMPTY_AGENT_REPLY, runAgent, type AgentEvents, type AgentMessage, type AgentModel, type AgentTool } from "@/lib/journey/agent";
 import type { Attachment, ThreadMessage } from "@/lib/journey/thread/schema";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
 import { kbCopilotSystem } from "@/prompts/kb-copilot";
@@ -27,6 +27,14 @@ export type KbActions = {
   /** Merges `patch` into the one field at `path` (dotted) of the KB in review, only if that field
    *  is still unreviewed as stored. False when it was not written: somebody reviewed it meanwhile. */
   setField: (path: string, patch: KBFieldPatch["patch"]) => Promise<boolean>;
+};
+
+/** What a brand KB turn reports while it runs (D502), on top of what every agent turn reports. */
+export type KbTurnEvents = AgentEvents & {
+  /** A website or handles were just stored. */
+  saved?: (saved: KbSaved) => void;
+  /** Something on the page that `saved` cannot carry was just written: a field of the KB, a build. */
+  page?: () => void;
 };
 
 /** The brand KB in review as this turn sees it: its fields, and the question waiting for an answer. */
@@ -65,6 +73,7 @@ export async function runKbTurn(input: {
   actions: KbActions; model: AgentModel;
   /** Null or left out unless a built KB is in review. */
   review?: KbReview | null;
+  on?: KbTurnEvents;
 }): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk }> {
   const { actions, model } = input;
   // The context as the tools have changed it so far this turn, so a later tool sees an earlier one.
@@ -100,6 +109,7 @@ export async function runKbTurn(input: {
     if (!written) return false;
     walk.settled.push(field.path);
     changed = true;
+    input.on?.page?.();
     return true;
   };
 
@@ -107,6 +117,7 @@ export async function runKbTurn(input: {
     answer_field: {
       description: "Save the person's own answer as the value of one unreviewed field of the brand KB. Only what the person said, never a value of your own.",
       schema: z.object({ field: fieldArg, value: z.union([z.string(), z.array(z.string())]) }),
+      label: "Saving your answer…",
       run: async (args) => {
         const { field: path, value } = args as { field: string; value: string | string[] };
         const field = open(path);
@@ -120,6 +131,7 @@ export async function runKbTurn(input: {
     confirm_field: {
       description: "Mark one unreviewed field as right as it stands: the person agreed with its value, or said there is none for an empty field.",
       schema: z.object({ field: fieldArg }),
+      label: "Saving your answer…",
       run: async (args) => {
         const field = open((args as { field: string }).field);
         if (typeof field === "string") return tell(field);
@@ -158,6 +170,7 @@ export async function runKbTurn(input: {
       schema: z.object({ url: z.string().min(1).max(500) }),
       // A plain save: the reply after it is worded here, so the model is not asked a second time.
       ends: true,
+      label: "Saving the website…",
       run: async (args) => {
         const { url } = args as { url: string };
         if (ctx.hasVersion) return tell(WEBSITE_LOCKED);
@@ -165,6 +178,7 @@ export async function runKbTurn(input: {
         saved.website = await actions.saveWebsite(url);
         ctx = { ...ctx, websiteUrl: saved.website };
         changed = true;
+        input.on?.saved?.({ website: saved.website });
         return tell("Saved the website.");
       },
     },
@@ -172,20 +186,25 @@ export async function runKbTurn(input: {
       description: "Save the brand's Instagram and/or Facebook handle. Pass only the ones the person gave.",
       schema: z.object({ instagram: z.string().min(1).max(200).optional(), facebook: z.string().min(1).max(200).optional() }),
       ends: true,
+      label: "Saving the handles…",
       run: async (args) => {
         const handles = args as { instagram?: string; facebook?: string };
         if (!handles.instagram && !handles.facebook) return tell("No handle was given.");
         const stored = await actions.saveSocials(handles);
-        if (stored.instagram) saved.instagram = stored.instagram;
-        if (stored.facebook) saved.facebook = stored.facebook;
+        // Only what was stored just now: the turn's own `saved` may already hold the website.
+        const now: KbSaved = {};
+        if (stored.instagram) now.instagram = saved.instagram = stored.instagram;
+        if (stored.facebook) now.facebook = saved.facebook = stored.facebook;
         ctx = { ...ctx, instagram: stored.instagram ?? ctx.instagram, facebook: stored.facebook ?? ctx.facebook };
         changed = true;
+        input.on?.saved?.(now);
         return tell("Saved the handles.");
       },
     },
     start_build: {
       description: "Start building the brand KB from the saved sources. Only after the person has said to start.",
       schema: z.object({}),
+      label: "Starting the build…",
       run: async () => {
         if (isBuilding(ctx)) return tell(ALREADY_RUNNING);
         if (ctx.hasVersion) return tell(ALREADY_BUILT);
@@ -198,6 +217,7 @@ export async function runKbTurn(input: {
         }
         ctx = { ...ctx, job: { status: "queued", phaseMessage: null } };
         changed = true;
+        input.on?.page?.();
         return tell("Started the build.");
       },
     },
@@ -216,7 +236,10 @@ export async function runKbTurn(input: {
     { role: "user", content: userContent(input.text, input.attachments) },
   ];
 
-  const { text } = await runAgent({ model, system: kbCopilotSystem(input.ctx, review), messages, tools });
+  const { text } = await runAgent({
+    model, system: kbCopilotSystem(input.ctx, review), messages, tools,
+    on: input.on && { text: input.on.text, reset: input.on.reset, step: input.on.step },
+  });
   // A turn can end without the model's words: after a plain save it is not asked again, and
   // sometimes it just says nothing. Say what the tools said, never a bare "Done." that could follow
   // a refusal, and while sources are still being collected, what comes next.
