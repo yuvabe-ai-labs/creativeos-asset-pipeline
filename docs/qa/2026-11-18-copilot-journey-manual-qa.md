@@ -80,6 +80,7 @@
 | 4.13 | On an empty field's question, press "There is none". Then on the next, press "Skip this one". | "There is none": the field is marked reviewed, empty. "Skip this one": "Skipped. It stays for you to review on the right.", the field stays unreviewed, and the next question follows. |
 | 4.14 | Type "yes, that's right but make it 30 to 45" as an answer. | The copilot reads it (not treated as the button): the field gets "30 to 45". |
 | 4.15 | Watch any reply made of two sentences. | The sentences are separated ("Got it." never runs into the previous sentence with no space). |
+| 4.16 | While a question about a *different* field waits, type "edit the mission statement to: you tell us what you need, we do the rest" (pick any field not reviewed yet). | The reply reads "Saved {field}." and the field on the right shows your words, marked as coming from you. It never says it "can only save your wording as a new answer". |
 
 ## 5. Background jobs that fail
 

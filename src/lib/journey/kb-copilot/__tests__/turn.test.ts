@@ -482,11 +482,29 @@ describe("runKbTurn, changing reviewed fields", () => {
     expect(result.card).toBeNull();
   });
 
-  it("refuses a field nobody has reviewed yet and points to answer_field", async () => {
+  // 2026-11-19: "edit the mission statement to …" on an unreviewed field went to propose_change, was
+  // refused with "Use answer_field", and the model told the person so instead of saving. The words
+  // were the person's own, so code saves them as their answer: no second try left to the model.
+  it("saves the person's words for a field nobody has reviewed yet as their answer, during the review", async () => {
+    const setField = vi.fn(async () => true);
     const inReview: KbContext = { ...approved, kbStatus: "in_review", unreviewed: [AGE] };
-    const { model, seen } = scripted([{ text: "", calls: [call("propose_change", { changes: [{ field: AGE, value: "30 to 50" }] })] }, say("ok")]);
-    const result = await turn({ ctx: inReview, kb, review: { fields: reviewFields(output), pending: null }, model });
-    expect(outputs(seen)).toEqual(["Error: That field is not reviewed yet. Use answer_field."]);
+    const { model, seen } = scripted([{ text: "", calls: [call("propose_change", { changes: [{ field: AGE, value: "30 to 50" }] })] }, say("never asked")]);
+    const result = await turn({ ctx: inReview, kb, review: { fields: reviewFields(output), pending: null }, actions: actions({ setField }), model });
+    expect(setField).toHaveBeenCalledWith(AGE, { value: "30 to 50", status: "edited", evidence_type: "explicit", confidence: "high" });
+    expect(seen).toHaveLength(1);
+    expect(result.walk.settled).toEqual([AGE]);
+    expect(result.card).toBeNull();
+    expect(result.reply).toMatch(/^Saved .+\.$/);
+    expect(result.changed).toBe(true);
+  });
+
+  it("tells the model when a field it would save was reviewed a moment ago, and saves nothing", async () => {
+    const setField = vi.fn(async () => false);
+    const inReview: KbContext = { ...approved, kbStatus: "in_review", unreviewed: [AGE] };
+    const { model, seen } = scripted([{ text: "", calls: [call("propose_change", { changes: [{ field: AGE, value: "30 to 50" }] })] }, say("Someone just reviewed it.")]);
+    const result = await turn({ ctx: inReview, kb, review: { fields: reviewFields(output), pending: null }, actions: actions({ setField }), model });
+    expect(outputs(seen)).toEqual(["Error: That field was reviewed a moment ago, so nothing was saved."]);
+    expect(result.walk.settled).toEqual([]);
     expect(result.card).toBeNull();
   });
 
@@ -529,14 +547,29 @@ describe("runKbTurn, a change that is only partly allowed (review fix)", () => {
   const output = kbWith({ [TONE]: { value: "Warm", status: "approved" } });
   const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [AGE] };
 
-  it("keeps the allowed field on the card and tells the model about the refused one, so it can say so", async () => {
+  it("puts a reviewed field on the card and saves an unreviewed one, from one call, asking the model once", async () => {
+    const setField = vi.fn(async () => true);
     const { model, seen } = scripted([
       { text: "", calls: [call("propose_change", { changes: [{ field: TONE, value: "Plain" }, { field: AGE, value: "30 to 50" }] })] },
-      say("I added the tone change. The age range is not reviewed yet, so I filled it directly."),
+      say("never asked"),
     ]);
-    const result = await turn({ ctx: inReview, kb: { versionId: V1, output }, review: { fields: reviewFields(output), pending: null }, model });
+    const result = await turn({ ctx: inReview, kb: { versionId: V1, output }, review: { fields: reviewFields(output), pending: null }, actions: actions({ setField }), model });
+    expect(seen).toHaveLength(1);
+    expect(setField).toHaveBeenCalledWith(AGE, expect.objectContaining({ value: "30 to 50", status: "edited" }));
+    expect(result.card?.fields.map((f) => f.path)).toEqual([TONE]);
+    expect(result.reply).toMatch(/^Saved .+\. Here is the change. Nothing changes until you approve it.$/);
+  });
+
+  it("keeps the allowed field on the card and tells the model about the refused one, so it can say so", async () => {
+    const WORDS = "compliance.never_use_words";
+    const both = kbWith({ [TONE]: { value: "Warm", status: "approved" }, [WORDS]: { value: ["cheap"], status: "edited" } });
+    const { model, seen } = scripted([
+      { text: "", calls: [call("propose_change", { changes: [{ field: TONE, value: "Plain" }, { field: WORDS, value: "cheap" }] })] },
+      say("I added the tone change. The banned words already say that."),
+    ]);
+    const result = await turn({ ctx: inReview, kb: { versionId: V1, output: both }, review: { fields: reviewFields(both), pending: null }, model });
     expect(seen).toHaveLength(2);
-    expect(outputs(seen)[0]).toMatch(/^Error: Added .*Tone of Voice.* to the change. Not added: .*Use answer_field./);
+    expect(outputs(seen)[0]).toMatch(/^Error: Added .*Tone of Voice.* to the change. Not added: That is already the value.$/);
     expect(result.card?.fields.map((f) => f.path)).toEqual([TONE]);
   });
 

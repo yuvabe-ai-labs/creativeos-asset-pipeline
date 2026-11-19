@@ -52,6 +52,9 @@ const NO_REVIEW = "There is no brand KB in review to answer about.";
 const NOT_IN_KB = "That field is not in this brand KB.";
 const REVIEWED_LOCKED = "That field is already reviewed. Use propose_change to suggest a new value; the person approves it.";
 const NOT_REVIEWED_YET = "That field is not reviewed yet. Use answer_field.";
+const REVIEWED_MEANWHILE = "That field was reviewed a moment ago, so nothing was saved.";
+/** A value the person gave for an unreviewed field, saved as their own answer. */
+const answerPatch = (value: ReviewField["value"]): KBFieldPatch["patch"] => ({ value, status: "edited", evidence_type: "explicit", confidence: "high" });
 const NO_KB = "There is no brand KB to change yet.";
 const ALREADY_THE_VALUE = "That is already the value.";
 const CHANGE_READY = "Here is the change. Nothing changes until you approve it.";
@@ -146,7 +149,7 @@ export async function runKbTurn(input: {
         if (typeof field === "string") return tell(field);
         const next = coerce(field.kind, value);
         if (isEmpty(next)) return tell(EMPTY_ANSWER);
-        const saved = await settle(field, { value: next, status: "edited", evidence_type: "explicit", confidence: "high" }, "edited");
+        const saved = await settle(field, answerPatch(next), "edited");
         return tell(saved ? `Saved ${field.label}.` : REVIEWED_LOCKED);
       },
     },
@@ -162,7 +165,7 @@ export async function runKbTurn(input: {
       },
     },
     propose_change: {
-      description: "Propose new values for fields of the brand KB that a person has already reviewed. Only what the person said. Nothing changes until a person approves the change card this makes.",
+      description: "Propose new values for fields of the brand KB that a person has already reviewed. Only what the person said. Nothing changes until a person approves the change card this makes. A field nobody has reviewed yet is saved as the person's answer instead.",
       schema: z.object({ changes: z.array(z.object({ field: fieldArg, value: z.union([z.string(), z.array(z.string())]) })).min(1).max(10) }),
       label: "Preparing the change…",
       // The card is the answer: the reply after it is worded here.
@@ -174,23 +177,42 @@ export async function runKbTurn(input: {
         const refusals: string[] = [];
         // What this call added, so a call that is only partly allowed says which part.
         const added: string[] = [];
+        // Unreviewed fields saved as the person's answer (2026-11-19): "edit the mission statement
+        // to …" came here for an unreviewed field, was refused with "Use answer_field", and the model
+        // told the person so instead of saving. The words are the person's own, so code saves them.
+        const filled: string[] = [];
         for (const { field: path, value } of (args as { changes: { field: string; value: string | string[] }[] }).changes) {
           const field = kbFields.find((f) => f.path === path);
           if (!field) { refusals.push(NOT_IN_KB); continue; }
-          if (statusOf(path) === "needs_review") { refusals.push(NOT_REVIEWED_YET); continue; }
+          if (statusOf(path) === "needs_review") {
+            // Only during the review can an unreviewed field be written (an approved KB has none).
+            const unreviewed = review ? open(path) : NOT_REVIEWED_YET;
+            if (typeof unreviewed === "string") { refusals.push(unreviewed); continue; }
+            const answer = coerce(unreviewed.kind, value);
+            if (isEmpty(answer)) { refusals.push(EMPTY_ANSWER); continue; }
+            if (await settle(unreviewed, answerPatch(answer), "edited")) filled.push(unreviewed.label);
+            else refusals.push(REVIEWED_MEANWHILE);
+            continue;
+          }
           const next = coerce(field.kind, value);
           if (isEmpty(next) && isEmpty(field.value)) { refusals.push(ALREADY_THE_VALUE); continue; }
           if (sameValue(field.value, next)) { refusals.push(ALREADY_THE_VALUE); continue; }
           proposals.push({ path, value: isEmpty(next) ? null : next, from: FROM_CHAT, docId: null });
           added.push(field.label);
         }
-        if (added.length === 0) throw new Error(refusals.join(" "));
+        const savedLine = filled.length > 0 ? tell(`Saved ${filled.join(", ")}.`) : null;
+        const withSaved = (sentence: string) => [savedLine, sentence].filter(Boolean).join(" ");
+        if (added.length === 0) {
+          // Every field was unreviewed and saved: a plain save, so the turn ends on it.
+          if (refusals.length === 0) return savedLine as string;
+          throw new Error(withSaved(refusals.join(" ")));
+        }
         // Partly refused: what was added stays on the card, and the model is told about the rest so
         // it can say so. Ending the turn here would drop the refusal without a word.
-        if (refusals.length > 0) throw new Error(`Added ${added.join(", ")} to the change. Not added: ${refusals.join(" ")}`);
-        if (toldChange) return "Added to the change.";
+        if (refusals.length > 0) throw new Error(withSaved(`Added ${added.join(", ")} to the change. Not added: ${refusals.join(" ")}`));
+        if (toldChange) return withSaved("Added to the change.");
         toldChange = true;
-        return tell(CHANGE_READY);
+        return withSaved(tell(CHANGE_READY));
       },
     },
     skip_question: {
