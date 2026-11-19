@@ -166,6 +166,22 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 8.10 | *(approved client)* Approve a change card. | The page does not move. Changed fields that are on screen highlight briefly. |
 | 8.11 | *(client in review)* Stop the model (an invalid key) and type an answer. | No sweep is left running after the failure reply. |
 
+## 9. Scripting in the panel (D511)
+
+| # | Do | Expected |
+|---|---|---|
+| 9.1 | *(market research approved)* On the Scripts tab, press "Start a script" in the copilot panel. | An empty script opens, its copilot asking the first question exactly as with the page's "New script". |
+| 9.2 | *(market research not approved)* Open the Scripts tab, then Avatars and Brand assets. | The guide says scripts are locked and offers "Paste a script" beside "Go to market research", on all three tabs. |
+| 9.3 | Inside a script at Generate, press "‹ {client}" in the panel header. | You land on the client's Scripts tab. |
+| 9.4 | At Generate, watch the folded rail through a script: answering questions, a change card, open items, nothing open. Then send a message and watch it while the copilot answers. | It reads "answer the copilot", "review the change", "settle the open items", "mark the script final" in turn; while answering, "Copilot". |
+| 9.5 | Mark a script final. | On Visualise the panel is there, folded, the rail reading "Waiting for you: finish the storyboard and send it for review". Unfolded: the whole conversation, no message box, no suggestions, "Visualise" and the line at the foot. |
+| 9.6 | On that Visualise page, look at the cards in the thread (angles, confirmation, a proposal left pending). | No buttons on any of them. A decided proposal still says "Applied" or "Not applied". |
+| 9.7 | Unfold at Visualise, send for review, then approve. | It stays unfolded In review ("Waiting for the client's review") and Approved ("Waiting for you: create the canvas"; nothing once the canvas exists). |
+| 9.8 | Open an approved script with no review (the plain read-only view). | The panel is there, folded; the script keeps its usual width beside it. |
+| 9.9 | Reopen a script from Visualise. | Back at Generate the message box is back, the fold is whatever you chose at Generate, and a still-pending proposal has its buttons again. |
+| 9.10 | Make the window narrower than the panel's breakpoint at each stage. | At Generate the chat stacks above the script as before. At the later stages no panel; the storyboard has the page. |
+| 9.11 | At Visualise, open DevTools → Network and reload. | No request for the script's copilot thread from the browser. |
+
 ## Known limits (not bugs)
 
 - A pending change card hides the "Approve the brand KB" card until it is settled, since it may change fields the approval covers.

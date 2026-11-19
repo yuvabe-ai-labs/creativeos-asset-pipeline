@@ -8848,3 +8848,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Originated →** `docs/superpowers/specs/2026-11-20-copilot-image-analysis-card-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`.
 
 **D510, added 2026-11-20 (Cyril, after the review).** The study's summary model is shown the written fields the team approved and told to return them word for word unless the images now show something different (summary prompt 1.2.0). Why: those fields are prose written afresh on every study, so wording drift alone would have raised a card after nearly every upload, and a discard only remembers exact words. Rejected: a separate yes/no model call per reviewed field (an extra call per study); remembering a discard until the image set changes a lot (real changes could be suppressed).
+
+### D511 — A script's copilot panel is on its page at every stage, read-only after Generate *(recorded 2026-11-20; refines D494, D500)*
+
+**Decision.** The script's copilot panel is shown on the script's page at Generate, Visualise, In review and Approved (the review board, the approved version, and the plain read-only view). It is the same shell as the client's panel (one header, fold, rail), with a link back to the client's Scripts tab and a "Waiting for…" line worked out from the script as stored. After Generate it shows the saved thread with no message box, its cards without buttons, and starts folded; folding is remembered per script in two memories, Generate's (the key it always had, starting open) and one shared by the later stages (starting folded). The Scripts tab's guide offers "Start a script" ("Paste a script" while locked), the same action as the page's "New script".
+
+**Why.** The journey is one copilot panel the whole way; for scripts it vanished the moment a script was marked final, so the conversation that made it was gone from view and piece 5 had nowhere to speak. A message box arrives at the later stages only with piece 5's abilities: a box nothing answers misleads.
+
+**Rejected.** A message box at every stage now (nothing answers it until piece 5). One fold memory per script (unfolding to read the thread at Visualise would also leave Generate unfolded or folded against the person's choice there). Loading the thread in the browser at the later stages (a second request for data the server page already reads; it is read-only, so it goes down as props).
+
+**Originated →** `docs/superpowers/specs/2026-11-20-copilot-scripting-panel-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`.
