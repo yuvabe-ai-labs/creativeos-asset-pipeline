@@ -1,6 +1,6 @@
 # Image Analysis through a change card (piece 2b)
 
-**Status:** written 2026-11-20, awaiting Cyril's approval. Approach A chosen by Cyril on 2026-11-20.
+**Status:** approved by Cyril, 2026-11-20. Plan: `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`. Approach A chosen by Cyril on 2026-11-20.
 **Part of:** the copilot journey (`2026-11-12-copilot-journey-design.md`), piece 2b. Built on the same branch. Follows the brand KB spec (`2026-11-12-copilot-journey-brand-kb-design.md` §2.4, where Cyril decided on 2026-11-13 that Image Analysis must go through a change card too).
 
 ## 1. Problem
