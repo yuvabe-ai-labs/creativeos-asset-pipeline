@@ -3,6 +3,7 @@ import { formatFor } from "./formats";
 import { avatarLabel } from "./avatar-label";
 import { IMPORT_REPLY_PREFIX, NARRATOR } from "./constants";
 import type { CopilotAvatar, GenerateState } from "./schema";
+import type { CastMember } from "@/lib/scripts/schema";
 
 // One-tap suggestions above the copilot's message box, for quick demos. Worked out from where the
 // conversation is; no model call. A suggestion either sends at once or only fills the box.
@@ -70,6 +71,18 @@ function modelChips(state: GenerateState, taken: readonly string[]): Suggestion[
   return [];
 }
 
+/** After an import the copilot asks who plays whom: the first character still unlinked (the lead
+ *  first), while the import's reply is the newest message and there are avatars to choose from. A
+ *  guessed Narrator is asked about in words instead. A link posts no message, so the question moves
+ *  on to the next character, and any later message ends it. */
+export function castStillAsked(state: GenerateState): CastMember | undefined {
+  const { script } = state;
+  if (!script.doc || !script.brief.imported || state.avatars.length === 0) return undefined;
+  const last = state.messages.at(-1);
+  if (last?.role !== "assistant" || !last.content.startsWith(IMPORT_REPLY_PREFIX)) return undefined;
+  return [...script.doc.cast].sort((a, b) => Number(b.isLead) - Number(a.isLead)).find((c) => !c.avatarId && c.name !== NARRATOR);
+}
+
 export function suggestionsFor(state: GenerateState): Suggestion[] {
   const { script } = state;
   if (script.stage !== "generate") return [];
@@ -96,15 +109,9 @@ export function suggestionsFor(state: GenerateState): Suggestion[] {
 
   const out: Suggestion[] = [];
   // After an import the copilot asked who plays whom: a chip opening the avatars for the first
-  // character still in words (the lead first), a fitting one first. A guessed Narrator is asked about in words instead.
-  // The chips stay only while the import's reply is the newest message; a link posts no message, so
-  // they move on to the next character, and any later message ends the question.
-  const last = state.messages.at(-1);
-  const asking = script.brief.imported && last?.role === "assistant" && last.content.startsWith(IMPORT_REPLY_PREFIX);
-  const member = asking
-    ? [...script.doc.cast].sort((a, b) => Number(b.isLead) - Number(a.isLead)).find((c) => !c.avatarId && c.name !== NARRATOR)
-    : undefined;
-  if (member && state.avatars.length > 0) {
+  // character still in words (the lead first), a fitting one first.
+  const member = castStillAsked(state);
+  if (member) {
     const ranked = [...state.avatars].sort((a, b) => Number(avatarFits(member, b)) - Number(avatarFits(member, a)));
     const options = ranked.map((a) => avatarOption(a, state.avatars, avatarFits(member, a)));
     out.push({ label: `Choose an avatar for ${member.name}`, text: "", send: false, pick: { title: `Who plays ${member.name}?`, castId: member.id, options } });
