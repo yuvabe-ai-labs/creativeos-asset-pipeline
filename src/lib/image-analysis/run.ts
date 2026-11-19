@@ -19,6 +19,9 @@ import { mergeImageAnalysis } from "./merge";
 import { imageAnalysisCopy } from "./messages";
 import type { ImageAnalysisInput, ImageAnalysisResult } from "./types";
 import { describeError } from "@/lib/describe-error";
+import { hasCopilotMessages, insertCopilotMessages } from "@/lib/db/copilot-messages";
+import { ONBOARDING } from "@/lib/journey/thread/schema";
+import { changedImageFields, imageAnalysisNote } from "./change-note";
 
 /** Rounds of "read what has no card yet": images added mid-read are picked up by the next round. */
 const MAX_ROUNDS = 4;
@@ -47,6 +50,8 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
     // The key the last written section was built from: unchanged cards need no new summary,
     // unless someone asked for a fresh one.
     let lastKey = job.input?.force ? null : await lastWrittenKey(clientId, jobId);
+    // Fields a re-study changed in a section that already had content, for the copilot to say.
+    const changed = new Set<string>();
     let result: ImageAnalysisResult = { read: 0, failed: 0, counted: 0, bySource: { upload: 0, website: 0, instagram: 0, facebook: 0 }, written: false };
 
     for (let pass = 0; pass < MAX_PASSES; pass++) {
@@ -96,7 +101,9 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
       // have made a new one), over the reviews it holds now.
       const active = (await getActiveKBVersion(clientId)) ?? before;
       const reviewed = (active.output as TraceableBrandKB | undefined)?.image_analysis;
-      await setKBImageAnalysis(active.id, mergeImageAnalysis(reviewed, toImageAnalysis(stats, summary)));
+      const merged = mergeImageAnalysis(reviewed, toImageAnalysis(stats, summary));
+      await setKBImageAnalysis(active.id, merged);
+      if (reviewed && hasContent(reviewed)) for (const label of changedImageFields(reviewed, merged)) changed.add(label);
       result.written = true;
       result.cardSetKey = key;
       lastKey = key;
@@ -106,6 +113,7 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
       if (todo.length === 0 && cardSetKey(now) === key) break;
     }
     if (failed > 0) console.error("[image-analysis] images not read", { jobId, failed, first: firstFailure });
+    await sayWhatChanged(clientId, [...changed]);
 
     await succeedJob(jobId, result, result.written ? imageAnalysisCopy.done(result.counted) : imageAnalysisCopy.upToDate(result.counted));
     return result;
@@ -117,6 +125,19 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
 }
 
 /** The card-set key of the client's last run that wrote the section, or null. */
+/** Says in the client's copilot thread which Image Analysis fields a re-study changed. Best effort:
+ *  a client with no thread yet gets nothing, and a failure never fails the run. */
+async function sayWhatChanged(clientId: string, labels: string[]): Promise<void> {
+  const note = imageAnalysisNote(labels);
+  if (!note) return;
+  try {
+    if (!(await hasCopilotMessages(clientId, ONBOARDING))) return;
+    await insertCopilotMessages(clientId, ONBOARDING, null, [{ role: "assistant", content: note, card: { kind: "note" }, suggestions: [] }]);
+  } catch (e) {
+    console.error("[image-analysis] could not say what changed", { clientId, error: describeError(e) });
+  }
+}
+
 async function lastWrittenKey(clientId: string, currentJobId: string): Promise<string | null> {
   const jobs = await listRecentJobs<ImageAnalysisInput, ImageAnalysisResult>(clientId, "image-analysis", 10);
   const last = jobs.find((j) => j.id !== currentJobId && j.status === "succeeded" && j.result?.cardSetKey);

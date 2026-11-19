@@ -114,6 +114,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.23 | Check the card at phone width and in dark mode. | Long values wrap inside the card; nothing runs off the side. Text stays readable. |
 | 6.24 | Hover any field on the Brand KB screen. | No sparkle "Refine with AI" button. Editing by typing, the approve tick on an empty field, Reject and Restore still work. |
 | 6.25 | Open Source files. | The text says the copilot shows what the change would do, for you to approve; it no longer says the KB is rebuilt. |
+| 6.26 | *(approved client whose images were studied before)* Upload a few new, different-looking images on the form. | When the study finishes, a line in the thread: "Studied the images again. Changed: …" naming the Image Analysis fields that changed. No card (Image Analysis gets its own card in a later piece). |
 
 ## Known limits (not bugs)
 

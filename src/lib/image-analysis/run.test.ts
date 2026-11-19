@@ -19,11 +19,13 @@ vi.mock("@/lib/db/image-cards", () => ({
 }));
 vi.mock("./read-image", () => ({ readImageCard: vi.fn() }));
 vi.mock("./gemini", () => ({ generateStructured: vi.fn() }));
+vi.mock("@/lib/db/copilot-messages", () => ({ hasCopilotMessages: vi.fn(), insertCopilotMessages: vi.fn() }));
 
 import { failJob, getJob, listRecentJobs, succeedJob } from "@/lib/jobs/db";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { listCardImageIds, listImageCards, listImagesNeedingCards, setKBImageAnalysis, upsertImageCard } from "@/lib/db/image-cards";
 import { defaultEmptyImageAnalysis } from "@/lib/kb/schema";
+import { hasCopilotMessages, insertCopilotMessages } from "@/lib/db/copilot-messages";
 import { readImageCard } from "./read-image";
 import { generateStructured } from "./gemini";
 import { cardSetKey, runImageAnalysis } from "./run";
@@ -161,5 +163,36 @@ describe("runImageAnalysis", () => {
     await runImageAnalysis("job-1");
     expect(failJob).toHaveBeenCalledWith("job-1", "The image analysis didn't finish. Try again in a few minutes.");
     log.mockRestore();
+  });
+
+  describe("saying what a re-study changed", () => {
+    const studied = { ...defaultEmptyImageAnalysis(), visual_mood: { value: "Busy", confidence: "high" as const, evidence_type: "inferred" as const, status: "needs_review" as const } };
+
+    it("says in the client's thread which fields a re-study changed", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", studied));
+      vi.mocked(hasCopilotMessages).mockResolvedValue(true);
+      await runImageAnalysis("job-1");
+      const [, , , messages] = vi.mocked(insertCopilotMessages).mock.calls[0];
+      expect(messages[0]).toMatchObject({ role: "assistant", card: { kind: "note" } });
+      expect(messages[0].content).toMatch(/^Studied the images again. Changed: .*Visual Mood/);
+    });
+
+    it("says nothing on the first study, or for a client with no thread yet", async () => {
+      vi.mocked(hasCopilotMessages).mockResolvedValue(true);
+      await runImageAnalysis("job-1");
+      vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", studied));
+      vi.mocked(hasCopilotMessages).mockResolvedValue(false);
+      await runImageAnalysis("job-1");
+      expect(insertCopilotMessages).not.toHaveBeenCalled();
+    });
+
+    it("still succeeds when the thread cannot be written", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", studied));
+      vi.mocked(hasCopilotMessages).mockResolvedValue(true);
+      vi.mocked(insertCopilotMessages).mockRejectedValue(new Error("down"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      await runImageAnalysis("job-1");
+      expect(succeedJob).toHaveBeenCalled();
+    });
   });
 });
